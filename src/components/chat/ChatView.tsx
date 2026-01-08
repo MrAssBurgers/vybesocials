@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import { 
   useMessages, 
   useTypingIndicator, 
@@ -27,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ReadReceipts } from './ReadReceipts';
+import { VoiceRecorder, AudioMessage } from './VoiceRecorder';
 import { 
   ArrowLeft, 
   Send, 
@@ -36,11 +38,11 @@ import {
   Eye,
   EyeOff,
   Check,
-  CheckCheck,
   RefreshCw,
   X,
   Loader2,
-  Sparkles
+  Sparkles,
+  Mic
 } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -107,8 +109,11 @@ export function ChatView() {
   const [messageText, setMessageText] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('permanent');
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const hasMarkedReadRef = useRef<Set<string>>(new Set());
   const lastReadSyncedForConversationRef = useRef<string | null>(null);
@@ -242,6 +247,114 @@ export function ChatView() {
     } catch (error) {
       console.error('Failed to add reaction:', error);
     }
+  };
+
+  // Handle image upload
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !conversationId || !profile?.id) return;
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB');
+      return;
+    }
+
+    setIsUploadingMedia(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(fileName);
+
+      // Send message with media
+      await sendMediaMessage(publicUrl, 'image');
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      toast.error('Failed to upload image');
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
+  // Handle voice recording complete
+  const handleVoiceRecordingComplete = async (blob: Blob) => {
+    if (!conversationId || !profile?.id) return;
+
+    setIsUploadingMedia(true);
+
+    try {
+      const fileName = `${profile.id}/${Date.now()}.webm`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(fileName, blob);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(fileName);
+
+      await sendMediaMessage(publicUrl, 'audio');
+      setIsRecordingVoice(false);
+    } catch (error) {
+      console.error('Failed to upload voice message:', error);
+      toast.error('Failed to upload voice message');
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
+  // Send media message
+  const sendMediaMessage = async (mediaUrl: string, mediaType: string) => {
+    if (!conversationId || !profile?.id) return;
+
+    const expiresAt = viewMode === '24h' 
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
+    const { error } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        sender_id: profile.id,
+        media_url: mediaUrl,
+        media_type: mediaType,
+        view_mode: viewMode,
+        expires_at: expiresAt,
+      });
+
+    if (error) throw error;
+
+    // Update conversation
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', conversationId);
+
+    queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+    queryClient.invalidateQueries({ queryKey: ['conversations'] });
   };
 
   if (isLoading) {
@@ -417,74 +530,137 @@ export function ChatView() {
         animate={{ y: 0, opacity: 1 }}
         className="p-4 border-t border-border bg-background"
       >
-        <div className="flex items-center gap-2">
-          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-            <Button variant="ghost" size="icon" className="flex-shrink-0">
-              <ImageIcon className="h-5 w-5" />
-            </Button>
-          </motion.div>
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageSelect}
+          className="hidden"
+        />
 
-          {/* View Mode Selector */}
-          <DropdownMenu open={showViewModeMenu} onOpenChange={setShowViewModeMenu}>
-            <DropdownMenuTrigger asChild>
+        <AnimatePresence mode="wait">
+          {isRecordingVoice ? (
+            <VoiceRecorder
+              key="voice-recorder"
+              onRecordingComplete={handleVoiceRecordingComplete}
+              onCancel={() => setIsRecordingVoice(false)}
+              isUploading={isUploadingMedia}
+            />
+          ) : (
+            <motion.div 
+              key="text-input"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center gap-2"
+            >
+              {/* Image upload button */}
               <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                <Button variant="ghost" size="icon" className="flex-shrink-0">
-                  {viewMode === 'view_once' ? (
-                    <EyeOff className="h-5 w-5 text-orange-500" />
-                  ) : viewMode === '24h' ? (
-                    <Clock className="h-5 w-5 text-yellow-500" />
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="flex-shrink-0"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingMedia}
+                >
+                  {isUploadingMedia ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    <Eye className="h-5 w-5" />
+                    <ImageIcon className="h-5 w-5" />
                   )}
                 </Button>
               </motion.div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setViewMode('permanent')}>
-                <Eye className="h-4 w-4 mr-2" />
-                {t('messages.permanent')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setViewMode('24h')}>
-                <Clock className="h-4 w-4 mr-2 text-yellow-500" />
-                {t('messages.24hours')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setViewMode('view_once')}>
-                <EyeOff className="h-4 w-4 mr-2 text-orange-500" />
-                {t('messages.viewOnce')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
 
-          <Input
-            ref={inputRef}
-            value={messageText}
-            onChange={(e) => handleInputChange(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={t('messages.typeMessage')}
-            className="flex-1 transition-all focus:ring-2 focus:ring-primary/20"
-          />
+              {/* View Mode Selector */}
+              <DropdownMenu open={showViewModeMenu} onOpenChange={setShowViewModeMenu}>
+                <DropdownMenuTrigger asChild>
+                  <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                    <Button variant="ghost" size="icon" className="flex-shrink-0">
+                      {viewMode === 'view_once' ? (
+                        <EyeOff className="h-5 w-5 text-orange-500" />
+                      ) : viewMode === '24h' ? (
+                        <Clock className="h-5 w-5 text-yellow-500" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </Button>
+                  </motion.div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => setViewMode('permanent')}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    {t('messages.permanent')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setViewMode('24h')}>
+                    <Clock className="h-4 w-4 mr-2 text-yellow-500" />
+                    {t('messages.24hours')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setViewMode('view_once')}>
+                    <EyeOff className="h-4 w-4 mr-2 text-orange-500" />
+                    {t('messages.viewOnce')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-          <motion.div
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9, rotate: 15 }}
-          >
-            <Button 
-              onClick={handleSend}
-              disabled={!messageText.trim() || isPending}
-              size="icon"
-              className="flex-shrink-0"
-            >
-              {isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Send className="h-5 w-5" />
+              <Input
+                ref={inputRef}
+                value={messageText}
+                onChange={(e) => handleInputChange(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={t('messages.typeMessage')}
+                className="flex-1 transition-all focus:ring-2 focus:ring-primary/20"
+              />
+
+              {/* Voice recording button (when no text) */}
+              {!messageText.trim() && (
+                <motion.div 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0 }}
+                  whileHover={{ scale: 1.1 }} 
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <Button 
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsRecordingVoice(true)}
+                    className="flex-shrink-0"
+                  >
+                    <Mic className="h-5 w-5" />
+                  </Button>
+                </motion.div>
               )}
-            </Button>
-          </motion.div>
-        </div>
+
+              {/* Send button (when text exists) */}
+              {messageText.trim() && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0 }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9, rotate: 15 }}
+                >
+                  <Button 
+                    onClick={handleSend}
+                    disabled={!messageText.trim() || isPending}
+                    size="icon"
+                    className="flex-shrink-0"
+                  >
+                    {isPending ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Send className="h-5 w-5" />
+                    )}
+                  </Button>
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
-          {viewMode !== 'permanent' && (
+          {viewMode !== 'permanent' && !isRecordingVoice && (
             <motion.p 
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
@@ -566,6 +742,23 @@ function MessageBubble({
           )}
           onDoubleClick={() => setShowReactions(!showReactions)}
         >
+          {/* Media content */}
+          {message.media_url && message.media_type === 'image' && (
+            <motion.img
+              src={message.media_url}
+              alt="Shared image"
+              className="rounded-lg max-w-full max-h-64 object-cover mb-2"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              loading="lazy"
+            />
+          )}
+
+          {message.media_url && message.media_type === 'audio' && (
+            <AudioMessage src={message.media_url} isOwn={isOwn} />
+          )}
+
+          {/* Text content */}
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (
             <motion.p 
               initial={{ opacity: 0 }}
@@ -574,9 +767,9 @@ function MessageBubble({
             >
               Message viewed
             </motion.p>
-          ) : (
+          ) : message.content ? (
             <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-          )}
+          ) : null}
 
           {/* View mode indicator */}
           {message.view_mode !== 'permanent' && (
