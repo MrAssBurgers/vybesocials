@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { motion } from 'framer-motion';
+import { triggerNavFeedback } from '@/lib/navFeedback';
 
 export function BottomNav() {
   const { t } = useTranslation();
@@ -33,6 +34,7 @@ export function BottomNav() {
                 key={item.path}
                 to={path}
                 className="relative flex items-center justify-center"
+                onClick={triggerNavFeedback}
               >
                 <motion.div
                   whileTap={{ scale: 0.9 }}
@@ -49,6 +51,7 @@ export function BottomNav() {
               key={item.path}
               to={path}
               className="relative flex flex-col items-center justify-center gap-1 py-2"
+              onClick={triggerNavFeedback}
             >
               <motion.div
                 whileTap={{ scale: 0.9 }}

@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { triggerNavFeedback } from '@/lib/navFeedback';
 
 export function Sidebar() {
   const { t } = useTranslation();
@@ -50,6 +51,7 @@ export function Sidebar() {
             <Link
               key={item.path}
               to={item.path}
+              onClick={triggerNavFeedback}
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group",
                 isActive
@@ -79,7 +81,7 @@ export function Sidebar() {
         })}
 
         {/* Create Button */}
-        <Link to="/upload" className="block mt-4">
+        <Link to="/upload" className="block mt-4" onClick={triggerNavFeedback}>
           <Button className="w-full gradient-animated text-primary-foreground font-semibold h-12 rounded-xl">
             <PlusCircle className="h-5 w-5 mr-2" />
             {t('nav.upload')}
