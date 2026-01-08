@@ -20,6 +20,7 @@ import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
 import Onboarding from "./pages/Onboarding";
 import Messages from "./pages/Messages";
+import NewMessage from "./pages/NewMessage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -54,8 +55,8 @@ const App = () => (
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/messages" element={<Messages />} />
+                <Route path="/messages/new" element={<NewMessage />} />
                 <Route path="/messages/:conversationId" element={<Messages />} />
-                <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
           </TooltipProvider>
