@@ -93,14 +93,19 @@ export default function NewMessage() {
   const safeResults = results || [];
 
   const selectUser = async (user: RecentMessageUser) => {
+    if (!profile?.id) {
+      toast.error("Please wait, loading your profile...");
+      return;
+    }
     try {
       pushRecentMessageUser(user);
       const conversation = await createConversation.mutateAsync({
         memberIds: [user.id],
       });
       navigate(`/messages/${conversation.id}`);
-    } catch (e) {
-      toast.error((e as any)?.message || "Failed to start conversation");
+    } catch (e: any) {
+      console.error("selectUser error:", e);
+      toast.error(e?.message || "Failed to start conversation");
     }
   };
 
