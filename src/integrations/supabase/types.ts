@@ -361,6 +361,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      filter_profanity: { Args: { input_text: string }; Returns: string }
       get_comment_count: { Args: { p_post_id: string }; Returns: number }
       get_follower_count: { Args: { profile_id: string }; Returns: number }
       get_following_count: { Args: { profile_id: string }; Returns: number }
