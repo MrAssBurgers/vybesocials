@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Progress } from '@/components/ui/progress';
 
 const contentTypes = [
@@ -119,7 +120,7 @@ export default function UploadPage() {
       navigate('/home');
     } catch (error: any) {
       clearInterval(progressInterval);
-      toast.error(error.message);
+      toast.error(getUserFriendlyError(error));
     } finally {
       setUploading(false);
       setUploadProgress(0);

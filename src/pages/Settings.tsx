@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Bell, Shield, LogOut, ChevronRight } from 'lucide-react';
+import { LogOut, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
+import { getUserFriendlyError } from '@/lib/errorUtils';
 
 export default function SettingsPage() {
   const { profile, signOut, updateProfile } = useAuth();
@@ -31,7 +31,7 @@ export default function SettingsPage() {
       if (error) throw error;
       toast.success('Profile updated!');
     } catch (error: any) {
-      toast.error(error.message);
+      toast.error(getUserFriendlyError(error));
     } finally {
       setLoading(false);
     }
@@ -99,35 +99,6 @@ export default function SettingsPage() {
           </div>
         </motion.section>
 
-        {/* Preferences */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-card rounded-xl border border-border divide-y divide-border mb-6"
-        >
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <Bell className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">Push Notifications</p>
-                <p className="text-sm text-muted-foreground">Get notified about activity</p>
-              </div>
-            </div>
-            <Switch defaultChecked />
-          </div>
-
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <Shield className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">Private Account</p>
-                <p className="text-sm text-muted-foreground">Only followers can see your content</p>
-              </div>
-            </div>
-            <Switch />
-          </div>
-        </motion.section>
 
         {/* Account Actions */}
         <motion.section
