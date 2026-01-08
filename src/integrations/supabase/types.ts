@@ -161,6 +161,53 @@ export type Database = {
           },
         ]
       }
+      content_flags: {
+        Row: {
+          ai_categories: Json | null
+          ai_score: number | null
+          content_id: string
+          content_type: string
+          created_at: string
+          flagged_text: string | null
+          id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          ai_categories?: Json | null
+          ai_score?: number | null
+          content_id: string
+          content_type: string
+          created_at?: string
+          flagged_text?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          ai_categories?: Json | null
+          ai_score?: number | null
+          content_id?: string
+          content_type?: string
+          created_at?: string
+          flagged_text?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_flags_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_members: {
         Row: {
           conversation_id: string
@@ -667,25 +714,37 @@ export type Database = {
       }
       reports: {
         Row: {
+          admin_notes: string | null
           created_at: string
           id: string
           post_id: string
           reason: string
           reporter_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string | null
         }
         Insert: {
+          admin_notes?: string | null
           created_at?: string
           id?: string
           post_id: string
           reason: string
           reporter_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
         }
         Update: {
+          admin_notes?: string | null
           created_at?: string
           id?: string
           post_id?: string
           reason?: string
           reporter_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
         }
         Relationships: [
           {
@@ -698,6 +757,13 @@ export type Database = {
           {
             foreignKeyName: "reports_reporter_id_fkey"
             columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_reviewed_by_fkey"
+            columns: ["reviewed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -901,6 +967,35 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_settings: {
         Row: {
           content_language: string[] | null
@@ -970,13 +1065,20 @@ export type Database = {
       get_follower_count: { Args: { profile_id: string }; Returns: number }
       get_following_count: { Args: { profile_id: string }; Returns: number }
       get_like_count: { Args: { p_post_id: string }; Returns: number }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       is_member_of_conversation: {
         Args: { _conversation_id: string }
         Returns: boolean
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1103,6 +1205,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
