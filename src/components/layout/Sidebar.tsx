@@ -1,22 +1,24 @@
-import { Home, PlaySquare, PlusCircle, Compass, User, Bell, Settings, LogOut } from 'lucide-react';
+import { Home, PlaySquare, PlusCircle, Compass, User, Bell, Settings, LogOut, MessageCircle, Sparkles } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
-const mainNavItems = [
-  { icon: Home, label: 'Home', path: '/home' },
-  { icon: PlaySquare, label: 'Shorts', path: '/shorts' },
-  { icon: Compass, label: 'Explore', path: '/explore' },
-  { icon: Bell, label: 'Notifications', path: '/notifications' },
-];
-
 export function Sidebar() {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
+
+  const mainNavItems = [
+    { icon: Home, labelKey: 'nav.home', path: '/home' },
+    { icon: PlaySquare, labelKey: 'nav.shorts', path: '/shorts' },
+    { icon: Compass, labelKey: 'nav.explore', path: '/explore' },
+    { icon: Bell, labelKey: 'nav.notifications', path: '/notifications' },
+  ];
 
   const handleSignOut = async () => {
     await signOut();
@@ -26,11 +28,15 @@ export function Sidebar() {
   return (
     <aside className="hidden md:flex fixed left-0 top-0 h-screen w-64 flex-col bg-sidebar border-r border-sidebar-border p-4">
       {/* Logo */}
-      <Link to="/home" className="flex items-center gap-2 px-2 py-4">
-        <div className="gradient-animated rounded-xl p-2">
-          <span className="text-2xl">😂</span>
-        </div>
-        <span className="font-display text-xl font-bold gradient-text">LOLLoop</span>
+      <Link to="/home" className="flex items-center gap-2 px-2 py-4 group">
+        <motion.div 
+          className="gradient-animated rounded-xl p-2"
+          whileHover={{ scale: 1.1, rotate: 5 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <Sparkles className="w-6 h-6 text-white" />
+        </motion.div>
+        <span className="font-display text-2xl font-black gradient-text group-hover:scale-105 transition-transform">XD</span>
       </Link>
 
       {/* Main Navigation */}
@@ -57,7 +63,7 @@ export function Sidebar() {
                 />
               )}
               <Icon className="h-5 w-5" />
-              <span className="font-medium">{item.label}</span>
+              <span className="font-medium">{t(item.labelKey)}</span>
             </Link>
           );
         })}
@@ -66,7 +72,7 @@ export function Sidebar() {
         <Link to="/upload" className="block mt-4">
           <Button className="w-full gradient-animated text-primary-foreground font-semibold h-12 rounded-xl">
             <PlusCircle className="h-5 w-5 mr-2" />
-            Create
+            {t('nav.upload')}
           </Button>
         </Link>
       </nav>
@@ -83,7 +89,7 @@ export function Sidebar() {
               {profile?.username?.[0]?.toUpperCase() || 'U'}
             </AvatarFallback>
           </Avatar>
-          <span className="font-medium">{profile?.username || 'Profile'}</span>
+          <span className="font-medium">{profile?.username || t('nav.profile')}</span>
         </Link>
 
         <Link
@@ -91,7 +97,7 @@ export function Sidebar() {
           className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-all"
         >
           <Settings className="h-5 w-5" />
-          <span className="font-medium">Settings</span>
+          <span className="font-medium">{t('nav.settings')}</span>
         </Link>
 
         <button
@@ -99,7 +105,7 @@ export function Sidebar() {
           className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all w-full"
         >
           <LogOut className="h-5 w-5" />
-          <span className="font-medium">Sign Out</span>
+          <span className="font-medium">{t('auth.logout')}</span>
         </button>
       </div>
     </aside>

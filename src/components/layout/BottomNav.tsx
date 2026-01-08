@@ -1,20 +1,22 @@
 import { Home, PlaySquare, PlusCircle, Compass, User } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { motion } from 'framer-motion';
 
-const navItems = [
-  { icon: Home, label: 'Home', path: '/home' },
-  { icon: PlaySquare, label: 'Shorts', path: '/shorts' },
-  { icon: PlusCircle, label: 'Create', path: '/upload', isCreate: true },
-  { icon: Compass, label: 'Explore', path: '/explore' },
-  { icon: User, label: 'Profile', path: '/profile' },
-];
-
 export function BottomNav() {
+  const { t } = useTranslation();
   const location = useLocation();
   const { profile } = useAuth();
+
+  const navItems = [
+    { icon: Home, labelKey: 'nav.home', path: '/home' },
+    { icon: PlaySquare, labelKey: 'nav.shorts', path: '/shorts' },
+    { icon: PlusCircle, labelKey: 'nav.upload', path: '/upload', isCreate: true },
+    { icon: Compass, labelKey: 'nav.explore', path: '/explore' },
+    { icon: User, labelKey: 'nav.profile', path: '/profile' },
+  ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-t border-border safe-bottom md:hidden">
@@ -72,7 +74,7 @@ export function BottomNav() {
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                {item.label}
+                {t(item.labelKey)}
               </span>
             </Link>
           );

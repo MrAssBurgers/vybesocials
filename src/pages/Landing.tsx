@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
+import { Sparkles, Zap, Users, Globe, MessageCircle } from 'lucide-react';
 
 export default function Landing() {
+  const { t } = useTranslation();
   const { user, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
@@ -33,7 +36,7 @@ export default function Landing() {
       if (isLogin) {
         const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
-        toast.success('Welcome back!');
+        toast.success(t('auth.login') + ' ✨');
         navigate('/home');
       } else {
         if (!formData.username.trim()) {
@@ -41,8 +44,8 @@ export default function Landing() {
         }
         const { error } = await signUp(formData.email, formData.password, formData.username);
         if (error) throw error;
-        toast.success('Account created! Welcome to LOLLoop!');
-        navigate('/home');
+        toast.success('Welcome to XD! 🎉');
+        navigate('/onboarding');
       }
     } catch (error: any) {
       toast.error(getUserFriendlyError(error));
@@ -54,18 +57,15 @@ export default function Landing() {
   const handleDemoLogin = async () => {
     setLoading(true);
     try {
-      // Try to sign in with demo account
-      const { error } = await signIn('demo@lolloop.com', 'demo123456');
+      const { error } = await signIn('demo@xd.app', 'demo123456');
       if (error) {
-        // If demo account doesn't exist, create it
-        const { error: signUpError } = await signUp('demo@lolloop.com', 'demo123456', 'demouser');
+        const { error: signUpError } = await signUp('demo@xd.app', 'demo123456', 'demouser');
         if (signUpError && !signUpError.message.includes('already registered')) {
           throw signUpError;
         }
-        // Try signing in again
-        await signIn('demo@lolloop.com', 'demo123456');
+        await signIn('demo@xd.app', 'demo123456');
       }
-      toast.success('Welcome to the demo!');
+      toast.success('Welcome to the demo! 🎭');
       navigate('/home');
     } catch (error: any) {
       toast.error(getUserFriendlyError(error));
@@ -114,37 +114,46 @@ export default function Landing() {
           >
             {/* Logo */}
             <div className="flex items-center gap-3 mb-8">
-              <div className="gradient-animated rounded-2xl p-3">
-                <span className="text-4xl">😂</span>
-              </div>
-              <h1 className="font-display text-4xl font-bold gradient-text">LOLLoop</h1>
+              <motion.div 
+                className="gradient-animated rounded-2xl p-3"
+                whileHover={{ scale: 1.1, rotate: 5 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Sparkles className="w-8 h-8 text-white" />
+              </motion.div>
+              <h1 className="font-display text-5xl font-black gradient-text">XD</h1>
             </div>
 
             {/* Tagline */}
             <h2 className="text-4xl lg:text-6xl font-display font-bold mb-6 leading-tight">
-              Where <span className="gradient-text">funny</span> goes{' '}
-              <span className="gradient-text">viral</span>
+              {t('app.tagline').split(' ').map((word, i) => (
+                <span key={i} className={i % 2 === 1 ? 'gradient-text' : ''}>
+                  {word}{' '}
+                </span>
+              ))}
             </h2>
 
             <p className="text-xl text-muted-foreground mb-8 max-w-lg">
-              Discover, create, and share the funniest content on the internet. 
-              Memes, fails, pets, gaming - all in one endless loop of laughter.
+              {t('app.description')}
             </p>
 
             {/* Features */}
             <div className="grid grid-cols-2 gap-4 mb-8">
               {[
-                { emoji: '🎬', label: 'Shorts & Reels' },
-                { emoji: '📸', label: 'Photo Memes' },
-                { emoji: '🎮', label: 'Gaming Clips' },
-                { emoji: '🐾', label: 'Pet Videos' },
-              ].map((feature) => (
+                { icon: Zap, label: 'Shorts & Reels' },
+                { icon: MessageCircle, label: 'DMs & Stories' },
+                { icon: Users, label: 'Communities' },
+                { icon: Globe, label: 'Global Reach' },
+              ].map((feature, index) => (
                 <motion.div
                   key={feature.label}
-                  whileHover={{ scale: 1.05 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 + index * 0.1 }}
+                  whileHover={{ scale: 1.05, y: -2 }}
                   className="glass-card rounded-xl p-4 flex items-center gap-3"
                 >
-                  <span className="text-2xl">{feature.emoji}</span>
+                  <feature.icon className="w-6 h-6 text-primary" />
                   <span className="font-medium">{feature.label}</span>
                 </motion.div>
               ))}
@@ -162,13 +171,13 @@ export default function Landing() {
           >
             <div className="glass-card rounded-2xl p-8 gradient-border">
               <h3 className="text-2xl font-bold mb-6 text-center">
-                {isLogin ? 'Welcome back!' : 'Join LOLLoop'}
+                {isLogin ? t('auth.login') : t('auth.signup')}
               </h3>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {!isLogin && (
                   <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
+                    <Label htmlFor="username">{t('auth.username')}</Label>
                     <Input
                       id="username"
                       placeholder="Choose a username"
@@ -180,7 +189,7 @@ export default function Landing() {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">{t('auth.email')}</Label>
                   <Input
                     id="email"
                     type="email"
@@ -193,7 +202,7 @@ export default function Landing() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">{t('auth.password')}</Label>
                   <Input
                     id="password"
                     type="password"
@@ -208,12 +217,11 @@ export default function Landing() {
 
                 <Button
                   type="submit"
-                  className="w-full"
-                  variant="gradient"
+                  className="w-full gradient-animated text-white font-semibold"
                   size="lg"
                   disabled={loading}
                 >
-                  {loading ? 'Loading...' : isLogin ? 'Sign In' : 'Create Account'}
+                  {loading ? 'Loading...' : isLogin ? t('auth.login') : t('auth.signup')}
                 </Button>
               </form>
 
@@ -222,7 +230,7 @@ export default function Landing() {
                   <div className="w-full border-t border-border" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Or</span>
+                  <span className="bg-card px-2 text-muted-foreground">{t('auth.continueWith')}</span>
                 </div>
               </div>
 
@@ -233,17 +241,17 @@ export default function Landing() {
                 onClick={handleDemoLogin}
                 disabled={loading}
               >
-                🎭 Try Demo Account
+                🎭 {t('auth.demoAccount')}
               </Button>
 
               <p className="text-center text-sm text-muted-foreground mt-6">
-                {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
+                {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}{' '}
                 <button
                   type="button"
                   onClick={() => setIsLogin(!isLogin)}
                   className="text-primary hover:underline font-medium"
                 >
-                  {isLogin ? 'Sign up' : 'Sign in'}
+                  {isLogin ? t('auth.signup') : t('auth.login')}
                 </button>
               </p>
             </div>

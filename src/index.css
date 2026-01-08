@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LOLLoop Design System - Dark mode with animated gradients */
+/* XD Design System - Dark/Light mode with animated gradients */
 
 @layer base {
   :root {
@@ -36,7 +36,7 @@
 
     --radius: 0.75rem;
 
-    /* Custom LOLLoop colors */
+    /* Custom XD colors */
     --gradient-start: 330 100% 60%;
     --gradient-mid: 280 100% 60%;
     --gradient-end: 185 100% 50%;
@@ -57,6 +57,49 @@
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 240 10% 18%;
     --sidebar-ring: 330 100% 60%;
+  }
+
+  /* Light mode */
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 4%;
+
+    --card: 0 0% 98%;
+    --card-foreground: 240 10% 4%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 4%;
+
+    --primary: 330 100% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 5% 92%;
+    --secondary-foreground: 240 10% 4%;
+
+    --muted: 240 5% 90%;
+    --muted-foreground: 240 5% 40%;
+
+    --accent: 185 100% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 5% 85%;
+    --input: 240 5% 85%;
+    --ring: 330 100% 50%;
+
+    --glass: 0 0% 100%;
+    --glass-border: 240 5% 90%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 10% 4%;
+    --sidebar-primary: 330 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 5% 92%;
+    --sidebar-accent-foreground: 240 10% 4%;
+    --sidebar-border: 240 5% 85%;
+    --sidebar-ring: 330 100% 50%;
   }
 }
 
@@ -87,6 +130,15 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground));
+  }
+
+  /* Reduced motion support */
+  .reduce-motion *,
+  .reduce-motion *::before,
+  .reduce-motion *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
