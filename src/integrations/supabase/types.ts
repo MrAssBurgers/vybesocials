@@ -959,6 +959,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_profile_id: { Args: never; Returns: string }
       filter_profanity: { Args: { input_text: string }; Returns: string }
       get_comment_count: { Args: { p_post_id: string }; Returns: number }
       get_follower_count: { Args: { profile_id: string }; Returns: number }
