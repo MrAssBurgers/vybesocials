@@ -1,4 +1,4 @@
-import { Home, PlaySquare, PlusCircle, Compass, User, Bell, Settings, LogOut, MessageCircle, Sparkles } from 'lucide-react';
+import { Home, PlaySquare, PlusCircle, Compass, User, Bell, Settings, LogOut, MessageCircle, Sparkles, Shield } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -9,12 +9,19 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { FeedbackButton } from '@/components/feedback/FeedbackButton';
+import { useUserRole } from '@/hooks/useModeration';
 
 export function Sidebar() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
+  const { data: userRole } = useUserRole();
+
+  // Check if user is admin or moderator OR is mrassburgers
+  const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
+  const isMrassburgers = profile?.username?.toLowerCase() === 'mrassburgers';
+  const showAdminLink = isAdminOrMod || isMrassburgers;
 
   const mainNavItems = [
     { icon: Home, labelKey: 'nav.home', path: '/home' },
@@ -112,6 +119,16 @@ export function Sidebar() {
         <div className="px-4 py-2">
           <FeedbackButton />
         </div>
+
+        {showAdminLink && (
+          <Link
+            to="/admin"
+            className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-all"
+          >
+            <Shield className="h-5 w-5" />
+            <span className="font-medium">Admin</span>
+          </Link>
+        )}
 
         <Link
           to="/settings"

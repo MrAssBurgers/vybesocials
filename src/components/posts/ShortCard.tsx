@@ -171,10 +171,10 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
   const isVideo = post.media_url.includes('.mp4') || post.media_url.includes('.webm') || post.media_url.includes('.mov');
 
   return (
-    <div className="relative h-full w-full bg-background">
+    <div className="relative h-full w-full bg-background flex items-center justify-center">
       {/* Media */}
       <div 
-        className="absolute inset-0"
+        className="absolute inset-0 flex items-center justify-center"
         onClick={isVideo ? togglePlay : undefined}
         onDoubleClick={handleDoubleTap}
       >
@@ -182,7 +182,7 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
           <video
             ref={videoRef}
             src={signedMediaUrl || ''}
-            className="w-full h-full object-cover"
+            className="h-full w-full object-contain"
             loop
             playsInline
             muted={isMuted}
@@ -191,7 +191,7 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
           <img
             src={signedMediaUrl || ''}
             alt={post.caption}
-            className="w-full h-full object-cover"
+            className="h-full w-full object-contain"
           />
         )}
 

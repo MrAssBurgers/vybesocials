@@ -2,3 +2,12 @@ project_id = "szthqtnbepupjqjxaduu"
 
 [functions.moderate-content]
 verify_jwt = false
+
+[functions.generate-caption]
+verify_jwt = false
+
+[functions.get-recommendations]
+verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false

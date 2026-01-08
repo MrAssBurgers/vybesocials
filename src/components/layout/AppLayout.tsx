@@ -3,6 +3,7 @@ import { BottomNav } from './BottomNav';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '@/lib/auth';
 import { Navigate } from 'react-router-dom';
+import { AIChatAssistant } from '@/components/ai/AIChatAssistant';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -33,6 +34,7 @@ export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
         {children}
       </main>
       <BottomNav />
+      <AIChatAssistant />
     </div>
   );
 }

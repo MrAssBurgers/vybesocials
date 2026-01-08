@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Progress } from '@/components/ui/progress';
+import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 
 const contentTypes = [
   { value: 'post', label: 'Photo Post', icon: Image, description: 'Share a photo or meme' },
@@ -217,6 +218,11 @@ export default function UploadPage() {
           {/* Caption */}
           <div className="space-y-3">
             <Label htmlFor="caption">Caption</Label>
+            <AICaptionGenerator
+              tags={tags}
+              contentType={type}
+              onSelectCaption={(caption) => setCaption(caption)}
+            />
             <Textarea
               id="caption"
               placeholder="Write a caption..."
