@@ -75,6 +75,11 @@ export function useNotifications() {
           filter: `user_id=eq.${profile.id}`,
         },
         async (payload) => {
+          // Don't show notification if actor is the same as user (self-notification)
+          if (payload.new.actor_id === profile.id) {
+            return;
+          }
+
           // Fetch the actor details
           const { data: actor } = await supabase
             .from('profiles')
