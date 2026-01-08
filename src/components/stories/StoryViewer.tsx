@@ -7,6 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { StoryMedia } from './StoryMedia';
+import { useSignedUrl } from '@/hooks/useSignedUrl';
 
 interface StoryViewerProps {
   groups: StoryGroup[];
@@ -26,6 +28,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   const currentGroup = groups[groupIndex];
   const currentStory = currentGroup?.stories[storyIndex];
   const isOwnStory = currentGroup?.user.id === profile?.id;
+  const signedAvatarUrl = useSignedUrl(currentGroup?.user.avatar_url);
 
   const STORY_DURATION = 5000; // 5 seconds per story
 
@@ -135,21 +138,10 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
             exit={{ opacity: 0 }}
             className="absolute inset-0"
           >
-            {currentStory.media_type === 'video' ? (
-              <video
-                src={currentStory.media_url}
-                className="w-full h-full object-cover"
-                autoPlay
-                muted
-                playsInline
-              />
-            ) : (
-              <img
-                src={currentStory.media_url}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            )}
+            <StoryMedia 
+              mediaUrl={currentStory.media_url} 
+              mediaType={currentStory.media_type} 
+            />
           </motion.div>
         </AnimatePresence>
 
@@ -176,7 +168,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
         <div className="absolute top-6 inset-x-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 border-2 border-white">
-              <AvatarImage src={currentGroup.user.avatar_url || undefined} />
+              <AvatarImage src={signedAvatarUrl || undefined} />
               <AvatarFallback>{currentGroup.user.username?.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div>

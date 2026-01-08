@@ -21,6 +21,7 @@ import { EditPostDialog } from './EditPostDialog';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { useTogglePin } from '@/hooks/usePosts';
 import { useUserRole } from '@/hooks/useModeration';
+import { useSignedUrl } from '@/hooks/useSignedUrl';
 
 interface PostCardProps {
   post: {
@@ -53,6 +54,9 @@ export function PostCard({ post }: PostCardProps) {
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+
+  const signedMediaUrl = useSignedUrl(post.media_url);
+  const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
 
   const isOwnPost = profile?.id === post.author.id;
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
@@ -161,7 +165,7 @@ export function PostCard({ post }: PostCardProps) {
         <Link to={`/u/${post.author.username}`} className="flex items-center gap-3">
           <div className="story-ring">
             <Avatar className="h-10 w-10 border-2 border-background">
-              <AvatarImage src={post.author.avatar_url || undefined} />
+              <AvatarImage src={signedAvatarUrl || undefined} />
               <AvatarFallback className="bg-secondary text-secondary-foreground">
                 {post.author.username[0].toUpperCase()}
               </AvatarFallback>
@@ -238,14 +242,14 @@ export function PostCard({ post }: PostCardProps) {
       >
         {post.type === 'video' ? (
           <video
-            src={post.media_url}
+            src={signedMediaUrl || ''}
             className="w-full h-full object-cover"
             controls
             playsInline
           />
         ) : (
           <img
-            src={post.media_url}
+            src={signedMediaUrl || ''}
             alt={post.caption}
             className="w-full h-full object-cover"
           />

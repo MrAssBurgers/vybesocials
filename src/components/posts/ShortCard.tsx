@@ -16,6 +16,7 @@ import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/useModeration';
+import { useSignedUrl } from '@/hooks/useSignedUrl';
 
 interface ShortCardProps {
   post: {
@@ -51,6 +52,9 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
   const isOwnPost = profile?.id === post.author.id;
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
   const canDelete = isOwnPost || isAdmin;
+
+  const signedMediaUrl = useSignedUrl(post.media_url);
+  const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -177,7 +181,7 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
         {isVideo ? (
           <video
             ref={videoRef}
-            src={post.media_url}
+            src={signedMediaUrl || ''}
             className="w-full h-full object-cover"
             loop
             playsInline
@@ -185,7 +189,7 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
           />
         ) : (
           <img
-            src={post.media_url}
+            src={signedMediaUrl || ''}
             alt={post.caption}
             className="w-full h-full object-cover"
           />
@@ -229,7 +233,7 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
         <Link to={`/u/${post.author.username}`} className="relative">
           <div className="story-ring">
             <Avatar className="h-12 w-12 border-2 border-background">
-              <AvatarImage src={post.author.avatar_url || undefined} />
+              <AvatarImage src={signedAvatarUrl || undefined} />
               <AvatarFallback className="bg-secondary text-secondary-foreground">
                 {post.author.username[0].toUpperCase()}
               </AvatarFallback>
