@@ -55,12 +55,14 @@ export interface Conversation {
 
 export function useConversations() {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['conversations', profile?.id],
     queryFn: async () => {
       if (!profile?.id) return [];
 
+      // Fetch conversations with members in a single query
       const { data: conversations, error } = await supabase
         .from('conversations')
         .select(`
@@ -77,38 +79,74 @@ export function useConversations() {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
+      if (!conversations?.length) return [];
 
-      // Get last message for each conversation
-      const conversationsWithMessages = await Promise.all(
-        (conversations || []).map(async (conv) => {
-          const { data: messages } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('conversation_id', conv.id)
-            .eq('is_deleted', false)
-            .order('created_at', { ascending: false })
-            .limit(1);
+      // Batch fetch last messages for all conversations
+      const convIds = conversations.map(c => c.id);
+      const { data: allMessages } = await supabase
+        .from('messages')
+        .select('*')
+        .in('conversation_id', convIds)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false });
 
-          const { count: unreadCount } = await supabase
-            .from('messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('conversation_id', conv.id)
-            .eq('is_deleted', false)
-            .neq('sender_id', profile.id)
-            .gt('created_at', conv.members?.find((m: any) => m.user_id === profile.id)?.last_read_at || '1970-01-01');
+      // Group messages by conversation and get the latest one
+      const lastMessageMap = new Map<string, any>();
+      (allMessages || []).forEach(msg => {
+        if (!lastMessageMap.has(msg.conversation_id)) {
+          lastMessageMap.set(msg.conversation_id, msg);
+        }
+      });
 
-          return {
-            ...conv,
-            last_message: messages?.[0] || null,
-            unread_count: unreadCount || 0,
-          };
-        })
-      );
+      // Build final result with unread counts
+      const result = conversations.map(conv => {
+        const memberRecord = conv.members?.find((m: any) => m.user_id === profile.id);
+        const lastReadAt = memberRecord?.last_read_at || '1970-01-01';
+        
+        // Count unread from cached messages
+        const unreadCount = (allMessages || []).filter(
+          msg => msg.conversation_id === conv.id && 
+                 msg.sender_id !== profile.id && 
+                 msg.created_at > lastReadAt
+        ).length;
 
-      return conversationsWithMessages as Conversation[];
+        return {
+          ...conv,
+          last_message: lastMessageMap.get(conv.id) || null,
+          unread_count: unreadCount,
+        };
+      });
+
+      return result as Conversation[];
     },
     enabled: !!profile?.id,
+    staleTime: 5000, // Cache for 5 seconds
   });
+
+  // Real-time subscription for conversations
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const channel = supabase
+      .channel('conversations-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'conversations' },
+        () => queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        () => queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, queryClient]);
+
+  return query;
 }
 
 export function useMessages(conversationId: string | undefined) {
