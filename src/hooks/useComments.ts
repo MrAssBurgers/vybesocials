@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { filterBlockedContent, containsBlockedContent } from '@/lib/contentModeration';
+import { toast } from 'sonner';
 
 interface Comment {
   id: string;
@@ -11,18 +13,6 @@ interface Comment {
     username: string;
     avatar_url: string | null;
   };
-}
-
-// Simple profanity filter
-const badWords = ['fuck', 'shit', 'ass', 'bitch', 'damn', 'crap'];
-
-function filterProfanity(text: string): string {
-  let filtered = text;
-  badWords.forEach(word => {
-    const regex = new RegExp(word, 'gi');
-    filtered = filtered.replace(regex, '*'.repeat(word.length));
-  });
-  return filtered;
 }
 
 export function useComments(postId: string) {
@@ -48,7 +38,7 @@ export function useComments(postId: string) {
 
       return (data || []).map(comment => ({
         ...comment,
-        text: filterProfanity(comment.text),
+        text: filterBlockedContent(comment.text),
         user: comment.user as unknown as { id: string; username: string; avatar_url: string | null },
       }));
     },
@@ -64,7 +54,14 @@ export function useCreateComment() {
     mutationFn: async ({ postId, text, authorId }: { postId: string; text: string; authorId: string }) => {
       if (!profile) throw new Error('Not authenticated');
 
-      const filteredText = filterProfanity(text);
+      // Check for blocked content before submitting
+      const check = containsBlockedContent(text);
+      if (check.blocked) {
+        toast.error('Your comment contains inappropriate content. Please revise.');
+        throw new Error('Comment contains blocked content');
+      }
+
+      const filteredText = filterBlockedContent(text);
 
       const { data, error } = await supabase
         .from('comments')
