@@ -1,4 +1,4 @@
-import { Home, PlaySquare, PlusCircle, Compass, User } from 'lucide-react';
+import { Home, PlaySquare, PlusCircle, Compass, MessageCircle } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,7 @@ export function BottomNav() {
     { icon: PlaySquare, labelKey: 'nav.shorts', path: '/shorts' },
     { icon: PlusCircle, labelKey: 'nav.upload', path: '/upload', isCreate: true },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore' },
-    { icon: User, labelKey: 'nav.profile', path: '/profile' },
+    { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages' },
   ];
 
   return (
@@ -23,10 +23,9 @@ export function BottomNav() {
       <div className="flex items-center justify-around h-16">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path || 
-            (item.path === '/profile' && location.pathname.startsWith('/u/'));
+            location.pathname.startsWith(item.path + '/');
           const Icon = item.icon;
-          const profilePath = profile ? `/u/${profile.username}` : '/profile';
-          const path = item.path === '/profile' ? profilePath : item.path;
+          const path = item.path;
 
           if (item.isCreate) {
             return (

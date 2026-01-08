@@ -199,6 +199,26 @@
     "seeMore": "See more",
     "seeLess": "See less"
   },
+  "stories": {
+    "yourStory": "Your story",
+    "createStory": "Create Story",
+    "addCaption": "Add a caption...",
+    "selectMedia": "Select a photo or video",
+    "closeFriendsOnly": "Close Friends Only",
+    "share": "Share Story"
+  },
+  "friends": {
+    "friends": "Friends",
+    "addFriend": "Add Friend",
+    "unfriend": "Unfriend",
+    "pending": "Pending",
+    "accept": "Accept",
+    "noRequests": "No friend requests",
+    "noRequestsDesc": "When someone sends you a friend request, it will appear here",
+    "incomingRequests": "Friend Requests",
+    "outgoingRequests": "Sent Requests",
+    "requestSent": "Request sent"
+  },
   "errors": {
     "network": "Network error. Please check your connection.",
     "auth": "Authentication error. Please log in again.",

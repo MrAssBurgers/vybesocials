@@ -17,6 +17,7 @@ export function Sidebar() {
     { icon: Home, labelKey: 'nav.home', path: '/home' },
     { icon: PlaySquare, labelKey: 'nav.shorts', path: '/shorts' },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore' },
+    { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages' },
     { icon: Bell, labelKey: 'nav.notifications', path: '/notifications' },
   ];
 
