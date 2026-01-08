@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
 import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
+import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 
 const listItemVariants = {
   hidden: { opacity: 0, x: -20 },
@@ -321,6 +322,7 @@ function ConversationItem({
           <span className={`font-medium truncate ${hasUnread ? 'text-foreground' : 'text-foreground'}`}>
             {displayName}
           </span>
+          {!conversation.is_group && isOwner(otherMember?.username) && <OwnerBadge />}
         </div>
         <div className="flex items-center gap-1 text-sm text-muted-foreground truncate">
           {isOwnMessage && (

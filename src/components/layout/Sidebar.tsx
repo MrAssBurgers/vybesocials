@@ -7,6 +7,8 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { triggerNavFeedback } from '@/lib/navFeedback';
+import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
+import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 
 export function Sidebar() {
   const { t } = useTranslation();
@@ -101,8 +103,15 @@ export function Sidebar() {
               {profile?.username?.[0]?.toUpperCase() || 'U'}
             </AvatarFallback>
           </Avatar>
-          <span className="font-medium">{profile?.username || t('nav.profile')}</span>
+          <span className="font-medium flex items-center gap-1.5">
+            {profile?.username || t('nav.profile')}
+            {isOwner(profile?.username) && <OwnerBadge />}
+          </span>
         </Link>
+
+        <div className="px-4 py-2">
+          <FeedbackButton />
+        </div>
 
         <Link
           to="/settings"
