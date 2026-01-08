@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useConversations, useCreateConversation, Conversation } from '@/hooks/useMessages';
 import { useFriends } from '@/hooks/useFriends';
 import { useAuth } from '@/lib/auth';
+import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ import { QuickAddRow } from './QuickAddRow';
 import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
+import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 
 const listItemVariants = {
   hidden: { opacity: 0, x: -20 },
@@ -45,6 +47,22 @@ export function ConversationList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
+
+  // Get user IDs for online status check
+  const otherMemberIds = useMemo(() => {
+    if (!conversations || !profile?.id) return [];
+    const ids = new Set<string>();
+    conversations.forEach((conv) => {
+      conv.members?.forEach((m) => {
+        if (m.user_id !== profile.id && m.profile?.id) {
+          ids.add(m.profile.id);
+        }
+      });
+    });
+    return Array.from(ids);
+  }, [conversations, profile?.id]);
+
+  const { data: onlineStatus = {} } = useUsersOnlineStatus(otherMemberIds);
 
   // Load recent message users
   useEffect(() => {
@@ -200,6 +218,7 @@ export function ConversationList() {
                   <ConversationItem
                     conversation={conv}
                     onClick={() => navigate(`/messages/${conv.id}`)}
+                    isOnline={!conv.is_group && conv.members?.[0]?.profile?.id ? onlineStatus[conv.members.find(m => m.user_id !== profile?.id)?.profile?.id || ''] : false}
                   />
                 </motion.div>
               ))}
@@ -222,6 +241,7 @@ export function ConversationList() {
                   <ConversationItem
                     conversation={conv}
                     onClick={() => navigate(`/messages/${conv.id}`)}
+                    isOnline={!conv.is_group && conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id ? onlineStatus[conv.members.find(m => m.user_id !== profile?.id)?.profile?.id || ''] : false}
                   />
                 </motion.div>
               ))}
@@ -259,10 +279,12 @@ export function ConversationList() {
 
 function ConversationItem({ 
   conversation, 
-  onClick 
+  onClick,
+  isOnline,
 }: { 
   conversation: Conversation; 
   onClick: () => void;
+  isOnline?: boolean;
 }) {
   const { profile } = useAuth();
   const otherMembers = conversation.members?.filter((m) => m.user_id !== profile?.id) || [];
@@ -302,6 +324,10 @@ function ConversationItem({
             {displayName?.charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
+        {/* Online indicator */}
+        {!conversation.is_group && isOnline && (
+          <OnlineIndicator isOnline={true} className="bottom-0 right-0" size="md" />
+        )}
         <AnimatePresence>
           {hasUnread && (
             <motion.span 

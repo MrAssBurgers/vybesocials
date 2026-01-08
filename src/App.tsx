@@ -22,6 +22,7 @@ import Onboarding from "./pages/Onboarding";
 import Messages from "./pages/Messages";
 import NewMessage from "./pages/NewMessage";
 import AdminDashboard from "./pages/AdminDashboard";
+import Feedback from "./pages/Feedback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -59,6 +60,8 @@ const App = () => (
                 <Route path="/messages/new" element={<NewMessage />} />
                 <Route path="/messages/:conversationId" element={<Messages />} />
                 <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/feedback" element={<Feedback />} />
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
           </TooltipProvider>

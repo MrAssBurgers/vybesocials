@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { useAuth } from '@/lib/auth';
 import { Navigate } from 'react-router-dom';
 import { AIChatAssistant } from '@/components/ai/AIChatAssistant';
+import { usePresence } from '@/hooks/usePresence';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -12,6 +13,9 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
   const { user, loading } = useAuth();
+  
+  // Track online presence
+  usePresence();
 
   if (loading) {
     return (

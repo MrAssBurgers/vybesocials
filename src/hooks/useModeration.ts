@@ -132,10 +132,74 @@ export function useUserRole() {
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
-        .single();
+        .order('role'); // This will return 'admin' before 'moderator' alphabetically
       
       if (error && error.code !== 'PGRST116') throw error;
-      return data?.role as 'admin' | 'moderator' | 'user' | null;
+      
+      // Return highest role (admin > moderator > user)
+      const roles = (data || []).map((r) => r.role);
+      if (roles.includes('admin')) return 'admin';
+      if (roles.includes('moderator')) return 'moderator';
+      return null;
+    },
+  });
+}
+
+// Hook to get all user roles for admin management
+export function useAllUserRoles() {
+  return useQuery({
+    queryKey: ['all-user-roles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select(`
+          *,
+          profile:profiles!user_id(id, username, avatar_url, display_name)
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+// Mutation to add a role to a user
+export function useAddUserRole() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: 'admin' | 'moderator' }) => {
+      const { error } = await supabase
+        .from('user_roles')
+        .insert({ user_id: userId, role });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-user-roles'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+  });
+}
+
+// Mutation to remove a role from a user
+export function useRemoveUserRole() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: 'admin' | 'moderator' }) => {
+      const { error } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId)
+        .eq('role', role);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-user-roles'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     },
   });
 }
