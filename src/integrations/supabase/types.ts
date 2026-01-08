@@ -965,6 +965,10 @@ export type Database = {
       get_follower_count: { Args: { profile_id: string }; Returns: number }
       get_following_count: { Args: { profile_id: string }; Returns: number }
       get_like_count: { Args: { p_post_id: string }; Returns: number }
+      is_member_of_conversation: {
+        Args: { _conversation_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
