@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FriendButton } from '@/components/friends/FriendButton';
+import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useCreateConversation } from '@/hooks/useMessages';
@@ -131,7 +132,10 @@ export default function ProfilePage() {
           {/* Info */}
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-              <h1 className="text-2xl font-bold">@{profile.username}</h1>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                @{profile.username}
+                {isOwner(profile.username) && <OwnerBadge />}
+              </h1>
               {isOwnProfile ? (
                 <Link to="/settings">
                   <Button variant="secondary" size="sm">
