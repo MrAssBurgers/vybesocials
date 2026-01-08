@@ -9,11 +9,13 @@ import {
   useMarkMessageViewed,
   useAddReaction,
   ViewMode,
-  Message 
+  Message,
+  useConversations
 } from '@/hooks/useMessages';
-import { useConversations } from '@/hooks/useMessages';
 import { useOptimisticMessages, OptimisticMessage } from '@/hooks/useOptimisticMessages';
 import { useAuth } from '@/lib/auth';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ReadReceipts } from './ReadReceipts';
 import { 
   ArrowLeft, 
   Send, 
@@ -36,18 +39,62 @@ import {
   CheckCheck,
   RefreshCw,
   X,
-  Loader2
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
+// Animation variants
+const messageVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.9 },
+  visible: { 
+    opacity: 1, 
+    y: 0, 
+    scale: 1,
+    transition: { type: 'spring' as const, stiffness: 400, damping: 30 }
+  },
+  exit: { opacity: 0, scale: 0.9, transition: { duration: 0.15 } }
+};
+
+const bubbleHover = {
+  scale: 1.02,
+  transition: { type: 'spring' as const, stiffness: 400, damping: 25 }
+};
+
+const reactionVariants = {
+  hidden: { opacity: 0, scale: 0, y: 10 },
+  visible: { 
+    opacity: 1, 
+    scale: 1, 
+    y: 0,
+    transition: { type: 'spring' as const, stiffness: 500, damping: 25 }
+  },
+  exit: { opacity: 0, scale: 0, y: 10, transition: { duration: 0.1 } }
+};
+
+const emojiPopVariants = {
+  hidden: { scale: 0 },
+  visible: (i: number) => ({
+    scale: 1,
+    transition: { 
+      delay: i * 0.03,
+      type: 'spring' as const, 
+      stiffness: 600, 
+      damping: 20 
+    }
+  }),
+  hover: { scale: 1.3, rotate: [0, -10, 10, 0] }
+};
+
 export function ChatView() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
   
   const { data: conversations } = useConversations();
   const { data: messages, isLoading } = useMessages(conversationId);
@@ -63,18 +110,54 @@ export function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const hasMarkedReadRef = useRef<Set<string>>(new Set());
 
   const conversation = conversations?.find((c) => c.id === conversationId);
+  const isGroupChat = conversation?.is_group || false;
   const otherMembers = conversation?.members?.filter((m) => m.user_id !== profile?.id) || [];
   const otherMember = otherMembers[0]?.profile;
   const displayName = conversation?.is_group
     ? conversation.name
     : otherMember?.display_name || otherMember?.username || 'Chat';
 
+  // Auto-mark messages as read when viewing conversation
+  useEffect(() => {
+    if (!messages || !profile?.id || !conversationId) return;
+
+    const unreadMessages = messages.filter(msg => {
+      // Only mark messages from others as read
+      if (msg.sender_id === profile.id) return false;
+      // Check if we haven't already marked this one
+      if (hasMarkedReadRef.current.has(msg.id)) return false;
+      // Check if there's no view from us
+      const hasMyView = msg.views?.some(v => v.user_id === profile.id);
+      return !hasMyView;
+    });
+
+    if (unreadMessages.length > 0) {
+      // Mark all unread messages as viewed
+      unreadMessages.forEach(msg => {
+        hasMarkedReadRef.current.add(msg.id);
+        markViewed.mutate(msg.id);
+      });
+
+      // Also mark notifications as read for this conversation
+      supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('user_id', profile.id)
+        .eq('type', 'message')
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
+          queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
+        });
+    }
+  }, [messages, profile?.id, conversationId, markViewed, queryClient]);
+
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, optimisticMessages]);
 
   // Screenshot detection
   useEffect(() => {
@@ -84,20 +167,8 @@ export function ChatView() {
       }
     };
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        // User might be taking screenshot via system
-        // This is a heuristic, not perfect
-      }
-    };
-
     window.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [notifyScreenshot]);
 
   // Handle typing indicator
@@ -148,14 +219,20 @@ export function ChatView() {
     return (
       <div className="flex flex-col h-full">
         <div className="p-4 border-b border-border flex items-center gap-3">
-          <Skeleton className="h-10 w-10 rounded-full" />
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-10 w-10 rounded-full animate-pulse" />
+          <Skeleton className="h-5 w-32 animate-pulse" />
         </div>
         <div className="flex-1 p-4 space-y-4">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+            <motion.div 
+              key={i} 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: i * 0.1 }}
+              className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}
+            >
               <Skeleton className="h-12 w-48 rounded-2xl" />
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>
@@ -164,26 +241,47 @@ export function ChatView() {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="p-4 border-b border-border flex items-center gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/messages')}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={otherMember?.avatar_url || undefined} />
-          <AvatarFallback>{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
-        </Avatar>
+      {/* Header with bounce animation */}
+      <motion.div 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+        className="p-4 border-b border-border flex items-center gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10"
+      >
+        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/messages')}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </motion.div>
+        <motion.div whileHover={{ scale: 1.05 }} className="cursor-pointer">
+          <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+            <AvatarImage src={otherMember?.avatar_url || undefined} />
+            <AvatarFallback>{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+          </Avatar>
+        </motion.div>
         <div className="flex-1">
           <h2 className="font-semibold">{displayName}</h2>
-          {typingUsers.length > 0 && (
-            <p className="text-xs text-primary animate-pulse">{t('messages.typing')}</p>
-          )}
+          <AnimatePresence mode="wait">
+            {typingUsers.length > 0 && (
+              <motion.p
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                className="text-xs text-primary flex items-center gap-1"
+              >
+                <Sparkles className="h-3 w-3 animate-pulse" />
+                {t('messages.typing')}
+              </motion.p>
+            )}
+          </AnimatePresence>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-5 w-5" />
-            </Button>
+            <motion.div whileHover={{ rotate: 90 }} transition={{ duration: 0.2 }}>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </motion.div>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem>{t('messages.viewProfile')}</DropdownMenuItem>
@@ -191,9 +289,9 @@ export function ChatView() {
             <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
+      </motion.div>
 
-      {/* Messages */}
+      {/* Messages with stagger animation */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <AnimatePresence initial={false}>
           {messages?.map((message, index) => {
@@ -208,15 +306,22 @@ export function ChatView() {
             return (
               <div key={message.id}>
                 {showTimestamp && (
-                  <div className="text-center text-xs text-muted-foreground my-4">
-                    {formatMessageDate(message.created_at)}
-                  </div>
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center text-xs text-muted-foreground my-4"
+                  >
+                    <span className="bg-muted/50 px-3 py-1 rounded-full">
+                      {formatMessageDate(message.created_at)}
+                    </span>
+                  </motion.div>
                 )}
                 <MessageBubble
                   message={message}
                   isOwn={isOwn}
                   showAvatar={showAvatar}
                   sender={message.sender}
+                  isGroupChat={isGroupChat}
                   onView={() => markViewed.mutate(message.id)}
                   onReaction={(emoji) => handleReaction(message.id, emoji)}
                 />
@@ -235,49 +340,75 @@ export function ChatView() {
           ))}
         </AnimatePresence>
 
-        {/* Typing indicator */}
-        {typingUsers.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2"
-          >
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={otherMember?.avatar_url || undefined} />
-              <AvatarFallback>{otherMember?.username?.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div className="bg-muted rounded-2xl px-4 py-2">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        {/* Typing indicator with fun animation */}
+        <AnimatePresence>
+          {typingUsers.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.9 }}
+              className="flex items-center gap-2"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+              >
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={otherMember?.avatar_url || undefined} />
+                  <AvatarFallback>{otherMember?.username?.charAt(0)}</AvatarFallback>
+                </Avatar>
+              </motion.div>
+              <div className="bg-muted rounded-2xl px-4 py-2">
+                <div className="flex gap-1">
+                  {[0, 1, 2].map((i) => (
+                    <motion.span
+                      key={i}
+                      className="w-2 h-2 bg-primary rounded-full"
+                      animate={{ y: [0, -6, 0] }}
+                      transition={{ 
+                        repeat: Infinity, 
+                        duration: 0.6, 
+                        delay: i * 0.15,
+                        ease: 'easeInOut'
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="p-4 border-t border-border bg-background">
+      {/* Input with slide-up animation */}
+      <motion.div 
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="p-4 border-t border-border bg-background"
+      >
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="flex-shrink-0">
-            <ImageIcon className="h-5 w-5" />
-          </Button>
+          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <Button variant="ghost" size="icon" className="flex-shrink-0">
+              <ImageIcon className="h-5 w-5" />
+            </Button>
+          </motion.div>
 
           {/* View Mode Selector */}
           <DropdownMenu open={showViewModeMenu} onOpenChange={setShowViewModeMenu}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="flex-shrink-0">
-                {viewMode === 'view_once' ? (
-                  <EyeOff className="h-5 w-5 text-orange-500" />
-                ) : viewMode === '24h' ? (
-                  <Clock className="h-5 w-5 text-yellow-500" />
-                ) : (
-                  <Eye className="h-5 w-5" />
-                )}
-              </Button>
+              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                <Button variant="ghost" size="icon" className="flex-shrink-0">
+                  {viewMode === 'view_once' ? (
+                    <EyeOff className="h-5 w-5 text-orange-500" />
+                  ) : viewMode === '24h' ? (
+                    <Clock className="h-5 w-5 text-yellow-500" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </Button>
+              </motion.div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               <DropdownMenuItem onClick={() => setViewMode('permanent')}>
@@ -301,29 +432,41 @@ export function ChatView() {
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder={t('messages.typeMessage')}
-            className="flex-1"
+            className="flex-1 transition-all focus:ring-2 focus:ring-primary/20"
           />
 
-          <Button 
-            onClick={handleSend}
-            disabled={!messageText.trim() || isPending}
-            size="icon"
-            className="flex-shrink-0"
+          <motion.div
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9, rotate: 15 }}
           >
-            {isPending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-          </Button>
+            <Button 
+              onClick={handleSend}
+              disabled={!messageText.trim() || isPending}
+              size="icon"
+              className="flex-shrink-0"
+            >
+              {isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
+            </Button>
+          </motion.div>
         </div>
 
-        {viewMode !== 'permanent' && (
-          <p className="text-xs text-muted-foreground mt-2 text-center">
-            {viewMode === 'view_once' ? t('messages.viewOnceHint') : t('messages.24hoursHint')}
-          </p>
-        )}
-      </div>
+        <AnimatePresence>
+          {viewMode !== 'permanent' && (
+            <motion.p 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="text-xs text-muted-foreground mt-2 text-center"
+            >
+              {viewMode === 'view_once' ? t('messages.viewOnceHint') : t('messages.24hoursHint')}
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </motion.div>
     </div>
   );
 }
@@ -333,6 +476,7 @@ function MessageBubble({
   isOwn, 
   showAvatar,
   sender,
+  isGroupChat,
   onView,
   onReaction,
 }: { 
@@ -340,6 +484,7 @@ function MessageBubble({
   isOwn: boolean;
   showAvatar: boolean;
   sender?: Message['sender'];
+  isGroupChat?: boolean;
   onView: () => void;
   onReaction: (emoji: string) => void;
 }) {
@@ -358,23 +503,32 @@ function MessageBubble({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
+      variants={messageVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      whileHover={bubbleHover}
       className={cn('flex gap-2', isOwn ? 'justify-end' : 'justify-start')}
     >
       {!isOwn && showAvatar && (
-        <Avatar className="h-8 w-8 flex-shrink-0">
-          <AvatarImage src={sender?.avatar_url || undefined} />
-          <AvatarFallback>{sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
-        </Avatar>
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+        >
+          <Avatar className="h-8 w-8 flex-shrink-0 ring-2 ring-background shadow-sm">
+            <AvatarImage src={sender?.avatar_url || undefined} />
+            <AvatarFallback>{sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
+          </Avatar>
+        </motion.div>
       )}
       {!isOwn && !showAvatar && <div className="w-8" />}
 
       <div className={cn('max-w-[75%] group', isOwn ? 'items-end' : 'items-start')}>
-        <div
+        <motion.div
+          whileTap={{ scale: 0.98 }}
           className={cn(
-            'relative rounded-2xl px-4 py-2 break-words',
+            'relative rounded-2xl px-4 py-2 break-words shadow-sm',
             isOwn 
               ? 'bg-primary text-primary-foreground rounded-br-md' 
               : 'bg-muted text-foreground rounded-bl-md',
@@ -384,14 +538,24 @@ function MessageBubble({
           onDoubleClick={() => setShowReactions(!showReactions)}
         >
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (
-            <p className="text-sm italic opacity-75">Message viewed</p>
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-sm italic opacity-75"
+            >
+              Message viewed
+            </motion.p>
           ) : (
             <p className="text-sm whitespace-pre-wrap">{message.content}</p>
           )}
 
           {/* View mode indicator */}
           {message.view_mode !== 'permanent' && (
-            <div className="flex items-center gap-1 mt-1 opacity-75">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.75 }}
+              className="flex items-center gap-1 mt-1"
+            >
               {message.view_mode === 'view_once' ? (
                 <EyeOff className="h-3 w-3" />
               ) : (
@@ -400,34 +564,66 @@ function MessageBubble({
               <span className="text-[10px]">
                 {message.view_mode === 'view_once' ? 'View once' : '24h'}
               </span>
-            </div>
+            </motion.div>
           )}
 
-          {/* Reactions */}
-          {reactions.length > 0 && (
-            <div className="absolute -bottom-3 left-2 flex gap-0.5 bg-background border border-border rounded-full px-1 py-0.5 shadow-sm">
-              {[...new Set(reactions.map((r) => r.emoji))].map((emoji) => (
-                <span key={emoji} className="text-xs">{emoji}</span>
-              ))}
-            </div>
-          )}
-        </div>
+          {/* Reactions with pop animation */}
+          <AnimatePresence>
+            {reactions.length > 0 && (
+              <motion.div 
+                variants={reactionVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="absolute -bottom-3 left-2 flex gap-0.5 bg-background border border-border rounded-full px-1.5 py-0.5 shadow-md"
+              >
+                {[...new Set(reactions.map((r) => r.emoji))].map((emoji, i) => (
+                  <motion.span 
+                    key={emoji} 
+                    className="text-xs"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: i * 0.05 }}
+                  >
+                    {emoji}
+                  </motion.span>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
 
-        {/* Message status for own messages */}
+        {/* Message status for own messages with read receipts */}
         {isOwn && (
-          <div className="flex items-center gap-1 mt-1 justify-end">
-            <span className="text-[10px] text-muted-foreground">
-              {format(new Date(message.created_at), 'HH:mm')}
-            </span>
-            {hasBeenViewed ? (
-              <CheckCheck className="h-3 w-3 text-primary" />
-            ) : (
-              <Check className="h-3 w-3 text-muted-foreground" />
+          <div className="flex flex-col items-end mt-1">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground">
+                {format(new Date(message.created_at), 'HH:mm')}
+              </span>
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 500 }}
+              >
+                {hasBeenViewed ? (
+                  <CheckCheck className="h-3 w-3 text-primary" />
+                ) : (
+                  <Check className="h-3 w-3 text-muted-foreground" />
+                )}
+              </motion.div>
+            </div>
+            
+            {/* Read receipts for group chats - show who viewed */}
+            {hasBeenViewed && message.views && (
+              <ReadReceipts 
+                views={message.views} 
+                isGroupChat={isGroupChat}
+              />
             )}
           </div>
         )}
 
-        {/* Quick reactions popup */}
+        {/* Quick reactions popup with stagger animation */}
         <AnimatePresence>
           {showReactions && (
             <motion.div
@@ -436,17 +632,22 @@ function MessageBubble({
               exit={{ opacity: 0, scale: 0.8, y: 10 }}
               className="absolute mt-1 bg-background border border-border rounded-full px-2 py-1 shadow-lg flex gap-1 z-10"
             >
-              {QUICK_REACTIONS.map((emoji) => (
-                <button
+              {QUICK_REACTIONS.map((emoji, i) => (
+                <motion.button
                   key={emoji}
+                  custom={i}
+                  variants={emojiPopVariants}
+                  initial="hidden"
+                  animate="visible"
+                  whileHover="hover"
                   onClick={() => {
                     onReaction(emoji);
                     setShowReactions(false);
                   }}
-                  className="hover:scale-125 transition-transform p-1"
+                  className="p-1"
                 >
                   {emoji}
-                </button>
+                </motion.button>
               ))}
             </motion.div>
           )}
@@ -480,51 +681,65 @@ function OptimisticMessageBubble({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+      initial={{ opacity: 0, y: 20, scale: 0.9 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
+      exit={{ opacity: 0, scale: 0.9 }}
       className="flex justify-end gap-2"
     >
       <div className="max-w-[75%] flex flex-col items-end">
-        <div
+        <motion.div
+          animate={isSending ? { opacity: [0.7, 1, 0.7] } : {}}
+          transition={isSending ? { repeat: Infinity, duration: 1.5 } : {}}
           className={cn(
-            'relative rounded-2xl px-4 py-2 break-words rounded-br-md',
+            'relative rounded-2xl px-4 py-2 break-words rounded-br-md shadow-sm',
             isFailed
               ? 'bg-destructive/20 text-destructive border border-destructive/30'
               : 'bg-primary/70 text-primary-foreground'
           )}
         >
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-        </div>
+        </motion.div>
 
         <div className="flex items-center gap-2 mt-1">
           {isSending && (
-            <div className="flex items-center gap-1 text-muted-foreground">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex items-center gap-1 text-muted-foreground"
+            >
               <Loader2 className="h-3 w-3 animate-spin" />
               <span className="text-[10px]">Sending...</span>
-            </div>
+            </motion.div>
           )}
 
           {isFailed && (
-            <div className="flex items-center gap-1">
+            <motion.div 
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center gap-1"
+            >
               <span className="text-[10px] text-destructive">Failed to send</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5"
-                onClick={onRetry}
-              >
-                <RefreshCw className="h-3 w-3 text-destructive" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5"
-                onClick={onDismiss}
-              >
-                <X className="h-3 w-3 text-muted-foreground" />
-              </Button>
-            </div>
+              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  onClick={onRetry}
+                >
+                  <RefreshCw className="h-3 w-3 text-destructive" />
+                </Button>
+              </motion.div>
+              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  onClick={onDismiss}
+                >
+                  <X className="h-3 w-3 text-muted-foreground" />
+                </Button>
+              </motion.div>
+            </motion.div>
           )}
         </div>
       </div>
