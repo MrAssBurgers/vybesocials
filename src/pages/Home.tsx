@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { usePosts, useFollowingPosts } from '@/hooks/usePosts';
 import { PostCard } from '@/components/posts/PostCard';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { StoriesBar } from '@/components/stories/StoriesBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -32,12 +33,16 @@ export default function HomePage() {
 
   return (
     <AppLayout>
-      <div className="max-w-xl mx-auto px-4 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full mb-6 bg-secondary">
-            <TabsTrigger value="foryou" className="flex-1">For You</TabsTrigger>
-            <TabsTrigger value="following" className="flex-1">Following</TabsTrigger>
-          </TabsList>
+      <div className="max-w-xl mx-auto">
+        {/* Stories Bar */}
+        <StoriesBar />
+        
+        <div className="px-4 pb-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="w-full mb-6 bg-secondary">
+              <TabsTrigger value="foryou" className="flex-1">For You</TabsTrigger>
+              <TabsTrigger value="following" className="flex-1">Following</TabsTrigger>
+            </TabsList>
 
           <TabsContent value="foryou" className="space-y-6">
             {forYouLoading ? (
@@ -87,6 +92,7 @@ export default function HomePage() {
             )}
           </TabsContent>
         </Tabs>
+        </div>
       </div>
     </AppLayout>
   );

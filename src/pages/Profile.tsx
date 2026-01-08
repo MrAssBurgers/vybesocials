@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Grid, Film, Bookmark, Camera } from 'lucide-react';
+import { Settings, Grid, Film, Bookmark, Camera, MessageCircle } from 'lucide-react';
 import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/useProfile';
 import { usePosts } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
@@ -10,15 +10,20 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FriendButton } from '@/components/friends/FriendButton';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { useCreateConversation } from '@/hooks/useMessages';
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
+  const navigate = useNavigate();
   const { profile: currentProfile } = useAuth();
   const { data: profile, isLoading } = useProfileByUsername(username!);
   const { data: posts } = usePosts(undefined, profile?.id);
   const follow = useFollow();
   const updateAvatar = useUpdateAvatar();
+  const createConversation = useCreateConversation();
   const [activeTab, setActiveTab] = useState('posts');
 
   const isOwnProfile = currentProfile?.username === username;
@@ -46,6 +51,18 @@ export default function ProfilePage() {
       toast.success('Avatar updated!');
     } catch (error) {
       toast.error('Failed to update avatar');
+    }
+  };
+
+  const handleMessage = async () => {
+    if (!profile) return;
+    try {
+      const conversation = await createConversation.mutateAsync({
+        memberIds: [profile.id],
+      });
+      navigate(`/messages/${conversation.id}`);
+    } catch (error) {
+      toast.error('Failed to start conversation');
     }
   };
 
@@ -123,14 +140,25 @@ export default function ProfilePage() {
                   </Button>
                 </Link>
               ) : (
-                <Button
-                  variant={profile.is_following ? 'secondary' : 'gradient'}
-                  size="sm"
-                  onClick={handleFollow}
-                  disabled={follow.isPending}
-                >
-                  {profile.is_following ? 'Following' : 'Follow'}
-                </Button>
+                <div className="flex gap-2">
+                  <FriendButton userId={profile.id} size="sm" />
+                  <Button
+                    variant={profile.is_following ? 'secondary' : 'gradient'}
+                    size="sm"
+                    onClick={handleFollow}
+                    disabled={follow.isPending}
+                  >
+                    {profile.is_following ? 'Following' : 'Follow'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleMessage}
+                    disabled={createConversation.isPending}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </Button>
+                </div>
               )}
             </div>
 
