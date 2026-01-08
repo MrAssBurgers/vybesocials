@@ -118,6 +118,11 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading }: Vo
     onCancel();
   }, [stopRecording, onCancel]);
 
+  // Auto-start recording when component mounts
+  useEffect(() => {
+    startRecording();
+  }, [startRecording]);
+
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
