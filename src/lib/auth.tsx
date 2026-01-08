@@ -31,16 +31,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
+    // Prefer array result to avoid throwing when the row doesn't exist
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .limit(1);
 
-    if (data && !error) {
-      setProfile(data);
+    if (!error && data?.[0]) {
+      setProfile(data[0]);
+      return data[0];
     }
-    return data;
+
+    // Auto-provision a profile if missing (required for messaging/RLS)
+    const baseUsername = `user_${userId.slice(0, 8)}`;
+    const tryUsernames = [
+      baseUsername,
+      `${baseUsername}_${Math.random().toString(36).slice(2, 6)}`,
+    ];
+
+    for (const username of tryUsernames) {
+      const { data: created, error: createError } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: userId,
+          username,
+          bio: '',
+        })
+        .select('*')
+        .single();
+
+      if (!createError && created) {
+        setProfile(created);
+        return created;
+      }
+    }
+
+    setProfile(null);
+    return null;
   };
 
   useEffect(() => {
