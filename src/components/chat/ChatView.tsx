@@ -42,7 +42,9 @@ import {
   X,
   Loader2,
   Sparkles,
-  Mic
+  Mic,
+  Reply,
+  CornerUpLeft
 } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -111,6 +113,7 @@ export function ChatView() {
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -231,7 +234,44 @@ export function ChatView() {
     setMessageText('');
     setTyping(false);
 
-    send(text, viewMode);
+    // Include reply_to_id if replying
+    sendWithReply(text, viewMode, replyingTo?.id);
+    setReplyingTo(null);
+  };
+
+  // Modified send function to support replies
+  const sendWithReply = async (content: string, viewMode: ViewMode, replyToId?: string) => {
+    if (!profile?.id || !conversationId) return;
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    
+    const expiresAt = viewMode === '24h' 
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
+    const { error } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        sender_id: profile.id,
+        content,
+        view_mode: viewMode,
+        expires_at: expiresAt,
+        reply_to_id: replyToId,
+      });
+
+    if (error) {
+      console.error('Failed to send message:', error);
+      return;
+    }
+
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', conversationId);
+
+    queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+    queryClient.invalidateQueries({ queryKey: ['conversations'] });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -326,7 +366,7 @@ export function ChatView() {
     }
   };
 
-  // Send media message
+  // Send media message with optional reply
   const sendMediaMessage = async (mediaUrl: string, mediaType: string) => {
     if (!conversationId || !profile?.id) return;
 
@@ -343,9 +383,13 @@ export function ChatView() {
         media_type: mediaType,
         view_mode: viewMode,
         expires_at: expiresAt,
+        reply_to_id: replyingTo?.id,
       });
 
     if (error) throw error;
+
+    // Clear reply state after sending
+    setReplyingTo(null);
 
     // Update conversation
     await supabase
@@ -466,6 +510,8 @@ export function ChatView() {
                   isGroupChat={isGroupChat}
                   onView={() => markViewed.mutate(message.id)}
                   onReaction={(emoji) => handleReaction(message.id, emoji)}
+                  onReply={() => setReplyingTo(message)}
+                  allMessages={messages}
                 />
               </div>
             );
@@ -538,6 +584,36 @@ export function ChatView() {
           onChange={handleImageSelect}
           className="hidden"
         />
+
+        {/* Reply preview */}
+        <AnimatePresence>
+          {replyingTo && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex items-center gap-2 px-3 py-2 mb-2 bg-muted/50 rounded-lg border-l-2 border-primary"
+            >
+              <CornerUpLeft className="h-4 w-4 text-primary flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-primary font-medium">
+                  Replying to {replyingTo.sender?.username || 'message'}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {replyingTo.content || (replyingTo.media_type === 'image' ? '📷 Photo' : '🎤 Voice message')}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 flex-shrink-0"
+                onClick={() => setReplyingTo(null)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence mode="wait">
           {isRecordingVoice ? (
@@ -684,6 +760,8 @@ function MessageBubble({
   isGroupChat,
   onView,
   onReaction,
+  onReply,
+  allMessages,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -692,9 +770,16 @@ function MessageBubble({
   isGroupChat?: boolean;
   onView: () => void;
   onReaction: (emoji: string) => void;
+  onReply: () => void;
+  allMessages?: Message[];
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
+
+  // Find the replied-to message
+  const repliedMessage = message.reply_to_id 
+    ? allMessages?.find(m => m.id === message.reply_to_id)
+    : null;
 
   useEffect(() => {
     if (!isOwn && message.view_mode === 'view_once' && !isViewed) {
@@ -713,8 +798,21 @@ function MessageBubble({
       animate="visible"
       exit="exit"
       whileHover={bubbleHover}
-      className={cn('flex gap-2', isOwn ? 'justify-end' : 'justify-start')}
+      className={cn('flex gap-2 group/message', isOwn ? 'justify-end' : 'justify-start')}
     >
+      {/* Reply button for received messages */}
+      {!isOwn && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={onReply}
+          className="self-center opacity-0 group-hover/message:opacity-100 transition-opacity p-1 rounded-full hover:bg-muted"
+        >
+          <Reply className="h-4 w-4 text-muted-foreground" />
+        </motion.button>
+      )}
+
       {!isOwn && showAvatar && (
         <motion.div
           initial={{ scale: 0 }}
@@ -729,7 +827,29 @@ function MessageBubble({
       )}
       {!isOwn && !showAvatar && <div className="w-8" />}
 
-      <div className={cn('max-w-[75%] group', isOwn ? 'items-end' : 'items-start')}>
+      <div className={cn('max-w-[75%] group flex flex-col', isOwn ? 'items-end' : 'items-start')}>
+        {/* Replied message preview */}
+        {repliedMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={cn(
+              "text-xs px-3 py-1.5 rounded-t-lg mb-0.5 max-w-full",
+              isOwn 
+                ? "bg-primary/30 text-primary-foreground/80 rounded-br-lg" 
+                : "bg-muted/80 text-muted-foreground rounded-bl-lg"
+            )}
+          >
+            <div className="flex items-center gap-1 mb-0.5">
+              <CornerUpLeft className="h-3 w-3" />
+              <span className="font-medium">{repliedMessage.sender?.username || 'Message'}</span>
+            </div>
+            <p className="truncate opacity-80">
+              {repliedMessage.content || (repliedMessage.media_type === 'image' ? '📷 Photo' : '🎤 Voice')}
+            </p>
+          </motion.div>
+        )}
+
         <motion.div
           whileTap={{ scale: 0.98 }}
           className={cn(
@@ -738,7 +858,8 @@ function MessageBubble({
               ? 'bg-primary text-primary-foreground rounded-br-md' 
               : 'bg-muted text-foreground rounded-bl-md',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
-            message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white'
+            message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
+            repliedMessage && 'rounded-t-md'
           )}
           onDoubleClick={() => setShowReactions(!showReactions)}
         >
@@ -896,6 +1017,19 @@ function MessageBubble({
           )}
         </AnimatePresence>
       </div>
+
+      {/* Reply button for own messages */}
+      {isOwn && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={onReply}
+          className="self-center opacity-0 group-hover/message:opacity-100 transition-opacity p-1 rounded-full hover:bg-muted"
+        >
+          <Reply className="h-4 w-4 text-muted-foreground" />
+        </motion.button>
+      )}
     </motion.div>
   );
 }
