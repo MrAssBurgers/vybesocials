@@ -43,28 +43,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return data[0];
     }
 
-    // Auto-provision a profile if missing (required for messaging/RLS)
-    const baseUsername = `user_${userId.slice(0, 8)}`;
-    const tryUsernames = [
-      baseUsername,
-      `${baseUsername}_${Math.random().toString(36).slice(2, 6)}`,
-    ];
+    // If profile is missing, create it server-side (required for messaging/RLS)
+    const { error: ensureError } = await supabase.rpc('ensure_profile');
+    if (ensureError) {
+      console.error('ensure_profile failed:', ensureError);
+      setProfile(null);
+      return null;
+    }
 
-    for (const username of tryUsernames) {
-      const { data: created, error: createError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: userId,
-          username,
-          bio: '',
-        })
-        .select('*')
-        .single();
+    const { data: afterEnsure, error: afterEnsureError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .limit(1);
 
-      if (!createError && created) {
-        setProfile(created);
-        return created;
-      }
+    if (!afterEnsureError && afterEnsure?.[0]) {
+      setProfile(afterEnsure[0]);
+      return afterEnsure[0];
     }
 
     setProfile(null);
