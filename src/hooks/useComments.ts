@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { filterBlockedContent, containsBlockedContent } from '@/lib/contentModeration';
+import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 
 interface Comment {
@@ -83,6 +84,15 @@ export function useCreateComment() {
           actor_id: profile.id,
           post_id: postId,
         });
+      }
+
+      // Run AI moderation in background (non-blocking)
+      if (filteredText.trim()) {
+        moderateContent(filteredText, 'comment', data.id).then(result => {
+          if (result.requires_review) {
+            console.log('Comment flagged for review:', data.id);
+          }
+        }).catch(console.error);
       }
 
       return data;

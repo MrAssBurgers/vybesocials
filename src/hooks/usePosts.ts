@@ -1,6 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { containsBlockedContent, filterBlockedContent } from '@/lib/contentModeration';
+import { moderateContent } from '@/hooks/useModeration';
+import { toast } from 'sonner';
 
 interface Post {
   id: string;
@@ -181,7 +184,17 @@ export function useCreatePost() {
     }) => {
       if (!profile) throw new Error('Not authenticated');
 
-      // Upload media
+      // Check for blocked content locally first
+      const localCheck = containsBlockedContent(data.caption);
+      if (localCheck.blocked) {
+        toast.error('Your caption contains inappropriate content. Please revise.');
+        throw new Error('Caption contains blocked content');
+      }
+
+      // Filter the caption
+      const filteredCaption = filterBlockedContent(data.caption);
+
+      // Upload media first
       const fileExt = data.mediaFile.name.split('.').pop();
       const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
 
@@ -202,7 +215,7 @@ export function useCreatePost() {
           author_id: profile.id,
           type: data.type,
           media_url: publicUrl,
-          caption: data.caption,
+          caption: filteredCaption,
           tags: data.tags,
         })
         .select()
@@ -210,10 +223,25 @@ export function useCreatePost() {
 
       if (error) throw error;
 
+      // Run AI moderation in background (non-blocking)
+      if (filteredCaption.trim()) {
+        moderateContent(filteredCaption, 'post', post.id).then(result => {
+          if (result.requires_review) {
+            console.log('Post flagged for review:', post.id);
+          }
+        }).catch(console.error);
+      }
+
       return post;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      toast.success('Post created successfully!');
+    },
+    onError: (error) => {
+      if (!error.message.includes('blocked content')) {
+        toast.error('Failed to create post');
+      }
     },
   });
 }
