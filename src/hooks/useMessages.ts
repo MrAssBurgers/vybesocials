@@ -314,38 +314,33 @@ export function useCreateConversation() {
     }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // For 1:1 chats, check if conversation already exists
+      // For 1:1 DMs, use the atomic RPC function
       if (!isGroup && memberIds.length === 1) {
         const otherUserId = memberIds[0];
         
-        // Find existing conversation between these two users
-        const { data: existingConvs } = await supabase
-          .from('conversation_members')
-          .select('conversation_id')
-          .eq('user_id', profile.id);
+        const { data: conversationId, error: rpcError } = await supabase
+          .rpc('create_dm_conversation', { other_profile_id: otherUserId });
 
-        if (existingConvs && existingConvs.length > 0) {
-          const convIds = existingConvs.map(c => c.conversation_id);
-          
-          const { data: sharedConv } = await supabase
-            .from('conversation_members')
-            .select('conversation_id, conversations!inner(is_group)')
-            .eq('user_id', otherUserId)
-            .in('conversation_id', convIds);
-
-          const existingDM = sharedConv?.find((c: any) => !c.conversations?.is_group);
-          if (existingDM) {
-            const { data: conv } = await supabase
-              .from('conversations')
-              .select('*')
-              .eq('id', existingDM.conversation_id)
-              .single();
-            if (conv) return conv;
-          }
+        if (rpcError) {
+          console.error('create_dm_conversation RPC error:', rpcError);
+          throw new Error(rpcError.message || 'Failed to start conversation');
         }
+
+        // Fetch the full conversation object to return
+        const { data: conv, error: fetchError } = await supabase
+          .from('conversations')
+          .select('*')
+          .eq('id', conversationId)
+          .single();
+
+        if (fetchError || !conv) {
+          throw new Error('Conversation created but could not be fetched');
+        }
+
+        return conv;
       }
 
-      // Create new conversation
+      // For group chats, use the existing multi-step approach
       const { data: conversation, error: convError } = await supabase
         .from('conversations')
         .insert({
@@ -358,7 +353,6 @@ export function useCreateConversation() {
 
       if (convError) throw convError;
 
-      // Prepare all members to insert at once
       const allMemberIds = [...new Set([profile.id, ...memberIds])];
       const membersToInsert = allMemberIds.map((userId) => ({
         conversation_id: conversation.id,
@@ -366,13 +360,11 @@ export function useCreateConversation() {
         role: userId === profile.id ? 'admin' : 'member',
       }));
 
-      // Insert all members in a single batch
       const { error: membersError } = await supabase
         .from('conversation_members')
         .insert(membersToInsert);
 
       if (membersError) {
-        // Rollback: delete the conversation if members couldn't be added
         await supabase.from('conversations').delete().eq('id', conversation.id);
         throw membersError;
       }
@@ -382,9 +374,10 @@ export function useCreateConversation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Failed to create conversation:', error);
-      toast.error('Failed to start conversation');
+      const msg = error?.message || 'Failed to start conversation';
+      toast.error(msg);
     },
   });
 }

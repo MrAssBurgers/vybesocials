@@ -238,6 +238,10 @@ function NewChatDialog({
   });
 
   const handleSelectUser = async (userId: string) => {
+    if (!profile?.id) {
+      toast.error("Please wait, loading your profile...");
+      return;
+    }
     try {
       const conversation = await createConversation.mutateAsync({
         memberIds: [userId],
@@ -245,9 +249,9 @@ function NewChatDialog({
       onOpenChange(false);
       setSearchQuery('');
       navigate(`/messages/${conversation.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create conversation:', error);
-      toast.error('Failed to start conversation');
+      toast.error(error?.message || 'Failed to start conversation');
     }
   };
 

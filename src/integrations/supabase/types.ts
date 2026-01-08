@@ -959,6 +959,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_dm_conversation: {
+        Args: { other_profile_id: string }
+        Returns: string
+      }
       current_profile_id: { Args: never; Returns: string }
       ensure_profile: { Args: never; Returns: string }
       filter_profanity: { Args: { input_text: string }; Returns: string }
