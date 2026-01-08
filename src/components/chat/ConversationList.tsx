@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useConversations, useCreateConversation, Conversation } from '@/hooks/useMessages';
+import { useFriends } from '@/hooks/useFriends';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -11,8 +12,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Flame, Check, CheckCheck } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
 export function ConversationList() {
   const { t } = useTranslation();
@@ -171,7 +173,6 @@ function ConversationItem({
           <span className={`font-medium truncate ${hasUnread ? 'text-foreground' : 'text-foreground'}`}>
             {displayName}
           </span>
-          {/* Streak indicator would go here */}
         </div>
         <div className="flex items-center gap-1 text-sm text-muted-foreground truncate">
           {isOwnMessage && (
@@ -184,7 +185,7 @@ function ConversationItem({
           <span className={`truncate ${hasUnread ? 'font-medium text-foreground' : ''}`}>
             {lastMessage?.view_mode === 'view_once' && !isOwnMessage
               ? '📷 Photo'
-              : lastMessage?.content || (lastMessage?.media_url ? '📷 Media' : 'No messages yet')}
+              : lastMessage?.content || (lastMessage?.media_url ? '📷 Media' : 'Tap to chat')}
           </span>
         </div>
       </div>
@@ -208,22 +209,32 @@ function NewChatDialog({
   const { profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const createConversation = useCreateConversation();
+  const { data: friends, isLoading: friendsLoading } = useFriends();
 
-  const { data: users, isLoading } = useQuery({
-    queryKey: ['search-users', searchQuery],
+  // Reset search when dialog opens
+  useEffect(() => {
+    if (open) setSearchQuery('');
+  }, [open]);
+
+  // Search for users when typing
+  const { data: searchResults, isLoading: searchLoading } = useQuery({
+    queryKey: ['search-users-chat', searchQuery],
     queryFn: async () => {
       if (!searchQuery.trim()) return [];
+
+      const { data: authUser } = await supabase.auth.getUser();
+      if (!authUser.user) return [];
 
       const { data } = await supabase
         .from('profiles')
         .select('id, username, avatar_url, display_name')
-        .neq('user_id', (await supabase.auth.getUser()).data.user?.id || '')
+        .neq('user_id', authUser.user.id)
         .or(`username.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%`)
         .limit(20);
 
       return data || [];
     },
-    enabled: searchQuery.length > 1,
+    enabled: searchQuery.length >= 1,
   });
 
   const handleSelectUser = async (userId: string) => {
@@ -232,11 +243,21 @@ function NewChatDialog({
         memberIds: [userId],
       });
       onOpenChange(false);
+      setSearchQuery('');
       navigate(`/messages/${conversation.id}`);
     } catch (error) {
       console.error('Failed to create conversation:', error);
+      toast.error('Failed to start conversation');
     }
   };
+
+  // Show search results if searching, otherwise show friends
+  const displayUsers = searchQuery.trim() 
+    ? searchResults 
+    : friends?.filter((f): f is NonNullable<typeof f> => f !== null && f !== undefined);
+
+  const isLoading = searchQuery.trim() ? searchLoading : friendsLoading;
+  const showingFriends = !searchQuery.trim();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -250,40 +271,82 @@ function NewChatDialog({
           <DialogTitle>{t('messages.newChat')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <Input
-            placeholder={t('messages.searchUsers')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            autoFocus
-          />
-          <div className="max-h-64 overflow-y-auto space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by username..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+              autoFocus
+            />
+          </div>
+          
+          {showingFriends && friends && friends.length > 0 && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+              <Users className="h-3 w-3" />
+              <span>Your Friends</span>
+            </div>
+          )}
+
+          <div className="max-h-80 overflow-y-auto space-y-1">
             {isLoading ? (
               <div className="space-y-2">
-                {[...Array(3)].map((_, i) => (
-                  <Skeleton key={i} className="h-14 w-full" />
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="space-y-1.5 flex-1">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                  </div>
                 ))}
               </div>
-            ) : users && users.length > 0 ? (
-              users.map((user) => (
-                <button
+            ) : displayUsers && displayUsers.length > 0 ? (
+              displayUsers.map((user) => (
+                <motion.button
                   key={user.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
                   onClick={() => handleSelectUser(user.id)}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors"
+                  disabled={createConversation.isPending}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-accent transition-colors disabled:opacity-50"
                 >
-                  <Avatar>
+                  <Avatar className="h-10 w-10">
                     <AvatarImage src={user.avatar_url || undefined} />
-                    <AvatarFallback>{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                      {user.username?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
                   </Avatar>
-                  <div className="text-left">
-                    <p className="font-medium">{user.display_name || user.username}</p>
-                    <p className="text-sm text-muted-foreground">@{user.username}</p>
+                  <div className="text-left flex-1 min-w-0">
+                    <p className="font-medium truncate">{user.display_name || user.username}</p>
+                    <p className="text-sm text-muted-foreground truncate">@{user.username}</p>
                   </div>
-                </button>
+                  {showingFriends && (
+                    <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-full">
+                      Friend
+                    </span>
+                  )}
+                </motion.button>
               ))
             ) : searchQuery ? (
-              <p className="text-center text-muted-foreground py-4">{t('messages.noUsersFound')}</p>
+              <div className="text-center py-8">
+                <UserPlus className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">No users found</p>
+                <p className="text-xs text-muted-foreground mt-1">Try a different username</p>
+              </div>
+            ) : friends && friends.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">No friends yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Search for users to start chatting</p>
+              </div>
             ) : (
-              <p className="text-center text-muted-foreground py-4">{t('messages.typeToSearch')}</p>
+              <div className="text-center py-8">
+                <Search className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Search for someone</p>
+                <p className="text-xs text-muted-foreground mt-1">Type a username to find people</p>
+              </div>
             )}
           </div>
         </div>
