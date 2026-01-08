@@ -1,11 +1,21 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, Play } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, Play, MoreVertical, Trash2, Flag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { useUserRole } from '@/hooks/useModeration';
 
 interface ShortCardProps {
   post: {
@@ -28,6 +38,8 @@ interface ShortCardProps {
 
 export function ShortCard({ post, isActive }: ShortCardProps) {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: userRole } = useUserRole();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -35,6 +47,10 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
+
+  const isOwnPost = profile?.id === post.author.id;
+  const isAdmin = userRole === 'admin' || userRole === 'moderator';
+  const canDelete = isOwnPost || isAdmin;
 
   useEffect(() => {
     if (videoRef.current) {
@@ -108,6 +124,43 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
       await navigator.share({ title: 'Check this out on LOLLoop', url });
     } else {
       navigator.clipboard.writeText(url);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this short?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', post.id);
+
+      if (error) throw error;
+
+      toast.success('Short deleted');
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['shorts'] });
+    } catch (error) {
+      console.error('Failed to delete short:', error);
+      toast.error('Failed to delete short');
+    }
+  };
+
+  const handleReport = async () => {
+    if (!profile) return;
+    const reason = prompt('Why are you reporting this short?');
+    if (!reason) return;
+
+    try {
+      await supabase.from('reports').insert({
+        reporter_id: profile.id,
+        post_id: post.id,
+        reason,
+      });
+      toast.success('Short reported. We will review it shortly.');
+    } catch (error) {
+      toast.error('Failed to report short');
     }
   };
 
@@ -224,6 +277,29 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
             {isMuted ? <VolumeX className="h-8 w-8" /> : <Volume2 className="h-8 w-8" />}
           </button>
         )}
+
+        {/* More options menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-foreground hover:bg-foreground/10">
+              <MoreVertical className="h-6 w-6" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {canDelete && (
+              <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Short
+              </DropdownMenuItem>
+            )}
+            {!isOwnPost && (
+              <DropdownMenuItem onClick={handleReport} className="text-destructive">
+                <Flag className="h-4 w-4 mr-2" />
+                Report
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Bottom info */}
