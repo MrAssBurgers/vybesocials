@@ -218,6 +218,36 @@
     pointer-events: none;
   }
 
+  /* Animated gradient border for nav items */
+  .gradient-border-animated {
+    background: linear-gradient(
+      var(--gradient-angle, 0deg),
+      hsl(var(--neon-pink)),
+      hsl(var(--neon-purple)),
+      hsl(var(--neon-cyan)),
+      hsl(var(--neon-yellow)),
+      hsl(var(--neon-pink))
+    );
+    background-size: 100% 100%;
+    animation: gradient-rotate 3s linear infinite;
+    border-radius: 12px;
+  }
+
+  @property --gradient-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  @keyframes gradient-rotate {
+    0% {
+      --gradient-angle: 0deg;
+    }
+    100% {
+      --gradient-angle: 360deg;
+    }
+  }
+
   /* Story ring gradient */
   .story-ring {
     background: linear-gradient(
