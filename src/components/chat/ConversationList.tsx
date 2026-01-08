@@ -15,14 +15,47 @@ import { useQuery } from '@tanstack/react-query';
 import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { QuickAddRow } from './QuickAddRow';
+import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 
 export function ConversationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const { data: conversations, isLoading } = useConversations();
+  const { data: friends } = useFriends();
+  const createConversation = useCreateConversation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
+
+  // Load recent message users
+  useEffect(() => {
+    setRecentUsers(getRecentMessageUsers());
+  }, []);
+
+  // Convert friends to RecentMessageUser format, excluding already chatted users
+  const friendsForQuickAdd: RecentMessageUser[] = (friends || [])
+    .filter((f): f is NonNullable<typeof f> => f !== null && f.id !== profile?.id)
+    .map(f => ({
+      id: f.id,
+      username: f.username,
+      avatar_url: f.avatar_url,
+      display_name: f.display_name,
+    }));
+
+  const handleQuickAddSelect = async (userId: string) => {
+    if (!profile?.id) {
+      toast.error("Please wait, loading your profile...");
+      return;
+    }
+    try {
+      const conversation = await createConversation.mutateAsync({ memberIds: [userId] });
+      navigate(`/messages/${conversation.id}`);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to start conversation');
+    }
+  };
 
   const filteredConversations = conversations?.filter((conv) => {
     const otherMembers = conv.members?.filter((m) => m.user_id !== profile?.id) || [];
@@ -73,6 +106,26 @@ export function ConversationList() {
           />
         </div>
       </div>
+
+      {/* Quick Add Section */}
+      {!searchQuery && (recentUsers.length > 0 || friendsForQuickAdd.length > 0) && (
+        <div className="px-4 pt-2 space-y-3">
+          {recentUsers.length > 0 && (
+            <QuickAddRow
+              title="Recent"
+              users={recentUsers.slice(0, 8)}
+              onSelect={handleQuickAddSelect}
+            />
+          )}
+          {friendsForQuickAdd.length > 0 && (
+            <QuickAddRow
+              title="Friends"
+              users={friendsForQuickAdd.slice(0, 8)}
+              onSelect={handleQuickAddSelect}
+            />
+          )}
+        </div>
+      )}
 
       {/* Conversation List */}
       <div className="flex-1 overflow-y-auto">
