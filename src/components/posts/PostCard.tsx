@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { EditPostDialog } from './EditPostDialog';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { useTogglePin } from '@/hooks/usePosts';
+import { useUserRole } from '@/hooks/useModeration';
 
 interface PostCardProps {
   post: {
@@ -46,6 +47,7 @@ export function PostCard({ post }: PostCardProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const togglePin = useTogglePin();
+  const { data: userRole } = useUserRole();
   const [isLiked, setIsLiked] = useState(post.is_liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
@@ -53,6 +55,8 @@ export function PostCard({ post }: PostCardProps) {
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   const isOwnPost = profile?.id === post.author.id;
+  const isAdmin = userRole === 'admin' || userRole === 'moderator';
+  const canDelete = isOwnPost || isAdmin;
 
   const handleTogglePin = () => {
     togglePin.mutate({ postId: post.id, isPinned: !post.is_pinned });
@@ -188,11 +192,13 @@ export function PostCard({ post }: PostCardProps) {
                   <Pencil className="h-4 w-4 mr-2" />
                   Edit Post
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDelete} className="text-destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Post
-                </DropdownMenuItem>
               </>
+            )}
+            {canDelete && (
+              <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Post
+              </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={handleShare}>
               <Share2 className="h-4 w-4 mr-2" />

@@ -40,6 +40,24 @@ export function useStories() {
     queryFn: async () => {
       if (!profile?.id) return [];
 
+      // Get user's friends (people they follow who follow them back)
+      const { data: following } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', profile.id);
+
+      const followingIds = following?.map(f => f.following_id) || [];
+
+      const { data: followers } = await supabase
+        .from('follows')
+        .select('follower_id')
+        .eq('following_id', profile.id);
+
+      const followerIds = followers?.map(f => f.follower_id) || [];
+      
+      // Friends are mutual follows
+      const friendIds = new Set(followingIds.filter(id => followerIds.includes(id)));
+
       const { data, error } = await supabase
         .from('stories')
         .select(`
@@ -83,13 +101,24 @@ export function useStories() {
         }
       }
 
-      // Sort: own stories first, then unviewed, then viewed
+      // Sort: own stories first, then friends with unviewed, then friends viewed, then others
       const groups = Array.from(groupedMap.values());
       groups.sort((a, b) => {
+        // Own stories first
         if (a.user.id === profile.id) return -1;
         if (b.user.id === profile.id) return 1;
+        
+        // Friends before non-friends
+        const aIsFriend = friendIds.has(a.user.id);
+        const bIsFriend = friendIds.has(b.user.id);
+        
+        if (aIsFriend && !bIsFriend) return -1;
+        if (!aIsFriend && bIsFriend) return 1;
+        
+        // Within same category, unviewed before viewed
         if (a.hasUnviewed && !b.hasUnviewed) return -1;
         if (!a.hasUnviewed && b.hasUnviewed) return 1;
+        
         return 0;
       });
 
