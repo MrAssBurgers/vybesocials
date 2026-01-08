@@ -111,6 +111,8 @@ export function ChatView() {
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const hasMarkedReadRef = useRef<Set<string>>(new Set());
+  const lastReadSyncedForConversationRef = useRef<string | null>(null);
+  const messageNotifsClearedForConversationRef = useRef<string | null>(null);
 
   const conversation = conversations?.find((c) => c.id === conversationId);
   const isGroupChat = conversation?.is_group || false;
@@ -120,39 +122,66 @@ export function ChatView() {
     ? conversation.name
     : otherMember?.display_name || otherMember?.username || 'Chat';
 
-  // Auto-mark messages as read when viewing conversation
+  // Clear message notifications + clear the unread badge when opening a conversation
   useEffect(() => {
-    if (!messages || !profile?.id || !conversationId) return;
+    if (!profile?.id || !conversationId) return;
 
-    const unreadMessages = messages.filter(msg => {
-      // Only mark messages from others as read
-      if (msg.sender_id === profile.id) return false;
-      // Check if we haven't already marked this one
-      if (hasMarkedReadRef.current.has(msg.id)) return false;
-      // Check if there's no view from us
-      const hasMyView = msg.views?.some(v => v.user_id === profile.id);
-      return !hasMyView;
-    });
+    // 1) Clear unread badge in the conversation list (unread_count is based on last_read_at)
+    if (lastReadSyncedForConversationRef.current !== conversationId) {
+      lastReadSyncedForConversationRef.current = conversationId;
 
-    if (unreadMessages.length > 0) {
-      // Mark all unread messages as viewed
-      unreadMessages.forEach(msg => {
-        hasMarkedReadRef.current.add(msg.id);
-        markViewed.mutate(msg.id);
-      });
+      supabase
+        .from('conversation_members')
+        .update({ last_read_at: new Date().toISOString() })
+        .eq('conversation_id', conversationId)
+        .eq('user_id', profile.id)
+        .then(({ error }) => {
+          if (error) {
+            console.error('Failed to set last_read_at:', error);
+            return;
+          }
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        });
+    }
 
-      // Also mark notifications as read for this conversation
+    // 2) Clear any message-type notifications (if your backend creates them)
+    if (messageNotifsClearedForConversationRef.current !== conversationId) {
+      messageNotifsClearedForConversationRef.current = conversationId;
+
       supabase
         .from('notifications')
         .update({ read: true })
         .eq('user_id', profile.id)
         .eq('type', 'message')
+        .eq('read', false)
         .then(() => {
           queryClient.invalidateQueries({ queryKey: ['notifications'] });
           queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
         });
     }
-  }, [messages, profile?.id, conversationId, markViewed, queryClient]);
+  }, [conversationId, profile?.id, queryClient]);
+
+  // Auto-mark messages as read (read receipts) when viewing conversation
+  useEffect(() => {
+    if (!messages || !profile?.id || !conversationId) return;
+
+    const unreadMessages = messages.filter((msg) => {
+      // Only mark messages from others as read
+      if (msg.sender_id === profile.id) return false;
+      // Check if we haven't already marked this one
+      if (hasMarkedReadRef.current.has(msg.id)) return false;
+      // Check if there's no view from us
+      const hasMyView = msg.views?.some((v) => v.user_id === profile.id);
+      return !hasMyView;
+    });
+
+    if (unreadMessages.length === 0) return;
+
+    unreadMessages.forEach((msg) => {
+      hasMarkedReadRef.current.add(msg.id);
+      markViewed.mutate(msg.id);
+    });
+  }, [messages, profile?.id, conversationId, markViewed]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
