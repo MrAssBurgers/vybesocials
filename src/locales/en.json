@@ -94,15 +94,27 @@
   "messages": {
     "title": "Messages",
     "newMessage": "New Message",
+    "newChat": "New Chat",
     "search": "Search conversations",
+    "searchUsers": "Search users...",
     "noMessages": "No messages yet",
+    "noConversations": "No conversations yet",
+    "startChatting": "Start chatting with friends!",
+    "noUsersFound": "No users found",
+    "typeToSearch": "Type to search for users",
     "typeMessage": "Type a message...",
     "send": "Send",
     "viewOnce": "View Once",
+    "viewOnceHint": "This message will disappear after viewing",
     "24hours": "24 Hours",
+    "24hoursHint": "This message will disappear after 24 hours",
     "permanent": "Keep",
     "streak": "{{count}} day streak 🔥",
-    "typing": "typing..."
+    "typing": "typing...",
+    "pinned": "Pinned",
+    "viewProfile": "View Profile",
+    "muteNotifications": "Mute Notifications",
+    "blockUser": "Block User"
   },
   "notifications": {
     "title": "Notifications",
