@@ -1,14 +1,23 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { EditPostDialog } from './EditPostDialog';
+import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 
 interface PostCardProps {
   post: {
@@ -37,6 +46,9 @@ export function PostCard({ post }: PostCardProps) {
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+
+  const isOwnPost = profile?.id === post.author.id;
 
   const handleLike = async () => {
     if (!profile) return;
@@ -90,6 +102,24 @@ export function PostCard({ post }: PostCardProps) {
       navigator.clipboard.writeText(url);
     }
   };
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this post?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', post.id);
+
+      if (error) throw error;
+
+      toast.success('Post deleted');
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    } catch (error) {
+      console.error('Failed to delete post:', error);
+      toast.error('Failed to delete post');
+    }
+  };
 
   return (
     <motion.article
@@ -109,15 +139,40 @@ export function PostCard({ post }: PostCardProps) {
             </Avatar>
           </div>
           <div>
-            <p className="font-semibold text-sm">{post.author.username}</p>
+            <p className="font-semibold text-sm flex items-center gap-1.5">
+              {post.author.username}
+              {isOwner(post.author.username) && <OwnerBadge />}
+            </p>
             <p className="text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
             </p>
           </div>
         </Link>
-        <Button variant="ghost" size="icon-sm">
-          <MoreHorizontal className="h-5 w-5" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm">
+              <MoreHorizontal className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {isOwnPost && (
+              <>
+                <DropdownMenuItem onClick={() => setIsEditOpen(true)}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit Post
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Post
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuItem onClick={handleShare}>
+              <Share2 className="h-4 w-4 mr-2" />
+              Share
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Media */}
@@ -221,6 +276,13 @@ export function PostCard({ post }: PostCardProps) {
           </Link>
         )}
       </div>
+
+      {/* Edit Post Dialog */}
+      <EditPostDialog
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        post={{ id: post.id, caption: post.caption, tags: post.tags }}
+      />
     </motion.article>
   );
 }
