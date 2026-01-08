@@ -276,7 +276,38 @@ export function useCreateConversation() {
     }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // Create conversation
+      // For 1:1 chats, check if conversation already exists
+      if (!isGroup && memberIds.length === 1) {
+        const otherUserId = memberIds[0];
+        
+        // Find existing conversation between these two users
+        const { data: existingConvs } = await supabase
+          .from('conversation_members')
+          .select('conversation_id')
+          .eq('user_id', profile.id);
+
+        if (existingConvs && existingConvs.length > 0) {
+          const convIds = existingConvs.map(c => c.conversation_id);
+          
+          const { data: sharedConv } = await supabase
+            .from('conversation_members')
+            .select('conversation_id, conversations!inner(is_group)')
+            .eq('user_id', otherUserId)
+            .in('conversation_id', convIds);
+
+          const existingDM = sharedConv?.find((c: any) => !c.conversations?.is_group);
+          if (existingDM) {
+            const { data: conv } = await supabase
+              .from('conversations')
+              .select('*')
+              .eq('id', existingDM.conversation_id)
+              .single();
+            if (conv) return conv;
+          }
+        }
+      }
+
+      // Create new conversation
       const { data: conversation, error: convError } = await supabase
         .from('conversations')
         .insert({
@@ -289,19 +320,29 @@ export function useCreateConversation() {
 
       if (convError) throw convError;
 
-      // Add all members including creator
-      const allMemberIds = [...new Set([profile.id, ...memberIds])];
-      const members = allMemberIds.map((userId) => ({
-        conversation_id: conversation.id,
-        user_id: userId,
-        role: userId === profile.id ? 'admin' : 'member',
-      }));
-
-      const { error: memberError } = await supabase
+      // Add creator first
+      const { error: creatorError } = await supabase
         .from('conversation_members')
-        .insert(members);
+        .insert({
+          conversation_id: conversation.id,
+          user_id: profile.id,
+          role: 'admin',
+        });
 
-      if (memberError) throw memberError;
+      if (creatorError) throw creatorError;
+
+      // Add other members
+      for (const userId of memberIds) {
+        if (userId !== profile.id) {
+          await supabase
+            .from('conversation_members')
+            .insert({
+              conversation_id: conversation.id,
+              user_id: userId,
+              role: 'member',
+            });
+        }
+      }
 
       return conversation;
     },
