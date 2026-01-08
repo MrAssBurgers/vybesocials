@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -57,6 +57,23 @@ export function PostCard({ post }: PostCardProps) {
   const isOwnPost = profile?.id === post.author.id;
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
   const canDelete = isOwnPost || isAdmin;
+
+  const handleReport = async () => {
+    if (!profile) return;
+    const reason = prompt('Why are you reporting this post?');
+    if (!reason) return;
+
+    try {
+      await supabase.from('reports').insert({
+        reporter_id: profile.id,
+        post_id: post.id,
+        reason,
+      });
+      toast.success('Post reported. We will review it shortly.');
+    } catch (error) {
+      toast.error('Failed to report post');
+    }
+  };
 
   const handleTogglePin = () => {
     togglePin.mutate({ postId: post.id, isPinned: !post.is_pinned });
@@ -204,6 +221,12 @@ export function PostCard({ post }: PostCardProps) {
               <Share2 className="h-4 w-4 mr-2" />
               Share
             </DropdownMenuItem>
+            {!isOwnPost && (
+              <DropdownMenuItem onClick={handleReport} className="text-destructive">
+                <Flag className="h-4 w-4 mr-2" />
+                Report
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
