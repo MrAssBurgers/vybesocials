@@ -867,18 +867,32 @@ function MessageBubble({
         >
           {/* Media content */}
           {message.media_url && message.media_type === 'image' && (
-            <motion.img
-              src={message.media_url}
-              alt="Shared image"
-              className="rounded-lg max-w-full max-h-64 object-cover mb-2"
+            <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              loading="lazy"
-            />
+              className="mb-2"
+            >
+              <img
+                src={message.media_url}
+                alt="Shared image"
+                className="rounded-lg max-w-full max-h-64 object-cover cursor-pointer"
+                loading="lazy"
+                onError={(e) => {
+                  // Fallback for failed image loads
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+              <div className="hidden text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
+                📷 Image failed to load
+              </div>
+            </motion.div>
           )}
 
           {message.media_url && message.media_type === 'audio' && (
-            <AudioMessage src={message.media_url} isOwn={isOwn} />
+            <div className="mb-2">
+              <AudioMessage src={message.media_url} isOwn={isOwn} />
+            </div>
           )}
 
           {/* Text content */}
