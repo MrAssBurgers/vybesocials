@@ -54,22 +54,32 @@ export function BottomNav() {
                 whileTap={{ scale: 0.9 }}
                 className="relative"
               >
+                {/* Animated gradient outline for active state */}
+                {isActive && (
+                  <motion.div
+                    layoutId="bottomNavOutline"
+                    className="absolute -inset-2 rounded-xl overflow-hidden"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  >
+                    {/* Animated gradient border */}
+                    <div className="absolute inset-0 gradient-border-animated" />
+                    {/* Inner background to create border effect */}
+                    <div className="absolute inset-[2px] rounded-[10px] bg-background" />
+                  </motion.div>
+                )}
+                
                 <Icon
                   className={cn(
-                    "h-6 w-6 transition-colors",
+                    "h-6 w-6 transition-colors relative z-10",
                     isActive ? "text-primary" : "text-muted-foreground"
                   )}
                 />
-                {isActive && (
-                  <motion.div
-                    layoutId="bottomNavIndicator"
-                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary"
-                  />
-                )}
               </motion.div>
               <span
                 className={cn(
-                  "text-[10px] font-medium",
+                  "text-[10px] font-medium transition-colors",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
