@@ -54,14 +54,32 @@ export function ReadReceipts({
           <motion.div 
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-1 mt-1 justify-end"
+            className="flex items-center gap-1.5 mt-1 justify-end"
           >
-            <motion.div
+            <motion.div 
+              className="flex items-center gap-1"
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 400 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 25 }}
             >
-              <Eye className="h-3 w-3 text-primary" />
+              <motion.div
+                animate={{ 
+                  scale: [1, 1.2, 1],
+                }}
+                transition={{ 
+                  duration: 0.6,
+                  ease: 'easeInOut',
+                }}
+              >
+                <Eye className="h-3.5 w-3.5 text-primary" />
+              </motion.div>
+              <motion.span 
+                initial={{ opacity: 0, x: -5 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="text-[10px] font-medium text-primary"
+              >
+                {views.length}
+              </motion.span>
             </motion.div>
             
             <div className="flex -space-x-1.5">
@@ -72,10 +90,10 @@ export function ReadReceipts({
                   variants={avatarVariants}
                   initial="hidden"
                   animate="visible"
-                  whileHover={{ scale: 1.2, zIndex: 10 }}
+                  whileHover={{ scale: 1.3, zIndex: 10, y: -2 }}
                   className="relative"
                 >
-                  <Avatar className="h-4 w-4 ring-1 ring-background cursor-pointer">
+                  <Avatar className="h-4 w-4 ring-2 ring-background cursor-pointer shadow-sm">
                     <AvatarImage src={view.profile?.avatar_url || undefined} />
                     <AvatarFallback className="text-[8px] bg-primary/20 text-primary">
                       {view.profile?.username?.charAt(0).toUpperCase() || '?'}
@@ -90,7 +108,8 @@ export function ReadReceipts({
                   variants={avatarVariants}
                   initial="hidden"
                   animate="visible"
-                  className="flex items-center justify-center h-4 w-4 rounded-full bg-muted text-[8px] font-medium ring-1 ring-background"
+                  whileHover={{ scale: 1.2 }}
+                  className="flex items-center justify-center h-4 w-4 rounded-full bg-primary/20 text-[8px] font-medium text-primary ring-2 ring-background"
                 >
                   +{remainingCount}
                 </motion.div>
@@ -102,7 +121,7 @@ export function ReadReceipts({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
-                className="text-[10px] text-muted-foreground ml-0.5"
+                className="text-[10px] text-muted-foreground"
               >
                 seen
               </motion.span>
