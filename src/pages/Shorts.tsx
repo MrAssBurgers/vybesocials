@@ -104,11 +104,13 @@ export default function ShortsPage() {
     <AppLayout>
       <div
         ref={containerRef}
-        className="h-[calc(100vh-4rem)] md:h-screen overflow-hidden relative"
+        className="h-[calc(100vh-4rem)] md:h-screen overflow-hidden relative flex justify-center bg-background"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
+        {/* TikTok-style container - 9:16 aspect ratio */}
+        <div className="relative h-full w-full max-w-[calc((100vh-4rem)*9/16)] md:max-w-[calc(100vh*9/16)]">
         {/* Navigation hints */}
         <div className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-20 flex-col gap-2">
           <button
@@ -163,6 +165,7 @@ export default function ShortsPage() {
             <ChevronUp className="h-4 w-4" />
             <span>Swipe up</span>
           </motion.div>
+        </div>
         </div>
       </div>
     </AppLayout>
