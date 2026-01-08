@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { getUserFriendlyError } from '@/lib/errorUtils';
 
 export default function Landing() {
   const { user, signIn, signUp } = useAuth();
@@ -44,7 +45,7 @@ export default function Landing() {
         navigate('/home');
       }
     } catch (error: any) {
-      toast.error(error.message);
+      toast.error(getUserFriendlyError(error));
     } finally {
       setLoading(false);
     }
@@ -67,7 +68,7 @@ export default function Landing() {
       toast.success('Welcome to the demo!');
       navigate('/home');
     } catch (error: any) {
-      toast.error(error.message);
+      toast.error(getUserFriendlyError(error));
     } finally {
       setLoading(false);
     }
