@@ -1,14 +1,20 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Flag, AlertTriangle, CheckCircle, XCircle, Eye, Trash2, MessageSquare } from 'lucide-react';
+import { Shield, Flag, AlertTriangle, CheckCircle, XCircle, Eye, Trash2, MessageSquare, Users, FileText, Search, Pin } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { formatDistanceToNow } from 'date-fns';
 import { 
   useContentFlags, 
   useReports, 
@@ -212,13 +218,68 @@ function ReportCard({ report, onDismiss, onAction }: {
   );
 }
 
+// Hook for fetching all posts
+function useAllPosts() {
+  return useQuery({
+    queryKey: ['admin-posts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          id, type, media_url, caption, created_at, is_pinned,
+          author:profiles!author_id (id, username, avatar_url)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// Hook for fetching all users
+function useAllUsers() {
+  return useQuery({
+    queryKey: ['admin-users'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// Hook for deleting posts as admin
+function useAdminDeletePost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (postId: string) => {
+      const { error } = await supabase.from('posts').delete().eq('id', postId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-posts'] });
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    },
+  });
+}
+
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const [searchQuery, setSearchQuery] = useState('');
   const { data: role, isLoading: roleLoading } = useUserRole();
   const { data: flags = [], isLoading: flagsLoading } = useContentFlags();
   const { data: reports = [], isLoading: reportsLoading } = useReports();
+  const { data: posts = [], isLoading: postsLoading } = useAllPosts();
+  const { data: users = [], isLoading: usersLoading } = useAllUsers();
   const updateFlag = useUpdateFlag();
   const updateReport = useUpdateReport();
+  const deletePost = useAdminDeletePost();
   const { toast } = useToast();
 
   if (roleLoading) {
@@ -297,6 +358,26 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this post?')) return;
+    try {
+      await deletePost.mutateAsync(postId);
+      toast({ title: 'Post deleted' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to delete post', variant: 'destructive' });
+    }
+  };
+
+  const filteredPosts = posts?.filter((p: any) =>
+    p.caption?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.author?.username?.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  const filteredUsers = users?.filter((u: any) =>
+    u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    u.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
   return (
     <AppLayout>
       <div className="p-4 max-w-4xl mx-auto">
@@ -308,8 +389,8 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3">
             <Shield className="w-8 h-8 text-primary" />
             <div>
-              <h1 className="text-2xl font-bold">Moderation Dashboard</h1>
-              <p className="text-muted-foreground">Review flagged content and user reports</p>
+              <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+              <p className="text-muted-foreground">Manage content, users, and reports</p>
             </div>
           </div>
         </motion.div>
@@ -354,31 +435,40 @@ export default function AdminDashboard() {
           </motion.div>
         </div>
 
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search posts or users..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
         <Tabs defaultValue="flags" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsList className="grid w-full grid-cols-4 mb-4">
             <TabsTrigger value="flags" className="relative">
-              AI Flags
+              <Flag className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Flags</span>
               {pendingFlags.length > 0 && (
-                <motion.span 
-                  className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                >
-                  {pendingFlags.length}
-                </motion.span>
+                <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 justify-center">{pendingFlags.length}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="reports" className="relative">
-              User Reports
+              <MessageSquare className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Reports</span>
               {pendingReports.length > 0 && (
-                <motion.span 
-                  className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                >
-                  {pendingReports.length}
-                </motion.span>
+                <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 justify-center">{pendingReports.length}</Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="posts">
+              <FileText className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Posts</span>
+            </TabsTrigger>
+            <TabsTrigger value="users">
+              <Users className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Users</span>
             </TabsTrigger>
           </TabsList>
 
@@ -449,6 +539,107 @@ export default function AdminDashboard() {
                     onDismiss={() => handleDismissReport(report.id)}
                     onAction={(notes) => handleActionReport(report.id, notes)}
                   />
+                ))}
+              </motion.div>
+            )}
+          </TabsContent>
+
+          {/* Posts Tab */}
+          <TabsContent value="posts">
+            {postsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full" />)}
+              </div>
+            ) : filteredPosts.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center">
+                  <p className="text-muted-foreground">No posts found</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <motion.div className="space-y-3" variants={containerVariants} initial="hidden" animate="visible">
+                {filteredPosts.map((post: any) => (
+                  <motion.div key={post.id} variants={itemVariants}>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-4">
+                          <img src={post.media_url} alt="" className="w-16 h-16 object-cover rounded-lg" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Avatar className="h-6 w-6">
+                                <AvatarImage src={post.author?.avatar_url} />
+                                <AvatarFallback>{post.author?.username?.[0]}</AvatarFallback>
+                              </Avatar>
+                              <span className="font-medium text-sm">{post.author?.username}</span>
+                              {post.is_pinned && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <Pin className="h-3 w-3 mr-1" />Pinned
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground truncate">{post.caption || 'No caption'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => navigate(`/p/${post.id}`)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={() => handleDeletePost(post.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </TabsContent>
+
+          {/* Users Tab */}
+          <TabsContent value="users">
+            {usersLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center">
+                  <p className="text-muted-foreground">No users found</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <motion.div className="space-y-3" variants={containerVariants} initial="hidden" animate="visible">
+                {filteredUsers.map((user: any) => (
+                  <motion.div key={user.id} variants={itemVariants}>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-4">
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={user.avatar_url || undefined} />
+                            <AvatarFallback>{user.username?.[0]?.toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{user.username}</span>
+                              {user.is_verified && <Badge variant="secondary">Verified</Badge>}
+                              {user.is_private && <Badge variant="outline">Private</Badge>}
+                            </div>
+                            <p className="text-sm text-muted-foreground">{user.display_name || 'No display name'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Joined {formatDistanceToNow(new Date(user.created_at), { addSuffix: true })}
+                            </p>
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => navigate(`/u/${user.username}`)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
                 ))}
               </motion.div>
             )}

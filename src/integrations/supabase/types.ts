@@ -611,6 +611,7 @@ export type Database = {
           caption: string | null
           created_at: string
           id: string
+          is_pinned: boolean | null
           media_url: string
           tags: string[] | null
           thumbnail_url: string | null
@@ -621,6 +622,7 @@ export type Database = {
           caption?: string | null
           created_at?: string
           id?: string
+          is_pinned?: boolean | null
           media_url: string
           tags?: string[] | null
           thumbnail_url?: string | null
@@ -631,6 +633,7 @@ export type Database = {
           caption?: string | null
           created_at?: string
           id?: string
+          is_pinned?: boolean | null
           media_url?: string
           tags?: string[] | null
           thumbnail_url?: string | null
