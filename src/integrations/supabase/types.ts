@@ -294,24 +294,63 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bio: string | null
+          coins_balance: number | null
           created_at: string
+          display_name: string | null
           id: string
+          interests: string[] | null
+          is_private: boolean | null
+          is_verified: boolean | null
+          language: string | null
+          link_url: string | null
+          location: string | null
+          onboarding_completed: boolean | null
+          phone_number: string | null
+          phone_verified: boolean | null
+          sensitivity_preference: string | null
+          timezone: string | null
           user_id: string
           username: string
         }
         Insert: {
           avatar_url?: string | null
           bio?: string | null
+          coins_balance?: number | null
           created_at?: string
+          display_name?: string | null
           id?: string
+          interests?: string[] | null
+          is_private?: boolean | null
+          is_verified?: boolean | null
+          language?: string | null
+          link_url?: string | null
+          location?: string | null
+          onboarding_completed?: boolean | null
+          phone_number?: string | null
+          phone_verified?: boolean | null
+          sensitivity_preference?: string | null
+          timezone?: string | null
           user_id: string
           username: string
         }
         Update: {
           avatar_url?: string | null
           bio?: string | null
+          coins_balance?: number | null
           created_at?: string
+          display_name?: string | null
           id?: string
+          interests?: string[] | null
+          is_private?: boolean | null
+          is_verified?: boolean | null
+          language?: string | null
+          link_url?: string | null
+          location?: string | null
+          onboarding_completed?: boolean | null
+          phone_number?: string | null
+          phone_verified?: boolean | null
+          sensitivity_preference?: string | null
+          timezone?: string | null
           user_id?: string
           username?: string
         }
@@ -351,6 +390,59 @@ export type Database = {
             foreignKeyName: "reports_reporter_id_fkey"
             columns: ["reporter_id"]
             isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_settings: {
+        Row: {
+          content_language: string[] | null
+          created_at: string | null
+          id: string
+          read_receipts: boolean | null
+          reduced_motion: boolean | null
+          restrict_comments_to_followers: boolean | null
+          screenshot_notifications: boolean | null
+          show_activity_status: boolean | null
+          theme: string | null
+          typing_indicators: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          content_language?: string[] | null
+          created_at?: string | null
+          id?: string
+          read_receipts?: boolean | null
+          reduced_motion?: boolean | null
+          restrict_comments_to_followers?: boolean | null
+          screenshot_notifications?: boolean | null
+          show_activity_status?: boolean | null
+          theme?: string | null
+          typing_indicators?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          content_language?: string[] | null
+          created_at?: string | null
+          id?: string
+          read_receipts?: boolean | null
+          reduced_motion?: boolean | null
+          restrict_comments_to_followers?: boolean | null
+          screenshot_notifications?: boolean | null
+          show_activity_status?: boolean | null
+          theme?: string | null
+          typing_indicators?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
