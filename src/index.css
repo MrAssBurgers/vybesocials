@@ -299,3 +299,50 @@
     transform: translateY(-10px);
   }
 }
+
+/* Fire/Streak animations */
+@keyframes fire-flicker {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1) rotate(-2deg);
+  }
+  25% {
+    opacity: 0.9;
+    transform: scale(1.05) rotate(1deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02) rotate(-1deg);
+  }
+  75% {
+    opacity: 0.95;
+    transform: scale(1.03) rotate(2deg);
+  }
+}
+
+@keyframes fire-glow {
+  0%, 100% {
+    text-shadow: 0 0 10px rgba(255, 100, 0, 0.8), 0 0 20px rgba(255, 50, 0, 0.6);
+  }
+  50% {
+    text-shadow: 0 0 20px rgba(255, 100, 0, 1), 0 0 40px rgba(255, 50, 0, 0.8);
+  }
+}
+
+@keyframes rainbow-text {
+  0% { color: hsl(0, 100%, 60%); }
+  16% { color: hsl(60, 100%, 60%); }
+  33% { color: hsl(120, 100%, 60%); }
+  50% { color: hsl(180, 100%, 60%); }
+  66% { color: hsl(240, 100%, 60%); }
+  83% { color: hsl(300, 100%, 60%); }
+  100% { color: hsl(360, 100%, 60%); }
+}
+
+.animate-fire {
+  animation: fire-flicker 0.3s infinite, fire-glow 1s infinite;
+}
+
+.animate-rainbow-text {
+  animation: rainbow-text 3s linear infinite;
+}
