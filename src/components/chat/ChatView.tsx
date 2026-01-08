@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   useMessages, 
-  useSendMessage, 
   useTypingIndicator, 
   useScreenshotNotification,
   useMarkMessageViewed,
@@ -13,6 +12,7 @@ import {
   Message 
 } from '@/hooks/useMessages';
 import { useConversations } from '@/hooks/useMessages';
+import { useOptimisticMessages, OptimisticMessage } from '@/hooks/useOptimisticMessages';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -28,16 +28,17 @@ import {
   ArrowLeft, 
   Send, 
   Image as ImageIcon, 
-  Smile, 
   MoreVertical,
   Clock,
   Eye,
   EyeOff,
-  Flame,
   Check,
-  CheckCheck
+  CheckCheck,
+  RefreshCw,
+  X,
+  Loader2
 } from 'lucide-react';
-import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
@@ -50,7 +51,7 @@ export function ChatView() {
   
   const { data: conversations } = useConversations();
   const { data: messages, isLoading } = useMessages(conversationId);
-  const sendMessage = useSendMessage();
+  const { optimisticMessages, send, retry, dismiss, isPending } = useOptimisticMessages(conversationId);
   const markViewed = useMarkMessageViewed();
   const addReaction = useAddReaction();
   const { typingUsers, setTyping } = useTypingIndicator(conversationId);
@@ -118,23 +119,14 @@ export function ChatView() {
     }
   }, [setTyping]);
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!messageText.trim() || !conversationId) return;
 
     const text = messageText.trim();
     setMessageText('');
     setTyping(false);
 
-    try {
-      await sendMessage.mutateAsync({
-        conversationId,
-        content: text,
-        viewMode,
-      });
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      setMessageText(text); // Restore on error
-    }
+    send(text, viewMode);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -231,6 +223,16 @@ export function ChatView() {
               </div>
             );
           })}
+
+          {/* Optimistic messages (sending/failed) */}
+          {optimisticMessages.map((optMsg) => (
+            <OptimisticMessageBubble
+              key={optMsg.tempId}
+              message={optMsg}
+              onRetry={() => retry(optMsg.tempId)}
+              onDismiss={() => dismiss(optMsg.tempId)}
+            />
+          ))}
         </AnimatePresence>
 
         {/* Typing indicator */}
@@ -304,11 +306,15 @@ export function ChatView() {
 
           <Button 
             onClick={handleSend}
-            disabled={!messageText.trim() || sendMessage.isPending}
+            disabled={!messageText.trim() || isPending}
             size="icon"
             className="flex-shrink-0"
           >
-            <Send className="h-5 w-5" />
+            {isPending ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Send className="h-5 w-5" />
+            )}
           </Button>
         </div>
 
@@ -458,4 +464,70 @@ function formatMessageDate(dateStr: string): string {
     return `Yesterday ${format(date, 'HH:mm')}`;
   }
   return format(date, 'MMM d, HH:mm');
+}
+
+function OptimisticMessageBubble({
+  message,
+  onRetry,
+  onDismiss,
+}: {
+  message: OptimisticMessage;
+  onRetry: () => void;
+  onDismiss: () => void;
+}) {
+  const isFailed = message.status === 'failed';
+  const isSending = message.status === 'sending';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="flex justify-end gap-2"
+    >
+      <div className="max-w-[75%] flex flex-col items-end">
+        <div
+          className={cn(
+            'relative rounded-2xl px-4 py-2 break-words rounded-br-md',
+            isFailed
+              ? 'bg-destructive/20 text-destructive border border-destructive/30'
+              : 'bg-primary/70 text-primary-foreground'
+          )}
+        >
+          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        </div>
+
+        <div className="flex items-center gap-2 mt-1">
+          {isSending && (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span className="text-[10px]">Sending...</span>
+            </div>
+          )}
+
+          {isFailed && (
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-destructive">Failed to send</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5"
+                onClick={onRetry}
+              >
+                <RefreshCw className="h-3 w-3 text-destructive" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5"
+                onClick={onDismiss}
+              >
+                <X className="h-3 w-3 text-muted-foreground" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
 }
