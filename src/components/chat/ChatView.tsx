@@ -635,7 +635,28 @@ function MessageBubble({
                 transition={{ type: 'spring', stiffness: 500 }}
               >
                 {hasBeenViewed ? (
-                  <CheckCheck className="h-3 w-3 text-primary" />
+                  <motion.div 
+                    className="flex items-center gap-0.5"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                  >
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 0.4 }}
+                    >
+                      <Eye className="h-3.5 w-3.5 text-primary" />
+                    </motion.div>
+                    {message.views && message.views.length > 0 && (
+                      <motion.span 
+                        initial={{ opacity: 0, x: -3 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="text-[10px] font-medium text-primary"
+                      >
+                        {message.views.length}
+                      </motion.span>
+                    )}
+                  </motion.div>
                 ) : (
                   <Check className="h-3 w-3 text-muted-foreground" />
                 )}
@@ -643,7 +664,7 @@ function MessageBubble({
             </div>
             
             {/* Read receipts for group chats - show who viewed */}
-            {hasBeenViewed && message.views && (
+            {hasBeenViewed && message.views && isGroupChat && (
               <ReadReceipts 
                 views={message.views} 
                 isGroupChat={isGroupChat}
