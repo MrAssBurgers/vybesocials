@@ -315,7 +315,8 @@ export function ChatView() {
 
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${profile.id}/${Date.now()}.${fileExt}`;
+      // Use user_id (auth.uid()) instead of profile.id for storage path
+      const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
@@ -344,7 +345,8 @@ export function ChatView() {
     setIsUploadingMedia(true);
 
     try {
-      const fileName = `${profile.id}/${Date.now()}.webm`;
+      // Use user_id (auth.uid()) instead of profile.id for storage path
+      const fileName = `${profile.user_id}/${Date.now()}.webm`;
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
