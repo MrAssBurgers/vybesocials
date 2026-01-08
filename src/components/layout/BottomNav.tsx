@@ -3,20 +3,22 @@ import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { triggerNavFeedback } from '@/lib/navFeedback';
+import { useUnreadMessagesCount } from '@/hooks/useMessages';
 
 export function BottomNav() {
   const { t } = useTranslation();
   const location = useLocation();
   const { profile } = useAuth();
+  const { data: unreadMessages = 0 } = useUnreadMessagesCount();
 
   const navItems = [
-    { icon: Home, labelKey: 'nav.home', path: '/home' },
-    { icon: PlaySquare, labelKey: 'nav.shorts', path: '/shorts' },
-    { icon: PlusCircle, labelKey: 'nav.upload', path: '/upload', isCreate: true },
-    { icon: Compass, labelKey: 'nav.explore', path: '/explore' },
-    { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages' },
+    { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0 },
+    { icon: PlaySquare, labelKey: 'nav.shorts', path: '/shorts', badge: 0 },
+    { icon: PlusCircle, labelKey: 'nav.upload', path: '/upload', isCreate: true, badge: 0 },
+    { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0 },
+    { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages },
   ];
 
   return (
@@ -79,6 +81,21 @@ export function BottomNav() {
                     isActive ? "text-primary" : "text-muted-foreground"
                   )}
                 />
+                
+                {/* Badge for unread count */}
+                <AnimatePresence>
+                  {item.badge > 0 && (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      transition={{ type: 'spring', stiffness: 500 }}
+                      className="absolute -top-1 -right-1 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold shadow-md z-20"
+                    >
+                      {item.badge > 9 ? '9+' : item.badge}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </motion.div>
               <span
                 className={cn(

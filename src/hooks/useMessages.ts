@@ -53,6 +53,45 @@ export interface Conversation {
   unread_count?: number;
 }
 
+// Hook to get total unread message count across all conversations
+export function useUnreadMessagesCount() {
+  const { profile } = useAuth();
+
+  return useQuery({
+    queryKey: ['unread-messages-count', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return 0;
+
+      // Get conversations the user is part of
+      const { data: memberships } = await supabase
+        .from('conversation_members')
+        .select('conversation_id, last_read_at')
+        .eq('user_id', profile.id);
+
+      if (!memberships?.length) return 0;
+
+      let totalUnread = 0;
+      for (const membership of memberships) {
+        const lastReadAt = membership.last_read_at || '1970-01-01';
+        const { count } = await supabase
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('conversation_id', membership.conversation_id)
+          .neq('sender_id', profile.id)
+          .gt('created_at', lastReadAt)
+          .eq('is_deleted', false);
+
+        totalUnread += count || 0;
+      }
+
+      return totalUnread;
+    },
+    enabled: !!profile?.id,
+    staleTime: 5000,
+    refetchInterval: 15000,
+  });
+}
+
 export function useConversations() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
