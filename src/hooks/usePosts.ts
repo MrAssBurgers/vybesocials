@@ -13,6 +13,7 @@ interface Post {
   caption: string;
   tags: string[];
   created_at: string;
+  is_pinned: boolean;
   author: {
     id: string;
     username: string;
@@ -40,12 +41,14 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
           caption,
           tags,
           created_at,
+          is_pinned,
           author:profiles!author_id (
             id,
             username,
             avatar_url
           )
         `)
+        .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (type) {
@@ -84,6 +87,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
 
           return {
             ...post,
+            is_pinned: post.is_pinned ?? false,
             author: post.author as unknown as { id: string; username: string; avatar_url: string | null },
             like_count: likesCount.count || 0,
             comment_count: commentsCount.count || 0,
@@ -127,6 +131,7 @@ export function useFollowingPosts() {
           caption,
           tags,
           created_at,
+          is_pinned,
           author:profiles!author_id (
             id,
             username,
@@ -134,6 +139,7 @@ export function useFollowingPosts() {
           )
         `)
         .in('author_id', followingIds)
+        .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -156,6 +162,7 @@ export function useFollowingPosts() {
 
           return {
             ...post,
+            is_pinned: post.is_pinned ?? false,
             author: post.author as unknown as { id: string; username: string; avatar_url: string | null },
             like_count: likesCount.count || 0,
             comment_count: commentsCount.count || 0,
@@ -242,6 +249,28 @@ export function useCreatePost() {
       if (!error.message.includes('blocked content')) {
         toast.error('Failed to create post');
       }
+    },
+  });
+}
+
+export function useTogglePin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ postId, isPinned }: { postId: string; isPinned: boolean }) => {
+      const { error } = await supabase
+        .from('posts')
+        .update({ is_pinned: isPinned })
+        .eq('id', postId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      toast.success('Post updated');
+    },
+    onError: () => {
+      toast.error('Failed to update post');
     },
   });
 }

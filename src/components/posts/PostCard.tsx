@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { EditPostDialog } from './EditPostDialog';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
+import { useTogglePin } from '@/hooks/usePosts';
 
 interface PostCardProps {
   post: {
@@ -36,12 +38,14 @@ interface PostCardProps {
     comment_count: number;
     is_liked: boolean;
     is_bookmarked: boolean;
+    is_pinned?: boolean;
   };
 }
 
 export function PostCard({ post }: PostCardProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const togglePin = useTogglePin();
   const [isLiked, setIsLiked] = useState(post.is_liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
@@ -49,6 +53,10 @@ export function PostCard({ post }: PostCardProps) {
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   const isOwnPost = profile?.id === post.author.id;
+
+  const handleTogglePin = () => {
+    togglePin.mutate({ postId: post.id, isPinned: !post.is_pinned });
+  };
 
   const handleLike = async () => {
     if (!profile) return;
@@ -142,6 +150,12 @@ export function PostCard({ post }: PostCardProps) {
             <p className="font-semibold text-sm flex items-center gap-1.5">
               {post.author.username}
               {isOwner(post.author.username) && <OwnerBadge />}
+              {post.is_pinned && (
+                <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                  <Pin className="h-3 w-3 mr-1" />
+                  Pinned
+                </Badge>
+              )}
             </p>
             <p className="text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
@@ -157,6 +171,19 @@ export function PostCard({ post }: PostCardProps) {
           <DropdownMenuContent align="end">
             {isOwnPost && (
               <>
+                <DropdownMenuItem onClick={handleTogglePin}>
+                  {post.is_pinned ? (
+                    <>
+                      <PinOff className="h-4 w-4 mr-2" />
+                      Unpin Post
+                    </>
+                  ) : (
+                    <>
+                      <Pin className="h-4 w-4 mr-2" />
+                      Pin to Profile
+                    </>
+                  )}
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setIsEditOpen(true)}>
                   <Pencil className="h-4 w-4 mr-2" />
                   Edit Post
