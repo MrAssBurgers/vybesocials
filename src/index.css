@@ -233,6 +233,15 @@
     border-radius: 12px;
   }
 
+  /* Pulse glow effect for animated border */
+  .animate-glow-pulse {
+    box-shadow: 
+      0 0 8px hsl(var(--neon-pink) / 0.5),
+      0 0 16px hsl(var(--neon-purple) / 0.3),
+      0 0 24px hsl(var(--neon-cyan) / 0.2);
+    animation: gradient-rotate 3s linear infinite, glow-pulse 2s ease-in-out infinite;
+  }
+
   @property --gradient-angle {
     syntax: "<angle>";
     initial-value: 0deg;
@@ -245,6 +254,21 @@
     }
     100% {
       --gradient-angle: 360deg;
+    }
+  }
+
+  @keyframes glow-pulse {
+    0%, 100% {
+      box-shadow: 
+        0 0 8px hsl(var(--neon-pink) / 0.5),
+        0 0 16px hsl(var(--neon-purple) / 0.3),
+        0 0 24px hsl(var(--neon-cyan) / 0.2);
+    }
+    50% {
+      box-shadow: 
+        0 0 12px hsl(var(--neon-pink) / 0.7),
+        0 0 24px hsl(var(--neon-purple) / 0.5),
+        0 0 36px hsl(var(--neon-cyan) / 0.4);
     }
   }
 

@@ -51,20 +51,29 @@ export function Sidebar() {
               key={item.path}
               to={item.path}
               className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-lg transition-all relative group",
+                "flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group",
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-foreground"
+                  ? "text-sidebar-foreground"
                   : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               )}
             >
+              {/* Animated gradient outline for active state */}
               {isActive && (
                 <motion.div
-                  layoutId="sidebarIndicator"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full bg-primary"
-                />
+                  layoutId="sidebarNavOutline"
+                  className="absolute inset-0 rounded-xl overflow-hidden"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                >
+                  {/* Animated gradient border */}
+                  <div className="absolute inset-0 gradient-border-animated animate-glow-pulse" />
+                  {/* Inner background to create border effect */}
+                  <div className="absolute inset-[2px] rounded-[10px] bg-sidebar" />
+                </motion.div>
               )}
-              <Icon className="h-5 w-5" />
-              <span className="font-medium">{t(item.labelKey)}</span>
+              <Icon className="h-5 w-5 relative z-10" />
+              <span className="font-medium relative z-10">{t(item.labelKey)}</span>
             </Link>
           );
         })}

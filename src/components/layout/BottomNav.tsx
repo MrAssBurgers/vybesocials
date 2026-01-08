@@ -59,12 +59,12 @@ export function BottomNav() {
                   <motion.div
                     layoutId="bottomNavOutline"
                     className="absolute -inset-2 rounded-xl overflow-hidden"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                   >
-                    {/* Animated gradient border */}
-                    <div className="absolute inset-0 gradient-border-animated" />
+                    {/* Animated gradient border with pulse glow */}
+                    <div className="absolute inset-0 gradient-border-animated animate-glow-pulse" />
                     {/* Inner background to create border effect */}
                     <div className="absolute inset-[2px] rounded-[10px] bg-background" />
                   </motion.div>
