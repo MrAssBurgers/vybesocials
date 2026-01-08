@@ -358,34 +358,33 @@ export function useCreateConversation() {
 
       if (convError) throw convError;
 
-      // Add creator first
-      const { error: creatorError } = await supabase
+      // Prepare all members to insert at once
+      const allMemberIds = [...new Set([profile.id, ...memberIds])];
+      const membersToInsert = allMemberIds.map((userId) => ({
+        conversation_id: conversation.id,
+        user_id: userId,
+        role: userId === profile.id ? 'admin' : 'member',
+      }));
+
+      // Insert all members in a single batch
+      const { error: membersError } = await supabase
         .from('conversation_members')
-        .insert({
-          conversation_id: conversation.id,
-          user_id: profile.id,
-          role: 'admin',
-        });
+        .insert(membersToInsert);
 
-      if (creatorError) throw creatorError;
-
-      // Add other members
-      for (const userId of memberIds) {
-        if (userId !== profile.id) {
-          await supabase
-            .from('conversation_members')
-            .insert({
-              conversation_id: conversation.id,
-              user_id: userId,
-              role: 'member',
-            });
-        }
+      if (membersError) {
+        // Rollback: delete the conversation if members couldn't be added
+        await supabase.from('conversations').delete().eq('id', conversation.id);
+        throw membersError;
       }
 
       return conversation;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+    onError: (error) => {
+      console.error('Failed to create conversation:', error);
+      toast.error('Failed to start conversation');
     },
   });
 }
