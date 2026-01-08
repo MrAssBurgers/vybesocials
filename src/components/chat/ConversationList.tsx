@@ -217,13 +217,13 @@ function NewChatDialog({
       const { data } = await supabase
         .from('profiles')
         .select('id, username, avatar_url, display_name')
-        .neq('id', profile?.id || '')
-        .ilike('username', `%${searchQuery}%`)
-        .limit(10);
+        .neq('user_id', (await supabase.auth.getUser()).data.user?.id || '')
+        .or(`username.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%`)
+        .limit(20);
 
       return data || [];
     },
-    enabled: searchQuery.length > 0,
+    enabled: searchQuery.length > 1,
   });
 
   const handleSelectUser = async (userId: string) => {
