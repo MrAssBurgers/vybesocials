@@ -390,13 +390,17 @@ export function useTypingIndicator(conversationId: string | undefined) {
     if (!conversationId || !profile?.id) return;
 
     if (isTyping) {
+      // Use upsert with onConflict to handle race conditions
       await supabase
         .from('typing_indicators')
-        .upsert({
-          conversation_id: conversationId,
-          user_id: profile.id,
-          started_at: new Date().toISOString(),
-        });
+        .upsert(
+          {
+            conversation_id: conversationId,
+            user_id: profile.id,
+            started_at: new Date().toISOString(),
+          },
+          { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
+        );
     } else {
       await supabase
         .from('typing_indicators')
