@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Home, Film, Compass, MessageCircle, ShoppingBag, Calendar, Bell, Settings, 
-  LogOut, PlusCircle, Shield, ChevronLeft, ChevronRight, Users, ExternalLink,
-  HelpCircle, FileText
+  LogOut, PlusCircle, Shield, ChevronLeft, ChevronRight, Users, 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -183,6 +182,12 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
           </Link>
         )}
 
+        {!collapsed && !profile && (
+          <div className="mx-3 mb-3 p-3 rounded-xl liquid-glass-subtle">
+            <p className="text-sm text-muted-foreground text-center">Not signed in</p>
+          </div>
+        )}
+
         {collapsed && profile && (
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
@@ -247,24 +252,19 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
           )}
         </div>
 
-        {/* Communities Shortcut */}
+        {/* Communities Section - Show empty state */}
         {!collapsed && (
           <div className="px-3 py-2">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Communities
               </span>
-              <Button variant="ghost" size="sm" className="h-6 text-xs px-2">
-                See all
-              </Button>
             </div>
-            <div className="flex gap-2">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500 to-purple-500" />
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500" />
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500" />
-              <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center">
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </div>
+            <div className="p-3 rounded-xl liquid-glass-subtle text-center">
+              <Users className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+              <p className="text-xs text-muted-foreground">
+                You're not in any communities yet
+              </p>
             </div>
           </div>
         )}
