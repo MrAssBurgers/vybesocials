@@ -1,4 +1,4 @@
-import { useState, forwardRef } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -23,8 +23,7 @@ interface EditPostDialogProps {
   };
 }
 
-export const EditPostDialog = forwardRef<HTMLDivElement, EditPostDialogProps>(
-  function EditPostDialog({ open, onOpenChange, post }, ref) {
+export function EditPostDialog({ open, onOpenChange, post }: EditPostDialogProps) {
   const queryClient = useQueryClient();
   const [caption, setCaption] = useState(post.caption);
   const [tagsInput, setTagsInput] = useState(post.tags?.join(', ') || '');
@@ -63,7 +62,7 @@ export const EditPostDialog = forwardRef<HTMLDivElement, EditPostDialogProps>(
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent ref={ref} className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Edit Post</DialogTitle>
         </DialogHeader>
@@ -103,4 +102,4 @@ export const EditPostDialog = forwardRef<HTMLDivElement, EditPostDialogProps>(
       </DialogContent>
     </Dialog>
   );
-});
+}
