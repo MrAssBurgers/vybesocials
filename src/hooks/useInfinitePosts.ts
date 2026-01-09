@@ -2,6 +2,18 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 
+// Utility to validate media URLs
+function isValidMediaUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  if (typeof url !== 'string') return false;
+  if (url.trim() === '') return false;
+  if (url === 'undefined' || url === 'null') return false;
+  return url.startsWith('http://') || 
+         url.startsWith('https://') || 
+         url.startsWith('/') ||
+         url.startsWith('blob:');
+}
+
 interface Post {
   id: string;
   type: string;
@@ -98,8 +110,11 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
         })
       );
 
+      // Filter out posts without valid media URLs
+      const validPosts = postsWithCounts.filter(post => isValidMediaUrl(post.media_url));
+
       return {
-        posts: postsWithCounts,
+        posts: validPosts,
         nextPage: posts && posts.length === PAGE_SIZE ? pageParam + 1 : null,
       };
     },
@@ -185,8 +200,11 @@ export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
         })
       );
 
+      // Filter out posts without valid media URLs
+      const validPosts = postsWithCounts.filter(post => isValidMediaUrl(post.media_url));
+
       return {
-        posts: postsWithCounts,
+        posts: validPosts,
         nextPage: posts && posts.length === PAGE_SIZE ? pageParam + 1 : null,
       };
     },

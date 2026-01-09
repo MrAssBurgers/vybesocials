@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { useAuth } from '@/lib/auth';
 import { Navigate } from 'react-router-dom';
 import { usePresence } from '@/hooks/usePresence';
+import { useScrollOptimization } from '@/hooks/useScrollOptimization';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -16,11 +17,14 @@ export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
   
   // Track online presence
   usePresence();
+  
+  // Optimize animations during scroll
+  useScrollOptimization();
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="gradient-animated rounded-full p-4 animate-pulse">
+        <div className="rounded-full p-4">
           <span className="text-4xl">😂</span>
         </div>
       </div>

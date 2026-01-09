@@ -1,6 +1,6 @@
 import { useState, useRef, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -24,13 +24,21 @@ import { useTogglePin } from '@/hooks/usePosts';
 import { useUserRole } from '@/hooks/useModeration';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
+import { isValidMediaUrl } from '@/components/ui/SafeMedia';
+import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 
 // Video player component - shows thumbnail until clicked (like YouTube Shorts)
-function VideoPlayer({ src }: { src: string }) {
+function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  // Early return for invalid source
+  if (!isValidMediaUrl(src)) {
+    return <MediaFallback type="video" caption={caption} />;
+  }
 
   const handleLoadedData = () => {
     if (videoRef.current) {
@@ -40,11 +48,17 @@ function VideoPlayer({ src }: { src: string }) {
         videoRef.current.currentTime = randomTime;
       }
       setIsLoaded(true);
+      setHasError(false);
     }
   };
 
+  const handleError = () => {
+    setIsLoaded(true);
+    setHasError(true);
+  };
+
   const handleClick = () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || hasError) return;
     
     if (!isPlaying) {
       videoRef.current.currentTime = 0;
@@ -64,15 +78,17 @@ function VideoPlayer({ src }: { src: string }) {
     }
   };
 
+  if (hasError) {
+    return <MediaFallback type="video" caption={caption} />;
+  }
+
   return (
     <div 
       className="relative w-full h-full cursor-pointer bg-muted" 
       onClick={handleClick}
     >
       {/* Loading skeleton */}
-      {!isLoaded && (
-        <div className="absolute inset-0 bg-muted animate-pulse" />
-      )}
+      {!isLoaded && <MediaSkeleton />}
       <video
         ref={videoRef}
         src={src}
@@ -82,9 +98,10 @@ function VideoPlayer({ src }: { src: string }) {
         playsInline
         preload="auto"
         onLoadedData={handleLoadedData}
+        onError={handleError}
       />
       {/* Play indicator when not playing */}
-      {!isPlaying && isLoaded && (
+      {!isPlaying && isLoaded && !hasError && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
           <motion.div
             whileHover={{ scale: 1.1 }}
@@ -95,7 +112,7 @@ function VideoPlayer({ src }: { src: string }) {
         </div>
       )}
       {/* Mute/Unmute button when playing */}
-      {isPlaying && (
+      {isPlaying && !hasError && (
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={toggleMute}
@@ -105,6 +122,35 @@ function VideoPlayer({ src }: { src: string }) {
         </motion.button>
       )}
     </div>
+  );
+}
+
+// Safe image component for post media
+function PostImage({ src, caption }: { src: string; caption?: string }) {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  if (!isValidMediaUrl(src)) {
+    return <MediaFallback type="image" caption={caption} />;
+  }
+
+  if (hasError) {
+    return <MediaFallback type="image" caption={caption} />;
+  }
+
+  return (
+    <>
+      {!isLoaded && <MediaSkeleton className="absolute inset-0" />}
+      <img
+        src={src}
+        alt={caption || ''}
+        className={cn("w-full h-full object-cover transition-opacity", isLoaded ? "opacity-100" : "opacity-0")}
+        loading="eager"
+        decoding="async"
+        onLoad={() => setIsLoaded(true)}
+        onError={() => setHasError(true)}
+      />
+    </>
   );
 }
 
@@ -343,16 +389,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         onDoubleClick={handleDoubleTap}
       >
         {post.type === 'video' ? (
-          <VideoPlayer src={signedMediaUrl || ''} />
+          <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
         ) : (
-          <img
-            src={signedMediaUrl || ''}
-            alt={post.caption}
-            className="w-full h-full object-cover"
-            loading="eager"
-            decoding="async"
-            fetchPriority="high"
-          />
+          <PostImage src={signedMediaUrl || ''} caption={post.caption} />
         )}
         
         {/* Double tap heart animation - TikTok style */}

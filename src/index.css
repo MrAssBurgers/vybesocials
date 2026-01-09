@@ -152,13 +152,39 @@
     background: hsl(var(--muted-foreground));
   }
 
-  /* Reduced motion support */
+  /* Reduced motion support - comprehensive */
   .reduce-motion *,
   .reduce-motion *::before,
   .reduce-motion *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* GPU-accelerated transforms only */
+  .gpu-accelerated {
+    transform: translateZ(0);
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+  }
+
+  /* Pause animations during scroll */
+  .is-scrolling .gradient-animated,
+  .is-scrolling .animate-liquid-wobble,
+  .is-scrolling .animate-glass-breathe,
+  .is-scrolling .animate-color-shift,
+  .is-scrolling .animate-subtle-float {
+    animation-play-state: paused !important;
   }
 }
 
@@ -362,7 +388,7 @@
       0 4px 12px hsl(var(--neon-purple) / 0.15);
   }
 
-  /* Animated gradient background */
+  /* Animated gradient background - SLOW for performance */
   .gradient-animated {
     background: linear-gradient(
       135deg,
@@ -372,7 +398,17 @@
       hsl(var(--gradient-start))
     );
     background-size: 300% 300%;
-    animation: gradient-shift 8s ease infinite;
+    animation: gradient-shift 12s ease infinite;
+  }
+
+  /* Static gradient for non-critical elements */
+  .gradient-static {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--gradient-start)),
+      hsl(var(--gradient-mid)),
+      hsl(var(--gradient-end))
+    );
   }
 
   /* Gradient text */
