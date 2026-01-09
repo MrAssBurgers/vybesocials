@@ -5,58 +5,27 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
-import { VYBEHub } from '@/components/hub/VYBEHub';
-
-const DOUBLE_TAP_THRESHOLD = 300;
+import { CreateMenu } from '@/components/hub/CreateMenu';
 
 export function BottomNav() {
   const { t } = useTranslation();
   const location = useLocation();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   
-  const [isHubOpen, setIsHubOpen] = useState(false);
+  const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [showRipple, setShowRipple] = useState(false);
-  const lastTapTime = useRef(0);
-  const tapTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const handleDoubleTap = useCallback(() => {
+  const handleCreateClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
     triggerHaptic('medium');
     playSound('pop');
     setShowRipple(true);
     setTimeout(() => setShowRipple(false), 300);
-    setIsHubOpen(true);
+    setIsCreateMenuOpen(true);
   }, []);
-
-  const handleSingleTap = useCallback(() => {
-    triggerNavFeedback();
-  }, []);
-
-  const handleUploadClick = useCallback((e: React.MouseEvent) => {
-    const now = Date.now();
-    const timeSinceLastTap = now - lastTapTime.current;
-
-    if (tapTimeout.current) {
-      clearTimeout(tapTimeout.current);
-      tapTimeout.current = null;
-    }
-
-    if (timeSinceLastTap < DOUBLE_TAP_THRESHOLD) {
-      // Double-tap - prevent navigation and open hub
-      e.preventDefault();
-      lastTapTime.current = 0;
-      handleDoubleTap();
-    } else {
-      // Might be single tap - wait to confirm then navigate normally
-      lastTapTime.current = now;
-      tapTimeout.current = setTimeout(() => {
-        handleSingleTap();
-        tapTimeout.current = null;
-      }, DOUBLE_TAP_THRESHOLD);
-    }
-  }, [handleDoubleTap, handleSingleTap]);
 
   const navItems = [
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0 },
@@ -68,8 +37,8 @@ export function BottomNav() {
 
   return (
     <>
-      {/* VYBE Hub - opens on double-tap of create button */}
-      <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
+      {/* Create Menu - opens on tap of create button */}
+      <CreateMenu isOpen={isCreateMenuOpen} onClose={() => setIsCreateMenuOpen(false)} />
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 liquid-glass border-t border-white/10 safe-bottom lg:hidden">
         <div className="grid grid-cols-5 h-16 px-2">
@@ -81,12 +50,11 @@ export function BottomNav() {
             if (item.isCreate) {
               return (
                 <div key={item.path} className="relative flex items-center justify-center">
-                  <Link
-                    to={path}
+                  <button
                     className="relative flex items-center justify-center"
-                    onClick={handleUploadClick}
+                    onClick={handleCreateClick}
                   >
-                    {/* Ripple effect on double-tap */}
+                    {/* Ripple effect */}
                     <AnimatePresence>
                       {showRipple && (
                         <motion.div
@@ -106,7 +74,7 @@ export function BottomNav() {
                     >
                       <Icon className="h-6 w-6 text-primary-foreground" />
                     </motion.div>
-                  </Link>
+                  </button>
                 </div>
               );
             }
