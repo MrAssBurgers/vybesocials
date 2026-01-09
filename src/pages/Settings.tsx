@@ -107,19 +107,19 @@ export default function SettingsPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">{t('settings.title')}</h1>
+      <div className="max-w-xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+        <h1 className="text-xl sm:text-2xl font-bold mb-6">{t('settings.title')}</h1>
 
         {/* Profile Section */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
+          className="liquid-glass-card p-4 sm:p-6 mb-4 sm:mb-6"
         >
-          <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-            <Avatar className="h-12 w-12 sm:h-16 sm:w-16">
+          <div className="flex items-center gap-4 mb-6">
+            <Avatar className="h-14 w-14 sm:h-16 sm:w-16 ring-2 ring-primary/20">
               <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="text-xl sm:text-2xl gradient-static">
+              <AvatarFallback className="text-xl sm:text-2xl bg-secondary">
                 {profile?.username?.[0]?.toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
@@ -129,25 +129,23 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="space-y-3 sm:space-y-4">
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-sm">{t('auth.username')}</Label>
+              <Label htmlFor="username" className="text-sm font-medium">{t('auth.username')}</Label>
               <Input
                 id="username"
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                className="bg-secondary border-border"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="bio" className="text-sm">{t('onboarding.bio')}</Label>
+              <Label htmlFor="bio" className="text-sm font-medium">{t('onboarding.bio')}</Label>
               <Textarea
                 id="bio"
                 placeholder="Tell us about yourself..."
                 value={formData.bio}
                 onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                className="bg-secondary border-border resize-none"
                 rows={3}
                 maxLength={150}
               />
@@ -156,7 +154,7 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            <Button onClick={handleSave} disabled={loading} className="w-full gradient-static hover:opacity-90">
+            <Button onClick={handleSave} disabled={loading} className="w-full">
               {loading ? t('common.loading') : t('common.save')}
             </Button>
           </div>
@@ -167,15 +165,15 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
+          className="liquid-glass-card p-4 sm:p-6 mb-4 sm:mb-6"
         >
-          <h3 className="font-semibold mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
-            <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
+          <h3 className="font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
             {t('settings.privacy')}
           </h3>
 
-          <div className="flex items-center justify-between py-2 sm:py-3">
-            <div className="flex-1 min-w-0 mr-3">
+          <div className="flex items-center justify-between py-3">
+            <div className="flex-1 min-w-0 mr-4">
               <p className="font-medium text-sm sm:text-base">{t('settings.privateAccount')}</p>
               <p className="text-xs sm:text-sm text-muted-foreground">{t('settings.privateAccountDesc')}</p>
             </div>
@@ -192,17 +190,17 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
+          className="liquid-glass-card p-4 sm:p-6 mb-4 sm:mb-6"
         >
-          <h3 className="font-semibold mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
-            <Sun className="w-4 h-4 sm:w-5 sm:h-5" />
+          <h3 className="font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
             {t('settings.appearance')}
           </h3>
 
           {/* Theme Selection */}
-          <div className="space-y-2 sm:space-y-3 mb-4">
-            <Label className="text-sm">{t('settings.theme')}</Label>
-            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+          <div className="space-y-3 mb-4">
+            <Label className="text-sm font-medium">{t('settings.theme')}</Label>
+            <div className="grid grid-cols-3 gap-2">
               {[
                 { id: 'dark', icon: Moon, label: t('settings.darkMode') },
                 { id: 'light', icon: Sun, label: t('settings.lightMode') },
@@ -215,14 +213,14 @@ export default function SettingsPage() {
                     setTheme(option.id as 'dark' | 'light' | 'system');
                   }}
                   className={cn(
-                    'flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-lg border transition-all active:scale-95',
+                    'flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all active:scale-95',
                     theme === option.id
                       ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
+                      : 'border-border hover:border-primary/50 hover:bg-muted/50'
                   )}
                 >
-                  <option.icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="text-[10px] sm:text-xs text-center leading-tight">{option.label}</span>
+                  <option.icon className="w-5 h-5" />
+                  <span className="text-xs text-center leading-tight">{option.label}</span>
                 </button>
               ))}
             </div>
@@ -279,15 +277,15 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.12 }}
-          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
+          className="liquid-glass-card p-4 sm:p-6 mb-4 sm:mb-6"
         >
-          <h3 className="font-semibold mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
-            <Vibrate className="w-4 h-4 sm:w-5 sm:h-5" />
+          <h3 className="font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <Vibrate className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
             Feedback
           </h3>
 
-          <div className="flex items-center justify-between py-2 sm:py-3">
-            <div className="min-w-0 flex-1 mr-3">
+          <div className="flex items-center justify-between py-3">
+            <div className="min-w-0 flex-1 mr-4">
               <p className="font-medium text-sm sm:text-base">Haptic Feedback</p>
               <p className="text-xs sm:text-sm text-muted-foreground">Vibration on interactions</p>
             </div>
@@ -300,8 +298,8 @@ export default function SettingsPage() {
             />
           </div>
 
-          <div className="flex items-center justify-between py-2 sm:py-3 border-t border-border">
-            <div className="min-w-0 flex-1 mr-3">
+          <div className="flex items-center justify-between py-3 border-t border-border">
+            <div className="min-w-0 flex-1 mr-4">
               <p className="font-medium text-sm sm:text-base flex items-center gap-2">
                 <Volume2 className="w-4 h-4" />
                 UI Sounds
@@ -323,29 +321,29 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
+          className="liquid-glass-card p-4 sm:p-6 mb-4 sm:mb-6"
         >
-          <h3 className="font-semibold mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
-            <Globe className="w-4 h-4 sm:w-5 sm:h-5" />
+          <h3 className="font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
             {t('settings.language')}
           </h3>
 
-          <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {languages.map((lang) => (
               <button
                 key={lang.code}
                 onClick={() => changeLanguage(lang.code)}
                 className={cn(
-                  'flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border transition-all active:scale-95',
+                  'flex items-center gap-3 p-3 rounded-xl border-2 transition-all active:scale-95',
                   i18n.language === lang.code
                     ? 'border-primary bg-primary/10'
-                    : 'border-border hover:border-primary/50'
+                    : 'border-border hover:border-primary/50 hover:bg-muted/50'
                 )}
               >
-                <span className="text-lg sm:text-xl">{lang.flag}</span>
+                <span className="text-xl">{lang.flag}</span>
                 <div className="text-left min-w-0 flex-1">
-                  <p className="font-medium text-xs sm:text-sm truncate">{lang.nativeName}</p>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{lang.name}</p>
+                  <p className="font-medium text-sm truncate">{lang.nativeName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{lang.name}</p>
                 </div>
               </button>
             ))}
@@ -357,17 +355,17 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
+          className="liquid-glass-card p-4 sm:p-6 mb-4 sm:mb-6"
         >
-          <h3 className="font-semibold mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
-            <MessageSquareHeart className="w-4 h-4 sm:w-5 sm:h-5" />
+          <h3 className="font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <MessageSquareHeart className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
             Feedback
           </h3>
-          <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
+          <p className="text-sm text-muted-foreground mb-4">
             Help us improve! Share your ideas, report bugs, or vote on features.
           </p>
           <Link to="/feedback">
-            <Button variant="outline" className="w-full justify-between text-sm">
+            <Button variant="outline" className="w-full justify-between">
               <span>Open Feedback Hub</span>
               <ChevronRight className="h-4 w-4" />
             </Button>

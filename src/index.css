@@ -2,10 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* XD Design System - Dark/Light mode with animated gradients */
+/* ========================================
+   VYBE DESIGN SYSTEM
+   Unified design tokens for consistent UI
+   ======================================== */
 
 @layer base {
   :root {
+    /* Base colors - Dark mode (default) */
     --background: 240 10% 4%;
     --foreground: 0 0% 98%;
 
@@ -30,13 +34,23 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
+    --success: 142 76% 46%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
     --border: 240 10% 18%;
     --input: 240 10% 18%;
     --ring: 330 100% 60%;
 
+    /* Consistent radius scale */
     --radius: 0.75rem;
+    --radius-sm: 0.5rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.5rem;
 
-    /* Custom XD colors */
+    /* Neon/gradient colors */
     --gradient-start: 330 100% 60%;
     --gradient-mid: 280 100% 60%;
     --gradient-end: 185 100% 50%;
@@ -46,9 +60,11 @@
     --neon-cyan: 185 100% 50%;
     --neon-yellow: 50 100% 50%;
     
+    /* Glass effects */
     --glass: 240 10% 10%;
     --glass-border: 240 10% 20%;
 
+    /* Sidebar */
     --sidebar-background: 240 10% 6%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 330 100% 60%;
@@ -57,6 +73,21 @@
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 240 10% 18%;
     --sidebar-ring: 330 100% 60%;
+
+    /* Spacing scale */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+
+    /* Shadow scale */
+    --shadow-sm: 0 1px 2px 0 hsl(var(--background) / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(var(--background) / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(var(--background) / 0.1);
+    --shadow-glow: 0 0 20px hsl(var(--primary) / 0.3);
   }
 
   /* Light mode */
@@ -84,6 +115,12 @@
 
     --destructive: 0 84% 50%;
     --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 45%;
+    --warning-foreground: 0 0% 100%;
 
     --border: 240 5% 85%;
     --input: 240 5% 85%;
