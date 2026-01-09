@@ -1,9 +1,10 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Grid, Film, Bookmark, Camera, MessageCircle } from 'lucide-react';
+import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, Eye } from 'lucide-react';
 import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/useProfile';
 import { usePosts } from '@/hooks/usePosts';
+import { useSavedPosts } from '@/hooks/useSavedPosts';
 import { useAuth } from '@/lib/auth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FriendButton } from '@/components/friends/FriendButton';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
+import { ClipsGrid } from '@/components/posts/ClipsGrid';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useCreateConversation } from '@/hooks/useMessages';
@@ -23,6 +25,7 @@ export default function ProfilePage() {
   const { profile: currentProfile } = useAuth();
   const { data: profile, isLoading } = useProfileByUsername(username!);
   const { data: posts } = usePosts(undefined, profile?.id);
+  const { data: savedPosts } = useSavedPosts();
   const follow = useFollow();
   const updateAvatar = useUpdateAvatar();
   const createConversation = useCreateConversation();
@@ -70,6 +73,26 @@ export default function ProfilePage() {
 
   const gridPosts = posts?.filter((p) => p.type === 'post' || p.type === 'video') || [];
   const shortPosts = posts?.filter((p) => p.type === 'short') || [];
+
+  // Transform short posts for ClipsGrid
+  const clipsForGrid = shortPosts.map(post => ({
+    id: post.id,
+    media_url: post.media_url,
+    caption: post.caption || '',
+    tags: post.tags || [],
+    author: post.author,
+    like_count: post.like_count,
+    comment_count: post.comment_count,
+    is_liked: post.is_liked,
+    is_bookmarked: post.is_bookmarked,
+    view_count: (post as any).view_count || 0,
+  }));
+
+  const formatViewCount = (count: number) => {
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+    return count?.toString() || '0';
+  };
 
   if (isLoading) {
     return (
@@ -147,30 +170,36 @@ export default function ProfilePage() {
               </div>
               {isOwnProfile ? (
                 <Link to="/settings">
-                  <Button variant="secondary" size="sm">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Edit Profile
-                  </Button>
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button variant="secondary" size="sm">
+                      <Settings className="h-4 w-4 mr-2" />
+                      Edit Profile
+                    </Button>
+                  </motion.div>
                 </Link>
               ) : (
                 <div className="flex gap-2">
                   <FriendButton userId={profile.id} size="sm" />
-                  <Button
-                    variant={profile.is_following ? 'secondary' : 'gradient'}
-                    size="sm"
-                    onClick={handleFollow}
-                    disabled={follow.isPending}
-                  >
-                    {profile.is_following ? 'Following' : 'Follow'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleMessage}
-                    disabled={createConversation.isPending}
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                  </Button>
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button
+                      variant={profile.is_following ? 'secondary' : 'gradient'}
+                      size="sm"
+                      onClick={handleFollow}
+                      disabled={follow.isPending}
+                    >
+                      {profile.is_following ? 'Following' : 'Follow'}
+                    </Button>
+                  </motion.div>
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleMessage}
+                      disabled={createConversation.isPending}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </Button>
+                  </motion.div>
                 </div>
               )}
             </div>
@@ -207,7 +236,7 @@ export default function ProfilePage() {
             </TabsTrigger>
             <TabsTrigger value="shorts" className="flex-1 gap-2">
               <Film className="h-4 w-4" />
-              Shorts
+              Clips
             </TabsTrigger>
             {isOwnProfile && (
               <TabsTrigger value="saved" className="flex-1 gap-2">
@@ -222,16 +251,25 @@ export default function ProfilePage() {
               <div className="grid grid-cols-3 gap-1">
                 {gridPosts.map((post) => (
                   <Link key={post.id} to={`/p/${post.id}`} className="relative group">
-                    <div className="aspect-square overflow-hidden bg-muted">
+                    <motion.div 
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="aspect-square overflow-hidden bg-muted rounded-sm"
+                    >
                       {post.type === 'video' ? (
-                        <video src={post.media_url} className="w-full h-full object-cover" muted />
+                        <>
+                          <video src={post.media_url} className="w-full h-full object-cover" muted />
+                          <div className="absolute top-2 left-2 p-1.5 rounded-full bg-black/50">
+                            <Play className="h-3 w-3 text-white" fill="white" />
+                          </div>
+                        </>
                       ) : (
                         <img src={post.media_url} alt="" className="w-full h-full object-cover" />
                       )}
-                    </div>
-                    <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                      <span className="font-semibold">❤️ {post.like_count}</span>
-                      <span className="font-semibold">💬 {post.comment_count}</span>
+                    </motion.div>
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-sm">
+                      <span className="font-semibold text-white">❤️ {post.like_count}</span>
+                      <span className="font-semibold text-white">💬 {post.comment_count}</span>
                     </div>
                   </Link>
                 ))}
@@ -245,33 +283,45 @@ export default function ProfilePage() {
           </TabsContent>
 
           <TabsContent value="shorts">
-            {shortPosts.length > 0 ? (
-              <div className="grid grid-cols-3 gap-1">
-                {shortPosts.map((post) => (
-                  <Link key={post.id} to={`/p/${post.id}`} className="relative group">
-                    <div className="aspect-[9/16] overflow-hidden bg-muted">
-                      <video src={post.media_url} className="w-full h-full object-cover" muted />
-                    </div>
-                    <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                      <span className="font-semibold">❤️ {post.like_count}</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-4xl mb-4">🎬</p>
-                <p className="text-muted-foreground">No shorts yet</p>
-              </div>
-            )}
+            <ClipsGrid clips={clipsForGrid} />
           </TabsContent>
 
           {isOwnProfile && (
             <TabsContent value="saved">
-              <div className="text-center py-12">
-                <p className="text-4xl mb-4">🔖</p>
-                <p className="text-muted-foreground">Your saved posts will appear here</p>
-              </div>
+              {savedPosts && savedPosts.length > 0 ? (
+                <div className="grid grid-cols-3 gap-1">
+                  {savedPosts.map((post) => (
+                    <Link key={post.id} to={`/p/${post.id}`} className="relative group">
+                      <motion.div 
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="aspect-square overflow-hidden bg-muted rounded-sm"
+                      >
+                        {post.type === 'video' || post.type === 'short' ? (
+                          <>
+                            <video src={post.media_url} className="w-full h-full object-cover" muted />
+                            <div className="absolute top-2 left-2 p-1.5 rounded-full bg-black/50">
+                              <Play className="h-3 w-3 text-white" fill="white" />
+                            </div>
+                          </>
+                        ) : (
+                          <img src={post.media_url} alt="" className="w-full h-full object-cover" />
+                        )}
+                      </motion.div>
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-sm">
+                        <span className="font-semibold text-white">❤️ {post.like_count}</span>
+                        <span className="font-semibold text-white">💬 {post.comment_count}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-4xl mb-4">🔖</p>
+                  <p className="text-muted-foreground">No saved posts yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">Posts you save will appear here</p>
+                </div>
+              )}
             </TabsContent>
           )}
         </Tabs>
