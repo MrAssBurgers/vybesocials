@@ -10,7 +10,7 @@
     "shorts": "Shorts",
     "clips": "Clips",
     "upload": "Upload",
-    "messages": "Messages",
+    "messages": "DM's",
     "notifications": "Notifications",
     "profile": "Profile",
     "settings": "Settings",
@@ -93,7 +93,7 @@
     }
   },
   "messages": {
-    "title": "Messages",
+    "title": "DM's",
     "newMessage": "New Message",
     "newChat": "New Chat",
     "search": "Search conversations",
@@ -115,7 +115,11 @@
     "pinned": "Pinned",
     "viewProfile": "View Profile",
     "muteNotifications": "Mute Notifications",
-    "blockUser": "Block User"
+    "blockUser": "Block User",
+    "settings": "DM Settings",
+    "vanishThreads": "Vanish Threads",
+    "memoryPins": "Memory Pins",
+    "scheduleMessage": "Schedule Message"
   },
   "notifications": {
     "title": "Notifications",

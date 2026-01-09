@@ -448,6 +448,76 @@ export type Database = {
           },
         ]
       }
+      dm_settings: {
+        Row: {
+          chat_font: string | null
+          chat_sound: string | null
+          chat_wallpaper: string | null
+          conversation_id: string
+          created_at: string
+          emotional_pulse: string | null
+          id: string
+          read_receipt_mode: string
+          show_emotional_pulse: boolean | null
+          theme: string | null
+          typing_mode: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chat_font?: string | null
+          chat_sound?: string | null
+          chat_wallpaper?: string | null
+          conversation_id: string
+          created_at?: string
+          emotional_pulse?: string | null
+          id?: string
+          read_receipt_mode?: string
+          show_emotional_pulse?: boolean | null
+          theme?: string | null
+          typing_mode?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chat_font?: string | null
+          chat_sound?: string | null
+          chat_wallpaper?: string | null
+          conversation_id?: string
+          created_at?: string
+          emotional_pulse?: string | null
+          id?: string
+          read_receipt_mode?: string
+          show_emotional_pulse?: boolean | null
+          theme?: string | null
+          typing_mode?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dm_settings_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dm_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dm_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback: {
         Row: {
           created_at: string
@@ -688,6 +758,52 @@ export type Database = {
           },
         ]
       }
+      message_pins: {
+        Row: {
+          created_at: string
+          id: string
+          label: string | null
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_pins_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_pins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_pins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_reactions: {
         Row: {
           created_at: string
@@ -779,11 +895,16 @@ export type Database = {
       }
       messages: {
         Row: {
+          auto_delete_if_ignored: boolean | null
+          blur_on_screenshot: boolean | null
+          can_undo_until: string | null
           content: string | null
           conversation_id: string
           created_at: string
+          deleted_at: string | null
           expires_at: string | null
           id: string
+          ignore_deadline: string | null
           is_deleted: boolean | null
           media_type: string | null
           media_url: string | null
@@ -791,13 +912,19 @@ export type Database = {
           reply_to_id: string | null
           sender_id: string
           view_mode: string | null
+          voice_segments: Json | null
         }
         Insert: {
+          auto_delete_if_ignored?: boolean | null
+          blur_on_screenshot?: boolean | null
+          can_undo_until?: string | null
           content?: string | null
           conversation_id: string
           created_at?: string
+          deleted_at?: string | null
           expires_at?: string | null
           id?: string
+          ignore_deadline?: string | null
           is_deleted?: boolean | null
           media_type?: string | null
           media_url?: string | null
@@ -805,13 +932,19 @@ export type Database = {
           reply_to_id?: string | null
           sender_id: string
           view_mode?: string | null
+          voice_segments?: Json | null
         }
         Update: {
+          auto_delete_if_ignored?: boolean | null
+          blur_on_screenshot?: boolean | null
+          can_undo_until?: string | null
           content?: string | null
           conversation_id?: string
           created_at?: string
+          deleted_at?: string | null
           expires_at?: string | null
           id?: string
+          ignore_deadline?: string | null
           is_deleted?: boolean | null
           media_type?: string | null
           media_url?: string | null
@@ -819,6 +952,7 @@ export type Database = {
           reply_to_id?: string | null
           sender_id?: string
           view_mode?: string | null
+          voice_segments?: Json | null
         }
         Relationships: [
           {
@@ -1103,6 +1237,80 @@ export type Database = {
           {
             foreignKeyName: "reports_reviewed_by_fkey"
             columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_messages: {
+        Row: {
+          content: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          media_type: string | null
+          media_url: string | null
+          reply_to_id: string | null
+          scheduled_at: string
+          sender_id: string
+          sent_at: string | null
+          status: string
+          view_mode: string | null
+        }
+        Insert: {
+          content?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          reply_to_id?: string | null
+          scheduled_at: string
+          sender_id: string
+          sent_at?: string | null
+          status?: string
+          view_mode?: string | null
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          reply_to_id?: string | null
+          scheduled_at?: string
+          sender_id?: string
+          sent_at?: string | null
+          status?: string
+          view_mode?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_sender_id_fkey"
+            columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
             referencedColumns: ["id"]
@@ -1586,6 +1794,159 @@ export type Database = {
           {
             foreignKeyName: "user_warnings_warned_by_fkey"
             columns: ["warned_by"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vanish_messages: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          media_type: string | null
+          media_url: string | null
+          sender_id: string
+          thread_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          sender_id: string
+          thread_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          sender_id?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vanish_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vanish_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vanish_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "vanish_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vanish_threads: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          title: string | null
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          created_by: string
+          expires_at?: string
+          id?: string
+          title?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vanish_threads_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vanish_threads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vanish_threads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      word_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          message_id: string
+          user_id: string
+          word_end: number
+          word_start: number
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          message_id: string
+          user_id: string
+          word_end: number
+          word_start: number
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          message_id?: string
+          user_id?: string
+          word_end?: number
+          word_start?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "word_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "word_reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "word_reactions_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
             referencedColumns: ["id"]
