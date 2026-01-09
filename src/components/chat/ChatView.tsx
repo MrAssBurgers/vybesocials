@@ -59,6 +59,16 @@ import { useUserOnlineStatus } from '@/hooks/usePresence';
 
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
+// Theme color mapping
+const THEME_COLORS: Record<string, string> = {
+  default: 'bg-primary',
+  rose: 'bg-rose-500',
+  amber: 'bg-amber-500',
+  emerald: 'bg-emerald-500',
+  violet: 'bg-violet-500',
+  cyan: 'bg-cyan-500',
+};
+
 export function ChatView() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
@@ -74,6 +84,7 @@ export function ChatView() {
   const { typingUsers, setTyping } = useTypingIndicator(conversationId);
   const { notifyScreenshot } = useScreenshotNotification(conversationId);
   const { startCall } = useCallContext();
+  const { settings } = useDMSettings(conversationId);
 
   const [messageText, setMessageText] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('permanent');
@@ -484,6 +495,7 @@ export function ChatView() {
               onReaction={handleReaction}
               onReply={() => handleReply(message)}
               allMessages={messages}
+              themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
             />
           </div>
         ))}
@@ -499,18 +511,18 @@ export function ChatView() {
 
         {/* Typing indicator */}
         {typingUsers.length > 0 && (
-          <div className="flex items-center gap-2">
-            <Avatar className="h-8 w-8">
+          <div className="flex items-start gap-2 max-w-[85%]">
+            <Avatar className="h-8 w-8 flex-shrink-0">
               <AvatarImage src={otherMember?.avatar_url || undefined} />
               <AvatarFallback>{otherMember?.username?.charAt(0)}</AvatarFallback>
             </Avatar>
-            <div className="bg-muted rounded-2xl px-4 py-2">
-              <div className="flex gap-1">
+            <div className="liquid-glass-subtle rounded-2xl rounded-tl-sm px-4 py-3">
+              <div className="flex items-center gap-1.5">
                 {[0, 1, 2].map((i) => (
                   <span
                     key={i}
-                    className="w-2 h-2 bg-primary rounded-full animate-bounce"
-                    style={{ animationDelay: `${i * 150}ms` }}
+                    className="w-2 h-2 bg-primary/70 rounded-full animate-bounce"
+                    style={{ animationDelay: `${i * 150}ms`, animationDuration: '0.6s' }}
                   />
                 ))}
               </div>
@@ -660,6 +672,7 @@ const MessageBubble = memo(function MessageBubble({
   onReaction,
   onReply,
   allMessages,
+  themeColor = 'bg-primary',
 }: { 
   message: Message;
   isOwn: boolean;
@@ -670,6 +683,7 @@ const MessageBubble = memo(function MessageBubble({
   onReaction: (messageId: string, emoji: string) => void;
   onReply: () => void;
   allMessages?: Message[];
+  themeColor?: string;
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
@@ -737,7 +751,7 @@ const MessageBubble = memo(function MessageBubble({
           className={cn(
             'relative rounded-2xl px-4 py-2 break-words shadow-sm cursor-pointer',
             isOwn 
-              ? 'bg-primary text-primary-foreground rounded-br-md' 
+              ? `${themeColor} text-white rounded-br-md` 
               : 'bg-muted text-foreground rounded-bl-md',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',

@@ -49,10 +49,12 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
           <motion.div
             {...animation}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-[90vw] max-w-sm"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[101] flex items-center justify-center pointer-events-none"
           >
-            <div className="liquid-glass overflow-hidden rounded-3xl">
+            <div 
+              className="liquid-glass overflow-hidden rounded-3xl w-[90vw] max-w-sm pointer-events-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
               
               {/* Header */}
               <div className="p-4 text-center border-b border-white/10">

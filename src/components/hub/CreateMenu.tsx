@@ -90,10 +90,12 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-[90vw] max-w-xs"
-              onClick={(e) => e.stopPropagation()}
+              className="fixed inset-0 z-[101] flex items-center justify-center pointer-events-none"
             >
-              <div className="liquid-glass overflow-hidden rounded-3xl p-4">
+              <div 
+                className="liquid-glass overflow-hidden rounded-3xl p-4 w-[90vw] max-w-xs pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {/* Header */}
                 <div className="text-center mb-4">
                   <motion.div
