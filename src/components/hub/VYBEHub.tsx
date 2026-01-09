@@ -57,20 +57,10 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
           <motion.div
             {...animation}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className={
-              isMobile
-                ? "fixed bottom-0 left-0 right-0 z-[101] pb-safe"
-                : "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-[90vw] max-w-sm"
-            }
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-[90vw] max-w-sm"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={`liquid-glass overflow-hidden ${isMobile ? 'rounded-t-3xl' : 'rounded-3xl'}`}>
-              {/* Swipe indicator for mobile */}
-              {isMobile && (
-                <div className="flex justify-center pt-3">
-                  <div className="w-12 h-1 rounded-full bg-muted-foreground/30" />
-                </div>
-              )}
+            <div className="liquid-glass overflow-hidden rounded-3xl">
               
               {/* Header */}
               <div className="p-4 text-center border-b border-white/10">
