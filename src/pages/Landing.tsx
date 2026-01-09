@@ -245,7 +245,7 @@ export default function Landing() {
                     const { error } = await supabase.auth.signInWithOAuth({
                       provider: 'google',
                       options: {
-                        redirectTo: `${window.location.origin}/complete-profile`,
+                        redirectTo: `${window.location.origin}/home`,
                       },
                     });
                     if (error) throw error;
