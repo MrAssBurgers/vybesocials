@@ -1,12 +1,14 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Heart, Share2, MapPin, MessageCircle, Flag, MoreVertical, Trash2 } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, MapPin, MessageCircle, Flag, MoreVertical, Trash2, CreditCard, Check } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useListing, useToggleFavorite, useListingFavorites, LISTING_CATEGORIES, LISTING_CONDITIONS, useDeleteListing } from '@/hooks/useMarketplace';
+import { useListing, useToggleFavorite, useListingFavorites, LISTING_CATEGORIES, LISTING_CONDITIONS, useDeleteListing, useSellerRating } from '@/hooks/useMarketplace';
+import { useSellerPaymentMethods } from '@/hooks/useMarketplacePayments';
+import { PaymentSheet } from '@/components/marketplace/PaymentSheet';
 import { useAuth } from '@/lib/auth';
 import { useCreateConversation } from '@/hooks/useMessages';
 import { formatDistanceToNow } from 'date-fns';
@@ -14,6 +16,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { MediaFallback } from '@/components/ui/MediaFallback';
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 
 export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -26,11 +29,16 @@ export default function ListingDetailPage() {
   const createConversation = useCreateConversation();
   const [currentImage, setCurrentImage] = useState(0);
   const [imageError, setImageError] = useState(false);
+  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
 
   const isFavorite = favorites?.some(f => f.id === id) || false;
   const isOwner = profile?.id === listing?.seller_id;
   const category = LISTING_CATEGORIES.find(c => c.value === listing?.category);
   const condition = LISTING_CONDITIONS.find(c => c.value === listing?.condition);
+
+  const { data: sellerPaymentMethods } = useSellerPaymentMethods(listing?.seller_id);
+  const { data: sellerRating } = useSellerRating(listing?.seller_id || '');
+  const hasPaymentMethods = sellerPaymentMethods && sellerPaymentMethods.length > 0;
 
   const handleShare = async () => {
     const url = `${window.location.origin}/market/${id}`;
@@ -138,7 +146,7 @@ export default function ListingDetailPage() {
               <img
                 src={listing.images[currentImage]}
                 alt={listing.title}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain bg-black/5"
                 onError={() => setImageError(true)}
               />
               {listing.images.length > 1 && (
@@ -201,27 +209,82 @@ export default function ListingDetailPage() {
                 <AvatarFallback>{listing.seller?.username?.[0]?.toUpperCase()}</AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <p className="font-medium">{listing.seller?.username}</p>
+                <p className="font-medium flex items-center gap-2">
+                  {listing.seller?.username}
+                  {listing.seller?.is_verified && (
+                    <Check className="h-4 w-4 text-primary" />
+                  )}
+                </p>
                 <p className="text-sm text-muted-foreground">
                   Listed {formatDistanceToNow(new Date(listing.created_at), { addSuffix: true })}
                 </p>
+                {sellerRating && sellerRating.count > 0 && (
+                  <p className="text-sm text-yellow-500">
+                    ⭐ {sellerRating.average.toFixed(1)} ({sellerRating.count} reviews)
+                  </p>
+                )}
               </div>
             </Link>
           </div>
 
+          {/* Payment Methods Available */}
+          {!isOwner && hasPaymentMethods && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl"
+            >
+              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                <CreditCard className="h-5 w-5" />
+                <span className="font-medium">Secure payment available</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Pay with PayPal, Venmo, or Cash App
+              </p>
+            </motion.div>
+          )}
+
           {/* Action Buttons */}
           {!isOwner && (
-            <Button
-              className="w-full gradient-animated text-white"
-              size="lg"
-              onClick={handleMessage}
-            >
-              <MessageCircle className="h-5 w-5 mr-2" />
-              Message Seller
-            </Button>
+            <div className="space-y-3">
+              {listing.price > 0 && hasPaymentMethods && (
+                <Button
+                  className="w-full gradient-animated text-white"
+                  size="lg"
+                  onClick={() => setPaymentSheetOpen(true)}
+                >
+                  <CreditCard className="h-5 w-5 mr-2" />
+                  Buy Now - ${listing.price.toLocaleString()}
+                </Button>
+              )}
+              <Button
+                variant={hasPaymentMethods && listing.price > 0 ? 'outline' : 'default'}
+                className={!hasPaymentMethods || listing.price === 0 ? 'w-full gradient-animated text-white' : 'w-full'}
+                size="lg"
+                onClick={handleMessage}
+              >
+                <MessageCircle className="h-5 w-5 mr-2" />
+                Message Seller
+              </Button>
+            </div>
           )}
         </div>
       </div>
+
+      {/* Payment Sheet */}
+      {listing && (
+        <PaymentSheet
+          open={paymentSheetOpen}
+          onOpenChange={setPaymentSheetOpen}
+          listing={{
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            seller_id: listing.seller_id,
+            seller: listing.seller,
+          }}
+        />
+      )}
     </AppLayout>
   );
 }

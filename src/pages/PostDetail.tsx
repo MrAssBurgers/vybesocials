@@ -69,12 +69,23 @@ function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: 
 
   return (
     <div className="relative bg-muted min-h-[300px] lg:min-h-[400px] flex items-center justify-center">
+      {/* Blurred background for letterboxing */}
+      {isLoaded && !isVideo && (
+        <div 
+          className="absolute inset-0 blur-xl scale-110 opacity-40"
+          style={{ 
+            backgroundImage: `url(${signedUrl || mediaUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      )}
       {!isLoaded && <MediaSkeleton className="absolute inset-0" />}
       {isVideo ? (
         <video
           src={signedUrl || mediaUrl}
           controls
-          className={cn("w-full max-h-[600px] object-contain transition-opacity", isLoaded ? "opacity-100" : "opacity-0")}
+          className={cn("relative w-full max-h-[600px] object-contain transition-opacity z-10", isLoaded ? "opacity-100" : "opacity-0")}
           onLoadedData={() => setIsLoaded(true)}
           onError={() => setHasError(true)}
           playsInline
@@ -83,7 +94,7 @@ function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: 
         <img
           src={signedUrl || mediaUrl}
           alt={caption || ''}
-          className={cn("w-full max-h-[600px] object-contain transition-opacity", isLoaded ? "opacity-100" : "opacity-0")}
+          className={cn("relative w-full max-h-[600px] object-contain transition-opacity z-10", isLoaded ? "opacity-100" : "opacity-0")}
           onLoad={() => setIsLoaded(true)}
           onError={() => setHasError(true)}
         />
