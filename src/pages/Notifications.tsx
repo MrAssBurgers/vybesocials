@@ -40,6 +40,8 @@ export default function NotificationsPage() {
         return <Users className="h-4 w-4 text-neon-cyan" />;
       case 'friend_accepted':
         return <UserCheck className="h-4 w-4 text-green-500" />;
+      case 'friend_declined':
+        return <X className="h-4 w-4 text-destructive" />;
       default:
         return null;
     }
@@ -57,6 +59,8 @@ export default function NotificationsPage() {
         return 'sent you a friend request';
       case 'friend_accepted':
         return 'accepted your friend request';
+      case 'friend_declined':
+        return 'declined your friend request';
       case 'message':
         return 'sent you a message';
       case 'mention':
@@ -118,10 +122,13 @@ export default function NotificationsPage() {
                   >
                     <Link
                       to={
-                        notification.type === 'friend_request' || notification.type === 'friend_accepted' || notification.type === 'follow'
+                        notification.type === 'friend_request' ||
+                        notification.type === 'friend_accepted' ||
+                        notification.type === 'friend_declined' ||
+                        notification.type === 'follow'
                           ? `/u/${notification.actor.username}`
-                          : notification.post_id 
-                            ? `/p/${notification.post_id}` 
+                          : notification.post_id
+                            ? `/p/${notification.post_id}`
                             : `/u/${notification.actor.username}`
                       }
                       className={cn(

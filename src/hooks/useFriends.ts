@@ -194,29 +194,48 @@ export function useRespondToFriendRequest() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ 
-      requestId, 
-      action 
-    }: { 
-      requestId: string; 
+    mutationFn: async ({
+      requestId,
+      action
+    }: {
+      requestId: string;
       action: 'accept' | 'decline';
     }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
+      const { data: request, error: requestError } = await supabase
+        .from('friend_requests')
+        .select('id, sender_id, receiver_id')
+        .eq('id', requestId)
+        .single();
+
+      if (requestError) throw requestError;
+
       const { error } = await supabase
         .from('friend_requests')
-        .update({ 
+        .update({
           status: action === 'accept' ? 'accepted' : 'declined',
           updated_at: new Date().toISOString(),
         })
         .eq('id', requestId);
 
       if (error) throw error;
+
+      // Notify the sender about the decision
+      await supabase.from('notifications').insert({
+        user_id: request.sender_id,
+        actor_id: profile.id,
+        type: action === 'accept' ? 'friend_accepted' : 'friend_declined',
+      });
+
+      return request;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
       queryClient.invalidateQueries({ queryKey: ['friends'] });
       queryClient.invalidateQueries({ queryKey: ['friendship-status'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
       toast.success(variables.action === 'accept' ? 'Friend request accepted!' : 'Friend request declined');
     },
   });

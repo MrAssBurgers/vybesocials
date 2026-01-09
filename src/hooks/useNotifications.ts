@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
-export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'message' | 'mention';
+export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention';
 
 interface Notification {
   id: string;
@@ -95,6 +95,7 @@ export function useNotifications() {
             follow: 'started following you',
             friend_request: 'sent you a friend request',
             friend_accepted: 'accepted your friend request',
+            friend_declined: 'declined your friend request',
             message: 'sent you a message',
             mention: 'mentioned you',
           };

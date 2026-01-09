@@ -34,6 +34,15 @@ export function AIChatAssistant() {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen]);
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -147,105 +156,117 @@ export function AIChatAssistant() {
         )}
       </AnimatePresence>
 
-      {/* Chat panel */}
+      {/* Chat modal */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 100, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 100, scale: 0.9 }}
-            className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 w-[calc(100%-2rem)] max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border bg-muted/50">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full gradient-animated flex items-center justify-center">
-                  <Bot className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm">Autisy</h3>
-                  <p className="text-xs text-muted-foreground">Chaotic AI bestie 🦆</p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsOpen(false)}
-                className="h-8 w-8"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+            {/* Backdrop (does NOT close on click) */}
+            <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
 
-            {/* Messages */}
-            <ScrollArea className="h-80 p-4" ref={scrollRef}>
-              <div className="space-y-4">
-                {messages.map((message, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    {message.role === 'assistant' && (
-                      <Avatar className="h-6 w-6 shrink-0">
-                        <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                          <Bot className="h-3 w-3" />
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                    <div
-                      className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                        message.role === 'user'
-                          ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                          : 'bg-muted rounded-tl-sm'
-                      }`}
-                    >
-                      {message.content || (
-                        <span className="flex items-center gap-1">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          Thinking...
-                        </span>
-                      )}
-                    </div>
-                    {message.role === 'user' && (
-                      <Avatar className="h-6 w-6 shrink-0">
-                        <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
-                          <User className="h-3 w-3" />
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                  </motion.div>
-                ))}
-              </div>
-            </ScrollArea>
-
-            {/* Input */}
-            <div className="p-4 border-t border-border">
-              <div className="flex gap-2">
-                <Input
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask me anything..."
-                  className="flex-1"
-                  disabled={isLoading}
-                />
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.95 }}
+              className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-border bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full gradient-animated flex items-center justify-center">
+                    <Bot className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sm">Autisy</h3>
+                    <p className="text-xs text-muted-foreground">Chaotic AI bestie 🦆</p>
+                  </div>
+                </div>
                 <Button
+                  variant="ghost"
                   size="icon"
-                  onClick={sendMessage}
-                  disabled={!input.trim() || isLoading}
-                  className="shrink-0"
+                  onClick={() => setIsOpen(false)}
+                  className="h-8 w-8"
                 >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
+                  <X className="h-4 w-4" />
                 </Button>
               </div>
-            </div>
+
+              {/* Messages */}
+              <ScrollArea className="h-80 p-4" ref={scrollRef}>
+                <div className="space-y-4">
+                  {messages.map((message, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      {message.role === 'assistant' && (
+                        <Avatar className="h-6 w-6 shrink-0">
+                          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                            <Bot className="h-3 w-3" />
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                      <div
+                        className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                          message.role === 'user'
+                            ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                            : 'bg-muted rounded-tl-sm'
+                        }`}
+                      >
+                        {message.content || (
+                          <span className="flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Thinking...
+                          </span>
+                        )}
+                      </div>
+                      {message.role === 'user' && (
+                        <Avatar className="h-6 w-6 shrink-0">
+                          <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                            <User className="h-3 w-3" />
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              </ScrollArea>
+
+              {/* Input */}
+              <div className="p-4 border-t border-border">
+                <div className="flex gap-2">
+                  <Input
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Ask me anything..."
+                    className="flex-1"
+                    disabled={isLoading}
+                  />
+                  <Button
+                    size="icon"
+                    onClick={sendMessage}
+                    disabled={!input.trim() || isLoading}
+                    className="shrink-0"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
