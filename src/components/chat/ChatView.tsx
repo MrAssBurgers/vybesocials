@@ -59,14 +59,14 @@ import { useUserOnlineStatus } from '@/hooks/usePresence';
 
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
-// Theme color mapping
-const THEME_COLORS: Record<string, string> = {
-  default: 'bg-primary',
-  rose: 'bg-rose-500',
-  amber: 'bg-amber-500',
-  emerald: 'bg-emerald-500',
-  violet: 'bg-violet-500',
-  cyan: 'bg-cyan-500',
+// Theme color mapping - now includes both bubble and text classes
+const THEME_COLORS: Record<string, { bubble: string; text: string }> = {
+  default: { bubble: 'bg-primary', text: 'text-primary-foreground' },
+  rose: { bubble: 'bg-rose-500', text: 'text-white' },
+  amber: { bubble: 'bg-amber-500', text: 'text-white' },
+  emerald: { bubble: 'bg-emerald-500', text: 'text-white' },
+  violet: { bubble: 'bg-violet-500', text: 'text-white' },
+  cyan: { bubble: 'bg-cyan-500', text: 'text-white' },
 };
 
 export function ChatView() {
@@ -672,7 +672,7 @@ const MessageBubble = memo(function MessageBubble({
   onReaction,
   onReply,
   allMessages,
-  themeColor = 'bg-primary',
+  themeColor = { bubble: 'bg-primary', text: 'text-primary-foreground' },
 }: { 
   message: Message;
   isOwn: boolean;
@@ -683,7 +683,7 @@ const MessageBubble = memo(function MessageBubble({
   onReaction: (messageId: string, emoji: string) => void;
   onReply: () => void;
   allMessages?: Message[];
-  themeColor?: string;
+  themeColor?: { bubble: string; text: string };
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
@@ -751,7 +751,7 @@ const MessageBubble = memo(function MessageBubble({
           className={cn(
             'relative rounded-2xl px-4 py-2 break-words shadow-sm cursor-pointer',
             isOwn 
-              ? `${themeColor} text-white rounded-br-md` 
+              ? `${themeColor.bubble} ${themeColor.text} rounded-br-md` 
               : 'bg-muted text-foreground rounded-bl-md',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
