@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "XD",
+    "name": "VYBE",
     "tagline": "The Next Generation Social Platform",
     "description": "Share moments, connect with friends, and have fun."
   },
@@ -151,7 +151,7 @@
     "logout": "Log Out"
   },
   "onboarding": {
-    "welcome": "Welcome to XD!",
+    "welcome": "Welcome to VYBE!",
     "letsGetStarted": "Let's get you set up",
     "step1Title": "What interests you?",
     "step1Subtitle": "Pick topics you'd like to see more of",

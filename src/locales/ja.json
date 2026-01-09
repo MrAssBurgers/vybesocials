@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "XD",
+    "name": "VYBE",
     "tagline": "次世代ソーシャルプラットフォーム",
     "description": "瞬間を共有し、友達とつながり、世界中のクリエイターの素晴らしいコンテンツを発見しよう。"
   },
@@ -134,7 +134,7 @@
     "logout": "ログアウト"
   },
   "onboarding": {
-    "welcome": "XDへようこそ！",
+    "welcome": "VYBEへようこそ！",
     "letsGetStarted": "設定を始めましょう",
     "step1Title": "興味のあることは？",
     "step1Subtitle": "もっと見たいトピックを選んでください",
