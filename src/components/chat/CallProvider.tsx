@@ -1,9 +1,8 @@
 import { useState, useCallback, createContext, useContext, ReactNode } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Call, useIncomingCalls, useWebRTCCall } from '@/hooks/useCalls';
+import { Call, useIncomingCalls } from '@/hooks/useCalls';
 import { CallUI } from './CallUI';
 import { IncomingCallDialog } from './IncomingCallDialog';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 
 interface CallContextType {
