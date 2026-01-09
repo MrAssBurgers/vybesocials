@@ -5,7 +5,6 @@ import { Sidebar } from './Sidebar';
 import { useAuth } from '@/lib/auth';
 import { Navigate } from 'react-router-dom';
 import { usePresence } from '@/hooks/usePresence';
-import { AIChatAssistant } from '@/components/ai/AIChatAssistant';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -44,8 +43,6 @@ export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
       </main>
       {/* Mobile/Tablet bottom nav - hidden on desktop */}
       <BottomNav />
-      {/* AI Assistant - available on all devices */}
-      <AIChatAssistant />
     </div>
   );
 }

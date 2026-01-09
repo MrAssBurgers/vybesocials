@@ -141,21 +141,6 @@ export function AIChatAssistant() {
 
   return (
     <>
-      {/* Floating button */}
-      <AnimatePresence>
-        {!isOpen && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            onClick={() => setIsOpen(true)}
-            className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 w-14 h-14 rounded-full gradient-animated shadow-lg flex items-center justify-center"
-          >
-            <Sparkles className="h-6 w-6 text-white" />
-          </motion.button>
-        )}
-      </AnimatePresence>
-
       {/* Chat modal */}
       <AnimatePresence>
         {isOpen && (
@@ -171,9 +156,9 @@ export function AIChatAssistant() {
             <motion.div
               role="dialog"
               aria-modal="true"
-              initial={{ opacity: 0, y: 30, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.95 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
             >
               {/* Header */}
@@ -201,10 +186,8 @@ export function AIChatAssistant() {
               <ScrollArea className="h-80 p-4" ref={scrollRef}>
                 <div className="space-y-4">
                   {messages.map((message, index) => (
-                    <motion.div
+                    <div
                       key={index}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
                       className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       {message.role === 'assistant' && (
@@ -235,7 +218,7 @@ export function AIChatAssistant() {
                           </AvatarFallback>
                         </Avatar>
                       )}
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </ScrollArea>
