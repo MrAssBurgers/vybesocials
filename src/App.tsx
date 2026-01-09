@@ -28,6 +28,7 @@ import CompleteProfile from "./pages/CompleteProfile";
 import NotFound from "./pages/NotFound";
 import Market from "./pages/Market";
 import Events from "./pages/Events";
+import AdminDashboard from "./pages/AdminDashboard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,6 +71,7 @@ const App = () => (
                   <Route path="/feedback" element={<Feedback />} />
                   <Route path="/market" element={<Market />} />
                   <Route path="/events" element={<Events />} />
+                  <Route path="/admin" element={<AdminDashboard />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </BrowserRouter>
