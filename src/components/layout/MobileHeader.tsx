@@ -6,7 +6,7 @@ import { useUnreadCount } from '@/hooks/useNotifications';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { HeaderSearch } from './HeaderSearch';
-
+import { VYBELogo } from '@/components/ui/VYBELogo';
 export function MobileHeader() {
   const { profile } = useAuth();
   const { data: unreadCount = 0 } = useUnreadCount();
@@ -25,10 +25,8 @@ export function MobileHeader() {
       <div className="liquid-glass border-b border-white/10">
         <div className="flex items-center justify-between h-14 px-4">
           {/* Logo */}
-          <Link to="/home" className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-8 h-8 rounded-lg liquid-glass flex items-center justify-center">
-              <span className="text-sm font-bold gradient-text">VYBE</span>
-            </div>
+          <Link to="/home" className="flex-shrink-0">
+            <VYBELogo size="sm" showText={false} />
           </Link>
 
           {/* Center - Search */}
