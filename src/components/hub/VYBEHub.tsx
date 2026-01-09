@@ -24,20 +24,12 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
     navigate(path);
   };
 
-  // Mobile: bottom sheet style, Desktop: centered modal
-  const mobileAnimation = {
-    initial: { opacity: 0, y: '100%' },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: '100%' },
-  };
-
-  const desktopAnimation = {
-    initial: { opacity: 0, scale: 0.98 },
+  // Centered animation for all devices
+  const animation = {
+    initial: { opacity: 0, scale: 0.9 },
     animate: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 0.98 },
+    exit: { opacity: 0, scale: 0.9 },
   };
-
-  const animation = isMobile ? mobileAnimation : desktopAnimation;
 
   return (
     <AnimatePresence>
