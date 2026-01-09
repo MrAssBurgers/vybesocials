@@ -19,15 +19,16 @@ export default function CompleteProfile() {
   const [usernameError, setUsernameError] = useState('');
 
   useEffect(() => {
-    // If user already has a profile with a username, redirect to onboarding or home
-    if (!authLoading && profile?.username) {
+    // If user already has a profile with a username, redirect to home
+    // New Google users without a profile will stay on this page
+    if (!authLoading && user && profile?.username) {
       if (profile.onboarding_completed) {
         navigate('/home');
       } else {
         navigate('/onboarding');
       }
     }
-  }, [authLoading, profile, navigate]);
+  }, [authLoading, user, profile, navigate]);
 
   useEffect(() => {
     // Redirect if not authenticated

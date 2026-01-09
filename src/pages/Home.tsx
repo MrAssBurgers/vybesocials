@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { usePosts, useFollowingPosts } from '@/hooks/usePosts';
 import { PostCard } from '@/components/posts/PostCard';
@@ -6,6 +7,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { StoriesBar } from '@/components/stories/StoriesBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/lib/auth';
 
 function PostSkeleton() {
   return (
@@ -27,9 +29,18 @@ function PostSkeleton() {
 }
 
 export default function HomePage() {
+  const navigate = useNavigate();
+  const { user, profile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('foryou');
   const { data: forYouPosts, isLoading: forYouLoading } = usePosts();
   const { data: followingPosts, isLoading: followingLoading } = useFollowingPosts();
+
+  // Redirect new Google users who don't have a profile/username yet
+  useEffect(() => {
+    if (!authLoading && user && !profile?.username) {
+      navigate('/complete-profile');
+    }
+  }, [authLoading, user, profile, navigate]);
 
   return (
     <AppLayout>
