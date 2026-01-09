@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Phone, PhoneOff, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,18 +14,33 @@ interface IncomingCallDialogProps {
 export function IncomingCallDialog({ call, onAccept, onDecline }: IncomingCallDialogProps) {
   const respondToCall = useRespondToCall();
   const [timeLeft, setTimeLeft] = useState(30);
+  const hasResponded = useRef(false);
 
-  const handleAccept = async () => {
-    await respondToCall.mutateAsync({ callId: call.id, response: 'accepted' });
-    onAccept(call);
-  };
+  const handleAccept = useCallback(async () => {
+    if (hasResponded.current) return;
+    hasResponded.current = true;
+    
+    try {
+      await respondToCall.mutateAsync({ callId: call.id, response: 'accepted' });
+      onAccept(call);
+    } catch (error) {
+      hasResponded.current = false;
+    }
+  }, [respondToCall, call, onAccept]);
 
-  const handleDecline = async () => {
-    await respondToCall.mutateAsync({ callId: call.id, response: 'declined' });
-    onDecline();
-  };
+  const handleDecline = useCallback(async () => {
+    if (hasResponded.current) return;
+    hasResponded.current = true;
+    
+    try {
+      await respondToCall.mutateAsync({ callId: call.id, response: 'declined' });
+      onDecline();
+    } catch (error) {
+      hasResponded.current = false;
+    }
+  }, [respondToCall, call.id, onDecline]);
 
-  // Countdown timer
+  // Countdown timer with auto-decline
   useEffect(() => {
     const interval = setInterval(() => {
       setTimeLeft(prev => {
@@ -38,7 +53,7 @@ export function IncomingCallDialog({ call, onAccept, onDecline }: IncomingCallDi
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [handleDecline]);
 
   const isVideoCall = call.call_type === 'video';
 
