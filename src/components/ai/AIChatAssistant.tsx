@@ -14,7 +14,7 @@ type Message = {
 export function AIChatAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "YOOO what's up bestie!! 🎪✨ I'm Autisy, your chaotic AI companion here on XD! Ask me ANYTHING about content, going viral, or just chat - I don't bite (much) 🦆💀" }
+    { role: 'assistant', content: "YOOO what's up bestie!! 🎪✨ I'm Autisy, your chaotic AI companion here on VYBE! Ask me ANYTHING about content, going viral, or just chat - I don't bite (much) 🦆💀" }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);

@@ -49,9 +49,9 @@ export function Sidebar() {
           whileHover={{ scale: 1.1, rotate: 5 }}
           whileTap={{ scale: 0.95 }}
         >
-          <span className="text-lg font-black text-white">XD</span>
+          <span className="text-lg font-black text-white">VYBE</span>
         </motion.div>
-        <span className="font-display text-2xl font-black gradient-text group-hover:scale-105 transition-transform">XD</span>
+        <span className="font-display text-2xl font-black gradient-text group-hover:scale-105 transition-transform">VYBE</span>
       </Link>
 
       {/* Main Navigation */}
