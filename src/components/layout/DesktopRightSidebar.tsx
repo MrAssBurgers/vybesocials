@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
@@ -18,7 +18,7 @@ import { useConversations } from '@/hooks/useMessages';
 import { useFriends } from '@/hooks/useFriends';
 import { useEvents } from '@/hooks/useEvents';
 import { useListings } from '@/hooks/useMarketplace';
-import { format, formatDistanceToNow, isPast, isFuture } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 
 export function DesktopRightSidebar() {
   const { t } = useTranslation();
@@ -43,24 +43,31 @@ export function DesktopRightSidebar() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Get recent conversations with unread messages
-  const recentChats = conversations?.slice(0, 3).map(conv => {
-    const otherMember = conv.members?.find(m => m.user_id !== profile?.id)?.profile;
-    return {
-      id: conv.id,
-      name: conv.is_group ? conv.name : otherMember?.display_name || otherMember?.username,
-      avatar: conv.is_group ? conv.avatar_url : otherMember?.avatar_url,
-      lastMessage: conv.last_message?.content,
-      hasUnread: conv.unread_count > 0,
-      isTyping: false,
-    };
-  }) || [];
+  // Get recent conversations with unread messages - memoized
+  const recentChats = useMemo(() => {
+    if (!conversations) return [];
+    return conversations.slice(0, 3).map(conv => {
+      const otherMember = conv.members?.find(m => m.user_id !== profile?.id)?.profile;
+      return {
+        id: conv.id,
+        name: conv.is_group ? conv.name : otherMember?.display_name || otherMember?.username,
+        avatar: conv.is_group ? conv.avatar_url : otherMember?.avatar_url,
+        lastMessage: conv.last_message?.content,
+        hasUnread: conv.unread_count > 0,
+        isTyping: false,
+      };
+    });
+  }, [conversations, profile?.id]);
 
-  // Get upcoming events (filter for future events)
-  const upcomingEvents = events?.filter(e => isFuture(new Date(e.start_time))).slice(0, 2) || [];
+  // Get upcoming events (filter for future events) - memoized
+  const upcomingEvents = useMemo(() => {
+    if (!events) return [];
+    const now = new Date();
+    return events.filter(e => new Date(e.start_time) > now).slice(0, 2);
+  }, [events]);
   
-  // Get recent listings
-  const recentListings = listings?.slice(0, 2) || [];
+  // Get recent listings - memoized
+  const recentListings = useMemo(() => listings?.slice(0, 2) || [], [listings]);
 
   // Static trending tags (would come from real API in production)
   const trendingTags = ['#fyp', '#dance', '#viral', '#gaming', '#music'];
