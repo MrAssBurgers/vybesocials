@@ -125,7 +125,7 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   );
 }
 
-// Safe image component for post media
+// Safe image component for post media - now uses object-contain for full image visibility
 function PostImage({ src, caption }: { src: string; caption?: string }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -139,18 +139,32 @@ function PostImage({ src, caption }: { src: string; caption?: string }) {
   }
 
   return (
-    <>
+    <div className="relative w-full h-full">
+      {/* Blurred background for letterboxing */}
+      {isLoaded && (
+        <div 
+          className="absolute inset-0 blur-xl scale-110 opacity-40"
+          style={{ 
+            backgroundImage: `url(${src})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      )}
       {!isLoaded && <MediaSkeleton className="absolute inset-0" />}
       <img
         src={src}
         alt={caption || ''}
-        className={cn("w-full h-full object-cover transition-opacity", isLoaded ? "opacity-100" : "opacity-0")}
+        className={cn(
+          "relative w-full h-full object-contain transition-opacity z-10",
+          isLoaded ? "opacity-100" : "opacity-0"
+        )}
         loading="eager"
         decoding="async"
         onLoad={() => setIsLoaded(true)}
         onError={() => setHasError(true)}
       />
-    </>
+    </div>
   );
 }
 

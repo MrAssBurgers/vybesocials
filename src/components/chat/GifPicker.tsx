@@ -92,12 +92,15 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 10 }}
-      className="bg-background border border-border rounded-xl shadow-lg overflow-hidden w-80"
+      className="bg-background border border-border rounded-xl shadow-lg overflow-hidden w-full max-w-sm sm:max-w-md"
     >
       {/* Header */}
       <div className="p-3 border-b border-border flex items-center justify-between">
-        <span className="font-semibold text-sm">GIFs</span>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
+        <span className="font-semibold text-sm flex items-center gap-2">
+          <span className="text-lg">🎬</span>
+          GIFs
+        </span>
+        <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -110,35 +113,35 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
             placeholder="Search GIFs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9"
+            className="pl-9 h-10"
           />
         </div>
       </div>
 
       {/* Categories */}
-      <div className="px-2 pb-2 flex gap-1 overflow-x-auto">
+      <div className="px-2 pb-2 flex gap-1.5 overflow-x-auto no-scrollbar">
         {categories.map(({ key, label, icon: Icon }) => (
           <Button
             key={key}
             variant={activeCategory === key ? 'default' : 'ghost'}
             size="sm"
             onClick={() => handleCategoryChange(key)}
-            className="h-7 px-2 text-xs flex-shrink-0"
+            className="h-8 px-3 text-xs flex-shrink-0 whitespace-nowrap"
           >
-            {Icon && <Icon className="h-3 w-3 mr-1" />}
+            {Icon && <Icon className="h-3.5 w-3.5 mr-1.5" />}
             {label}
           </Button>
         ))}
       </div>
 
       {/* GIF Grid */}
-      <ScrollArea className="h-64">
+      <ScrollArea className="h-56 sm:h-64">
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-1 p-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2">
             {gifs.map((gif, index) => (
               <motion.button
                 key={`${gif}-${index}`}
@@ -159,6 +162,7 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
         )}
         {gifs.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+            <span className="text-2xl mb-2">🔍</span>
             <p className="text-sm">No GIFs found</p>
           </div>
         )}
