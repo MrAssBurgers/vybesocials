@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
+import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -53,14 +54,12 @@ export function AIChatAssistant() {
     let assistantContent = '';
 
     try {
+      const headers = await getFunctionAuthHeaders();
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
+          headers,
           body: JSON.stringify({ messages: [...messages, userMessage] }),
         }
       );

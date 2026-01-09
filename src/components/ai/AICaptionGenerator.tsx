@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Loader2, RefreshCw, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
 interface AICaptionGeneratorProps {
   tags: string[];
@@ -21,14 +22,12 @@ export function AICaptionGenerator({ tags, contentType, onSelectCaption }: AICap
     setSelectedIndex(null);
 
     try {
+      const headers = await getFunctionAuthHeaders();
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-caption`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
+          headers,
           body: JSON.stringify({ tags, contentType }),
         }
       );
