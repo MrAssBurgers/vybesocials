@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,67 @@ import { useTogglePin } from '@/hooks/usePosts';
 import { useUserRole } from '@/hooks/useModeration';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
+
+// Video player component with muted autoplay loop, click to unmute
+function VideoPlayer({ src }: { src: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isMuted, setIsMuted] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
+      setIsMuted(!isMuted);
+      // If unmuting and not playing, start playing
+      if (videoRef.current.muted === false && videoRef.current.paused) {
+        videoRef.current.play();
+      }
+    }
+  };
+
+  const handleVideoClick = () => {
+    if (videoRef.current) {
+      if (videoRef.current.paused) {
+        videoRef.current.play();
+        setIsPlaying(true);
+      } else {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
+    }
+  };
+
+  return (
+    <div className="relative w-full h-full group" onClick={handleVideoClick}>
+      <video
+        ref={videoRef}
+        src={src}
+        className="w-full h-full object-cover"
+        loop
+        muted
+        playsInline
+        autoPlay
+        preload="auto"
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+      />
+      {/* Play indicator */}
+      {!isPlaying && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+          <Play className="h-16 w-16 text-white/80 fill-white/80" />
+        </div>
+      )}
+      {/* Mute/Unmute button */}
+      <button
+        onClick={toggleMute}
+        className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
 
 interface PostCardProps {
   post: {
@@ -249,17 +310,13 @@ export function PostCard({ post }: PostCardProps) {
         onDoubleClick={handleDoubleTap}
       >
         {post.type === 'video' ? (
-          <video
-            src={signedMediaUrl || ''}
-            className="w-full h-full object-cover"
-            controls
-            playsInline
-          />
+          <VideoPlayer src={signedMediaUrl || ''} />
         ) : (
           <img
             src={signedMediaUrl || ''}
             alt={post.caption}
             className="w-full h-full object-cover"
+            loading="lazy"
           />
         )}
         

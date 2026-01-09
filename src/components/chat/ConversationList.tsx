@@ -134,9 +134,13 @@ function AutisyAIChatRow() {
         </div>
       </button>
 
-      {/* Chat Dialog */}
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col p-0">
+      {/* Chat Dialog - modal=true to prevent closing on outside click */}
+      <Dialog open={isOpen} onOpenChange={setIsOpen} modal>
+        <DialogContent 
+          className="sm:max-w-md max-h-[80vh] flex flex-col p-0" 
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <DialogHeader className="p-4 border-b border-border">
             <DialogTitle className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full gradient-animated flex items-center justify-center">
@@ -561,7 +565,7 @@ function NewChatDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} modal>
       <DialogTrigger asChild>
         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
           <Button size="icon" variant="ghost" className="rounded-full">
@@ -569,7 +573,11 @@ function NewChatDialog({
           </Button>
         </motion.div>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent 
+        className="sm:max-w-md"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>{t('messages.newChat')}</DialogTitle>
         </DialogHeader>
