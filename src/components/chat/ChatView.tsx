@@ -495,7 +495,7 @@ export function ChatView() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className={cn("flex-1 overflow-y-auto p-4 space-y-4", getWallpaperClass())}>
         {messageItems.map(({ message, isOwn, showAvatar, showTimestamp }) => (
           <div key={message.id}>
             {showTimestamp && (
@@ -579,6 +579,10 @@ export function ChatView() {
             setIsRecordingVoice={setIsRecordingVoice}
             clearReply={clearReply}
             t={t}
+            onOpenVanishThreads={() => setShowVanishThreads(true)}
+            onOpenMemoryPins={() => setShowMemoryPins(true)}
+            onOpenScheduleMessage={() => setShowScheduleMessage(true)}
+            onOpenDMSettings={() => setShowDMSettings(true)}
           />
         </DMSafetyGate>
       ) : (
@@ -602,6 +606,10 @@ export function ChatView() {
           setIsRecordingVoice={setIsRecordingVoice}
           clearReply={clearReply}
           t={t}
+          onOpenVanishThreads={() => setShowVanishThreads(true)}
+          onOpenMemoryPins={() => setShowMemoryPins(true)}
+          onOpenScheduleMessage={() => setShowScheduleMessage(true)}
+          onOpenDMSettings={() => setShowDMSettings(true)}
         />
       )}
     </div>
@@ -629,6 +637,10 @@ const MessageInputArea = memo(function MessageInputArea({
   setIsRecordingVoice,
   clearReply,
   t,
+  onOpenVanishThreads,
+  onOpenMemoryPins,
+  onOpenScheduleMessage,
+  onOpenDMSettings,
 }: {
   messageText: string;
   viewMode: ViewMode;
@@ -649,6 +661,10 @@ const MessageInputArea = memo(function MessageInputArea({
   setIsRecordingVoice: (recording: boolean) => void;
   clearReply: () => void;
   t: (key: string) => string;
+  onOpenVanishThreads?: () => void;
+  onOpenMemoryPins?: () => void;
+  onOpenScheduleMessage?: () => void;
+  onOpenDMSettings?: () => void;
 }) {
   return (
     <div className="p-4 border-t border-border bg-background">
@@ -714,6 +730,10 @@ const MessageInputArea = memo(function MessageInputArea({
               }}
               onVoiceStart={() => setIsRecordingVoice(true)}
               isUploading={isUploadingMedia}
+              onOpenVanishThreads={onOpenVanishThreads}
+              onOpenMemoryPins={onOpenMemoryPins}
+              onOpenScheduleMessage={onOpenScheduleMessage}
+              onOpenDMSettings={onOpenDMSettings}
             />
 
             <DropdownMenu open={showViewModeMenu} onOpenChange={setShowViewModeMenu}>
