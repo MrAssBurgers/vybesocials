@@ -233,12 +233,12 @@ export default function MarketPage() {
           </div>
           
           <div className="flex gap-2">
-            <Select value={category} onValueChange={setCategory}>
+            <Select value={category || 'all'} onValueChange={(v) => setCategory(v === 'all' ? '' : v)}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 {LISTING_CATEGORIES.map(cat => (
                   <SelectItem key={cat.value} value={cat.value}>
                     {cat.icon} {cat.label}
@@ -260,12 +260,12 @@ export default function MarketPage() {
                 <div className="space-y-6 py-6">
                   <div>
                     <label className="text-sm font-medium mb-2 block">Condition</label>
-                    <Select value={condition} onValueChange={setCondition}>
+                    <Select value={condition || 'all'} onValueChange={(v) => setCondition(v === 'all' ? '' : v)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Any condition" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Any Condition</SelectItem>
+                        <SelectItem value="all">Any Condition</SelectItem>
                         {LISTING_CONDITIONS.map(cond => (
                           <SelectItem key={cond.value} value={cond.value}>
                             {cond.label}
