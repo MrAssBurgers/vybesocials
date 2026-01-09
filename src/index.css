@@ -706,3 +706,11 @@
 .animate-ripple-in {
   animation: ripple-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+/* Freeze dialogs completely - no animations or transforms */
+[data-state="open"][role="dialog"] .\!transform-none,
+.\!transform-none {
+  transform: none !important;
+  animation: none !important;
+  transition: none !important;
+}

@@ -134,10 +134,10 @@ function AutisyAIChatRow() {
         </div>
       </button>
 
-      {/* Chat Dialog - modal=true to prevent closing on outside click */}
+      {/* Chat Dialog - completely static, no animations */}
       <Dialog open={isOpen} onOpenChange={setIsOpen} modal>
         <DialogContent 
-          className="sm:max-w-md max-h-[80vh] flex flex-col p-0" 
+          className="sm:max-w-md max-h-[80vh] flex flex-col p-0 !transform-none !transition-none !animate-none" 
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
         >
@@ -155,10 +155,8 @@ function AutisyAIChatRow() {
           <ScrollArea className="flex-1 p-4 max-h-80">
             <div className="space-y-3">
               {messages.map((msg, i) => (
-                <motion.div
+                <div
                   key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
                   className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   {msg.role === 'assistant' && (
@@ -171,7 +169,7 @@ function AutisyAIChatRow() {
                   }`}>
                     {msg.content || 'Thinking... 🧠'}
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
           </ScrollArea>
@@ -574,7 +572,7 @@ function NewChatDialog({
         </motion.div>
       </DialogTrigger>
       <DialogContent 
-        className="sm:max-w-md"
+        className="sm:max-w-md !transform-none !transition-none !animate-none"
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
       >
