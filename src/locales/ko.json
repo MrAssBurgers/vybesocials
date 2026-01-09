@@ -118,6 +118,8 @@
     "title": "설정",
     "account": "계정",
     "privacy": "개인정보",
+    "privateAccount": "비공개 계정",
+    "privateAccountDesc": "승인된 팔로워만 게시물을 볼 수 있습니다",
     "notifications": "알림",
     "appearance": "화면",
     "language": "언어",
@@ -158,6 +160,15 @@
       "restrictedDesc": "민감한 콘텐츠 숨기기",
       "open": "열린",
       "openDesc": "경고 없이 모든 콘텐츠 표시"
+    },
+    "privacy": {
+      "title": "프로필 공개 설정",
+      "subtitle": "콘텐츠를 볼 수 있는 사람 관리",
+      "public": "공개",
+      "publicDesc": "누구나 게시물과 프로필을 볼 수 있습니다",
+      "private": "비공개",
+      "privateDesc": "승인된 팔로워만 게시물을 볼 수 있습니다",
+      "canChange": "설정에서 언제든지 변경할 수 있습니다"
     }
   },
   "explore": {

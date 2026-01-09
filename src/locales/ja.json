@@ -118,6 +118,8 @@
     "title": "設定",
     "account": "アカウント",
     "privacy": "プライバシー",
+    "privateAccount": "非公開アカウント",
+    "privateAccountDesc": "承認されたフォロワーのみ投稿を見ることができます",
     "notifications": "通知",
     "appearance": "外観",
     "language": "言語",
@@ -158,6 +160,15 @@
       "restrictedDesc": "センシティブな可能性のあるコンテンツを非表示",
       "open": "オープン",
       "openDesc": "警告なしですべてのコンテンツを表示"
+    },
+    "privacy": {
+      "title": "プロフィールの公開設定",
+      "subtitle": "コンテンツを見られる人を管理",
+      "public": "公開",
+      "publicDesc": "誰でも投稿とプロフィールを見ることができます",
+      "private": "非公開",
+      "privateDesc": "承認されたフォロワーのみ投稿を見ることができます",
+      "canChange": "設定でいつでも変更できます"
     }
   },
   "explore": {

@@ -135,6 +135,8 @@
     "title": "Settings",
     "account": "Account",
     "privacy": "Privacy",
+    "privateAccount": "Private Account",
+    "privateAccountDesc": "Only approved followers can see your posts",
     "notifications": "Notifications",
     "appearance": "Appearance",
     "language": "Language",
@@ -175,6 +177,15 @@
       "restrictedDesc": "Hide potentially sensitive content",
       "open": "Open",
       "openDesc": "Show all content without warnings"
+    },
+    "privacy": {
+      "title": "Profile Privacy",
+      "subtitle": "Control who can see your content",
+      "public": "Public",
+      "publicDesc": "Anyone can see your posts and profile",
+      "private": "Private",
+      "privateDesc": "Only approved followers can see your posts",
+      "canChange": "You can change this anytime in Settings"
     }
   },
   "explore": {

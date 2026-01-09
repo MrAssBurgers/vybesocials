@@ -8,12 +8,13 @@ import { CreatorSuggestions } from '@/components/onboarding/CreatorSuggestions';
 import { ProfileSetup } from '@/components/onboarding/ProfileSetup';
 import { SensitivitySettings } from '@/components/onboarding/SensitivitySettings';
 import { PhoneVerification } from '@/components/onboarding/PhoneVerification';
+import { PrivacySettings } from '@/components/onboarding/PrivacySettings';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 type SensitivityLevel = 'standard' | 'restricted' | 'open';
 
@@ -35,6 +36,7 @@ export default function Onboarding() {
     avatarFile: null as File | null,
   });
   const [sensitivity, setSensitivity] = useState<SensitivityLevel>('standard');
+  const [isPrivate, setIsPrivate] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
 
   const canProceed = () => {
@@ -43,7 +45,8 @@ export default function Onboarding() {
       case 2: return true; // Can skip following
       case 3: return profileData.displayName.length > 0;
       case 4: return true;
-      case 5: return true; // Phone is optional
+      case 5: return true;
+      case 6: return true; // Phone is optional
       default: return true;
     }
   };
@@ -93,6 +96,7 @@ export default function Onboarding() {
           avatar_url: avatarUrl,
           interests: interests,
           sensitivity_preference: sensitivity,
+          is_private: isPrivate,
           phone_number: phoneNumber || null,
           onboarding_completed: true,
         })
@@ -128,20 +132,20 @@ export default function Onboarding() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 p-4 flex items-center justify-between">
+      <header className="relative z-10 p-3 sm:p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="gradient-animated rounded-xl p-2">
-            <Sparkles className="w-6 h-6 text-white" />
+          <div className="gradient-animated rounded-xl p-1.5 sm:p-2">
+            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
-          <span className="text-xl font-bold gradient-text">XD</span>
+          <span className="text-lg sm:text-xl font-bold gradient-text">XD</span>
         </div>
-        <Button variant="ghost" onClick={handleSkip} className="text-muted-foreground">
+        <Button variant="ghost" onClick={handleSkip} className="text-muted-foreground text-sm sm:text-base">
           {t('onboarding.skip')}
         </Button>
       </header>
 
       {/* Progress bar */}
-      <div className="relative z-10 px-4 py-2">
+      <div className="relative z-10 px-3 sm:px-4 py-2">
         <div className="h-1 bg-muted rounded-full overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
@@ -149,13 +153,13 @@ export default function Onboarding() {
             className="h-full gradient-animated"
           />
         </div>
-        <p className="text-center text-sm text-muted-foreground mt-2">
+        <p className="text-center text-xs sm:text-sm text-muted-foreground mt-2">
           Step {step} of {TOTAL_STEPS}
         </p>
       </div>
 
       {/* Content */}
-      <main className="relative z-10 flex-1 p-4 overflow-y-auto">
+      <main className="relative z-10 flex-1 p-3 sm:p-4 overflow-y-auto">
         <div className="max-w-lg mx-auto">
           <AnimatePresence mode="wait">
             <motion.div
@@ -186,6 +190,9 @@ export default function Onboarding() {
                 <SensitivitySettings value={sensitivity} onChange={setSensitivity} />
               )}
               {step === 5 && (
+                <PrivacySettings isPrivate={isPrivate} onChange={setIsPrivate} />
+              )}
+              {step === 6 && (
                 <PhoneVerification phoneNumber={phoneNumber} onChange={setPhoneNumber} />
               )}
             </motion.div>
@@ -194,32 +201,33 @@ export default function Onboarding() {
       </main>
 
       {/* Footer navigation */}
-      <footer className="relative z-10 p-4 border-t border-border bg-background/80 backdrop-blur-sm">
-        <div className="max-w-lg mx-auto flex items-center justify-between gap-4">
+      <footer className="relative z-10 p-3 sm:p-4 border-t border-border bg-background/80 backdrop-blur-sm">
+        <div className="max-w-lg mx-auto flex items-center justify-between gap-3 sm:gap-4">
           <Button
             variant="outline"
             onClick={handleBack}
             disabled={step === 1}
-            className="flex items-center gap-2"
+            className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base"
           >
             <ChevronLeft className="w-4 h-4" />
-            {t('onboarding.back')}
+            <span className="hidden xs:inline">{t('onboarding.back')}</span>
           </Button>
 
           {step < TOTAL_STEPS ? (
             <Button
               onClick={handleNext}
               disabled={!canProceed()}
-              className="flex items-center gap-2 gradient-animated"
+              className="flex items-center gap-1 sm:gap-2 gradient-animated text-sm sm:text-base"
             >
-              {t('onboarding.next')}
+              <span className="hidden xs:inline">{t('onboarding.next')}</span>
+              <span className="xs:hidden">Next</span>
               <ChevronRight className="w-4 h-4" />
             </Button>
           ) : (
             <Button
               onClick={handleFinish}
               disabled={loading}
-              className="flex items-center gap-2 gradient-animated"
+              className="flex items-center gap-1 sm:gap-2 gradient-animated text-sm sm:text-base"
             >
               {loading ? 'Saving...' : t('onboarding.finish')}
               <Sparkles className="w-4 h-4" />

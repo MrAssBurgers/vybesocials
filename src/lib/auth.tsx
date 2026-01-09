@@ -11,6 +11,7 @@ interface Profile {
   created_at: string;
   interests?: string[] | null;
   onboarding_completed?: boolean | null;
+  is_private?: boolean | null;
 }
 
 interface AuthContextType {
