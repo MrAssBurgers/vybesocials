@@ -4,7 +4,6 @@ import { MobileHeader } from './MobileHeader';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '@/lib/auth';
 import { Navigate } from 'react-router-dom';
-import { AIChatAssistant } from '@/components/ai/AIChatAssistant';
 import { usePresence } from '@/hooks/usePresence';
 
 interface AppLayoutProps {
@@ -36,11 +35,11 @@ export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
     <div className="min-h-screen bg-background">
       <Sidebar />
       <MobileHeader />
-      <main className="md:ml-64 pb-20 md:pb-0 pt-14 md:pt-0">
+      <main className="lg:ml-64 pb-20 lg:pb-0 pt-14 lg:pt-0">
         {children}
       </main>
       <BottomNav />
-      <AIChatAssistant />
+      {/* Removed AIChatAssistant - now using pinned Autisy in messages */}
     </div>
   );
 }

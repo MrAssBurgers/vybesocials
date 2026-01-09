@@ -840,6 +840,7 @@ export type Database = {
           tags: string[] | null
           thumbnail_url: string | null
           type: string
+          view_count: number | null
         }
         Insert: {
           author_id: string
@@ -851,6 +852,7 @@ export type Database = {
           tags?: string[] | null
           thumbnail_url?: string | null
           type: string
+          view_count?: number | null
         }
         Update: {
           author_id?: string
@@ -862,6 +864,7 @@ export type Database = {
           tags?: string[] | null
           thumbnail_url?: string | null
           type?: string
+          view_count?: number | null
         }
         Relationships: [
           {
@@ -1561,6 +1564,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_view_count: {
+        Args: { post_id_param: string }
+        Returns: undefined
       }
       is_member_of_conversation: {
         Args: { _conversation_id: string }
