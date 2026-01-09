@@ -1,22 +1,23 @@
 import { motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Crown, UserPlus } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Crown, UserPlus, Check } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useFollow } from '@/hooks/useProfile';
 import { toast } from 'sonner';
 
 // Owner username constant
 const OWNER_USERNAME = 'MrAssBurgers';
 
-// Fetch owner profile with follower count
+// Fetch owner profile from profiles table with follower count
 function useOwnerProfile() {
   return useQuery({
     queryKey: ['owner-profile'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('public_profiles')
+        .from('profiles')
         .select('id, username, display_name, avatar_url, bio')
         .ilike('username', OWNER_USERNAME)
         .maybeSingle();
@@ -35,6 +36,28 @@ function useOwnerProfile() {
   });
 }
 
+// Check if current user is following the owner
+function useIsFollowingOwner(ownerId: string | undefined) {
+  const { profile } = useAuth();
+  
+  return useQuery({
+    queryKey: ['is-following-owner', profile?.id, ownerId],
+    queryFn: async () => {
+      if (!profile?.id || !ownerId) return false;
+      
+      const { data } = await supabase
+        .from('follows')
+        .select('id')
+        .eq('follower_id', profile.id)
+        .eq('following_id', ownerId)
+        .maybeSingle();
+      
+      return !!data;
+    },
+    enabled: !!profile?.id && !!ownerId,
+  });
+}
+
 interface CreatorSuggestionsProps {
   interests: string[];
   following: string[];
@@ -49,31 +72,30 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
     isLoading,
     isError,
   } = useOwnerProfile();
+  
+  const { data: isFollowingOwner } = useIsFollowingOwner(ownerProfile?.id);
+  const followMutation = useFollow();
 
-  const followMutation = useMutation({
-    mutationFn: async (ownerId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
-
-      const { error } = await supabase.from('follows').insert({
-        follower_id: profile.id,
-        following_id: ownerId,
+  const handleFollow = async () => {
+    if (!ownerProfile?.id || !profile?.id) return;
+    
+    try {
+      await followMutation.mutateAsync({
+        targetId: ownerProfile.id,
+        isFollowing: isFollowingOwner ?? false,
       });
-
-      if (error && !error.message.includes('duplicate')) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-      toast.success('You are now following the owner! 🎉');
-    },
-    onError: () => {
+      
+      // Update local state for onboarding
+      if (!isFollowingOwner) {
+        onChange([...following, ownerProfile.id]);
+        toast.success('You are now following the owner! 🎉');
+      }
+      
+      // Invalidate queries to update UI
+      queryClient.invalidateQueries({ queryKey: ['is-following-owner'] });
+      queryClient.invalidateQueries({ queryKey: ['owner-profile'] });
+    } catch {
       toast.error('Failed to follow. Please try again.');
-    },
-  });
-
-  const handleFollow = () => {
-    if (ownerProfile?.id) {
-      onChange([ownerProfile.id]);
-      followMutation.mutate(ownerProfile.id);
     }
   };
 
@@ -109,7 +131,7 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
     );
   }
 
-  const isFollowing = following.includes(ownerProfile.id);
+  const alreadyFollowing = isFollowingOwner || following.includes(ownerProfile.id);
 
   return (
     <div className="space-y-8">
@@ -121,8 +143,8 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
       </div>
 
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         className="bg-card rounded-2xl border border-border p-6 text-center"
       >
         <div className="flex flex-col items-center gap-4">
@@ -156,11 +178,14 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
           <Button
             size="lg"
             onClick={handleFollow}
-            disabled={isFollowing || followMutation.isPending}
-            className={isFollowing ? 'bg-green-600 hover:bg-green-600' : 'gradient-animated'}
+            disabled={alreadyFollowing || followMutation.isPending}
+            className={alreadyFollowing ? 'bg-green-600 hover:bg-green-600' : 'gradient-animated'}
           >
-            {isFollowing ? (
-              '✓ Following'
+            {alreadyFollowing ? (
+              <>
+                <Check className="w-4 h-4 mr-2" />
+                Following
+              </>
             ) : (
               <>
                 <UserPlus className="w-4 h-4 mr-2" />
