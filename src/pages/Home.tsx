@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/lib/auth';
 import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
+import { useVideoPreload } from '@/hooks/useVideoPreload';
 
 function PostSkeleton() {
   return (
@@ -36,6 +37,17 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState('foryou');
   const { data: forYouPosts, isLoading: forYouLoading } = usePosts();
   const { data: followingPosts, isLoading: followingLoading } = useFollowingPosts();
+
+  // Preload next few videos for instant playback
+  const videoUrlsToPreload = useMemo(() => {
+    const posts = activeTab === 'foryou' ? forYouPosts : followingPosts;
+    return posts
+      ?.filter(post => post.type === 'video')
+      .slice(0, 5)
+      .map(post => post.media_url) || [];
+  }, [forYouPosts, followingPosts, activeTab]);
+
+  useVideoPreload(videoUrlsToPreload);
 
   // Redirect new Google users who don't have a profile/username yet
   useEffect(() => {
