@@ -12,17 +12,56 @@ serve(async (req) => {
   }
 
   try {
+    // Validate authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !claimsData?.user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const authenticatedUserId = claimsData.user.id;
+    
     const { interests, userId } = await req.json();
+    
+    // Validate that the requested userId matches the authenticated user
+    // Get the profile ID for the authenticated user
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('user_id', authenticatedUserId)
+      .single();
+    
+    if (!profile || (userId && userId !== profile.id)) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: userId mismatch' }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
-
+    // Use authenticated client with RLS (not service role)
     // Fetch recent posts with their tags
     const { data: posts, error: postsError } = await supabase
       .from('posts')
@@ -36,7 +75,7 @@ serve(async (req) => {
     const { data: likedPosts } = await supabase
       .from('likes')
       .select('post_id')
-      .eq('user_id', userId)
+      .eq('user_id', profile.id)
       .limit(50);
 
     const likedPostIds = likedPosts?.map(l => l.post_id) || [];
