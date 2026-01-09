@@ -1,4 +1,4 @@
-import { Home, PlaySquare, PlusCircle, Compass, MessageCircle, User } from 'lucide-react';
+import { Home, Film, PlusCircle, Compass, MessageCircle } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -8,7 +8,6 @@ import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
 import { useUserRole } from '@/hooks/useModeration';
 import { useState, useRef, useCallback } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export function BottomNav() {
   const { t } = useTranslation();
@@ -19,44 +18,33 @@ export function BottomNav() {
   const { data: userRole } = useUserRole();
   
   const [showModMenu, setShowModMenu] = useState(false);
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-  const longPressStarted = useRef(false);
+  const lastClickTime = useRef<number>(0);
 
   const hasSpecialPerms = userRole === 'admin' || userRole === 'moderator';
 
-  const handleLongPressStart = useCallback(() => {
-    if (!hasSpecialPerms) return;
-    longPressStarted.current = false;
-    longPressTimer.current = setTimeout(() => {
-      longPressStarted.current = true;
+  // Double-click handler for upload button
+  const handleUploadClick = useCallback((e: React.MouseEvent) => {
+    const now = Date.now();
+    const timeSinceLastClick = now - lastClickTime.current;
+    
+    if (hasSpecialPerms && timeSinceLastClick < 300) {
+      // Double click detected
+      e.preventDefault();
       setShowModMenu(true);
       triggerNavFeedback();
-    }, 3000);
-  }, [hasSpecialPerms]);
-
-  const handleLongPressEnd = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  }, []);
-
-  const handleUploadClick = useCallback((e: React.MouseEvent) => {
-    if (longPressStarted.current) {
-      e.preventDefault();
-      longPressStarted.current = false;
     } else {
       triggerNavFeedback();
     }
-  }, []);
+    
+    lastClickTime.current = now;
+  }, [hasSpecialPerms]);
 
   const navItems = [
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0 },
-    { icon: PlaySquare, labelKey: 'nav.shorts', path: '/shorts', badge: 0 },
+    { icon: Film, labelKey: 'nav.clips', path: '/clips', badge: 0 },
     { icon: PlusCircle, labelKey: 'nav.upload', path: '/upload', isCreate: true, badge: 0 },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0 },
     { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages },
-    { icon: User, labelKey: 'nav.profile', path: `/u/${profile?.username}`, isProfile: true, badge: 0 },
   ];
 
   return (
@@ -115,9 +103,7 @@ export function BottomNav() {
       <nav className="fixed bottom-0 left-0 right-0 z-50 liquid-glass border-t border-white/10 safe-bottom md:hidden">
         <div className="flex items-center justify-around h-16">
           {navItems.map((item) => {
-            const isActive = item.isProfile 
-              ? location.pathname === item.path
-              : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+            const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
             const Icon = item.icon;
             const path = item.path;
 
@@ -128,11 +114,6 @@ export function BottomNav() {
                   to={path}
                   className="relative flex items-center justify-center"
                   onClick={handleUploadClick}
-                  onMouseDown={handleLongPressStart}
-                  onMouseUp={handleLongPressEnd}
-                  onMouseLeave={handleLongPressEnd}
-                  onTouchStart={handleLongPressStart}
-                  onTouchEnd={handleLongPressEnd}
                 >
                   <motion.div
                     whileTap={{ scale: 0.9 }}
@@ -147,49 +128,6 @@ export function BottomNav() {
                       className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-yellow-500 border-2 border-background"
                     />
                   )}
-                </Link>
-              );
-            }
-
-            if (item.isProfile) {
-              return (
-                <Link
-                  key={item.path}
-                  to={path}
-                  className="relative flex flex-col items-center justify-center gap-1 py-2"
-                  onClick={triggerNavFeedback}
-                >
-                  <motion.div
-                    whileTap={{ scale: 0.9 }}
-                    className="relative"
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="bottomNavOutline"
-                        className="absolute -inset-2 rounded-xl overflow-hidden"
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      >
-                        <div className="absolute inset-0 gradient-border-animated animate-glow-pulse" />
-                        <div className="absolute inset-[2px] rounded-[10px] bg-background" />
-                      </motion.div>
-                    )}
-                    <Avatar className="h-6 w-6 relative z-10">
-                      <AvatarImage src={profile?.avatar_url || undefined} />
-                      <AvatarFallback className="text-xs">
-                        {profile?.username?.[0]?.toUpperCase() || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                  </motion.div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-medium transition-colors",
-                      isActive ? "text-primary" : "text-muted-foreground"
-                    )}
-                  >
-                    {t(item.labelKey)}
-                  </span>
                 </Link>
               );
             }

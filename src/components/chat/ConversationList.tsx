@@ -10,10 +10,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
@@ -36,6 +37,167 @@ const listItemVariants = {
   }),
   exit: { opacity: 0, x: -20, transition: { duration: 0.15 } },
 };
+
+// Pinned Autisy AI chat row at top of messages
+function AutisyAIChatRow() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
+    { role: 'assistant', content: "YOOO what's up bestie!! 🎪✨ I'm Autisy, your chaotic AI companion! Ask me ANYTHING 🦆💀" }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const sendMessage = async () => {
+    if (!input.trim() || isLoading) return;
+    const userMessage = { role: 'user' as const, content: input.trim() };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    let assistantContent = '';
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ messages: [...messages, userMessage] }),
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed');
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) throw new Error('No reader');
+
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+          let line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          if (line.endsWith('\r')) line = line.slice(0, -1);
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === '[DONE]') break;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              assistantContent += content;
+              setMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: 'assistant', content: assistantContent };
+                return updated;
+              });
+            }
+          } catch {}
+        }
+      }
+    } catch {
+      setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: "Oops something broke 💀 try again bestie!" }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <motion.button
+        whileHover={{ scale: 1.02, backgroundColor: 'hsl(var(--accent))' }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => setIsOpen(true)}
+        className="w-full flex items-center gap-3 p-3 rounded-xl text-left liquid-glass-subtle transition-colors"
+      >
+        <motion.div
+          className="relative"
+          animate={{ rotate: [0, -5, 5, 0] }}
+          transition={{ duration: 3, repeat: Infinity }}
+        >
+          <div className="h-12 w-12 rounded-full gradient-animated flex items-center justify-center ring-2 ring-primary/30">
+            <Bot className="h-6 w-6 text-white" />
+          </div>
+          <motion.div
+            className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+            animate={{ scale: [1, 1.2, 1] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            AI
+          </motion.div>
+        </motion.div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-bold gradient-text">Autisy</span>
+            <Pin className="h-3 w-3 text-primary" />
+          </div>
+          <p className="text-sm text-muted-foreground truncate">Your chaotic AI bestie 🦆✨</p>
+        </div>
+      </motion.button>
+
+      {/* Chat Dialog */}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col p-0">
+          <DialogHeader className="p-4 border-b border-border">
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full gradient-animated flex items-center justify-center">
+                <Bot className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <span className="gradient-text font-bold">Autisy</span>
+                <p className="text-xs text-muted-foreground font-normal">Chaotic AI bestie 🦆</p>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="flex-1 p-4 max-h-80">
+            <div className="space-y-3">
+              {messages.map((msg, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  {msg.role === 'assistant' && (
+                    <div className="w-6 h-6 rounded-full gradient-animated flex-shrink-0 flex items-center justify-center">
+                      <Bot className="h-3 w-3 text-white" />
+                    </div>
+                  )}
+                  <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                    msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-tr-sm' : 'bg-muted rounded-tl-sm'
+                  }`}>
+                    {msg.content || 'Thinking... 🧠'}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </ScrollArea>
+          <div className="p-4 border-t border-border flex gap-2">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+              placeholder="Ask Autisy anything..."
+              disabled={isLoading}
+              className="flex-1"
+            />
+            <Button size="icon" onClick={sendMessage} disabled={!input.trim() || isLoading}>
+              {isLoading ? <Sparkles className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 export function ConversationList() {
   const { t } = useTranslation();
@@ -131,6 +293,15 @@ export function ConversationList() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Pinned Autisy AI Chat at the very top */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="p-3 border-b border-border"
+      >
+        <AutisyAIChatRow />
+      </motion.div>
+
       {/* Header with animation */}
       <motion.div 
         initial={{ y: -20, opacity: 0 }}
