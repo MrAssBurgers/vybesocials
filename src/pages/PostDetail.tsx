@@ -1,7 +1,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, Image, X, Loader2, Send } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, Image, X, Loader2, Send, Smile } from 'lucide-react';
 import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { GifPicker } from '@/components/chat/GifPicker';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -98,6 +99,8 @@ export default function PostDetailPage() {
   const [newComment, setNewComment] = useState('');
   const [commentImage, setCommentImage] = useState<File | null>(null);
   const [commentImagePreview, setCommentImagePreview] = useState<string | null>(null);
+  const [commentGifUrl, setCommentGifUrl] = useState<string | null>(null);
+  const [showGifPicker, setShowGifPicker] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [isLiked, setIsLiked] = useState(false);
@@ -227,16 +230,24 @@ export default function PostDetailPage() {
   const clearCommentImage = () => {
     setCommentImage(null);
     setCommentImagePreview(null);
+    setCommentGifUrl(null);
     if (imageInputRef.current) {
       imageInputRef.current.value = '';
     }
   };
 
+  const handleGifSelect = (gifUrl: string) => {
+    setCommentGifUrl(gifUrl);
+    setCommentImage(null);
+    setCommentImagePreview(null);
+    setShowGifPicker(false);
+  };
+
   const handleComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!newComment.trim() && !commentImage) || !post || !profile) return;
+    if ((!newComment.trim() && !commentImage && !commentGifUrl) || !post || !profile) return;
 
-    let imageUrl: string | undefined;
+    let imageUrl: string | undefined = commentGifUrl || undefined;
 
     if (commentImage) {
       setIsUploadingImage(true);
@@ -585,22 +596,32 @@ export default function PostDetailPage() {
 
               {/* Comment input */}
               <form onSubmit={handleComment} className="space-y-2">
-                {commentImagePreview && (
-                  <div className="relative inline-block">
-                    <img 
-                      src={commentImagePreview} 
-                      alt="Preview" 
-                      className="h-16 w-16 object-cover rounded-lg"
-                    />
-                    <button
-                      type="button"
-                      onClick={clearCommentImage}
-                      className="absolute -top-1 -right-1 h-5 w-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center"
+                <AnimatePresence>
+                  {(commentImagePreview || commentGifUrl) && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="relative inline-block"
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                )}
+                      <img 
+                        src={commentImagePreview || commentGifUrl || ''} 
+                        alt="Preview" 
+                        className="h-16 w-auto max-w-[120px] object-cover rounded-lg"
+                      />
+                      <button
+                        type="button"
+                        onClick={clearCommentImage}
+                        className="absolute -top-1 -right-1 h-5 w-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                      {commentGifUrl && (
+                        <span className="absolute bottom-1 left-1 px-1 py-0.5 text-[8px] font-bold bg-black/60 text-white rounded">GIF</span>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <div className="flex gap-2">
                   <input
                     ref={imageInputRef}
@@ -614,10 +635,30 @@ export default function PostDetailPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => imageInputRef.current?.click()}
+                    disabled={!!commentGifUrl}
                     className="shrink-0"
                   >
                     <Image className="h-5 w-5" />
                   </Button>
+                  <div className="relative">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowGifPicker(!showGifPicker)}
+                      disabled={!!commentImagePreview}
+                      className="shrink-0"
+                    >
+                      <Smile className="h-5 w-5" />
+                    </Button>
+                    <AnimatePresence>
+                      {showGifPicker && (
+                        <div className="absolute bottom-full right-0 mb-2 z-50">
+                          <GifPicker onSelect={handleGifSelect} onClose={() => setShowGifPicker(false)} />
+                        </div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                   <Input
                     placeholder="Add a comment..."
                     value={newComment}
@@ -628,7 +669,7 @@ export default function PostDetailPage() {
                     <Button 
                       type="submit" 
                       size="icon"
-                      disabled={(!newComment.trim() && !commentImage) || createComment.isPending || isUploadingImage}
+                      disabled={(!newComment.trim() && !commentImage && !commentGifUrl) || createComment.isPending || isUploadingImage}
                       className="shrink-0"
                     >
                       {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
