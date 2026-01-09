@@ -38,7 +38,6 @@ import { useCallContext } from './CallProvider';
 import { 
   ArrowLeft, 
   Send, 
-  Image as ImageIcon, 
   MoreVertical,
   Clock,
   Eye,
@@ -52,6 +51,7 @@ import {
   Reply,
   CornerUpLeft
 } from 'lucide-react';
+import { Toybox } from './Toybox';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
@@ -669,19 +669,30 @@ const MessageInputArea = memo(function MessageInputArea({
           />
         ) : (
           <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="flex-shrink-0"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploadingMedia}
-            >
-              {isUploadingMedia ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <ImageIcon className="h-5 w-5" />
-              )}
-            </Button>
+            <Toybox
+              onImageSelect={async (file) => {
+                if (fileInputRef.current) {
+                  const dt = new DataTransfer();
+                  dt.items.add(file);
+                  fileInputRef.current.files = dt.files;
+                  handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
+                }
+              }}
+              onVideoSelect={async (file) => {
+                if (fileInputRef.current) {
+                  const dt = new DataTransfer();
+                  dt.items.add(file);
+                  fileInputRef.current.files = dt.files;
+                  handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
+                }
+              }}
+              onGifSelect={(gifUrl) => {
+                // Append GIF URL to message for now
+                handleInputChange(messageText + (messageText ? ' ' : '') + gifUrl);
+              }}
+              onVoiceStart={() => setIsRecordingVoice(true)}
+              isUploading={isUploadingMedia}
+            />
 
             <DropdownMenu open={showViewModeMenu} onOpenChange={setShowViewModeMenu}>
               <DropdownMenuTrigger asChild>

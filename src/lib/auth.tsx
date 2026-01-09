@@ -1,6 +1,9 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+
+// Token refresh interval - refresh 5 minutes before expiry
+const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 interface Profile {
   id: string;
@@ -32,6 +35,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Schedule token refresh before expiry
+  const scheduleTokenRefresh = (expiresAt: number) => {
+    // Clear any existing timer
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+
+    const expiresAtMs = expiresAt * 1000;
+    const now = Date.now();
+    const refreshAt = expiresAtMs - TOKEN_REFRESH_MARGIN_MS;
+    const delay = Math.max(refreshAt - now, 1000); // At least 1 second delay
+
+    // Only schedule if token expires in the future
+    if (delay > 0 && delay < 24 * 60 * 60 * 1000) { // Max 24 hours
+      refreshTimerRef.current = setTimeout(async () => {
+        try {
+          const { data, error } = await supabase.auth.refreshSession();
+          if (error) {
+            console.error('Token refresh failed:', error);
+            // Don't logout on refresh failure - let Supabase handle it
+          } else if (data.session?.expires_at) {
+            // Schedule next refresh
+            scheduleTokenRefresh(data.session.expires_at);
+          }
+        } catch (err) {
+          console.error('Token refresh error:', err);
+        }
+      }, delay);
+    }
+  };
 
   const fetchProfile = async (userId: string) => {
     // Prefer array result to avoid throwing when the row doesn't exist
@@ -77,28 +114,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          // Schedule token refresh for persistent sessions
+          if (session.expires_at) {
+            scheduleTokenRefresh(session.expires_at);
+          }
+          
           // Use setTimeout to avoid Supabase auth deadlock
           setTimeout(() => {
             fetchProfile(session.user.id);
           }, 0);
         } else {
           setProfile(null);
+          // Clear refresh timer on logout
+          if (refreshTimerRef.current) {
+            clearTimeout(refreshTimerRef.current);
+            refreshTimerRef.current = null;
+          }
         }
+        
         setLoading(false);
+        setIsInitialized(true);
       }
     );
 
-    // THEN check for existing session
+    // THEN check for existing session - this restores session from localStorage
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      
       if (session?.user) {
+        // Schedule token refresh for persistent sessions
+        if (session.expires_at) {
+          scheduleTokenRefresh(session.expires_at);
+        }
         fetchProfile(session.user.id);
       }
+      
       setLoading(false);
+      setIsInitialized(true);
     });
 
-    return () => subscription.unsubscribe();
+    // Cleanup on unmount
+    return () => {
+      subscription.unsubscribe();
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+    };
   }, []);
 
   const signUp = async (email: string, password: string, username: string) => {
