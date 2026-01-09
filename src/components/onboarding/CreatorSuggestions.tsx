@@ -2,10 +2,15 @@ import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Check, Plus } from 'lucide-react';
+import { Check, Plus, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
-// Demo creators for onboarding
+// Owner username constant
+const OWNER_USERNAME = 'mrassburgers';
+
+// Demo creators for onboarding (fallback)
 const suggestedCreators = [
   { id: '1', username: 'funnymax', displayName: 'Funny Max', avatar: '', followers: '2.1M', category: 'comedy' },
   { id: '2', username: 'dancestar', displayName: 'Dance Star', avatar: '', followers: '890K', category: 'dance' },
@@ -23,15 +28,84 @@ interface CreatorSuggestionsProps {
   onChange: (following: string[]) => void;
 }
 
+// Fetch owner profile
+function useOwnerProfile() {
+  return useQuery({
+    queryKey: ['owner-profile'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .eq('username', OWNER_USERNAME)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// Fetch owner's following (mutuals to suggest)
+function useOwnerFollowing() {
+  return useQuery({
+    queryKey: ['owner-following'],
+    queryFn: async () => {
+      // First get owner profile
+      const { data: owner } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', OWNER_USERNAME)
+        .maybeSingle();
+      
+      if (!owner) return [];
+      
+      // Get who owner is following
+      const { data: follows, error } = await supabase
+        .from('follows')
+        .select(`
+          following:profiles!follows_following_id_fkey(
+            id, username, display_name, avatar_url
+          )
+        `)
+        .eq('follower_id', owner.id)
+        .limit(10);
+      
+      if (error) throw error;
+      return follows?.map((f: any) => f.following).filter(Boolean) || [];
+    },
+  });
+}
+
 export function CreatorSuggestions({ interests, following, onChange }: CreatorSuggestionsProps) {
   const { t } = useTranslation();
+  const { data: ownerProfile } = useOwnerProfile();
+  const { data: ownerFollowing = [] } = useOwnerFollowing();
 
-  // Filter creators based on interests, or show all if no interests selected
-  const filteredCreators = interests.length > 0
-    ? suggestedCreators.filter(c => interests.includes(c.category))
-    : suggestedCreators;
-
-  const creatorsToShow = filteredCreators.length > 0 ? filteredCreators : suggestedCreators.slice(0, 6);
+  // Build list: owner first, then owner's following, then demo creators
+  const allCreatorsToShow = [
+    // Owner profile first (if exists)
+    ...(ownerProfile ? [{
+      id: ownerProfile.id,
+      username: ownerProfile.username,
+      displayName: ownerProfile.display_name || ownerProfile.username,
+      avatar: ownerProfile.avatar_url || '',
+      followers: 'Owner',
+      isOwner: true,
+    }] : []),
+    // Owner's following (mutuals)
+    ...ownerFollowing.map((f: any) => ({
+      id: f.id,
+      username: f.username,
+      displayName: f.display_name || f.username,
+      avatar: f.avatar_url || '',
+      followers: 'Suggested',
+      isMutual: true,
+    })),
+    // Demo creators filtered by interests
+    ...(interests.length > 0
+      ? suggestedCreators.filter(c => interests.includes(c.category))
+      : suggestedCreators.slice(0, 4)),
+  ];
 
   const toggleFollow = (id: string) => {
     if (following.includes(id)) {
@@ -42,7 +116,8 @@ export function CreatorSuggestions({ interests, following, onChange }: CreatorSu
   };
 
   const followAll = () => {
-    onChange(creatorsToShow.map(c => c.id));
+    const allIds = allCreatorsToShow.map(c => c.id);
+    onChange(allIds);
   };
 
   return (
@@ -58,12 +133,12 @@ export function CreatorSuggestions({ interests, following, onChange }: CreatorSu
           onClick={followAll}
           className="gradient-border"
         >
-          Follow All ({creatorsToShow.length})
+          Follow All ({allCreatorsToShow.length})
         </Button>
       </div>
 
       <div className="space-y-3 max-h-[400px] overflow-y-auto">
-        {creatorsToShow.map((creator, index) => (
+        {allCreatorsToShow.map((creator: any, index) => (
           <motion.div
             key={creator.id}
             initial={{ opacity: 0, x: -20 }}
@@ -79,13 +154,18 @@ export function CreatorSuggestions({ interests, following, onChange }: CreatorSu
             <Avatar className="h-12 w-12">
               <AvatarImage src={creator.avatar} />
               <AvatarFallback className="gradient-animated text-lg">
-                {creator.displayName[0]}
+                {creator.displayName?.[0] || '?'}
               </AvatarFallback>
             </Avatar>
 
             <div className="flex-1 min-w-0">
-              <p className="font-semibold truncate">{creator.displayName}</p>
-              <p className="text-sm text-muted-foreground">@{creator.username} · {creator.followers}</p>
+              <p className="font-semibold truncate flex items-center gap-2">
+                {creator.displayName}
+                {creator.isOwner && <Crown className="w-4 h-4 text-yellow-500" />}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                @{creator.username} · {creator.isOwner ? '👑 Owner' : creator.isMutual ? '✨ Suggested' : creator.followers}
+              </p>
             </div>
 
             <Button
