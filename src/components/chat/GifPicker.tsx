@@ -1,44 +1,29 @@
-import { useState, useEffect, useCallback, memo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useCallback, memo, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { Search, X, Loader2, TrendingUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
-// Built-in GIF library - categorized popular reaction GIFs
-const BUILTIN_GIFS = {
-  trending: [
-    'https://media.giphy.com/media/3o7TKoWXm3okO1kgHC/giphy.gif', // thumbs up
-    'https://media.giphy.com/media/l3V0FBxSzWp6O0Lf2/giphy.gif', // applause
-    'https://media.giphy.com/media/26gsjCZpPolPr3sBy/giphy.gif', // party
-    'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif', // love
-    'https://media.giphy.com/media/3oz8xLd9DJq2l2VFtu/giphy.gif', // laughing
-    'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif', // cat
-    'https://media.giphy.com/media/xT9IgG50Fb7Mi0prBC/giphy.gif', // happy
-    'https://media.giphy.com/media/l4pTsh45Dg7jnDM6Q/giphy.gif', // celebrate
-  ],
-  reactions: [
-    'https://media.giphy.com/media/3oEjHI8WJv4x6UPDB6/giphy.gif', // wow
-    'https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif', // omg
-    'https://media.giphy.com/media/26ufdipQqU2lhNA4g/giphy.gif', // shocked
-    'https://media.giphy.com/media/l0HlvtIPzPdt2usKs/giphy.gif', // sad
-    'https://media.giphy.com/media/26ufnwz3wDUli7GU0/giphy.gif', // angry
-    'https://media.giphy.com/media/3oz8xZvvOZRmKay4xy/giphy.gif', // thinking
-  ],
-  love: [
-    'https://media.giphy.com/media/l4pTdcifPZLpDjL1e/giphy.gif', // heart
-    'https://media.giphy.com/media/26FLdmIp6wJr91JAI/giphy.gif', // love you
-    'https://media.giphy.com/media/3oz8xIsloV7zOmt81G/giphy.gif', // kiss
-    'https://media.giphy.com/media/l0MYAs5E2oIDCq9So/giphy.gif', // hug
-  ],
-  funny: [
-    'https://media.giphy.com/media/10JhviFuU2gWD6/giphy.gif', // lol
-    'https://media.giphy.com/media/3o6Zt4HU9uwXmXSAuI/giphy.gif', // rofl
-    'https://media.giphy.com/media/l46Cy1rHbQ92uuLXa/giphy.gif', // haha
-    'https://media.giphy.com/media/3oEjHV0z8S7WM4MwnK/giphy.gif', // dead
-  ],
-};
+// Tenor API v1 - free public key for basic usage
+const TENOR_API_KEY = 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
+const TENOR_BASE_URL = 'https://tenor.googleapis.com/v2';
+
+interface TenorGif {
+  id: string;
+  title: string;
+  media_formats: {
+    tinygif?: { url: string };
+    gif?: { url: string };
+    mediumgif?: { url: string };
+  };
+}
+
+interface TenorResponse {
+  results: TenorGif[];
+  next: string;
+}
 
 interface GifPickerProps {
   onSelect: (gifUrl: string) => void;
@@ -48,44 +33,104 @@ interface GifPickerProps {
 export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPickerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [gifs, setGifs] = useState<string[]>(BUILTIN_GIFS.trending);
-  const [activeCategory, setActiveCategory] = useState<'trending' | 'reactions' | 'love' | 'funny'>('trending');
+  const [gifs, setGifs] = useState<TenorGif[]>([]);
+  const [nextPos, setNextPos] = useState<string>('');
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   
-  const debouncedQuery = useDebouncedValue(searchQuery, 300);
+  const debouncedQuery = useDebouncedValue(searchQuery, 400);
 
-  // Filter built-in GIFs based on search - in future, integrate with GIPHY/Tenor API
-  useEffect(() => {
-    if (!debouncedQuery.trim()) {
-      setGifs(BUILTIN_GIFS[activeCategory]);
-      return;
+  // Fetch trending or search results
+  const fetchGifs = useCallback(async (query: string, pos?: string) => {
+    try {
+      const endpoint = query.trim() 
+        ? `${TENOR_BASE_URL}/search` 
+        : `${TENOR_BASE_URL}/featured`;
+      
+      const params = new URLSearchParams({
+        key: TENOR_API_KEY,
+        client_key: 'vybe_chat',
+        limit: '30',
+        media_filter: 'tinygif,gif',
+      });
+      
+      if (query.trim()) {
+        params.set('q', query);
+      }
+      
+      if (pos) {
+        params.set('pos', pos);
+      }
+
+      const response = await fetch(`${endpoint}?${params.toString()}`);
+      const data: TenorResponse = await response.json();
+      
+      return {
+        gifs: data.results || [],
+        next: data.next || '',
+      };
+    } catch (error) {
+      console.error('Failed to fetch GIFs:', error);
+      return { gifs: [], next: '' };
     }
-    
-    setIsLoading(true);
-    // Simulate search delay
-    setTimeout(() => {
-      // For now, show all GIFs when searching
-      const allGifs = Object.values(BUILTIN_GIFS).flat();
-      setGifs(allGifs);
-      setIsLoading(false);
-    }, 200);
-  }, [debouncedQuery, activeCategory]);
-
-  const handleCategoryChange = useCallback((category: typeof activeCategory) => {
-    setActiveCategory(category);
-    setSearchQuery('');
-    setGifs(BUILTIN_GIFS[category]);
   }, []);
 
-  const handleSelect = useCallback((gifUrl: string) => {
-    onSelect(gifUrl);
+  // Initial load and search
+  useEffect(() => {
+    const loadGifs = async () => {
+      setIsLoading(true);
+      const { gifs: newGifs, next } = await fetchGifs(debouncedQuery);
+      setGifs(newGifs);
+      setNextPos(next);
+      setIsLoading(false);
+    };
+    
+    loadGifs();
+  }, [debouncedQuery, fetchGifs]);
+
+  // Load more on scroll
+  const handleLoadMore = useCallback(async () => {
+    if (!nextPos || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    const { gifs: moreGifs, next } = await fetchGifs(debouncedQuery, nextPos);
+    setGifs(prev => [...prev, ...moreGifs]);
+    setNextPos(next);
+    setIsLoadingMore(false);
+  }, [nextPos, isLoadingMore, debouncedQuery, fetchGifs]);
+
+  // Infinite scroll detection
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    const nearBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 100;
+    
+    if (nearBottom && !isLoadingMore && nextPos) {
+      handleLoadMore();
+    }
+  }, [handleLoadMore, isLoadingMore, nextPos]);
+
+  const handleSelect = useCallback((gif: TenorGif) => {
+    // Prefer tinygif for smaller file size, fallback to gif
+    const gifUrl = gif.media_formats.tinygif?.url || gif.media_formats.gif?.url || '';
+    if (gifUrl) {
+      onSelect(gifUrl);
+    }
   }, [onSelect]);
 
   const categories = [
-    { key: 'trending' as const, label: 'Trending', icon: TrendingUp },
-    { key: 'reactions' as const, label: 'Reactions' },
-    { key: 'love' as const, label: '❤️' },
-    { key: 'funny' as const, label: '😂' },
+    { key: 'trending', label: 'Trending', query: '' },
+    { key: 'reactions', label: 'Reactions', query: 'reactions' },
+    { key: 'happy', label: '😊', query: 'happy' },
+    { key: 'love', label: '❤️', query: 'love' },
+    { key: 'funny', label: '😂', query: 'funny' },
+    { key: 'sad', label: '😢', query: 'sad' },
+    { key: 'yes', label: '👍', query: 'yes agree' },
+    { key: 'no', label: '👎', query: 'no nope' },
   ];
+
+  const handleCategoryClick = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
 
   return (
     <motion.div
@@ -99,6 +144,7 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
         <span className="font-semibold text-sm flex items-center gap-2">
           <span className="text-lg">🎬</span>
           GIFs
+          <span className="text-xs text-muted-foreground font-normal">powered by Tenor</span>
         </span>
         <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
           <X className="h-4 w-4" />
@@ -120,52 +166,63 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
 
       {/* Categories */}
       <div className="px-2 pb-2 flex gap-1.5 overflow-x-auto no-scrollbar">
-        {categories.map(({ key, label, icon: Icon }) => (
+        {categories.map(({ key, label, query }) => (
           <Button
             key={key}
-            variant={activeCategory === key ? 'default' : 'ghost'}
+            variant={searchQuery === query ? 'default' : 'ghost'}
             size="sm"
-            onClick={() => handleCategoryChange(key)}
+            onClick={() => handleCategoryClick(query)}
             className="h-8 px-3 text-xs flex-shrink-0 whitespace-nowrap"
           >
-            {Icon && <Icon className="h-3.5 w-3.5 mr-1.5" />}
+            {key === 'trending' && <TrendingUp className="h-3.5 w-3.5 mr-1.5" />}
             {label}
           </Button>
         ))}
       </div>
 
       {/* GIF Grid */}
-      <ScrollArea className="h-56 sm:h-64">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2">
-            {gifs.map((gif, index) => (
-              <motion.button
-                key={`${gif}-${index}`}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleSelect(gif)}
-                className="aspect-square rounded-lg overflow-hidden bg-muted hover:ring-2 hover:ring-primary transition-all"
-              >
-                <img
-                  src={gif}
-                  alt="GIF"
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              </motion.button>
-            ))}
-          </div>
-        )}
-        {gifs.length === 0 && !isLoading && (
-          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
-            <span className="text-2xl mb-2">🔍</span>
-            <p className="text-sm">No GIFs found</p>
-          </div>
-        )}
+      <ScrollArea className="h-64 sm:h-80" onScrollCapture={handleScroll}>
+        <div ref={scrollRef}>
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2">
+                {gifs.map((gif) => (
+                  <motion.button
+                    key={gif.id}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleSelect(gif)}
+                    className="aspect-square rounded-lg overflow-hidden bg-muted hover:ring-2 hover:ring-primary transition-all"
+                  >
+                    <img
+                      src={gif.media_formats.tinygif?.url || gif.media_formats.gif?.url}
+                      alt={gif.title || 'GIF'}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </motion.button>
+                ))}
+              </div>
+              
+              {isLoadingMore && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              
+              {gifs.length === 0 && !isLoading && (
+                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+                  <span className="text-2xl mb-2">🔍</span>
+                  <p className="text-sm">No GIFs found</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </ScrollArea>
     </motion.div>
   );

@@ -325,29 +325,29 @@ export function useUnsendMessage() {
     mutationFn: async (messageId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // First verify the message belongs to the user
+      // Get the message to verify ownership and get conversation_id
       const { data: message, error: fetchError } = await supabase
         .from('messages')
         .select('sender_id, conversation_id')
         .eq('id', messageId)
-        .single();
+        .maybeSingle();
 
       if (fetchError) throw fetchError;
+      if (!message) throw new Error('Message not found');
+      
+      // sender_id in messages table IS profile.id (not user_id)
       if (message.sender_id !== profile.id) {
         throw new Error('You can only unsend your own messages');
       }
 
-      // Soft delete the message
+      // Soft delete the message - RLS will verify ownership
       const { error } = await supabase
         .from('messages')
         .update({ 
           is_deleted: true,
           deleted_at: new Date().toISOString(),
-          content: null,
-          media_url: null,
         })
-        .eq('id', messageId)
-        .eq('sender_id', profile.id);
+        .eq('id', messageId);
 
       if (error) throw error;
 

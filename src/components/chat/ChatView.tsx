@@ -598,6 +598,7 @@ export function ChatView() {
             handleSend={handleSend}
             handleImageSelect={handleImageSelect}
             handleVoiceRecordingComplete={handleVoiceRecordingComplete}
+            sendMediaMessage={sendMediaMessage}
             setViewMode={setViewMode}
             setIsRecordingVoice={setIsRecordingVoice}
             clearReply={clearReply}
@@ -625,6 +626,7 @@ export function ChatView() {
           handleSend={handleSend}
           handleImageSelect={handleImageSelect}
           handleVoiceRecordingComplete={handleVoiceRecordingComplete}
+          sendMediaMessage={sendMediaMessage}
           setViewMode={setViewMode}
           setIsRecordingVoice={setIsRecordingVoice}
           clearReply={clearReply}
@@ -656,6 +658,7 @@ const MessageInputArea = memo(function MessageInputArea({
   handleSend,
   handleImageSelect,
   handleVoiceRecordingComplete,
+  sendMediaMessage,
   setViewMode,
   setIsRecordingVoice,
   clearReply,
@@ -680,6 +683,7 @@ const MessageInputArea = memo(function MessageInputArea({
   handleSend: () => void;
   handleImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleVoiceRecordingComplete: (blob: Blob) => void;
+  sendMediaMessage: (mediaUrl: string, mediaType: string) => Promise<void>;
   setViewMode: (mode: ViewMode) => void;
   setIsRecordingVoice: (recording: boolean) => void;
   clearReply: () => void;
@@ -747,9 +751,9 @@ const MessageInputArea = memo(function MessageInputArea({
                   handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
                 }
               }}
-              onGifSelect={(gifUrl) => {
-                // Append GIF URL to message for now
-                handleInputChange(messageText + (messageText ? ' ' : '') + gifUrl);
+              onGifSelect={async (gifUrl) => {
+                // Send GIF as an image message
+                await sendMediaMessage(gifUrl, 'gif');
               }}
               onVoiceStart={() => setIsRecordingVoice(true)}
               isUploading={isUploadingMedia}
@@ -940,11 +944,11 @@ const MessageBubble = memo(function MessageBubble({
           )}
           onDoubleClick={onToggleReactions}
         >
-          {message.media_url && message.media_type === 'image' && (
-            <div className="mb-2">
+          {message.media_url && (message.media_type === 'image' || message.media_type === 'gif') && (
+            <div className={message.content ? "mb-2" : ""}>
               <img
                 src={message.media_url}
-                alt="Shared image"
+                alt={message.media_type === 'gif' ? "GIF" : "Shared image"}
                 className="rounded-lg max-w-full max-h-64 object-cover"
                 loading="lazy"
               />
