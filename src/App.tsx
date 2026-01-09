@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import './lib/i18n';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -8,6 +9,7 @@ import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
 import { CallProvider } from "@/components/chat/CallProvider";
+import { SplashScreen } from "@/components/ui/SplashScreen";
 
 // Pages
 import Landing from "./pages/Landing";
@@ -42,49 +44,63 @@ const queryClient = new QueryClient({
   },
 });
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <AuthProvider>
-        <EasterEggProvider>
-          <CallProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <Routes>
-                  <Route path="/" element={<Landing />} />
-                  <Route path="/home" element={<Home />} />
-                  <Route path="/clips" element={<Shorts />} />
-                  <Route path="/shorts" element={<Shorts />} />
-                  <Route path="/explore" element={<Explore />} />
-                  <Route path="/upload" element={<Upload />} />
-                  <Route path="/p/:id" element={<PostDetail />} />
-                  <Route path="/u/:username" element={<Profile />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/notifications" element={<Notifications />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/onboarding" element={<Onboarding />} />
-                  <Route path="/complete-profile" element={<CompleteProfile />} />
-                  <Route path="/messages" element={<Messages />} />
-                  <Route path="/messages/new" element={<NewMessage />} />
-                  <Route path="/messages/:conversationId" element={<Messages />} />
-                  
-                  <Route path="/feedback" element={<Feedback />} />
-                  <Route path="/market" element={<Market />} />
-                  <Route path="/market/new" element={<CreateListing />} />
-                  <Route path="/market/:id" element={<ListingDetail />} />
-                  <Route path="/events" element={<Events />} />
-                  <Route path="/admin" element={<AdminDashboard />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </BrowserRouter>
-            </TooltipProvider>
-          </CallProvider>
-        </EasterEggProvider>
-      </AuthProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    // Show splash for minimum time, then hide
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <SplashScreen isVisible={showSplash} />
+        <AuthProvider>
+          <EasterEggProvider>
+            <CallProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <BrowserRouter>
+                  <Routes>
+                    <Route path="/" element={<Landing />} />
+                    <Route path="/home" element={<Home />} />
+                    <Route path="/clips" element={<Shorts />} />
+                    <Route path="/shorts" element={<Shorts />} />
+                    <Route path="/explore" element={<Explore />} />
+                    <Route path="/upload" element={<Upload />} />
+                    <Route path="/p/:id" element={<PostDetail />} />
+                    <Route path="/u/:username" element={<Profile />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/notifications" element={<Notifications />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/onboarding" element={<Onboarding />} />
+                    <Route path="/complete-profile" element={<CompleteProfile />} />
+                    <Route path="/messages" element={<Messages />} />
+                    <Route path="/messages/new" element={<NewMessage />} />
+                    <Route path="/messages/:conversationId" element={<Messages />} />
+                    
+                    <Route path="/feedback" element={<Feedback />} />
+                    <Route path="/market" element={<Market />} />
+                    <Route path="/market/new" element={<CreateListing />} />
+                    <Route path="/market/:id" element={<ListingDetail />} />
+                    <Route path="/events" element={<Events />} />
+                    <Route path="/admin" element={<AdminDashboard />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </BrowserRouter>
+              </TooltipProvider>
+            </CallProvider>
+          </EasterEggProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
