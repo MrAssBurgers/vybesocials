@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Flag, AlertTriangle, CheckCircle, XCircle, Eye, Trash2, MessageSquare, Users, FileText, Search, Pin, Crown, UserMinus } from 'lucide-react';
+import { Shield, Flag, AlertTriangle, CheckCircle, XCircle, Eye, Trash2, MessageSquare, Users, FileText, Search, Pin, Crown, UserMinus, Megaphone } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ import {
   Report
 } from '@/hooks/useModeration';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { CreateAnnouncementDialog } from '@/components/announcements/CreateAnnouncementDialog';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -471,6 +472,11 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </motion.div>
+        </div>
+
+        {/* Announcement Button */}
+        <div className="mb-6">
+          <CreateAnnouncementDialog />
         </div>
 
         {/* Search */}

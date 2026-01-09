@@ -33,13 +33,16 @@ export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Desktop/Tablet sidebar - hidden on mobile */}
       <Sidebar />
+      {/* Mobile header - hidden on desktop */}
       <MobileHeader />
-      <main className="lg:ml-64 pb-20 lg:pb-0 pt-14 lg:pt-0">
+      {/* Main content - with proper spacing for tablet/desktop */}
+      <main className="md:ml-64 pb-20 md:pb-0 pt-14 md:pt-0">
         {children}
       </main>
+      {/* Mobile bottom nav - hidden on tablet/desktop */}
       <BottomNav />
-      {/* Removed AIChatAssistant - now using pinned Autisy in messages */}
     </div>
   );
 }

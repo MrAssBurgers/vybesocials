@@ -41,7 +41,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-screen w-64 flex-col liquid-glass border-r border-white/10 p-4">
+    <aside className="hidden md:flex fixed left-0 top-0 h-screen w-64 flex-col liquid-glass border-r border-white/10 p-4 z-40">
       {/* Logo */}
       <Link to="/home" className="flex items-center gap-2 px-2 py-4 group">
         <motion.div 

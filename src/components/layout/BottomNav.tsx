@@ -120,7 +120,7 @@ export function BottomNav() {
       </AnimatePresence>
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 liquid-glass border-t border-white/10 safe-bottom md:hidden lg:hidden">
-        <div className="flex items-center justify-around h-16 px-2">
+        <div className="flex items-center justify-between h-16 px-4">
           {navItems.map((item, index) => {
             const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
             const Icon = item.icon;
@@ -131,7 +131,7 @@ export function BottomNav() {
                 <Link
                   key={item.path}
                   to={path}
-                  className="relative flex items-center justify-center"
+                  className="relative flex items-center justify-center mx-4"
                   onClick={handleUploadClick}
                 >
                   <motion.div
@@ -153,66 +153,59 @@ export function BottomNav() {
             }
 
             return (
-              <motion.div
+              <Link
                 key={item.path}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
+                to={path}
+                className="relative flex flex-col items-center justify-center gap-1 py-2 px-3 flex-1"
+                onClick={triggerNavFeedback}
               >
-                <Link
-                  to={path}
-                  className="relative flex flex-col items-center justify-center gap-1 py-2 px-3"
-                  onClick={triggerNavFeedback}
+                <motion.div
+                  whileTap={{ scale: 0.9 }}
+                  className="relative"
                 >
-                  <motion.div
-                    whileTap={{ scale: 0.9 }}
-                    whileHover={{ scale: 1.1 }}
-                    className="relative"
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="bottomNavOutline"
-                        className="absolute -inset-2 rounded-xl overflow-hidden"
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      >
-                        <div className="absolute inset-0 gradient-border-animated animate-glow-pulse" />
-                        <div className="absolute inset-[2px] rounded-[10px] bg-background" />
-                      </motion.div>
-                    )}
-                    
-                    <Icon
-                      className={cn(
-                        "h-6 w-6 transition-all relative z-10",
-                        isActive ? "text-primary" : "text-muted-foreground"
-                      )}
-                    />
-                    
-                    <AnimatePresence>
-                      {item.badge > 0 && (
-                        <motion.span
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          exit={{ scale: 0 }}
-                          transition={{ type: 'spring', stiffness: 500 }}
-                          className="absolute -top-1 -right-1 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold shadow-md z-20"
-                        >
-                          {item.badge > 9 ? '9+' : item.badge}
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                  <span
+                  {isActive && (
+                    <motion.div
+                      layoutId="bottomNavOutline"
+                      className="absolute -inset-2 rounded-xl overflow-hidden"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                    >
+                      <div className="absolute inset-0 gradient-border-animated animate-glow-pulse" />
+                      <div className="absolute inset-[2px] rounded-[10px] bg-background" />
+                    </motion.div>
+                  )}
+                  
+                  <Icon
                     className={cn(
-                      "text-[10px] font-medium transition-colors",
+                      "h-5 w-5 transition-all relative z-10",
                       isActive ? "text-primary" : "text-muted-foreground"
                     )}
-                  >
-                    {t(item.labelKey)}
-                  </span>
-                </Link>
-              </motion.div>
+                  />
+                  
+                  <AnimatePresence>
+                    {item.badge > 0 && (
+                      <motion.span
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                        transition={{ type: 'spring', stiffness: 500 }}
+                        className="absolute -top-1 -right-1 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold shadow-md z-20"
+                      >
+                        {item.badge > 9 ? '9+' : item.badge}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+                <span
+                  className={cn(
+                    "text-[10px] font-medium transition-colors",
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  {t(item.labelKey)}
+                </span>
+              </Link>
             );
           })}
         </div>
