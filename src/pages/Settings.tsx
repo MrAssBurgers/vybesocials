@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles } from 'lucide-react';
+import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles, MessageSquareHeart } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { languages } from '@/lib/i18n';
@@ -193,11 +193,33 @@ export default function SettingsPage() {
           </div>
         </motion.section>
 
-        {/* Account Actions */}
+        {/* Feedback Section */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
+          className="bg-card rounded-xl border border-border p-6 mb-6"
+        >
+          <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <MessageSquareHeart className="w-5 h-5" />
+            Feedback
+          </h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Help us improve! Share your ideas, report bugs, or vote on features.
+          </p>
+          <Link to="/feedback">
+            <Button variant="outline" className="w-full justify-between">
+              <span>Open Feedback Hub</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        </motion.section>
+
+        {/* Account Actions */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
           className="space-y-3"
         >
           <Button

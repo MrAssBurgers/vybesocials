@@ -47,17 +47,15 @@ export default function HomePage() {
   return (
     <AppLayout>
       <div className="max-w-xl mx-auto">
-        {/* Explore Button - Liquid Glass */}
-        <div className="px-4 pt-4 md:hidden">
+        {/* Compact Search Bar - Mobile only, positioned higher */}
+        <div className="px-4 py-2 md:hidden">
           <Link to="/explore">
             <motion.div
               whileTap={{ scale: 0.98 }}
-              className="liquid-glass rounded-xl p-3 flex items-center gap-3 border border-white/10"
+              className="liquid-glass rounded-full px-4 py-2 flex items-center gap-2 border border-white/10"
             >
-              <div className="w-10 h-10 rounded-full liquid-glass-button flex items-center justify-center">
-                <Search className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <span className="text-muted-foreground text-sm">Search posts, tags, or creators...</span>
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground text-xs">Search...</span>
             </motion.div>
           </Link>
         </div>
