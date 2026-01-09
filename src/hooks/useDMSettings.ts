@@ -59,23 +59,33 @@ export function useDMSettings(conversationId: string | undefined) {
     mutationFn: async (updates: Partial<DMSettings>) => {
       if (!conversationId || !profile?.id) throw new Error('Not authenticated');
 
+      // Build the full settings object
+      const settingsToUpsert = {
+        conversation_id: conversationId,
+        user_id: profile.id,
+        read_receipt_mode: updates.read_receipt_mode ?? query.data?.read_receipt_mode ?? defaultSettings.read_receipt_mode,
+        typing_mode: updates.typing_mode ?? query.data?.typing_mode ?? defaultSettings.typing_mode,
+        theme: updates.theme ?? query.data?.theme ?? defaultSettings.theme,
+        chat_font: updates.chat_font ?? query.data?.chat_font ?? defaultSettings.chat_font,
+        chat_sound: updates.chat_sound ?? query.data?.chat_sound ?? defaultSettings.chat_sound,
+        chat_wallpaper: updates.chat_wallpaper ?? query.data?.chat_wallpaper ?? defaultSettings.chat_wallpaper,
+        emotional_pulse: updates.emotional_pulse ?? query.data?.emotional_pulse ?? defaultSettings.emotional_pulse,
+        show_emotional_pulse: updates.show_emotional_pulse ?? query.data?.show_emotional_pulse ?? defaultSettings.show_emotional_pulse,
+        updated_at: new Date().toISOString(),
+      };
+
       const { data, error } = await supabase
         .from('dm_settings')
-        .upsert({
-          conversation_id: conversationId,
-          user_id: profile.id,
-          ...defaultSettings,
-          ...query.data,
-          ...updates,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'conversation_id,user_id' })
+        .upsert(settingsToUpsert, { onConflict: 'conversation_id,user_id' })
         .select()
         .single();
 
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Optimistically update the cache
+      queryClient.setQueryData(['dm-settings', conversationId, profile?.id], data);
       queryClient.invalidateQueries({ queryKey: ['dm-settings', conversationId] });
     },
   });

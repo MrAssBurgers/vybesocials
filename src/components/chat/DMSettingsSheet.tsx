@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 import { 
   Sheet, 
   SheetContent, 
@@ -29,8 +30,9 @@ import {
   Zap,
   Coffee,
   Battery,
+  Check,
 } from 'lucide-react';
-import { useDMSettings, ReadReceiptMode, TypingMode, EmotionalPulse } from '@/hooks/useDMSettings';
+import { useDMSettings, ReadReceiptMode, TypingMode, EmotionalPulse, DMSettings } from '@/hooks/useDMSettings';
 import { cn } from '@/lib/utils';
 
 interface DMSettingsSheetProps {
@@ -69,8 +71,13 @@ const EMOTIONAL_PULSE_OPTIONS: { value: EmotionalPulse; label: string; icon: Rea
 ];
 
 export function DMSettingsSheet({ conversationId }: DMSettingsSheetProps) {
-  const { settings, updateSettings } = useDMSettings(conversationId);
+  const { settings, updateSettings, isLoading } = useDMSettings(conversationId);
   const [open, setOpen] = useState(false);
+
+  const handleUpdateSettings = (updates: Partial<DMSettings>) => {
+    updateSettings(updates);
+    toast.success('Settings updated', { duration: 1500 });
+  };
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -100,12 +107,14 @@ export function DMSettingsSheet({ conversationId }: DMSettingsSheetProps) {
                   key={option.value}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => updateSettings({ read_receipt_mode: option.value })}
+                  onClick={() => handleUpdateSettings({ read_receipt_mode: option.value })}
+                  disabled={isLoading}
                   className={cn(
                     'flex items-center gap-3 p-3 rounded-lg border transition-all text-left',
                     settings.read_receipt_mode === option.value
                       ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
+                      : 'border-border hover:border-primary/50',
+                    isLoading && 'opacity-50 cursor-not-allowed'
                   )}
                 >
                   {option.icon}
@@ -113,6 +122,9 @@ export function DMSettingsSheet({ conversationId }: DMSettingsSheetProps) {
                     <p className="font-medium text-sm">{option.label}</p>
                     <p className="text-xs text-muted-foreground">{option.description}</p>
                   </div>
+                  {settings.read_receipt_mode === option.value && (
+                    <div className="h-2 w-2 rounded-full bg-primary" />
+                  )}
                 </motion.button>
               ))}
             </div>
@@ -126,7 +138,8 @@ export function DMSettingsSheet({ conversationId }: DMSettingsSheetProps) {
             </Label>
             <Select
               value={settings.typing_mode}
-              onValueChange={(value: TypingMode) => updateSettings({ typing_mode: value })}
+              onValueChange={(value: TypingMode) => handleUpdateSettings({ typing_mode: value })}
+              disabled={isLoading}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -150,19 +163,21 @@ export function DMSettingsSheet({ conversationId }: DMSettingsSheetProps) {
               <Palette className="h-4 w-4" />
               Chat Theme
             </Label>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-3 flex-wrap">
               {THEME_OPTIONS.map((theme) => (
                 <motion.button
                   key={theme.value}
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
-                  onClick={() => updateSettings({ theme: theme.value })}
+                  onClick={() => handleUpdateSettings({ theme: theme.value })}
+                  disabled={isLoading}
                   className={cn(
-                    'w-10 h-10 rounded-full border-2 transition-all',
+                    'w-12 h-12 rounded-full border-3 transition-all shadow-md',
                     theme.color,
                     settings.theme === theme.value
-                      ? 'border-white ring-2 ring-primary'
-                      : 'border-transparent'
+                      ? 'border-white ring-2 ring-primary ring-offset-2 ring-offset-background scale-110'
+                      : 'border-transparent hover:ring-1 hover:ring-primary/50',
+                    isLoading && 'opacity-50 cursor-not-allowed'
                   )}
                   title={theme.label}
                 />
@@ -179,7 +194,8 @@ export function DMSettingsSheet({ conversationId }: DMSettingsSheetProps) {
               </Label>
               <Switch
                 checked={settings.show_emotional_pulse}
-                onCheckedChange={(checked) => updateSettings({ show_emotional_pulse: checked })}
+                onCheckedChange={(checked) => handleUpdateSettings({ show_emotional_pulse: checked })}
+                disabled={isLoading}
               />
             </div>
             {settings.show_emotional_pulse && (
@@ -193,17 +209,22 @@ export function DMSettingsSheet({ conversationId }: DMSettingsSheetProps) {
                     key={pulse.value || 'none'}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => updateSettings({ emotional_pulse: pulse.value })}
+                    onClick={() => handleUpdateSettings({ emotional_pulse: pulse.value })}
+                    disabled={isLoading}
                     className={cn(
                       'flex items-center gap-2 px-3 py-2 rounded-lg border transition-all',
                       pulse.color,
                       settings.emotional_pulse === pulse.value
                         ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-primary/50'
+                        : 'border-border hover:border-primary/50',
+                      isLoading && 'opacity-50 cursor-not-allowed'
                     )}
                   >
                     {pulse.icon}
                     <span className="text-sm">{pulse.label}</span>
+                    {settings.emotional_pulse === pulse.value && (
+                      <Check className="h-3 w-3 ml-1" />
+                    )}
                   </motion.button>
                 ))}
               </motion.div>
