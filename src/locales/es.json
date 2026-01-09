@@ -118,6 +118,8 @@
     "title": "Ajustes",
     "account": "Cuenta",
     "privacy": "Privacidad",
+    "privateAccount": "Cuenta Privada",
+    "privateAccountDesc": "Solo los seguidores aprobados pueden ver tus publicaciones",
     "notifications": "Notificaciones",
     "appearance": "Apariencia",
     "language": "Idioma",
@@ -158,6 +160,15 @@
       "restrictedDesc": "Ocultar contenido potencialmente sensible",
       "open": "Abierto",
       "openDesc": "Mostrar todo el contenido sin advertencias"
+    },
+    "privacy": {
+      "title": "Privacidad del Perfil",
+      "subtitle": "Controla quién puede ver tu contenido",
+      "public": "Público",
+      "publicDesc": "Cualquiera puede ver tus publicaciones y perfil",
+      "private": "Privado",
+      "privateDesc": "Solo los seguidores aprobados pueden ver tus publicaciones",
+      "canChange": "Puedes cambiarlo en cualquier momento en Ajustes"
     }
   },
   "explore": {

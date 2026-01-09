@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles, MessageSquareHeart } from 'lucide-react';
+import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles, MessageSquareHeart, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { languages } from '@/lib/i18n';
@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -27,6 +28,24 @@ export default function SettingsPage() {
     username: profile?.username || '',
     bio: profile?.bio || '',
   });
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [privacyLoading, setPrivacyLoading] = useState(false);
+
+  // Fetch current privacy setting
+  useEffect(() => {
+    if (profile?.id) {
+      supabase
+        .from('profiles')
+        .select('is_private')
+        .eq('id', profile.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setIsPrivate(data.is_private ?? false);
+          }
+        });
+    }
+  }, [profile?.id]);
 
   const handleSave = async () => {
     setLoading(true);
@@ -44,6 +63,25 @@ export default function SettingsPage() {
     }
   };
 
+  const handlePrivacyChange = async (value: boolean) => {
+    if (!profile?.id) return;
+    setPrivacyLoading(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_private: value })
+        .eq('id', profile.id);
+      
+      if (error) throw error;
+      setIsPrivate(value);
+      toast.success(value ? 'Account set to private' : 'Account set to public');
+    } catch (error: any) {
+      toast.error(getUserFriendlyError(error));
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
@@ -56,31 +94,31 @@ export default function SettingsPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-xl mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold mb-6">{t('settings.title')}</h1>
+      <div className="max-w-xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+        <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">{t('settings.title')}</h1>
 
         {/* Profile Section */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-card rounded-xl border border-border p-6 mb-6"
+          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
         >
-          <div className="flex items-center gap-4 mb-6">
-            <Avatar className="h-16 w-16">
+          <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+            <Avatar className="h-12 w-12 sm:h-16 sm:w-16">
               <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="text-2xl gradient-animated">
+              <AvatarFallback className="text-xl sm:text-2xl gradient-animated">
                 {profile?.username?.[0]?.toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
-            <div>
-              <h2 className="font-semibold text-lg">@{profile?.username}</h2>
-              <p className="text-sm text-muted-foreground">{t('profile.editProfile')}</p>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-semibold text-base sm:text-lg truncate">@{profile?.username}</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">{t('profile.editProfile')}</p>
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">{t('auth.username')}</Label>
+              <Label htmlFor="username" className="text-sm">{t('auth.username')}</Label>
               <Input
                 id="username"
                 value={formData.username}
@@ -90,7 +128,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="bio">{t('onboarding.bio')}</Label>
+              <Label htmlFor="bio" className="text-sm">{t('onboarding.bio')}</Label>
               <Textarea
                 id="bio"
                 placeholder="Tell us about yourself..."
@@ -111,22 +149,47 @@ export default function SettingsPage() {
           </div>
         </motion.section>
 
+        {/* Privacy Section */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
+        >
+          <h3 className="font-semibold mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
+            {t('settings.privacy')}
+          </h3>
+
+          <div className="flex items-center justify-between py-2 sm:py-3">
+            <div className="flex-1 min-w-0 mr-3">
+              <p className="font-medium text-sm sm:text-base">{t('settings.privateAccount')}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">{t('settings.privateAccountDesc')}</p>
+            </div>
+            <Switch 
+              checked={isPrivate} 
+              onCheckedChange={handlePrivacyChange}
+              disabled={privacyLoading}
+            />
+          </div>
+        </motion.section>
+
         {/* Appearance Section */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-card rounded-xl border border-border p-6 mb-6"
+          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
         >
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <Sun className="w-5 h-5" />
+          <h3 className="font-semibold mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <Sun className="w-4 h-4 sm:w-5 sm:h-5" />
             {t('settings.appearance')}
           </h3>
 
           {/* Theme Selection */}
-          <div className="space-y-3 mb-4">
-            <Label>{t('settings.theme')}</Label>
-            <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4">
+            <Label className="text-sm">{t('settings.theme')}</Label>
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               {[
                 { id: 'dark', icon: Moon, label: t('settings.darkMode') },
                 { id: 'light', icon: Sun, label: t('settings.lightMode') },
@@ -136,24 +199,24 @@ export default function SettingsPage() {
                   key={option.id}
                   onClick={() => setTheme(option.id as 'dark' | 'light' | 'system')}
                   className={cn(
-                    'flex flex-col items-center gap-2 p-3 rounded-lg border transition-all',
+                    'flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-lg border transition-all',
                     theme === option.id
                       ? 'border-primary bg-primary/10'
                       : 'border-border hover:border-primary/50'
                   )}
                 >
-                  <option.icon className="w-5 h-5" />
-                  <span className="text-xs">{option.label}</span>
+                  <option.icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="text-[10px] sm:text-xs text-center leading-tight">{option.label}</span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* Reduced Motion */}
-          <div className="flex items-center justify-between py-3">
-            <div>
-              <p className="font-medium">{t('settings.reducedMotion')}</p>
-              <p className="text-sm text-muted-foreground">Reduce animations</p>
+          <div className="flex items-center justify-between py-2 sm:py-3">
+            <div className="min-w-0 flex-1 mr-3">
+              <p className="font-medium text-sm sm:text-base">{t('settings.reducedMotion')}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Reduce animations</p>
             </div>
             <Switch checked={reducedMotion} onCheckedChange={setReducedMotion} />
           </div>
@@ -164,29 +227,29 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="bg-card rounded-xl border border-border p-6 mb-6"
+          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
         >
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <Globe className="w-5 h-5" />
+          <h3 className="font-semibold mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <Globe className="w-4 h-4 sm:w-5 sm:h-5" />
             {t('settings.language')}
           </h3>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
             {languages.map((lang) => (
               <button
                 key={lang.code}
                 onClick={() => changeLanguage(lang.code)}
                 className={cn(
-                  'flex items-center gap-3 p-3 rounded-lg border transition-all',
+                  'flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border transition-all',
                   i18n.language === lang.code
                     ? 'border-primary bg-primary/10'
                     : 'border-border hover:border-primary/50'
                 )}
               >
-                <span className="text-xl">{lang.flag}</span>
-                <div className="text-left">
-                  <p className="font-medium text-sm">{lang.nativeName}</p>
-                  <p className="text-xs text-muted-foreground">{lang.name}</p>
+                <span className="text-lg sm:text-xl">{lang.flag}</span>
+                <div className="text-left min-w-0 flex-1">
+                  <p className="font-medium text-xs sm:text-sm truncate">{lang.nativeName}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{lang.name}</p>
                 </div>
               </button>
             ))}
@@ -198,17 +261,17 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-card rounded-xl border border-border p-6 mb-6"
+          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
         >
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <MessageSquareHeart className="w-5 h-5" />
+          <h3 className="font-semibold mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <MessageSquareHeart className="w-4 h-4 sm:w-5 sm:h-5" />
             Feedback
           </h3>
-          <p className="text-sm text-muted-foreground mb-4">
+          <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
             Help us improve! Share your ideas, report bugs, or vote on features.
           </p>
           <Link to="/feedback">
-            <Button variant="outline" className="w-full justify-between">
+            <Button variant="outline" className="w-full justify-between text-sm">
               <span>Open Feedback Hub</span>
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -224,7 +287,7 @@ export default function SettingsPage() {
         >
           <Button
             variant="destructive"
-            className="w-full justify-between"
+            className="w-full justify-between text-sm"
             onClick={handleSignOut}
           >
             <span className="flex items-center gap-2">
@@ -240,16 +303,16 @@ export default function SettingsPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="text-center mt-12 text-muted-foreground"
+          className="text-center mt-8 sm:mt-12 text-muted-foreground pb-4"
         >
           <div className="flex items-center justify-center gap-2 mb-2">
             <div className="gradient-animated rounded-lg p-1">
-              <Sparkles className="w-5 h-5 text-white" />
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <span className="font-display font-black text-xl gradient-text">XD</span>
+            <span className="font-display font-black text-lg sm:text-xl gradient-text">XD</span>
           </div>
-          <p className="text-sm">Version 2.0.0</p>
-          <p className="text-xs mt-1">{t('app.tagline')}</p>
+          <p className="text-xs sm:text-sm">Version 2.0.0</p>
+          <p className="text-[10px] sm:text-xs mt-1">{t('app.tagline')}</p>
         </motion.div>
       </div>
     </AppLayout>
