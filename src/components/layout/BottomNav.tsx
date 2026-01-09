@@ -40,7 +40,7 @@ export function BottomNav() {
       {/* Create Menu - opens on tap of create button */}
       <CreateMenu isOpen={isCreateMenuOpen} onClose={() => setIsCreateMenuOpen(false)} />
 
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 liquid-glass border-t border-white/10 safe-bottom w-full max-w-lg">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 liquid-glass border-t border-white/10 safe-bottom">
         <div className="grid grid-cols-5 h-16 px-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
