@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { BottomNav } from './BottomNav';
+import { MobileHeader } from './MobileHeader';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '@/lib/auth';
 import { Navigate } from 'react-router-dom';
@@ -34,7 +35,8 @@ export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <main className="md:ml-64 pb-20 md:pb-0">
+      <MobileHeader />
+      <main className="md:ml-64 pb-20 md:pb-0 pt-14 md:pt-0">
         {children}
       </main>
       <BottomNav />

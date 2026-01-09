@@ -103,3 +103,42 @@ export function useCreateComment() {
     },
   });
 }
+
+export function useDeleteComment() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ commentId, postId }: { commentId: string; postId: string }) => {
+      if (!profile) throw new Error('Not authenticated');
+
+      // Verify the comment belongs to the user
+      const { data: comment, error: fetchError } = await supabase
+        .from('comments')
+        .select('user_id')
+        .eq('id', commentId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      if (comment.user_id !== profile.id) {
+        throw new Error('You can only delete your own comments');
+      }
+
+      const { error } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', commentId);
+
+      if (error) throw error;
+      return { postId };
+    },
+    onSuccess: ({ postId }) => {
+      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      toast.success('Comment deleted');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to delete comment');
+    },
+  });
+}
