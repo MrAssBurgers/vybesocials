@@ -1,12 +1,12 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban } from 'lucide-react';
+import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2 } from 'lucide-react';
 import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { useComments, useCreateComment } from '@/hooks/useComments';
+import { useComments, useCreateComment, useDeleteComment } from '@/hooks/useComments';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -104,6 +115,7 @@ export default function PostDetailPage() {
 
   const { data: comments, isLoading: commentsLoading } = useComments(id!);
   const createComment = useCreateComment();
+  const deleteComment = useDeleteComment();
 
   const handleLike = async () => {
     if (!profile || !post) return;
@@ -361,13 +373,42 @@ export default function PostDetailPage() {
                           </Link>
                           {comment.text}
                         </p>
-                        <ModeratorActionsMenu
-                          userId={comment.user.id}
-                          username={comment.user.username}
-                          commentId={comment.id}
-                          postId={post.id}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        />
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {/* User can delete their own comment */}
+                          {profile?.id === comment.user.id && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon-sm" className="text-destructive h-6 w-6">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="liquid-glass-card">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete comment?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteComment.mutate({ commentId: comment.id, postId: post.id })}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                          {/* Mod actions for other users' comments */}
+                          <ModeratorActionsMenu
+                            userId={comment.user.id}
+                            username={comment.user.username}
+                            commentId={comment.id}
+                            postId={post.id}
+                          />
+                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
