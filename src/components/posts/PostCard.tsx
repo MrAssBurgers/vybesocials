@@ -24,18 +24,36 @@ import { useUserRole } from '@/hooks/useModeration';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
 
-// Video player component with thumbnail, hover to play, click to unmute
+// Video player component - shows thumbnail until clicked (like YouTube Shorts)
 function VideoPlayer({ src }: { src: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
-  const [isHovering, setIsHovering] = useState(false);
-  const [thumbnailTime, setThumbnailTime] = useState(0);
-  const [showThumbnail, setShowThumbnail] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [thumbnailReady, setThumbnailReady] = useState(false);
 
-  // Generate random thumbnail time on mount
-  useState(() => {
-    setThumbnailTime(Math.random() * 5); // Random time in first 5 seconds
-  });
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      const duration = videoRef.current.duration;
+      const randomTime = Math.random() * Math.min(duration, 10);
+      videoRef.current.currentTime = randomTime;
+      setThumbnailReady(true);
+    }
+  };
+
+  const handleClick = () => {
+    if (!videoRef.current) return;
+    
+    if (!isPlaying) {
+      // First click: start playing muted
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().catch(() => {});
+      setIsPlaying(true);
+    } else {
+      // Toggle mute when already playing
+      videoRef.current.muted = !videoRef.current.muted;
+      setIsMuted(!isMuted);
+    }
+  };
 
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -45,44 +63,9 @@ function VideoPlayer({ src }: { src: string }) {
     }
   };
 
-  const handleMouseEnter = () => {
-    setIsHovering(true);
-    setShowThumbnail(false);
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => {});
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovering(false);
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = thumbnailTime;
-    }
-  };
-
-  const handleClick = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !videoRef.current.muted;
-      setIsMuted(!isMuted);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      const duration = videoRef.current.duration;
-      const randomTime = Math.random() * Math.min(duration, 10);
-      setThumbnailTime(randomTime);
-      videoRef.current.currentTime = randomTime;
-    }
-  };
-
   return (
     <div 
-      className="relative w-full h-full group cursor-pointer" 
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      className="relative w-full h-full cursor-pointer" 
       onClick={handleClick}
     >
       <video
@@ -95,17 +78,17 @@ function VideoPlayer({ src }: { src: string }) {
         preload="metadata"
         onLoadedMetadata={handleLoadedMetadata}
       />
-      {/* Play indicator when not hovering */}
-      {!isHovering && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity">
-          <Play className="h-16 w-16 text-white/80 fill-white/80" />
+      {/* Play indicator when not playing - static thumbnail state */}
+      {!isPlaying && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+          <Play className="h-16 w-16 text-white/90 fill-white/90" />
         </div>
       )}
-      {/* Mute/Unmute button */}
-      {isHovering && (
+      {/* Mute/Unmute button when playing */}
+      {isPlaying && (
         <button
           onClick={toggleMute}
-          className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white transition-opacity"
+          className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white"
         >
           {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
         </button>
