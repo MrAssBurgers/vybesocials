@@ -2,6 +2,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban } from 'lucide-react';
+import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -344,7 +345,7 @@ export default function PostDetailPage() {
                     key={comment.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex gap-3"
+                    className="flex gap-3 group"
                   >
                     <Link to={`/u/${comment.user.username}`}>
                       <Avatar className="h-8 w-8">
@@ -352,13 +353,22 @@ export default function PostDetailPage() {
                         <AvatarFallback>{comment.user.username[0].toUpperCase()}</AvatarFallback>
                       </Avatar>
                     </Link>
-                    <div>
-                      <p className="text-sm">
-                        <Link to={`/u/${comment.user.username}`} className="font-semibold mr-2">
-                          {comment.user.username}
-                        </Link>
-                        {comment.text}
-                      </p>
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between">
+                        <p className="text-sm">
+                          <Link to={`/u/${comment.user.username}`} className="font-semibold mr-2">
+                            {comment.user.username}
+                          </Link>
+                          {comment.text}
+                        </p>
+                        <ModeratorActionsMenu
+                          userId={comment.user.id}
+                          username={comment.user.username}
+                          commentId={comment.id}
+                          postId={post.id}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        />
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
                       </p>
