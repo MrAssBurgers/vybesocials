@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { getHapticsEnabled, setHapticsEnabled as setHapticsStorage } from '@/lib/haptics';
+import { getSoundsEnabled, setSoundsEnabled as setSoundsStorage } from '@/lib/sounds';
 
 type Theme = 'dark' | 'light' | 'system';
+type MotionIntensity = 'calm' | 'normal';
 
 interface ThemeContextType {
   theme: Theme;
@@ -8,6 +11,12 @@ interface ThemeContextType {
   setTheme: (theme: Theme) => void;
   reducedMotion: boolean;
   setReducedMotion: (reduced: boolean) => void;
+  motionIntensity: MotionIntensity;
+  setMotionIntensity: (intensity: MotionIntensity) => void;
+  hapticsEnabled: boolean;
+  setHapticsEnabled: (enabled: boolean) => void;
+  soundsEnabled: boolean;
+  setSoundsEnabled: (enabled: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -32,6 +41,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return false;
     const stored = localStorage.getItem('xd-reduced-motion');
     return stored ? stored === 'true' : getSystemReducedMotion();
+  });
+
+  const [motionIntensity, setMotionIntensityState] = useState<MotionIntensity>(() => {
+    if (typeof window === 'undefined') return 'normal';
+    return (localStorage.getItem('vybe-motion-intensity') as MotionIntensity) || 'normal';
+  });
+
+  const [hapticsEnabled, setHapticsEnabledState] = useState<boolean>(() => {
+    return getHapticsEnabled();
+  });
+
+  const [soundsEnabled, setSoundsEnabledState] = useState<boolean>(() => {
+    return getSoundsEnabled();
   });
 
   const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>(() => {
@@ -62,6 +84,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [reducedMotion]);
 
   useEffect(() => {
+    const root = window.document.documentElement;
+    
+    if (motionIntensity === 'calm') {
+      root.classList.add('calm-motion');
+    } else {
+      root.classList.remove('calm-motion');
+    }
+    localStorage.setItem('vybe-motion-intensity', motionIntensity);
+  }, [motionIntensity]);
+
+  useEffect(() => {
     if (theme !== 'system') return;
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -84,8 +117,34 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setReducedMotionState(reduced);
   };
 
+  const setMotionIntensity = (intensity: MotionIntensity) => {
+    setMotionIntensityState(intensity);
+  };
+
+  const setHapticsEnabled = (enabled: boolean) => {
+    setHapticsEnabledState(enabled);
+    setHapticsStorage(enabled);
+  };
+
+  const setSoundsEnabled = (enabled: boolean) => {
+    setSoundsEnabledState(enabled);
+    setSoundsStorage(enabled);
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, reducedMotion, setReducedMotion }}>
+    <ThemeContext.Provider value={{ 
+      theme, 
+      resolvedTheme, 
+      setTheme, 
+      reducedMotion, 
+      setReducedMotion,
+      motionIntensity,
+      setMotionIntensity,
+      hapticsEnabled,
+      setHapticsEnabled,
+      soundsEnabled,
+      setSoundsEnabled,
+    }}>
       {children}
     </ThemeContext.Provider>
   );
