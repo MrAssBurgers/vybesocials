@@ -25,6 +25,30 @@ serve(async (req) => {
   }
 
   try {
+    // Validate authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !claimsData?.user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { content, content_type, content_id }: ModerationRequest = await req.json();
 
     if (!content || !content_type || !content_id) {
@@ -109,13 +133,12 @@ Respond ONLY with valid JSON in this exact format:
       };
     }
 
-    // If content is flagged, save to content_flags table
+    // If content is flagged, save to content_flags table using service role for this specific operation
     if (moderation.flagged || moderation.score > 0.5) {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      await supabase.from("content_flags").insert({
+      await adminSupabase.from("content_flags").insert({
         content_type,
         content_id,
         flagged_text: content,
