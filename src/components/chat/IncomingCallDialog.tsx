@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, PhoneOff, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -36,91 +35,57 @@ export function IncomingCallDialog({ call, onAccept, onDecline }: IncomingCallDi
   const isVideoCall = call.call_type === 'video';
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.15, ease: 'easeOut' }}
-          className="bg-card border border-border rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl"
-        >
-          {/* Animated avatar with pulse */}
-          <div className="relative inline-block mb-6">
-            <motion.div
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-              className="absolute inset-0 rounded-full bg-primary/20"
-            />
-            <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ repeat: Infinity, duration: 2, delay: 0.3 }}
-              className="absolute inset-0 rounded-full bg-primary/10"
-              style={{ margin: '-8px' }}
-            />
-            <Avatar className="h-24 w-24 ring-4 ring-primary/30 relative z-10">
-              <AvatarImage src={call.caller?.avatar_url || undefined} />
-              <AvatarFallback className="text-2xl">
-                {call.caller?.display_name?.charAt(0) || call.caller?.username?.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="absolute -bottom-1 -right-1 z-20 bg-primary rounded-full p-2">
-              {isVideoCall ? (
-                <Video className="h-4 w-4 text-primary-foreground" />
-              ) : (
-                <Phone className="h-4 w-4 text-primary-foreground" />
-              )}
-            </div>
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
+        {/* Avatar */}
+        <div className="relative inline-block mb-6">
+          <Avatar className="h-24 w-24 ring-4 ring-primary/30">
+            <AvatarImage src={call.caller?.avatar_url || undefined} />
+            <AvatarFallback className="text-2xl">
+              {call.caller?.display_name?.charAt(0) || call.caller?.username?.charAt(0)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="absolute -bottom-1 -right-1 z-20 bg-primary rounded-full p-2">
+            {isVideoCall ? (
+              <Video className="h-4 w-4 text-primary-foreground" />
+            ) : (
+              <Phone className="h-4 w-4 text-primary-foreground" />
+            )}
           </div>
+        </div>
 
-          <h2 className="text-xl font-semibold mb-1">
-            {call.caller?.display_name || call.caller?.username}
-          </h2>
-          <p className="text-muted-foreground mb-8">
-            Incoming {isVideoCall ? 'video' : 'audio'} call...
-          </p>
+        <h2 className="text-xl font-semibold mb-1">
+          {call.caller?.display_name || call.caller?.username}
+        </h2>
+        <p className="text-muted-foreground mb-8">
+          Incoming {isVideoCall ? 'video' : 'audio'} call...
+        </p>
 
-          <div className="flex items-center justify-center gap-6">
-            <motion.div
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Button
-                variant="destructive"
-                size="icon"
-                className="h-16 w-16 rounded-full"
-                onClick={handleDecline}
-                disabled={respondToCall.isPending}
-              >
-                <PhoneOff className="h-7 w-7" />
-              </Button>
-            </motion.div>
+        <div className="flex items-center justify-center gap-6">
+          <Button
+            variant="destructive"
+            size="icon"
+            className="h-16 w-16 rounded-full"
+            onClick={handleDecline}
+            disabled={respondToCall.isPending}
+          >
+            <PhoneOff className="h-7 w-7" />
+          </Button>
 
-            <motion.div
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Button
-                size="icon"
-                className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600"
-                onClick={handleAccept}
-                disabled={respondToCall.isPending}
-              >
-                {isVideoCall ? (
-                  <Video className="h-7 w-7" />
-                ) : (
-                  <Phone className="h-7 w-7" />
-                )}
-              </Button>
-            </motion.div>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+          <Button
+            size="icon"
+            className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600"
+            onClick={handleAccept}
+            disabled={respondToCall.isPending}
+          >
+            {isVideoCall ? (
+              <Video className="h-7 w-7" />
+            ) : (
+              <Phone className="h-7 w-7" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
