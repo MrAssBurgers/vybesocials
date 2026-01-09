@@ -37,11 +37,11 @@ interface ShortCardProps {
   };
   isActive: boolean;
   globalMuted?: boolean;
-  onTapToUnmute?: () => void;
+  onToggleMute?: () => void;
   isHolding?: boolean;
 }
 
-export function ShortCard({ post, isActive, globalMuted = true, onTapToUnmute, isHolding = false }: ShortCardProps) {
+export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, isHolding = false }: ShortCardProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
@@ -117,7 +117,11 @@ export function ShortCard({ post, isActive, globalMuted = true, onTapToUnmute, i
   };
 
   const toggleMute = () => {
-    if (videoRef.current) {
+    // Use the parent callback to toggle global mute state
+    if (onToggleMute) {
+      onToggleMute();
+    } else if (videoRef.current) {
+      // Fallback for local control
       videoRef.current.muted = !isMuted;
       setIsMuted(!isMuted);
       if (browserForcedMute && !isMuted === false) {

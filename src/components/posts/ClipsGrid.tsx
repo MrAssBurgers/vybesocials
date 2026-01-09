@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, X, ChevronUp, ChevronDown, Eye } from 'lucide-react';
+import { Play, X, Eye } from 'lucide-react';
 import { ShortCard } from './ShortCard';
 import { Button } from '@/components/ui/button';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
@@ -125,7 +125,7 @@ export function ClipsGrid({ clips }: ClipsGridProps) {
         ))}
       </div>
 
-      {/* Full-screen modal viewer */}
+      {/* Full-screen modal viewer - swipe/scroll navigation, no arrows */}
       <AnimatePresence>
         {selectedIndex !== null && (
           <motion.div
@@ -133,6 +133,22 @@ export function ClipsGrid({ clips }: ClipsGridProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black flex items-center justify-center"
+            onTouchStart={(e) => {
+              const touch = e.touches[0];
+              (e.currentTarget as any)._touchStartY = touch.clientY;
+            }}
+            onTouchEnd={(e) => {
+              const startY = (e.currentTarget as any)._touchStartY;
+              const endY = e.changedTouches[0].clientY;
+              const diff = startY - endY;
+              if (Math.abs(diff) > 50) {
+                if (diff > 0 && selectedIndex < clips.length - 1) {
+                  setSelectedIndex(selectedIndex + 1);
+                } else if (diff < 0 && selectedIndex > 0) {
+                  setSelectedIndex(selectedIndex - 1);
+                }
+              }
+            }}
           >
             {/* Close button */}
             <Button
@@ -144,37 +160,32 @@ export function ClipsGrid({ clips }: ClipsGridProps) {
               <X className="h-6 w-6" />
             </Button>
 
-            {/* Navigation arrows */}
-            {selectedIndex > 0 && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute top-4 left-1/2 -translate-x-1/2 z-10 text-white hover:bg-white/20"
-                onClick={handlePrev}
-              >
-                <ChevronUp className="h-6 w-6" />
-              </Button>
-            )}
-            {selectedIndex < clips.length - 1 && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 text-white hover:bg-white/20"
-                onClick={handleNext}
-              >
-                <ChevronDown className="h-6 w-6" />
-              </Button>
-            )}
-
             {/* Clip content */}
             <div className="w-full h-full max-w-md mx-auto">
               <ShortCard post={clips[selectedIndex]} isActive={true} />
             </div>
 
-            {/* Clip counter */}
-            <div className="absolute bottom-4 right-4 text-white/70 text-sm">
+            {/* Clip counter - minimal, non-intrusive */}
+            <div className="absolute bottom-4 right-4 text-white/50 text-xs">
               {selectedIndex + 1} / {clips.length}
             </div>
+
+            {/* Swipe hint on first clip */}
+            {selectedIndex === 0 && (
+              <motion.div
+                className="absolute bottom-20 left-1/2 -translate-x-1/2 pointer-events-none"
+                initial={{ opacity: 1 }}
+                animate={{ opacity: 0 }}
+                transition={{ delay: 2, duration: 1 }}
+              >
+                <div className="text-white/60 text-xs flex flex-col items-center gap-1">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  </svg>
+                  <span>Swipe</span>
+                </div>
+              </motion.div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
