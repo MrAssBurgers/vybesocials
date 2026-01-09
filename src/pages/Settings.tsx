@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles, MessageSquareHeart, Lock } from 'lucide-react';
+import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles, MessageSquareHeart, Lock, Vibrate, Volume2, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { languages } from '@/lib/i18n';
@@ -17,11 +17,18 @@ import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { haptics } from '@/lib/haptics';
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
   const { profile, signOut, updateProfile } = useAuth();
-  const { theme, setTheme, reducedMotion, setReducedMotion } = useTheme();
+  const { 
+    theme, setTheme, 
+    reducedMotion, setReducedMotion,
+    motionIntensity, setMotionIntensity,
+    hapticsEnabled, setHapticsEnabled,
+    soundsEnabled, setSoundsEnabled,
+  } = useTheme();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -49,14 +56,17 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     setLoading(true);
+    haptics.select();
     try {
       const { error } = await updateProfile({
         username: formData.username,
         bio: formData.bio,
       });
       if (error) throw error;
+      haptics.success();
       toast.success(t('common.save') + ' ✓');
     } catch (error: any) {
+      haptics.error();
       toast.error(getUserFriendlyError(error));
     } finally {
       setLoading(false);
@@ -66,6 +76,7 @@ export default function SettingsPage() {
   const handlePrivacyChange = async (value: boolean) => {
     if (!profile?.id) return;
     setPrivacyLoading(true);
+    haptics.tap();
     try {
       const { error } = await supabase
         .from('profiles')
@@ -83,11 +94,13 @@ export default function SettingsPage() {
   };
 
   const handleSignOut = async () => {
+    haptics.impact();
     await signOut();
     navigate('/');
   };
 
   const changeLanguage = (code: string) => {
+    haptics.tap();
     i18n.changeLanguage(code);
     toast.success('Language changed!');
   };
@@ -106,7 +119,7 @@ export default function SettingsPage() {
           <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
             <Avatar className="h-12 w-12 sm:h-16 sm:w-16">
               <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="text-xl sm:text-2xl gradient-animated">
+              <AvatarFallback className="text-xl sm:text-2xl gradient-static">
                 {profile?.username?.[0]?.toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
@@ -143,7 +156,7 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            <Button onClick={handleSave} disabled={loading} className="w-full gradient-animated">
+            <Button onClick={handleSave} disabled={loading} className="w-full gradient-static hover:opacity-90">
               {loading ? t('common.loading') : t('common.save')}
             </Button>
           </div>
@@ -187,7 +200,7 @@ export default function SettingsPage() {
           </h3>
 
           {/* Theme Selection */}
-          <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4">
+          <div className="space-y-2 sm:space-y-3 mb-4">
             <Label className="text-sm">{t('settings.theme')}</Label>
             <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               {[
@@ -197,9 +210,12 @@ export default function SettingsPage() {
               ].map((option) => (
                 <button
                   key={option.id}
-                  onClick={() => setTheme(option.id as 'dark' | 'light' | 'system')}
+                  onClick={() => {
+                    haptics.tap();
+                    setTheme(option.id as 'dark' | 'light' | 'system');
+                  }}
                   className={cn(
-                    'flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-lg border transition-all',
+                    'flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-lg border transition-all active:scale-95',
                     theme === option.id
                       ? 'border-primary bg-primary/10'
                       : 'border-border hover:border-primary/50'
@@ -212,13 +228,93 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Motion Intensity */}
+          <div className="space-y-2 sm:space-y-3 mb-4">
+            <Label className="text-sm flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              Motion Intensity
+            </Label>
+            <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+              {[
+                { id: 'calm', label: 'Calm' },
+                { id: 'normal', label: 'Normal' },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => {
+                    haptics.tap();
+                    setMotionIntensity(option.id as 'calm' | 'normal');
+                  }}
+                  className={cn(
+                    'p-2 sm:p-3 rounded-lg border transition-all text-sm active:scale-95',
+                    motionIntensity === option.id
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Reduced Motion */}
-          <div className="flex items-center justify-between py-2 sm:py-3">
+          <div className="flex items-center justify-between py-2 sm:py-3 border-t border-border">
             <div className="min-w-0 flex-1 mr-3">
               <p className="font-medium text-sm sm:text-base">{t('settings.reducedMotion')}</p>
-              <p className="text-xs sm:text-sm text-muted-foreground">Reduce animations</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Reduce all animations</p>
             </div>
-            <Switch checked={reducedMotion} onCheckedChange={setReducedMotion} />
+            <Switch 
+              checked={reducedMotion} 
+              onCheckedChange={(checked) => {
+                haptics.tap();
+                setReducedMotion(checked);
+              }} 
+            />
+          </div>
+        </motion.section>
+
+        {/* Feedback & Sounds Section */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+          className="bg-card rounded-xl border border-border p-4 sm:p-6 mb-4 sm:mb-6"
+        >
+          <h3 className="font-semibold mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <Vibrate className="w-4 h-4 sm:w-5 sm:h-5" />
+            Feedback
+          </h3>
+
+          <div className="flex items-center justify-between py-2 sm:py-3">
+            <div className="min-w-0 flex-1 mr-3">
+              <p className="font-medium text-sm sm:text-base">Haptic Feedback</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Vibration on interactions</p>
+            </div>
+            <Switch 
+              checked={hapticsEnabled} 
+              onCheckedChange={(checked) => {
+                setHapticsEnabled(checked);
+                if (checked) haptics.success();
+              }} 
+            />
+          </div>
+
+          <div className="flex items-center justify-between py-2 sm:py-3 border-t border-border">
+            <div className="min-w-0 flex-1 mr-3">
+              <p className="font-medium text-sm sm:text-base flex items-center gap-2">
+                <Volume2 className="w-4 h-4" />
+                UI Sounds
+              </p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Subtle interaction sounds</p>
+            </div>
+            <Switch 
+              checked={soundsEnabled} 
+              onCheckedChange={(checked) => {
+                setSoundsEnabled(checked);
+                haptics.tap();
+              }} 
+            />
           </div>
         </motion.section>
 
@@ -240,7 +336,7 @@ export default function SettingsPage() {
                 key={lang.code}
                 onClick={() => changeLanguage(lang.code)}
                 className={cn(
-                  'flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border transition-all',
+                  'flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border transition-all active:scale-95',
                   i18n.language === lang.code
                     ? 'border-primary bg-primary/10'
                     : 'border-border hover:border-primary/50'
@@ -306,10 +402,10 @@ export default function SettingsPage() {
           className="text-center mt-8 sm:mt-12 text-muted-foreground pb-4"
         >
           <div className="flex items-center justify-center gap-2 mb-2">
-            <div className="gradient-animated rounded-lg p-1">
+            <div className="gradient-static rounded-lg p-1">
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <span className="font-display font-black text-lg sm:text-xl gradient-text">XD</span>
+            <span className="font-display font-black text-lg sm:text-xl gradient-text">VYBE</span>
           </div>
           <p className="text-xs sm:text-sm">Version 2.0.0</p>
           <p className="text-[10px] sm:text-xs mt-1">{t('app.tagline')}</p>

@@ -6,13 +6,16 @@ import { useAuth } from '@/lib/auth';
 import { Navigate } from 'react-router-dom';
 import { usePresence } from '@/hooks/usePresence';
 import { useScrollOptimization } from '@/hooks/useScrollOptimization';
+import { FloatingActionButton } from '@/components/ui/FloatingActionButton';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface AppLayoutProps {
   children: ReactNode;
   requireAuth?: boolean;
+  showFAB?: boolean;
 }
 
-export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
+export function AppLayout({ children, requireAuth = true, showFAB = true }: AppLayoutProps) {
   const { user, loading } = useAuth();
   
   // Track online presence
@@ -24,8 +27,9 @@ export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="rounded-full p-4">
-          <span className="text-4xl">😂</span>
+        <div className="flex flex-col items-center gap-4">
+          <Skeleton variant="circular" className="h-16 w-16" />
+          <Skeleton className="h-4 w-24" />
         </div>
       </div>
     );
@@ -47,6 +51,8 @@ export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
       </main>
       {/* Mobile/Tablet bottom nav - hidden on desktop */}
       <BottomNav />
+      {/* Floating Action Button */}
+      {showFAB && <FloatingActionButton className="floating-action-button" />}
     </div>
   );
 }

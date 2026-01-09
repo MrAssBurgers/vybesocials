@@ -161,6 +161,12 @@
     transition-duration: 0.01ms !important;
   }
 
+  /* Calm motion mode - slower, subtler animations */
+  .calm-motion * {
+    animation-duration: 0.5s !important;
+    transition-duration: 0.3s !important;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -169,6 +175,12 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
+  }
+
+  /* Hide FAB during scroll */
+  .is-scrolling .floating-action-button {
+    opacity: 0;
+    pointer-events: none;
   }
 
   /* GPU-accelerated transforms only */
