@@ -116,11 +116,11 @@ export default function Landing() {
             {/* Logo */}
             <div className="flex items-center gap-3 mb-8">
               <motion.div 
-                className="gradient-animated rounded-2xl p-3"
+                className="gradient-animated rounded-2xl p-3 flex items-center justify-center"
                 whileHover={{ scale: 1.1, rotate: 5 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <Sparkles className="w-8 h-8 text-white" />
+                <span className="text-2xl font-black text-white">XD</span>
               </motion.div>
               <h1 className="font-display text-5xl font-black gradient-text">XD</h1>
             </div>

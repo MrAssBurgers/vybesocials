@@ -22,6 +22,7 @@ import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { useTogglePin } from '@/hooks/usePosts';
 import { useUserRole } from '@/hooks/useModeration';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
 
 interface PostCardProps {
   post: {
@@ -187,52 +188,59 @@ export function PostCard({ post }: PostCardProps) {
             </p>
           </div>
         </Link>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm">
-              <MoreHorizontal className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {isOwnPost && (
-              <>
-                <DropdownMenuItem onClick={handleTogglePin}>
-                  {post.is_pinned ? (
-                    <>
-                      <PinOff className="h-4 w-4 mr-2" />
-                      Unpin Post
-                    </>
-                  ) : (
-                    <>
-                      <Pin className="h-4 w-4 mr-2" />
-                      Pin to Profile
-                    </>
-                  )}
+        <div className="flex items-center gap-1">
+          <ModeratorActionsMenu
+            userId={post.author.id}
+            username={post.author.username}
+            postId={post.id}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm">
+                <MoreHorizontal className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isOwnPost && (
+                <>
+                  <DropdownMenuItem onClick={handleTogglePin}>
+                    {post.is_pinned ? (
+                      <>
+                        <PinOff className="h-4 w-4 mr-2" />
+                        Unpin Post
+                      </>
+                    ) : (
+                      <>
+                        <Pin className="h-4 w-4 mr-2" />
+                        Pin to Profile
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setIsEditOpen(true)}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit Post
+                  </DropdownMenuItem>
+                </>
+              )}
+              {canDelete && (
+                <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Post
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsEditOpen(true)}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit Post
+              )}
+              <DropdownMenuItem onClick={handleShare}>
+                <Share2 className="h-4 w-4 mr-2" />
+                Share
+              </DropdownMenuItem>
+              {!isOwnPost && (
+                <DropdownMenuItem onClick={handleReport} className="text-destructive">
+                  <Flag className="h-4 w-4 mr-2" />
+                  Report
                 </DropdownMenuItem>
-              </>
-            )}
-            {canDelete && (
-              <DropdownMenuItem onClick={handleDelete} className="text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Post
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={handleShare}>
-              <Share2 className="h-4 w-4 mr-2" />
-              Share
-            </DropdownMenuItem>
-            {!isOwnPost && (
-              <DropdownMenuItem onClick={handleReport} className="text-destructive">
-                <Flag className="h-4 w-4 mr-2" />
-                Report
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Media */}

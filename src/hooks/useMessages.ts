@@ -585,3 +585,27 @@ export function useAddReaction() {
     },
   });
 }
+
+// Mark all messages in a conversation as read
+export function useMarkConversationRead() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (conversationId: string) => {
+      if (!profile?.id) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('conversation_members')
+        .update({ last_read_at: new Date().toISOString() })
+        .eq('conversation_id', conversationId)
+        .eq('user_id', profile.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+    },
+  });
+}
