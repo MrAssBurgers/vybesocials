@@ -21,6 +21,7 @@ import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
+import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
 // Autisy AI chat component
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
@@ -40,14 +41,12 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
 
     let assistantContent = '';
     try {
+      const headers = await getFunctionAuthHeaders();
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
+          headers,
           body: JSON.stringify({ messages: [...messages, userMessage] }),
         }
       );

@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { PostCard } from '@/components/posts/PostCard';
 import { toast } from 'sonner';
+import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
 interface Post {
   id: string;
@@ -38,14 +39,12 @@ export function AIRecommendations() {
     setIsLoading(true);
     
     try {
+      const headers = await getFunctionAuthHeaders();
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-recommendations`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
+          headers,
           body: JSON.stringify({
             interests: profile.interests || [],
             userId: profile.id,

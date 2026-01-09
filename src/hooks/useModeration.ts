@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
 export interface ContentFlag {
   id: string;
@@ -210,14 +211,12 @@ export async function moderateContent(
   contentId: string
 ): Promise<{ allowed: boolean; score: number; requires_review: boolean }> {
   try {
+    const headers = await getFunctionAuthHeaders();
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/moderate-content`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
+        headers,
         body: JSON.stringify({ content, content_type: contentType, content_id: contentId }),
       }
     );
