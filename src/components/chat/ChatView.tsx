@@ -97,6 +97,7 @@ export function ChatView() {
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
   // DM Feature Sheet states
   const [showVanishThreads, setShowVanishThreads] = useState(false);
   const [showMemoryPins, setShowMemoryPins] = useState(false);
@@ -534,6 +535,10 @@ export function ChatView() {
               onUnsend={() => unsendMessage.mutate(message.id)}
               allMessages={messages}
               themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
+              showReactions={activeReactionMessageId === message.id}
+              onToggleReactions={() => setActiveReactionMessageId(
+                activeReactionMessageId === message.id ? null : message.id
+              )}
             />
           </div>
         ))}
@@ -839,6 +844,8 @@ const MessageBubble = memo(function MessageBubble({
   onUnsend,
   allMessages,
   themeColor = { bubble: 'bg-primary', text: 'text-primary-foreground' },
+  showReactions,
+  onToggleReactions,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -851,9 +858,10 @@ const MessageBubble = memo(function MessageBubble({
   onUnsend: () => void;
   allMessages?: Message[];
   themeColor?: { bubble: string; text: string };
+  showReactions: boolean;
+  onToggleReactions: () => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
-  const [showReactions, setShowReactions] = useState(false);
   const [showUnsendConfirm, setShowUnsendConfirm] = useState(false);
 
   const repliedMessage = useMemo(() => 
@@ -873,8 +881,8 @@ const MessageBubble = memo(function MessageBubble({
 
   const handleReaction = useCallback((emoji: string) => {
     onReaction(message.id, emoji);
-    setShowReactions(false);
-  }, [message.id, onReaction]);
+    onToggleReactions(); // Close reactions after selecting
+  }, [message.id, onReaction, onToggleReactions]);
 
   const handleUnsend = useCallback(() => {
     onUnsend();
@@ -930,7 +938,7 @@ const MessageBubble = memo(function MessageBubble({
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
             repliedMessage && 'rounded-t-md'
           )}
-          onDoubleClick={() => setShowReactions(!showReactions)}
+          onDoubleClick={onToggleReactions}
         >
           {message.media_url && message.media_type === 'image' && (
             <div className="mb-2">
