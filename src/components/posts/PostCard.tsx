@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { UserProfileHoverCard } from '@/components/ui/UserProfileHoverCard';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -235,31 +236,37 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     <article className="liquid-glass-card rounded-2xl overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-4">
-        <Link to={`/u/${post.author.username}`} className="flex items-center gap-3">
-          <div className="story-ring">
-            <Avatar className="h-10 w-10 border-2 border-background">
-              <AvatarImage src={signedAvatarUrl || undefined} />
-              <AvatarFallback className="bg-secondary text-secondary-foreground">
-                {post.author.username[0].toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          </div>
-          <div>
-            <p className="font-semibold text-sm flex items-center gap-1.5">
-              {post.author.username}
-              {isOwner(post.author.username) && <OwnerBadge />}
-              {post.is_pinned && (
-                <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                  <Pin className="h-3 w-3 mr-1" />
-                  Pinned
-                </Badge>
-              )}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-            </p>
-          </div>
-        </Link>
+        <UserProfileHoverCard 
+          username={post.author.username} 
+          userId={post.author.id}
+          avatarUrl={post.author.avatar_url}
+        >
+          <Link to={`/u/${post.author.username}`} className="flex items-center gap-3">
+            <div className="story-ring">
+              <Avatar className="h-10 w-10 border-2 border-background">
+                <AvatarImage src={signedAvatarUrl || undefined} />
+                <AvatarFallback className="bg-secondary text-secondary-foreground">
+                  {post.author.username[0].toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+            <div>
+              <p className="font-semibold text-sm flex items-center gap-1.5">
+                {post.author.username}
+                {isOwner(post.author.username) && <OwnerBadge />}
+                {post.is_pinned && (
+                  <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                    <Pin className="h-3 w-3 mr-1" />
+                    Pinned
+                  </Badge>
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+              </p>
+            </div>
+          </Link>
+        </UserProfileHoverCard>
         <div className="flex items-center gap-1">
           <ModeratorActionsMenu
             userId={post.author.id}
@@ -376,9 +383,11 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         {/* Caption */}
         {post.caption && (
           <p className="text-sm">
-            <Link to={`/u/${post.author.username}`} className="font-semibold mr-2">
-              {post.author.username}
-            </Link>
+            <UserProfileHoverCard username={post.author.username} userId={post.author.id}>
+              <Link to={`/u/${post.author.username}`} className="font-semibold mr-2 hover:underline">
+                {post.author.username}
+              </Link>
+            </UserProfileHoverCard>
             {post.caption}
           </p>
         )}

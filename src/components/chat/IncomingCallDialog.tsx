@@ -24,12 +24,13 @@ export function IncomingCallDialog({ call, onAccept, onDecline }: IncomingCallDi
     onDecline();
   };
 
-  // Play ringtone effect (visual pulse)
+  // Auto-decline after 30 seconds (like Instagram)
   useEffect(() => {
-    // Could add audio ringtone here
-    return () => {
-      // Cleanup audio
-    };
+    const timeout = setTimeout(() => {
+      handleDecline();
+    }, 30000);
+
+    return () => clearTimeout(timeout);
   }, []);
 
   const isVideoCall = call.call_type === 'video';
@@ -43,9 +44,10 @@ export function IncomingCallDialog({ call, onAccept, onDecline }: IncomingCallDi
         className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
       >
         <motion.div
-          initial={{ scale: 0.9, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.9, y: 20 }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.15, ease: 'easeOut' }}
           className="bg-card border border-border rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl"
         >
           {/* Animated avatar with pulse */}
