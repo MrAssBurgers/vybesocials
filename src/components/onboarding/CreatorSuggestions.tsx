@@ -86,7 +86,7 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
   if (!ownerProfile) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">No creators to follow yet. You can skip this step!</p>
+        <p className="text-muted-foreground">Want to follow the owner? They haven't set up their profile yet!</p>
       </div>
     );
   }
