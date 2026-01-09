@@ -56,6 +56,7 @@ import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useUserOnlineStatus } from '@/hooks/usePresence';
+import { DMSafetyGate } from './DMSafetyGate';
 
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
@@ -533,15 +534,109 @@ export function ChatView() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
-      <div className="p-4 border-t border-border bg-background">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleImageSelect}
-          className="hidden"
+      {/* Input area - wrapped with DM safety for non-group chats */}
+      {!isGroupChat && otherMember?.id ? (
+        <DMSafetyGate targetUserId={otherMember.id} targetUsername={otherMember.username || ''}>
+          <MessageInputArea
+            messageText={messageText}
+            viewMode={viewMode}
+            showViewModeMenu={showViewModeMenu}
+            setShowViewModeMenu={setShowViewModeMenu}
+            isRecordingVoice={isRecordingVoice}
+            isUploadingMedia={isUploadingMedia}
+            replyingTo={replyingTo}
+            isPending={isPending}
+            inputRef={inputRef}
+            fileInputRef={fileInputRef}
+            handleInputChange={handleInputChange}
+            handleKeyPress={handleKeyPress}
+            handleSend={handleSend}
+            handleImageSelect={handleImageSelect}
+            handleVoiceRecordingComplete={handleVoiceRecordingComplete}
+            setViewMode={setViewMode}
+            setIsRecordingVoice={setIsRecordingVoice}
+            clearReply={clearReply}
+            t={t}
+          />
+        </DMSafetyGate>
+      ) : (
+        <MessageInputArea
+          messageText={messageText}
+          viewMode={viewMode}
+          showViewModeMenu={showViewModeMenu}
+          setShowViewModeMenu={setShowViewModeMenu}
+          isRecordingVoice={isRecordingVoice}
+          isUploadingMedia={isUploadingMedia}
+          replyingTo={replyingTo}
+          isPending={isPending}
+          inputRef={inputRef}
+          fileInputRef={fileInputRef}
+          handleInputChange={handleInputChange}
+          handleKeyPress={handleKeyPress}
+          handleSend={handleSend}
+          handleImageSelect={handleImageSelect}
+          handleVoiceRecordingComplete={handleVoiceRecordingComplete}
+          setViewMode={setViewMode}
+          setIsRecordingVoice={setIsRecordingVoice}
+          clearReply={clearReply}
+          t={t}
         />
+      )}
+    </div>
+  );
+}
+
+// Extracted MessageInputArea component for reuse
+const MessageInputArea = memo(function MessageInputArea({
+  messageText,
+  viewMode,
+  showViewModeMenu,
+  setShowViewModeMenu,
+  isRecordingVoice,
+  isUploadingMedia,
+  replyingTo,
+  isPending,
+  inputRef,
+  fileInputRef,
+  handleInputChange,
+  handleKeyPress,
+  handleSend,
+  handleImageSelect,
+  handleVoiceRecordingComplete,
+  setViewMode,
+  setIsRecordingVoice,
+  clearReply,
+  t,
+}: {
+  messageText: string;
+  viewMode: ViewMode;
+  showViewModeMenu: boolean;
+  setShowViewModeMenu: (open: boolean) => void;
+  isRecordingVoice: boolean;
+  isUploadingMedia: boolean;
+  replyingTo: Message | null;
+  isPending: boolean;
+  inputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  handleInputChange: (value: string) => void;
+  handleKeyPress: (e: React.KeyboardEvent) => void;
+  handleSend: () => void;
+  handleImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleVoiceRecordingComplete: (blob: Blob) => void;
+  setViewMode: (mode: ViewMode) => void;
+  setIsRecordingVoice: (recording: boolean) => void;
+  clearReply: () => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <div className="p-4 border-t border-border bg-background">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageSelect}
+        className="hidden"
+      />
 
         {/* Reply preview */}
         {replyingTo && (
@@ -657,9 +752,8 @@ export function ChatView() {
           </p>
         )}
       </div>
-    </div>
-  );
-}
+    );
+});
 
 // Memoized MessageBubble to prevent unnecessary re-renders
 const MessageBubble = memo(function MessageBubble({ 

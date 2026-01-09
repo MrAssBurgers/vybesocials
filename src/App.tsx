@@ -10,6 +10,7 @@ import { ThemeProvider } from "@/lib/theme";
 import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
 import { CallProvider } from "@/components/chat/CallProvider";
 import { SplashScreen } from "@/components/ui/SplashScreen";
+import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 
 // Pages
 import Landing from "./pages/Landing";
@@ -59,8 +60,9 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <SplashScreen isVisible={showSplash} />
-        <AuthProvider>
+        <AccessibilityProvider>
+          <SplashScreen isVisible={showSplash} />
+          <AuthProvider>
           <EasterEggProvider>
             <CallProvider>
               <TooltipProvider>
@@ -95,11 +97,12 @@ const App = () => {
                   </Routes>
                 </BrowserRouter>
               </TooltipProvider>
-            </CallProvider>
-          </EasterEggProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+          </CallProvider>
+        </EasterEggProvider>
+      </AuthProvider>
+    </AccessibilityProvider>
+  </ThemeProvider>
+</QueryClientProvider>
   );
 };
 
