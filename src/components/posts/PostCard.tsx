@@ -29,14 +29,16 @@ function VideoPlayer({ src }: { src: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [thumbnailReady, setThumbnailReady] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  const handleLoadedMetadata = () => {
+  const handleLoadedData = () => {
     if (videoRef.current) {
       const duration = videoRef.current.duration;
-      const randomTime = Math.random() * Math.min(duration, 10);
-      videoRef.current.currentTime = randomTime;
-      setThumbnailReady(true);
+      if (duration > 0) {
+        const randomTime = Math.random() * Math.min(duration, 10);
+        videoRef.current.currentTime = randomTime;
+      }
+      setIsLoaded(true);
     }
   };
 
@@ -44,12 +46,10 @@ function VideoPlayer({ src }: { src: string }) {
     if (!videoRef.current) return;
     
     if (!isPlaying) {
-      // First click: start playing muted
       videoRef.current.currentTime = 0;
       videoRef.current.play().catch(() => {});
       setIsPlaying(true);
     } else {
-      // Toggle mute when already playing
       videoRef.current.muted = !videoRef.current.muted;
       setIsMuted(!isMuted);
     }
@@ -65,21 +65,25 @@ function VideoPlayer({ src }: { src: string }) {
 
   return (
     <div 
-      className="relative w-full h-full cursor-pointer" 
+      className="relative w-full h-full cursor-pointer bg-muted" 
       onClick={handleClick}
     >
+      {/* Loading skeleton */}
+      {!isLoaded && (
+        <div className="absolute inset-0 bg-muted animate-pulse" />
+      )}
       <video
         ref={videoRef}
         src={src}
-        className="w-full h-full object-cover"
+        className={cn("w-full h-full object-cover transition-opacity", isLoaded ? "opacity-100" : "opacity-0")}
         loop
         muted={isMuted}
         playsInline
-        preload="metadata"
-        onLoadedMetadata={handleLoadedMetadata}
+        preload="auto"
+        onLoadedData={handleLoadedData}
       />
-      {/* Play indicator when not playing - static thumbnail state */}
-      {!isPlaying && (
+      {/* Play indicator when not playing */}
+      {!isPlaying && isLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
           <Play className="h-16 w-16 text-white/90 fill-white/90" />
         </div>
@@ -328,7 +332,9 @@ export function PostCard({ post }: PostCardProps) {
             src={signedMediaUrl || ''}
             alt={post.caption}
             className="w-full h-full object-cover"
-            loading="lazy"
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
           />
         )}
         
