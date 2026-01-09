@@ -6,13 +6,36 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { useUserRole, useReports, useContentFlags, useUpdateReport, useUpdateFlag, useAllUserRoles } from '@/hooks/useModeration';
+import { useUserRole, useReports, useContentFlags, useUpdateReport, useUpdateFlag, useAllUserRoles, useAddUserRole, useRemoveUserRole } from '@/hooks/useModeration';
 import { useAllWarnings, useAllBans, useUnbanUser } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
 import { formatDistanceToNow } from 'date-fns';
-import { Shield, Flag, AlertTriangle, Users, Ban, CheckCircle, XCircle, Eye } from 'lucide-react';
+import { Shield, Flag, AlertTriangle, Users, Ban, CheckCircle, XCircle, Eye, UserPlus, Trash2, Crown } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
+import { ModBadge } from '@/components/ui/ModBadge';
+
+// Hook to search users for adding roles
+function useSearchUsers(searchTerm: string) {
+  return useQuery({
+    queryKey: ['search-users', searchTerm],
+    queryFn: async () => {
+      if (!searchTerm || searchTerm.length < 2) return [];
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .ilike('username', `%${searchTerm}%`)
+        .limit(10);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: searchTerm.length >= 2,
+  });
+}
 
 export default function AdminDashboard() {
   const { profile } = useAuth();
@@ -25,9 +48,17 @@ export default function AdminDashboard() {
   const updateReport = useUpdateReport();
   const updateFlag = useUpdateFlag();
   const unbanUser = useUnbanUser();
+  const addUserRole = useAddUserRole();
+  const removeUserRole = useRemoveUserRole();
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRole, setSelectedRole] = useState<'admin' | 'moderator'>('moderator');
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const { data: searchResults = [] } = useSearchUsers(searchTerm);
 
   const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
   const isMrassburgers = profile?.username?.toLowerCase() === 'mrassburgers';
+  const isOwner = isMrassburgers; // Owner can manage all roles
 
   if (roleLoading) {
     return (
@@ -74,6 +105,35 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleAddRole = async () => {
+    if (!selectedUserId) {
+      toast.error('Please select a user');
+      return;
+    }
+    try {
+      await addUserRole.mutateAsync({ userId: selectedUserId, role: selectedRole });
+      setSearchTerm('');
+      setSelectedUserId(null);
+      toast.success(`Role added successfully`);
+    } catch {
+      toast.error('Failed to add role');
+    }
+  };
+
+  const handleRemoveRole = async (userId: string, role: 'admin' | 'moderator') => {
+    try {
+      await removeUserRole.mutateAsync({ userId, role });
+      toast.success(`Role removed successfully`);
+    } catch {
+      toast.error('Failed to remove role');
+    }
+  };
+
+  const selectUser = (user: any) => {
+    setSelectedUserId(user.id);
+    setSearchTerm(user.username);
+  };
+
   return (
     <AppLayout>
       <div className="container max-w-6xl mx-auto p-4 pb-24 space-y-6">
@@ -83,6 +143,11 @@ export default function AdminDashboard() {
             <h1 className="text-2xl font-bold">Admin Panel</h1>
             <p className="text-muted-foreground">Manage users, reports, and content</p>
           </div>
+          {isOwner && (
+            <Badge className="ml-auto bg-gradient-to-r from-yellow-500 to-amber-500 text-black">
+              <Crown className="h-3 w-3 mr-1" /> Owner
+            </Badge>
+          )}
         </div>
 
         {/* Stats */}
@@ -329,7 +394,60 @@ export default function AdminDashboard() {
                 <CardTitle>User Roles</CardTitle>
                 <CardDescription>Admins and moderators</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
+                {/* Add Role Section - Only for Owner */}
+                {isOwner && (
+                  <div className="p-4 rounded-lg bg-muted/20 border border-primary/20 space-y-4">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <UserPlus className="h-4 w-4" />
+                      Add Role
+                    </h3>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="flex-1 relative">
+                        <Input
+                          placeholder="Search username..."
+                          value={searchTerm}
+                          onChange={(e) => {
+                            setSearchTerm(e.target.value);
+                            setSelectedUserId(null);
+                          }}
+                        />
+                        {searchResults.length > 0 && !selectedUserId && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-background border rounded-lg shadow-lg z-10 max-h-48 overflow-auto">
+                            {searchResults.map((user: any) => (
+                              <button
+                                key={user.id}
+                                onClick={() => selectUser(user)}
+                                className="w-full p-2 flex items-center gap-2 hover:bg-muted/50 transition-colors"
+                              >
+                                <Avatar className="h-6 w-6">
+                                  <AvatarImage src={user.avatar_url || ''} />
+                                  <AvatarFallback>{user.username?.[0]?.toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                                <span className="text-sm">@{user.username}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as 'admin' | 'moderator')}>
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="moderator">Moderator</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button onClick={handleAddRole} disabled={!selectedUserId || addUserRole.isPending}>
+                        <UserPlus className="h-4 w-4 mr-1" />
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Existing Roles List */}
                 {rolesLoading ? (
                   <div className="text-center py-8 text-muted-foreground">Loading...</div>
                 ) : userRoles.length === 0 ? (
@@ -345,13 +463,26 @@ export default function AdminDashboard() {
                               <AvatarFallback>{roleEntry.profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="font-medium">{roleEntry.profile?.display_name || roleEntry.profile?.username}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium">{roleEntry.profile?.display_name || roleEntry.profile?.username}</p>
+                                <ModBadge role={roleEntry.role} showLabel />
+                              </div>
                               <p className="text-sm text-muted-foreground">@{roleEntry.profile?.username}</p>
                             </div>
                           </div>
-                          <Badge variant={roleEntry.role === 'admin' ? 'default' : 'secondary'}>
-                            {roleEntry.role}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            {isOwner && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleRemoveRole(roleEntry.profile?.id, roleEntry.role)}
+                                disabled={removeUserRole.isPending}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
