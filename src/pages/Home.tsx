@@ -2,37 +2,22 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, Loader2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts } from '@/hooks/useInfinitePosts';
 import { PostCard } from '@/components/posts/PostCard';
+import { PostSkeletonList } from '@/components/posts/PostSkeleton';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StoriesBar } from '@/components/stories/StoriesBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/lib/auth';
 import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
-
-function PostSkeleton() {
-  return (
-    <div className="bg-card rounded-xl overflow-hidden border border-border">
-      <div className="flex items-center gap-3 p-4">
-        <Skeleton className="h-10 w-10 rounded-full" />
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-3 w-16" />
-        </div>
-      </div>
-      <Skeleton className="aspect-square" />
-      <div className="p-4 space-y-3">
-        <Skeleton className="h-4 w-20" />
-        <Skeleton className="h-4 w-full" />
-      </div>
-    </div>
-  );
-}
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, profile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('foryou');
   
@@ -42,6 +27,7 @@ export default function HomePage() {
     fetchNextPage: fetchNextForYou,
     hasNextPage: hasNextForYou,
     isFetchingNextPage: isFetchingNextForYou,
+    refetch: refetchForYou,
   } = useInfinitePosts();
   
   const {
@@ -50,6 +36,7 @@ export default function HomePage() {
     fetchNextPage: fetchNextFollowing,
     hasNextPage: hasNextFollowing,
     isFetchingNextPage: isFetchingNextFollowing,
+    refetch: refetchFollowing,
   } = useInfiniteFollowingPosts();
 
   const forYouPosts = useMemo(() => 
@@ -61,6 +48,19 @@ export default function HomePage() {
     followingData?.pages.flatMap(page => page.posts) || [], 
     [followingData]
   );
+
+  // Pull to refresh
+  const handleRefresh = useCallback(async () => {
+    if (activeTab === 'foryou') {
+      await refetchForYou();
+    } else {
+      await refetchFollowing();
+    }
+  }, [activeTab, refetchForYou, refetchFollowing]);
+
+  const { pullDistance, isRefreshing, threshold } = usePullToRefresh({
+    onRefresh: handleRefresh,
+  });
 
   // Infinite scroll observer
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -98,13 +98,21 @@ export default function HomePage() {
     }
   }, [authLoading, user, profile, navigate]);
 
-  const isLoading = activeTab === 'foryou' ? forYouLoading : followingLoading;
-  const isFetchingNext = activeTab === 'foryou' ? isFetchingNextForYou : isFetchingNextFollowing;
-  const currentPosts = activeTab === 'foryou' ? forYouPosts : followingPosts;
-
   return (
     <AppLayout>
-      <div className="max-w-xl mx-auto">
+      {/* Pull to refresh indicator */}
+      <PullToRefreshIndicator 
+        pullDistance={pullDistance} 
+        isRefreshing={isRefreshing} 
+        threshold={threshold} 
+      />
+
+      <div 
+        className="max-w-xl mx-auto transition-transform duration-100"
+        style={{ 
+          transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : 'none' 
+        }}
+      >
         {/* Compact Search Bar - Mobile only, positioned higher */}
         <div className="px-4 py-2 md:hidden">
           <Link to="/explore">
@@ -133,10 +141,7 @@ export default function HomePage() {
 
             <TabsContent value="foryou" className="space-y-6">
               {forYouLoading ? (
-                <>
-                  <PostSkeleton />
-                  <PostSkeleton />
-                </>
+                <PostSkeletonList count={3} />
               ) : forYouPosts.length > 0 ? (
                 <>
                   {forYouPosts.map((post, index) => (
@@ -166,10 +171,7 @@ export default function HomePage() {
 
             <TabsContent value="following" className="space-y-6">
               {followingLoading ? (
-                <>
-                  <PostSkeleton />
-                  <PostSkeleton />
-                </>
+                <PostSkeletonList count={3} />
               ) : followingPosts.length > 0 ? (
                 <>
                   {followingPosts.map((post, index) => (
