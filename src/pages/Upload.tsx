@@ -118,7 +118,13 @@ export default function UploadPage() {
       clearInterval(progressInterval);
       setUploadProgress(100);
       toast.success('Post created successfully!');
-      navigate('/home');
+      
+      // Navigate to clips page if posting a short/clip, otherwise home
+      if (type === 'short') {
+        navigate('/clips');
+      } else {
+        navigate('/home');
+      }
     } catch (error: any) {
       clearInterval(progressInterval);
       toast.error(getUserFriendlyError(error));
