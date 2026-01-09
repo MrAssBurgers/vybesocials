@@ -27,6 +27,8 @@ import Feedback from "./pages/Feedback";
 import CompleteProfile from "./pages/CompleteProfile";
 import NotFound from "./pages/NotFound";
 import Market from "./pages/Market";
+import CreateListing from "./pages/CreateListing";
+import ListingDetail from "./pages/ListingDetail";
 import Events from "./pages/Events";
 import AdminDashboard from "./pages/AdminDashboard";
 
@@ -70,6 +72,8 @@ const App = () => (
                   
                   <Route path="/feedback" element={<Feedback />} />
                   <Route path="/market" element={<Market />} />
+                  <Route path="/market/new" element={<CreateListing />} />
+                  <Route path="/market/:id" element={<ListingDetail />} />
                   <Route path="/events" element={<Events />} />
                   <Route path="/admin" element={<AdminDashboard />} />
                   <Route path="*" element={<NotFound />} />

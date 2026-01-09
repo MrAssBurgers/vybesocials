@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, Play, MoreVertical, Trash2, Flag, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,6 +17,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/useModeration';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 
 interface ShortCardProps {
   post: {
@@ -47,6 +48,8 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
   const { data: userRole } = useUserRole();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [isMuted, setIsMuted] = useState(globalMuted);
   const [browserForcedMute, setBrowserForcedMute] = useState(false);
   const [isLiked, setIsLiked] = useState(post.is_liked);
@@ -56,6 +59,7 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
   const [showLikeParticles, setShowLikeParticles] = useState(false);
   const [viewCount, setViewCount] = useState(post.view_count || 0);
   const hasCountedView = useRef(false);
+  const lastTapTime = useRef(0);
 
   const isOwnPost = profile?.id === post.author.id;
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
@@ -64,23 +68,42 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
 
-  // Auto-play when active, with unmuted audio and loop
+  // Sync with global mute state
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    if (videoRef.current) {
+      videoRef.current.muted = globalMuted;
+    }
+  }, [globalMuted]);
+
+  // Handle hold pause
   useEffect(() => {
     if (videoRef.current) {
-      if (isActive) {
+      if (isHolding) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      } else if (isActive) {
+        videoRef.current.play().catch(() => {});
+        setIsPlaying(true);
+      }
+    }
+  }, [isHolding, isActive]);
+
+  // Auto-play when active
+  useEffect(() => {
+    if (videoRef.current && signedMediaUrl) {
+      if (isActive && !isHolding) {
         videoRef.current.muted = isMuted;
         videoRef.current.play().then(() => {
           setIsPlaying(true);
           setBrowserForcedMute(false);
-          // Count view when video starts playing
           if (!hasCountedView.current && profile) {
             hasCountedView.current = true;
             incrementViewCount();
           }
         }).catch(() => {
-          // Autoplay blocked, try muted
+          setBrowserForcedMute(true);
           if (videoRef.current) {
-            setBrowserForcedMute(true);
             videoRef.current.muted = true;
             setIsMuted(true);
             videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
@@ -88,16 +111,17 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
         });
       } else {
         videoRef.current.pause();
-        videoRef.current.currentTime = 0;
+        if (!isActive) {
+          videoRef.current.currentTime = 0;
+          hasCountedView.current = false;
+        }
         setIsPlaying(false);
-        hasCountedView.current = false;
       }
     }
-  }, [isActive, isMuted]);
+  }, [isActive, signedMediaUrl, isHolding]);
 
   const incrementViewCount = async () => {
     try {
-      // Call the database function to increment view count
       await supabase.rpc('increment_view_count', { post_id_param: post.id });
       setViewCount(prev => prev + 1);
     } catch (error) {
@@ -105,30 +129,26 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
     }
   };
 
-  const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const toggleMute = () => {
-    // Use the parent callback to toggle global mute state
-    if (onToggleMute) {
-      onToggleMute();
-    } else if (videoRef.current) {
-      // Fallback for local control
-      videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
-      if (browserForcedMute && !isMuted === false) {
-        setBrowserForcedMute(false);
+  // Tap to toggle mute (single tap), double tap to like
+  const handleTap = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapTime.current;
+    
+    if (timeSinceLastTap < 300) {
+      // Double tap - like
+      handleDoubleTap();
+    } else {
+      // Single tap - toggle mute
+      if (onToggleMute) {
+        onToggleMute();
+      } else if (videoRef.current) {
+        videoRef.current.muted = !isMuted;
+        setIsMuted(!isMuted);
       }
     }
-  };
+    lastTapTime.current = now;
+  }, [isMuted, onToggleMute]);
 
   const handleLike = async () => {
     if (!profile) return;
@@ -137,7 +157,6 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
     setIsLiked(newIsLiked);
     setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
 
-    // Trigger particle burst on like
     if (newIsLiked) {
       setShowLikeParticles(true);
       setTimeout(() => setShowLikeParticles(false), 700);
@@ -238,45 +257,62 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
       {/* Media */}
       <div 
         className="absolute inset-0 flex items-center justify-center"
-        onClick={isVideo ? togglePlay : undefined}
-        onDoubleClick={handleDoubleTap}
+        onClick={handleTap}
       >
+        {/* Loading skeleton */}
+        {isLoading && !hasError && (
+          <MediaSkeleton className="absolute inset-0" />
+        )}
+
+        {/* Error fallback */}
+        {hasError && (
+          <MediaFallback type={isVideo ? 'video' : 'image'} caption={post.caption} className="absolute inset-0" />
+        )}
+
         {isVideo ? (
           <video
             ref={videoRef}
-            src={signedMediaUrl || ''}
-            className="h-full w-full object-cover"
+            src={signedMediaUrl || undefined}
+            className={cn("h-full w-full object-cover", isLoading && "opacity-0")}
             loop
             playsInline
             muted={isMuted}
             preload="auto"
-            poster={post.media_url.replace(/\.[^/.]+$/, '.jpg')}
+            onLoadedData={() => setIsLoading(false)}
+            onError={() => {
+              setIsLoading(false);
+              setHasError(true);
+            }}
           />
-        ) : (
+        ) : signedMediaUrl ? (
           <img
-            src={signedMediaUrl || ''}
+            src={signedMediaUrl}
             alt={post.caption}
-            className="h-full w-full object-cover"
+            className={cn("h-full w-full object-cover", isLoading && "opacity-0")}
             loading="eager"
+            onLoad={() => setIsLoading(false)}
+            onError={() => {
+              setIsLoading(false);
+              setHasError(true);
+            }}
           />
-        )}
+        ) : null}
 
-        {/* Browser forced mute indicator */}
+        {/* Mute indicator */}
         {browserForcedMute && isMuted && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute top-4 left-4 bg-black/60 px-3 py-1.5 rounded-full text-white text-sm flex items-center gap-2 cursor-pointer"
-            onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+            className="absolute top-4 left-4 bg-black/60 px-3 py-1.5 rounded-full text-white text-sm flex items-center gap-2"
           >
             <VolumeX className="h-4 w-4" />
             Tap to unmute
           </motion.div>
         )}
 
-        {/* Play indicator */}
+        {/* Play indicator when paused */}
         <AnimatePresence>
-          {isVideo && !isPlaying && (
+          {isVideo && !isPlaying && !isLoading && !hasError && !isHolding && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -284,7 +320,6 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
               className="absolute inset-0 flex items-center justify-center bg-black/20"
             >
               <motion.div
-                whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
               >
@@ -294,7 +329,7 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
           )}
         </AnimatePresence>
 
-        {/* Double tap heart - TikTok style */}
+        {/* Double tap heart */}
         <AnimatePresence>
           {showHeart && (
             <motion.div
@@ -313,15 +348,11 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
       {/* Gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
 
-      {/* Right side actions - TikTok style */}
-      <div className="absolute right-3 bottom-28 flex flex-col items-center gap-5">
+      {/* Right side actions */}
+      <div className="absolute right-3 bottom-28 flex flex-col items-center gap-5 z-10">
         {/* Author avatar */}
         <Link to={`/u/${post.author.username}`} className="relative">
-          <motion.div 
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            className="story-ring"
-          >
+          <motion.div whileTap={{ scale: 0.9 }} className="story-ring">
             <Avatar className="h-12 w-12 border-2 border-white">
               <AvatarImage src={signedAvatarUrl || undefined} />
               <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-bold">
@@ -331,7 +362,7 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
           </motion.div>
         </Link>
 
-        {/* Like - TikTok style with particles */}
+        {/* Like */}
         <div className="relative">
           <motion.button 
             whileTap={{ scale: 0.7 }}
@@ -381,18 +412,15 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
         </div>
 
         {/* Comment */}
-        <motion.button 
-          whileTap={{ scale: 0.7 }}
-          whileHover={{ scale: 1.1 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            window.location.href = `/p/${post.id}`;
-          }}
-          className="flex flex-col items-center gap-1"
-        >
-          <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
-          <span className="text-xs font-bold text-white drop-shadow-lg">{post.comment_count}</span>
-        </motion.button>
+        <Link to={`/p/${post.id}`}>
+          <motion.button 
+            whileTap={{ scale: 0.7 }}
+            className="flex flex-col items-center gap-1"
+          >
+            <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
+            <span className="text-xs font-bold text-white drop-shadow-lg">{post.comment_count}</span>
+          </motion.button>
+        </Link>
 
         {/* Bookmark */}
         <motion.button 
@@ -412,19 +440,17 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
         {/* Share */}
         <motion.button 
           whileTap={{ scale: 0.7, rotate: 15 }}
-          whileHover={{ scale: 1.1 }}
           onClick={handleShare} 
           className="flex flex-col items-center gap-1"
         >
           <Share2 className="h-8 w-8 text-white drop-shadow-lg" />
         </motion.button>
 
-        {/* Mute toggle for video */}
+        {/* Mute toggle */}
         {isVideo && (
           <motion.button 
             whileTap={{ scale: 0.7 }}
-            whileHover={{ scale: 1.1 }}
-            onClick={toggleMute} 
+            onClick={() => onToggleMute ? onToggleMute() : setIsMuted(!isMuted)} 
             className="flex flex-col items-center gap-1"
           >
             {isMuted ? (
@@ -435,7 +461,7 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
           </motion.button>
         )}
 
-        {/* More options menu */}
+        {/* More options */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20">
@@ -459,13 +485,12 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
         </DropdownMenu>
       </div>
 
-      {/* Bottom info - TikTok style */}
-      <div className="absolute left-4 right-20 bottom-6">
+      {/* Bottom info */}
+      <div className="absolute left-4 right-20 bottom-6 z-10">
         <div className="flex items-center gap-2 mb-2">
           <Link to={`/u/${post.author.username}`} className="font-bold text-lg text-white drop-shadow-lg">
             @{post.author.username}
           </Link>
-          {/* View count */}
           <div className="flex items-center gap-1 text-white/80 text-sm">
             <Eye className="h-4 w-4" />
             <span>{formatViewCount(viewCount)}</span>
@@ -477,14 +502,12 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
         {post.tags && post.tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {post.tags.map((tag) => (
-              <motion.span 
+              <span 
                 key={tag} 
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
                 className="text-xs text-cyan-300 font-medium drop-shadow-lg"
               >
                 #{tag}
-              </motion.span>
+              </span>
             ))}
           </div>
         )}
