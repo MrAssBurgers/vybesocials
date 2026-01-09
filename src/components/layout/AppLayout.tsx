@@ -1,7 +1,6 @@
 import { ReactNode } from 'react';
 import { BottomNav } from './BottomNav';
 import { MobileHeader } from './MobileHeader';
-import { Sidebar } from './Sidebar';
 import { useAuth } from '@/lib/auth';
 import { Navigate } from 'react-router-dom';
 import { usePresence } from '@/hooks/usePresence';
@@ -38,16 +37,14 @@ export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen">
-      {/* Desktop sidebar - hidden on mobile and tablet */}
-      <Sidebar />
-      {/* Mobile/Tablet header - hidden on desktop */}
+    <div className="min-h-screen max-w-lg mx-auto relative">
+      {/* Header - visible on all devices */}
       <MobileHeader />
-      {/* Main content - with proper spacing */}
-      <main className="lg:ml-64 pb-20 lg:pb-0 pt-14 lg:pt-0">
+      {/* Main content - consistent spacing on all devices */}
+      <main className="pb-20 pt-14">
         {children}
       </main>
-      {/* Mobile/Tablet bottom nav - hidden on desktop */}
+      {/* Bottom nav - visible on all devices */}
       <BottomNav />
     </div>
   );
