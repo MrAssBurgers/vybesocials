@@ -32,16 +32,16 @@ export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Desktop/Tablet sidebar - hidden on mobile */}
+    <div className="min-h-screen">
+      {/* Desktop sidebar - hidden on mobile and tablet */}
       <Sidebar />
-      {/* Mobile header - hidden on desktop */}
+      {/* Mobile/Tablet header - hidden on desktop */}
       <MobileHeader />
-      {/* Main content - with proper spacing for tablet/desktop */}
-      <main className="md:ml-64 pb-20 md:pb-0 pt-14 md:pt-0">
+      {/* Main content - with proper spacing */}
+      <main className="lg:ml-64 pb-20 lg:pb-0 pt-14 lg:pt-0">
         {children}
       </main>
-      {/* Mobile bottom nav - hidden on tablet/desktop */}
+      {/* Mobile/Tablet bottom nav - hidden on desktop */}
       <BottomNav />
     </div>
   );
