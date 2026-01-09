@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, Calendar, X } from 'lucide-react';
+import { ShoppingBag, Calendar, X, Shield } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useUserRole } from '@/hooks/useModeration';
 
 interface VYBEHubProps {
   isOpen: boolean;
@@ -13,6 +14,8 @@ interface VYBEHubProps {
 export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { data: userRole } = useUserRole();
+  const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
 
   const handleNavigate = (path: string) => {
     triggerHaptic('light');
@@ -116,6 +119,25 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
                     <p className="text-sm text-muted-foreground">Discover what's happening</p>
                   </div>
                 </motion.button>
+
+                {/* Admin Panel - Only visible to admins/mods */}
+                {isModOrAdmin && (
+                  <motion.button
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.25 }}
+                    onClick={() => handleNavigate('/admin')}
+                    className="w-full p-4 rounded-2xl liquid-glass-button flex items-center gap-4 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center">
+                      <Shield className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="text-left flex-1">
+                      <p className="font-semibold text-lg">Admin Panel</p>
+                      <p className="text-sm text-muted-foreground">Manage & moderate</p>
+                    </div>
+                  </motion.button>
+                )}
               </div>
 
               {/* Close Button */}
