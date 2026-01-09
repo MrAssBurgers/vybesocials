@@ -15,7 +15,7 @@ type Message = {
 export function AIChatAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hey! 👋 I'm your XD Assistant. Ask me anything about content ideas, app features, or getting more engagement!" }
+    { role: 'assistant', content: "YOOO what's up bestie!! 🎪✨ I'm Autisy, your chaotic AI companion here on XD! Ask me ANYTHING about content, going viral, or just chat - I don't bite (much) 🦆💀" }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -163,8 +163,8 @@ export function AIChatAssistant() {
                   <Bot className="h-4 w-4 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm">XD Assistant</h3>
-                  <p className="text-xs text-muted-foreground">AI-powered help</p>
+                  <h3 className="font-semibold text-sm">Autisy</h3>
+                  <p className="text-xs text-muted-foreground">Chaotic AI bestie 🦆</p>
                 </div>
               </div>
               <Button

@@ -1,4 +1,4 @@
-import { Home, PlaySquare, PlusCircle, Compass, User, Bell, Settings, LogOut, MessageCircle, Sparkles, Shield } from 'lucide-react';
+import { Home, Film, PlusCircle, Compass, User, Bell, Settings, LogOut, MessageCircle, Sparkles, Shield } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -29,7 +29,7 @@ export function Sidebar() {
 
   const mainNavItems = [
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0 },
-    { icon: PlaySquare, labelKey: 'nav.shorts', path: '/shorts', badge: 0 },
+    { icon: Film, labelKey: 'nav.clips', path: '/clips', badge: 0 },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0 },
     { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages },
     { icon: Bell, labelKey: 'nav.notifications', path: '/notifications', badge: unreadNotifications },
