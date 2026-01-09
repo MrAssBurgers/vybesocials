@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Upload, X, Image, Film, Video, Hash } from 'lucide-react';
+import { Upload, X, Image, Film, Video, Hash, Camera as CameraIcon } from 'lucide-react';
 import { useCreatePost } from '@/hooks/usePosts';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Progress } from '@/components/ui/progress';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
+import { Camera } from '@/components/camera';
 
 const contentTypes = [
   { value: 'post', label: 'Photo Post', icon: Image, description: 'Share a photo or meme' },
@@ -35,6 +36,7 @@ export default function UploadPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [showCamera, setShowCamera] = useState(false);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -144,8 +146,23 @@ export default function UploadPage() {
 
   return (
     <AppLayout>
+      {/* Full-screen Camera */}
+      {showCamera && (
+        <Camera onClose={() => setShowCamera(false)} />
+      )}
+
       <div className="max-w-2xl mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold mb-6 gradient-text">Create Post</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold gradient-text">Create Post</h1>
+          <Button
+            onClick={() => setShowCamera(true)}
+            variant="outline"
+            className="gap-2"
+          >
+            <CameraIcon className="h-4 w-4" />
+            Open Camera
+          </Button>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Content Type */}
