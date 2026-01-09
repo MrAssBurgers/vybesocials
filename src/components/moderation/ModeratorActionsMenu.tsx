@@ -34,6 +34,7 @@ interface ModeratorActionsMenuProps {
   commentId?: string;
   onPostDelete?: () => void;
   onCommentDelete?: () => void;
+  className?: string;
 }
 
 export function ModeratorActionsMenu({
@@ -43,6 +44,7 @@ export function ModeratorActionsMenu({
   commentId,
   onPostDelete,
   onCommentDelete,
+  className,
 }: ModeratorActionsMenuProps) {
   const { profile } = useAuth();
   const { data: userRole } = useUserRole();
@@ -120,7 +122,7 @@ export function ModeratorActionsMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" className="text-yellow-500">
+          <Button variant="ghost" size="icon-sm" className={`text-yellow-500 ${className || ''}`}>
             <Shield className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
