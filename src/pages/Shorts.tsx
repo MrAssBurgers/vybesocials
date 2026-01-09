@@ -100,7 +100,7 @@ export default function ClipsPage() {
 
   if (isLoading) {
     return (
-      <AppLayout showFAB={false}>
+      <AppLayout>
         <div className="h-[calc(100vh-4rem)] lg:h-screen flex items-center justify-center bg-black">
           <motion.div 
             className="gradient-animated rounded-full p-4"
@@ -116,7 +116,7 @@ export default function ClipsPage() {
 
   if (!shorts || shorts.length === 0) {
     return (
-      <AppLayout showFAB={false}>
+      <AppLayout>
         <div className="h-[calc(100vh-4rem)] lg:h-screen flex flex-col items-center justify-center bg-black">
           <motion.p 
             className="text-6xl mb-4"
@@ -133,7 +133,7 @@ export default function ClipsPage() {
   }
 
   return (
-    <AppLayout showFAB={false}>
+    <AppLayout>
       <div
         ref={containerRef}
         className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden relative flex justify-center bg-black"
