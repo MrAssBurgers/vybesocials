@@ -318,12 +318,17 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
         </motion.button>
 
         {/* Comment */}
-        <Link to={`/p/${post.id}`} className="flex flex-col items-center gap-1">
-          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-            <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
-          </motion.div>
+        <motion.button 
+          whileTap={{ scale: 0.8 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            window.location.href = `/p/${post.id}`;
+          }}
+          className="flex flex-col items-center gap-1"
+        >
+          <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
           <span className="text-xs font-bold text-white drop-shadow-lg">{post.comment_count}</span>
-        </Link>
+        </motion.button>
 
         {/* Bookmark */}
         <motion.button 

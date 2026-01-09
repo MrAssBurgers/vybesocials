@@ -344,6 +344,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          image_url: string | null
           post_id: string
           text: string
           user_id: string
@@ -351,6 +352,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          image_url?: string | null
           post_id: string
           text: string
           user_id: string
@@ -358,6 +360,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          image_url?: string | null
           post_id?: string
           text?: string
           user_id?: string

@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 interface Comment {
   id: string;
   text: string;
+  image_url: string | null;
   created_at: string;
   user: {
     id: string;
@@ -25,6 +26,7 @@ export function useComments(postId: string) {
         .select(`
           id,
           text,
+          image_url,
           created_at,
           user:profiles!user_id (
             id,
@@ -40,6 +42,7 @@ export function useComments(postId: string) {
       return (data || []).map(comment => ({
         ...comment,
         text: filterBlockedContent(comment.text),
+        image_url: comment.image_url,
         user: comment.user as unknown as { id: string; username: string; avatar_url: string | null },
       }));
     },
@@ -52,7 +55,7 @@ export function useCreateComment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ postId, text, authorId }: { postId: string; text: string; authorId: string }) => {
+    mutationFn: async ({ postId, text, authorId, imageUrl }: { postId: string; text: string; authorId: string; imageUrl?: string }) => {
       if (!profile) throw new Error('Not authenticated');
 
       // Check for blocked content before submitting
@@ -70,6 +73,7 @@ export function useCreateComment() {
           user_id: profile.id,
           post_id: postId,
           text: filteredText,
+          image_url: imageUrl || null,
         })
         .select()
         .single();
