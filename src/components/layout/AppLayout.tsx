@@ -7,6 +7,7 @@ import { Navigate } from 'react-router-dom';
 import { usePresence } from '@/hooks/usePresence';
 import { useScrollOptimization } from '@/hooks/useScrollOptimization';
 import { FloatingActionButton } from '@/components/ui/FloatingActionButton';
+import { VYBEHub, useVYBEHub } from '@/components/hub/VYBEHub';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface AppLayoutProps {
@@ -17,6 +18,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, requireAuth = true, showFAB = true }: AppLayoutProps) {
   const { user, loading } = useAuth();
+  const vybeHub = useVYBEHub();
   
   // Track online presence
   usePresence();
@@ -53,6 +55,8 @@ export function AppLayout({ children, requireAuth = true, showFAB = true }: AppL
       <BottomNav />
       {/* Floating Action Button */}
       {showFAB && <FloatingActionButton className="floating-action-button" />}
+      {/* VYBE Hub - double-tap menu */}
+      <VYBEHub isOpen={vybeHub.isOpen} onClose={vybeHub.close} />
     </div>
   );
 }

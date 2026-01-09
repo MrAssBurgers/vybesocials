@@ -3,21 +3,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePosts } from '@/hooks/usePosts';
 import { ShortCard } from '@/components/posts/ShortCard';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { ChevronUp, ChevronDown } from 'lucide-react';
 
 export default function ClipsPage() {
   const { data: shorts, isLoading } = usePosts('short');
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [globalMuted, setGlobalMuted] = useState(true); // Start muted by default
   const containerRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef(0);
   const touchEndY = useRef(0);
   const isScrolling = useRef(false);
   const lastScrollTime = useRef(0);
+  const isHolding = useRef(false);
 
   const goToNext = useCallback(() => {
     if (shorts && currentIndex < shorts.length - 1 && !isScrolling.current) {
       const now = Date.now();
-      if (now - lastScrollTime.current < 300) return; // Debounce
+      if (now - lastScrollTime.current < 300) return;
       lastScrollTime.current = now;
       isScrolling.current = true;
       setCurrentIndex(prev => prev + 1);
@@ -28,7 +29,7 @@ export default function ClipsPage() {
   const goToPrev = useCallback(() => {
     if (currentIndex > 0 && !isScrolling.current) {
       const now = Date.now();
-      if (now - lastScrollTime.current < 300) return; // Debounce
+      if (now - lastScrollTime.current < 300) return;
       lastScrollTime.current = now;
       isScrolling.current = true;
       setCurrentIndex(prev => prev - 1);
@@ -50,9 +51,10 @@ export default function ClipsPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [goToNext, goToPrev]);
 
-  // Touch handling - TikTok style
+  // Touch handling - swipe only, no tap conflicts
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
+    isHolding.current = true;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -60,17 +62,20 @@ export default function ClipsPage() {
   };
 
   const handleTouchEnd = () => {
+    isHolding.current = false;
     const diff = touchStartY.current - touchEndY.current;
     const threshold = 50;
 
-    if (diff > threshold) {
-      goToNext();
-    } else if (diff < -threshold) {
-      goToPrev();
+    if (Math.abs(diff) > threshold) {
+      if (diff > 0) {
+        goToNext();
+      } else {
+        goToPrev();
+      }
     }
   };
 
-  // Mouse wheel handling - TikTok style with snap
+  // Mouse wheel handling - smooth scroll between clips
   const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
     if (e.deltaY > 30) {
@@ -88,10 +93,15 @@ export default function ClipsPage() {
     }
   }, [handleWheel]);
 
+  // Tap to unmute handler (passed to ShortCard)
+  const handleTapToUnmute = useCallback(() => {
+    setGlobalMuted(false);
+  }, []);
+
   if (isLoading) {
     return (
-      <AppLayout>
-        <div className="h-[calc(100vh-4rem)] lg:h-screen flex items-center justify-center">
+      <AppLayout showFAB={false}>
+        <div className="h-[calc(100vh-4rem)] lg:h-screen flex items-center justify-center bg-black">
           <motion.div 
             className="gradient-animated rounded-full p-4"
             animate={{ scale: [1, 1.2, 1], rotate: [0, 180, 360] }}
@@ -106,8 +116,8 @@ export default function ClipsPage() {
 
   if (!shorts || shorts.length === 0) {
     return (
-      <AppLayout>
-        <div className="h-[calc(100vh-4rem)] lg:h-screen flex flex-col items-center justify-center">
+      <AppLayout showFAB={false}>
+        <div className="h-[calc(100vh-4rem)] lg:h-screen flex flex-col items-center justify-center bg-black">
           <motion.p 
             className="text-6xl mb-4"
             animate={{ y: [0, -10, 0] }}
@@ -115,15 +125,15 @@ export default function ClipsPage() {
           >
             🎬
           </motion.p>
-          <p className="text-xl text-muted-foreground">No clips yet!</p>
-          <p className="text-muted-foreground">Be the first to upload a clip.</p>
+          <p className="text-xl text-white/80">No clips yet!</p>
+          <p className="text-white/60">Be the first to upload a clip.</p>
         </div>
       </AppLayout>
     );
   }
 
   return (
-    <AppLayout>
+    <AppLayout showFAB={false}>
       <div
         ref={containerRef}
         className="h-[calc(100vh-4rem)] lg:h-screen overflow-hidden relative flex justify-center bg-black"
@@ -133,43 +143,19 @@ export default function ClipsPage() {
       >
         {/* TikTok-style container - 9:16 aspect ratio */}
         <div className="relative h-full w-full max-w-[calc((100vh-4rem)*9/16)] lg:max-w-[calc(100vh*9/16)]">
-          {/* Navigation buttons - hidden on mobile */}
-          <div className="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 z-20 flex-col gap-2">
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={goToPrev}
-              disabled={currentIndex === 0}
-              className="p-3 rounded-full liquid-glass disabled:opacity-30 hover:bg-white/20 transition-all"
-            >
-              <ChevronUp className="h-6 w-6 text-white" />
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={goToNext}
-              disabled={currentIndex === shorts.length - 1}
-              className="p-3 rounded-full liquid-glass disabled:opacity-30 hover:bg-white/20 transition-all"
-            >
-              <ChevronDown className="h-6 w-6 text-white" />
-            </motion.button>
-          </div>
-
-          {/* Progress indicator */}
-          <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20 hidden lg:flex flex-col gap-1">
-            {shorts.slice(0, Math.min(shorts.length, 20)).map((_, idx) => (
-              <motion.div
+          {/* Progress indicator - minimal dots on left */}
+          <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1">
+            {shorts.slice(0, Math.min(shorts.length, 10)).map((_, idx) => (
+              <div
                 key={idx}
-                className={`w-1 rounded-full transition-all ${
-                  idx === currentIndex ? 'h-8 bg-primary' : 'h-4 bg-white/30'
+                className={`w-1 rounded-full transition-all duration-300 ${
+                  idx === currentIndex ? 'h-6 bg-white' : 'h-2 bg-white/30'
                 }`}
-                animate={idx === currentIndex ? { scale: [1, 1.2, 1] } : {}}
-                transition={{ duration: 0.5 }}
               />
             ))}
           </div>
 
-          {/* Clips with TikTok-style transitions */}
+          {/* Clips with smooth transitions */}
           <AnimatePresence mode="popLayout">
             <motion.div
               key={currentIndex}
@@ -186,27 +172,34 @@ export default function ClipsPage() {
             >
               <ShortCard 
                 post={shorts[currentIndex]} 
-                isActive={true} 
+                isActive={true}
+                globalMuted={globalMuted}
+                onTapToUnmute={handleTapToUnmute}
+                isHolding={isHolding.current}
               />
             </motion.div>
           </AnimatePresence>
 
-          {/* Swipe hint on mobile - fades out after first interaction */}
-          <motion.div 
-            className="absolute bottom-24 left-1/2 -translate-x-1/2 lg:hidden"
-            initial={{ opacity: 1 }}
-            animate={{ opacity: currentIndex > 0 ? 0 : 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            <motion.div
-              animate={{ y: [0, -10, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-              className="text-white/70 text-sm flex flex-col items-center"
+          {/* Swipe hint on mobile - only for first clip */}
+          {currentIndex === 0 && (
+            <motion.div 
+              className="absolute bottom-24 left-1/2 -translate-x-1/2 lg:hidden pointer-events-none"
+              initial={{ opacity: 1 }}
+              animate={{ opacity: 0 }}
+              transition={{ delay: 3, duration: 1 }}
             >
-              <ChevronUp className="h-5 w-5" />
-              <span className="font-medium">Swipe up</span>
+              <motion.div
+                animate={{ y: [0, -10, 0] }}
+                transition={{ duration: 1.5, repeat: 3 }}
+                className="text-white/70 text-sm flex flex-col items-center"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                </svg>
+                <span className="font-medium">Swipe up</span>
+              </motion.div>
             </motion.div>
-          </motion.div>
+          )}
         </div>
       </div>
     </AppLayout>

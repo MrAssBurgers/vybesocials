@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { HeaderSearch } from './HeaderSearch';
 
 export function MobileHeader() {
   const { profile } = useAuth();
@@ -14,19 +15,27 @@ export function MobileHeader() {
   const isNotificationsActive = location.pathname === '/notifications';
   const isProfileActive = location.pathname === `/u/${profile?.username}`;
 
+  // Hide header on clips page for immersive experience
+  if (location.pathname === '/clips') {
+    return null;
+  }
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 lg:hidden">
       <div className="liquid-glass border-b border-white/10">
         <div className="flex items-center justify-between h-14 px-4">
           {/* Logo */}
-          <Link to="/home" className="flex items-center gap-2">
+          <Link to="/home" className="flex items-center gap-2 flex-shrink-0">
             <div className="w-8 h-8 rounded-lg liquid-glass flex items-center justify-center">
               <span className="text-sm font-bold gradient-text">VYBE</span>
             </div>
           </Link>
 
+          {/* Center - Search */}
+          <HeaderSearch className="flex-1 mx-3" />
+
           {/* Right side - Notifications & Profile */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {/* Notifications */}
             <Link
               to="/notifications"
