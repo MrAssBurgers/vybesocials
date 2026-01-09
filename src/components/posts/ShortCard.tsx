@@ -36,15 +36,18 @@ interface ShortCardProps {
     view_count?: number;
   };
   isActive: boolean;
+  globalMuted?: boolean;
+  onTapToUnmute?: () => void;
+  isHolding?: boolean;
 }
 
-export function ShortCard({ post, isActive }: ShortCardProps) {
+export function ShortCard({ post, isActive, globalMuted = true, onTapToUnmute, isHolding = false }: ShortCardProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false); // Start unmuted
+  const [isMuted, setIsMuted] = useState(globalMuted);
   const [browserForcedMute, setBrowserForcedMute] = useState(false);
   const [isLiked, setIsLiked] = useState(post.is_liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
