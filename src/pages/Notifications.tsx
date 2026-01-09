@@ -116,9 +116,9 @@ export default function NotificationsPage() {
                 {notifications.map((notification, idx) => (
                   <motion.div
                     key={notification.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.03 }}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: idx * 0.03, duration: 0.15 }}
                   >
                     <Link
                       to={
@@ -178,9 +178,9 @@ export default function NotificationsPage() {
                 {pendingRequests.map((request, idx) => (
                   <motion.div
                     key={request.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: idx * 0.05, duration: 0.15 }}
                     className="flex items-center gap-4 p-4 rounded-xl bg-secondary"
                   >
                     <Link to={`/u/${request.sender?.username}`}>
