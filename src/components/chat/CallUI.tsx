@@ -7,9 +7,11 @@ import {
   VideoOff, 
   Mic, 
   MicOff,
-  X,
-  Maximize2,
-  Minimize2
+  Minimize2,
+  Volume2,
+  VolumeX,
+  SwitchCamera,
+  Maximize2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -26,7 +28,10 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [isFrontCamera, setIsFrontCamera] = useState(true);
   const [callDuration, setCallDuration] = useState(0);
+  const [showConnecting, setShowConnecting] = useState(true);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -37,6 +42,7 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
     remoteStream,
     connectionState,
     startCall,
+    answerCall,
     cleanup,
     toggleMute,
     toggleVideo,
@@ -44,14 +50,35 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
 
   const otherUser = isInitiator ? call.receiver : call.caller;
   const isVideoCall = call.call_type === 'video';
+  const isConnected = call.status === 'accepted' && connectionState === 'connected';
+  const isRinging = call.status === 'ringing';
 
-  // Start the call when component mounts (for initiator)
+  // Start the call when component mounts (for initiator) or answer (for receiver)
   useEffect(() => {
-    if (isInitiator && call.status === 'ringing') {
-      const receiverId = call.receiver_id;
-      startCall(call.call_type, receiverId);
-    }
-  }, [isInitiator, call.status, call.call_type, call.receiver_id, startCall]);
+    const initCall = async () => {
+      if (isInitiator && call.status === 'ringing') {
+        const receiverId = call.receiver_id;
+        startCall(call.call_type, receiverId);
+      } else if (!isInitiator && call.status === 'accepted') {
+        // Receiver needs to get the offer and answer
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { data: signals } = await supabase
+          .from('call_signals')
+          .select('*')
+          .eq('call_id', call.id)
+          .eq('signal_type', 'offer')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (signals?.[0]) {
+          const offer = signals[0].signal_data as { type: 'offer'; sdp: string };
+          answerCall(call.call_type, call.caller_id, { type: 'offer', sdp: offer.sdp });
+        }
+      }
+    };
+    
+    initCall();
+  }, [isInitiator, call.status, call.call_type, call.receiver_id, call.caller_id, call.id, startCall, answerCall]);
 
   // Attach streams to video elements
   useEffect(() => {
@@ -77,6 +104,16 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
     return () => clearInterval(interval);
   }, [call.status]);
 
+  // Hide connecting state after a bit
+  useEffect(() => {
+    if (isConnected) {
+      const timer = setTimeout(() => setShowConnecting(false), 1000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowConnecting(true);
+    }
+  }, [isConnected]);
+
   // Handle call status changes
   useEffect(() => {
     if (call.status === 'ended' || call.status === 'declined') {
@@ -101,32 +138,116 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
     toggleVideo(!isVideoOff);
   };
 
+  const handleToggleSpeaker = () => {
+    setIsSpeakerOn(!isSpeakerOn);
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.muted = isSpeakerOn;
+    }
+  };
+
+  const handleFlipCamera = async () => {
+    if (!localStream) return;
+    
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    try {
+      const newFacing = isFrontCamera ? 'environment' : 'user';
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: newFacing },
+        audio: false,
+      });
+      
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      
+      // Replace track in stream
+      localStream.removeTrack(videoTrack);
+      videoTrack.stop();
+      localStream.addTrack(newVideoTrack);
+      
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStream;
+      }
+      
+      setIsFrontCamera(!isFrontCamera);
+    } catch (error) {
+      console.error('Failed to flip camera:', error);
+    }
+  };
+
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Ringing pulse animation
+  const RingingPulse = () => (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      {[...Array(3)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full border-2 border-primary/30"
+          initial={{ width: 150, height: 150, opacity: 0.8 }}
+          animate={{ 
+            width: [150, 300], 
+            height: [150, 300], 
+            opacity: [0.6, 0] 
+          }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            delay: i * 0.6,
+            ease: "easeOut",
+          }}
+        />
+      ))}
+    </div>
+  );
+
   if (isMinimized) {
     return (
       <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="fixed bottom-20 right-4 z-50 bg-card border border-border rounded-full p-3 shadow-lg cursor-pointer"
+        initial={{ scale: 0.8, opacity: 0, y: 100 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.8, opacity: 0, y: 100 }}
+        className="fixed bottom-24 right-4 z-50 bg-card border border-border rounded-2xl p-3 shadow-2xl cursor-pointer"
         onClick={() => setIsMinimized(false)}
       >
-        <div className="flex items-center gap-2">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={otherUser?.avatar_url || undefined} />
-            <AvatarFallback>{otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}</AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">{otherUser?.display_name || otherUser?.username}</span>
-            <span className="text-xs text-green-500">{formatDuration(callDuration)}</span>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Avatar className="h-12 w-12 ring-2 ring-primary/50">
+              <AvatarImage src={otherUser?.avatar_url || undefined} />
+              <AvatarFallback>{otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <motion.div 
+              className="absolute -bottom-1 -right-1 h-4 w-4 bg-green-500 rounded-full border-2 border-card"
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            />
           </div>
-          <Button variant="destructive" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleEndCall(); }}>
-            <PhoneOff className="h-4 w-4" />
-          </Button>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold">{otherUser?.display_name || otherUser?.username}</span>
+            <span className="text-xs text-green-500 font-medium">{formatDuration(callDuration)}</span>
+          </div>
+          <div className="flex items-center gap-2 ml-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8" 
+              onClick={(e) => { e.stopPropagation(); setIsMinimized(false); }}
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="destructive" 
+              size="icon" 
+              className="h-8 w-8 rounded-full" 
+              onClick={(e) => { e.stopPropagation(); handleEndCall(); }}
+            >
+              <PhoneOff className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </motion.div>
     );
@@ -137,52 +258,106 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/95 flex flex-col"
+      className="fixed inset-0 z-50 bg-gradient-to-b from-black via-black/95 to-black flex flex-col"
     >
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10">
+      {/* Header - Instagram style */}
+      <motion.div 
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10 bg-gradient-to-b from-black/80 to-transparent"
+      >
         <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10 ring-2 ring-white/20">
-            <AvatarImage src={otherUser?.avatar_url || undefined} />
-            <AvatarFallback>{otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}</AvatarFallback>
-          </Avatar>
+          <motion.div
+            animate={isRinging ? { scale: [1, 1.1, 1] } : {}}
+            transition={{ repeat: isRinging ? Infinity : 0, duration: 1 }}
+          >
+            <Avatar className="h-12 w-12 ring-2 ring-white/30">
+              <AvatarImage src={otherUser?.avatar_url || undefined} />
+              <AvatarFallback className="text-lg font-semibold">
+                {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+          </motion.div>
           <div>
-            <h3 className="text-white font-semibold">{otherUser?.display_name || otherUser?.username}</h3>
-            <p className="text-white/60 text-sm">
-              {call.status === 'ringing' && (isInitiator ? 'Calling...' : 'Incoming call')}
-              {call.status === 'accepted' && formatDuration(callDuration)}
-              {connectionState === 'connecting' && 'Connecting...'}
-            </p>
+            <h3 className="text-white font-semibold text-lg">{otherUser?.display_name || otherUser?.username}</h3>
+            <motion.p 
+              className="text-white/70 text-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              {isRinging && (isInitiator ? 'Ringing...' : 'Incoming call')}
+              {call.status === 'accepted' && !isConnected && 'Connecting...'}
+              {isConnected && formatDuration(callDuration)}
+            </motion.p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-white hover:bg-white/10"
-            onClick={() => setIsMinimized(true)}
-          >
-            <Minimize2 className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-white hover:bg-white/10 rounded-full"
+          onClick={() => setIsMinimized(true)}
+        >
+          <Minimize2 className="h-5 w-5" />
+        </Button>
+      </motion.div>
 
       {/* Video container */}
       {isVideoCall ? (
-        <div className="flex-1 relative">
+        <div className="flex-1 relative overflow-hidden">
           {/* Remote video (full screen) */}
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+          <AnimatePresence>
+            {remoteStream && (
+              <motion.video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                initial={{ opacity: 0, scale: 1.1 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            )}
+          </AnimatePresence>
           
-          {/* Local video (picture-in-picture) */}
+          {/* Ringing state - shows avatar with pulse */}
+          {!remoteStream && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              {isRinging && <RingingPulse />}
+              <motion.div 
+                className="text-center z-10"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+              >
+                <motion.div
+                  animate={isRinging ? { scale: [1, 1.05, 1] } : {}}
+                  transition={{ repeat: isRinging ? Infinity : 0, duration: 2 }}
+                >
+                  <Avatar className="h-32 w-32 mx-auto mb-4 ring-4 ring-white/20 shadow-2xl">
+                    <AvatarImage src={otherUser?.avatar_url || undefined} />
+                    <AvatarFallback className="text-4xl font-semibold bg-gradient-to-br from-primary to-primary/50">
+                      {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                </motion.div>
+                <motion.p 
+                  className="text-white/80 text-lg font-medium"
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ repeat: Infinity, duration: 1.5 }}
+                >
+                  {isRinging ? (isInitiator ? 'Ringing...' : 'Connecting...') : 'Connecting video...'}
+                </motion.p>
+              </motion.div>
+            </div>
+          )}
+          
+          {/* Local video (picture-in-picture) - Instagram style */}
           <motion.div
             drag
             dragMomentum={false}
-            className="absolute bottom-24 right-4 w-32 h-44 rounded-xl overflow-hidden border-2 border-white/20 shadow-lg"
+            dragConstraints={{ left: -150, right: 0, top: 60, bottom: 0 }}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="absolute top-20 right-4 w-28 h-40 md:w-36 md:h-48 rounded-2xl overflow-hidden border-2 border-white/30 shadow-2xl bg-black"
           >
             <video
               ref={localVideoRef}
@@ -199,36 +374,36 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
                 <VideoOff className="h-8 w-8 text-muted-foreground" />
               </div>
             )}
+            
+            {/* Flip camera button on local video */}
+            {!isVideoOff && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-black/50 text-white hover:bg-black/70"
+                onClick={handleFlipCamera}
+              >
+                <SwitchCamera className="h-4 w-4" />
+              </Button>
+            )}
           </motion.div>
-
-          {/* No remote video placeholder */}
-          {!remoteStream && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <Avatar className="h-24 w-24 mx-auto mb-4">
-                  <AvatarImage src={otherUser?.avatar_url || undefined} />
-                  <AvatarFallback className="text-3xl">
-                    {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
-                <p className="text-white/60">
-                  {call.status === 'ringing' ? 'Waiting for answer...' : 'Connecting video...'}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       ) : (
-        /* Audio call UI */
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
+        /* Audio call UI - Instagram style with large centered avatar */
+        <div className="flex-1 flex items-center justify-center relative">
+          {isRinging && <RingingPulse />}
+          <motion.div 
+            className="text-center z-10"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+          >
             <motion.div
-              animate={{ scale: call.status === 'ringing' ? [1, 1.1, 1] : 1 }}
-              transition={{ repeat: call.status === 'ringing' ? Infinity : 0, duration: 1.5 }}
+              animate={isRinging ? { scale: [1, 1.08, 1] } : {}}
+              transition={{ repeat: isRinging ? Infinity : 0, duration: 1.5, ease: "easeInOut" }}
             >
-              <Avatar className="h-32 w-32 mx-auto mb-6 ring-4 ring-white/20">
+              <Avatar className="h-40 w-40 mx-auto mb-6 ring-4 ring-white/20 shadow-2xl">
                 <AvatarImage src={otherUser?.avatar_url || undefined} />
-                <AvatarFallback className="text-4xl">
+                <AvatarFallback className="text-5xl font-semibold bg-gradient-to-br from-primary to-primary/50">
                   {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
                 </AvatarFallback>
               </Avatar>
@@ -236,24 +411,48 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
             <h2 className="text-white text-2xl font-semibold mb-2">
               {otherUser?.display_name || otherUser?.username}
             </h2>
-            <p className="text-white/60">
-              {call.status === 'ringing' && (isInitiator ? 'Calling...' : 'Incoming call')}
-              {call.status === 'accepted' && formatDuration(callDuration)}
-            </p>
-          </div>
+            <motion.p 
+              className="text-white/70 text-lg"
+              animate={isRinging ? { opacity: [0.5, 1, 0.5] } : {}}
+              transition={{ repeat: isRinging ? Infinity : 0, duration: 1.5 }}
+            >
+              {isRinging && (isInitiator ? 'Ringing...' : 'Incoming call')}
+              {call.status === 'accepted' && !isConnected && 'Connecting...'}
+              {isConnected && formatDuration(callDuration)}
+            </motion.p>
+            
+            {/* Encrypted call indicator like Instagram */}
+            <motion.div 
+              className="mt-4 flex items-center justify-center gap-2 text-white/50 text-sm"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+            >
+              <div className="w-2 h-2 bg-green-500 rounded-full" />
+              <span>End-to-end encrypted</span>
+            </motion.div>
+          </motion.div>
         </div>
       )}
 
-      {/* Controls */}
-      <div className="absolute bottom-0 left-0 right-0 p-6">
-        <div className="flex items-center justify-center gap-4">
-          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+      {/* Controls - Instagram style bottom bar */}
+      <motion.div 
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="absolute bottom-0 left-0 right-0 p-6 pb-10 bg-gradient-to-t from-black/90 to-transparent"
+      >
+        <div className="flex items-center justify-center gap-5">
+          {/* Mute button */}
+          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
             <Button
               variant="ghost"
               size="icon"
               className={cn(
-                "h-14 w-14 rounded-full",
-                isMuted ? "bg-red-500/20 text-red-500" : "bg-white/10 text-white"
+                "h-14 w-14 rounded-full transition-all duration-200",
+                isMuted 
+                  ? "bg-white text-black hover:bg-white/90" 
+                  : "bg-white/20 text-white hover:bg-white/30"
               )}
               onClick={handleToggleMute}
             >
@@ -261,14 +460,17 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
             </Button>
           </motion.div>
 
+          {/* Video toggle (for video calls) */}
           {isVideoCall && (
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
               <Button
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "h-14 w-14 rounded-full",
-                  isVideoOff ? "bg-red-500/20 text-red-500" : "bg-white/10 text-white"
+                  "h-14 w-14 rounded-full transition-all duration-200",
+                  isVideoOff 
+                    ? "bg-white text-black hover:bg-white/90" 
+                    : "bg-white/20 text-white hover:bg-white/30"
                 )}
                 onClick={handleToggleVideo}
               >
@@ -277,18 +479,50 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
             </motion.div>
           )}
 
-          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+          {/* End call button - larger and red */}
+          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
             <Button
               variant="destructive"
               size="icon"
-              className="h-16 w-16 rounded-full"
+              className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30"
               onClick={handleEndCall}
             >
               <PhoneOff className="h-7 w-7" />
             </Button>
           </motion.div>
+
+          {/* Speaker toggle */}
+          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-14 w-14 rounded-full transition-all duration-200",
+                !isSpeakerOn 
+                  ? "bg-white text-black hover:bg-white/90" 
+                  : "bg-white/20 text-white hover:bg-white/30"
+              )}
+              onClick={handleToggleSpeaker}
+            >
+              {isSpeakerOn ? <Volume2 className="h-6 w-6" /> : <VolumeX className="h-6 w-6" />}
+            </Button>
+          </motion.div>
+
+          {/* Flip camera (for video calls) */}
+          {isVideoCall && (
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-14 w-14 rounded-full bg-white/20 text-white hover:bg-white/30"
+                onClick={handleFlipCamera}
+              >
+                <SwitchCamera className="h-6 w-6" />
+              </Button>
+            </motion.div>
+          )}
         </div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }

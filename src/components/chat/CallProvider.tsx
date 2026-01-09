@@ -45,21 +45,12 @@ export function CallProvider({ children }: CallProviderProps) {
 
   const handleAcceptCall = useCallback(async (call: Call) => {
     dismissIncomingCall();
-    setActiveCall(call);
-    setIsInitiator(false);
-
-    // Fetch the offer signal
-    const { data: signals } = await supabase
-      .from('call_signals')
-      .select('*')
-      .eq('call_id', call.id)
-      .eq('signal_type', 'offer')
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (signals?.[0]) {
-      // The CallUI component will handle the WebRTC answering
-    }
+    
+    // Small delay for smooth transition
+    setTimeout(() => {
+      setActiveCall(call);
+      setIsInitiator(false);
+    }, 100);
   }, [dismissIncomingCall]);
 
   const handleDeclineCall = useCallback(() => {
