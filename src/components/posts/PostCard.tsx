@@ -1,6 +1,7 @@
 import { useState, useRef, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -85,17 +86,23 @@ function VideoPlayer({ src }: { src: string }) {
       {/* Play indicator when not playing */}
       {!isPlaying && isLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-          <Play className="h-16 w-16 text-white/90 fill-white/90" />
+          <motion.div
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <Play className="h-16 w-16 text-white/90 fill-white/90" />
+          </motion.div>
         </div>
       )}
       {/* Mute/Unmute button when playing */}
       {isPlaying && (
-        <button
+        <motion.button
+          whileTap={{ scale: 0.9 }}
           onClick={toggleMute}
           className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white"
         >
           {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </button>
+        </motion.button>
       )}
     </div>
   );
@@ -131,6 +138,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
+  const [showLikeParticles, setShowLikeParticles] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   const signedMediaUrl = useSignedUrl(post.media_url);
@@ -167,6 +175,12 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     const newIsLiked = !isLiked;
     setIsLiked(newIsLiked);
     setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
+
+    // Trigger particle burst on like
+    if (newIsLiked) {
+      setShowLikeParticles(true);
+      setTimeout(() => setShowLikeParticles(false), 700);
+    }
 
     if (newIsLiked) {
       await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
@@ -210,6 +224,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
       await navigator.share({ title: 'Check this out on LOLLoop', url });
     } else {
       navigator.clipboard.writeText(url);
+      toast.success('Link copied!');
     }
   }, [post.id]);
 
@@ -340,41 +355,99 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           />
         )}
         
-        {/* Double tap heart animation */}
-        {showHeart && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-ping">
-            <Heart className="h-24 w-24 text-primary fill-primary drop-shadow-lg" />
-          </div>
-        )}
+        {/* Double tap heart animation - TikTok style */}
+        <AnimatePresence>
+          {showHeart && (
+            <motion.div 
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: [0, 1.2, 1], opacity: 1 }}
+              exit={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 0.5, type: 'spring', stiffness: 300 }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            >
+              <Heart className="h-24 w-24 text-red-500 fill-red-500 drop-shadow-lg" />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Actions */}
       <div className="p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button onClick={handleLike} className="group">
-              <Heart
-                className={cn(
-                  "h-6 w-6 transition-colors",
-                  isLiked ? "fill-primary text-primary scale-110" : "text-foreground group-hover:text-primary"
+            {/* Like button with particles */}
+            <div className="relative">
+              <motion.button 
+                whileTap={{ scale: 0.7 }}
+                onClick={handleLike} 
+                className="group"
+              >
+                <motion.div
+                  animate={isLiked ? { 
+                    scale: [1, 1.3, 0.9, 1.1, 1],
+                    rotate: [0, -10, 10, -5, 0]
+                  } : {}}
+                  transition={{ duration: 0.5, type: 'spring', stiffness: 400 }}
+                >
+                  <Heart
+                    className={cn(
+                      "h-6 w-6 transition-colors",
+                      isLiked ? "fill-red-500 text-red-500" : "text-foreground group-hover:text-primary"
+                    )}
+                  />
+                </motion.div>
+              </motion.button>
+              
+              {/* Particle burst */}
+              <AnimatePresence>
+                {showLikeParticles && (
+                  <div className="absolute inset-0 pointer-events-none">
+                    {[...Array(6)].map((_, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+                        animate={{ 
+                          scale: [0, 1, 0.5],
+                          x: Math.cos(i * 60 * Math.PI / 180) * 25,
+                          y: Math.sin(i * 60 * Math.PI / 180) * 25,
+                          opacity: [1, 1, 0],
+                        }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="absolute top-3 left-3 w-1.5 h-1.5 rounded-full"
+                        style={{ backgroundColor: i % 2 === 0 ? '#ef4444' : '#f97316' }}
+                      />
+                    ))}
+                  </div>
                 )}
-              />
-            </button>
+              </AnimatePresence>
+            </div>
+
             <Link to={`/p/${post.id}`}>
-              <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
+              <motion.div whileTap={{ scale: 0.8 }} whileHover={{ scale: 1.1 }}>
+                <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
+              </motion.div>
             </Link>
-            <button onClick={handleShare}>
+            <motion.button 
+              whileTap={{ scale: 0.8, rotate: 15 }}
+              whileHover={{ scale: 1.1 }}
+              onClick={handleShare}
+            >
               <Share2 className="h-6 w-6 hover:text-primary transition-colors" />
-            </button>
+            </motion.button>
           </div>
-          <button onClick={handleBookmark}>
+          <motion.button 
+            whileTap={{ scale: 0.7 }}
+            animate={isBookmarked ? { scale: [1, 1.3, 1] } : {}}
+            onClick={handleBookmark}
+          >
             <Bookmark
               className={cn(
                 "h-6 w-6 transition-colors",
-                isBookmarked ? "fill-foreground text-foreground" : "hover:text-primary"
+                isBookmarked ? "fill-yellow-400 text-yellow-400" : "hover:text-primary"
               )}
             />
-          </button>
+          </motion.button>
         </div>
 
         {/* Likes */}

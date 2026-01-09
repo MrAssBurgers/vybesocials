@@ -45,10 +45,12 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false); // Start unmuted
+  const [browserForcedMute, setBrowserForcedMute] = useState(false);
   const [isLiked, setIsLiked] = useState(post.is_liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
+  const [showLikeParticles, setShowLikeParticles] = useState(false);
   const [viewCount, setViewCount] = useState(post.view_count || 0);
   const hasCountedView = useRef(false);
 
@@ -66,6 +68,7 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
         videoRef.current.muted = isMuted;
         videoRef.current.play().then(() => {
           setIsPlaying(true);
+          setBrowserForcedMute(false);
           // Count view when video starts playing
           if (!hasCountedView.current && profile) {
             hasCountedView.current = true;
@@ -74,6 +77,7 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
         }).catch(() => {
           // Autoplay blocked, try muted
           if (videoRef.current) {
+            setBrowserForcedMute(true);
             videoRef.current.muted = true;
             setIsMuted(true);
             videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
@@ -113,6 +117,9 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
     if (videoRef.current) {
       videoRef.current.muted = !isMuted;
       setIsMuted(!isMuted);
+      if (browserForcedMute && !isMuted === false) {
+        setBrowserForcedMute(false);
+      }
     }
   };
 
@@ -122,6 +129,12 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
     const newIsLiked = !isLiked;
     setIsLiked(newIsLiked);
     setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
+
+    // Trigger particle burst on like
+    if (newIsLiked) {
+      setShowLikeParticles(true);
+      setTimeout(() => setShowLikeParticles(false), 700);
+    }
 
     if (newIsLiked) {
       await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
@@ -241,17 +254,31 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
           />
         )}
 
+        {/* Browser forced mute indicator */}
+        {browserForcedMute && isMuted && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute top-4 left-4 bg-black/60 px-3 py-1.5 rounded-full text-white text-sm flex items-center gap-2 cursor-pointer"
+            onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+          >
+            <VolumeX className="h-4 w-4" />
+            Tap to unmute
+          </motion.div>
+        )}
+
         {/* Play indicator */}
         <AnimatePresence>
           {isVideo && !isPlaying && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.5 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="absolute inset-0 flex items-center justify-center bg-black/20"
             >
               <motion.div
                 whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
                 className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
               >
                 <Play className="h-10 w-10 text-white ml-1" fill="white" />
@@ -260,17 +287,17 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
           )}
         </AnimatePresence>
 
-        {/* Double tap heart */}
+        {/* Double tap heart - TikTok style */}
         <AnimatePresence>
           {showHeart && (
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
+              animate={{ scale: [0, 1.2, 1], opacity: 1 }}
               exit={{ scale: 1.5, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+              transition={{ duration: 0.5, type: 'spring', stiffness: 300 }}
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
             >
-              <Heart className="h-32 w-32 text-primary fill-primary drop-shadow-2xl" />
+              <Heart className="h-32 w-32 text-red-500 fill-red-500 drop-shadow-2xl" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -297,29 +324,59 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
           </motion.div>
         </Link>
 
-        {/* Like */}
-        <motion.button 
-          whileTap={{ scale: 0.8 }}
-          onClick={handleLike} 
-          className="flex flex-col items-center gap-1"
-        >
-          <motion.div 
-            animate={isLiked ? { scale: [1, 1.4, 1] } : {}}
-            transition={{ type: 'spring', stiffness: 400 }}
+        {/* Like - TikTok style with particles */}
+        <div className="relative">
+          <motion.button 
+            whileTap={{ scale: 0.7 }}
+            onClick={handleLike} 
+            className="flex flex-col items-center gap-1"
           >
-            <Heart
-              className={cn(
-                "h-8 w-8 drop-shadow-lg",
-                isLiked ? "fill-red-500 text-red-500" : "text-white"
-              )}
-            />
-          </motion.div>
-          <span className="text-xs font-bold text-white drop-shadow-lg">{likeCount}</span>
-        </motion.button>
+            <motion.div 
+              animate={isLiked ? { 
+                scale: [1, 1.4, 0.9, 1.1, 1],
+                rotate: [0, -10, 10, -5, 0]
+              } : {}}
+              transition={{ duration: 0.5, type: 'spring', stiffness: 400 }}
+            >
+              <Heart
+                className={cn(
+                  "h-8 w-8 drop-shadow-lg transition-colors",
+                  isLiked ? "fill-red-500 text-red-500" : "text-white"
+                )}
+              />
+            </motion.div>
+            <span className="text-xs font-bold text-white drop-shadow-lg">{likeCount}</span>
+          </motion.button>
+
+          {/* Particle burst */}
+          <AnimatePresence>
+            {showLikeParticles && (
+              <div className="absolute inset-0 pointer-events-none">
+                {[...Array(8)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+                    animate={{ 
+                      scale: [0, 1, 0.5],
+                      x: Math.cos(i * 45 * Math.PI / 180) * 35,
+                      y: Math.sin(i * 45 * Math.PI / 180) * 35,
+                      opacity: [1, 1, 0],
+                    }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="absolute top-4 left-4 w-2 h-2 rounded-full"
+                    style={{ backgroundColor: i % 2 === 0 ? '#ef4444' : '#f97316' }}
+                  />
+                ))}
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Comment */}
         <motion.button 
-          whileTap={{ scale: 0.8 }}
+          whileTap={{ scale: 0.7 }}
+          whileHover={{ scale: 1.1 }}
           onClick={(e) => {
             e.stopPropagation();
             window.location.href = `/p/${post.id}`;
@@ -332,21 +389,23 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
 
         {/* Bookmark */}
         <motion.button 
-          whileTap={{ scale: 0.8 }}
+          whileTap={{ scale: 0.7 }}
+          animate={isBookmarked ? { scale: [1, 1.3, 1] } : {}}
           onClick={handleBookmark} 
           className="flex flex-col items-center gap-1"
         >
           <Bookmark
             className={cn(
-              "h-8 w-8 drop-shadow-lg",
-              isBookmarked ? "fill-white text-white" : "text-white"
+              "h-8 w-8 drop-shadow-lg transition-colors",
+              isBookmarked ? "fill-yellow-400 text-yellow-400" : "text-white"
             )}
           />
         </motion.button>
 
         {/* Share */}
         <motion.button 
-          whileTap={{ scale: 0.8 }}
+          whileTap={{ scale: 0.7, rotate: 15 }}
+          whileHover={{ scale: 1.1 }}
           onClick={handleShare} 
           className="flex flex-col items-center gap-1"
         >
@@ -356,7 +415,8 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
         {/* Mute toggle for video */}
         {isVideo && (
           <motion.button 
-            whileTap={{ scale: 0.8 }}
+            whileTap={{ scale: 0.7 }}
+            whileHover={{ scale: 1.1 }}
             onClick={toggleMute} 
             className="flex flex-col items-center gap-1"
           >
@@ -413,6 +473,7 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
               <motion.span 
                 key={tag} 
                 whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 className="text-xs text-cyan-300 font-medium drop-shadow-lg"
               >
                 #{tag}
