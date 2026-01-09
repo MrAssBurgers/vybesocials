@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, Sparkles, Loader2, Bot, User } from 'lucide-react';
+import { X, Send, Loader2, Bot, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -139,120 +138,107 @@ export function AIChatAssistant() {
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <>
-      {/* Chat modal */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border bg-muted/50">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full gradient-animated flex items-center justify-center">
+              <Bot className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">Autisy</h3>
+              <p className="text-xs text-muted-foreground">Chaotic AI bestie 🦆</p>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsOpen(false)}
+            className="h-8 w-8"
           >
-            {/* Backdrop (does NOT close on click) */}
-            <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
 
-            <motion.div
-              role="dialog"
-              aria-modal="true"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b border-border bg-muted/50">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full gradient-animated flex items-center justify-center">
-                    <Bot className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm">Autisy</h3>
-                    <p className="text-xs text-muted-foreground">Chaotic AI bestie 🦆</p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsOpen(false)}
-                  className="h-8 w-8"
+        {/* Messages */}
+        <ScrollArea className="h-80 p-4" ref={scrollRef}>
+          <div className="space-y-4">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                {message.role === 'assistant' && (
+                  <Avatar className="h-6 w-6 shrink-0">
+                    <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                      <Bot className="h-3 w-3" />
+                    </AvatarFallback>
+                  </Avatar>
+                )}
+                <div
+                  className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                    message.role === 'user'
+                      ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                      : 'bg-muted rounded-tl-sm'
+                  }`}
                 >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Messages */}
-              <ScrollArea className="h-80 p-4" ref={scrollRef}>
-                <div className="space-y-4">
-                  {messages.map((message, index) => (
-                    <div
-                      key={index}
-                      className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      {message.role === 'assistant' && (
-                        <Avatar className="h-6 w-6 shrink-0">
-                          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                            <Bot className="h-3 w-3" />
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div
-                        className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                          message.role === 'user'
-                            ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                            : 'bg-muted rounded-tl-sm'
-                        }`}
-                      >
-                        {message.content || (
-                          <span className="flex items-center gap-1">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Thinking...
-                          </span>
-                        )}
-                      </div>
-                      {message.role === 'user' && (
-                        <Avatar className="h-6 w-6 shrink-0">
-                          <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
-                            <User className="h-3 w-3" />
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                    </div>
-                  ))}
+                  {message.content || (
+                    <span className="flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Thinking...
+                    </span>
+                  )}
                 </div>
-              </ScrollArea>
-
-              {/* Input */}
-              <div className="p-4 border-t border-border">
-                <div className="flex gap-2">
-                  <Input
-                    ref={inputRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Ask me anything..."
-                    className="flex-1"
-                    disabled={isLoading}
-                  />
-                  <Button
-                    size="icon"
-                    onClick={sendMessage}
-                    disabled={!input.trim() || isLoading}
-                    className="shrink-0"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
+                {message.role === 'user' && (
+                  <Avatar className="h-6 w-6 shrink-0">
+                    <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                      <User className="h-3 w-3" />
+                    </AvatarFallback>
+                  </Avatar>
+                )}
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+            ))}
+          </div>
+        </ScrollArea>
+
+        {/* Input */}
+        <div className="p-4 border-t border-border">
+          <div className="flex gap-2">
+            <Input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask me anything..."
+              className="flex-1"
+              disabled={isLoading}
+            />
+            <Button
+              size="icon"
+              onClick={sendMessage}
+              disabled={!input.trim() || isLoading}
+              className="shrink-0"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
