@@ -175,7 +175,7 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
   const handleShare = async () => {
     const url = `${window.location.origin}/p/${post.id}`;
     if (navigator.share) {
-      await navigator.share({ title: 'Check this out on XD', url });
+      await navigator.share({ title: 'Check this out on VYBE', url });
     } else {
       navigator.clipboard.writeText(url);
       toast.success('Link copied!');

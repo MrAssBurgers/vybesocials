@@ -21,7 +21,7 @@ export function MobileHeader() {
           {/* Logo */}
           <Link to="/home" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg liquid-glass flex items-center justify-center">
-              <span className="text-sm font-bold gradient-text">XD</span>
+              <span className="text-sm font-bold gradient-text">VYBE</span>
             </div>
           </Link>
 
