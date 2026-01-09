@@ -23,156 +23,45 @@ import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
-// Autisy AI chat component
+// Autisy AI chat row - now navigates to full chat page
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    { role: 'assistant', content: "YOOO what's up bestie!! 🎪✨ I'm Autisy, your chaotic AI companion! Ask me ANYTHING 🦆💀" }
-  ]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim() || isLoading) return;
-    const userMessage = { role: 'user' as const, content: input.trim() };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
-
-    let assistantContent = '';
+  // Get last AI message from localStorage for preview
+  const lastAIMessage = useMemo(() => {
     try {
-      const headers = await getFunctionAuthHeaders();
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ messages: [...messages, userMessage] }),
-        }
-      );
-
-      if (!response.ok) throw new Error('Failed');
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) throw new Error('No reader');
-
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-          let line = buffer.slice(0, newlineIndex);
-          buffer = buffer.slice(newlineIndex + 1);
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') break;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              assistantContent += content;
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: assistantContent };
-                return updated;
-              });
-            }
-          } catch {}
-        }
+      const stored = localStorage.getItem('vybe_ai_chat_messages');
+      if (stored) {
+        const messages = JSON.parse(stored);
+        const lastAssistant = messages.filter((m: any) => m.role === 'assistant').pop();
+        if (lastAssistant) return lastAssistant.content;
       }
-    } catch {
-      setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: "Oops something broke 💀 try again bestie!" }]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [input, isLoading, messages]);
-
-  const lastAIMessage = useMemo(() => 
-    messages.filter(m => m.role === 'assistant').pop()?.content || "Tap to chat with me! 🦆",
-    [messages]
-  );
+    } catch {}
+    return "Tap to chat with me! 🦆";
+  }, []);
 
   return (
-    <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 transition-colors"
-      >
-        <div className="relative flex-shrink-0">
-          <div className="h-12 w-12 rounded-full gradient-animated flex items-center justify-center">
-            <Bot className="h-6 w-6 text-white" />
-          </div>
-          <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-background" />
+    <button
+      onClick={() => navigate('/messages/ai-autisy')}
+      className="w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 transition-colors"
+    >
+      <div className="relative flex-shrink-0">
+        <div className="h-12 w-12 rounded-full gradient-animated flex items-center justify-center">
+          <Bot className="h-6 w-6 text-white" />
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold">Autisy</span>
-            <span className="text-xs text-muted-foreground">AI</span>
-          </div>
-          <p className="text-sm text-muted-foreground truncate">{lastAIMessage.slice(0, 40)}...</p>
+        <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-background" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold flex items-center gap-1">
+            Autisy
+            <Sparkles className="h-3 w-3 text-primary" />
+          </span>
+          <span className="text-xs text-muted-foreground">AI</span>
         </div>
-      </button>
-
-      <Dialog open={isOpen} onOpenChange={setIsOpen} modal>
-        <DialogContent 
-          className="sm:max-w-md max-h-[80vh] flex flex-col p-0" 
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onInteractOutside={(e) => e.preventDefault()}
-        >
-          <DialogHeader className="p-4 border-b border-border">
-            <DialogTitle className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full gradient-animated flex items-center justify-center">
-                <Bot className="h-4 w-4 text-white" />
-              </div>
-              <div>
-                <span className="gradient-text font-bold">Autisy</span>
-                <p className="text-xs text-muted-foreground font-normal">Chaotic AI bestie 🦆</p>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="flex-1 p-4 max-h-80">
-            <div className="space-y-3">
-              {messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {msg.role === 'assistant' && (
-                    <div className="w-6 h-6 rounded-full gradient-animated flex-shrink-0 flex items-center justify-center">
-                      <Bot className="h-3 w-3 text-white" />
-                    </div>
-                  )}
-                  <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                    msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-tr-sm' : 'bg-muted rounded-tl-sm'
-                  }`}>
-                    {msg.content || 'Thinking... 🧠'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-          <div className="p-4 border-t border-border flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              placeholder="Ask Autisy anything..."
-              disabled={isLoading}
-              className="flex-1"
-            />
-            <Button size="icon" onClick={sendMessage} disabled={!input.trim() || isLoading}>
-              {isLoading ? <Sparkles className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+        <p className="text-sm text-muted-foreground truncate">{lastAIMessage.slice(0, 40)}...</p>
+      </div>
+    </button>
   );
 });
 
