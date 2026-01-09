@@ -18,6 +18,7 @@ import { useConversations } from '@/hooks/useMessages';
 import { useFriends } from '@/hooks/useFriends';
 import { useEvents } from '@/hooks/useEvents';
 import { useListings } from '@/hooks/useMarketplace';
+import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { formatDistanceToNow } from 'date-fns';
 
 export function DesktopRightSidebar() {
@@ -30,6 +31,21 @@ export function DesktopRightSidebar() {
   const { data: listings, isLoading: listingsLoading } = useListings();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMuted, setIsMuted] = useState(false);
+
+  // Get friend IDs for presence lookup
+  const friendIds = useMemo(() => 
+    (friends || []).map(f => f?.id).filter(Boolean) as string[],
+    [friends]
+  );
+  
+  // Get actual online status for all friends
+  const { data: onlineStatusMap } = useUsersOnlineStatus(friendIds);
+
+  // Filter to only show online friends
+  const onlineFriends = useMemo(() => {
+    if (!friends || !onlineStatusMap) return [];
+    return friends.filter(f => f?.id && onlineStatusMap[f.id] === true);
+  }, [friends, onlineStatusMap]);
 
   // Handle Cmd/Ctrl+K shortcut
   useEffect(() => {
@@ -131,7 +147,7 @@ export function DesktopRightSidebar() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Friends Online
+                Friends Online ({onlineFriends.length})
               </span>
             </div>
             {friendsLoading ? (
@@ -140,25 +156,30 @@ export function DesktopRightSidebar() {
                   <div key={i} className="h-10 w-10 rounded-full bg-muted animate-pulse" />
                 ))}
               </div>
-            ) : friends && friends.length > 0 ? (
+            ) : onlineFriends.length > 0 ? (
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {friends.slice(0, 8).map((friend, i) => (
+                {onlineFriends.slice(0, 8).map((friend, i) => (
                   <Link
                     key={friend?.id || i}
                     to={`/messages/new?user=${friend?.id}`}
-                    className="flex-shrink-0"
+                    className="flex-shrink-0 group"
                   >
                     <div className="relative">
-                      <Avatar className="h-10 w-10 ring-2 ring-background hover:ring-primary/50 transition-all">
+                      <Avatar className="h-10 w-10 ring-2 ring-background group-hover:ring-primary/50 transition-all">
                         <AvatarImage src={friend?.avatar_url || undefined} />
                         <AvatarFallback className="text-xs bg-gradient-to-br from-pink-500 to-purple-500">
                           {friend?.username?.[0]?.toUpperCase() || '?'}
                         </AvatarFallback>
                       </Avatar>
-                      <OnlineIndicator isOnline={true} size="sm" />
+                      <OnlineIndicator isOnline={true} size="sm" className="bottom-0 right-0" />
                     </div>
                   </Link>
                 ))}
+              </div>
+            ) : friends && friends.length > 0 ? (
+              <div className="p-3 rounded-xl liquid-glass-subtle text-center">
+                <Users className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                <p className="text-xs text-muted-foreground">No friends online</p>
               </div>
             ) : (
               <div className="p-3 rounded-xl liquid-glass-subtle text-center">

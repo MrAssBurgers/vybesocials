@@ -690,6 +690,23 @@
   .perf-medium .gradient-animated {
     animation-duration: 16s !important;
   }
+
+  /* Glass intensity levels */
+  [data-glass-intensity="calm"] .liquid-glass,
+  [data-glass-intensity="calm"] .liquid-glass-card {
+    backdrop-filter: blur(16px) saturate(150%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(150%) !important;
+  }
+  
+  [data-glass-intensity="max"] .liquid-glass,
+  [data-glass-intensity="max"] .liquid-glass-card {
+    backdrop-filter: blur(60px) saturate(250%) brightness(1.08) !important;
+    -webkit-backdrop-filter: blur(60px) saturate(250%) brightness(1.08) !important;
+  }
+  
+  .glass-paused {
+    animation-play-state: paused !important;
+  }
   
   /* High contrast mode */
   @media (prefers-contrast: high) {

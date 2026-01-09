@@ -128,14 +128,15 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
     triggerHaptic('medium');
     playSound('pop');
     
-    if (timeSinceLastTap < 300) {
-      setIsHubOpen(true);
+    // Double-click goes to admin panel (if authorized)
+    if (timeSinceLastTap < 300 && showAdminLink) {
+      navigate('/admin');
     } else {
       navigate('/upload');
     }
     
     lastTapTime.current = now;
-  }, [navigate]);
+  }, [navigate, showAdminLink]);
 
   const renderNavItem = (item: NavItemData) => {
     const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
@@ -266,13 +267,8 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
                 {!collapsed && t('nav.upload')}
               </Button>
             </TooltipTrigger>
-            {collapsed && <TooltipContent side="right">Upload (double-click for Hub)</TooltipContent>}
+            {collapsed && <TooltipContent side="right">Upload (double-click for Admin)</TooltipContent>}
           </Tooltip>
-          {!collapsed && (
-            <p className="text-[10px] text-muted-foreground text-center mt-1">
-              Double-click for VYBE Hub
-            </p>
-          )}
         </div>
 
         {/* Communities Section - Show empty state */}
