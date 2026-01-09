@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "XD",
+    "name": "VYBE",
     "tagline": "La Plataforma Social de Nueva Generación",
     "description": "Comparte momentos, conecta con amigos y descubre contenido increíble de creadores de todo el mundo."
   },
@@ -134,7 +134,7 @@
     "logout": "Cerrar Sesión"
   },
   "onboarding": {
-    "welcome": "¡Bienvenido a XD!",
+    "welcome": "¡Bienvenido a VYBE!",
     "letsGetStarted": "Vamos a configurar tu cuenta",
     "step1Title": "¿Qué te interesa?",
     "step1Subtitle": "Elige temas que te gustaría ver más",

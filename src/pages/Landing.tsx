@@ -45,7 +45,7 @@ export default function Landing() {
         }
         const { error } = await signUp(formData.email, formData.password, formData.username);
         if (error) throw error;
-        toast.success('Welcome to XD! 🎉');
+        toast.success('Welcome to VYBE! 🎉');
         navigate('/onboarding');
       }
     } catch (error: any) {
@@ -58,13 +58,13 @@ export default function Landing() {
   const handleDemoLogin = async () => {
     setLoading(true);
     try {
-      const { error } = await signIn('demo@xd.app', 'demo123456');
+      const { error } = await signIn('demo@vybe.app', 'demo123456');
       if (error) {
-        const { error: signUpError } = await signUp('demo@xd.app', 'demo123456', 'demouser');
+        const { error: signUpError } = await signUp('demo@vybe.app', 'demo123456', 'demouser');
         if (signUpError && !signUpError.message.includes('already registered')) {
           throw signUpError;
         }
-        await signIn('demo@xd.app', 'demo123456');
+        await signIn('demo@vybe.app', 'demo123456');
       }
       toast.success('Welcome to the demo! 🎭');
       navigate('/home');
@@ -120,9 +120,9 @@ export default function Landing() {
                 whileHover={{ scale: 1.1, rotate: 5 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <span className="text-2xl font-black text-white">XD</span>
+                <span className="text-2xl font-black text-white">VYBE</span>
               </motion.div>
-              <h1 className="font-display text-5xl font-black gradient-text">XD</h1>
+              <h1 className="font-display text-5xl font-black gradient-text">VYBE</h1>
             </div>
 
             {/* Tagline */}
