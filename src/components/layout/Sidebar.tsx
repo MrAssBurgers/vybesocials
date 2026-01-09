@@ -1,4 +1,4 @@
-import { Home, Film, PlusCircle, Compass, User, Bell, Settings, LogOut, MessageCircle, Sparkles, Shield } from 'lucide-react';
+import { Home, Film, PlusCircle, Compass, Bell, Settings, LogOut, MessageCircle, Shield } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,7 @@ import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 import { useUserRole } from '@/hooks/useModeration';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
+import { VYBELogo } from '@/components/ui/VYBELogo';
 
 export function Sidebar() {
   const { t } = useTranslation();
@@ -43,15 +44,8 @@ export function Sidebar() {
   return (
     <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-64 flex-col liquid-glass border-r border-white/10 p-4 z-40">
       {/* Logo */}
-      <Link to="/home" className="flex items-center gap-2 px-2 py-4 group">
-        <motion.div 
-          className="gradient-animated rounded-xl p-2 flex items-center justify-center liquid-glass-button"
-          whileHover={{ scale: 1.1, rotate: 5 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <span className="text-lg font-black text-white">VYBE</span>
-        </motion.div>
-        <span className="font-display text-2xl font-black gradient-text group-hover:scale-105 transition-transform">VYBE</span>
+      <Link to="/home" className="px-2 py-4 group">
+        <VYBELogo size="lg" />
       </Link>
 
       {/* Main Navigation */}
