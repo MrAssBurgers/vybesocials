@@ -37,7 +37,7 @@ export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen max-w-lg mx-auto relative">
+    <div className="min-h-screen w-full">
       {/* Header - visible on all devices */}
       <MobileHeader />
       {/* Main content - consistent spacing on all devices */}
