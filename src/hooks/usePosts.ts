@@ -5,6 +5,18 @@ import { containsBlockedContent, filterBlockedContent } from '@/lib/contentModer
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 
+// Utility to validate media URLs
+function isValidMediaUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  if (typeof url !== 'string') return false;
+  if (url.trim() === '') return false;
+  if (url === 'undefined' || url === 'null') return false;
+  return url.startsWith('http://') || 
+         url.startsWith('https://') || 
+         url.startsWith('/') ||
+         url.startsWith('blob:');
+}
+
 interface Post {
   id: string;
   type: string;
@@ -97,7 +109,8 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
         })
       );
 
-      return postsWithCounts;
+      // Filter out posts without valid media URLs
+      return postsWithCounts.filter(post => isValidMediaUrl(post.media_url));
     },
     enabled: true,
   });
@@ -172,7 +185,8 @@ export function useFollowingPosts() {
         })
       );
 
-      return postsWithCounts;
+      // Filter out posts without valid media URLs
+      return postsWithCounts.filter(post => isValidMediaUrl(post.media_url));
     },
     enabled: !!profile,
   });
