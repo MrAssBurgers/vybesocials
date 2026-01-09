@@ -1,43 +1,62 @@
-import { Home, Film, PlusCircle, MessageCircle, Settings, Search } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Home, Film, PlusCircle, MessageCircle, Settings } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
-import { useUserRole } from '@/hooks/useModeration';
 import { useState, useRef, useCallback } from 'react';
+import { triggerHaptic } from '@/lib/haptics';
+import { playSound } from '@/lib/sounds';
+import { VYBEHub } from '@/components/hub/VYBEHub';
+
+const DOUBLE_TAP_THRESHOLD = 300;
 
 export function BottomNav() {
   const { t } = useTranslation();
   const location = useLocation();
-  const navigate = useNavigate();
-  const { profile } = useAuth();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
-  const { data: userRole } = useUserRole();
   
-  const [showModMenu, setShowModMenu] = useState(false);
-  const lastClickTime = useRef<number>(0);
+  const [isHubOpen, setIsHubOpen] = useState(false);
+  const [showRipple, setShowRipple] = useState(false);
+  const lastTapTime = useRef(0);
+  const tapTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const hasSpecialPerms = userRole === 'admin' || userRole === 'moderator';
+  const handleDoubleTap = useCallback(() => {
+    triggerHaptic('medium');
+    playSound('pop');
+    setShowRipple(true);
+    setTimeout(() => setShowRipple(false), 300);
+    setIsHubOpen(true);
+  }, []);
 
-  // Double-click handler for upload button
+  const handleSingleTap = useCallback(() => {
+    triggerNavFeedback();
+  }, []);
+
   const handleUploadClick = useCallback((e: React.MouseEvent) => {
     const now = Date.now();
-    const timeSinceLastClick = now - lastClickTime.current;
-    
-    if (hasSpecialPerms && timeSinceLastClick < 300) {
-      // Double click detected
-      e.preventDefault();
-      setShowModMenu(true);
-      triggerNavFeedback();
-    } else {
-      triggerNavFeedback();
+    const timeSinceLastTap = now - lastTapTime.current;
+
+    if (tapTimeout.current) {
+      clearTimeout(tapTimeout.current);
+      tapTimeout.current = null;
     }
-    
-    lastClickTime.current = now;
-  }, [hasSpecialPerms]);
+
+    if (timeSinceLastTap < DOUBLE_TAP_THRESHOLD) {
+      // Double-tap - prevent navigation and open hub
+      e.preventDefault();
+      lastTapTime.current = 0;
+      handleDoubleTap();
+    } else {
+      // Might be single tap - wait to confirm then navigate normally
+      lastTapTime.current = now;
+      tapTimeout.current = setTimeout(() => {
+        handleSingleTap();
+        tapTimeout.current = null;
+      }, DOUBLE_TAP_THRESHOLD);
+    }
+  }, [handleDoubleTap, handleSingleTap]);
 
   const navItems = [
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0 },
@@ -49,75 +68,8 @@ export function BottomNav() {
 
   return (
     <>
-      {/* Mod/Admin Quick Access Menu */}
-      <AnimatePresence>
-        {showModMenu && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-end justify-center p-4 bg-black/40 backdrop-blur-sm"
-            onClick={() => setShowModMenu(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 100 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 100 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              onClick={(e) => e.stopPropagation()}
-              className="liquid-glass rounded-3xl p-6 w-full max-w-sm mb-20 space-y-4"
-            >
-              <div className="text-center mb-4">
-                <motion.h3 
-                  className="text-lg font-bold gradient-text"
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  {userRole === 'admin' ? 'Admin Panel' : 'Moderation'}
-                </motion.h3>
-                <motion.p 
-                  className="text-sm text-muted-foreground"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  Quick access to your tools
-                </motion.p>
-              </div>
-              
-              <motion.button
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.15 }}
-                onClick={() => {
-                  navigate('/admin');
-                  setShowModMenu(false);
-                }}
-                className="w-full p-4 rounded-2xl liquid-glass-button flex items-center gap-3 hover:scale-[1.02] transition-all"
-              >
-                <div className="w-10 h-10 rounded-xl gradient-animated flex items-center justify-center">
-                  <span className="text-lg">⚡</span>
-                </div>
-                <div className="text-left">
-                  <p className="font-semibold">{userRole === 'admin' ? 'Admin Dashboard' : 'Moderation Panel'}</p>
-                  <p className="text-xs text-muted-foreground">Manage users, content & reports</p>
-                </div>
-              </motion.button>
-
-              <motion.button
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                onClick={() => setShowModMenu(false)}
-                className="w-full p-3 rounded-2xl liquid-glass-subtle text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Cancel
-              </motion.button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* VYBE Hub - opens on double-tap of create button */}
+      <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 liquid-glass border-t border-white/10 safe-bottom lg:hidden">
         <div className="grid grid-cols-5 h-16 px-2">
@@ -134,6 +86,19 @@ export function BottomNav() {
                     className="relative flex items-center justify-center"
                     onClick={handleUploadClick}
                   >
+                    {/* Ripple effect on double-tap */}
+                    <AnimatePresence>
+                      {showRipple && (
+                        <motion.div
+                          initial={{ scale: 0.8, opacity: 0.8 }}
+                          animate={{ scale: 2.5, opacity: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.4 }}
+                          className="absolute inset-0 rounded-xl bg-primary/50 pointer-events-none"
+                        />
+                      )}
+                    </AnimatePresence>
+                    
                     <motion.div
                       whileTap={{ scale: 0.9 }}
                       whileHover={{ scale: 1.1 }}
@@ -142,13 +107,6 @@ export function BottomNav() {
                       <Icon className="h-6 w-6 text-primary-foreground" />
                     </motion.div>
                   </Link>
-                  {hasSpecialPerms && (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="absolute -top-1 right-[calc(50%-20px)] w-3 h-3 rounded-full bg-yellow-500 border-2 border-background pointer-events-none"
-                    />
-                  )}
                 </div>
               );
             }

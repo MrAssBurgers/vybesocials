@@ -6,16 +6,14 @@ import { useAuth } from '@/lib/auth';
 import { Navigate } from 'react-router-dom';
 import { usePresence } from '@/hooks/usePresence';
 import { useScrollOptimization } from '@/hooks/useScrollOptimization';
-import { FloatingActionButton } from '@/components/ui/FloatingActionButton';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface AppLayoutProps {
   children: ReactNode;
   requireAuth?: boolean;
-  showFAB?: boolean;
 }
 
-export function AppLayout({ children, requireAuth = true, showFAB = true }: AppLayoutProps) {
+export function AppLayout({ children, requireAuth = true }: AppLayoutProps) {
   const { user, loading } = useAuth();
   
   // Track online presence
@@ -51,8 +49,6 @@ export function AppLayout({ children, requireAuth = true, showFAB = true }: AppL
       </main>
       {/* Mobile/Tablet bottom nav - hidden on desktop */}
       <BottomNav />
-      {/* Floating Action Button - includes VYBE Hub on double-tap */}
-      {showFAB && <FloatingActionButton className="floating-action-button" />}
     </div>
   );
 }
