@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, Play, MoreVertical, Trash2, Flag } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, Play, MoreVertical, Trash2, Flag, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -33,6 +33,7 @@ interface ShortCardProps {
     comment_count: number;
     is_liked: boolean;
     is_bookmarked: boolean;
+    view_count?: number;
   };
   isActive: boolean;
 }
@@ -43,11 +44,13 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
   const { data: userRole } = useUserRole();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false); // Start unmuted
   const [isLiked, setIsLiked] = useState(post.is_liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
+  const [viewCount, setViewCount] = useState(post.view_count || 0);
+  const hasCountedView = useRef(false);
 
   const isOwnPost = profile?.id === post.author.id;
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
@@ -56,17 +59,44 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
 
+  // Auto-play when active, with unmuted audio and loop
   useEffect(() => {
     if (videoRef.current) {
       if (isActive) {
-        videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+        videoRef.current.muted = isMuted;
+        videoRef.current.play().then(() => {
+          setIsPlaying(true);
+          // Count view when video starts playing
+          if (!hasCountedView.current && profile) {
+            hasCountedView.current = true;
+            incrementViewCount();
+          }
+        }).catch(() => {
+          // Autoplay blocked, try muted
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+          }
+        });
       } else {
         videoRef.current.pause();
         videoRef.current.currentTime = 0;
         setIsPlaying(false);
+        hasCountedView.current = false;
       }
     }
-  }, [isActive]);
+  }, [isActive, isMuted]);
+
+  const incrementViewCount = async () => {
+    try {
+      // Call the database function to increment view count
+      await supabase.rpc('increment_view_count', { post_id_param: post.id });
+      setViewCount(prev => prev + 1);
+    } catch (error) {
+      console.error('Failed to increment view count:', error);
+    }
+  };
 
   const togglePlay = () => {
     if (videoRef.current) {
@@ -76,6 +106,13 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
         videoRef.current.play();
       }
       setIsPlaying(!isPlaying);
+    }
+  };
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
     }
   };
 
@@ -125,14 +162,15 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
   const handleShare = async () => {
     const url = `${window.location.origin}/p/${post.id}`;
     if (navigator.share) {
-      await navigator.share({ title: 'Check this out on LOLLoop', url });
+      await navigator.share({ title: 'Check this out on XD', url });
     } else {
       navigator.clipboard.writeText(url);
+      toast.success('Link copied!');
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this short?')) return;
+    if (!confirm('Are you sure you want to delete this clip?')) return;
 
     try {
       const { error } = await supabase
@@ -142,18 +180,17 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
 
       if (error) throw error;
 
-      toast.success('Short deleted');
+      toast.success('Clip deleted');
       queryClient.invalidateQueries({ queryKey: ['posts'] });
-      queryClient.invalidateQueries({ queryKey: ['shorts'] });
     } catch (error) {
-      console.error('Failed to delete short:', error);
-      toast.error('Failed to delete short');
+      console.error('Failed to delete clip:', error);
+      toast.error('Failed to delete clip');
     }
   };
 
   const handleReport = async () => {
     if (!profile) return;
-    const reason = prompt('Why are you reporting this short?');
+    const reason = prompt('Why are you reporting this clip?');
     if (!reason) return;
 
     try {
@@ -162,16 +199,22 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
         post_id: post.id,
         reason,
       });
-      toast.success('Short reported. We will review it shortly.');
+      toast.success('Clip reported. We will review it shortly.');
     } catch (error) {
-      toast.error('Failed to report short');
+      toast.error('Failed to report clip');
     }
+  };
+
+  const formatViewCount = (count: number) => {
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+    return count.toString();
   };
 
   const isVideo = post.media_url.includes('.mp4') || post.media_url.includes('.webm') || post.media_url.includes('.mov');
 
   return (
-    <div className="relative h-full w-full bg-background flex items-center justify-center">
+    <div className="relative h-full w-full bg-black flex items-center justify-center overflow-hidden">
       {/* Media */}
       <div 
         className="absolute inset-0 flex items-center justify-center"
@@ -182,16 +225,19 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
           <video
             ref={videoRef}
             src={signedMediaUrl || ''}
-            className="h-full w-full object-contain"
+            className="h-full w-full object-cover"
             loop
             playsInline
             muted={isMuted}
+            preload="auto"
+            poster={post.media_url.replace(/\.[^/.]+$/, '.jpg')}
           />
         ) : (
           <img
             src={signedMediaUrl || ''}
             alt={post.caption}
-            className="h-full w-full object-contain"
+            className="h-full w-full object-cover"
+            loading="eager"
           />
         )}
 
@@ -199,12 +245,17 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
         <AnimatePresence>
           {isVideo && !isPlaying && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 flex items-center justify-center bg-background/20"
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+              className="absolute inset-0 flex items-center justify-center bg-black/20"
             >
-              <Play className="h-16 w-16 text-foreground" />
+              <motion.div
+                whileHover={{ scale: 1.1 }}
+                className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
+              >
+                <Play className="h-10 w-10 text-white ml-1" fill="white" />
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -215,85 +266,115 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
+              exit={{ scale: 1.5, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 20 }}
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
             >
-              <Heart className="h-32 w-32 text-primary fill-primary drop-shadow-lg" />
+              <Heart className="h-32 w-32 text-primary fill-primary drop-shadow-2xl" />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent pointer-events-none" />
+      {/* Gradient overlays */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
 
-      {/* Right side actions */}
-      <div className="absolute right-4 bottom-32 flex flex-col items-center gap-6">
+      {/* Right side actions - TikTok style */}
+      <div className="absolute right-3 bottom-28 flex flex-col items-center gap-5">
         {/* Author avatar */}
         <Link to={`/u/${post.author.username}`} className="relative">
-          <div className="story-ring">
-            <Avatar className="h-12 w-12 border-2 border-background">
+          <motion.div 
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            className="story-ring"
+          >
+            <Avatar className="h-12 w-12 border-2 border-white">
               <AvatarImage src={signedAvatarUrl || undefined} />
-              <AvatarFallback className="bg-secondary text-secondary-foreground">
+              <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-bold">
                 {post.author.username[0].toUpperCase()}
               </AvatarFallback>
             </Avatar>
-          </div>
+          </motion.div>
         </Link>
 
         {/* Like */}
-        <button onClick={handleLike} className="flex flex-col items-center gap-1">
-          <motion.div animate={isLiked ? { scale: [1, 1.3, 1] } : {}}>
+        <motion.button 
+          whileTap={{ scale: 0.8 }}
+          onClick={handleLike} 
+          className="flex flex-col items-center gap-1"
+        >
+          <motion.div 
+            animate={isLiked ? { scale: [1, 1.4, 1] } : {}}
+            transition={{ type: 'spring', stiffness: 400 }}
+          >
             <Heart
               className={cn(
-                "h-8 w-8",
-                isLiked ? "fill-primary text-primary" : "text-foreground"
+                "h-8 w-8 drop-shadow-lg",
+                isLiked ? "fill-red-500 text-red-500" : "text-white"
               )}
             />
           </motion.div>
-          <span className="text-xs font-semibold">{likeCount}</span>
-        </button>
+          <span className="text-xs font-bold text-white drop-shadow-lg">{likeCount}</span>
+        </motion.button>
 
         {/* Comment */}
         <Link to={`/p/${post.id}`} className="flex flex-col items-center gap-1">
-          <MessageCircle className="h-8 w-8" />
-          <span className="text-xs font-semibold">{post.comment_count}</span>
+          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
+          </motion.div>
+          <span className="text-xs font-bold text-white drop-shadow-lg">{post.comment_count}</span>
         </Link>
 
         {/* Bookmark */}
-        <button onClick={handleBookmark} className="flex flex-col items-center gap-1">
+        <motion.button 
+          whileTap={{ scale: 0.8 }}
+          onClick={handleBookmark} 
+          className="flex flex-col items-center gap-1"
+        >
           <Bookmark
             className={cn(
-              "h-8 w-8",
-              isBookmarked ? "fill-foreground" : ""
+              "h-8 w-8 drop-shadow-lg",
+              isBookmarked ? "fill-white text-white" : "text-white"
             )}
           />
-        </button>
+        </motion.button>
 
         {/* Share */}
-        <button onClick={handleShare} className="flex flex-col items-center gap-1">
-          <Share2 className="h-8 w-8" />
-        </button>
+        <motion.button 
+          whileTap={{ scale: 0.8 }}
+          onClick={handleShare} 
+          className="flex flex-col items-center gap-1"
+        >
+          <Share2 className="h-8 w-8 text-white drop-shadow-lg" />
+        </motion.button>
 
         {/* Mute toggle for video */}
         {isVideo && (
-          <button onClick={() => setIsMuted(!isMuted)} className="flex flex-col items-center gap-1">
-            {isMuted ? <VolumeX className="h-8 w-8" /> : <Volume2 className="h-8 w-8" />}
-          </button>
+          <motion.button 
+            whileTap={{ scale: 0.8 }}
+            onClick={toggleMute} 
+            className="flex flex-col items-center gap-1"
+          >
+            {isMuted ? (
+              <VolumeX className="h-7 w-7 text-white drop-shadow-lg" />
+            ) : (
+              <Volume2 className="h-7 w-7 text-white drop-shadow-lg" />
+            )}
+          </motion.button>
         )}
 
         {/* More options menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-foreground hover:bg-foreground/10">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20">
               <MoreVertical className="h-6 w-6" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="liquid-glass">
             {canDelete && (
               <DropdownMenuItem onClick={handleDelete} className="text-destructive">
                 <Trash2 className="h-4 w-4 mr-2" />
-                Delete Short
+                Delete Clip
               </DropdownMenuItem>
             )}
             {!isOwnPost && (
@@ -306,18 +387,31 @@ export function ShortCard({ post, isActive }: ShortCardProps) {
         </DropdownMenu>
       </div>
 
-      {/* Bottom info */}
-      <div className="absolute left-4 right-20 bottom-8">
-        <Link to={`/u/${post.author.username}`} className="font-bold text-lg">
-          @{post.author.username}
-        </Link>
+      {/* Bottom info - TikTok style */}
+      <div className="absolute left-4 right-20 bottom-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Link to={`/u/${post.author.username}`} className="font-bold text-lg text-white drop-shadow-lg">
+            @{post.author.username}
+          </Link>
+          {/* View count */}
+          <div className="flex items-center gap-1 text-white/80 text-sm">
+            <Eye className="h-4 w-4" />
+            <span>{formatViewCount(viewCount)}</span>
+          </div>
+        </div>
         {post.caption && (
-          <p className="text-sm mt-1 line-clamp-2">{post.caption}</p>
+          <p className="text-sm text-white drop-shadow-lg line-clamp-2 mb-2">{post.caption}</p>
         )}
         {post.tags && post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
+          <div className="flex flex-wrap gap-1.5">
             {post.tags.map((tag) => (
-              <span key={tag} className="text-xs text-accent">#{tag}</span>
+              <motion.span 
+                key={tag} 
+                whileHover={{ scale: 1.05 }}
+                className="text-xs text-cyan-300 font-medium drop-shadow-lg"
+              >
+                #{tag}
+              </motion.span>
             ))}
           </div>
         )}
