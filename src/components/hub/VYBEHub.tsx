@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, Calendar, Shield, X } from 'lucide-react';
-import { useUserRole } from '@/hooks/useModeration';
+import { ShoppingBag, Calendar, X } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -13,10 +12,7 @@ interface VYBEHubProps {
 
 export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
   const navigate = useNavigate();
-  const { data: userRole } = useUserRole();
   const isMobile = useIsMobile();
-  
-  const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
 
   const handleNavigate = (path: string) => {
     triggerHaptic('light');
@@ -120,25 +116,6 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
                     <p className="text-sm text-muted-foreground">Discover what's happening</p>
                   </div>
                 </motion.button>
-
-                {/* Admin Panel - Only for admins/mods */}
-                {isAdminOrMod && (
-                  <motion.button
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.25 }}
-                    onClick={() => handleNavigate('/admin')}
-                    className="w-full p-4 rounded-2xl liquid-glass-button flex items-center gap-4 hover:scale-[1.02] active:scale-[0.98] transition-transform border border-yellow-500/30"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center">
-                      <Shield className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="text-left flex-1">
-                      <p className="font-semibold text-lg">Admin Panel</p>
-                      <p className="text-sm text-muted-foreground">Moderation tools</p>
-                    </div>
-                  </motion.button>
-                )}
               </div>
 
               {/* Close Button */}
@@ -146,7 +123,7 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
                 <motion.button
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
+                  transition={{ delay: 0.25 }}
                   onClick={onClose}
                   className="w-full p-3 rounded-2xl liquid-glass-subtle text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2"
                 >
