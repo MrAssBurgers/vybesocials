@@ -1,10 +1,10 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, forwardRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Home, Film, Compass, MessageCircle, ShoppingBag, Calendar, Bell, Settings, 
-  LogOut, PlusCircle, Shield, ChevronLeft, ChevronRight, Users, 
+  LogOut, PlusCircle, Shield, ChevronLeft, ChevronRight, Users, LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -22,10 +22,73 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 import { VYBEHub } from '@/components/hub/VYBEHub';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
+interface NavItemData {
+  icon: LucideIcon;
+  label?: string;
+  labelKey?: string;
+  path: string;
+  badge: number;
+}
+
 interface DesktopLeftSidebarProps {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
 }
+
+// NavLink component with forwardRef
+const NavLinkContent = forwardRef<
+  HTMLAnchorElement,
+  {
+    item: NavItemData;
+    isActive: boolean;
+    collapsed: boolean;
+    label: string;
+  }
+>(({ item, isActive, collapsed, label, ...props }, ref) => {
+  const Icon = item.icon;
+  
+  return (
+    <Link
+      ref={ref}
+      to={item.path}
+      onClick={triggerNavFeedback}
+      className={cn(
+        "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative group",
+        "hover:translate-x-0.5",
+        isActive
+          ? "text-sidebar-foreground bg-sidebar-accent/50"
+          : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-sidebar-foreground"
+      )}
+      style={{ transition: 'transform 140ms ease, background 140ms ease, color 140ms ease' }}
+      {...props}
+    >
+      {isActive && (
+        <motion.div
+          layoutId="desktopNavIndicator"
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        />
+      )}
+      <div className="relative">
+        <Icon className="h-5 w-5 transition-transform" />
+        <AnimatePresence>
+          {item.badge > 0 && (
+            <motion.span
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold"
+            >
+              {item.badge > 9 ? '9+' : item.badge}
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </div>
+      {!collapsed && <span className="font-medium truncate">{label}</span>}
+    </Link>
+  );
+});
+NavLinkContent.displayName = 'NavLinkContent';
 
 export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeftSidebarProps) {
   const { t } = useTranslation();
@@ -42,7 +105,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
   const isMrassburgers = profile?.username?.toLowerCase() === 'mrassburgers';
   const showAdminLink = isAdminOrMod || isMrassburgers;
 
-  const mainNavItems = [
+  const mainNavItems: NavItemData[] = [
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0 },
     { icon: Film, labelKey: 'nav.clips', path: '/clips', badge: 0 },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0 },
@@ -74,54 +137,16 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
     lastTapTime.current = now;
   }, [navigate]);
 
-  const NavItem = ({ item }: { item: typeof mainNavItems[0] }) => {
+  const renderNavItem = (item: NavItemData) => {
     const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
-    const Icon = item.icon;
-    const label = item.labelKey ? t(item.labelKey) : item.label;
-
-    const content = (
-      <Link
-        to={item.path}
-        onClick={triggerNavFeedback}
-        className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative group",
-          "hover:translate-x-0.5",
-          isActive
-            ? "text-sidebar-foreground bg-sidebar-accent/50"
-            : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-sidebar-foreground"
-        )}
-        style={{ transition: 'transform 140ms ease, background 140ms ease, color 140ms ease' }}
-      >
-        {isActive && (
-          <motion.div
-            layoutId="desktopNavIndicator"
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"
-            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-          />
-        )}
-        <div className="relative">
-          <Icon className={cn("h-5 w-5 transition-transform", collapsed ? "" : "")} />
-          <AnimatePresence>
-            {item.badge > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0 }}
-                className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold"
-              >
-                {item.badge > 9 ? '9+' : item.badge}
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </div>
-        {!collapsed && <span className="font-medium truncate">{label}</span>}
-      </Link>
-    );
+    const label = item.labelKey ? t(item.labelKey) : item.label || '';
 
     if (collapsed) {
       return (
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>{content}</TooltipTrigger>
+        <Tooltip key={item.path} delayDuration={0}>
+          <TooltipTrigger asChild>
+            <NavLinkContent item={item} isActive={isActive} collapsed={collapsed} label={label} />
+          </TooltipTrigger>
           <TooltipContent side="right" className="font-medium">
             {label}
             {item.badge > 0 && <span className="ml-2 text-destructive">({item.badge})</span>}
@@ -130,7 +155,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
       );
     }
 
-    return content;
+    return <NavLinkContent key={item.path} item={item} isActive={isActive} collapsed={collapsed} label={label} />;
   };
 
   return (
@@ -208,9 +233,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
 
         {/* Primary Navigation */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
-          {mainNavItems.map((item) => (
-            <NavItem key={item.path} item={item} />
-          ))}
+          {mainNavItems.map(renderNavItem)}
 
           {/* Moderation Section */}
           {showAdminLink && (
@@ -221,7 +244,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
                   Moderation
                 </p>
               )}
-              <NavItem item={{ icon: Shield, label: 'Admin Panel', path: '/admin', badge: 0 }} />
+              {renderNavItem({ icon: Shield, label: 'Admin Panel', path: '/admin', badge: 0 })}
             </>
           )}
         </nav>
