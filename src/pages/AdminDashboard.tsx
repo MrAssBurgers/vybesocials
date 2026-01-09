@@ -13,11 +13,12 @@ import { useUserRole, useReports, useContentFlags, useUpdateReport, useUpdateFla
 import { useAllWarnings, useAllBans, useUnbanUser } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
 import { formatDistanceToNow } from 'date-fns';
-import { Shield, Flag, AlertTriangle, Users, Ban, CheckCircle, XCircle, Eye, UserPlus, Trash2, Crown } from 'lucide-react';
+import { Shield, Flag, AlertTriangle, Users, Ban, CheckCircle, XCircle, Eye, UserPlus, Trash2, Crown, Megaphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ModBadge } from '@/components/ui/ModBadge';
+import { CreateAnnouncementDialog } from '@/components/announcements/CreateAnnouncementDialog';
 
 // Hook to search users for adding roles
 function useSearchUsers(searchTerm: string) {
@@ -39,6 +40,7 @@ function useSearchUsers(searchTerm: string) {
 
 export default function AdminDashboard() {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
   const { data: userRole, isLoading: roleLoading } = useUserRole();
   const { data: reports = [], isLoading: reportsLoading } = useReports();
   const { data: flags = [], isLoading: flagsLoading } = useContentFlags();
@@ -50,6 +52,51 @@ export default function AdminDashboard() {
   const unbanUser = useUnbanUser();
   const addUserRole = useAddUserRole();
   const removeUserRole = useRemoveUserRole();
+  
+  // Announcements query
+  const { data: announcements = [], isLoading: announcementsLoading } = useQuery({
+    queryKey: ['all-announcements'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select(`*, author:profiles!author_id(username, avatar_url)`)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Deactivate announcement
+  const deactivateAnnouncement = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('announcements')
+        .update({ is_active: false })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      toast.success('Announcement deactivated');
+    },
+  });
+
+  // Reactivate announcement
+  const reactivateAnnouncement = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('announcements')
+        .update({ is_active: true })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      toast.success('Announcement reactivated');
+    },
+  });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<'admin' | 'moderator'>('moderator');
@@ -191,11 +238,12 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs defaultValue="reports" className="space-y-4">
-          <TabsList className="liquid-glass">
+          <TabsList className="liquid-glass flex-wrap">
             <TabsTrigger value="reports">Reports</TabsTrigger>
             <TabsTrigger value="flags">Flags</TabsTrigger>
             <TabsTrigger value="warnings">Warnings</TabsTrigger>
             <TabsTrigger value="bans">Bans</TabsTrigger>
+            <TabsTrigger value="announcements">Announcements</TabsTrigger>
             <TabsTrigger value="roles">Roles</TabsTrigger>
           </TabsList>
 
@@ -378,6 +426,83 @@ export default function AdminDashboard() {
                           <Button size="sm" variant="outline" onClick={() => handleUnban(ban.id)}>
                             Unban
                           </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Announcements Tab */}
+          <TabsContent value="announcements">
+            <Card className="liquid-glass">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Megaphone className="h-5 w-5" />
+                  Global Announcements
+                </CardTitle>
+                <CardDescription>Broadcast messages to all users</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Create new announcement */}
+                <CreateAnnouncementDialog />
+                
+                {/* Announcements list */}
+                {announcementsLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading...</div>
+                ) : announcements.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No announcements yet</div>
+                ) : (
+                  <ScrollArea className="h-[400px]">
+                    <div className="space-y-4">
+                      {announcements.map((announcement: any) => (
+                        <div key={announcement.id} className="p-4 rounded-lg bg-muted/30 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={announcement.author?.avatar_url || ''} />
+                                <AvatarFallback>{announcement.author?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <span className="font-medium">{announcement.title}</span>
+                                <p className="text-xs text-muted-foreground">by @{announcement.author?.username}</p>
+                              </div>
+                            </div>
+                            <Badge variant={announcement.is_active ? 'default' : 'secondary'}>
+                              {announcement.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{announcement.content}</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-muted-foreground">
+                              {formatDistanceToNow(new Date(announcement.created_at), { addSuffix: true })}
+                            </p>
+                            <div className="flex gap-2">
+                              {announcement.is_active ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => deactivateAnnouncement.mutate(announcement.id)}
+                                  disabled={deactivateAnnouncement.isPending}
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Deactivate
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => reactivateAnnouncement.mutate(announcement.id)}
+                                  disabled={reactivateAnnouncement.isPending}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Reactivate
+                                </Button>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
