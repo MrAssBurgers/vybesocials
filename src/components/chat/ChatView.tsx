@@ -34,6 +34,8 @@ import { VanishThreads } from './VanishThreads';
 import { MemoryPins } from './MemoryPins';
 import { ScheduleMessageDialog } from './ScheduleMessageDialog';
 import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
+import { CallButtons } from './CallButtons';
+import { useCallContext } from './CallProvider';
 import { 
   ArrowLeft, 
   Send, 
@@ -113,6 +115,7 @@ export function ChatView() {
   const addReaction = useAddReaction();
   const { typingUsers, setTyping } = useTypingIndicator(conversationId);
   const { notifyScreenshot } = useScreenshotNotification(conversationId);
+  const { startCall } = useCallContext();
 
   const [messageText, setMessageText] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('permanent');
@@ -483,6 +486,15 @@ export function ChatView() {
             )}
           </AnimatePresence>
         </div>
+        {/* Call Buttons - only for DMs (not group chats) */}
+        {!isGroupChat && otherMember?.id && (
+          <CallButtons
+            conversationId={conversationId!}
+            receiverId={otherMember.id}
+            onCallStarted={startCall}
+          />
+        )}
+        
         {/* DM Feature Buttons */}
         <VanishThreads conversationId={conversationId!} />
         <MemoryPins conversationId={conversationId!} messages={messages || []} />

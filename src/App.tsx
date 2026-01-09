@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
+import { CallProvider } from "@/components/chat/CallProvider";
 
 // Pages
 import Landing from "./pages/Landing";
@@ -41,33 +42,35 @@ const App = () => (
     <ThemeProvider>
       <AuthProvider>
         <EasterEggProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Landing />} />
-                <Route path="/home" element={<Home />} />
-                <Route path="/clips" element={<Shorts />} />
-                <Route path="/shorts" element={<Shorts />} />
-                <Route path="/explore" element={<Explore />} />
-                <Route path="/upload" element={<Upload />} />
-                <Route path="/p/:id" element={<PostDetail />} />
-                <Route path="/u/:username" element={<Profile />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/onboarding" element={<Onboarding />} />
-                <Route path="/complete-profile" element={<CompleteProfile />} />
-                <Route path="/messages" element={<Messages />} />
-                <Route path="/messages/new" element={<NewMessage />} />
-                <Route path="/messages/:conversationId" element={<Messages />} />
-                <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="/feedback" element={<Feedback />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
+          <CallProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/home" element={<Home />} />
+                  <Route path="/clips" element={<Shorts />} />
+                  <Route path="/shorts" element={<Shorts />} />
+                  <Route path="/explore" element={<Explore />} />
+                  <Route path="/upload" element={<Upload />} />
+                  <Route path="/p/:id" element={<PostDetail />} />
+                  <Route path="/u/:username" element={<Profile />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/onboarding" element={<Onboarding />} />
+                  <Route path="/complete-profile" element={<CompleteProfile />} />
+                  <Route path="/messages" element={<Messages />} />
+                  <Route path="/messages/new" element={<NewMessage />} />
+                  <Route path="/messages/:conversationId" element={<Messages />} />
+                  <Route path="/admin" element={<AdminDashboard />} />
+                  <Route path="/feedback" element={<Feedback />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </CallProvider>
         </EasterEggProvider>
       </AuthProvider>
     </ThemeProvider>
