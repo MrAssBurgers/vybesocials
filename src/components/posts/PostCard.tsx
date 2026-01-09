@@ -159,7 +159,7 @@ export function PostCard({ post }: PostCardProps) {
     <motion.article
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card rounded-xl overflow-hidden border border-border"
+      className="liquid-glass-card rounded-2xl overflow-hidden"
     >
       {/* Header */}
       <div className="flex items-center justify-between p-4">

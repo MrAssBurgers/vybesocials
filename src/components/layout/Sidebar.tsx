@@ -41,11 +41,11 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-screen w-64 flex-col bg-sidebar border-r border-sidebar-border p-4">
+    <aside className="hidden md:flex fixed left-0 top-0 h-screen w-64 flex-col liquid-glass border-r border-white/10 p-4">
       {/* Logo */}
       <Link to="/home" className="flex items-center gap-2 px-2 py-4 group">
         <motion.div 
-          className="gradient-animated rounded-xl p-2 flex items-center justify-center"
+          className="gradient-animated rounded-xl p-2 flex items-center justify-center liquid-glass-button"
           whileHover={{ scale: 1.1, rotate: 5 }}
           whileTap={{ scale: 0.95 }}
         >
@@ -84,7 +84,7 @@ export function Sidebar() {
                   {/* Animated gradient border */}
                   <div className="absolute inset-0 gradient-border-animated animate-glow-pulse" />
                   {/* Inner background to create border effect */}
-                  <div className="absolute inset-[2px] rounded-[10px] bg-sidebar" />
+                  <div className="absolute inset-[2px] rounded-[10px] liquid-glass-subtle" />
                 </motion.div>
               )}
               <div className="relative">
@@ -110,7 +110,7 @@ export function Sidebar() {
 
         {/* Create Button */}
         <Link to="/upload" className="block mt-4" onClick={triggerNavFeedback}>
-          <Button className="w-full gradient-animated text-primary-foreground font-semibold h-12 rounded-xl">
+          <Button className="w-full gradient-animated text-primary-foreground font-semibold h-12 rounded-xl liquid-glass-button hover:scale-[1.02] transition-transform">
             <PlusCircle className="h-5 w-5 mr-2" />
             {t('nav.upload')}
           </Button>
@@ -118,10 +118,10 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom Section */}
-      <div className="space-y-2 border-t border-sidebar-border pt-4">
+      <div className="space-y-2 border-t border-white/10 pt-4">
         <Link
           to={profile ? `/u/${profile.username}` : '/profile'}
-          className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-all"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-white/5 hover:text-sidebar-foreground transition-all liquid-glass-subtle"
         >
           <Avatar className="h-8 w-8">
             <AvatarImage src={profile?.avatar_url || undefined} />
@@ -142,7 +142,7 @@ export function Sidebar() {
         {showAdminLink && (
           <Link
             to="/admin"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-all"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-white/5 hover:text-sidebar-foreground transition-all"
           >
             <Shield className="h-5 w-5" />
             <span className="font-medium">Admin</span>
@@ -151,7 +151,7 @@ export function Sidebar() {
 
         <Link
           to="/settings"
-          className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-all"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-white/5 hover:text-sidebar-foreground transition-all"
         >
           <Settings className="h-5 w-5" />
           <span className="font-medium">{t('nav.settings')}</span>
@@ -159,7 +159,7 @@ export function Sidebar() {
 
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all w-full"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all w-full"
         >
           <LogOut className="h-5 w-5" />
           <span className="font-medium">{t('auth.logout')}</span>
