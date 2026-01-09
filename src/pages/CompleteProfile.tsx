@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { Sparkles, User } from 'lucide-react';
+import { Sparkles, User, Camera } from 'lucide-react';
 
 export default function CompleteProfile() {
   const navigate = useNavigate();
@@ -17,6 +18,16 @@ export default function CompleteProfile() {
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [usernameError, setUsernameError] = useState('');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Get Google profile picture if available
+  useEffect(() => {
+    if (user?.user_metadata?.avatar_url) {
+      setAvatarPreview(user.user_metadata.avatar_url);
+    }
+  }, [user]);
 
   useEffect(() => {
     // If user already has a profile with a username, redirect to home
@@ -37,6 +48,18 @@ export default function CompleteProfile() {
     }
   }, [authLoading, user, navigate]);
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be less than 5MB');
+        return;
+      }
+      setAvatarFile(file);
+      setAvatarPreview(URL.createObjectURL(file));
+    }
+  };
+
   const validateUsername = async (value: string) => {
     setUsernameError('');
     
@@ -51,7 +74,7 @@ export default function CompleteProfile() {
     }
 
     // Check if username is taken
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('profiles')
       .select('username')
       .eq('username', value.toLowerCase())
@@ -63,6 +86,25 @@ export default function CompleteProfile() {
     }
 
     return true;
+  };
+
+  const uploadAvatar = async (): Promise<string | null> => {
+    if (!avatarFile || !user) return null;
+
+    const fileExt = avatarFile.name.split('.').pop();
+    const filePath = `${user.id}/avatar.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, avatarFile, { upsert: true });
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      return null;
+    }
+
+    const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+    return data.publicUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,6 +119,15 @@ export default function CompleteProfile() {
         return;
       }
 
+      // Upload avatar if selected
+      let avatarUrl = avatarPreview;
+      if (avatarFile) {
+        const uploadedUrl = await uploadAvatar();
+        if (uploadedUrl) {
+          avatarUrl = uploadedUrl;
+        }
+      }
+
       // Create or update profile
       const { error } = await supabase
         .from('profiles')
@@ -84,6 +135,7 @@ export default function CompleteProfile() {
           user_id: user.id,
           username: username.toLowerCase(),
           bio: bio,
+          avatar_url: avatarUrl,
         }, {
           onConflict: 'user_id',
         });
@@ -133,8 +185,28 @@ export default function CompleteProfile() {
       >
         <div className="glass-card rounded-2xl p-8 gradient-border">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full gradient-animated mb-4">
-              <User className="w-8 h-8 text-white" />
+            {/* Avatar upload */}
+            <div className="relative inline-block mb-4">
+              <Avatar className="w-24 h-24 border-4 border-primary/20">
+                <AvatarImage src={avatarPreview || undefined} />
+                <AvatarFallback className="bg-secondary">
+                  <User className="w-10 h-10 text-muted-foreground" />
+                </AvatarFallback>
+              </Avatar>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <Camera className="w-4 h-4" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
             </div>
             <h1 className="text-2xl font-bold">Complete Your Profile</h1>
             <p className="text-muted-foreground mt-2">
