@@ -1,22 +1,24 @@
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { ConversationList } from '@/components/chat/ConversationList';
 import { ChatView } from '@/components/chat/ChatView';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useBreakpoint } from '@/hooks/usePlatform';
 
 export default function Messages() {
   const location = useLocation();
+  const { isDesktop } = useBreakpoint();
   const isInChat = location.pathname !== '/messages';
 
   return (
-    <AppLayout>
-      <div className="h-[calc(100vh-5rem)] md:h-screen flex">
-        {/* Desktop: Show both list and chat side by side */}
-        <div className={`w-full md:w-80 lg:w-96 border-r border-border flex-shrink-0 ${isInChat ? 'hidden md:block' : ''}`}>
+    <AppLayout hideRightSidebar fullWidth>
+      <div className="h-[calc(100vh-5rem)] md:h-[calc(100vh-2rem)] lg:h-screen flex overflow-hidden max-w-full">
+        {/* Conversation list - hidden on mobile when in chat */}
+        <div className={`w-full md:w-80 lg:w-96 border-r border-border flex-shrink-0 overflow-hidden ${isInChat ? 'hidden md:block' : ''}`}>
           <ConversationList />
         </div>
         
         {/* Chat area */}
-        <div className={`flex-1 ${!isInChat ? 'hidden md:flex' : 'flex'} flex-col`}>
+        <div className={`flex-1 min-w-0 ${!isInChat ? 'hidden md:flex' : 'flex'} flex-col overflow-hidden`}>
           {isInChat ? (
             <ChatView />
           ) : (

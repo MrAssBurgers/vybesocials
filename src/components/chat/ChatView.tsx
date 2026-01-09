@@ -435,24 +435,38 @@ export function ChatView() {
     }
   };
 
+  // Navigate to profile when avatar clicked
+  const handleAvatarClick = useCallback(() => {
+    if (otherMember?.username) {
+      navigate(`/u/${otherMember.username}`);
+    }
+  }, [otherMember?.username, navigate]);
+
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="p-4 border-b border-border flex items-center gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/messages')}>
+    <div className="flex flex-col h-full bg-background overflow-hidden">
+      {/* Header - sticky, contained */}
+      <div className="flex-shrink-0 p-3 sm:p-4 border-b border-border flex items-center gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="flex-shrink-0">
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="cursor-pointer relative">
-          <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+        
+        {/* Clickable Avatar - navigates to profile */}
+        <button 
+          onClick={handleAvatarClick}
+          className="relative flex-shrink-0 group"
+          aria-label="View profile"
+        >
+          <Avatar className="h-10 w-10 ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all group-active:scale-95">
             <AvatarImage src={otherMember?.avatar_url || undefined} />
             <AvatarFallback>{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
           {!isGroupChat && (
             <OnlineIndicator isOnline={otherMemberOnline} size="sm" className="bottom-0 right-0" />
           )}
-        </div>
-        <div className="flex-1">
-          <h2 className="font-semibold">{displayName}</h2>
+        </button>
+        
+        <div className="flex-1 min-w-0">
+          <h2 className="font-semibold truncate">{displayName}</h2>
           {!isGroupChat && !typingUsers.length && (
             <p className="text-xs text-muted-foreground">
               {otherMemberOnline ? 'Online' : 'Offline'}
@@ -482,12 +496,12 @@ export function ChatView() {
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="flex-shrink-0">
               <MoreVertical className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem>{t('messages.viewProfile')}</DropdownMenuItem>
+          <DropdownMenuContent align="end" className="z-50 bg-popover">
+            <DropdownMenuItem onClick={handleAvatarClick}>{t('messages.viewProfile')}</DropdownMenuItem>
             <DropdownMenuItem>{t('messages.muteNotifications')}</DropdownMenuItem>
             <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
           </DropdownMenuContent>
