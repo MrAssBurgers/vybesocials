@@ -45,7 +45,7 @@ const SOUND_CONFIG: Record<SoundType, { frequency: number; duration: number; vol
 };
 
 // Play a sound
-function playSound(type: SoundType): void {
+export function playSound(type: SoundType): void {
   if (!isSoundsEnabled()) return;
   
   const ctx = getAudioContext();
