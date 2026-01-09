@@ -1,7 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -122,7 +121,7 @@ interface PostCardProps {
   };
 }
 
-export function PostCard({ post }: PostCardProps) {
+export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const togglePin = useTogglePin();
@@ -140,7 +139,7 @@ export function PostCard({ post }: PostCardProps) {
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
   const canDelete = isOwnPost || isAdmin;
 
-  const handleReport = async () => {
+  const handleReport = useCallback(async () => {
     if (!profile) return;
     const reason = prompt('Why are you reporting this post?');
     if (!reason) return;
@@ -155,13 +154,13 @@ export function PostCard({ post }: PostCardProps) {
     } catch (error) {
       toast.error('Failed to report post');
     }
-  };
+  }, [profile, post.id]);
 
-  const handleTogglePin = () => {
+  const handleTogglePin = useCallback(() => {
     togglePin.mutate({ postId: post.id, isPinned: !post.is_pinned });
-  };
+  }, [togglePin, post.id, post.is_pinned]);
 
-  const handleLike = async () => {
+  const handleLike = useCallback(async () => {
     if (!profile) return;
 
     const newIsLiked = !isLiked;
@@ -170,7 +169,6 @@ export function PostCard({ post }: PostCardProps) {
 
     if (newIsLiked) {
       await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
-      // Create notification
       if (post.author.id !== profile.id) {
         await supabase.from('notifications').insert({
           user_id: post.author.id,
@@ -182,9 +180,9 @@ export function PostCard({ post }: PostCardProps) {
     } else {
       await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
     }
-  };
+  }, [profile, isLiked, post.id, post.author.id]);
 
-  const handleBookmark = async () => {
+  const handleBookmark = useCallback(async () => {
     if (!profile) return;
 
     const newIsBookmarked = !isBookmarked;
@@ -195,25 +193,26 @@ export function PostCard({ post }: PostCardProps) {
     } else {
       await supabase.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
     }
-  };
+  }, [profile, isBookmarked, post.id]);
 
-  const handleDoubleTap = () => {
+  const handleDoubleTap = useCallback(() => {
     if (!isLiked) {
       handleLike();
     }
     setShowHeart(true);
     setTimeout(() => setShowHeart(false), 800);
-  };
+  }, [isLiked, handleLike]);
 
-  const handleShare = async () => {
+  const handleShare = useCallback(async () => {
     const url = `${window.location.origin}/p/${post.id}`;
     if (navigator.share) {
       await navigator.share({ title: 'Check this out on LOLLoop', url });
     } else {
       navigator.clipboard.writeText(url);
     }
-  };
-  const handleDelete = async () => {
+  }, [post.id]);
+
+  const handleDelete = useCallback(async () => {
     if (!confirm('Are you sure you want to delete this post?')) return;
 
     try {
@@ -230,14 +229,10 @@ export function PostCard({ post }: PostCardProps) {
       console.error('Failed to delete post:', error);
       toast.error('Failed to delete post');
     }
-  };
+  }, [post.id, queryClient]);
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="liquid-glass-card rounded-2xl overflow-hidden"
-    >
+    <article className="liquid-glass-card rounded-2xl overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-4">
         <Link to={`/u/${post.author.username}`} className="flex items-center gap-3">
@@ -339,18 +334,11 @@ export function PostCard({ post }: PostCardProps) {
         )}
         
         {/* Double tap heart animation */}
-        <AnimatePresence>
-          {showHeart && (
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            >
-              <Heart className="h-24 w-24 text-primary fill-primary drop-shadow-lg" />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {showHeart && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-ping">
+            <Heart className="h-24 w-24 text-primary fill-primary drop-shadow-lg" />
+          </div>
+        )}
       </div>
 
       {/* Actions */}
@@ -358,14 +346,12 @@ export function PostCard({ post }: PostCardProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button onClick={handleLike} className="group">
-              <motion.div animate={isLiked ? { scale: [1, 1.3, 1] } : {}}>
-                <Heart
-                  className={cn(
-                    "h-6 w-6 transition-colors",
-                    isLiked ? "fill-primary text-primary" : "text-foreground group-hover:text-primary"
-                  )}
-                />
-              </motion.div>
+              <Heart
+                className={cn(
+                  "h-6 w-6 transition-colors",
+                  isLiked ? "fill-primary text-primary scale-110" : "text-foreground group-hover:text-primary"
+                )}
+              />
             </button>
             <Link to={`/p/${post.id}`}>
               <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
@@ -421,11 +407,13 @@ export function PostCard({ post }: PostCardProps) {
       </div>
 
       {/* Edit Post Dialog */}
-      <EditPostDialog
-        open={isEditOpen}
-        onOpenChange={setIsEditOpen}
-        post={{ id: post.id, caption: post.caption, tags: post.tags }}
-      />
-    </motion.article>
+      {isEditOpen && (
+        <EditPostDialog
+          open={isEditOpen}
+          onOpenChange={setIsEditOpen}
+          post={{ id: post.id, caption: post.caption, tags: post.tags }}
+        />
+      )}
+    </article>
   );
-}
+});

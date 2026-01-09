@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Search, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts } from '@/hooks/useInfinitePosts';
@@ -103,16 +102,13 @@ export default function HomePage() {
           transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : 'none' 
         }}
       >
-        {/* Compact Search Bar - Mobile only, positioned higher */}
+        {/* Compact Search Bar - Mobile only */}
         <div className="px-4 py-2 md:hidden">
           <Link to="/explore">
-            <motion.div
-              whileTap={{ scale: 0.98 }}
-              className="liquid-glass rounded-full px-4 py-2 flex items-center gap-2 border border-white/10"
-            >
+            <div className="liquid-glass rounded-full px-4 py-2 flex items-center gap-2 border border-white/10 active:scale-[0.98] transition-transform">
               <Search className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground text-xs">Search...</span>
-            </motion.div>
+            </div>
           </Link>
         </div>
 
@@ -134,15 +130,8 @@ export default function HomePage() {
                 <PostSkeletonList count={3} />
               ) : forYouPosts.length > 0 ? (
                 <>
-                  {forYouPosts.map((post, index) => (
-                    <motion.div
-                      key={post.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: Math.min(index * 0.05, 0.3) }}
-                    >
-                      <PostCard post={post} />
-                    </motion.div>
+                  {forYouPosts.map((post) => (
+                    <PostCard key={post.id} post={post} />
                   ))}
                   {/* Load more trigger */}
                   <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
@@ -164,15 +153,8 @@ export default function HomePage() {
                 <PostSkeletonList count={3} />
               ) : followingPosts.length > 0 ? (
                 <>
-                  {followingPosts.map((post, index) => (
-                    <motion.div
-                      key={post.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: Math.min(index * 0.05, 0.3) }}
-                    >
-                      <PostCard post={post} />
-                    </motion.div>
+                  {followingPosts.map((post) => (
+                    <PostCard key={post.id} post={post} />
                   ))}
                   {/* Load more trigger */}
                   <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
