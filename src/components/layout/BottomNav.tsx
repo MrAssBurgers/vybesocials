@@ -128,27 +128,28 @@ export function BottomNav() {
 
             if (item.isCreate) {
               return (
-                <Link
-                  key={item.path}
-                  to={path}
-                  className="relative flex items-center justify-center"
-                  onClick={handleUploadClick}
-                >
-                  <motion.div
-                    whileTap={{ scale: 0.9 }}
-                    whileHover={{ scale: 1.1 }}
-                    className="gradient-animated rounded-xl p-3 liquid-glass-button shadow-lg"
+                <div key={item.path} className="relative flex items-center justify-center">
+                  <Link
+                    to={path}
+                    className="relative flex items-center justify-center"
+                    onClick={handleUploadClick}
                   >
-                    <Icon className="h-6 w-6 text-primary-foreground" />
-                  </motion.div>
+                    <motion.div
+                      whileTap={{ scale: 0.9 }}
+                      whileHover={{ scale: 1.1 }}
+                      className="gradient-animated rounded-xl p-3 liquid-glass-button shadow-lg"
+                    >
+                      <Icon className="h-6 w-6 text-primary-foreground" />
+                    </motion.div>
+                  </Link>
                   {hasSpecialPerms && (
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
-                      className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-yellow-500 border-2 border-background"
+                      className="absolute -top-1 right-[calc(50%-24px)] w-3 h-3 rounded-full bg-yellow-500 border-2 border-background pointer-events-none"
                     />
                   )}
-                </Link>
+                </div>
               );
             }
 
