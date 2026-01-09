@@ -15,6 +15,7 @@ import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useCreateConversation } from '@/hooks/useMessages';
+import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -132,10 +133,18 @@ export default function ProfilePage() {
           {/* Info */}
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                @{profile.username}
-                {isOwner(profile.username) && <OwnerBadge />}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                  @{profile.username}
+                  {isOwner(profile.username) && <OwnerBadge />}
+                </h1>
+                {!isOwnProfile && (
+                  <ModeratorActionsMenu
+                    userId={profile.id}
+                    username={profile.username}
+                  />
+                )}
+              </div>
               {isOwnProfile ? (
                 <Link to="/settings">
                   <Button variant="secondary" size="sm">

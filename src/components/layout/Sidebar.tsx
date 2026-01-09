@@ -45,11 +45,11 @@ export function Sidebar() {
       {/* Logo */}
       <Link to="/home" className="flex items-center gap-2 px-2 py-4 group">
         <motion.div 
-          className="gradient-animated rounded-xl p-2"
+          className="gradient-animated rounded-xl p-2 flex items-center justify-center"
           whileHover={{ scale: 1.1, rotate: 5 }}
           whileTap={{ scale: 0.95 }}
         >
-          <Sparkles className="w-6 h-6 text-white" />
+          <span className="text-lg font-black text-white">XD</span>
         </motion.div>
         <span className="font-display text-2xl font-black gradient-text group-hover:scale-105 transition-transform">XD</span>
       </Link>

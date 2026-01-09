@@ -19,8 +19,13 @@ export default function NotificationsPage() {
   const respondToRequest = useRespondToFriendRequest();
   const [activeTab, setActiveTab] = useState('all');
 
+  // Mark notifications as read when viewing this page
   useEffect(() => {
-    markRead.mutate();
+    // Small delay to ensure smooth page render first
+    const timeout = setTimeout(() => {
+      markRead.mutate();
+    }, 500);
+    return () => clearTimeout(timeout);
   }, []);
 
   const getNotificationIcon = (type: NotificationType) => {

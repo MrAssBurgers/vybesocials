@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 // Owner username constant
 const OWNER_USERNAME = 'mrassburgers';
 
-// Fetch owner profile
+// Fetch owner profile with follower count
 function useOwnerProfile() {
   return useQuery({
     queryKey: ['owner-profile'],
@@ -22,7 +22,15 @@ function useOwnerProfile() {
         .maybeSingle();
       
       if (error) throw error;
-      return data;
+      if (!data) return null;
+
+      // Get follower count
+      const { count } = await supabase
+        .from('follows')
+        .select('id', { count: 'exact', head: true })
+        .eq('following_id', data.id);
+
+      return { ...data, follower_count: count || 0 };
     },
   });
 }
@@ -117,6 +125,9 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
               {ownerProfile.display_name || ownerProfile.username}
             </h3>
             <p className="text-muted-foreground">@{ownerProfile.username}</p>
+            <p className="text-sm text-primary font-medium mt-1">
+              {ownerProfile.follower_count.toLocaleString()} followers
+            </p>
             {ownerProfile.bio && (
               <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto">
                 {ownerProfile.bio}

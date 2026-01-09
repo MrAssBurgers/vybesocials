@@ -1,99 +1,33 @@
 import { z } from 'zod';
 
-// Comprehensive profanity/slur list - this is a first line of defense
-// For production, use AI moderation APIs for better coverage
-const BLOCKED_WORDS = [
-  // Common profanity
-  'fuck', 'fucking', 'fucked', 'fucker', 'fucks',
-  'shit', 'shitting', 'shitty',
-  'ass', 'asshole', 'asses',
-  'bitch', 'bitches', 'bitching',
-  'damn', 'damned', 'dammit',
-  'crap', 'crappy',
-  'bastard', 'bastards',
-  'cunt', 'cunts',
-  'dick', 'dicks',
-  'piss', 'pissed', 'pissing',
-  'whore', 'whores',
-  'slut', 'sluts',
-  'bullshit',
-  
-  // Racial slurs (critical to block)
-  'nigger', 'nigga', 'niggers', 'niggas',
-  'chink', 'chinks',
-  'spic', 'spics',
-  'kike', 'kikes',
-  'wetback', 'wetbacks',
-  'gook', 'gooks',
-  'beaner', 'beaners',
-  'cracker', 'crackers',
-  
-  // Homophobic/transphobic slurs
-  'faggot', 'faggots', 'fag', 'fags',
-  'dyke', 'dykes',
-  'tranny', 'trannies',
-  'homo', 'homos',
-  
-  // Ableist slurs
-  'retard', 'retards', 'retarded',
-  
-  // Sexual harassment
-  'rape', 'raping', 'rapist',
+// Only block death threats and violent threats - allow free speech otherwise
+const BLOCKED_PATTERNS = [
+  // Death threats
+  /\b(i('ll|m\s+going\s+to|m\s+gonna|'m\s+going\s+to|'m\s+gonna)\s+)?kill\s+(you|u|him|her|them)\b/gi,
+  /\bi\s+will\s+kill\s+(you|u|him|her|them)\b/gi,
+  /\bkill\s+yourself\b/gi,
+  /\bkys\b/gi,
+  /\bgo\s+die\b/gi,
+  /\bhope\s+(you|u)\s+die\b/gi,
+  /\bwish\s+(you|u)\s+(were\s+)?dead\b/gi,
+  /\b(you|u)\s+should\s+die\b/gi,
+  /\bi('ll|'m\s+going\s+to|'m\s+gonna)\s+murder\s+(you|u)\b/gi,
+  /\bdeath\s+threat/gi,
+  /\bi('ll|m\s+going\s+to)\s+end\s+(your|ur)\s+life\b/gi,
 ];
 
-// Common obfuscation patterns
-const OBFUSCATION_MAP: Record<string, string> = {
-  '@': 'a',
-  '4': 'a',
-  '3': 'e',
-  '1': 'i',
-  '!': 'i',
-  '0': 'o',
-  '5': 's',
-  '$': 's',
-  '7': 't',
-  '+': 't',
-};
+// No obfuscation normalization needed for threat detection
 
 /**
- * Normalize text to detect obfuscated words
- */
-function normalizeText(text: string): string {
-  let normalized = text.toLowerCase();
-  
-  // Replace obfuscation characters
-  for (const [char, replacement] of Object.entries(OBFUSCATION_MAP)) {
-    normalized = normalized.replace(new RegExp('\\' + char, 'g'), replacement);
-  }
-  
-  // Remove repeated characters (e.g., "fuuuck" -> "fuck")
-  normalized = normalized.replace(/(.)\1{2,}/g, '$1$1');
-  
-  // Remove spaces between letters (e.g., "f u c k" -> "fuck")
-  normalized = normalized.replace(/\s+/g, '');
-  
-  return normalized;
-}
-
-/**
- * Check if text contains blocked words
+ * Check if text contains death threats or violent content
  */
 export function containsBlockedContent(text: string): { blocked: boolean; matches: string[] } {
-  const normalizedText = normalizeText(text);
   const matches: string[] = [];
   
-  for (const word of BLOCKED_WORDS) {
-    // Check normalized text for the word
-    if (normalizedText.includes(word)) {
-      matches.push(word);
-    }
-    
-    // Also check original text (case insensitive)
-    const regex = new RegExp(`\\b${word}\\b`, 'gi');
-    if (regex.test(text)) {
-      if (!matches.includes(word)) {
-        matches.push(word);
-      }
+  for (const pattern of BLOCKED_PATTERNS) {
+    const match = text.match(pattern);
+    if (match) {
+      matches.push(match[0]);
     }
   }
   
@@ -109,10 +43,8 @@ export function containsBlockedContent(text: string): { blocked: boolean; matche
 export function filterBlockedContent(text: string): string {
   let filtered = text;
   
-  for (const word of BLOCKED_WORDS) {
-    // Replace with asterisks (case insensitive, word boundary aware)
-    const regex = new RegExp(`\\b${word}\\b`, 'gi');
-    filtered = filtered.replace(regex, '*'.repeat(word.length));
+  for (const pattern of BLOCKED_PATTERNS) {
+    filtered = filtered.replace(pattern, '[content removed]');
   }
   
   return filtered;
@@ -130,7 +62,7 @@ export const contentSchema = z.object({
     .refine(
       (text) => !containsBlockedContent(text).blocked,
       {
-        message: 'Your content contains inappropriate language. Please revise.',
+        message: 'Your content contains threats or violent language. Please revise.',
       }
     ),
 });
@@ -147,7 +79,7 @@ export const usernameSchema = z
   .refine(
     (username) => !containsBlockedContent(username).blocked,
     {
-      message: 'This username is not allowed',
+      message: 'This username contains threatening content',
     }
   );
 
@@ -161,7 +93,7 @@ export const displayNameSchema = z
   .refine(
     (name) => !containsBlockedContent(name).blocked,
     {
-      message: 'This display name contains inappropriate content',
+      message: 'This display name contains threatening content',
     }
   )
   .optional()
@@ -177,7 +109,7 @@ export const bioSchema = z
   .refine(
     (bio) => !containsBlockedContent(bio).blocked,
     {
-      message: 'Your bio contains inappropriate content. Please revise.',
+      message: 'Your bio contains threatening content. Please revise.',
     }
   )
   .optional()
