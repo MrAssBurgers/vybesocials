@@ -9,7 +9,13 @@ import {
   Sticker, 
   Plus,
   X,
-  Loader2
+  Loader2,
+  ChevronRight,
+  Ghost,
+  Pin,
+  Clock,
+  Settings,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
@@ -35,6 +41,11 @@ interface ToyboxProps {
   onLocationShare?: () => void;
   isUploading?: boolean;
   disabled?: boolean;
+  // New props for DM features
+  onOpenVanishThreads?: () => void;
+  onOpenMemoryPins?: () => void;
+  onOpenScheduleMessage?: () => void;
+  onOpenDMSettings?: () => void;
 }
 
 const STICKERS = ['😀', '😂', '🥰', '😎', '🔥', '💯', '🎉', '❤️', '👍', '🙌', '💪', '✨'];
@@ -48,11 +59,16 @@ export const Toybox = memo(function Toybox({
   onLocationShare,
   isUploading,
   disabled,
+  onOpenVanishThreads,
+  onOpenMemoryPins,
+  onOpenScheduleMessage,
+  onOpenDMSettings,
 }: ToyboxProps) {
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
+  const [showDMFeatures, setShowDMFeatures] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
@@ -91,47 +107,92 @@ export const Toybox = memo(function Toybox({
     setIsOpen(false);
   }, [onVoiceStart]);
 
-  const menuItems = [
+  const handleDMFeatureClick = useCallback((callback?: () => void) => {
+    callback?.();
+    setShowDMFeatures(false);
+    setIsOpen(false);
+  }, []);
+
+  const mediaItems = [
     { 
       icon: Image, 
       label: 'Photo', 
       onClick: () => imageInputRef.current?.click(),
       color: 'text-green-500',
+      bg: 'bg-green-500/10',
     },
     { 
       icon: Video, 
       label: 'Video', 
       onClick: () => videoInputRef.current?.click(),
       color: 'text-blue-500',
+      bg: 'bg-blue-500/10',
     },
     { 
       icon: Smile, 
       label: 'GIF', 
       onClick: () => setShowGifPicker(true),
       color: 'text-purple-500',
+      bg: 'bg-purple-500/10',
     },
     { 
       icon: Sticker, 
       label: 'Stickers', 
       onClick: () => setShowStickers(true),
       color: 'text-yellow-500',
+      bg: 'bg-yellow-500/10',
     },
     { 
       icon: Mic, 
       label: 'Voice', 
       onClick: handleVoiceStart,
       color: 'text-red-500',
+      bg: 'bg-red-500/10',
     },
     ...(onLocationShare ? [{
       icon: MapPin, 
       label: 'Location', 
       onClick: onLocationShare,
       color: 'text-orange-500',
+      bg: 'bg-orange-500/10',
     }] : []),
   ];
 
+  const dmFeatures = [
+    {
+      icon: Ghost,
+      label: 'Vanish Threads',
+      description: 'Messages auto-delete 👻',
+      onClick: () => handleDMFeatureClick(onOpenVanishThreads),
+      color: 'text-purple-500',
+    },
+    {
+      icon: Pin,
+      label: 'Memory Pins',
+      description: 'Save special moments 💕',
+      onClick: () => handleDMFeatureClick(onOpenMemoryPins),
+      color: 'text-pink-500',
+    },
+    {
+      icon: Clock,
+      label: 'Schedule Message',
+      description: 'Send later 📅',
+      onClick: () => handleDMFeatureClick(onOpenScheduleMessage),
+      color: 'text-blue-500',
+    },
+    {
+      icon: Settings,
+      label: 'DM Settings',
+      description: 'Customize your chat ⚙️',
+      onClick: () => handleDMFeatureClick(onOpenDMSettings),
+      color: 'text-gray-500',
+    },
+  ];
+
+  const hasDMFeatures = onOpenVanishThreads || onOpenMemoryPins || onOpenScheduleMessage || onOpenDMSettings;
+
   const ToyboxContent = (
-    <div className="p-4">
+    <div className="p-4 max-h-[70vh] overflow-y-auto">
       <input
         ref={imageInputRef}
         type="file"
@@ -186,35 +247,98 @@ export const Toybox = memo(function Toybox({
               ))}
             </div>
           </motion.div>
+        ) : showDMFeatures ? (
+          <motion.div
+            key="dm-features"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-semibold text-sm flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                DM Features
+              </span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setShowDMFeatures(false)}
+                className="h-7 w-7"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {dmFeatures.map(({ icon: Icon, label, description, onClick, color }) => (
+                <motion.button
+                  key={label}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={onClick}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left"
+                >
+                  <div className={cn("p-2 rounded-lg bg-background", color)}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">{label}</p>
+                    <p className="text-xs text-muted-foreground">{description}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
         ) : (
           <motion.div
             key="menu"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="grid grid-cols-3 gap-3"
+            className="space-y-4"
           >
-            {menuItems.map(({ icon: Icon, label, onClick, color }) => (
+            {/* Media Grid */}
+            <div className="grid grid-cols-3 gap-3">
+              {mediaItems.map(({ icon: Icon, label, onClick, color, bg }) => (
+                <motion.button
+                  key={label}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={onClick}
+                  disabled={isUploading}
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-4 rounded-xl",
+                    "bg-muted/50 hover:bg-muted transition-colors",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
+                >
+                  {isUploading ? (
+                    <Loader2 className={cn("h-6 w-6 animate-spin", color)} />
+                  ) : (
+                    <div className={cn("p-2 rounded-lg", bg)}>
+                      <Icon className={cn("h-5 w-5", color)} />
+                    </div>
+                  )}
+                  <span className="text-xs font-medium">{label}</span>
+                </motion.button>
+              ))}
+            </div>
+
+            {/* DM Features Toggle */}
+            {hasDMFeatures && (
               <motion.button
-                key={label}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={onClick}
-                disabled={isUploading}
-                className={cn(
-                  "flex flex-col items-center gap-2 p-4 rounded-xl",
-                  "bg-muted/50 hover:bg-muted transition-colors",
-                  "disabled:opacity-50 disabled:cursor-not-allowed"
-                )}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowDMFeatures(true)}
+                className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-primary/10 to-purple-500/10 border border-primary/20 hover:border-primary/40 transition-colors"
               >
-                {isUploading ? (
-                  <Loader2 className={cn("h-6 w-6 animate-spin", color)} />
-                ) : (
-                  <Icon className={cn("h-6 w-6", color)} />
-                )}
-                <span className="text-xs font-medium">{label}</span>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <span className="font-medium text-sm">DM Features</span>
+                </div>
+                <ChevronRight className="h-4 w-4 text-primary" />
               </motion.button>
-            ))}
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -268,7 +392,7 @@ export const Toybox = memo(function Toybox({
       <PopoverContent 
         side="top" 
         align="start" 
-        className="w-auto p-0"
+        className="w-80 p-0"
         sideOffset={8}
       >
         {ToyboxContent}

@@ -28,10 +28,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ReadReceipts } from './ReadReceipts';
 import { VoiceRecorder, AudioMessage } from './VoiceRecorder';
-import { DMSettingsSheet, EmotionalPulseIndicator } from './DMSettingsSheet';
-import { VanishThreads } from './VanishThreads';
-import { MemoryPins } from './MemoryPins';
-import { ScheduleMessageDialog } from './ScheduleMessageDialog';
+import { EmotionalPulseIndicator } from './DMSettingsSheet';
+import { VanishThreadsSheet } from './VanishThreadsSheet';
+import { MemoryPinsSheet } from './MemoryPinsSheet';
+import { ScheduleMessageSheet } from './ScheduleMessageSheet';
+import { DMSettingsSheetControlled } from './DMSettingsSheetControlled';
 import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { CallButtons } from './CallButtons';
 import { useCallContext } from './CallProvider';
@@ -93,6 +94,11 @@ export function ChatView() {
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  // DM Feature Sheet states
+  const [showVanishThreads, setShowVanishThreads] = useState(false);
+  const [showMemoryPins, setShowMemoryPins] = useState(false);
+  const [showScheduleMessage, setShowScheduleMessage] = useState(false);
+  const [showDMSettings, setShowDMSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -417,6 +423,18 @@ export function ChatView() {
     );
   }
 
+  // Get chat wallpaper background class
+  const getWallpaperClass = () => {
+    switch (settings.chat_wallpaper) {
+      case 'gradient-1': return 'bg-gradient-to-br from-orange-400/20 to-pink-500/20';
+      case 'gradient-2': return 'bg-gradient-to-br from-blue-400/20 to-cyan-500/20';
+      case 'gradient-3': return 'bg-gradient-to-br from-green-400/20 to-emerald-600/20';
+      case 'gradient-4': return 'bg-gradient-to-br from-indigo-900/30 to-purple-900/30';
+      case 'gradient-5': return 'bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-indigo-500/20';
+      default: return '';
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -456,10 +474,11 @@ export function ChatView() {
           />
         )}
         
-        <VanishThreads conversationId={conversationId!} />
-        <MemoryPins conversationId={conversationId!} messages={messages || []} />
-        <ScheduleMessageDialog conversationId={conversationId!} />
-        <DMSettingsSheet conversationId={conversationId!} />
+        {/* DM Feature Sheets - triggered from Toybox */}
+        <VanishThreadsSheet conversationId={conversationId!} open={showVanishThreads} onOpenChange={setShowVanishThreads} />
+        <MemoryPinsSheet conversationId={conversationId!} messages={messages || []} open={showMemoryPins} onOpenChange={setShowMemoryPins} />
+        <ScheduleMessageSheet conversationId={conversationId!} open={showScheduleMessage} onOpenChange={setShowScheduleMessage} />
+        <DMSettingsSheetControlled conversationId={conversationId!} open={showDMSettings} onOpenChange={setShowDMSettings} />
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -510,20 +529,23 @@ export function ChatView() {
           />
         ))}
 
-        {/* Typing indicator */}
+        {/* Typing indicator - fixed z-index and positioning */}
         {typingUsers.length > 0 && (
-          <div className="flex items-start gap-2 max-w-[85%]">
+          <div className="flex items-start gap-2 max-w-[85%] relative z-10">
             <Avatar className="h-8 w-8 flex-shrink-0">
               <AvatarImage src={otherMember?.avatar_url || undefined} />
               <AvatarFallback>{otherMember?.username?.charAt(0)}</AvatarFallback>
             </Avatar>
-            <div className="liquid-glass-subtle rounded-2xl rounded-tl-sm px-4 py-3">
+            <div className="bg-muted/80 backdrop-blur-sm rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
               <div className="flex items-center gap-1.5">
                 {[0, 1, 2].map((i) => (
                   <span
                     key={i}
-                    className="w-2 h-2 bg-primary/70 rounded-full animate-bounce"
-                    style={{ animationDelay: `${i * 150}ms`, animationDuration: '0.6s' }}
+                    className="w-2 h-2 bg-primary rounded-full"
+                    style={{ 
+                      animation: 'bounce 0.6s infinite',
+                      animationDelay: `${i * 150}ms`,
+                    }}
                   />
                 ))}
               </div>
