@@ -29,19 +29,27 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed z-[101] gap-4 liquid-glass p-6 shadow-lg",
+  [
+    "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
+    "z-[101]",
+    "w-[90vw] max-w-lg",
+    "liquid-glass overflow-hidden rounded-3xl",
+    "p-6 shadow-lg",
+    "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+  ].join(" "),
   {
     variants: {
+      // We keep the `side` API for compatibility, but all sheets render centered.
       side: {
-        top: "inset-x-0 top-0 rounded-b-3xl data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
-        bottom: "inset-x-0 bottom-0 rounded-t-3xl data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-        left: "inset-y-0 left-0 h-full w-3/4 rounded-r-3xl sm:max-w-sm data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
-        right: "inset-y-0 right-0 h-full w-3/4 rounded-l-3xl sm:max-w-sm data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
-        center: "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-lg rounded-3xl data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+        top: "",
+        bottom: "",
+        left: "",
+        right: "",
+        center: "",
       },
     },
     defaultVariants: {
-      side: "right",
+      side: "center",
     },
   },
 );
@@ -51,16 +59,16 @@ interface SheetContentProps
     VariantProps<typeof sheetVariants> {}
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, ...props }, ref) => (
+  ({ side = "center", className, children, ...props }, ref) => (
     <SheetPortal>
       <SheetOverlay />
-      <SheetPrimitive.Content 
-        ref={ref} 
+      <SheetPrimitive.Content
+        ref={ref}
         className={cn(
-          sheetVariants({ side }), 
+          sheetVariants({ side }),
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
-          className
-        )} 
+          className,
+        )}
         {...props}
       >
         {children}
