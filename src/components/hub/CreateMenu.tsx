@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PlusCircle, Image, Camera, Sparkles, X } from 'lucide-react';
+import { Image, Camera, X } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { VYBEHub } from './VYBEHub';
@@ -17,7 +17,7 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
   const [showHub, setShowHub] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
 
-  const handleAction = (action: 'post' | 'hub' | 'camera') => {
+  const handleAction = (action: 'post' | 'camera') => {
     triggerHaptic('medium');
     playSound('pop');
     
@@ -25,10 +25,6 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
       case 'post':
         onClose();
         navigate('/upload');
-        break;
-      case 'hub':
-        onClose();
-        setShowHub(true);
         break;
       case 'camera':
         onClose();
@@ -42,22 +38,17 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
       id: 'post' as const, 
       icon: Image, 
       label: 'Create Post', 
+      description: 'Share a photo or video',
       color: 'from-pink-500 to-rose-500',
       delay: 0.05,
-    },
-    { 
-      id: 'hub' as const, 
-      icon: Sparkles, 
-      label: 'VYBE Hub', 
-      color: 'from-violet-500 to-purple-500',
-      delay: 0.1,
     },
     { 
       id: 'camera' as const, 
       icon: Camera, 
       label: 'Camera', 
+      description: 'Capture a moment',
       color: 'from-cyan-500 to-blue-500',
-      delay: 0.15,
+      delay: 0.1,
     },
   ];
 
@@ -104,7 +95,7 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
                     transition={{ delay: 0.05 }}
                   >
                     <h2 className="text-lg font-bold gradient-text">Create</h2>
-                    <p className="text-xs text-muted-foreground">What do you want to do?</p>
+                    <p className="text-xs text-muted-foreground">What do you want to share?</p>
                   </motion.div>
                 </div>
 
@@ -122,7 +113,10 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
                       <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center`}>
                         <item.icon className="h-5 w-5 text-white" />
                       </div>
-                      <span className="font-medium text-sm">{item.label}</span>
+                      <div className="text-left">
+                        <span className="font-medium text-sm block">{item.label}</span>
+                        <span className="text-xs text-muted-foreground">{item.description}</span>
+                      </div>
                     </motion.button>
                   ))}
                 </div>
@@ -131,7 +125,7 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
                 <motion.button
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ delay: 0.2 }}
+                  transition={{ delay: 0.15 }}
                   onClick={onClose}
                   className="w-full mt-4 p-2 rounded-xl text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2 text-sm"
                 >
@@ -146,3 +140,4 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
     </>
   );
 }
+

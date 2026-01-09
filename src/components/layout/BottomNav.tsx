@@ -5,10 +5,11 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { CreateMenu } from '@/components/hub/CreateMenu';
+import { VYBEHub } from '@/components/hub/VYBEHub';
 
 export function BottomNav() {
   const { t } = useTranslation();
@@ -16,15 +17,31 @@ export function BottomNav() {
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
+  const [isHubOpen, setIsHubOpen] = useState(false);
   const [showRipple, setShowRipple] = useState(false);
+  
+  const lastTapTime = useRef(0);
 
   const handleCreateClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapTime.current;
+    
     triggerHaptic('medium');
     playSound('pop');
     setShowRipple(true);
     setTimeout(() => setShowRipple(false), 300);
-    setIsCreateMenuOpen(true);
+    
+    if (timeSinceLastTap < 300) {
+      // Double tap - open VYBE Hub directly
+      setIsCreateMenuOpen(false);
+      setIsHubOpen(true);
+    } else {
+      // Single tap - open create menu
+      setIsCreateMenuOpen(true);
+    }
+    
+    lastTapTime.current = now;
   }, []);
 
   const navItems = [
@@ -37,8 +54,11 @@ export function BottomNav() {
 
   return (
     <>
-      {/* Create Menu - opens on tap of create button */}
+      {/* Create Menu - opens on single tap */}
       <CreateMenu isOpen={isCreateMenuOpen} onClose={() => setIsCreateMenuOpen(false)} />
+      
+      {/* VYBE Hub - opens on double tap */}
+      <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 liquid-glass border-t border-white/10 safe-bottom">
         <div className="grid grid-cols-5 h-16 px-2">

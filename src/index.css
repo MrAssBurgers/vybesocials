@@ -934,3 +934,73 @@
   animation: none !important;
   transition: none !important;
 }
+
+/* ========================================
+   ACCESSIBILITY ENHANCEMENTS
+   ======================================== */
+
+/* Reduce motion for users who prefer it */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* High contrast mode */
+.high-contrast {
+  --primary: 330 100% 70%;
+  --accent: 185 100% 60%;
+  --muted-foreground: 240 5% 70%;
+  --border: 240 10% 30%;
+}
+
+/* Focus visible styling - keyboard only */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Skip to content link */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  z-index: 9999;
+  padding: 1em;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  opacity: 0;
+}
+
+.skip-link:focus {
+  left: 50%;
+  transform: translateX(-50%);
+  top: 1rem;
+  opacity: 1;
+}
+
+/* Touch targets - minimum 44x44px for iOS */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  input[type="checkbox"],
+  input[type="radio"],
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Screen reader only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ArrowLeft } from "lucide-react";
+import { Search, ArrowLeft, Users, Check, Clock, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -15,6 +15,40 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAuth } from "@/lib/auth";
 import { pushRecentMessageUser, RecentMessageUser } from "@/lib/recentMessageUsers";
 import { useCreateConversation } from "@/hooks/useMessages";
+import { useFriendshipStatus, useSendFriendRequest } from "@/hooks/useFriends";
+import { cn } from "@/lib/utils";
+
+function FriendshipBadge({ userId }: { userId: string }) {
+  const { data: friendship } = useFriendshipStatus(userId);
+  
+  if (!friendship) return null;
+  
+  switch (friendship.status) {
+    case 'friends':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500">
+          <Check className="h-3 w-3" />
+          Friends
+        </span>
+      );
+    case 'pending_sent':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500">
+          <Clock className="h-3 w-3" />
+          Pending
+        </span>
+      );
+    case 'pending_received':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+          <UserPlus className="h-3 w-3" />
+          Accept
+        </span>
+      );
+    default:
+      return null;
+  }
+}
 
 function ResultRow({
   user,
@@ -29,25 +63,62 @@ function ResultRow({
   disabled: boolean;
   id: string;
 }) {
+  const { data: friendship } = useFriendshipStatus(user.id);
+  const sendRequest = useSendFriendRequest();
+  const isFriends = friendship?.status === 'friends';
+  
+  const handleClick = () => {
+    if (isFriends) {
+      onSelect();
+    }
+  };
+
+  const handleAddFriend = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    sendRequest.mutate(user.id);
+  };
+
   return (
-    <button
+    <div
       id={id}
-      type="button"
-      disabled={disabled}
-      onClick={onSelect}
-      className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
-        active ? "bg-accent" : "hover:bg-accent"
-      } disabled:opacity-50`}
+      className={cn(
+        "w-full flex items-center gap-3 p-3 text-left transition-colors rounded-lg",
+        active ? "bg-accent" : "hover:bg-accent/50",
+        !isFriends && "opacity-75"
+      )}
     >
-      <Avatar className="h-10 w-10">
-        <AvatarImage src={user.avatar_url || undefined} alt={user.username} />
-        <AvatarFallback>{(user.display_name || user.username).charAt(0).toUpperCase()}</AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        <div className="font-medium truncate">{user.display_name || user.username}</div>
-        <div className="text-sm text-muted-foreground truncate">@{user.username}</div>
-      </div>
-    </button>
+      <button
+        type="button"
+        disabled={disabled || !isFriends}
+        onClick={handleClick}
+        className="flex items-center gap-3 flex-1 min-w-0"
+      >
+        <Avatar className="h-10 w-10">
+          <AvatarImage src={user.avatar_url || undefined} alt={user.username} />
+          <AvatarFallback>{(user.display_name || user.username).charAt(0).toUpperCase()}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <div className="font-medium truncate flex items-center gap-2">
+            {user.display_name || user.username}
+            <FriendshipBadge userId={user.id} />
+          </div>
+          <div className="text-sm text-muted-foreground truncate">@{user.username}</div>
+        </div>
+      </button>
+      
+      {friendship?.status === 'none' && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleAddFriend}
+          disabled={sendRequest.isPending}
+          className="shrink-0"
+        >
+          <UserPlus className="h-4 w-4 mr-1" />
+          Add
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -196,8 +267,10 @@ export default function NewMessage() {
                 No users found.
               </div>
             ) : (
-              <div className="p-8 text-center text-muted-foreground">
-                Type a username to start a chat.
+              <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2">
+                <Users className="h-8 w-8 opacity-50" />
+                <p>Type a username to find friends</p>
+                <p className="text-xs">You can only message friends</p>
               </div>
             )}
           </section>
