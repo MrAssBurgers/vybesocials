@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   Search, TrendingUp, ShoppingBag, Calendar, 
-  Volume2, VolumeX, Bookmark, Users, Sparkles, ChevronRight
+  Volume2, VolumeX, Bookmark, Users, Sparkles, ChevronRight,
+  MessageCircle
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Input } from '@/components/ui/input';
@@ -15,13 +16,18 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useConversations } from '@/hooks/useMessages';
 import { useFriends } from '@/hooks/useFriends';
+import { useEvents } from '@/hooks/useEvents';
+import { useListings } from '@/hooks/useMarketplace';
+import { format, formatDistanceToNow, isPast, isFuture } from 'date-fns';
 
 export function DesktopRightSidebar() {
   const { t } = useTranslation();
   const location = useLocation();
   const { profile } = useAuth();
-  const { data: conversations } = useConversations();
-  const { data: friends } = useFriends();
+  const { data: conversations, isLoading: conversationsLoading } = useConversations();
+  const { data: friends, isLoading: friendsLoading } = useFriends();
+  const { data: events, isLoading: eventsLoading } = useEvents({ upcoming: true });
+  const { data: listings, isLoading: listingsLoading } = useListings();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMuted, setIsMuted] = useState(false);
 
@@ -50,13 +56,14 @@ export function DesktopRightSidebar() {
     };
   }) || [];
 
-  // Mock data for trending and market (would come from real hooks in production)
-  const trendingTags = ['#fyp', '#dance', '#viral', '#gaming', '#music'];
+  // Get upcoming events (filter for future events)
+  const upcomingEvents = events?.filter(e => isFuture(new Date(e.start_time))).slice(0, 2) || [];
   
-  const marketHighlights = [
-    { id: '1', title: 'Vintage Camera', price: 120, image: '' },
-    { id: '2', title: 'Gaming Setup', price: 450, image: '' },
-  ];
+  // Get recent listings
+  const recentListings = listings?.slice(0, 2) || [];
+
+  // Static trending tags (would come from real API in production)
+  const trendingTags = ['#fyp', '#dance', '#viral', '#gaming', '#music'];
 
   // Get context card based on current page
   const getContextCard = () => {
@@ -120,28 +127,38 @@ export function DesktopRightSidebar() {
                 Friends Online
               </span>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {(friends?.slice(0, 8) || []).map((friend, i) => (
-                <Link
-                  key={friend?.id || i}
-                  to={`/messages/new?user=${friend?.id}`}
-                  className="flex-shrink-0"
-                >
-                  <div className="relative">
-                    <Avatar className="h-10 w-10 ring-2 ring-background hover:ring-primary/50 transition-all">
-                      <AvatarImage src={friend?.avatar_url || undefined} />
-                      <AvatarFallback className="text-xs bg-gradient-to-br from-pink-500 to-purple-500">
-                        {friend?.username?.[0]?.toUpperCase() || '?'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <OnlineIndicator isOnline={true} size="sm" />
-                  </div>
-                </Link>
-              ))}
-              {(!friends || friends.length === 0) && (
-                <p className="text-xs text-muted-foreground">No friends online</p>
-              )}
-            </div>
+            {friendsLoading ? (
+              <div className="flex gap-2">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-10 w-10 rounded-full bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : friends && friends.length > 0 ? (
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                {friends.slice(0, 8).map((friend, i) => (
+                  <Link
+                    key={friend?.id || i}
+                    to={`/messages/new?user=${friend?.id}`}
+                    className="flex-shrink-0"
+                  >
+                    <div className="relative">
+                      <Avatar className="h-10 w-10 ring-2 ring-background hover:ring-primary/50 transition-all">
+                        <AvatarImage src={friend?.avatar_url || undefined} />
+                        <AvatarFallback className="text-xs bg-gradient-to-br from-pink-500 to-purple-500">
+                          {friend?.username?.[0]?.toUpperCase() || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <OnlineIndicator isOnline={true} size="sm" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl liquid-glass-subtle text-center">
+                <Users className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                <p className="text-xs text-muted-foreground">No friends yet</p>
+              </div>
+            )}
           </div>
 
           <Separator className="bg-border/50" />
@@ -156,42 +173,52 @@ export function DesktopRightSidebar() {
                 View all
               </Link>
             </div>
-            <div className="space-y-2">
-              {recentChats.map((chat) => (
-                <Link
-                  key={chat.id}
-                  to={`/messages/${chat.id}`}
-                  className="flex items-center gap-3 p-2 rounded-xl hover:bg-sidebar-accent/30 transition-all"
-                >
-                  <div className="relative">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={chat.avatar || undefined} />
-                      <AvatarFallback className="text-xs bg-secondary">
-                        {chat.name?.[0]?.toUpperCase() || '?'}
-                      </AvatarFallback>
-                    </Avatar>
-                    {chat.hasUnread && (
-                      <span className="absolute -top-0.5 -right-0.5 h-3 w-3 bg-primary rounded-full border-2 border-background" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{chat.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {chat.isTyping ? (
-                        <span className="text-primary flex items-center gap-1">
-                          <Sparkles className="h-3 w-3" /> typing...
-                        </span>
-                      ) : (
-                        chat.lastMessage || 'No messages yet'
+            {conversationsLoading ? (
+              <div className="space-y-2">
+                {[1, 2].map(i => (
+                  <div key={i} className="h-14 rounded-xl bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : recentChats.length > 0 ? (
+              <div className="space-y-2">
+                {recentChats.map((chat) => (
+                  <Link
+                    key={chat.id}
+                    to={`/messages/${chat.id}`}
+                    className="flex items-center gap-3 p-2 rounded-xl hover:bg-sidebar-accent/30 transition-all"
+                  >
+                    <div className="relative">
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage src={chat.avatar || undefined} />
+                        <AvatarFallback className="text-xs bg-secondary">
+                          {chat.name?.[0]?.toUpperCase() || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      {chat.hasUnread && (
+                        <span className="absolute -top-0.5 -right-0.5 h-3 w-3 bg-primary rounded-full border-2 border-background" />
                       )}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-              {recentChats.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-2">No recent chats</p>
-              )}
-            </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{chat.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {chat.isTyping ? (
+                          <span className="text-primary flex items-center gap-1">
+                            <Sparkles className="h-3 w-3" /> typing...
+                          </span>
+                        ) : (
+                          chat.lastMessage || 'No messages yet'
+                        )}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl liquid-glass-subtle text-center">
+                <MessageCircle className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                <p className="text-xs text-muted-foreground">No chats yet</p>
+              </div>
+            )}
           </div>
 
           <Separator className="bg-border/50" />
@@ -203,7 +230,7 @@ export function DesktopRightSidebar() {
                 <TrendingUp className="h-3 w-3" /> Trending
               </span>
             </div>
-            <div className="flex flex-wrap gap-1.5 mb-3">
+            <div className="flex flex-wrap gap-1.5">
               {trendingTags.map((tag) => (
                 <Link key={tag} to={`/explore?q=${encodeURIComponent(tag)}`}>
                   <Badge variant="secondary" className="hover:bg-primary/20 transition-colors cursor-pointer">
@@ -211,10 +238,6 @@ export function DesktopRightSidebar() {
                   </Badge>
                 </Link>
               ))}
-            </div>
-            {/* Trending clip card placeholder */}
-            <div className="aspect-video rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-              <span className="text-xs text-muted-foreground">Trending Clip</span>
             </div>
           </div>
 
@@ -230,21 +253,42 @@ export function DesktopRightSidebar() {
                 Browse
               </Link>
             </div>
-            <div className="space-y-2">
-              {marketHighlights.map((item) => (
-                <Link
-                  key={item.id}
-                  to={`/listing/${item.id}`}
-                  className="flex items-center gap-3 p-2 rounded-xl hover:bg-sidebar-accent/30 transition-all"
-                >
-                  <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{item.title}</p>
-                    <p className="text-xs text-primary font-semibold">${item.price}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
+            {listingsLoading ? (
+              <div className="space-y-2">
+                {[1, 2].map(i => (
+                  <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : recentListings.length > 0 ? (
+              <div className="space-y-2">
+                {recentListings.map((item) => (
+                  <Link
+                    key={item.id}
+                    to={`/market/${item.id}`}
+                    className="flex items-center gap-3 p-2 rounded-xl hover:bg-sidebar-accent/30 transition-all"
+                  >
+                    <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex-shrink-0 overflow-hidden">
+                      {item.images?.[0] ? (
+                        <img src={item.images[0]} alt={item.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{item.title}</p>
+                      <p className="text-xs text-primary font-semibold">
+                        {item.price === 0 ? 'Free' : `$${item.price}`}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl liquid-glass-subtle text-center">
+                <ShoppingBag className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                <p className="text-xs text-muted-foreground">No listings yet</p>
+              </div>
+            )}
           </div>
 
           <Separator className="bg-border/50" />
@@ -259,13 +303,34 @@ export function DesktopRightSidebar() {
                 See all
               </Link>
             </div>
-            <div className="p-3 rounded-xl liquid-glass-subtle">
-              <p className="font-medium text-sm">Community Meetup</p>
-              <p className="text-xs text-muted-foreground mt-0.5">In 3 days</p>
-              <Badge variant="outline" className="mt-2 text-[10px]">
-                RSVP'd
-              </Badge>
-            </div>
+            {eventsLoading ? (
+              <div className="h-20 rounded-xl bg-muted animate-pulse" />
+            ) : upcomingEvents.length > 0 ? (
+              <div className="space-y-2">
+                {upcomingEvents.map((event) => (
+                  <Link
+                    key={event.id}
+                    to={`/events/${event.id}`}
+                    className="block p-3 rounded-xl liquid-glass-subtle hover:bg-sidebar-accent/30 transition-all"
+                  >
+                    <p className="font-medium text-sm truncate">{event.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {formatDistanceToNow(new Date(event.start_time), { addSuffix: true })}
+                    </p>
+                    {event.user_rsvp === 'going' && (
+                      <Badge variant="outline" className="mt-2 text-[10px]">
+                        RSVP'd
+                      </Badge>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl liquid-glass-subtle text-center">
+                <Calendar className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                <p className="text-xs text-muted-foreground">No upcoming events</p>
+              </div>
+            )}
           </div>
 
           {/* Context Card */}
