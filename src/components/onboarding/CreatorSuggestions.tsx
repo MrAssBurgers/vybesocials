@@ -1,32 +1,14 @@
 import { motion } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Check, Plus, Crown } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useQuery } from '@tanstack/react-query';
+import { Crown, UserPlus } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
+import { toast } from 'sonner';
 
 // Owner username constant
 const OWNER_USERNAME = 'mrassburgers';
-
-// Demo creators for onboarding (fallback)
-const suggestedCreators = [
-  { id: '1', username: 'funnymax', displayName: 'Funny Max', avatar: '', followers: '2.1M', category: 'comedy' },
-  { id: '2', username: 'dancestar', displayName: 'Dance Star', avatar: '', followers: '890K', category: 'dance' },
-  { id: '3', username: 'techguru', displayName: 'Tech Guru', avatar: '', followers: '1.5M', category: 'tech' },
-  { id: '4', username: 'foodlover', displayName: 'Food Lover', avatar: '', followers: '650K', category: 'food' },
-  { id: '5', username: 'fitnessjay', displayName: 'Fitness Jay', avatar: '', followers: '1.2M', category: 'fitness' },
-  { id: '6', username: 'artistry', displayName: 'Artistry', avatar: '', followers: '430K', category: 'art' },
-  { id: '7', username: 'gamerpro', displayName: 'Gamer Pro', avatar: '', followers: '3.2M', category: 'gaming' },
-  { id: '8', username: 'travelbug', displayName: 'Travel Bug', avatar: '', followers: '780K', category: 'travel' },
-];
-
-interface CreatorSuggestionsProps {
-  interests: string[];
-  following: string[];
-  onChange: (following: string[]) => void;
-}
 
 // Fetch owner profile
 function useOwnerProfile() {
@@ -35,7 +17,7 @@ function useOwnerProfile() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url')
+        .select('id, username, display_name, avatar_url, bio')
         .eq('username', OWNER_USERNAME)
         .maybeSingle();
       
@@ -45,153 +27,124 @@ function useOwnerProfile() {
   });
 }
 
-// Fetch owner's following (mutuals to suggest)
-function useOwnerFollowing() {
-  return useQuery({
-    queryKey: ['owner-following'],
-    queryFn: async () => {
-      // First get owner profile
-      const { data: owner } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('username', OWNER_USERNAME)
-        .maybeSingle();
-      
-      if (!owner) return [];
-      
-      // Get who owner is following
-      const { data: follows, error } = await supabase
-        .from('follows')
-        .select(`
-          following:profiles!follows_following_id_fkey(
-            id, username, display_name, avatar_url
-          )
-        `)
-        .eq('follower_id', owner.id)
-        .limit(10);
-      
-      if (error) throw error;
-      return follows?.map((f: any) => f.following).filter(Boolean) || [];
-    },
-  });
+interface CreatorSuggestionsProps {
+  interests: string[];
+  following: string[];
+  onChange: (following: string[]) => void;
 }
 
-export function CreatorSuggestions({ interests, following, onChange }: CreatorSuggestionsProps) {
-  const { t } = useTranslation();
-  const { data: ownerProfile } = useOwnerProfile();
-  const { data: ownerFollowing = [] } = useOwnerFollowing();
+export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsProps) {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: ownerProfile, isLoading } = useOwnerProfile();
 
-  // Build list: owner first, then owner's following, then demo creators
-  const allCreatorsToShow = [
-    // Owner profile first (if exists)
-    ...(ownerProfile ? [{
-      id: ownerProfile.id,
-      username: ownerProfile.username,
-      displayName: ownerProfile.display_name || ownerProfile.username,
-      avatar: ownerProfile.avatar_url || '',
-      followers: 'Owner',
-      isOwner: true,
-    }] : []),
-    // Owner's following (mutuals)
-    ...ownerFollowing.map((f: any) => ({
-      id: f.id,
-      username: f.username,
-      displayName: f.display_name || f.username,
-      avatar: f.avatar_url || '',
-      followers: 'Suggested',
-      isMutual: true,
-    })),
-    // Demo creators filtered by interests
-    ...(interests.length > 0
-      ? suggestedCreators.filter(c => interests.includes(c.category))
-      : suggestedCreators.slice(0, 4)),
-  ];
+  const followMutation = useMutation({
+    mutationFn: async (ownerId: string) => {
+      if (!profile?.id) throw new Error('Not authenticated');
+      
+      const { error } = await supabase
+        .from('follows')
+        .insert({
+          follower_id: profile.id,
+          following_id: ownerId,
+        });
+      
+      if (error && !error.message.includes('duplicate')) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      toast.success('You are now following the owner! 🎉');
+    },
+    onError: () => {
+      toast.error('Failed to follow. Please try again.');
+    },
+  });
 
-  const toggleFollow = (id: string) => {
-    if (following.includes(id)) {
-      onChange(following.filter((f) => f !== id));
-    } else {
-      onChange([...following, id]);
+  const handleFollow = () => {
+    if (ownerProfile?.id) {
+      onChange([ownerProfile.id]);
+      followMutation.mutate(ownerProfile.id);
     }
   };
 
-  const followAll = () => {
-    const allIds = allCreatorsToShow.map(c => c.id);
-    onChange(allIds);
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (!ownerProfile) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">No creators to follow yet. You can skip this step!</p>
+      </div>
+    );
+  }
+
+  const isFollowing = following.includes(ownerProfile.id);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-2xl font-bold gradient-text">{t('onboarding.step2Title')}</h2>
-        <p className="text-muted-foreground mt-2">{t('onboarding.step2Subtitle')}</p>
+        <h2 className="text-2xl font-bold gradient-text">Follow the Creator</h2>
+        <p className="text-muted-foreground mt-2">
+          Stay connected with the app owner for updates and announcements
+        </p>
       </div>
 
-      <div className="flex justify-center">
-        <Button 
-          variant="outline" 
-          onClick={followAll}
-          className="gradient-border"
-        >
-          Follow All ({allCreatorsToShow.length})
-        </Button>
-      </div>
-
-      <div className="space-y-3 max-h-[400px] overflow-y-auto">
-        {allCreatorsToShow.map((creator: any, index) => (
-          <motion.div
-            key={creator.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.05 }}
-            className={cn(
-              'flex items-center gap-4 p-4 rounded-xl border transition-all',
-              following.includes(creator.id)
-                ? 'border-primary bg-primary/5'
-                : 'border-border bg-card'
-            )}
-          >
-            <Avatar className="h-12 w-12">
-              <AvatarImage src={creator.avatar} />
-              <AvatarFallback className="gradient-animated text-lg">
-                {creator.displayName?.[0] || '?'}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-card rounded-2xl border border-border p-6 text-center"
+      >
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <Avatar className="h-24 w-24 border-4 border-primary/20">
+              <AvatarImage src={ownerProfile.avatar_url || undefined} />
+              <AvatarFallback className="gradient-animated text-2xl">
+                {ownerProfile.display_name?.[0] || ownerProfile.username[0].toUpperCase()}
               </AvatarFallback>
             </Avatar>
-
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold truncate flex items-center gap-2">
-                {creator.displayName}
-                {creator.isOwner && <Crown className="w-4 h-4 text-yellow-500" />}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                @{creator.username} · {creator.isOwner ? '👑 Owner' : creator.isMutual ? '✨ Suggested' : creator.followers}
-              </p>
+            <div className="absolute -bottom-1 -right-1 bg-yellow-500 rounded-full p-1.5">
+              <Crown className="w-4 h-4 text-white" />
             </div>
+          </div>
 
-            <Button
-              variant={following.includes(creator.id) ? "default" : "outline"}
-              size="sm"
-              onClick={() => toggleFollow(creator.id)}
-              className={cn(
-                'min-w-[100px] transition-all',
-                following.includes(creator.id) && 'bg-primary'
-              )}
-            >
-              {following.includes(creator.id) ? (
-                <>
-                  <Check className="w-4 h-4 mr-1" />
-                  Following
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4 mr-1" />
-                  Follow
-                </>
-              )}
-            </Button>
-          </motion.div>
-        ))}
-      </div>
+          <div>
+            <h3 className="text-xl font-bold flex items-center justify-center gap-2">
+              {ownerProfile.display_name || ownerProfile.username}
+            </h3>
+            <p className="text-muted-foreground">@{ownerProfile.username}</p>
+            {ownerProfile.bio && (
+              <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto">
+                {ownerProfile.bio}
+              </p>
+            )}
+          </div>
+
+          <Button
+            size="lg"
+            onClick={handleFollow}
+            disabled={isFollowing || followMutation.isPending}
+            className={isFollowing ? 'bg-green-600 hover:bg-green-600' : 'gradient-animated'}
+          >
+            {isFollowing ? (
+              '✓ Following'
+            ) : (
+              <>
+                <UserPlus className="w-4 h-4 mr-2" />
+                Follow
+              </>
+            )}
+          </Button>
+        </div>
+      </motion.div>
+
+      <p className="text-center text-sm text-muted-foreground">
+        You can also skip this step and follow later from the profile page
+      </p>
     </div>
   );
 }
