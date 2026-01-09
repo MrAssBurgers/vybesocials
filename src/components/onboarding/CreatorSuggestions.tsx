@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
 // Owner username constant
-const OWNER_USERNAME = 'mrassburgers';
+const OWNER_USERNAME = 'MrAssBurgers';
 
 // Fetch owner profile with follower count
 function useOwnerProfile() {
@@ -16,13 +16,13 @@ function useOwnerProfile() {
     queryKey: ['owner-profile'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('id, username, display_name, avatar_url, bio')
-        .eq('username', OWNER_USERNAME)
+        .ilike('username', OWNER_USERNAME)
         .maybeSingle();
-      
+
       if (error) throw error;
-      if (!data) return null;
+      if (!data?.id) return null;
 
       // Get follower count
       const { count } = await supabase
@@ -44,19 +44,21 @@ interface CreatorSuggestionsProps {
 export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const { data: ownerProfile, isLoading } = useOwnerProfile();
+  const {
+    data: ownerProfile,
+    isLoading,
+    isError,
+  } = useOwnerProfile();
 
   const followMutation = useMutation({
     mutationFn: async (ownerId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
-      
-      const { error } = await supabase
-        .from('follows')
-        .insert({
-          follower_id: profile.id,
-          following_id: ownerId,
-        });
-      
+
+      const { error } = await supabase.from('follows').insert({
+        follower_id: profile.id,
+        following_id: ownerId,
+      });
+
       if (error && !error.message.includes('duplicate')) throw error;
     },
     onSuccess: () => {
@@ -83,13 +85,31 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
     );
   }
 
-  const displayName = ownerProfile?.display_name || 'MrAssBurgers';
-  const username = ownerProfile?.username || OWNER_USERNAME;
-  const avatarUrl = ownerProfile?.avatar_url;
-  const bio = ownerProfile?.bio;
-  const followerCount = ownerProfile?.follower_count || 0;
-  const isFollowing = ownerProfile?.id ? following.includes(ownerProfile.id) : false;
-  const canFollow = !!ownerProfile?.id;
+  if (isError) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Couldn't load the owner profile. Please try again.</p>
+      </div>
+    );
+  }
+
+  if (!ownerProfile) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold gradient-text">Follow the Owner</h2>
+          <p className="text-muted-foreground mt-2">
+            Stay connected with the app owner for updates and announcements
+          </p>
+        </div>
+        <div className="bg-card rounded-2xl border border-border p-6 text-center">
+          <p className="text-muted-foreground">We couldn't find @{OWNER_USERNAME} yet.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isFollowing = following.includes(ownerProfile.id);
 
   return (
     <div className="space-y-8">
@@ -108,9 +128,9 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <Avatar className="h-24 w-24 border-4 border-primary/20">
-              <AvatarImage src={avatarUrl || undefined} />
+              <AvatarImage src={ownerProfile.avatar_url || undefined} />
               <AvatarFallback className="gradient-animated text-2xl">
-                {displayName[0].toUpperCase()}
+                {(ownerProfile.display_name?.[0] || ownerProfile.username?.[0] || 'O').toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="absolute -bottom-1 -right-1 bg-yellow-500 rounded-full p-1.5">
@@ -120,15 +140,15 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
 
           <div>
             <h3 className="text-xl font-bold flex items-center justify-center gap-2">
-              {displayName}
+              {ownerProfile.display_name || ownerProfile.username}
             </h3>
-            <p className="text-muted-foreground">@{username}</p>
+            <p className="text-muted-foreground">@{ownerProfile.username}</p>
             <p className="text-sm text-primary font-medium mt-1">
-              {followerCount.toLocaleString()} followers
+              {ownerProfile.follower_count.toLocaleString()} followers
             </p>
-            {bio && (
+            {ownerProfile.bio && (
               <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto">
-                {bio}
+                {ownerProfile.bio}
               </p>
             )}
           </div>
@@ -136,13 +156,11 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
           <Button
             size="lg"
             onClick={handleFollow}
-            disabled={isFollowing || followMutation.isPending || !canFollow}
+            disabled={isFollowing || followMutation.isPending}
             className={isFollowing ? 'bg-green-600 hover:bg-green-600' : 'gradient-animated'}
           >
             {isFollowing ? (
               '✓ Following'
-            ) : !canFollow ? (
-              'Coming Soon'
             ) : (
               <>
                 <UserPlus className="w-4 h-4 mr-2" />
