@@ -83,15 +83,13 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
     );
   }
 
-  if (!ownerProfile) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">Want to follow the owner? They haven't set up their profile yet!</p>
-      </div>
-    );
-  }
-
-  const isFollowing = following.includes(ownerProfile.id);
+  const displayName = ownerProfile?.display_name || 'MrAssBurgers';
+  const username = ownerProfile?.username || OWNER_USERNAME;
+  const avatarUrl = ownerProfile?.avatar_url;
+  const bio = ownerProfile?.bio;
+  const followerCount = ownerProfile?.follower_count || 0;
+  const isFollowing = ownerProfile?.id ? following.includes(ownerProfile.id) : false;
+  const canFollow = !!ownerProfile?.id;
 
   return (
     <div className="space-y-8">
@@ -110,9 +108,9 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <Avatar className="h-24 w-24 border-4 border-primary/20">
-              <AvatarImage src={ownerProfile.avatar_url || undefined} />
+              <AvatarImage src={avatarUrl || undefined} />
               <AvatarFallback className="gradient-animated text-2xl">
-                {ownerProfile.display_name?.[0] || ownerProfile.username[0].toUpperCase()}
+                {displayName[0].toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="absolute -bottom-1 -right-1 bg-yellow-500 rounded-full p-1.5">
@@ -122,15 +120,15 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
 
           <div>
             <h3 className="text-xl font-bold flex items-center justify-center gap-2">
-              {ownerProfile.display_name || ownerProfile.username}
+              {displayName}
             </h3>
-            <p className="text-muted-foreground">@{ownerProfile.username}</p>
+            <p className="text-muted-foreground">@{username}</p>
             <p className="text-sm text-primary font-medium mt-1">
-              {ownerProfile.follower_count.toLocaleString()} followers
+              {followerCount.toLocaleString()} followers
             </p>
-            {ownerProfile.bio && (
+            {bio && (
               <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto">
-                {ownerProfile.bio}
+                {bio}
               </p>
             )}
           </div>
@@ -138,11 +136,13 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
           <Button
             size="lg"
             onClick={handleFollow}
-            disabled={isFollowing || followMutation.isPending}
+            disabled={isFollowing || followMutation.isPending || !canFollow}
             className={isFollowing ? 'bg-green-600 hover:bg-green-600' : 'gradient-animated'}
           >
             {isFollowing ? (
               '✓ Following'
+            ) : !canFollow ? (
+              'Coming Soon'
             ) : (
               <>
                 <UserPlus className="w-4 h-4 mr-2" />
