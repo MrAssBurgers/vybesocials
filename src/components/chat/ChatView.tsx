@@ -8,6 +8,7 @@ import {
   useScreenshotNotification,
   useMarkMessageViewed,
   useAddReaction,
+  useUnsendMessage,
   ViewMode,
   Message,
   useConversations
@@ -50,7 +51,8 @@ import {
   Sparkles,
   Mic,
   Reply,
-  CornerUpLeft
+  CornerUpLeft,
+  Trash2
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -83,6 +85,7 @@ export function ChatView() {
   const { optimisticMessages, send, retry, dismiss, isPending } = useOptimisticMessages(conversationId);
   const markViewed = useMarkMessageViewed();
   const addReaction = useAddReaction();
+  const unsendMessage = useUnsendMessage();
   const { typingUsers, setTyping } = useTypingIndicator(conversationId);
   const { notifyScreenshot } = useScreenshotNotification(conversationId);
   const { startCall } = useCallContext();
@@ -528,6 +531,7 @@ export function ChatView() {
               onView={() => markViewed.mutate(message.id)}
               onReaction={handleReaction}
               onReply={() => handleReply(message)}
+              onUnsend={() => unsendMessage.mutate(message.id)}
               allMessages={messages}
               themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
             />
@@ -832,6 +836,7 @@ const MessageBubble = memo(function MessageBubble({
   onView,
   onReaction,
   onReply,
+  onUnsend,
   allMessages,
   themeColor = { bubble: 'bg-primary', text: 'text-primary-foreground' },
 }: { 
@@ -843,11 +848,13 @@ const MessageBubble = memo(function MessageBubble({
   onView: () => void;
   onReaction: (messageId: string, emoji: string) => void;
   onReply: () => void;
+  onUnsend: () => void;
   allMessages?: Message[];
   themeColor?: { bubble: string; text: string };
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
+  const [showUnsendConfirm, setShowUnsendConfirm] = useState(false);
 
   const repliedMessage = useMemo(() => 
     message.reply_to_id ? allMessages?.find(m => m.id === message.reply_to_id) : null,
@@ -868,6 +875,11 @@ const MessageBubble = memo(function MessageBubble({
     onReaction(message.id, emoji);
     setShowReactions(false);
   }, [message.id, onReaction]);
+
+  const handleUnsend = useCallback(() => {
+    onUnsend();
+    setShowUnsendConfirm(false);
+  }, [onUnsend]);
 
   return (
     <div className={cn('flex gap-2 group/message', isOwn ? 'justify-end' : 'justify-start')}>
@@ -1010,12 +1022,39 @@ const MessageBubble = memo(function MessageBubble({
       </div>
 
       {isOwn && (
-        <button
-          onClick={onReply}
-          className="self-center opacity-0 group-hover/message:opacity-100 transition-opacity p-1 rounded-full hover:bg-muted"
-        >
-          <Reply className="h-4 w-4 text-muted-foreground" />
-        </button>
+        <div className="self-center flex items-center gap-1 opacity-0 group-hover/message:opacity-100 transition-opacity">
+          <button
+            onClick={onReply}
+            className="p-1 rounded-full hover:bg-muted"
+            title="Reply"
+          >
+            <Reply className="h-4 w-4 text-muted-foreground" />
+          </button>
+          {showUnsendConfirm ? (
+            <div className="flex items-center gap-1 bg-destructive/10 rounded-full px-2 py-0.5">
+              <button
+                onClick={handleUnsend}
+                className="text-xs text-destructive font-medium hover:underline"
+              >
+                Unsend?
+              </button>
+              <button
+                onClick={() => setShowUnsendConfirm(false)}
+                className="p-0.5 rounded-full hover:bg-muted"
+              >
+                <X className="h-3 w-3 text-muted-foreground" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowUnsendConfirm(true)}
+              className="p-1 rounded-full hover:bg-destructive/10"
+              title="Unsend message"
+            >
+              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
