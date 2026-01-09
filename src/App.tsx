@@ -25,6 +25,7 @@ import Settings from "./pages/Settings";
 import Onboarding from "./pages/Onboarding";
 import Messages from "./pages/Messages";
 import NewMessage from "./pages/NewMessage";
+import AIChat from "./pages/AIChat";
 
 import Feedback from "./pages/Feedback";
 import CompleteProfile from "./pages/CompleteProfile";
@@ -85,6 +86,7 @@ const App = () => {
                     <Route path="/complete-profile" element={<CompleteProfile />} />
                     <Route path="/messages" element={<Messages />} />
                     <Route path="/messages/new" element={<NewMessage />} />
+                    <Route path="/messages/ai-autisy" element={<AIChat />} />
                     <Route path="/messages/:conversationId" element={<Messages />} />
                     
                     <Route path="/feedback" element={<Feedback />} />
