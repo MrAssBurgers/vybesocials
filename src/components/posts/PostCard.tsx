@@ -24,63 +24,92 @@ import { useUserRole } from '@/hooks/useModeration';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
 
-// Video player component with muted autoplay loop, click to unmute
+// Video player component with thumbnail, hover to play, click to unmute
 function VideoPlayer({ src }: { src: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
+  const [thumbnailTime, setThumbnailTime] = useState(0);
+  const [showThumbnail, setShowThumbnail] = useState(true);
+
+  // Generate random thumbnail time on mount
+  useState(() => {
+    setThumbnailTime(Math.random() * 5); // Random time in first 5 seconds
+  });
 
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (videoRef.current) {
       videoRef.current.muted = !videoRef.current.muted;
       setIsMuted(!isMuted);
-      // If unmuting and not playing, start playing
-      if (videoRef.current.muted === false && videoRef.current.paused) {
-        videoRef.current.play();
-      }
     }
   };
 
-  const handleVideoClick = () => {
+  const handleMouseEnter = () => {
+    setIsHovering(true);
+    setShowThumbnail(false);
     if (videoRef.current) {
-      if (videoRef.current.paused) {
-        videoRef.current.play();
-        setIsPlaying(true);
-      } else {
-        videoRef.current.pause();
-        setIsPlaying(false);
-      }
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().catch(() => {});
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovering(false);
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = thumbnailTime;
+    }
+  };
+
+  const handleClick = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      const duration = videoRef.current.duration;
+      const randomTime = Math.random() * Math.min(duration, 10);
+      setThumbnailTime(randomTime);
+      videoRef.current.currentTime = randomTime;
     }
   };
 
   return (
-    <div className="relative w-full h-full group" onClick={handleVideoClick}>
+    <div 
+      className="relative w-full h-full group cursor-pointer" 
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={handleClick}
+    >
       <video
         ref={videoRef}
         src={src}
         className="w-full h-full object-cover"
         loop
-        muted
+        muted={isMuted}
         playsInline
-        autoPlay
-        preload="auto"
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
+        preload="metadata"
+        onLoadedMetadata={handleLoadedMetadata}
       />
-      {/* Play indicator */}
-      {!isPlaying && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+      {/* Play indicator when not hovering */}
+      {!isHovering && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity">
           <Play className="h-16 w-16 text-white/80 fill-white/80" />
         </div>
       )}
       {/* Mute/Unmute button */}
-      <button
-        onClick={toggleMute}
-        className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-      </button>
+      {isHovering && (
+        <button
+          onClick={toggleMute}
+          className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white transition-opacity"
+        >
+          {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        </button>
+      )}
     </div>
   );
 }

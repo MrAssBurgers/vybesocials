@@ -174,12 +174,12 @@ function NewFeedbackDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2">
-          <MessageSquarePlus className="h-4 w-4" />
-          Submit Feedback
+        <Button size="sm" className="gap-1.5 text-sm px-3 py-1.5 h-8">
+          <MessageSquarePlus className="h-3.5 w-3.5" />
+          Submit
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Submit Feedback</DialogTitle>
           <DialogDescription>
