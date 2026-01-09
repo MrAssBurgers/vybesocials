@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Image, Camera, X } from 'lucide-react';
+import { Image, Camera, X, Sparkles } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { VYBEHub } from './VYBEHub';
@@ -17,7 +17,7 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
   const [showHub, setShowHub] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
 
-  const handleAction = (action: 'post' | 'camera') => {
+  const handleAction = (action: 'post' | 'camera' | 'hub') => {
     triggerHaptic('medium');
     playSound('pop');
     
@@ -29,6 +29,10 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
       case 'camera':
         onClose();
         setShowCamera(true);
+        break;
+      case 'hub':
+        onClose();
+        setShowHub(true);
         break;
     }
   };
@@ -49,6 +53,14 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
       description: 'Capture a moment',
       color: 'from-cyan-500 to-blue-500',
       delay: 0.1,
+    },
+    { 
+      id: 'hub' as const, 
+      icon: Sparkles, 
+      label: 'VYBE Hub', 
+      description: 'Marketplace, Events & More',
+      color: 'from-violet-500 to-purple-600',
+      delay: 0.15,
     },
   ];
 
@@ -125,7 +137,7 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
                 <motion.button
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ delay: 0.15 }}
+                  transition={{ delay: 0.2 }}
                   onClick={onClose}
                   className="w-full mt-4 p-2 rounded-xl text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2 text-sm"
                 >
