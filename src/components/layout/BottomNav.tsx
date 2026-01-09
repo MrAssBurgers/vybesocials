@@ -146,7 +146,7 @@ export function BottomNav() {
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
-                      className="absolute -top-1 right-[calc(50%-24px)] w-3 h-3 rounded-full bg-yellow-500 border-2 border-background pointer-events-none"
+                      className="absolute -top-1 right-[calc(50%-20px)] w-3 h-3 rounded-full bg-yellow-500 border-2 border-background pointer-events-none"
                     />
                   )}
                 </div>

@@ -108,11 +108,11 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
   });
 }
 
-export function useInfiniteFollowingPosts() {
+export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
   const { profile } = useAuth();
 
   return useInfiniteQuery({
-    queryKey: ['infinite-following-posts', profile?.id],
+    queryKey: ['infinite-following-posts', type, profile?.id],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       if (!profile) return { posts: [], nextPage: null };
 
@@ -126,7 +126,7 @@ export function useInfiniteFollowingPosts() {
 
       if (followingIds.length === 0) return { posts: [], nextPage: null };
 
-      const { data: posts, error } = await supabase
+      let query = supabase
         .from('posts')
         .select(`
           id,
@@ -147,6 +147,12 @@ export function useInfiniteFollowingPosts() {
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false })
         .range(pageParam * PAGE_SIZE, (pageParam + 1) * PAGE_SIZE - 1);
+
+      if (type) {
+        query = query.eq('type', type);
+      }
+
+      const { data: posts, error } = await query;
 
       if (error) throw error;
 

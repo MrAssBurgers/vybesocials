@@ -11,7 +11,6 @@ import { StoriesBar } from '@/components/stories/StoriesBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
 import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
-import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 
@@ -28,7 +27,7 @@ export default function HomePage() {
     hasNextPage: hasNextForYou,
     isFetchingNextPage: isFetchingNextForYou,
     refetch: refetchForYou,
-  } = useInfinitePosts();
+  } = useInfinitePosts('post');
   
   const {
     data: followingData,
@@ -37,7 +36,7 @@ export default function HomePage() {
     hasNextPage: hasNextFollowing,
     isFetchingNextPage: isFetchingNextFollowing,
     refetch: refetchFollowing,
-  } = useInfiniteFollowingPosts();
+  } = useInfiniteFollowingPosts('post');
 
   const forYouPosts = useMemo(() => 
     forYouData?.pages.flatMap(page => page.posts) || [], 
@@ -80,16 +79,7 @@ export default function HomePage() {
     if (node) observerRef.current.observe(node);
   }, [activeTab, hasNextForYou, hasNextFollowing, isFetchingNextForYou, isFetchingNextFollowing, fetchNextForYou, fetchNextFollowing]);
 
-  // Preload next few videos for instant playback
-  const videoUrlsToPreload = useMemo(() => {
-    const posts = activeTab === 'foryou' ? forYouPosts : followingPosts;
-    return posts
-      .filter(post => post.type === 'video')
-      .slice(0, 5)
-      .map(post => post.media_url);
-  }, [forYouPosts, followingPosts, activeTab]);
-
-  useVideoPreload(videoUrlsToPreload);
+  // Home feed is photo posts only (videos/clips live in Clips).
 
   // Redirect new Google users who don't have a profile/username yet
   useEffect(() => {
