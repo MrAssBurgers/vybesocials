@@ -29,6 +29,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ReadReceipts } from './ReadReceipts';
 import { VoiceRecorder, AudioMessage } from './VoiceRecorder';
+import { DMSettingsSheet, EmotionalPulseIndicator } from './DMSettingsSheet';
+import { VanishThreads } from './VanishThreads';
+import { MemoryPins } from './MemoryPins';
+import { ScheduleMessageDialog } from './ScheduleMessageDialog';
+import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { 
   ArrowLeft, 
   Send, 
@@ -478,6 +483,12 @@ export function ChatView() {
             )}
           </AnimatePresence>
         </div>
+        {/* DM Feature Buttons */}
+        <VanishThreads conversationId={conversationId!} />
+        <MemoryPins conversationId={conversationId!} messages={messages || []} />
+        <ScheduleMessageDialog conversationId={conversationId!} />
+        <DMSettingsSheet conversationId={conversationId!} />
+        
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <motion.div whileHover={{ rotate: 90 }} transition={{ duration: 0.2 }}>
