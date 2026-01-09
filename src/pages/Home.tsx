@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { Search } from 'lucide-react';
 import { usePosts, useFollowingPosts } from '@/hooks/usePosts';
 import { PostCard } from '@/components/posts/PostCard';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -8,6 +9,7 @@ import { StoriesBar } from '@/components/stories/StoriesBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/lib/auth';
+import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
 
 function PostSkeleton() {
   return (
@@ -45,6 +47,24 @@ export default function HomePage() {
   return (
     <AppLayout>
       <div className="max-w-xl mx-auto">
+        {/* Explore Button - Liquid Glass */}
+        <div className="px-4 pt-4 md:hidden">
+          <Link to="/explore">
+            <motion.div
+              whileTap={{ scale: 0.98 }}
+              className="liquid-glass rounded-xl p-3 flex items-center gap-3 border border-white/10"
+            >
+              <div className="w-10 h-10 rounded-full liquid-glass-button flex items-center justify-center">
+                <Search className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <span className="text-muted-foreground text-sm">Search posts, tags, or creators...</span>
+            </motion.div>
+          </Link>
+        </div>
+
+        {/* Announcements Banner */}
+        <AnnouncementBanner />
+
         {/* Stories Bar */}
         <StoriesBar />
         

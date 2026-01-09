@@ -38,7 +38,7 @@ const listItemVariants = {
   exit: { opacity: 0, x: -20, transition: { duration: 0.15 } },
 };
 
-// Pinned Autisy AI chat row at top of messages - STATIC, no hover animation
+// Autisy AI chat row - looks like a regular conversation item
 function AutisyAIChatRow() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
@@ -110,35 +110,27 @@ function AutisyAIChatRow() {
     }
   };
 
+  const lastAIMessage = messages.filter(m => m.role === 'assistant').pop()?.content || "Tap to chat with me! 🦆";
+
   return (
     <>
-      {/* STATIC button - no whileHover that causes it to move */}
+      {/* Looks like a regular conversation item */}
       <button
         onClick={() => setIsOpen(true)}
-        className="w-full flex items-center gap-3 p-3 rounded-xl text-left liquid-glass-subtle transition-colors hover:bg-accent/50"
+        className="w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 transition-colors"
       >
         <div className="relative flex-shrink-0">
-          <motion.div
-            className="h-12 w-12 rounded-full gradient-animated flex items-center justify-center ring-2 ring-primary/30"
-            animate={{ rotate: [0, -5, 5, 0] }}
-            transition={{ duration: 3, repeat: Infinity }}
-          >
+          <div className="h-12 w-12 rounded-full gradient-animated flex items-center justify-center">
             <Bot className="h-6 w-6 text-white" />
-          </motion.div>
-          <motion.div
-            className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          >
-            AI
-          </motion.div>
+          </div>
+          <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-background" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-bold gradient-text">Autisy</span>
-            <Pin className="h-3 w-3 text-primary" />
+          <div className="flex items-center justify-between">
+            <span className="font-semibold">Autisy</span>
+            <span className="text-xs text-muted-foreground">AI</span>
           </div>
-          <p className="text-sm text-muted-foreground truncate">Your chaotic AI bestie 🦆✨</p>
+          <p className="text-sm text-muted-foreground truncate">{lastAIMessage.slice(0, 40)}...</p>
         </div>
       </button>
 
@@ -292,11 +284,6 @@ export function ConversationList() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Pinned Autisy AI Chat at the very top - STATIC */}
-      <div className="p-3 border-b border-border">
-        <AutisyAIChatRow />
-      </div>
-
       {/* Header with animation */}
       <motion.div 
         initial={{ y: -20, opacity: 0 }}
@@ -361,6 +348,16 @@ export function ConversationList() {
 
       {/* Conversation List */}
       <div className="flex-1 overflow-y-auto">
+        {/* Friends section with Autisy AI at the top */}
+        <div className="p-2">
+          <p className="text-xs text-muted-foreground px-2 mb-2 flex items-center gap-1">
+            <Users className="h-3 w-3" />
+            Friends & AI
+          </p>
+          {/* Autisy AI - always first, like Snapchat */}
+          <AutisyAIChatRow />
+        </div>
+
         {pinnedConversations && pinnedConversations.length > 0 && (
           <div className="p-2">
             <motion.p 
