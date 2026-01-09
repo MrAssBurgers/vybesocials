@@ -93,9 +93,9 @@ export default function ClipsPage() {
     }
   }, [handleWheel]);
 
-  // Tap to unmute handler (passed to ShortCard)
-  const handleTapToUnmute = useCallback(() => {
-    setGlobalMuted(false);
+// Tap to toggle mute handler (passed to ShortCard)
+  const handleToggleMute = useCallback(() => {
+    setGlobalMuted(prev => !prev);
   }, []);
 
   if (isLoading) {
@@ -174,7 +174,7 @@ export default function ClipsPage() {
                 post={shorts[currentIndex]} 
                 isActive={true}
                 globalMuted={globalMuted}
-                onTapToUnmute={handleTapToUnmute}
+                onToggleMute={handleToggleMute}
                 isHolding={isHolding.current}
               />
             </motion.div>

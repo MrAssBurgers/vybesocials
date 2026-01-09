@@ -1,7 +1,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, Image, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, Image, X, Loader2, Send } from 'lucide-react';
 import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,6 +46,50 @@ import {
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
+import { isValidMediaUrl } from '@/components/ui/SafeMedia';
+
+// Safe media component for post detail
+function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: string; caption?: string }) {
+  const signedUrl = useSignedUrl(mediaUrl);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  if (!isValidMediaUrl(mediaUrl)) {
+    return <MediaFallback type={type === 'video' || type === 'short' ? 'video' : 'image'} caption={caption} className="min-h-[300px] lg:min-h-[400px]" />;
+  }
+
+  if (hasError) {
+    return <MediaFallback type={type === 'video' || type === 'short' ? 'video' : 'image'} caption={caption} className="min-h-[300px] lg:min-h-[400px]" />;
+  }
+
+  const isVideo = type === 'video' || type === 'short';
+
+  return (
+    <div className="relative bg-muted min-h-[300px] lg:min-h-[400px] flex items-center justify-center">
+      {!isLoaded && <MediaSkeleton className="absolute inset-0" />}
+      {isVideo ? (
+        <video
+          src={signedUrl || mediaUrl}
+          controls
+          className={cn("w-full max-h-[600px] object-contain transition-opacity", isLoaded ? "opacity-100" : "opacity-0")}
+          onLoadedData={() => setIsLoaded(true)}
+          onError={() => setHasError(true)}
+          playsInline
+        />
+      ) : (
+        <img
+          src={signedUrl || mediaUrl}
+          alt={caption || ''}
+          className={cn("w-full max-h-[600px] object-contain transition-opacity", isLoaded ? "opacity-100" : "opacity-0")}
+          onLoad={() => setIsLoaded(true)}
+          onError={() => setHasError(true)}
+        />
+      )}
+    </div>
+  );
+}
 
 export default function PostDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -291,21 +335,13 @@ export default function PostDetailPage() {
         </button>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Media */}
-          <div className="bg-card rounded-xl overflow-hidden border border-border">
-            {post.type === 'video' || post.type === 'short' ? (
-              <video
-                src={post.media_url}
-                controls
-                className="w-full max-h-[600px] object-contain"
-              />
-            ) : (
-              <img
-                src={post.media_url}
-                alt={post.caption}
-                className="w-full max-h-[600px] object-contain"
-              />
-            )}
+          {/* Media - with shadow and proper sizing */}
+          <div className="bg-card rounded-xl overflow-hidden border border-border shadow-lg lg:sticky lg:top-20 lg:self-start">
+            <PostDetailMedia 
+              type={post.type} 
+              mediaUrl={post.media_url} 
+              caption={post.caption || undefined} 
+            />
           </div>
 
           {/* Details */}
@@ -391,8 +427,13 @@ export default function PostDetailPage() {
               )}
             </div>
 
+            {/* Comments Section Header */}
+            <div className="px-4 pt-4 pb-2 border-b border-border">
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Comments</h3>
+            </div>
+            
             {/* Comments */}
-            <div className="flex-1 overflow-y-auto max-h-64 p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto max-h-80 lg:max-h-96 p-4 space-y-4">
               {commentsLoading ? (
                 <div className="space-y-4">
                   {Array.from({ length: 3 }).map((_, i) => (
@@ -480,37 +521,67 @@ export default function PostDetailPage() {
                   </motion.div>
                 ))
               ) : (
-                <p className="text-center text-muted-foreground py-8">No comments yet</p>
+                <div className="text-center py-8">
+                  <p className="text-2xl mb-2">👀</p>
+                  <p className="text-muted-foreground text-sm">Be the first to comment</p>
+                </div>
               )}
             </div>
 
-            {/* Actions */}
+            {/* Actions - with micro-animations */}
             <div className="p-4 border-t border-border">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-4">
-                  <button onClick={handleLike}>
-                    <Heart
+                <div className="flex items-center gap-5">
+                  <motion.button 
+                    whileTap={{ scale: 0.8 }}
+                    onClick={handleLike}
+                    className="p-2 -m-2 rounded-full hover:bg-secondary/50 transition-colors"
+                  >
+                    <motion.div
+                      animate={isLiked ? { scale: [1, 1.3, 1] } : {}}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <Heart
+                        className={cn(
+                          "h-7 w-7 transition-colors",
+                          isLiked ? "fill-red-500 text-red-500" : "hover:text-primary"
+                        )}
+                      />
+                    </motion.div>
+                  </motion.button>
+                  <motion.button 
+                    whileTap={{ scale: 0.8 }}
+                    className="p-2 -m-2 rounded-full hover:bg-secondary/50 transition-colors"
+                  >
+                    <MessageCircle className="h-7 w-7 hover:text-primary transition-colors" />
+                  </motion.button>
+                  <motion.button 
+                    whileTap={{ scale: 0.8, rotate: 15 }}
+                    onClick={handleShare}
+                    className="p-2 -m-2 rounded-full hover:bg-secondary/50 transition-colors"
+                  >
+                    <Share2 className="h-7 w-7 hover:text-primary transition-colors" />
+                  </motion.button>
+                </div>
+                <motion.button 
+                  whileTap={{ scale: 0.8 }}
+                  onClick={handleBookmark}
+                  className="p-2 -m-2 rounded-full hover:bg-secondary/50 transition-colors"
+                >
+                  <motion.div
+                    animate={isBookmarked ? { scale: [1, 1.2, 1] } : {}}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Bookmark
                       className={cn(
-                        "h-6 w-6 transition-colors",
-                        isLiked ? "fill-primary text-primary" : "hover:text-primary"
+                        "h-7 w-7 transition-colors",
+                        isBookmarked ? "fill-yellow-400 text-yellow-400" : "hover:text-primary"
                       )}
                     />
-                  </button>
-                  <MessageCircle className="h-6 w-6" />
-                  <button onClick={handleShare}>
-                    <Share2 className="h-6 w-6 hover:text-primary transition-colors" />
-                  </button>
-                </div>
-                <button onClick={handleBookmark}>
-                  <Bookmark
-                    className={cn(
-                      "h-6 w-6 transition-colors",
-                      isBookmarked ? "fill-foreground" : "hover:text-primary"
-                    )}
-                  />
-                </button>
+                  </motion.div>
+                </motion.button>
               </div>
-              <p className="font-semibold mb-4">{likeCount.toLocaleString()} likes</p>
+              <p className="font-semibold text-lg mb-4">{likeCount.toLocaleString()} likes</p>
 
               {/* Comment input */}
               <form onSubmit={handleComment} className="space-y-2">
@@ -551,14 +622,18 @@ export default function PostDetailPage() {
                     placeholder="Add a comment..."
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    className="bg-secondary border-border"
+                    className="bg-secondary border-border flex-1"
                   />
-                  <Button 
-                    type="submit" 
-                    disabled={(!newComment.trim() && !commentImage) || createComment.isPending || isUploadingImage}
-                  >
-                    {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Post'}
-                  </Button>
+                  <motion.div whileTap={{ scale: 0.9 }}>
+                    <Button 
+                      type="submit" 
+                      size="icon"
+                      disabled={(!newComment.trim() && !commentImage) || createComment.isPending || isUploadingImage}
+                      className="shrink-0"
+                    >
+                      {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </Button>
+                  </motion.div>
                 </div>
               </form>
             </div>
