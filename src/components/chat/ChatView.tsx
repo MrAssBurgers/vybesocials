@@ -405,6 +405,25 @@ export function ChatView() {
     });
   }, [messages, profile?.id]);
 
+  // Navigate to profile when avatar clicked
+  const handleAvatarClick = useCallback(() => {
+    if (otherMember?.username) {
+      navigate(`/u/${otherMember.username}`);
+    }
+  }, [otherMember?.username, navigate]);
+
+  // Get chat wallpaper background class
+  const getWallpaperClass = useCallback(() => {
+    switch (settings.chat_wallpaper) {
+      case 'gradient-1': return 'bg-gradient-to-br from-orange-400/20 to-pink-500/20';
+      case 'gradient-2': return 'bg-gradient-to-br from-blue-400/20 to-cyan-500/20';
+      case 'gradient-3': return 'bg-gradient-to-br from-green-400/20 to-emerald-600/20';
+      case 'gradient-4': return 'bg-gradient-to-br from-indigo-900/30 to-purple-900/30';
+      case 'gradient-5': return 'bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-indigo-500/20';
+      default: return '';
+    }
+  }, [settings.chat_wallpaper]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col h-full">
@@ -422,25 +441,6 @@ export function ChatView() {
       </div>
     );
   }
-
-  // Get chat wallpaper background class
-  const getWallpaperClass = () => {
-    switch (settings.chat_wallpaper) {
-      case 'gradient-1': return 'bg-gradient-to-br from-orange-400/20 to-pink-500/20';
-      case 'gradient-2': return 'bg-gradient-to-br from-blue-400/20 to-cyan-500/20';
-      case 'gradient-3': return 'bg-gradient-to-br from-green-400/20 to-emerald-600/20';
-      case 'gradient-4': return 'bg-gradient-to-br from-indigo-900/30 to-purple-900/30';
-      case 'gradient-5': return 'bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-indigo-500/20';
-      default: return '';
-    }
-  };
-
-  // Navigate to profile when avatar clicked
-  const handleAvatarClick = useCallback(() => {
-    if (otherMember?.username) {
-      navigate(`/u/${otherMember.username}`);
-    }
-  }, [otherMember?.username, navigate]);
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
