@@ -96,7 +96,7 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-2xl font-bold gradient-text">Follow the Creator</h2>
+        <h2 className="text-2xl font-bold gradient-text">Follow the Owner</h2>
         <p className="text-muted-foreground mt-2">
           Stay connected with the app owner for updates and announcements
         </p>
