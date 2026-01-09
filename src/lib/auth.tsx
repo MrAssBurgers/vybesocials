@@ -10,6 +10,7 @@ interface Profile {
   bio: string;
   created_at: string;
   interests?: string[] | null;
+  onboarding_completed?: boolean | null;
 }
 
 interface AuthContextType {

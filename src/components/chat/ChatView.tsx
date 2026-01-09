@@ -48,7 +48,8 @@ import {
 } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
-
+import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
+import { useUserOnlineStatus } from '@/hooks/usePresence';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
 // Animation variants
@@ -129,6 +130,12 @@ export function ChatView() {
   const displayName = conversation?.is_group
     ? conversation.name
     : otherMember?.display_name || otherMember?.username || 'Chat';
+  
+  // Get online status for the other member (if DM)
+  const presenceQuery = useUserOnlineStatus(
+    !isGroupChat ? otherMember?.id : undefined
+  );
+  const otherMemberOnline = presenceQuery.data?.is_online ?? false;
 
   // Clear message notifications + clear the unread badge when opening a conversation
   useEffect(() => {
@@ -441,14 +448,22 @@ export function ChatView() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
         </motion.div>
-        <motion.div whileHover={{ scale: 1.05 }} className="cursor-pointer">
+        <motion.div whileHover={{ scale: 1.05 }} className="cursor-pointer relative">
           <Avatar className="h-10 w-10 ring-2 ring-primary/20">
             <AvatarImage src={otherMember?.avatar_url || undefined} />
             <AvatarFallback>{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
+          {!isGroupChat && (
+            <OnlineIndicator isOnline={otherMemberOnline} size="sm" className="bottom-0 right-0" />
+          )}
         </motion.div>
         <div className="flex-1">
           <h2 className="font-semibold">{displayName}</h2>
+          {!isGroupChat && !typingUsers.length && (
+            <p className="text-xs text-muted-foreground">
+              {otherMemberOnline ? 'Online' : 'Offline'}
+            </p>
+          )}
           <AnimatePresence mode="wait">
             {typingUsers.length > 0 && (
               <motion.p

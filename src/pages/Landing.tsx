@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
-import { Sparkles, Zap, Users, Globe, MessageCircle } from 'lucide-react';
+import { Sparkles, Zap, Users, Globe, MessageCircle, Chrome } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Landing() {
   const { t } = useTranslation();
@@ -233,6 +234,31 @@ export default function Landing() {
                   <span className="bg-card px-2 text-muted-foreground">{t('auth.continueWith')}</span>
                 </div>
               </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full mb-2"
+                onClick={async () => {
+                  setLoading(true);
+                  try {
+                    const { error } = await supabase.auth.signInWithOAuth({
+                      provider: 'google',
+                      options: {
+                        redirectTo: `${window.location.origin}/complete-profile`,
+                      },
+                    });
+                    if (error) throw error;
+                  } catch (error: any) {
+                    toast.error(getUserFriendlyError(error));
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+              >
+                <Chrome className="w-4 h-4 mr-2" />
+                Continue with Google
+              </Button>
 
               <Button
                 type="button"

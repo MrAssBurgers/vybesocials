@@ -23,6 +23,7 @@ import Messages from "./pages/Messages";
 import NewMessage from "./pages/NewMessage";
 import AdminDashboard from "./pages/AdminDashboard";
 import Feedback from "./pages/Feedback";
+import CompleteProfile from "./pages/CompleteProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -56,6 +57,7 @@ const App = () => (
                 <Route path="/notifications" element={<Notifications />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/onboarding" element={<Onboarding />} />
+                <Route path="/complete-profile" element={<CompleteProfile />} />
                 <Route path="/messages" element={<Messages />} />
                 <Route path="/messages/new" element={<NewMessage />} />
                 <Route path="/messages/:conversationId" element={<Messages />} />

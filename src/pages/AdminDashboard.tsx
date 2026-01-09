@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Flag, AlertTriangle, CheckCircle, XCircle, Eye, Trash2, MessageSquare, Users, FileText, Search, Pin } from 'lucide-react';
+import { Shield, Flag, AlertTriangle, CheckCircle, XCircle, Eye, Trash2, MessageSquare, Users, FileText, Search, Pin, Crown, UserMinus } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,9 @@ import {
   useUpdateFlag, 
   useUpdateReport, 
   useUserRole,
+  useAllUserRoles,
+  useAddUserRole,
+  useRemoveUserRole,
   ContentFlag,
   Report
 } from '@/hooks/useModeration';
@@ -277,10 +280,45 @@ export default function AdminDashboard() {
   const { data: reports = [], isLoading: reportsLoading } = useReports();
   const { data: posts = [], isLoading: postsLoading } = useAllPosts();
   const { data: users = [], isLoading: usersLoading } = useAllUsers();
+  const { data: userRoles = [] } = useAllUserRoles();
   const updateFlag = useUpdateFlag();
   const updateReport = useUpdateReport();
   const deletePost = useAdminDeletePost();
+  const addUserRole = useAddUserRole();
+  const removeUserRole = useRemoveUserRole();
   const { toast } = useToast();
+
+  // Helper to check if a user has a role
+  const getUserRoles = (userId: string) => {
+    return userRoles.filter((r: any) => r.user_id === userId).map((r: any) => r.role);
+  };
+
+  const handlePromoteToModerator = async (userId: string) => {
+    try {
+      await addUserRole.mutateAsync({ userId, role: 'moderator' });
+      toast({ title: 'User promoted to moderator' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to promote user', variant: 'destructive' });
+    }
+  };
+
+  const handleDemoteFromModerator = async (userId: string) => {
+    try {
+      await removeUserRole.mutateAsync({ userId, role: 'moderator' });
+      toast({ title: 'User demoted from moderator' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to demote user', variant: 'destructive' });
+    }
+  };
+
+  const handlePromoteToAdmin = async (userId: string) => {
+    try {
+      await addUserRole.mutateAsync({ userId, role: 'admin' });
+      toast({ title: 'User promoted to admin' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to promote user', variant: 'destructive' });
+    }
+  };
 
   if (roleLoading) {
     return (
@@ -613,34 +651,92 @@ export default function AdminDashboard() {
               </Card>
             ) : (
               <motion.div className="space-y-3" variants={containerVariants} initial="hidden" animate="visible">
-                {filteredUsers.map((user: any) => (
-                  <motion.div key={user.id} variants={itemVariants}>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-4">
-                          <Avatar className="h-12 w-12">
-                            <AvatarImage src={user.avatar_url || undefined} />
-                            <AvatarFallback>{user.username?.[0]?.toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{user.username}</span>
-                              {user.is_verified && <Badge variant="secondary">Verified</Badge>}
-                              {user.is_private && <Badge variant="outline">Private</Badge>}
+                {filteredUsers.map((user: any) => {
+                  const roles = getUserRoles(user.id);
+                  const isAdmin = roles.includes('admin');
+                  const isModerator = roles.includes('moderator');
+                  
+                  return (
+                    <motion.div key={user.id} variants={itemVariants}>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-4">
+                            <Avatar className="h-12 w-12">
+                              <AvatarImage src={user.avatar_url || undefined} />
+                              <AvatarFallback>{user.username?.[0]?.toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium">{user.username}</span>
+                                {user.is_verified && <Badge variant="secondary">Verified</Badge>}
+                                {user.is_private && <Badge variant="outline">Private</Badge>}
+                                {isAdmin && (
+                                  <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30">
+                                    <Crown className="h-3 w-3 mr-1" />
+                                    Admin
+                                  </Badge>
+                                )}
+                                {isModerator && !isAdmin && (
+                                  <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">
+                                    <Shield className="h-3 w-3 mr-1" />
+                                    Moderator
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">{user.display_name || 'No display name'}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Joined {formatDistanceToNow(new Date(user.created_at), { addSuffix: true })}
+                              </p>
                             </div>
-                            <p className="text-sm text-muted-foreground">{user.display_name || 'No display name'}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Joined {formatDistanceToNow(new Date(user.created_at), { addSuffix: true })}
-                            </p>
+                            <div className="flex gap-2 flex-wrap">
+                              {/* Role management buttons - only show for admins */}
+                              {role === 'admin' && !isAdmin && (
+                                <>
+                                  {!isModerator ? (
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={() => handlePromoteToModerator(user.id)}
+                                      disabled={addUserRole.isPending}
+                                      title="Promote to Moderator"
+                                    >
+                                      <Shield className="h-4 w-4 mr-1" />
+                                      Mod
+                                    </Button>
+                                  ) : (
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={() => handleDemoteFromModerator(user.id)}
+                                      disabled={removeUserRole.isPending}
+                                      title="Remove Moderator"
+                                    >
+                                      <UserMinus className="h-4 w-4 mr-1" />
+                                      Demote
+                                    </Button>
+                                  )}
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => handlePromoteToAdmin(user.id)}
+                                    disabled={addUserRole.isPending}
+                                    title="Promote to Admin"
+                                    className="text-yellow-600"
+                                  >
+                                    <Crown className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                              <Button size="sm" variant="outline" onClick={() => navigate(`/u/${user.username}`)}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <Button size="sm" variant="outline" onClick={() => navigate(`/u/${user.username}`)}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
               </motion.div>
             )}
           </TabsContent>
