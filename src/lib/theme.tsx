@@ -4,6 +4,7 @@ import { getSoundsEnabled, setSoundsEnabled as setSoundsStorage } from '@/lib/so
 
 type Theme = 'dark' | 'light' | 'system';
 type MotionIntensity = 'calm' | 'normal';
+type GlassIntensity = 'calm' | 'normal' | 'max';
 
 interface ThemeContextType {
   theme: Theme;
@@ -17,6 +18,8 @@ interface ThemeContextType {
   setHapticsEnabled: (enabled: boolean) => void;
   soundsEnabled: boolean;
   setSoundsEnabled: (enabled: boolean) => void;
+  glassIntensity: GlassIntensity;
+  setGlassIntensity: (intensity: GlassIntensity) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -54,6 +57,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const [soundsEnabled, setSoundsEnabledState] = useState<boolean>(() => {
     return getSoundsEnabled();
+  });
+
+  const [glassIntensity, setGlassIntensityState] = useState<GlassIntensity>(() => {
+    if (typeof window === 'undefined') return 'normal';
+    return (localStorage.getItem('vybe-glass-intensity') as GlassIntensity) || 'normal';
   });
 
   const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>(() => {
@@ -95,6 +103,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [motionIntensity]);
 
   useEffect(() => {
+    const root = window.document.documentElement;
+    root.setAttribute('data-glass-intensity', glassIntensity);
+    localStorage.setItem('vybe-glass-intensity', glassIntensity);
+  }, [glassIntensity]);
+
+  useEffect(() => {
     if (theme !== 'system') return;
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -131,6 +145,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setSoundsStorage(enabled);
   };
 
+  const setGlassIntensity = (intensity: GlassIntensity) => {
+    setGlassIntensityState(intensity);
+  };
+
   return (
     <ThemeContext.Provider value={{ 
       theme, 
@@ -144,6 +162,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setHapticsEnabled,
       soundsEnabled,
       setSoundsEnabled,
+      glassIntensity,
+      setGlassIntensity,
     }}>
       {children}
     </ThemeContext.Provider>
