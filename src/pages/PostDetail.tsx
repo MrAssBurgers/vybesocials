@@ -1,7 +1,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2 } from 'lucide-react';
+import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, Image, X, Loader2 } from 'lucide-react';
 import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,6 +52,10 @@ export default function PostDetailPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [newComment, setNewComment] = useState('');
+  const [commentImage, setCommentImage] = useState<File | null>(null);
+  const [commentImagePreview, setCommentImagePreview] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -164,17 +168,67 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be less than 5MB');
+        return;
+      }
+      setCommentImage(file);
+      setCommentImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const clearCommentImage = () => {
+    setCommentImage(null);
+    setCommentImagePreview(null);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+  };
+
   const handleComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || !post) return;
+    if ((!newComment.trim() && !commentImage) || !post || !profile) return;
+
+    let imageUrl: string | undefined;
+
+    if (commentImage) {
+      setIsUploadingImage(true);
+      try {
+        const fileExt = commentImage.name.split('.').pop();
+        const filePath = `${profile.id}/${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('media')
+          .upload(filePath, commentImage);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('media')
+          .getPublicUrl(filePath);
+
+        imageUrl = urlData.publicUrl;
+      } catch (error) {
+        console.error('Failed to upload image:', error);
+        toast.error('Failed to upload image');
+        setIsUploadingImage(false);
+        return;
+      }
+      setIsUploadingImage(false);
+    }
 
     await createComment.mutateAsync({
       postId: post.id,
       text: newComment,
       authorId: post.author.id,
+      imageUrl,
     });
 
     setNewComment('');
+    clearCommentImage();
     toast.success('Comment added!');
   };
 
@@ -367,12 +421,21 @@ export default function PostDetailPage() {
                     </Link>
                     <div className="flex-1">
                       <div className="flex items-start justify-between">
-                        <p className="text-sm">
-                          <Link to={`/u/${comment.user.username}`} className="font-semibold mr-2">
-                            {comment.user.username}
-                          </Link>
-                          {comment.text}
-                        </p>
+                        <div className="flex-1">
+                          <p className="text-sm">
+                            <Link to={`/u/${comment.user.username}`} className="font-semibold mr-2">
+                              {comment.user.username}
+                            </Link>
+                            {comment.text}
+                          </p>
+                          {comment.image_url && (
+                            <img 
+                              src={comment.image_url} 
+                              alt="Comment attachment" 
+                              className="mt-2 max-w-[200px] max-h-[150px] rounded-lg object-cover"
+                            />
+                          )}
+                        </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           {/* User can delete their own comment */}
                           {profile?.id === comment.user.id && (
@@ -450,16 +513,53 @@ export default function PostDetailPage() {
               <p className="font-semibold mb-4">{likeCount.toLocaleString()} likes</p>
 
               {/* Comment input */}
-              <form onSubmit={handleComment} className="flex gap-2">
-                <Input
-                  placeholder="Add a comment..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  className="bg-secondary border-border"
-                />
-                <Button type="submit" disabled={!newComment.trim() || createComment.isPending}>
-                  Post
-                </Button>
+              <form onSubmit={handleComment} className="space-y-2">
+                {commentImagePreview && (
+                  <div className="relative inline-block">
+                    <img 
+                      src={commentImagePreview} 
+                      alt="Preview" 
+                      className="h-16 w-16 object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={clearCommentImage}
+                      className="absolute -top-1 -right-1 h-5 w-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="shrink-0"
+                  >
+                    <Image className="h-5 w-5" />
+                  </Button>
+                  <Input
+                    placeholder="Add a comment..."
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    className="bg-secondary border-border"
+                  />
+                  <Button 
+                    type="submit" 
+                    disabled={(!newComment.trim() && !commentImage) || createComment.isPending || isUploadingImage}
+                  >
+                    {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Post'}
+                  </Button>
+                </div>
               </form>
             </div>
           </div>
