@@ -159,7 +159,8 @@ export function useConversations() {
       return result as Conversation[];
     },
     enabled: !!profile?.id,
-    staleTime: 5000, // Cache for 5 seconds
+    staleTime: 10000, // Cache for 10 seconds
+    refetchOnWindowFocus: false,
   });
 
   // Real-time subscription for conversations
@@ -226,6 +227,8 @@ export function useMessages(conversationId: string | undefined) {
       return filtered as Message[];
     },
     enabled: !!conversationId && !!profile?.id,
+    staleTime: 5000,
+    refetchOnWindowFocus: false,
   });
 
   // Subscribe to real-time updates
