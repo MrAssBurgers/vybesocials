@@ -34,6 +34,7 @@ import Market from "./pages/Market";
 import CreateListing from "./pages/CreateListing";
 import ListingDetail from "./pages/ListingDetail";
 import Events from "./pages/Events";
+import CreateEvent from "./pages/CreateEvent";
 import AdminDashboard from "./pages/AdminDashboard";
 
 const queryClient = new QueryClient({
@@ -94,6 +95,7 @@ const App = () => {
                     <Route path="/market/new" element={<CreateListing />} />
                     <Route path="/market/:id" element={<ListingDetail />} />
                     <Route path="/events" element={<Events />} />
+                    <Route path="/events/new" element={<CreateEvent />} />
                     <Route path="/admin" element={<AdminDashboard />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
