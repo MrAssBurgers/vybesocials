@@ -1043,3 +1043,23 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Safe area utilities for iOS notch/gesture bar */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.h-dvh {
+  height: 100dvh;
+  height: 100vh; /* Fallback for browsers without dvh support */
+}
+
+@supports (height: 100dvh) {
+  .h-dvh {
+    height: 100dvh;
+  }
+}

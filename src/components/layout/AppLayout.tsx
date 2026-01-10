@@ -17,13 +17,15 @@ interface AppLayoutProps {
   requireAuth?: boolean;
   hideRightSidebar?: boolean;
   fullWidth?: boolean;
+  hideNav?: boolean; // Hide bottom nav for immersive views like Clips
 }
 
 export function AppLayout({ 
   children, 
   requireAuth = true, 
   hideRightSidebar = false,
-  fullWidth = false 
+  fullWidth = false,
+  hideNav = false 
 }: AppLayoutProps) {
   const { user, loading } = useAuth();
   const { isDesktop } = useBreakpoint();
@@ -92,13 +94,15 @@ export function AppLayout({
   return (
     <div className="min-h-screen w-full overflow-x-hidden">
       {/* Header - visible on mobile/tablet */}
-      <MobileHeader />
+      {!hideNav && <MobileHeader />}
       {/* Main content - consistent spacing */}
-      <main className="pb-20 pt-14">
+      <main className={cn(
+        hideNav ? "" : "pb-20 pt-14"
+      )}>
         {children}
       </main>
       {/* Bottom nav - visible on mobile/tablet */}
-      <BottomNav />
+      {!hideNav && <BottomNav />}
     </div>
   );
 }

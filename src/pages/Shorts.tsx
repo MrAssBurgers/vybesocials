@@ -1,20 +1,41 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePosts } from '@/hooks/usePosts';
+import { useInfinitePosts } from '@/hooks/useInfinitePosts';
 import { ShortCard } from '@/components/posts/ShortCard';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useInView } from 'react-intersection-observer';
 
 export default function ClipsPage() {
-  const { data: shorts, isLoading } = usePosts('short');
+  const { 
+    data, 
+    isLoading, 
+    fetchNextPage, 
+    hasNextPage, 
+    isFetchingNextPage 
+  } = useInfinitePosts('short');
+  
+  const shorts = data?.pages.flatMap(page => page.posts) || [];
+  
   const [currentIndex, setCurrentIndex] = useState(0);
   const [globalMuted, setGlobalMuted] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const isScrolling = useRef(false);
-  const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
   const holdTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Infinite scroll trigger
+  const { ref: loadMoreRef, inView } = useInView({
+    threshold: 0,
+    rootMargin: '200px',
+  });
+
+  // Fetch next page when approaching end
+  useEffect(() => {
+    if (inView && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Detect which clip is in view using IntersectionObserver
   useEffect(() => {
@@ -23,7 +44,7 @@ export default function ClipsPage() {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
             const index = itemRefs.current.findIndex((ref) => ref === entry.target);
             if (index !== -1 && index !== currentIndex) {
               setCurrentIndex(index);
@@ -33,7 +54,7 @@ export default function ClipsPage() {
       },
       {
         root: containerRef.current,
-        threshold: 0.5,
+        threshold: 0.6,
       }
     );
 
@@ -43,23 +64,6 @@ export default function ClipsPage() {
 
     return () => observer.disconnect();
   }, [shorts, currentIndex]);
-
-  // Track scroll state
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      isScrolling.current = true;
-      if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
-      scrollTimeout.current = setTimeout(() => {
-        isScrolling.current = false;
-      }, 150);
-    };
-
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // Keyboard navigation
   useEffect(() => {
@@ -77,7 +81,7 @@ export default function ClipsPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex]);
+  }, [currentIndex, shorts?.length]);
 
   const scrollToIndex = useCallback((index: number) => {
     if (!shorts || index < 0 || index >= shorts.length) return;
@@ -117,8 +121,8 @@ export default function ClipsPage() {
 
   if (isLoading) {
     return (
-      <AppLayout>
-        <div className="h-[calc(100dvh-4rem)] lg:h-screen flex items-center justify-center bg-black">
+      <AppLayout hideNav>
+        <div className="h-dvh flex items-center justify-center bg-black">
           <motion.div 
             className="gradient-animated rounded-full p-4"
             animate={{ scale: [1, 1.1, 1] }}
@@ -133,8 +137,8 @@ export default function ClipsPage() {
 
   if (!shorts || shorts.length === 0) {
     return (
-      <AppLayout>
-        <div className="h-[calc(100dvh-4rem)] lg:h-screen flex items-center justify-center bg-black px-4">
+      <AppLayout hideNav>
+        <div className="h-dvh flex items-center justify-center bg-black px-4">
           <EmptyState
             emoji="🎬"
             title="No clips yet"
@@ -148,26 +152,30 @@ export default function ClipsPage() {
   }
 
   return (
-    <AppLayout>
+    <AppLayout hideNav>
       <div
         ref={containerRef}
-        className="h-[calc(100dvh-4rem)] lg:h-screen overflow-y-scroll snap-y snap-mandatory scrollbar-hide bg-black"
-        style={{ scrollSnapType: 'y mandatory', overscrollBehavior: 'contain' }}
+        className="h-dvh overflow-y-scroll snap-y snap-mandatory scrollbar-hide bg-black"
+        style={{ 
+          scrollSnapType: 'y mandatory', 
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+        }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* TikTok-style vertical scroll container */}
+        {/* Instagram Reels-style vertical scroll container */}
         <div className="flex flex-col w-full">
           {shorts.map((short, index) => (
             <div
               key={short.id}
               ref={(el) => { itemRefs.current[index] = el; }}
-              className="h-[calc(100dvh-4rem)] lg:h-screen w-full snap-start snap-always flex-shrink-0 flex justify-center"
+              className="h-dvh w-full snap-start snap-always flex-shrink-0 flex justify-center"
               style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
             >
-              {/* 9:16 aspect ratio container */}
-              <div className="relative h-full w-full max-w-[calc((100dvh-4rem)*9/16)] lg:max-w-[calc(100vh*9/16)]">
+              {/* Full screen container */}
+              <div className="relative h-full w-full max-w-[500px]">
                 <ShortCard 
                   post={short} 
                   isActive={index === currentIndex && !isPaused}
@@ -178,24 +186,40 @@ export default function ClipsPage() {
               </div>
             </div>
           ))}
+          
+          {/* Infinite scroll trigger */}
+          {hasNextPage && (
+            <div 
+              ref={loadMoreRef} 
+              className="h-20 flex items-center justify-center bg-black"
+            >
+              {isFetchingNextPage && (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full"
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {/* Progress indicator */}
-        <div className="fixed left-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 pointer-events-none">
-          {shorts.slice(0, Math.min(shorts.length, 8)).map((_, idx) => (
-            <motion.div
-              key={idx}
-              className="w-1 rounded-full bg-white"
-              animate={{
-                height: idx === currentIndex ? 24 : 8,
-                opacity: idx === currentIndex ? 1 : 0.3,
-              }}
-              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            />
-          ))}
-          {shorts.length > 8 && (
-            <div className="w-1 h-1 rounded-full bg-white/30" />
-          )}
+        <div className="fixed right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 pointer-events-none">
+          {shorts.slice(Math.max(0, currentIndex - 3), currentIndex + 4).map((_, idx) => {
+            const actualIdx = Math.max(0, currentIndex - 3) + idx;
+            return (
+              <motion.div
+                key={actualIdx}
+                className="w-1 rounded-full bg-white"
+                animate={{
+                  height: actualIdx === currentIndex ? 20 : 6,
+                  opacity: actualIdx === currentIndex ? 1 : 0.3,
+                }}
+                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+              />
+            );
+          })}
         </div>
 
         {/* Pause indicator */}
@@ -220,7 +244,7 @@ export default function ClipsPage() {
         {/* Swipe hint - first clip only */}
         {currentIndex === 0 && (
           <motion.div 
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 lg:hidden pointer-events-none z-20"
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 pointer-events-none z-20"
             initial={{ opacity: 1 }}
             animate={{ opacity: 0 }}
             transition={{ delay: 2.5, duration: 0.8 }}
