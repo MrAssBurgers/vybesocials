@@ -30,9 +30,21 @@
     <meta name="apple-mobile-web-app-title" content="VYBE" />
     
     <title>VYBE - The Next Generation Social Platform</title>
+    
+    <!-- Critical inline CSS for faster LCP -->
+    <style>
+      html, body { margin: 0; padding: 0; min-height: 100vh; background: #0a0a0b; }
+      #root { min-height: 100vh; background: #0a0a0b; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Inline skeleton for faster LCP -->
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0a0b;">
+        <div style="width:40px;height:40px;border:3px solid #333;border-top-color:#a855f7;border-radius:50%;animation:spin 1s linear infinite;"></div>
+      </div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
