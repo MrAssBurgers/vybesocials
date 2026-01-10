@@ -1063,3 +1063,17 @@
     height: 100dvh;
   }
 }
+
+/* Shimmer animation for loading states */
+@keyframes animate-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: animate-shimmer 1.5s ease-in-out infinite;
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Search, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts } from '@/hooks/useInfinitePosts';
 import { PostCard } from '@/components/posts/PostCard';
@@ -102,15 +102,7 @@ export default function HomePage() {
           transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : 'none' 
         }}
       >
-        {/* Compact Search Bar - Mobile only */}
-        <div className="px-4 py-2 md:hidden">
-          <Link to="/explore">
-            <div className="liquid-glass rounded-full px-4 py-2 flex items-center gap-2 border border-white/10 active:scale-[0.98] transition-transform">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground text-xs">Search...</span>
-            </div>
-          </Link>
-        </div>
+      {/* Header search is in MobileHeader - no duplicate needed here */}
 
         {/* Announcements Banner */}
         <AnnouncementBanner />

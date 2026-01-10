@@ -47,10 +47,16 @@ export const MediaSkeleton = forwardRef<HTMLDivElement, MediaSkeletonProps>(
       <div 
         ref={ref}
         className={cn(
-          "w-full h-full bg-muted animate-pulse",
+          "w-full h-full bg-muted relative overflow-hidden",
           className
         )}
-      />
+      >
+        {/* Shimmer effect - better perceived loading */}
+        <div 
+          className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent"
+          style={{ animationDuration: '1.5s' }}
+        />
+      </div>
     );
   }
 );

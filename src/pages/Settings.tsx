@@ -108,26 +108,41 @@ export default function SettingsPage() {
   return (
     <AppLayout>
       <div className="max-w-xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <h1 className="text-xl sm:text-2xl font-bold mb-6">{t('settings.title')}</h1>
+        <h1 className="text-xl sm:text-2xl font-bold mb-4">{t('settings.title')}</h1>
 
-        {/* Profile Section */}
+        {/* Quick Profile Access */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4"
+        >
+          <Link 
+            to={`/u/${profile?.username}`}
+            className="liquid-glass-card p-4 flex items-center justify-between hover:bg-muted/50 transition-colors active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3">
+              <Avatar className="h-12 w-12 ring-2 ring-primary/20">
+                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarFallback className="text-lg bg-secondary">
+                  {profile?.username?.[0]?.toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <h2 className="font-semibold truncate">@{profile?.username}</h2>
+                <p className="text-xs text-muted-foreground">View your profile</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          </Link>
+        </motion.div>
+
+        {/* Profile Edit Section */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="liquid-glass-card p-4 sm:p-6 mb-4 sm:mb-6"
         >
-          <div className="flex items-center gap-4 mb-6">
-            <Avatar className="h-14 w-14 sm:h-16 sm:w-16 ring-2 ring-primary/20">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="text-xl sm:text-2xl bg-secondary">
-                {profile?.username?.[0]?.toUpperCase() || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <h2 className="font-semibold text-base sm:text-lg truncate">@{profile?.username}</h2>
-              <p className="text-xs sm:text-sm text-muted-foreground">{t('profile.editProfile')}</p>
-            </div>
-          </div>
+          <h3 className="font-semibold mb-4 text-sm sm:text-base">{t('profile.editProfile')}</h3>
 
           <div className="space-y-4">
             <div className="space-y-2">
