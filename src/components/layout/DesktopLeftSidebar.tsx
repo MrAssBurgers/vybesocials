@@ -35,7 +35,7 @@ interface DesktopLeftSidebarProps {
   onCollapsedChange: (collapsed: boolean) => void;
 }
 
-// NavLink component with forwardRef
+// NavLink component with forwardRef - liquid glass styling
 const NavLinkContent = forwardRef<
   HTMLAnchorElement,
   {
@@ -46,46 +46,80 @@ const NavLinkContent = forwardRef<
   }
 >(({ item, isActive, collapsed, label, ...props }, ref) => {
   const Icon = item.icon;
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
   
   return (
-    <Link
-      ref={ref}
-      to={item.path}
-      onClick={triggerNavFeedback}
-      className={cn(
-        "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative group",
-        "hover:translate-x-0.5",
-        isActive
-          ? "text-sidebar-foreground bg-sidebar-accent/50"
-          : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-sidebar-foreground"
-      )}
-      style={{ transition: 'transform 140ms ease, background 140ms ease, color 140ms ease' }}
-      {...props}
+    <motion.div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => { setIsHovered(false); setIsPressed(false); }}
+      onMouseDown={() => setIsPressed(true)}
+      onMouseUp={() => setIsPressed(false)}
+      animate={{
+        scale: isPressed ? 0.97 : isHovered ? 1.01 : 1,
+      }}
+      transition={{ type: 'spring', stiffness: 600, damping: 30 }}
     >
-      {isActive && (
+      <Link
+        ref={ref}
+        to={item.path}
+        onClick={triggerNavFeedback}
+        className={cn(
+          "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative group overflow-hidden backdrop-blur-sm",
+          isActive
+            ? "text-sidebar-foreground bg-gradient-to-r from-primary/15 via-accent/10 to-primary/15 border border-primary/20"
+            : "text-muted-foreground hover:bg-foreground/5 hover:text-sidebar-foreground border border-transparent"
+        )}
+        {...props}
+      >
+        {/* Glossy sheen on hover */}
         <motion.div
-          layoutId="desktopNavIndicator"
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          className="absolute inset-0 pointer-events-none rounded-xl"
+          initial={{ opacity: 0, x: '-100%' }}
+          animate={isHovered && !isActive ? { opacity: 1, x: '100%' } : { opacity: 0, x: '-100%' }}
+          transition={{ duration: 0.5, ease: 'easeInOut' }}
+          style={{
+            background: 'linear-gradient(105deg, transparent 30%, hsl(var(--foreground) / 0.06) 50%, transparent 70%)',
+          }}
         />
-      )}
-      <div className="relative">
-        <Icon className="h-5 w-5 transition-transform" />
-        <AnimatePresence>
-          {item.badge > 0 && (
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-              className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold"
-            >
-              {item.badge > 9 ? '9+' : item.badge}
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </div>
-      {!collapsed && <span className="font-medium truncate">{label}</span>}
-    </Link>
+        
+        {/* Active gradient accent bar */}
+        {isActive && (
+          <motion.div
+            layoutId="desktopNavIndicator"
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
+            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+            style={{
+              background: 'linear-gradient(180deg, hsl(var(--primary)), hsl(var(--accent)))',
+            }}
+          />
+        )}
+        
+        {/* Active inner glow */}
+        {isActive && (
+          <div className="absolute inset-0 rounded-xl pointer-events-none">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent" />
+          </div>
+        )}
+        
+        <div className="relative z-10">
+          <Icon className="h-5 w-5 transition-transform" />
+          <AnimatePresence>
+            {item.badge > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold"
+              >
+                {item.badge > 9 ? '9+' : item.badge}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+        {!collapsed && <span className="relative z-10 font-medium truncate">{label}</span>}
+      </Link>
+    </motion.div>
   );
 });
 NavLinkContent.displayName = 'NavLinkContent';
