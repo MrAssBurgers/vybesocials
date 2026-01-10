@@ -447,7 +447,7 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background overflow-hidden">
+    <div className="flex flex-col h-full bg-background overflow-hidden relative">
       {/* Header - fixed height, compact on mobile */}
       <header className="flex-shrink-0 h-14 sm:h-16 px-2 sm:px-4 border-b border-border flex items-center gap-2 sm:gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20">
         <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10">
@@ -514,16 +514,17 @@ export function ChatView() {
 
       {/* Messages - scrollable area with Snapchat-like airy spacing */}
       <div className={cn(
-        "flex-1 overflow-y-auto",
-        "px-3 sm:px-4 py-4",
+        "flex-1 overflow-y-auto min-h-0",
+        "px-3 sm:px-4 py-3",
         getWallpaperClass()
       )}>
-        <div className="space-y-3 sm:space-y-4">
+        {/* Increased spacing between messages for breathable feel */}
+        <div className="space-y-4 sm:space-y-5">
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp }) => (
             <div key={message.id}>
               {showTimestamp && (
-                <div className="text-center my-4 sm:my-5">
-                  <span className="text-[10px] sm:text-xs text-muted-foreground/70 bg-muted/30 px-3 py-1.5 rounded-full font-medium">
+                <div className="text-center my-5 sm:my-6">
+                  <span className="text-[10px] sm:text-xs text-muted-foreground/60 bg-muted/20 px-3 py-1 rounded-full font-medium">
                     {formatMessageDate(message.created_at)}
                   </span>
                 </div>
@@ -700,7 +701,7 @@ const MessageInputArea = memo(function MessageInputArea({
   onOpenDMSettings?: () => void;
 }) {
   return (
-    <div className="flex-shrink-0 px-2 py-2 sm:px-4 sm:py-3 border-t border-border bg-background safe-area-bottom">
+    <div className="flex-shrink-0 px-2 py-2 sm:px-4 sm:py-2.5 border-t border-border bg-background/95 backdrop-blur-sm pb-[max(0.5rem,env(safe-area-inset-bottom))]">
       <input
         ref={fileInputRef}
         type="file"
@@ -917,7 +918,7 @@ const MessageBubble = memo(function MessageBubble({
       )}
       {!isOwn && !showAvatar && <div className="w-7 sm:w-8" />}
 
-      <div className={cn('max-w-[78%] sm:max-w-[75%] group flex flex-col', isOwn ? 'items-end' : 'items-start')}>
+      <div className={cn('max-w-[75%] sm:max-w-[70%] group flex flex-col', isOwn ? 'items-end' : 'items-start')}>
         {repliedMessage && (
           <div
             className={cn(
@@ -940,11 +941,11 @@ const MessageBubble = memo(function MessageBubble({
         <div
           className={cn(
             'relative rounded-2xl break-words cursor-pointer',
-            // Reduced padding for lighter bubbles
-            'px-3 py-2 sm:px-3.5 sm:py-2',
+            // Compact padding for lighter, airy bubbles
+            'px-3 py-1.5 sm:px-3.5 sm:py-2',
             isOwn 
-              ? `${themeColor.bubble} ${themeColor.text} rounded-br-sm` 
-              : 'bg-muted/80 text-foreground rounded-bl-sm',
+              ? `${themeColor.bubble} ${themeColor.text} rounded-br-md` 
+              : 'bg-muted/70 text-foreground rounded-bl-md',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
             repliedMessage && 'rounded-t-md'
@@ -969,9 +970,9 @@ const MessageBubble = memo(function MessageBubble({
           )}
 
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (
-            <p className="text-[13px] sm:text-sm italic opacity-75 leading-[1.45]">Message viewed</p>
+            <p className="text-[13px] sm:text-sm italic opacity-75 leading-relaxed">Message viewed</p>
           ) : message.content ? (
-            <p className="text-[13px] sm:text-sm whitespace-pre-wrap leading-[1.45]">{message.content}</p>
+            <p className="text-[13px] sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
           ) : null}
 
           {message.view_mode !== 'permanent' && (

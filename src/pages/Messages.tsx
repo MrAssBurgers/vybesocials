@@ -9,15 +9,24 @@ export default function Messages() {
   const { isDesktop } = useBreakpoint();
   const isInChat = location.pathname !== '/messages';
 
+  // On mobile, when in a chat, hide nav for immersive full-screen experience (Instagram-style)
+  const hideNavOnMobile = isInChat && !isDesktop;
+
   return (
-    <AppLayout hideRightSidebar fullWidth>
-      <div className="h-[calc(100vh-5rem)] md:h-[calc(100vh-2rem)] lg:h-screen flex overflow-hidden max-w-full">
+    <AppLayout hideRightSidebar fullWidth hideNav={hideNavOnMobile}>
+      <div className={`
+        ${hideNavOnMobile 
+          ? 'h-[100dvh] fixed inset-0 z-50' 
+          : 'h-[calc(100vh-5rem)] md:h-[calc(100vh-2rem)] lg:h-screen'
+        } 
+        flex overflow-hidden max-w-full bg-background
+      `}>
         {/* Conversation list - hidden on mobile when in chat */}
         <div className={`w-full md:w-80 lg:w-96 border-r border-border flex-shrink-0 overflow-hidden ${isInChat ? 'hidden md:block' : ''}`}>
           <ConversationList />
         </div>
         
-        {/* Chat area */}
+        {/* Chat area - full screen on mobile */}
         <div className={`flex-1 min-w-0 ${!isInChat ? 'hidden md:flex' : 'flex'} flex-col overflow-hidden`}>
           {isInChat ? (
             <ChatView />
