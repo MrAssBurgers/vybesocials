@@ -183,22 +183,23 @@ export default function AdminDashboard() {
 
   return (
     <AppLayout>
-      <div className="container max-w-6xl mx-auto p-4 pb-24 space-y-6">
-        <div className="flex items-center gap-3">
-          <Shield className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Admin Panel</h1>
-            <p className="text-muted-foreground">Manage users, reports, and content</p>
+      <div className="container max-w-6xl mx-auto px-3 sm:px-4 pb-24 space-y-4 sm:space-y-6 overflow-x-hidden">
+        {/* Header - mobile responsive */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold truncate">Admin Panel</h1>
+            <p className="text-muted-foreground text-xs sm:text-sm truncate">Manage users, reports, and content</p>
           </div>
           {isOwner && (
-            <Badge className="ml-auto bg-gradient-to-r from-yellow-500 to-amber-500 text-black">
+            <Badge className="bg-gradient-to-r from-yellow-500 to-amber-500 text-black text-xs flex-shrink-0">
               <Crown className="h-3 w-3 mr-1" /> Owner
             </Badge>
           )}
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Stats - responsive grid */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-4">
           <Card className="liquid-glass">
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
@@ -238,14 +239,17 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs defaultValue="reports" className="space-y-4">
-          <TabsList className="liquid-glass flex-wrap">
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-            <TabsTrigger value="flags">Flags</TabsTrigger>
-            <TabsTrigger value="warnings">Warnings</TabsTrigger>
-            <TabsTrigger value="bans">Bans</TabsTrigger>
-            <TabsTrigger value="announcements">Announcements</TabsTrigger>
-            <TabsTrigger value="roles">Roles</TabsTrigger>
-          </TabsList>
+          {/* Mobile-friendly scrollable tabs */}
+          <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+            <TabsList className="liquid-glass inline-flex w-auto min-w-full sm:w-full gap-1">
+              <TabsTrigger value="reports" className="text-xs sm:text-sm flex-shrink-0">Reports</TabsTrigger>
+              <TabsTrigger value="flags" className="text-xs sm:text-sm flex-shrink-0">Flags</TabsTrigger>
+              <TabsTrigger value="warnings" className="text-xs sm:text-sm flex-shrink-0">Warnings</TabsTrigger>
+              <TabsTrigger value="bans" className="text-xs sm:text-sm flex-shrink-0">Bans</TabsTrigger>
+              <TabsTrigger value="announcements" className="text-xs sm:text-sm flex-shrink-0">Announce</TabsTrigger>
+              <TabsTrigger value="roles" className="text-xs sm:text-sm flex-shrink-0">Roles</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Reports Tab */}
           <TabsContent value="reports">
@@ -520,15 +524,16 @@ export default function AdminDashboard() {
                 <CardDescription>Admins and moderators</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Add Role Section - Only for Owner */}
+                {/* Add Role Section - Only for Owner - Mobile Responsive */}
                 {isOwner && (
-                  <div className="p-4 rounded-lg bg-muted/20 border border-primary/20 space-y-4">
-                    <h3 className="font-semibold flex items-center gap-2">
+                  <div className="p-3 sm:p-4 rounded-lg bg-muted/20 border border-primary/20 space-y-3 sm:space-y-4">
+                    <h3 className="font-semibold flex items-center gap-2 text-sm sm:text-base">
                       <UserPlus className="h-4 w-4" />
                       Add Role
                     </h3>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="flex-1 relative">
+                    <div className="flex flex-col gap-3">
+                      {/* Search input */}
+                      <div className="relative">
                         <Input
                           placeholder="Search username..."
                           value={searchTerm}
@@ -536,14 +541,15 @@ export default function AdminDashboard() {
                             setSearchTerm(e.target.value);
                             setSelectedUserId(null);
                           }}
+                          className="w-full"
                         />
                         {searchResults.length > 0 && !selectedUserId && (
-                          <div className="absolute top-full left-0 right-0 mt-1 bg-background border rounded-lg shadow-lg z-10 max-h-48 overflow-auto">
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-background border rounded-lg shadow-lg z-20 max-h-48 overflow-auto">
                             {searchResults.map((user: any) => (
                               <button
                                 key={user.id}
                                 onClick={() => selectUser(user)}
-                                className="w-full p-2 flex items-center gap-2 hover:bg-muted/50 transition-colors"
+                                className="w-full p-3 flex items-center gap-2 hover:bg-muted/50 transition-colors active:bg-muted"
                               >
                                 <Avatar className="h-6 w-6">
                                   <AvatarImage src={user.avatar_url || ''} />
@@ -555,19 +561,26 @@ export default function AdminDashboard() {
                           </div>
                         )}
                       </div>
-                      <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as 'admin' | 'moderator')}>
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="moderator">Moderator</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button onClick={handleAddRole} disabled={!selectedUserId || addUserRole.isPending}>
-                        <UserPlus className="h-4 w-4 mr-1" />
-                        Add
-                      </Button>
+                      {/* Role select and add button - stacked on mobile */}
+                      <div className="flex flex-row gap-2">
+                        <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as 'admin' | 'moderator')}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="moderator">Moderator</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button 
+                          onClick={handleAddRole} 
+                          disabled={!selectedUserId || addUserRole.isPending}
+                          className="flex-shrink-0"
+                        >
+                          <UserPlus className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden sm:inline">Add</span>
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
