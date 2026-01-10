@@ -64,15 +64,15 @@ export function MobileHeader() {
               </AnimatePresence>
             </Link>
 
-            {/* Profile - properly sized ring that fits the avatar */}
+            {/* Profile - snug ring that matches avatar size exactly */}
             <Link
               to={`/u/${profile?.username}`}
-              className={cn(
-                "flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-full transition-all",
-                isProfileActive && "ring-2 ring-primary ring-offset-1 ring-offset-background"
-              )}
+              className="flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-full"
             >
-              <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
+              <Avatar className={cn(
+                "h-7 w-7 sm:h-8 sm:w-8 transition-all",
+                isProfileActive && "ring-2 ring-primary"
+              )}>
                 <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback className="text-xs">
                   {profile?.username?.[0]?.toUpperCase() || <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
