@@ -70,26 +70,16 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
       hasInitialized.current = true;
       
       if (isInitiator && call.status === 'ringing') {
+        // Initiator: start call and wait for acceptance
         startCall(call.call_type, call.receiver_id);
       } else if (!isInitiator && call.status === 'accepted') {
-        // Receiver needs to get the offer and answer
-        const { data: signals } = await supabase
-          .from('call_signals')
-          .select('*')
-          .eq('call_id', call.id)
-          .eq('signal_type', 'offer')
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (signals?.[0]) {
-          const offer = signals[0].signal_data as { type: 'offer'; sdp: string };
-          answerCall(call.call_type, call.caller_id, { type: 'offer', sdp: offer.sdp });
-        }
+        // Receiver: answer the call (will poll for offer)
+        answerCall(call.call_type, call.caller_id);
       }
     };
     
     initCall();
-  }, [isInitiator, call.status, call.call_type, call.receiver_id, call.caller_id, call.id, startCall, answerCall]);
+  }, [isInitiator, call.status, call.call_type, call.receiver_id, call.caller_id, startCall, answerCall]);
 
   // Attach streams to video elements
   useEffect(() => {
