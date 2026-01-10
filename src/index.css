@@ -1,3 +1,6 @@
+@import url("https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,29 +13,29 @@
 @layer base {
   :root {
     /* Base colors - Dark mode (default) */
-    --background: 240 10% 4%;
-    --foreground: 0 0% 98%;
+    --background: 0 0% 96%;
+    --foreground: 0 0% 9%;
 
-    --card: 240 10% 6%;
-    --card-foreground: 0 0% 98%;
+    --card: 0 0% 98%;
+    --card-foreground: 0 0% 9%;
 
-    --popover: 240 10% 8%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 0 0% 89%;
+    --popover-foreground: 0 0% 9%;
 
-    --primary: 330 100% 60%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 243 75% 58%;
+    --primary-foreground: 225 100% 96%;
 
-    --secondary: 240 10% 12%;
+    --secondary: 0 0% 32%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 240 10% 15%;
-    --muted-foreground: 240 5% 55%;
+    --muted: 0 0% 63%;
+    --muted-foreground: 0 0% 9%;
 
-    --accent: 185 100% 50%;
-    --accent-foreground: 240 10% 4%;
+    --accent: 250 100% 97%;
+    --accent-foreground: 258 89% 66%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 85% 97%;
 
     --success: 142 76% 46%;
     --success-foreground: 0 0% 100%;
@@ -40,12 +43,12 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 240 10% 18%;
-    --input: 240 10% 18%;
-    --ring: 330 100% 60%;
+    --border: 0 0% 83%;
+    --input: 0 0% 83%;
+    --ring: 243 75% 58%;
 
     /* Consistent radius scale */
-    --radius: 0.75rem;
+    --radius: 1.25rem;
     --radius-sm: 0.5rem;
     --radius-lg: 1rem;
     --radius-xl: 1.5rem;
@@ -54,25 +57,25 @@
     --gradient-start: 330 100% 60%;
     --gradient-mid: 280 100% 60%;
     --gradient-end: 185 100% 50%;
-    
+
     --neon-pink: 330 100% 60%;
     --neon-purple: 280 100% 60%;
     --neon-cyan: 185 100% 50%;
     --neon-yellow: 50 100% 50%;
-    
+
     /* Glass effects */
     --glass: 240 10% 10%;
     --glass-border: 240 10% 20%;
 
     /* Sidebar */
     --sidebar-background: 240 10% 6%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 330 100% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 10% 12%;
+    --sidebar-foreground: 0 0% 9%;
+    --sidebar-primary: 243 75% 58%;
+    --sidebar-primary-foreground: 225 100% 96%;
+    --sidebar-accent: 0 0% 32%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 240 10% 18%;
-    --sidebar-ring: 330 100% 60%;
+    --sidebar-border: 0 0% 83%;
+    --sidebar-ring: 243 75% 58%;
 
     /* Spacing scale */
     --space-1: 0.25rem;
@@ -84,10 +87,26 @@
     --space-12: 3rem;
 
     /* Shadow scale */
-    --shadow-sm: 0 1px 2px 0 hsl(var(--background) / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(var(--background) / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsl(var(--background) / 0.1);
+    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+    --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
     --shadow-glow: 0 0 20px hsl(var(--primary) / 0.3);
+    --chart-1: 234 89% 73%;
+    --chart-2: 255 91% 76%;
+    --chart-3: 270 95% 75%;
+    --chart-4: 238 83% 66%;
+    --chart-5: 0 0% 45%;
+    --sidebar: 0 0% 98%;
+    --font-sans: 'Lato', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+    --font-serif: 'EB Garamond', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+    --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+    --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
+    --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+    --tracking-normal: 0em;
+    --spacing: 0.25rem;
   }
 
   /* Light mode */
@@ -137,9 +156,51 @@
     --sidebar-accent-foreground: 240 10% 4%;
     --sidebar-border: 240 5% 85%;
     --sidebar-ring: 330 100% 50%;
-    
+
     --light-bg-start: 0 0% 98%;
     --light-bg-mid: 330 30% 97%;
+  }
+  .dark {
+    --background: 0 0% 9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 14%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 25%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 234 89% 73%;
+    --primary-foreground: 243 47% 20%;
+    --secondary: 0 0% 45%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 45%;
+    --muted-foreground: 0 0% 98%;
+    --accent: 261 72% 22%;
+    --accent-foreground: 255 91% 76%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 85% 97%;
+    --border: 0 0% 32%;
+    --input: 0 0% 32%;
+    --ring: 234 89% 73%;
+    --chart-1: 229 93% 81%;
+    --chart-2: 252 94% 85%;
+    --chart-3: 269 97% 85%;
+    --chart-4: 234 89% 73%;
+    --chart-5: 0 0% 45%;
+    --sidebar: 0 0% 14%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 234 89% 73%;
+    --sidebar-primary-foreground: 243 47% 20%;
+    --sidebar-accent: 255 91% 76%;
+    --sidebar-accent-foreground: 261 72% 22%;
+    --sidebar-border: 0 0% 32%;
+    --sidebar-ring: 234 89% 73%;
+    --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+    --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+    --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+    --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
+    --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
   }
 }
 
@@ -171,7 +232,7 @@
     overflow-x: hidden;
     max-width: 100vw;
   }
-  
+
   .light body,
   body.light {
     background: linear-gradient(
@@ -186,11 +247,11 @@
   .safe-area-top {
     padding-top: env(safe-area-inset-top, 0px);
   }
-  
+
   .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  
+
   .safe-area-all {
     padding-top: env(safe-area-inset-top, 0px);
     padding-right: env(safe-area-inset-right, 0px);
@@ -772,19 +833,19 @@
   .safe-top {
     padding-top: env(safe-area-inset-top, 0px);
   }
-  
+
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  
+
   .safe-left {
     padding-left: env(safe-area-inset-left, 0px);
   }
-  
+
   .safe-right {
     padding-right: env(safe-area-inset-right, 0px);
   }
-  
+
   .safe-all {
     padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   }
@@ -798,54 +859,54 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
-  
+
   /* Touch-friendly hit targets */
   .touch-target {
     min-height: 44px;
     min-width: 44px;
   }
-  
+
   @media (pointer: coarse) {
     .touch-target-auto {
       min-height: 48px;
       min-width: 48px;
     }
   }
-  
+
   /* Hover only on devices that support it */
   @media (hover: hover) and (pointer: fine) {
     .hover-only:hover {
       opacity: 0.8;
     }
   }
-  
+
   /* Platform-specific styling */
   .platform-ios {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
   }
-  
+
   .platform-android {
     font-family: 'Roboto', 'Noto Sans', system-ui, sans-serif;
   }
-  
+
   /* Performance tiers */
   .perf-low * {
     animation-duration: 0.01ms !important;
     transition-duration: 0.1s !important;
   }
-  
+
   .perf-low .gradient-animated,
   .perf-low .animate-liquid-wobble,
   .perf-low .animate-glass-breathe {
     animation: none !important;
   }
-  
+
   .perf-low .liquid-glass,
   .perf-low .liquid-glass-card {
     backdrop-filter: blur(8px) !important;
     -webkit-backdrop-filter: blur(8px) !important;
   }
-  
+
   .perf-medium .gradient-animated {
     animation-duration: 16s !important;
   }
@@ -856,17 +917,17 @@
     backdrop-filter: blur(16px) saturate(150%) !important;
     -webkit-backdrop-filter: blur(16px) saturate(150%) !important;
   }
-  
+
   [data-glass-intensity="max"] .liquid-glass,
   [data-glass-intensity="max"] .liquid-glass-card {
     backdrop-filter: blur(60px) saturate(250%) brightness(1.08) !important;
     -webkit-backdrop-filter: blur(60px) saturate(250%) brightness(1.08) !important;
   }
-  
+
   .glass-paused {
     animation-play-state: paused !important;
   }
-  
+
   /* High contrast mode */
   @media (prefers-contrast: high) {
     .liquid-glass,
@@ -876,27 +937,27 @@
       border-width: 2px !important;
     }
   }
-  
+
   /* Responsive text scaling */
   .text-responsive {
     font-size: clamp(0.875rem, 2.5vw, 1rem);
   }
-  
+
   .text-responsive-lg {
     font-size: clamp(1rem, 3vw, 1.25rem);
   }
-  
+
   .text-responsive-xl {
     font-size: clamp(1.25rem, 4vw, 2rem);
   }
-  
+
   /* Aspect ratio preservation */
   .aspect-preserve {
     object-fit: cover;
     width: 100%;
     height: 100%;
   }
-  
+
   /* Offline banner animation */
   @keyframes offline-slide {
     from {
@@ -908,17 +969,17 @@
       opacity: 1;
     }
   }
-  
+
   .offline-banner {
     animation: offline-slide 0.3s ease-out;
   }
-  
+
   /* Keyboard focus visible */
   .focus-visible-ring:focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
   }
-  
+
   /* Skip link for accessibility */
   .skip-link {
     position: absolute;
@@ -930,7 +991,7 @@
     z-index: 100;
     transition: top 0.2s;
   }
-  
+
   .skip-link:focus {
     top: 0;
   }
@@ -1350,7 +1411,7 @@ img, video, picture, svg, canvas {
     padding: 0.75rem;
     border-radius: 0.75rem;
   }
-  
+
   .button-responsive {
     min-height: 2.75rem;
     padding-left: 1rem;
