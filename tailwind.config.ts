@@ -19,7 +19,7 @@ export default {
   	extend: {
   		fontFamily: {
   			sans: [
-  				'Lato',
+  				'Inter',
   				'ui-sans-serif',
   				'system-ui',
   				'-apple-system',
@@ -37,7 +37,7 @@ export default {
   				'sans-serif'
   			],
   			serif: [
-  				'EB Garamond',
+  				'Lora',
   				'ui-serif',
   				'Georgia',
   				'Cambria',
@@ -46,7 +46,7 @@ export default {
   				'serif'
   			],
   			mono: [
-  				'Fira Code',
+  				'Space Mono',
   				'ui-monospace',
   				'SFMono-Regular',
   				'Menlo',
@@ -219,7 +219,7 @@ export default {
   			'slide-up': 'slide-up 0.3s ease-out',
   			'slide-down': 'slide-down 0.3s ease-out',
   			'heart-pop': 'heart-pop 0.4s ease-out',
-  			'gradient': 'gradient-shift 8s ease infinite',
+  			gradient: 'gradient-shift 8s ease infinite',
   			spin: 'spin 1s linear infinite'
   		},
   		boxShadow: {
