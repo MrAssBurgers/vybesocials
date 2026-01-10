@@ -75,8 +75,8 @@ export function BottomNav() {
         className="fixed bottom-0 left-0 right-0 z-50 pb-safe"
       >
         {/* Compact glass bar */}
-        <div className="mx-2 mb-2 rounded-2xl bg-background/60 backdrop-blur-xl border border-white/10 shadow-lg shadow-black/20">
-          <div className="grid grid-cols-5 h-14 px-1">
+<div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">
+          <div className="grid grid-cols-5 h-14 px-1 relative z-10">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
               const Icon = item.icon;
