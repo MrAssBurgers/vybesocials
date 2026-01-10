@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, forwardRef, memo } from 'react';
 import { BottomNav } from './BottomNav';
 import { MobileHeader } from './MobileHeader';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
@@ -20,13 +20,14 @@ interface AppLayoutProps {
   hideNav?: boolean; // Hide bottom nav for immersive views like Clips
 }
 
-export function AppLayout({ 
+// Use forwardRef to avoid React ref warnings
+export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(function AppLayout({ 
   children, 
   requireAuth = true, 
   hideRightSidebar = false,
   fullWidth = false,
   hideNav = false 
-}: AppLayoutProps) {
+}, ref) {
   const { user, loading } = useAuth();
   const { isDesktop } = useBreakpoint();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -58,7 +59,7 @@ export function AppLayout({
     const rightMargin = hideRightSidebar ? '' : 'xl:mr-[340px] 2xl:mr-[380px]';
 
     return (
-      <div className="min-h-screen w-full overflow-x-hidden">
+      <div ref={ref} className="min-h-screen w-full overflow-x-hidden">
         {/* Left Sidebar */}
         <DesktopLeftSidebar 
           collapsed={leftCollapsed} 
@@ -92,12 +93,12 @@ export function AppLayout({
 
   // Mobile/Tablet layout
   return (
-    <div className="min-h-screen w-full overflow-x-hidden">
+    <div ref={ref} className="min-h-screen w-full overflow-x-hidden">
       {/* Header - visible on mobile/tablet */}
       {!hideNav && <MobileHeader />}
-      {/* Main content - consistent spacing */}
+      {/* Main content - consistent spacing with safe area */}
       <main className={cn(
-        hideNav ? "" : "pb-20 pt-14"
+        hideNav ? "" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14"
       )}>
         {children}
       </main>
@@ -105,4 +106,4 @@ export function AppLayout({
       {!hideNav && <BottomNav />}
     </div>
   );
-}
+}));

@@ -212,7 +212,7 @@ export default function MarketPage() {
             </p>
           </div>
           
-          <Link to="/create-listing">
+          <Link to="/market/new">
             <Button className="gradient-animated text-white">
               <Plus className="h-4 w-4 mr-2" />
               Sell Item
@@ -379,7 +379,7 @@ export default function MarketPage() {
             title="No listings found"
             description={search || category ? "Try adjusting your filters" : "Be the first to list something!"}
             actionLabel="Create Listing"
-            onAction={() => window.location.href = '/create-listing'}
+            onAction={() => window.location.href = '/market/new'}
           />
         )}
       </div>
