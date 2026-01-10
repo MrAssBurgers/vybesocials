@@ -11,7 +11,7 @@ export function usePushNotifications() {
 
   // Check if push notifications are supported
   useEffect(() => {
-    const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    const supported = 'Notification' in window;
     setIsSupported(supported);
 
     if (supported && profile) {
@@ -21,14 +21,18 @@ export function usePushNotifications() {
 
   const checkSubscription = async () => {
     try {
-      // Check if we have a token in DB
       if (profile) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('push_tokens')
           .select('id')
           .eq('user_id', profile.id)
           .eq('platform', 'web')
           .maybeSingle();
+        
+        if (error) {
+          console.error('Error checking push subscription:', error);
+          return;
+        }
         
         setIsSubscribed(!!data);
       }
@@ -38,7 +42,12 @@ export function usePushNotifications() {
   };
 
   const subscribe = useCallback(async () => {
-    if (!profile || !isSupported) {
+    if (!profile) {
+      toast.error('Please sign in to enable notifications');
+      return false;
+    }
+    
+    if (!isSupported) {
       toast.error('Push notifications not supported on this device');
       return false;
     }
@@ -52,8 +61,7 @@ export function usePushNotifications() {
         return false;
       }
 
-      // For now, just save permission granted - full push requires VAPID keys
-      // Delete existing token if any
+      // Delete existing token if any (using upsert pattern)
       await supabase
         .from('push_tokens')
         .delete()
@@ -63,18 +71,21 @@ export function usePushNotifications() {
       // Insert new token
       const { error } = await supabase.from('push_tokens').insert({
         user_id: profile.id,
-        token: 'browser-notification-granted',
+        token: `browser-${Date.now()}`,
         platform: 'web',
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error saving push token:', error);
+        throw error;
+      }
 
       setIsSubscribed(true);
       toast.success('Notifications enabled!');
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error subscribing to notifications:', error);
-      toast.error('Failed to enable notifications');
+      toast.error(error?.message || 'Failed to enable notifications');
       return false;
     } finally {
       setIsLoading(false);
@@ -87,18 +98,23 @@ export function usePushNotifications() {
     setIsLoading(true);
     try {
       // Remove from database
-      await supabase
+      const { error } = await supabase
         .from('push_tokens')
         .delete()
         .eq('user_id', profile.id)
         .eq('platform', 'web');
 
+      if (error) {
+        console.error('Error removing push token:', error);
+        throw error;
+      }
+
       setIsSubscribed(false);
       toast.success('Notifications disabled');
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error unsubscribing:', error);
-      toast.error('Failed to disable notifications');
+      toast.error(error?.message || 'Failed to disable notifications');
       return false;
     } finally {
       setIsLoading(false);
