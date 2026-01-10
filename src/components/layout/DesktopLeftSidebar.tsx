@@ -83,18 +83,6 @@ const NavLinkContent = forwardRef<
           }}
         />
         
-        {/* Active gradient accent bar */}
-        {isActive && (
-          <motion.div
-            layoutId="desktopNavIndicator"
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
-            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            style={{
-              background: 'linear-gradient(180deg, hsl(var(--primary)), hsl(var(--accent)))',
-            }}
-          />
-        )}
-        
         {/* Active inner glow */}
         {isActive && (
           <div className="absolute inset-0 rounded-xl pointer-events-none">
@@ -205,16 +193,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
         {/* Brand Row */}
         <div className={cn("flex items-center p-4", collapsed ? "justify-center" : "gap-3")}>
           <Link to="/home" className="flex items-center gap-2 group">
-            <VYBELogo size={collapsed ? "sm" : "md"} />
-            {!collapsed && (
-              <motion.span 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="font-bold text-xl gradient-text"
-              >
-                VYBE
-              </motion.span>
-            )}
+            <VYBELogo size={collapsed ? "sm" : "md"} showText={!collapsed} />
           </Link>
         </div>
 

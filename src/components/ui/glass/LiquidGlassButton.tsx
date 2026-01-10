@@ -136,19 +136,6 @@ export const LiquidGlassButton = forwardRef<HTMLButtonElement, LiquidGlassButton
           />
         )}
 
-        {/* Left accent bar for selected nav items */}
-        {isSelected && (
-          <motion.div
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full pointer-events-none"
-            initial={{ scaleY: 0, opacity: 0 }}
-            animate={{ scaleY: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            style={{
-              background: 'linear-gradient(180deg, hsl(var(--primary)), hsl(var(--accent)))',
-            }}
-          />
-        )}
-
         {/* Slow color shimmer (only for important buttons) */}
         {shouldShimmer && (
           <motion.div
