@@ -1,4 +1,4 @@
-import { useState, useEffect, forwardRef } from 'react';
+import { useState, useEffect } from 'react';
 import './lib/i18n';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -12,6 +12,7 @@ import { CallProvider } from "@/components/chat/CallProvider";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
+import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
 
 // Lazy load pages for better performance
 import Landing from "./pages/Landing";
@@ -101,6 +102,7 @@ const App = () => {
                         <Route path="/admin" element={<AdminDashboard />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
+                      <PushNotificationPrompt />
                     </BrowserRouter>
                   </TooltipProvider>
                 </CallProvider>

@@ -1,18 +1,7 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-
-// Utility to validate media URLs
-function isValidMediaUrl(url: string | null | undefined): boolean {
-  if (!url) return false;
-  if (typeof url !== 'string') return false;
-  if (url.trim() === '') return false;
-  if (url === 'undefined' || url === 'null') return false;
-  return url.startsWith('http://') || 
-         url.startsWith('https://') || 
-         url.startsWith('/') ||
-         url.startsWith('blob:');
-}
+import { useEffect } from 'react';
 
 interface Post {
   id: string;
@@ -36,180 +25,162 @@ interface Post {
 
 const PAGE_SIZE = 10;
 
+// Transform RPC result to Post format
+function transformPost(row: any): Post {
+  return {
+    id: row.id,
+    type: row.type,
+    media_url: row.media_url,
+    thumbnail_url: row.thumbnail_url,
+    caption: row.caption || '',
+    tags: row.tags || [],
+    created_at: row.created_at,
+    is_pinned: row.is_pinned,
+    author: {
+      id: row.author_id,
+      username: row.author_username,
+      avatar_url: row.author_avatar_url,
+    },
+    like_count: Number(row.like_count) || 0,
+    comment_count: Number(row.comment_count) || 0,
+    is_liked: row.is_liked || false,
+    is_bookmarked: row.is_bookmarked || false,
+  };
+}
+
 export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
 
-  return useInfiniteQuery({
+  // Prefetch next page
+  const prefetchNextPage = (pageParam: number) => {
+    queryClient.prefetchInfiniteQuery({
+      queryKey: ['infinite-posts', type, authorId, profile?.id],
+      queryFn: async () => {
+        const { data, error } = await supabase.rpc('get_posts_with_counts', {
+          p_type: type || null,
+          p_author_id: authorId || null,
+          p_user_id: profile?.id || null,
+          p_offset: (pageParam + 1) * PAGE_SIZE,
+          p_limit: PAGE_SIZE,
+        });
+        if (error) throw error;
+        const posts = (data || []).map(transformPost);
+        return { posts, nextPage: posts.length === PAGE_SIZE ? pageParam + 2 : null };
+      },
+      initialPageParam: 0,
+    });
+  };
+
+  const query = useInfiniteQuery({
     queryKey: ['infinite-posts', type, authorId, profile?.id],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
-      let query = supabase
-        .from('posts')
-        .select(`
-          id,
-          type,
-          media_url,
-          thumbnail_url,
-          caption,
-          tags,
-          created_at,
-          is_pinned,
-          author:profiles!author_id (
-            id,
-            username,
-            avatar_url
-          )
-        `)
-        .order('is_pinned', { ascending: false })
-        .order('created_at', { ascending: false })
-        .range(pageParam * PAGE_SIZE, (pageParam + 1) * PAGE_SIZE - 1);
-
-      if (type) {
-        query = query.eq('type', type);
-      }
-
-      if (authorId) {
-        query = query.eq('author_id', authorId);
-      }
-
-      const { data: posts, error } = await query;
+      const { data, error } = await supabase.rpc('get_posts_with_counts', {
+        p_type: type || null,
+        p_author_id: authorId || null,
+        p_user_id: profile?.id || null,
+        p_offset: pageParam * PAGE_SIZE,
+        p_limit: PAGE_SIZE,
+      });
 
       if (error) throw error;
 
-      // Get likes and bookmarks for current user
-      let userLikes: string[] = [];
-      let userBookmarks: string[] = [];
-
-      if (profile && posts && posts.length > 0) {
-        const postIds = posts.map(p => p.id);
-        const [likesResult, bookmarksResult] = await Promise.all([
-          supabase.from('likes').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
-          supabase.from('bookmarks').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
-        ]);
-
-        userLikes = likesResult.data?.map(l => l.post_id) || [];
-        userBookmarks = bookmarksResult.data?.map(b => b.post_id) || [];
+      const posts = (data || []).map(transformPost);
+      
+      // Prefetch next page for faster subsequent loads
+      if (posts.length === PAGE_SIZE) {
+        prefetchNextPage(pageParam);
       }
 
-      // Get counts for each post (batch query)
-      const postsWithCounts = await Promise.all(
-        (posts || []).map(async (post) => {
-          const [likesCount, commentsCount] = await Promise.all([
-            supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-            supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-          ]);
-
-          return {
-            ...post,
-            is_pinned: post.is_pinned ?? false,
-            author: post.author as unknown as { id: string; username: string; avatar_url: string | null },
-            like_count: likesCount.count || 0,
-            comment_count: commentsCount.count || 0,
-            is_liked: userLikes.includes(post.id),
-            is_bookmarked: userBookmarks.includes(post.id),
-          };
-        })
-      );
-
-      // Filter out posts without valid media URLs
-      const validPosts = postsWithCounts.filter(post => isValidMediaUrl(post.media_url));
-
       return {
-        posts: validPosts,
-        nextPage: posts && posts.length === PAGE_SIZE ? pageParam + 1 : null,
+        posts,
+        nextPage: posts.length === PAGE_SIZE ? pageParam + 1 : null,
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
+    staleTime: 30000, // Cache for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   });
+
+  return query;
 }
 
 export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
 
-  return useInfiniteQuery({
+  const query = useInfiniteQuery({
     queryKey: ['infinite-following-posts', type, profile?.id],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       if (!profile) return { posts: [], nextPage: null };
 
-      // Get following list
-      const { data: following } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', profile.id);
-
-      const followingIds = following?.map(f => f.following_id) || [];
-
-      if (followingIds.length === 0) return { posts: [], nextPage: null };
-
-      let query = supabase
-        .from('posts')
-        .select(`
-          id,
-          type,
-          media_url,
-          thumbnail_url,
-          caption,
-          tags,
-          created_at,
-          is_pinned,
-          author:profiles!author_id (
-            id,
-            username,
-            avatar_url
-          )
-        `)
-        .in('author_id', followingIds)
-        .order('is_pinned', { ascending: false })
-        .order('created_at', { ascending: false })
-        .range(pageParam * PAGE_SIZE, (pageParam + 1) * PAGE_SIZE - 1);
-
-      if (type) {
-        query = query.eq('type', type);
-      }
-
-      const { data: posts, error } = await query;
+      const { data, error } = await supabase.rpc('get_following_posts_with_counts', {
+        p_user_id: profile.id,
+        p_type: type || null,
+        p_offset: pageParam * PAGE_SIZE,
+        p_limit: PAGE_SIZE,
+      });
 
       if (error) throw error;
 
-      // Get likes and bookmarks
-      const postIds = posts?.map(p => p.id) || [];
-      const [likesResult, bookmarksResult] = await Promise.all([
-        supabase.from('likes').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
-        supabase.from('bookmarks').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
-      ]);
-
-      const userLikes = likesResult.data?.map(l => l.post_id) || [];
-      const userBookmarks = bookmarksResult.data?.map(b => b.post_id) || [];
-
-      const postsWithCounts = await Promise.all(
-        (posts || []).map(async (post) => {
-          const [likesCount, commentsCount] = await Promise.all([
-            supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-            supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-          ]);
-
-          return {
-            ...post,
-            is_pinned: post.is_pinned ?? false,
-            author: post.author as unknown as { id: string; username: string; avatar_url: string | null },
-            like_count: likesCount.count || 0,
-            comment_count: commentsCount.count || 0,
-            is_liked: userLikes.includes(post.id),
-            is_bookmarked: userBookmarks.includes(post.id),
-          };
-        })
-      );
-
-      // Filter out posts without valid media URLs
-      const validPosts = postsWithCounts.filter(post => isValidMediaUrl(post.media_url));
+      const posts = (data || []).map(transformPost);
 
       return {
-        posts: validPosts,
-        nextPage: posts && posts.length === PAGE_SIZE ? pageParam + 1 : null,
+        posts,
+        nextPage: posts.length === PAGE_SIZE ? pageParam + 1 : null,
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
     enabled: !!profile,
+    staleTime: 30000,
+    gcTime: 5 * 60 * 1000,
   });
+
+  return query;
+}
+
+// Hook to prefetch posts before user navigates
+export function usePrefetchPosts() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!profile) return;
+
+    // Prefetch "For You" posts
+    queryClient.prefetchInfiniteQuery({
+      queryKey: ['infinite-posts', 'post', undefined, profile.id],
+      queryFn: async () => {
+        const { data } = await supabase.rpc('get_posts_with_counts', {
+          p_type: 'post',
+          p_author_id: null,
+          p_user_id: profile.id,
+          p_offset: 0,
+          p_limit: PAGE_SIZE,
+        });
+        const posts = (data || []).map(transformPost);
+        return { posts, nextPage: posts.length === PAGE_SIZE ? 1 : null };
+      },
+      initialPageParam: 0,
+    });
+
+    // Prefetch shorts/clips
+    queryClient.prefetchInfiniteQuery({
+      queryKey: ['infinite-posts', 'short', undefined, profile.id],
+      queryFn: async () => {
+        const { data } = await supabase.rpc('get_posts_with_counts', {
+          p_type: 'short',
+          p_author_id: null,
+          p_user_id: profile.id,
+          p_offset: 0,
+          p_limit: PAGE_SIZE,
+        });
+        const posts = (data || []).map(transformPost);
+        return { posts, nextPage: posts.length === PAGE_SIZE ? 1 : null };
+      },
+      initialPageParam: 0,
+    });
+  }, [profile, queryClient]);
 }

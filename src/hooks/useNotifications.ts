@@ -1,8 +1,36 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+
+// Request permission for native notifications
+async function requestNotificationPermission(): Promise<boolean> {
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  
+  const permission = await Notification.requestPermission();
+  return permission === 'granted';
+}
+
+// Show native browser notification
+function showNativeNotification(title: string, body: string, url?: string) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  
+  const notification = new Notification(title, {
+    body,
+    icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    tag: 'vybe-notification',
+  });
+
+  notification.onclick = () => {
+    window.focus();
+    if (url) window.location.href = url;
+    notification.close();
+  };
+}
 
 export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention';
 
@@ -100,9 +128,15 @@ export function useNotifications() {
             mention: 'mentioned you',
           };
 
-          toast.info(`${actor?.username || 'Someone'} ${messages[type] || 'interacted with you'}`, {
-            duration: 4000,
-          });
+          const message = `${actor?.username || 'Someone'} ${messages[type] || 'interacted with you'}`;
+          
+          // Show in-app toast
+          toast.info(message, { duration: 4000 });
+          
+          // Show native browser notification if page is not focused
+          if (document.hidden) {
+            showNativeNotification('VYBE', message, type === 'message' ? '/messages' : '/notifications');
+          }
 
           queryClient.invalidateQueries({ queryKey: ['notifications'] });
           queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
