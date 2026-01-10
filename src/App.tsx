@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import './lib/i18n';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -14,30 +14,29 @@ import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
 
-// Lazy load pages for better performance
-import Landing from "./pages/Landing";
-import Home from "./pages/Home";
-import Shorts from "./pages/Shorts";
-import Explore from "./pages/Explore";
-import Upload from "./pages/Upload";
-import PostDetail from "./pages/PostDetail";
-import Profile from "./pages/Profile";
-import Notifications from "./pages/Notifications";
-import Settings from "./pages/Settings";
-import Onboarding from "./pages/Onboarding";
-import Messages from "./pages/Messages";
-import NewMessage from "./pages/NewMessage";
-import AIChat from "./pages/AIChat";
-
-import Feedback from "./pages/Feedback";
-import CompleteProfile from "./pages/CompleteProfile";
-import NotFound from "./pages/NotFound";
-import Market from "./pages/Market";
-import CreateListing from "./pages/CreateListing";
-import ListingDetail from "./pages/ListingDetail";
-import Events from "./pages/Events";
-import CreateEvent from "./pages/CreateEvent";
-import AdminDashboard from "./pages/AdminDashboard";
+// Lazy load pages for code splitting - reduces initial bundle size
+const Landing = lazy(() => import("./pages/Landing"));
+const Home = lazy(() => import("./pages/Home"));
+const Shorts = lazy(() => import("./pages/Shorts"));
+const Explore = lazy(() => import("./pages/Explore"));
+const Upload = lazy(() => import("./pages/Upload"));
+const PostDetail = lazy(() => import("./pages/PostDetail"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const Messages = lazy(() => import("./pages/Messages"));
+const NewMessage = lazy(() => import("./pages/NewMessage"));
+const AIChat = lazy(() => import("./pages/AIChat"));
+const Feedback = lazy(() => import("./pages/Feedback"));
+const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Market = lazy(() => import("./pages/Market"));
+const CreateListing = lazy(() => import("./pages/CreateListing"));
+const ListingDetail = lazy(() => import("./pages/ListingDetail"));
+const Events = lazy(() => import("./pages/Events"));
+const CreateEvent = lazy(() => import("./pages/CreateEvent"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,34 +73,35 @@ const App = () => {
                     <Toaster />
                     <Sonner />
                     <BrowserRouter>
-                      <Routes>
-                        <Route path="/" element={<Landing />} />
-                        <Route path="/home" element={<Home />} />
-                        <Route path="/clips" element={<Shorts />} />
-                        <Route path="/shorts" element={<Shorts />} />
-                        <Route path="/explore" element={<Explore />} />
-                        <Route path="/upload" element={<Upload />} />
-                        <Route path="/p/:id" element={<PostDetail />} />
-                        <Route path="/u/:username" element={<Profile />} />
-                        <Route path="/profile" element={<Profile />} />
-                        <Route path="/notifications" element={<Notifications />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="/onboarding" element={<Onboarding />} />
-                        <Route path="/complete-profile" element={<CompleteProfile />} />
-                        <Route path="/messages" element={<Messages />} />
-                        <Route path="/messages/new" element={<NewMessage />} />
-                        <Route path="/messages/ai-autisy" element={<AIChat />} />
-                        <Route path="/messages/:conversationId" element={<Messages />} />
-                        
-                        <Route path="/feedback" element={<Feedback />} />
-                        <Route path="/market" element={<Market />} />
-                        <Route path="/market/new" element={<CreateListing />} />
-                        <Route path="/market/:id" element={<ListingDetail />} />
-                        <Route path="/events" element={<Events />} />
-                        <Route path="/events/new" element={<CreateEvent />} />
-                        <Route path="/admin" element={<AdminDashboard />} />
-                        <Route path="*" element={<NotFound />} />
-                      </Routes>
+                      <Suspense fallback={null}>
+                        <Routes>
+                          <Route path="/" element={<Landing />} />
+                          <Route path="/home" element={<Home />} />
+                          <Route path="/clips" element={<Shorts />} />
+                          <Route path="/shorts" element={<Shorts />} />
+                          <Route path="/explore" element={<Explore />} />
+                          <Route path="/upload" element={<Upload />} />
+                          <Route path="/p/:id" element={<PostDetail />} />
+                          <Route path="/u/:username" element={<Profile />} />
+                          <Route path="/profile" element={<Profile />} />
+                          <Route path="/notifications" element={<Notifications />} />
+                          <Route path="/settings" element={<Settings />} />
+                          <Route path="/onboarding" element={<Onboarding />} />
+                          <Route path="/complete-profile" element={<CompleteProfile />} />
+                          <Route path="/messages" element={<Messages />} />
+                          <Route path="/messages/new" element={<NewMessage />} />
+                          <Route path="/messages/ai-autisy" element={<AIChat />} />
+                          <Route path="/messages/:conversationId" element={<Messages />} />
+                          <Route path="/feedback" element={<Feedback />} />
+                          <Route path="/market" element={<Market />} />
+                          <Route path="/market/new" element={<CreateListing />} />
+                          <Route path="/market/:id" element={<ListingDetail />} />
+                          <Route path="/events" element={<Events />} />
+                          <Route path="/events/new" element={<CreateEvent />} />
+                          <Route path="/admin" element={<AdminDashboard />} />
+                          <Route path="*" element={<NotFound />} />
+                        </Routes>
+                      </Suspense>
                       <PushNotificationPrompt />
                     </BrowserRouter>
                   </TooltipProvider>
