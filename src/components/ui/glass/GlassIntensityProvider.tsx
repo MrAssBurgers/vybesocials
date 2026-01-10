@@ -1,10 +1,13 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 
 export type GlassIntensity = 'calm' | 'normal' | 'max';
+export type ContrastMode = 'normal' | 'high';
 
 interface GlassIntensityContextType {
   intensity: GlassIntensity;
   setIntensity: (intensity: GlassIntensity) => void;
+  contrast: ContrastMode;
+  setContrast: (contrast: ContrastMode) => void;
   getBlur: () => string;
   getSaturation: () => string;
   getBrightness: () => string;
@@ -19,29 +22,56 @@ const INTENSITY_CONFIG = {
   max: { blur: '60px', saturation: '250%', brightness: '1.08' },
 };
 
+// Detect if device is mobile for default high contrast
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth < 768 || 'ontouchstart' in window;
+};
+
 export function GlassIntensityProvider({ children }: { children: ReactNode }) {
   const [intensity, setIntensityState] = useState<GlassIntensity>(() => {
     if (typeof window === 'undefined') return 'normal';
     return (localStorage.getItem('vybe-glass-intensity') as GlassIntensity) || 'normal';
   });
   
+  const [contrast, setContrastState] = useState<ContrastMode>(() => {
+    if (typeof window === 'undefined') return 'normal';
+    const stored = localStorage.getItem('vybe-contrast-mode') as ContrastMode;
+    // Default to high contrast on mobile for better readability
+    return stored || (isMobileDevice() ? 'high' : 'normal');
+  });
+  
   const [isScrolling, setIsScrolling] = useState(false);
 
+  // Apply intensity and contrast to document
   useEffect(() => {
     localStorage.setItem('vybe-glass-intensity', intensity);
     document.documentElement.setAttribute('data-glass-intensity', intensity);
   }, [intensity]);
 
-  // Track scrolling to pause animations
   useEffect(() => {
-    let scrollTimeout: NodeJS.Timeout;
+    localStorage.setItem('vybe-contrast-mode', contrast);
+    document.documentElement.setAttribute('data-contrast', contrast);
+  }, [contrast]);
+
+  // Track scrolling to pause animations - optimized with RAF
+  useEffect(() => {
+    let scrollTimeout: ReturnType<typeof setTimeout>;
+    let rafId: number;
+    let isCurrentlyScrolling = false;
     
     const handleScroll = () => {
-      setIsScrolling(true);
-      document.documentElement.classList.add('is-scrolling');
+      if (!isCurrentlyScrolling) {
+        isCurrentlyScrolling = true;
+        rafId = requestAnimationFrame(() => {
+          setIsScrolling(true);
+          document.documentElement.classList.add('is-scrolling');
+        });
+      }
       
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
+        isCurrentlyScrolling = false;
         setIsScrolling(false);
         document.documentElement.classList.remove('is-scrolling');
       }, 150);
@@ -51,23 +81,30 @@ export function GlassIntensityProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener('scroll', handleScroll);
       clearTimeout(scrollTimeout);
+      if (rafId) cancelAnimationFrame(rafId);
     };
   }, []);
 
-  const setIntensity = (newIntensity: GlassIntensity) => {
+  const setIntensity = useCallback((newIntensity: GlassIntensity) => {
     setIntensityState(newIntensity);
-  };
+  }, []);
+
+  const setContrast = useCallback((newContrast: ContrastMode) => {
+    setContrastState(newContrast);
+  }, []);
 
   const config = INTENSITY_CONFIG[intensity];
   
-  const getBlur = () => config.blur;
-  const getSaturation = () => config.saturation;
-  const getBrightness = () => config.brightness;
+  const getBlur = useCallback(() => config.blur, [config.blur]);
+  const getSaturation = useCallback(() => config.saturation, [config.saturation]);
+  const getBrightness = useCallback(() => config.brightness, [config.brightness]);
 
   return (
     <GlassIntensityContext.Provider value={{ 
       intensity, 
       setIntensity, 
+      contrast,
+      setContrast,
       getBlur, 
       getSaturation, 
       getBrightness,
@@ -85,6 +122,8 @@ export function useGlassIntensity() {
     return {
       intensity: 'normal' as GlassIntensity,
       setIntensity: () => {},
+      contrast: 'normal' as ContrastMode,
+      setContrast: () => {},
       getBlur: () => '40px',
       getSaturation: () => '200%',
       getBrightness: () => '1.05',

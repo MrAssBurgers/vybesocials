@@ -1,7 +1,8 @@
-import { forwardRef, ReactNode } from 'react';
+import { forwardRef, ReactNode, memo } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAccessibility } from '@/providers/AccessibilityProvider';
+import { useGlassIntensity } from './GlassIntensityProvider';
 import { X } from 'lucide-react';
 
 interface GlassSheetProps {
@@ -13,9 +14,10 @@ interface GlassSheetProps {
   title?: string;
 }
 
-export const GlassSheet = forwardRef<HTMLDivElement, GlassSheetProps>(
+export const GlassSheet = memo(forwardRef<HTMLDivElement, GlassSheetProps>(
   ({ isOpen, onClose, children, className, side = 'bottom', title }, ref) => {
     const { reduceMotion } = useAccessibility();
+    const { contrast } = useGlassIntensity();
 
     const variants = {
       bottom: {
@@ -49,7 +51,7 @@ export const GlassSheet = forwardRef<HTMLDivElement, GlassSheetProps>(
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: reduceMotion ? 0 : 0.2 }}
-              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
               onClick={onClose}
             />
 
@@ -69,34 +71,39 @@ export const GlassSheet = forwardRef<HTMLDivElement, GlassSheetProps>(
               onDragEnd={handleDragEnd}
               className={cn(
                 'fixed z-50 liquid-glass overflow-hidden',
-                side === 'bottom' && 'inset-x-0 bottom-0 rounded-t-2xl max-h-[85vh]',
+                side === 'bottom' && 'inset-x-0 bottom-0 rounded-t-2xl max-h-[85vh] max-h-[85dvh]',
                 side === 'right' && 'right-0 top-0 bottom-0 w-full max-w-md rounded-l-2xl',
+                contrast === 'high' && 'high-contrast',
                 className
               )}
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Top edge highlight */}
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent pointer-events-none z-10" />
+
               {/* Drag handle for bottom sheet */}
               {side === 'bottom' && (
-                <div className="flex justify-center pt-3 pb-1">
-                  <div className="w-10 h-1 rounded-full bg-foreground/20" />
+                <div className="flex justify-center pt-3 pb-1 relative z-10">
+                  <div className="w-10 h-1.5 rounded-full bg-foreground/25" />
                 </div>
               )}
 
               {/* Header */}
               {title && (
-                <div className="flex items-center justify-between px-4 py-3 border-b border-foreground/5">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-foreground/10 relative z-10">
                   <h2 className="text-lg font-semibold">{title}</h2>
                   <button
                     onClick={onClose}
-                    className="p-2 rounded-xl hover:bg-foreground/5 transition-colors"
+                    className="p-2 rounded-xl hover:bg-foreground/10 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    aria-label="Close"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               )}
 
-              {/* Content */}
-              <div className="overflow-y-auto max-h-full">
+              {/* Content - scrollable with internal scroll */}
+              <div className="overflow-y-auto max-h-[calc(85vh-5rem)] max-h-[calc(85dvh-5rem)] relative z-10 overscroll-contain">
                 {children}
               </div>
             </motion.div>
@@ -105,6 +112,6 @@ export const GlassSheet = forwardRef<HTMLDivElement, GlassSheetProps>(
       </AnimatePresence>
     );
   }
-);
+));
 
 GlassSheet.displayName = 'GlassSheet';

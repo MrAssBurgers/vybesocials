@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles, MessageSquareHeart, Lock, Vibrate, Volume2, Zap } from 'lucide-react';
+import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles, MessageSquareHeart, Lock, Vibrate, Volume2, Zap, Layers, Contrast } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
+import { useGlassIntensity } from '@/components/ui/glass/GlassIntensityProvider';
 import { languages } from '@/lib/i18n';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ export default function SettingsPage() {
     hapticsEnabled, setHapticsEnabled,
     soundsEnabled, setSoundsEnabled,
   } = useTheme();
+  const { intensity, setIntensity, contrast, setContrast } = useGlassIntensity();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -269,6 +271,70 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Glass Intensity */}
+          <div className="space-y-2 sm:space-y-3 mb-4 pt-4 border-t border-border">
+            <Label className="text-sm flex items-center gap-2">
+              <Layers className="w-4 h-4" />
+              Glass Intensity
+            </Label>
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+              {[
+                { id: 'calm', label: 'Calm' },
+                { id: 'normal', label: 'Normal' },
+                { id: 'max', label: 'Max' },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => {
+                    haptics.tap();
+                    setIntensity(option.id as 'calm' | 'normal' | 'max');
+                    toast.success(`Glass set to ${option.label}`);
+                  }}
+                  className={cn(
+                    'p-2 sm:p-3 rounded-lg border transition-all text-sm active:scale-95',
+                    intensity === option.id
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Contrast Mode */}
+          <div className="space-y-2 sm:space-y-3 mb-4 pt-4 border-t border-border">
+            <Label className="text-sm flex items-center gap-2">
+              <Contrast className="w-4 h-4" />
+              Contrast Mode
+            </Label>
+            <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+              {[
+                { id: 'normal', label: 'Normal' },
+                { id: 'high', label: 'High' },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => {
+                    haptics.tap();
+                    setContrast(option.id as 'normal' | 'high');
+                    toast.success(`Contrast set to ${option.label}`);
+                  }}
+                  className={cn(
+                    'p-2 sm:p-3 rounded-lg border transition-all text-sm active:scale-95',
+                    contrast === option.id
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">High contrast improves readability on mobile</p>
           </div>
 
           {/* Reduced Motion */}

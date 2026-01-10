@@ -1,4 +1,4 @@
-import { forwardRef, ReactNode } from 'react';
+import { forwardRef, ReactNode, memo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useGlassIntensity } from './GlassIntensityProvider';
@@ -12,9 +12,9 @@ interface GlassCardProps {
   children?: ReactNode;
 }
 
-export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
+export const GlassCard = memo(forwardRef<HTMLDivElement, GlassCardProps>(
   ({ className, variant = 'default', interactive = false, noiseOverlay = true, children, ...props }, ref) => {
-    const { intensity, isScrolling } = useGlassIntensity();
+    const { intensity, isScrolling, contrast } = useGlassIntensity();
     const { reduceMotion } = useAccessibility();
 
     const variantClasses = {
@@ -45,27 +45,24 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
           intensityClasses[intensity],
           interactive && 'cursor-pointer',
           isScrolling && 'glass-paused',
+          contrast === 'high' && 'high-contrast',
           className
         )}
         {...props}
       >
-        {/* Subtle noise texture overlay */}
-        {noiseOverlay && intensity !== 'calm' && (
-          <div 
-            className="absolute inset-0 opacity-[0.02] pointer-events-none mix-blend-overlay"
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-            }}
-          />
-        )}
+        {/* Top edge highlight for depth */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-foreground/15 to-transparent pointer-events-none z-10" />
         
-        {/* Top highlight */}
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-foreground/10 to-transparent pointer-events-none" />
+        {/* Left edge accent for premium feel */}
+        <div className="absolute top-0 left-0 bottom-0 w-px bg-gradient-to-b from-foreground/10 via-transparent to-foreground/5 pointer-events-none z-10" />
         
-        {children}
+        {/* Content wrapper with proper z-index */}
+        <div className="relative z-[1]">
+          {children}
+        </div>
       </motion.div>
     );
   }
-);
+));
 
 GlassCard.displayName = 'GlassCard';

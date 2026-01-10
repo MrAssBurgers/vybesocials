@@ -22,8 +22,8 @@ export function MobileHeader() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
-      <div className="liquid-glass border-b border-white/10">
-        <div className="flex items-center justify-between h-14 px-4">
+      <div className="liquid-glass border-b border-foreground/10">
+        <div className="flex items-center justify-between h-14 px-3 sm:px-4 relative z-10">
           {/* Logo */}
           <Link to="/home" className="flex-shrink-0">
             <VYBELogo size="sm" showText={false} />
