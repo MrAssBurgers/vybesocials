@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -5,26 +6,29 @@ interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
   animate?: boolean;
 }
 
-function Skeleton({ className, variant = 'default', animate = true, ...props }: SkeletonProps) {
-  const variants = {
-    default: 'rounded-md',
-    circular: 'rounded-full',
-    text: 'rounded h-4',
-    card: 'rounded-xl',
-  };
+const Skeleton = forwardRef<HTMLDivElement, SkeletonProps>(
+  function Skeleton({ className, variant = 'default', animate = true, ...props }, ref) {
+    const variants = {
+      default: 'rounded-md',
+      circular: 'rounded-full',
+      text: 'rounded h-4',
+      card: 'rounded-xl',
+    };
 
-  return (
-    <div 
-      className={cn(
-        "bg-muted",
-        variants[variant],
-        animate && "skeleton-shimmer",
-        className
-      )} 
-      {...props} 
-    />
-  );
-}
+    return (
+      <div 
+        ref={ref}
+        className={cn(
+          "bg-muted",
+          variants[variant],
+          animate && "skeleton-shimmer",
+          className
+        )} 
+        {...props} 
+      />
+    );
+  }
+);
 
 // Common skeleton patterns
 function SkeletonAvatar({ className, size = 'md' }: { className?: string; size?: 'sm' | 'md' | 'lg' }) {

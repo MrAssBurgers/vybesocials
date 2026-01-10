@@ -448,21 +448,21 @@ export function ChatView() {
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
-      {/* Header - sticky, contained */}
-      <div className="flex-shrink-0 p-3 sm:p-4 border-b border-border flex items-center gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="flex-shrink-0">
+      {/* Header - fixed height, compact on mobile */}
+      <header className="flex-shrink-0 h-14 sm:h-16 px-2 sm:px-4 border-b border-border flex items-center gap-2 sm:gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         
-        {/* Clickable Avatar - navigates to profile */}
+        {/* Clickable Avatar - navigates to profile - properly sized ring */}
         <button 
           onClick={handleAvatarClick}
           className="relative flex-shrink-0 group"
           aria-label="View profile"
         >
-          <Avatar className="h-10 w-10 ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all group-active:scale-95">
+          <Avatar className="h-9 w-9 sm:h-10 sm:w-10 ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all group-active:scale-95">
             <AvatarImage src={otherMember?.avatar_url || undefined} />
-            <AvatarFallback>{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+            <AvatarFallback className="text-sm">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
           {!isGroupChat && (
             <OnlineIndicator isOnline={otherMemberOnline} size="sm" className="bottom-0 right-0" />
@@ -470,14 +470,14 @@ export function ChatView() {
         </button>
         
         <div className="flex-1 min-w-0">
-          <h2 className="font-semibold truncate">{displayName}</h2>
+          <h2 className="font-semibold text-sm sm:text-base truncate leading-tight">{displayName}</h2>
           {!isGroupChat && !typingUsers.length && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight">
               {otherMemberOnline ? 'Online' : 'Offline'}
             </p>
           )}
           {typingUsers.length > 0 && (
-            <p className="text-xs text-primary flex items-center gap-1">
+            <p className="text-[11px] sm:text-xs text-primary flex items-center gap-1 leading-tight">
               <Sparkles className="h-3 w-3" />
               {t('messages.typing')}
             </p>
@@ -500,7 +500,7 @@ export function ChatView() {
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="flex-shrink-0">
+            <Button variant="ghost" size="icon" className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10">
               <MoreVertical className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -510,15 +510,19 @@ export function ChatView() {
             <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
+      </header>
 
-      {/* Messages */}
-      <div className={cn("flex-1 overflow-y-auto p-4 space-y-4", getWallpaperClass())}>
+      {/* Messages - scrollable area with Snapchat-like spacing */}
+      <div className={cn(
+        "flex-1 overflow-y-auto px-3 sm:px-4 py-3",
+        "space-y-2 sm:space-y-3", // Airy vertical spacing between messages
+        getWallpaperClass()
+      )}>
         {messageItems.map(({ message, isOwn, showAvatar, showTimestamp }) => (
           <div key={message.id}>
             {showTimestamp && (
-              <div className="text-center text-xs text-muted-foreground my-4">
-                <span className="bg-muted/50 px-3 py-1 rounded-full">
+              <div className="text-center my-3 sm:my-4">
+                <span className="text-[10px] sm:text-xs text-muted-foreground/80 bg-muted/40 px-2.5 py-1 rounded-full">
                   {formatMessageDate(message.created_at)}
                 </span>
               </div>
@@ -552,19 +556,19 @@ export function ChatView() {
           />
         ))}
 
-        {/* Typing indicator - fixed z-index and positioning */}
+        {/* Typing indicator - proper z-index */}
         {typingUsers.length > 0 && (
-          <div className="flex items-start gap-2 max-w-[85%] relative z-10">
-            <Avatar className="h-8 w-8 flex-shrink-0">
+          <div className="flex items-start gap-2 max-w-[80%] relative z-10">
+            <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0">
               <AvatarImage src={otherMember?.avatar_url || undefined} />
-              <AvatarFallback>{otherMember?.username?.charAt(0)}</AvatarFallback>
+              <AvatarFallback className="text-xs">{otherMember?.username?.charAt(0)}</AvatarFallback>
             </Avatar>
-            <div className="bg-muted/80 backdrop-blur-sm rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-              <div className="flex items-center gap-1.5">
+            <div className="bg-muted/80 backdrop-blur-sm rounded-2xl rounded-tl-sm px-3 py-2 shadow-sm">
+              <div className="flex items-center gap-1">
                 {[0, 1, 2].map((i) => (
                   <span
                     key={i}
-                    className="w-2 h-2 bg-primary rounded-full"
+                    className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-primary rounded-full"
                     style={{ 
                       animation: 'bounce 0.6s infinite',
                       animationDelay: `${i * 150}ms`,
@@ -576,7 +580,7 @@ export function ChatView() {
           </div>
         )}
 
-        <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} className="h-1" />
       </div>
 
       {/* Input area - wrapped with DM safety for non-group chats */}
@@ -694,7 +698,7 @@ const MessageInputArea = memo(function MessageInputArea({
   onOpenDMSettings?: () => void;
 }) {
   return (
-    <div className="p-4 border-t border-border bg-background">
+    <div className="flex-shrink-0 px-2 py-2 sm:px-4 sm:py-3 border-t border-border bg-background safe-area-bottom">
       <input
         ref={fileInputRef}
         type="file"
@@ -703,22 +707,22 @@ const MessageInputArea = memo(function MessageInputArea({
         className="hidden"
       />
 
-        {/* Reply preview */}
+        {/* Reply preview - compact on mobile */}
         {replyingTo && (
-          <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-muted/50 rounded-lg border-l-2 border-primary">
-            <CornerUpLeft className="h-4 w-4 text-primary flex-shrink-0" />
+          <div className="flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 mb-2 bg-muted/50 rounded-lg border-l-2 border-primary">
+            <CornerUpLeft className="h-3 w-3 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-primary font-medium">
+              <p className="text-[10px] sm:text-xs text-primary font-medium leading-tight">
                 Replying to {replyingTo.sender?.username || 'message'}
               </p>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate leading-tight">
                 {replyingTo.content || (replyingTo.media_type === 'image' ? '📷 Photo' : '🎤 Voice message')}
               </p>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 flex-shrink-0"
+              className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0"
               onClick={clearReply}
             >
               <X className="h-3 w-3" />
@@ -733,7 +737,7 @@ const MessageInputArea = memo(function MessageInputArea({
             isUploading={isUploadingMedia}
           />
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <Toybox
               onImageSelect={async (file) => {
                 if (fileInputRef.current) {
@@ -752,7 +756,6 @@ const MessageInputArea = memo(function MessageInputArea({
                 }
               }}
               onGifSelect={async (gifUrl) => {
-                // Send GIF as an image message
                 await sendMediaMessage(gifUrl, 'gif');
               }}
               onVoiceStart={() => setIsRecordingVoice(true)}
@@ -765,13 +768,13 @@ const MessageInputArea = memo(function MessageInputArea({
 
             <DropdownMenu open={showViewModeMenu} onOpenChange={setShowViewModeMenu}>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="flex-shrink-0">
+                <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9">
                   {viewMode === 'view_once' ? (
-                    <EyeOff className="h-5 w-5 text-orange-500" />
+                    <EyeOff className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" />
                   ) : viewMode === '24h' ? (
-                    <Clock className="h-5 w-5 text-yellow-500" />
+                    <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
                   ) : (
-                    <Eye className="h-5 w-5" />
+                    <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
                   )}
                 </Button>
               </DropdownMenuTrigger>
@@ -797,7 +800,7 @@ const MessageInputArea = memo(function MessageInputArea({
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={t('messages.typeMessage')}
-              className="flex-1"
+              className="flex-1 h-9 sm:h-10 text-sm"
             />
 
             {!messageText.trim() ? (
@@ -805,21 +808,21 @@ const MessageInputArea = memo(function MessageInputArea({
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsRecordingVoice(true)}
-                className="flex-shrink-0"
+                className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9"
               >
-                <Mic className="h-5 w-5" />
+                <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
             ) : (
               <Button 
                 onClick={handleSend}
                 disabled={!messageText.trim() || isPending}
                 size="icon"
-                className="flex-shrink-0"
+                className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9"
               >
                 {isPending ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
                 ) : (
-                  <Send className="h-5 w-5" />
+                  <Send className="h-4 w-4 sm:h-5 sm:w-5" />
                 )}
               </Button>
             )}
@@ -827,7 +830,7 @@ const MessageInputArea = memo(function MessageInputArea({
         )}
 
         {viewMode !== 'permanent' && !isRecordingVoice && (
-          <p className="text-xs text-muted-foreground mt-2 text-center">
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-1.5 text-center">
             {viewMode === 'view_once' ? t('messages.viewOnceHint') : t('messages.24hoursHint')}
           </p>
         )}
@@ -894,36 +897,36 @@ const MessageBubble = memo(function MessageBubble({
   }, [onUnsend]);
 
   return (
-    <div className={cn('flex gap-2 group/message', isOwn ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex gap-1.5 sm:gap-2 group/message', isOwn ? 'justify-end' : 'justify-start')}>
       {!isOwn && (
         <button
           onClick={onReply}
           className="self-center opacity-0 group-hover/message:opacity-100 transition-opacity p-1 rounded-full hover:bg-muted"
         >
-          <Reply className="h-4 w-4 text-muted-foreground" />
+          <Reply className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
         </button>
       )}
 
       {!isOwn && showAvatar && (
-        <Avatar className="h-8 w-8 flex-shrink-0 ring-2 ring-background shadow-sm">
+        <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0 ring-1 ring-background shadow-sm">
           <AvatarImage src={sender?.avatar_url || undefined} />
-          <AvatarFallback>{sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
+          <AvatarFallback className="text-xs">{sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
       )}
-      {!isOwn && !showAvatar && <div className="w-8" />}
+      {!isOwn && !showAvatar && <div className="w-7 sm:w-8" />}
 
-      <div className={cn('max-w-[75%] group flex flex-col', isOwn ? 'items-end' : 'items-start')}>
+      <div className={cn('max-w-[78%] sm:max-w-[75%] group flex flex-col', isOwn ? 'items-end' : 'items-start')}>
         {repliedMessage && (
           <div
             className={cn(
-              "text-xs px-3 py-1.5 rounded-t-lg mb-0.5 max-w-full",
+              "text-[10px] sm:text-xs px-2 py-1 sm:px-3 sm:py-1.5 rounded-t-lg mb-0.5 max-w-full",
               isOwn 
                 ? "bg-primary/30 text-primary-foreground/80 rounded-br-lg" 
                 : "bg-muted/80 text-muted-foreground rounded-bl-lg"
             )}
           >
             <div className="flex items-center gap-1 mb-0.5">
-              <CornerUpLeft className="h-3 w-3" />
+              <CornerUpLeft className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
               <span className="font-medium">{repliedMessage.sender?.username || 'Message'}</span>
             </div>
             <p className="truncate opacity-80">
@@ -934,7 +937,7 @@ const MessageBubble = memo(function MessageBubble({
 
         <div
           className={cn(
-            'relative rounded-2xl px-4 py-2 break-words shadow-sm cursor-pointer',
+            'relative rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 break-words shadow-sm cursor-pointer',
             isOwn 
               ? `${themeColor.bubble} ${themeColor.text} rounded-br-md` 
               : 'bg-muted text-foreground rounded-bl-md',
@@ -945,67 +948,67 @@ const MessageBubble = memo(function MessageBubble({
           onDoubleClick={onToggleReactions}
         >
           {message.media_url && (message.media_type === 'image' || message.media_type === 'gif') && (
-            <div className={message.content ? "mb-2" : ""}>
+            <div className={message.content ? "mb-1.5" : ""}>
               <img
                 src={message.media_url}
                 alt={message.media_type === 'gif' ? "GIF" : "Shared image"}
-                className="rounded-lg max-w-full max-h-64 object-cover"
+                className="rounded-lg max-w-full max-h-48 sm:max-h-64 object-cover"
                 loading="lazy"
               />
             </div>
           )}
 
           {message.media_url && message.media_type === 'audio' && (
-            <div className="mb-2">
+            <div className="mb-1.5">
               <AudioMessage src={message.media_url} isOwn={isOwn} />
             </div>
           )}
 
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (
-            <p className="text-sm italic opacity-75">Message viewed</p>
+            <p className="text-[13px] sm:text-sm italic opacity-75 leading-relaxed">Message viewed</p>
           ) : message.content ? (
-            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+            <p className="text-[13px] sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
           ) : null}
 
           {message.view_mode !== 'permanent' && (
-            <div className="flex items-center gap-1 mt-1 opacity-75">
+            <div className="flex items-center gap-1 mt-0.5 opacity-75">
               {message.view_mode === 'view_once' ? (
-                <EyeOff className="h-3 w-3" />
+                <EyeOff className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
               ) : (
-                <Clock className="h-3 w-3" />
+                <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
               )}
-              <span className="text-[10px]">
+              <span className="text-[9px] sm:text-[10px]">
                 {message.view_mode === 'view_once' ? 'View once' : '24h'}
               </span>
             </div>
           )}
 
           {reactions.length > 0 && (
-            <div className="absolute -bottom-3 left-2 flex gap-0.5 bg-background border border-border rounded-full px-1.5 py-0.5 shadow-md">
+            <div className="absolute -bottom-2.5 left-2 flex gap-0.5 bg-background border border-border rounded-full px-1 py-0.5 shadow-md">
               {[...new Set(reactions.map((r) => r.emoji))].map((emoji) => (
-                <span key={emoji} className="text-xs">{emoji}</span>
+                <span key={emoji} className="text-[10px] sm:text-xs">{emoji}</span>
               ))}
             </div>
           )}
         </div>
 
         {isOwn && (
-          <div className="flex flex-col items-end mt-1">
+          <div className="flex flex-col items-end mt-0.5">
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground">
                 {format(new Date(message.created_at), 'HH:mm')}
               </span>
               {hasBeenViewed ? (
                 <div className="flex items-center gap-0.5">
-                  <Eye className="h-3.5 w-3.5 text-primary" />
+                  <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary" />
                   {message.views && message.views.length > 0 && (
-                    <span className="text-[10px] font-medium text-primary">
+                    <span className="text-[9px] sm:text-[10px] font-medium text-primary">
                       {message.views.length}
                     </span>
                   )}
                 </div>
               ) : (
-                <Check className="h-3 w-3 text-muted-foreground" />
+                <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground" />
               )}
             </div>
             
@@ -1019,12 +1022,12 @@ const MessageBubble = memo(function MessageBubble({
         )}
 
         {showReactions && (
-          <div className="absolute mt-1 bg-background border border-border rounded-full px-2 py-1 shadow-lg flex gap-1 z-10">
+          <div className="absolute mt-1 bg-background border border-border rounded-full px-1.5 py-0.5 sm:px-2 sm:py-1 shadow-lg flex gap-0.5 z-10">
             {QUICK_REACTIONS.map((emoji) => (
               <button
                 key={emoji}
                 onClick={() => handleReaction(emoji)}
-                className="p-1 hover:scale-125 transition-transform"
+                className="p-0.5 sm:p-1 hover:scale-125 transition-transform text-sm sm:text-base"
               >
                 {emoji}
               </button>
@@ -1034,19 +1037,19 @@ const MessageBubble = memo(function MessageBubble({
       </div>
 
       {isOwn && (
-        <div className="self-center flex items-center gap-1 opacity-0 group-hover/message:opacity-100 transition-opacity">
+        <div className="self-center flex items-center gap-0.5 opacity-0 group-hover/message:opacity-100 transition-opacity">
           <button
             onClick={onReply}
             className="p-1 rounded-full hover:bg-muted"
             title="Reply"
           >
-            <Reply className="h-4 w-4 text-muted-foreground" />
+            <Reply className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
           </button>
           {showUnsendConfirm ? (
-            <div className="flex items-center gap-1 bg-destructive/10 rounded-full px-2 py-0.5">
+            <div className="flex items-center gap-1 bg-destructive/10 rounded-full px-1.5 py-0.5">
               <button
                 onClick={handleUnsend}
-                className="text-xs text-destructive font-medium hover:underline"
+                className="text-[10px] sm:text-xs text-destructive font-medium hover:underline"
               >
                 Unsend?
               </button>
@@ -1054,7 +1057,7 @@ const MessageBubble = memo(function MessageBubble({
                 onClick={() => setShowUnsendConfirm(false)}
                 className="p-0.5 rounded-full hover:bg-muted"
               >
-                <X className="h-3 w-3 text-muted-foreground" />
+                <X className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground" />
               </button>
             </div>
           ) : (
@@ -1063,7 +1066,7 @@ const MessageBubble = memo(function MessageBubble({
               className="p-1 rounded-full hover:bg-destructive/10"
               title="Unsend message"
             >
-              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+              <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground hover:text-destructive" />
             </button>
           )}
         </div>
@@ -1095,46 +1098,46 @@ const OptimisticMessageBubble = memo(function OptimisticMessageBubble({
   const isSending = message.status === 'sending';
 
   return (
-    <div className="flex justify-end gap-2">
-      <div className="max-w-[75%] flex flex-col items-end">
+    <div className="flex justify-end gap-1.5 sm:gap-2">
+      <div className="max-w-[78%] sm:max-w-[75%] flex flex-col items-end">
         <div
           className={cn(
-            'relative rounded-2xl px-4 py-2 break-words rounded-br-md shadow-sm',
+            'relative rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 break-words rounded-br-md shadow-sm',
             isFailed
               ? 'bg-destructive/20 text-destructive border border-destructive/30'
               : 'bg-primary/70 text-primary-foreground',
             isSending && 'opacity-70'
           )}
         >
-          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+          <p className="text-[13px] sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
         </div>
 
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-1.5 mt-0.5">
           {isSending && (
             <div className="flex items-center gap-1 text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              <span className="text-[10px]">Sending...</span>
+              <Loader2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 animate-spin" />
+              <span className="text-[9px] sm:text-[10px]">Sending...</span>
             </div>
           )}
 
           {isFailed && (
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-destructive">Failed to send</span>
+              <span className="text-[9px] sm:text-[10px] text-destructive">Failed</span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-5 w-5"
+                className="h-4 w-4 sm:h-5 sm:w-5"
                 onClick={onRetry}
               >
-                <RefreshCw className="h-3 w-3 text-destructive" />
+                <RefreshCw className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-destructive" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-5 w-5"
+                className="h-4 w-4 sm:h-5 sm:w-5"
                 onClick={onDismiss}
               >
-                <X className="h-3 w-3 text-muted-foreground" />
+                <X className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground" />
               </Button>
             </div>
           )}

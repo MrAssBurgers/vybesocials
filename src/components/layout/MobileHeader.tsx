@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { HeaderSearch } from './HeaderSearch';
 import { VYBELogo } from '@/components/ui/VYBELogo';
+
 export function MobileHeader() {
   const { profile } = useAuth();
   const { data: unreadCount = 0 } = useUnreadCount();
@@ -21,25 +22,28 @@ export function MobileHeader() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50">
+    <header className="fixed top-0 left-0 right-0 z-50 safe-area-top">
       <div className="liquid-glass border-b border-foreground/10">
-        <div className="flex items-center justify-between h-14 px-3 sm:px-4 relative z-10">
-          {/* Logo */}
-          <Link to="/home" className="flex-shrink-0">
+        <div className="flex items-center justify-between h-12 sm:h-14 px-2 sm:px-4 relative z-10">
+          {/* Logo - consistent size with other icons */}
+          <Link 
+            to="/home" 
+            className="flex-shrink-0 flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10"
+          >
             <VYBELogo size="sm" showText={false} />
           </Link>
 
           {/* Center - Search */}
-          <HeaderSearch className="flex-1 mx-3" />
+          <HeaderSearch className="flex-1 mx-2 sm:mx-3" />
 
-          {/* Right side - Notifications & Profile */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Notifications */}
+          {/* Right side - Notifications & Profile - consistent sizing */}
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            {/* Notifications - same hitbox as other icons */}
             <Link
               to="/notifications"
               className={cn(
-                "relative p-2 rounded-full transition-colors liquid-glass-subtle",
-                isNotificationsActive && "bg-primary/20"
+                "relative flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-full transition-colors",
+                isNotificationsActive ? "bg-primary/20" : "hover:bg-muted/50"
               )}
             >
               <Bell className={cn(
@@ -52,7 +56,7 @@ export function MobileHeader() {
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
-                    className="absolute -top-0.5 -right-0.5 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold"
+                    className="absolute top-1 right-1 h-3.5 w-3.5 sm:h-4 sm:w-4 bg-destructive rounded-full flex items-center justify-center text-[8px] sm:text-[9px] text-destructive-foreground font-bold"
                   >
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </motion.span>
@@ -60,18 +64,18 @@ export function MobileHeader() {
               </AnimatePresence>
             </Link>
 
-            {/* Profile */}
+            {/* Profile - properly sized ring that fits the avatar */}
             <Link
               to={`/u/${profile?.username}`}
               className={cn(
-                "rounded-full transition-all",
-                isProfileActive && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                "flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-full transition-all",
+                isProfileActive && "ring-2 ring-primary ring-offset-1 ring-offset-background"
               )}
             >
-              <Avatar className="h-8 w-8 liquid-glass-subtle">
+              <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
                 <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback className="text-xs">
-                  {profile?.username?.[0]?.toUpperCase() || <User className="h-4 w-4" />}
+                  {profile?.username?.[0]?.toUpperCase() || <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
                 </AvatarFallback>
               </Avatar>
             </Link>

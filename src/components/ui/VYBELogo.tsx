@@ -9,8 +9,8 @@ interface VYBELogoProps {
 }
 
 const sizes = {
-  sm: { icon: 'w-6 h-6', text: 'text-sm', gap: 'gap-1.5' },
-  md: { icon: 'w-8 h-8', text: 'text-base', gap: 'gap-2' },
+  sm: { icon: 'w-7 h-7 sm:w-8 sm:h-8', text: 'text-sm', gap: 'gap-1.5' },
+  md: { icon: 'w-8 h-8 sm:w-9 sm:h-9', text: 'text-base', gap: 'gap-2' },
   lg: { icon: 'w-10 h-10', text: 'text-xl', gap: 'gap-2' },
   xl: { icon: 'w-12 h-12', text: 'text-2xl', gap: 'gap-3' },
 };

@@ -182,7 +182,30 @@
     );
   }
 
-  /* Custom scrollbar */
+  /* Safe area inset utilities */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  
+  .safe-area-all {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  /* Mobile DM specific - Snapchat-like text sizing */
+  @media (max-width: 640px) {
+    .chat-message-text {
+      font-size: clamp(0.8125rem, 2vw, 0.875rem);
+      line-height: 1.4;
+    }
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
