@@ -621,9 +621,17 @@ export function useAddReaction() {
     mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
+      // First, delete any existing reaction from this user on this message
+      await supabase
+        .from('message_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', profile.id);
+
+      // Then insert the new reaction
       const { error } = await supabase
         .from('message_reactions')
-        .upsert({
+        .insert({
           message_id: messageId,
           user_id: profile.id,
           emoji,

@@ -304,7 +304,7 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
   const waveformBars = Array.from({ length: 25 }, () => 0.2 + Math.random() * 0.8);
 
   return (
-    <div className="flex items-center gap-2 min-w-[180px]">
+    <div className="flex items-center gap-3 min-w-[180px] sm:min-w-[200px] h-auto py-1">
       <audio ref={audioRef} src={src} preload="metadata" />
       
       <motion.button
@@ -312,39 +312,39 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
         whileTap={{ scale: 0.9 }}
         onClick={togglePlay}
         className={cn(
-          "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
+          "w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0",
           isOwn 
             ? "bg-primary-foreground/20 text-primary-foreground" 
             : "bg-primary/20 text-primary"
         )}
       >
         {isPlaying ? (
-          <Square className="h-3 w-3 fill-current" />
+          <Square className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-current" />
         ) : (
-          <div className="w-0 h-0 border-l-[8px] border-l-current border-y-[5px] border-y-transparent ml-0.5" />
+          <div className="w-0 h-0 border-l-[9px] border-l-current border-y-[6px] border-y-transparent ml-0.5" />
         )}
       </motion.button>
 
-      <div className="flex-1 flex flex-col gap-1">
-        <div className="flex items-center gap-0.5 h-5">
+      <div className="flex-1 flex flex-col gap-1.5 min-h-[32px]">
+        <div className="flex items-center gap-0.5 h-6">
           {waveformBars.map((height, i) => {
             const isActive = (i / waveformBars.length) * 100 <= progress;
             return (
               <div
                 key={i}
                 className={cn(
-                  "w-0.5 rounded-full transition-colors duration-100",
+                  "w-[3px] sm:w-1 rounded-full transition-colors duration-100",
                   isOwn
                     ? isActive ? "bg-primary-foreground" : "bg-primary-foreground/30"
                     : isActive ? "bg-primary" : "bg-primary/30"
                 )}
-                style={{ height: `${height * 100}%` }}
+                style={{ height: `${Math.max(4, height * 100)}%` }}
               />
             );
           })}
         </div>
         <span className={cn(
-          "text-[10px]",
+          "text-[10px] sm:text-xs",
           isOwn ? "text-primary-foreground/70" : "text-muted-foreground"
         )}>
           {formatTime(audioDuration)}
