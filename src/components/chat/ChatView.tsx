@@ -393,17 +393,18 @@ export function ChatView() {
     setReplyingTo(null);
   }, []);
 
-  // Memoize message items to prevent re-renders
+  // Memoize message items to prevent re-renders - using stable keys
   const messageItems = useMemo(() => {
     if (!messages) return [];
     return messages.map((message, index) => {
       const isOwn = message.sender_id === profile?.id;
+      const prevMessage = index > 0 ? messages[index - 1] : null;
       const showAvatar = !isOwn && (
         index === 0 || 
-        messages[index - 1]?.sender_id !== message.sender_id
+        prevMessage?.sender_id !== message.sender_id
       );
       const showTimestamp = index === 0 || 
-        new Date(message.created_at).getTime() - new Date(messages[index - 1]?.created_at).getTime() > 5 * 60 * 1000;
+        new Date(message.created_at).getTime() - new Date(prevMessage?.created_at || 0).getTime() > 5 * 60 * 1000;
 
       return { message, isOwn, showAvatar, showTimestamp };
     });
@@ -512,42 +513,52 @@ export function ChatView() {
         </DropdownMenu>
       </header>
 
-      {/* Messages - scrollable area with Snapchat-like airy spacing */}
+      {/* Messages - scrollable area with Instagram/Snapchat-like airy spacing */}
       <div className={cn(
         "flex-1 overflow-y-auto min-h-0",
-        "px-3 sm:px-4 py-3",
+        "px-4 sm:px-5 py-4",
         getWallpaperClass()
       )}>
-        {/* Increased spacing between messages for breathable feel */}
-        <div className="space-y-4 sm:space-y-5">
-          {messageItems.map(({ message, isOwn, showAvatar, showTimestamp }) => (
-            <div key={message.id}>
-              {showTimestamp && (
-                <div className="text-center my-5 sm:my-6">
-                  <span className="text-[10px] sm:text-xs text-muted-foreground/60 bg-muted/20 px-3 py-1 rounded-full font-medium">
-                    {formatMessageDate(message.created_at)}
-                  </span>
-                </div>
-              )}
-              <MessageBubble
-                message={message}
-                isOwn={isOwn}
-                showAvatar={showAvatar}
-                sender={message.sender}
-                isGroupChat={isGroupChat}
-                onView={() => markViewed.mutate(message.id)}
-                onReaction={handleReaction}
-                onReply={() => handleReply(message)}
-                onUnsend={() => unsendMessage.mutate(message.id)}
-                allMessages={messages}
-                themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
-                showReactions={activeReactionMessageId === message.id}
-                onToggleReactions={() => setActiveReactionMessageId(
-                  activeReactionMessageId === message.id ? null : message.id
+        {/* Relaxed spacing between messages - never cluttered */}
+        <div className="flex flex-col gap-3 sm:gap-4">
+          {messageItems.map(({ message, isOwn, showAvatar, showTimestamp }, index) => {
+            // Extra spacing when sender changes
+            const prevItem = index > 0 ? messageItems[index - 1] : null;
+            const senderChanged = prevItem && prevItem.isOwn !== isOwn;
+            
+            return (
+              <div 
+                key={message.id}
+                className={cn(senderChanged && "mt-2 sm:mt-3")}
+              >
+                {showTimestamp && (
+                  <div className="text-center my-4 sm:my-5">
+                    <span className="text-[10px] sm:text-xs text-muted-foreground/60 bg-muted/30 px-3 py-1.5 rounded-full font-medium">
+                      {formatMessageDate(message.created_at)}
+                    </span>
+                  </div>
                 )}
-              />
-            </div>
-          ))}
+                <MessageBubble
+                  message={message}
+                  isOwn={isOwn}
+                  showAvatar={showAvatar}
+                  sender={message.sender}
+                  isGroupChat={isGroupChat}
+                  onView={() => markViewed.mutate(message.id)}
+                  onReaction={handleReaction}
+                  onReply={() => handleReply(message)}
+                  onUnsend={() => unsendMessage.mutate(message.id)}
+                  allMessages={messages}
+                  themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
+                  showReactions={activeReactionMessageId === message.id}
+                  onToggleReactions={() => setActiveReactionMessageId(
+                    activeReactionMessageId === message.id ? null : message.id
+                  )}
+                  profileId={profile?.id}
+                />
+              </div>
+            );
+          })}
 
           {optimisticMessages.map((optMsg) => (
             <OptimisticMessageBubble
@@ -560,7 +571,7 @@ export function ChatView() {
 
           {/* Typing indicator - proper z-index */}
           {typingUsers.length > 0 && (
-            <div className="flex items-start gap-2 max-w-[80%] relative z-10">
+            <div className="flex items-start gap-2 max-w-[80%] relative z-10 mt-2">
               <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0">
                 <AvatarImage src={otherMember?.avatar_url || undefined} />
                 <AvatarFallback className="text-xs">{otherMember?.username?.charAt(0)}</AvatarFallback>
@@ -582,7 +593,7 @@ export function ChatView() {
             </div>
           )}
 
-          <div ref={messagesEndRef} className="h-1" />
+          <div ref={messagesEndRef} className="h-2" />
         </div>
       </div>
 
@@ -856,6 +867,7 @@ const MessageBubble = memo(function MessageBubble({
   themeColor = { bubble: 'bg-primary', text: 'text-primary-foreground' },
   showReactions,
   onToggleReactions,
+  profileId,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -870,9 +882,12 @@ const MessageBubble = memo(function MessageBubble({
   themeColor?: { bubble: string; text: string };
   showReactions: boolean;
   onToggleReactions: () => void;
+  profileId?: string;
 }) {
   const [isViewed, setIsViewed] = useState(false);
-  const [showUnsendConfirm, setShowUnsendConfirm] = useState(false);
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const longPressRef = useRef<NodeJS.Timeout | null>(null);
+  const menuOpenedRef = useRef(false);
 
   const repliedMessage = useMemo(() => 
     message.reply_to_id ? allMessages?.find(m => m.id === message.reply_to_id) : null,
@@ -887,45 +902,117 @@ const MessageBubble = memo(function MessageBubble({
   }, [isOwn, message.view_mode, isViewed, onView]);
 
   const hasBeenViewed = message.views && message.views.length > 0;
-  const reactions = message.reactions || [];
+  
+  // Deduplicate reactions - one per user, show unique emojis only
+  const uniqueReactions = useMemo(() => {
+    const reactions = message.reactions || [];
+    const userReactionMap = new Map<string, string>();
+    
+    // Keep only the latest reaction per user
+    reactions.forEach(r => {
+      userReactionMap.set(r.user_id, r.emoji);
+    });
+    
+    // Get unique emojis with counts
+    const emojiCounts = new Map<string, number>();
+    userReactionMap.forEach(emoji => {
+      emojiCounts.set(emoji, (emojiCounts.get(emoji) || 0) + 1);
+    });
+    
+    return Array.from(emojiCounts.entries()).slice(0, 3); // Max 3 unique emojis shown
+  }, [message.reactions]);
+
+  // Check if current user already reacted
+  const userReaction = useMemo(() => {
+    if (!profileId) return null;
+    return message.reactions?.find(r => r.user_id === profileId)?.emoji || null;
+  }, [message.reactions, profileId]);
 
   const handleReaction = useCallback((emoji: string) => {
+    // Replace reaction if user already reacted
     onReaction(message.id, emoji);
-    onToggleReactions(); // Close reactions after selecting
+    onToggleReactions();
   }, [message.id, onReaction, onToggleReactions]);
 
   const handleUnsend = useCallback(() => {
     onUnsend();
-    setShowUnsendConfirm(false);
+    setShowContextMenu(false);
   }, [onUnsend]);
 
+  // Long press handlers for context menu
+  const handleTouchStart = useCallback(() => {
+    if (menuOpenedRef.current) return;
+    longPressRef.current = setTimeout(() => {
+      if (!menuOpenedRef.current) {
+        menuOpenedRef.current = true;
+        setShowContextMenu(true);
+      }
+    }, 500);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current);
+      longPressRef.current = null;
+    }
+  }, []);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (showContextMenu) {
+      const handleClickOutside = () => {
+        setShowContextMenu(false);
+        menuOpenedRef.current = false;
+      };
+      
+      const timeout = setTimeout(() => {
+        document.addEventListener('click', handleClickOutside, { once: true });
+      }, 100);
+      
+      return () => {
+        clearTimeout(timeout);
+        document.removeEventListener('click', handleClickOutside);
+      };
+    }
+  }, [showContextMenu]);
+
+  const copyToClipboard = useCallback(() => {
+    if (message.content) {
+      navigator.clipboard.writeText(message.content);
+      toast.success('Copied to clipboard');
+    }
+    setShowContextMenu(false);
+    menuOpenedRef.current = false;
+  }, [message.content]);
+
   return (
-    <div className={cn('flex gap-1.5 sm:gap-2 group/message', isOwn ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex gap-2 sm:gap-2.5 group/message relative', isOwn ? 'justify-end' : 'justify-start')}>
+      {/* Reply button - left side for received messages */}
       {!isOwn && (
         <button
           onClick={onReply}
-          className="self-center opacity-0 group-hover/message:opacity-100 transition-opacity p-1 rounded-full hover:bg-muted"
+          className="self-center opacity-0 group-hover/message:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-muted"
         >
           <Reply className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
         </button>
       )}
 
       {!isOwn && showAvatar && (
-        <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0 ring-1 ring-background shadow-sm">
+        <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0 ring-1 ring-background shadow-sm self-end">
           <AvatarImage src={sender?.avatar_url || undefined} />
           <AvatarFallback className="text-xs">{sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
       )}
-      {!isOwn && !showAvatar && <div className="w-7 sm:w-8" />}
+      {!isOwn && !showAvatar && <div className="w-7 sm:w-8 flex-shrink-0" />}
 
-      <div className={cn('max-w-[75%] sm:max-w-[70%] group flex flex-col', isOwn ? 'items-end' : 'items-start')}>
+      <div className={cn('max-w-[72%] sm:max-w-[68%] flex flex-col relative', isOwn ? 'items-end' : 'items-start')}>
         {repliedMessage && (
           <div
             className={cn(
-              "text-[10px] sm:text-xs px-2 py-1 sm:px-3 sm:py-1.5 rounded-t-lg mb-0.5 max-w-full",
+              "text-[10px] sm:text-xs px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-t-xl mb-0.5 max-w-full",
               isOwn 
-                ? "bg-primary/30 text-primary-foreground/80 rounded-br-lg" 
-                : "bg-muted/80 text-muted-foreground rounded-bl-lg"
+                ? "bg-primary/20 text-primary-foreground/80 rounded-br-xl" 
+                : "bg-muted/60 text-muted-foreground rounded-bl-xl"
             )}
           >
             <div className="flex items-center gap-1 mb-0.5">
@@ -940,31 +1027,34 @@ const MessageBubble = memo(function MessageBubble({
 
         <div
           className={cn(
-            'relative rounded-2xl break-words cursor-pointer',
-            // Compact padding for lighter, airy bubbles
-            'px-3 py-1.5 sm:px-3.5 sm:py-2',
+            'relative rounded-2xl break-words select-none',
+            // Lighter padding for cleaner bubbles
+            'px-3.5 py-2 sm:px-4 sm:py-2.5',
             isOwn 
-              ? `${themeColor.bubble} ${themeColor.text} rounded-br-md` 
-              : 'bg-muted/70 text-foreground rounded-bl-md',
+              ? `${themeColor.bubble} ${themeColor.text} rounded-br-lg` 
+              : 'bg-muted/60 text-foreground rounded-bl-lg',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
-            repliedMessage && 'rounded-t-md'
+            repliedMessage && 'rounded-t-lg'
           )}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
           onDoubleClick={onToggleReactions}
         >
           {message.media_url && (message.media_type === 'image' || message.media_type === 'gif') && (
-            <div className={message.content ? "mb-1.5" : ""}>
+            <div className={message.content ? "mb-2" : ""}>
               <img
                 src={message.media_url}
                 alt={message.media_type === 'gif' ? "GIF" : "Shared image"}
-                className="rounded-lg max-w-full max-h-44 sm:max-h-56 object-cover"
+                className="rounded-xl max-w-full max-h-48 sm:max-h-60 object-cover"
                 loading="lazy"
               />
             </div>
           )}
 
           {message.media_url && message.media_type === 'audio' && (
-            <div className="mb-1">
+            <div className="min-w-[200px] sm:min-w-[220px]">
               <AudioMessage src={message.media_url} isOwn={isOwn} />
             </div>
           )}
@@ -972,11 +1062,11 @@ const MessageBubble = memo(function MessageBubble({
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (
             <p className="text-[13px] sm:text-sm italic opacity-75 leading-relaxed">Message viewed</p>
           ) : message.content ? (
-            <p className="text-[13px] sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+            <p className="text-[13px] sm:text-sm whitespace-pre-wrap leading-[1.5]">{message.content}</p>
           ) : null}
 
           {message.view_mode !== 'permanent' && (
-            <div className="flex items-center gap-1 mt-0.5 opacity-75">
+            <div className="flex items-center gap-1 mt-1 opacity-75">
               {message.view_mode === 'view_once' ? (
                 <EyeOff className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
               ) : (
@@ -988,17 +1078,22 @@ const MessageBubble = memo(function MessageBubble({
             </div>
           )}
 
-          {reactions.length > 0 && (
-            <div className="absolute -bottom-2.5 left-2 flex gap-0.5 bg-background border border-border rounded-full px-1 py-0.5 shadow-md">
-              {[...new Set(reactions.map((r) => r.emoji))].map((emoji) => (
-                <span key={emoji} className="text-[10px] sm:text-xs">{emoji}</span>
+          {/* Reactions - limited, no stacking */}
+          {uniqueReactions.length > 0 && (
+            <div className="absolute -bottom-2.5 left-2 flex items-center gap-0.5 bg-background border border-border rounded-full px-1.5 py-0.5 shadow-md">
+              {uniqueReactions.map(([emoji, count]) => (
+                <span key={emoji} className="text-[10px] sm:text-xs flex items-center">
+                  {emoji}
+                  {count > 1 && <span className="text-[8px] ml-0.5 text-muted-foreground">{count}</span>}
+                </span>
               ))}
             </div>
           )}
         </div>
 
+        {/* Timestamp and read receipts */}
         {isOwn && (
-          <div className="flex flex-col items-end mt-0.5">
+          <div className="flex flex-col items-end mt-1">
             <div className="flex items-center gap-1">
               <span className="text-[9px] sm:text-[10px] text-muted-foreground">
                 {format(new Date(message.created_at), 'HH:mm')}
@@ -1026,57 +1121,94 @@ const MessageBubble = memo(function MessageBubble({
           </div>
         )}
 
+        {/* Quick reactions popup */}
         {showReactions && (
-          <div className="absolute mt-1 bg-background border border-border rounded-full px-1.5 py-0.5 sm:px-2 sm:py-1 shadow-lg flex gap-0.5 z-10">
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-background border border-border rounded-full px-2 py-1 shadow-lg flex gap-1 z-20 animate-in fade-in zoom-in-95 duration-150">
             {QUICK_REACTIONS.map((emoji) => (
               <button
                 key={emoji}
                 onClick={() => handleReaction(emoji)}
-                className="p-0.5 sm:p-1 hover:scale-125 transition-transform text-sm sm:text-base"
+                className={cn(
+                  "p-1 hover:scale-125 transition-transform text-base sm:text-lg",
+                  userReaction === emoji && "bg-primary/20 rounded-full"
+                )}
               >
                 {emoji}
               </button>
             ))}
           </div>
         )}
+
+        {/* Context menu for long-press */}
+        {showContextMenu && (
+          <div 
+            className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-background border border-border rounded-xl shadow-xl z-30 min-w-[140px] py-1 animate-in fade-in slide-in-from-top-2 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { onToggleReactions(); setShowContextMenu(false); menuOpenedRef.current = false; }}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+            >
+              <span>😀</span> React
+            </button>
+            <button
+              onClick={() => { onReply(); setShowContextMenu(false); menuOpenedRef.current = false; }}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+            >
+              <Reply className="h-4 w-4" /> Reply
+            </button>
+            {message.content && (
+              <button
+                onClick={copyToClipboard}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+              >
+                <Check className="h-4 w-4" /> Copy
+              </button>
+            )}
+            {isOwn && (
+              <button
+                onClick={handleUnsend}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted text-destructive flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" /> Unsend
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
+      {/* Action buttons - right side for own messages */}
       {isOwn && (
         <div className="self-center flex items-center gap-0.5 opacity-0 group-hover/message:opacity-100 transition-opacity">
           <button
             onClick={onReply}
-            className="p-1 rounded-full hover:bg-muted"
+            className="p-1.5 rounded-full hover:bg-muted"
             title="Reply"
           >
             <Reply className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
           </button>
-          {showUnsendConfirm ? (
-            <div className="flex items-center gap-1 bg-destructive/10 rounded-full px-1.5 py-0.5">
-              <button
-                onClick={handleUnsend}
-                className="text-[10px] sm:text-xs text-destructive font-medium hover:underline"
-              >
-                Unsend?
-              </button>
-              <button
-                onClick={() => setShowUnsendConfirm(false)}
-                className="p-0.5 rounded-full hover:bg-muted"
-              >
-                <X className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground" />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowUnsendConfirm(true)}
-              className="p-1 rounded-full hover:bg-destructive/10"
-              title="Unsend message"
-            >
-              <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground hover:text-destructive" />
-            </button>
-          )}
+          <button
+            onClick={handleUnsend}
+            className="p-1.5 rounded-full hover:bg-destructive/10"
+            title="Unsend message"
+          >
+            <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground hover:text-destructive" />
+          </button>
         </div>
       )}
     </div>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison for memo - prevent unnecessary re-renders
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.is_deleted === nextProps.message.is_deleted &&
+    prevProps.isOwn === nextProps.isOwn &&
+    prevProps.showAvatar === nextProps.showAvatar &&
+    prevProps.showReactions === nextProps.showReactions &&
+    prevProps.profileId === nextProps.profileId &&
+    JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions) &&
+    JSON.stringify(prevProps.message.views) === JSON.stringify(nextProps.message.views)
   );
 });
 
