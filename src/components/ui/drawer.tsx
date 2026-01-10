@@ -38,10 +38,23 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-[90vw] max-w-lg",
-        "liquid-glass overflow-hidden rounded-3xl flex flex-col",
+        // True viewport centering - independent of scroll/keyboard
+        "fixed inset-0 z-[101] m-auto",
+        "w-[calc(100vw-2rem)] max-w-sm h-fit max-h-[70vh]",
+        // Centering via margin auto on fixed + inset-0
+        "liquid-glass overflow-hidden rounded-2xl flex flex-col",
+        // Safe area support
+        "safe-area-all",
         className,
       )}
+      style={{
+        // Fallback centering for older browsers
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        right: 'auto',
+        bottom: 'auto',
+      }}
       {...props}
     >
       {children}
