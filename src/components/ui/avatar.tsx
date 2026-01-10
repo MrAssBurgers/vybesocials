@@ -3,13 +3,18 @@ import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
 import { cn } from "@/lib/utils";
 
+// Avatar with properly sized ring that matches the avatar container
 const Avatar = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Root
     ref={ref}
-    className={cn("relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full ring-2 ring-white/10 transition-all duration-300 hover:ring-primary/30 hover:scale-105", className)}
+    className={cn(
+      "relative flex shrink-0 overflow-hidden rounded-full",
+      "h-10 w-10", // Default size - can be overridden
+      className
+    )}
     {...props}
   />
 ));
@@ -19,7 +24,11 @@ const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
 >(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Image ref={ref} className={cn("aspect-square h-full w-full object-cover", className)} {...props} />
+  <AvatarPrimitive.Image 
+    ref={ref} 
+    className={cn("aspect-square h-full w-full object-cover", className)} 
+    {...props} 
+  />
 ));
 AvatarImage.displayName = AvatarPrimitive.Image.displayName;
 
@@ -29,7 +38,11 @@ const AvatarFallback = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Fallback
     ref={ref}
-    className={cn("flex h-full w-full items-center justify-center rounded-full liquid-glass-subtle text-foreground font-medium", className)}
+    className={cn(
+      "flex h-full w-full items-center justify-center rounded-full",
+      "bg-muted text-muted-foreground font-medium",
+      className
+    )}
     {...props}
   />
 ));

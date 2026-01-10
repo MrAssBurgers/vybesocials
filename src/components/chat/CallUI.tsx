@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Call, useWebRTCCall, useEndCall } from '@/hooks/useCalls';
 import { supabase } from '@/integrations/supabase/client';
+import { callSounds } from '@/lib/callSounds';
 
 interface CallUIProps {
   call: Call;
@@ -58,9 +59,29 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
   useEffect(() => {
     if (callEnded) {
       console.log('Call ended detected, closing UI...');
+      callSounds.end();
       onClose();
     }
   }, [callEnded, onClose]);
+
+  // Manage call sounds based on status
+  useEffect(() => {
+    if (isRinging && isInitiator) {
+      // Outgoing call - play ringback (what caller hears)
+      callSounds.startRingback();
+    }
+    
+    return () => {
+      callSounds.stopAll();
+    };
+  }, [isRinging, isInitiator]);
+
+  // Play connect sound when call is accepted and connected
+  useEffect(() => {
+    if (call.status === 'accepted' && connectionState === 'connected') {
+      callSounds.connect();
+    }
+  }, [call.status, connectionState]);
 
   // Start the call when component mounts (for initiator) or answer (for receiver)
   useEffect(() => {
@@ -114,6 +135,7 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
   }, [call.status, cleanup, onClose]);
 
   const handleEndCall = useCallback(async () => {
+    callSounds.end();
     try {
       await endCallMutation.mutateAsync(call.id);
     } finally {

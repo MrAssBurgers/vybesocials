@@ -512,75 +512,77 @@ export function ChatView() {
         </DropdownMenu>
       </header>
 
-      {/* Messages - scrollable area with Snapchat-like spacing */}
+      {/* Messages - scrollable area with Snapchat-like airy spacing */}
       <div className={cn(
-        "flex-1 overflow-y-auto px-3 sm:px-4 py-3",
-        "space-y-2 sm:space-y-3", // Airy vertical spacing between messages
+        "flex-1 overflow-y-auto",
+        "px-3 sm:px-4 py-4",
         getWallpaperClass()
       )}>
-        {messageItems.map(({ message, isOwn, showAvatar, showTimestamp }) => (
-          <div key={message.id}>
-            {showTimestamp && (
-              <div className="text-center my-3 sm:my-4">
-                <span className="text-[10px] sm:text-xs text-muted-foreground/80 bg-muted/40 px-2.5 py-1 rounded-full">
-                  {formatMessageDate(message.created_at)}
-                </span>
-              </div>
-            )}
-            <MessageBubble
-              message={message}
-              isOwn={isOwn}
-              showAvatar={showAvatar}
-              sender={message.sender}
-              isGroupChat={isGroupChat}
-              onView={() => markViewed.mutate(message.id)}
-              onReaction={handleReaction}
-              onReply={() => handleReply(message)}
-              onUnsend={() => unsendMessage.mutate(message.id)}
-              allMessages={messages}
-              themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
-              showReactions={activeReactionMessageId === message.id}
-              onToggleReactions={() => setActiveReactionMessageId(
-                activeReactionMessageId === message.id ? null : message.id
+        <div className="space-y-3 sm:space-y-4">
+          {messageItems.map(({ message, isOwn, showAvatar, showTimestamp }) => (
+            <div key={message.id}>
+              {showTimestamp && (
+                <div className="text-center my-4 sm:my-5">
+                  <span className="text-[10px] sm:text-xs text-muted-foreground/70 bg-muted/30 px-3 py-1.5 rounded-full font-medium">
+                    {formatMessageDate(message.created_at)}
+                  </span>
+                </div>
               )}
+              <MessageBubble
+                message={message}
+                isOwn={isOwn}
+                showAvatar={showAvatar}
+                sender={message.sender}
+                isGroupChat={isGroupChat}
+                onView={() => markViewed.mutate(message.id)}
+                onReaction={handleReaction}
+                onReply={() => handleReply(message)}
+                onUnsend={() => unsendMessage.mutate(message.id)}
+                allMessages={messages}
+                themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
+                showReactions={activeReactionMessageId === message.id}
+                onToggleReactions={() => setActiveReactionMessageId(
+                  activeReactionMessageId === message.id ? null : message.id
+                )}
+              />
+            </div>
+          ))}
+
+          {optimisticMessages.map((optMsg) => (
+            <OptimisticMessageBubble
+              key={optMsg.tempId}
+              message={optMsg}
+              onRetry={() => retry(optMsg.tempId)}
+              onDismiss={() => dismiss(optMsg.tempId)}
             />
-          </div>
-        ))}
+          ))}
 
-        {optimisticMessages.map((optMsg) => (
-          <OptimisticMessageBubble
-            key={optMsg.tempId}
-            message={optMsg}
-            onRetry={() => retry(optMsg.tempId)}
-            onDismiss={() => dismiss(optMsg.tempId)}
-          />
-        ))}
-
-        {/* Typing indicator - proper z-index */}
-        {typingUsers.length > 0 && (
-          <div className="flex items-start gap-2 max-w-[80%] relative z-10">
-            <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0">
-              <AvatarImage src={otherMember?.avatar_url || undefined} />
-              <AvatarFallback className="text-xs">{otherMember?.username?.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div className="bg-muted/80 backdrop-blur-sm rounded-2xl rounded-tl-sm px-3 py-2 shadow-sm">
-              <div className="flex items-center gap-1">
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-primary rounded-full"
-                    style={{ 
-                      animation: 'bounce 0.6s infinite',
-                      animationDelay: `${i * 150}ms`,
-                    }}
-                  />
-                ))}
+          {/* Typing indicator - proper z-index */}
+          {typingUsers.length > 0 && (
+            <div className="flex items-start gap-2 max-w-[80%] relative z-10">
+              <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0">
+                <AvatarImage src={otherMember?.avatar_url || undefined} />
+                <AvatarFallback className="text-xs">{otherMember?.username?.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <div className="bg-muted/80 backdrop-blur-sm rounded-2xl rounded-tl-sm px-3 py-2">
+                <div className="flex items-center gap-1">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-primary rounded-full"
+                      style={{ 
+                        animation: 'bounce 0.6s infinite',
+                        animationDelay: `${i * 150}ms`,
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div ref={messagesEndRef} className="h-1" />
+          <div ref={messagesEndRef} className="h-1" />
+        </div>
       </div>
 
       {/* Input area - wrapped with DM safety for non-group chats */}
@@ -937,10 +939,12 @@ const MessageBubble = memo(function MessageBubble({
 
         <div
           className={cn(
-            'relative rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 break-words shadow-sm cursor-pointer',
+            'relative rounded-2xl break-words cursor-pointer',
+            // Reduced padding for lighter bubbles
+            'px-3 py-2 sm:px-3.5 sm:py-2',
             isOwn 
-              ? `${themeColor.bubble} ${themeColor.text} rounded-br-md` 
-              : 'bg-muted text-foreground rounded-bl-md',
+              ? `${themeColor.bubble} ${themeColor.text} rounded-br-sm` 
+              : 'bg-muted/80 text-foreground rounded-bl-sm',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
             repliedMessage && 'rounded-t-md'
@@ -952,22 +956,22 @@ const MessageBubble = memo(function MessageBubble({
               <img
                 src={message.media_url}
                 alt={message.media_type === 'gif' ? "GIF" : "Shared image"}
-                className="rounded-lg max-w-full max-h-48 sm:max-h-64 object-cover"
+                className="rounded-lg max-w-full max-h-44 sm:max-h-56 object-cover"
                 loading="lazy"
               />
             </div>
           )}
 
           {message.media_url && message.media_type === 'audio' && (
-            <div className="mb-1.5">
+            <div className="mb-1">
               <AudioMessage src={message.media_url} isOwn={isOwn} />
             </div>
           )}
 
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (
-            <p className="text-[13px] sm:text-sm italic opacity-75 leading-relaxed">Message viewed</p>
+            <p className="text-[13px] sm:text-sm italic opacity-75 leading-[1.45]">Message viewed</p>
           ) : message.content ? (
-            <p className="text-[13px] sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+            <p className="text-[13px] sm:text-sm whitespace-pre-wrap leading-[1.45]">{message.content}</p>
           ) : null}
 
           {message.view_mode !== 'permanent' && (

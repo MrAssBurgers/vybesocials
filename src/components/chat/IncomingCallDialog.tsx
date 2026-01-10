@@ -4,6 +4,7 @@ import { Phone, PhoneOff, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Call, useRespondToCall } from '@/hooks/useCalls';
+import { callSounds } from '@/lib/callSounds';
 
 interface IncomingCallDialogProps {
   call: Call;
@@ -16,9 +17,19 @@ export function IncomingCallDialog({ call, onAccept, onDecline }: IncomingCallDi
   const [timeLeft, setTimeLeft] = useState(30);
   const hasResponded = useRef(false);
 
+  // Start ringing sound when dialog appears
+  useEffect(() => {
+    callSounds.startRinging();
+    
+    return () => {
+      callSounds.stopAll();
+    };
+  }, []);
+
   const handleAccept = useCallback(async () => {
     if (hasResponded.current) return;
     hasResponded.current = true;
+    callSounds.stopAll();
     
     try {
       await respondToCall.mutateAsync({ callId: call.id, response: 'accepted' });
@@ -31,6 +42,8 @@ export function IncomingCallDialog({ call, onAccept, onDecline }: IncomingCallDi
   const handleDecline = useCallback(async () => {
     if (hasResponded.current) return;
     hasResponded.current = true;
+    callSounds.stopAll();
+    callSounds.end();
     
     try {
       await respondToCall.mutateAsync({ callId: call.id, response: 'declined' });

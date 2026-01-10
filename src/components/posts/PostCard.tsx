@@ -424,18 +424,20 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         </AnimatePresence>
       </div>
 
-      {/* Actions */}
+      {/* Actions - unified alignment */}
       <div className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between h-8">
+          {/* Left action buttons - perfectly aligned */}
+          <div className="flex items-center gap-1">
             {/* Like button with particles */}
             <div className="relative">
               <motion.button 
-                whileTap={{ scale: 0.7 }}
+                whileTap={{ scale: 0.85 }}
                 onClick={handleLike} 
-                className="group"
+                className="flex items-center justify-center h-8 w-8"
               >
                 <motion.div
+                  className="flex items-center justify-center"
                   animate={isLiked ? { 
                     scale: [1, 1.3, 0.9, 1.1, 1],
                     rotate: [0, -10, 10, -5, 0]
@@ -445,7 +447,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                   <Heart
                     className={cn(
                       "h-6 w-6 transition-colors",
-                      isLiked ? "fill-red-500 text-red-500" : "text-foreground group-hover:text-primary"
+                      isLiked ? "fill-red-500 text-red-500" : "text-foreground hover:text-primary"
                     )}
                   />
                 </motion.div>
@@ -467,7 +469,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                         }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="absolute top-3 left-3 w-1.5 h-1.5 rounded-full"
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full"
                         style={{ backgroundColor: i % 2 === 0 ? '#ef4444' : '#f97316' }}
                       />
                     ))}
@@ -476,23 +478,30 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
               </AnimatePresence>
             </div>
 
-            <Link to={`/p/${post.id}`}>
-              <motion.div whileTap={{ scale: 0.8 }} whileHover={{ scale: 1.1 }}>
+            <Link to={`/p/${post.id}`} className="flex items-center justify-center h-8 w-8">
+              <motion.div 
+                whileTap={{ scale: 0.85 }} 
+                className="flex items-center justify-center"
+              >
                 <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
               </motion.div>
             </Link>
+            
             <motion.button 
-              whileTap={{ scale: 0.8, rotate: 15 }}
-              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.85 }}
               onClick={handleShare}
+              className="flex items-center justify-center h-8 w-8"
             >
               <Share2 className="h-6 w-6 hover:text-primary transition-colors" />
             </motion.button>
           </div>
+          
+          {/* Bookmark button - right aligned */}
           <motion.button 
-            whileTap={{ scale: 0.7 }}
+            whileTap={{ scale: 0.85 }}
             animate={isBookmarked ? { scale: [1, 1.3, 1] } : {}}
             onClick={handleBookmark}
+            className="flex items-center justify-center h-8 w-8"
           >
             <Bookmark
               className={cn(
