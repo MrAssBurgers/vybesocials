@@ -394,6 +394,7 @@ export function ChatView() {
   }, []);
 
   // Memoize message items to prevent re-renders - using stable keys
+  // Enhanced spacing logic for Instagram/iMessage quality
   const messageItems = useMemo(() => {
     if (!messages) return [];
     return messages.map((message, index) => {
@@ -406,7 +407,16 @@ export function ChatView() {
       const showTimestamp = index === 0 || 
         new Date(message.created_at).getTime() - new Date(prevMessage?.created_at || 0).getTime() > 5 * 60 * 1000;
 
-      return { message, isOwn, showAvatar, showTimestamp };
+      // Determine spacing type for airy layout
+      const sameSender = prevMessage && prevMessage.sender_id === message.sender_id;
+      const isMediaMessage = message.media_url && (message.media_type === 'image' || message.media_type === 'gif');
+      const prevIsMedia = prevMessage?.media_url && (prevMessage.media_type === 'image' || prevMessage.media_type === 'gif');
+      const isMediaTransition = (isMediaMessage && !prevIsMedia) || (!isMediaMessage && prevIsMedia);
+      
+      // Emoji-only detection
+      const isEmojiOnly = message.content && !message.media_url && /^[\p{Emoji}\s]+$/u.test(message.content.trim()) && message.content.trim().length <= 8;
+
+      return { message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly };
     });
   }, [messages, profile?.id]);
 
@@ -513,27 +523,41 @@ export function ChatView() {
         </DropdownMenu>
       </header>
 
-      {/* Messages - scrollable area with Instagram/Snapchat-like airy spacing */}
+      {/* Messages - scrollable area with Instagram/iMessage quality spacing */}
       <div className={cn(
         "flex-1 overflow-y-auto min-h-0",
-        "px-4 sm:px-5 py-4",
+        "px-3 sm:px-5 py-3 sm:py-4",
+        // Reduce blur on mobile for performance
+        "sm:backdrop-blur-none",
         getWallpaperClass()
       )}>
-        {/* Relaxed spacing between messages - never cluttered */}
-        <div className="flex flex-col gap-3 sm:gap-4">
-          {messageItems.map(({ message, isOwn, showAvatar, showTimestamp }, index) => {
-            // Extra spacing when sender changes
+        {/* Airy spacing between messages - never squished */}
+        <div className="flex flex-col pb-20 sm:pb-24">
+          {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
+            // Instagram/iMessage spacing rules:
+            // Same sender consecutive: 8-10px (mb-2)
+            // Different sender: 14-18px (mb-3.5 to mb-4)
+            // Media ↔ text transitions: 18-22px (mb-5)
             const prevItem = index > 0 ? messageItems[index - 1] : null;
             const senderChanged = prevItem && prevItem.isOwn !== isOwn;
+            
+            // Calculate margin based on context
+            let marginClass = 'mb-2'; // Default: same sender (8px)
+            if (senderChanged) {
+              marginClass = 'mb-3.5 sm:mb-4'; // Different sender (14-16px)
+            }
+            if (isMediaTransition || (prevItem && prevItem.isMediaTransition)) {
+              marginClass = 'mb-5 sm:mb-5'; // Media transition (20px)
+            }
             
             return (
               <div 
                 key={message.id}
-                className={cn(senderChanged && "mt-2 sm:mt-3")}
+                className={cn(marginClass)}
               >
                 {showTimestamp && (
-                  <div className="text-center my-4 sm:my-5">
-                    <span className="text-[10px] sm:text-xs text-muted-foreground/60 bg-muted/30 px-3 py-1.5 rounded-full font-medium">
+                  <div className="text-center py-7 sm:py-8">
+                    <span className="text-[10px] sm:text-xs text-muted-foreground/60 bg-muted/40 px-3.5 py-1.5 rounded-full font-medium tracking-wide">
                       {formatMessageDate(message.created_at)}
                     </span>
                   </div>
@@ -555,6 +579,7 @@ export function ChatView() {
                     activeReactionMessageId === message.id ? null : message.id
                   )}
                   profileId={profile?.id}
+                  isEmojiOnly={isEmojiOnly}
                 />
               </div>
             );
@@ -571,13 +596,13 @@ export function ChatView() {
 
           {/* Typing indicator - proper z-index */}
           {typingUsers.length > 0 && (
-            <div className="flex items-start gap-2 max-w-[80%] relative z-10 mt-2">
+            <div className="flex items-start gap-2 max-w-[80%] relative z-10 mb-2">
               <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0">
                 <AvatarImage src={otherMember?.avatar_url || undefined} />
                 <AvatarFallback className="text-xs">{otherMember?.username?.charAt(0)}</AvatarFallback>
               </Avatar>
-              <div className="bg-muted/80 backdrop-blur-sm rounded-2xl rounded-tl-sm px-3 py-2">
-                <div className="flex items-center gap-1">
+              <div className="bg-muted/70 rounded-2xl rounded-tl-sm px-3.5 py-2.5">
+                <div className="flex items-center gap-1.5">
                   {[0, 1, 2].map((i) => (
                     <span
                       key={i}
@@ -593,7 +618,7 @@ export function ChatView() {
             </div>
           )}
 
-          <div ref={messagesEndRef} className="h-2" />
+          <div ref={messagesEndRef} className="h-1" />
         </div>
       </div>
 
@@ -712,7 +737,7 @@ const MessageInputArea = memo(function MessageInputArea({
   onOpenDMSettings?: () => void;
 }) {
   return (
-    <div className="flex-shrink-0 px-2 py-2 sm:px-4 sm:py-2.5 border-t border-border bg-background/95 backdrop-blur-sm pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+    <div className="flex-shrink-0 px-2 py-2 sm:px-4 sm:py-3 border-t border-border bg-background sticky bottom-0 z-30 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <input
         ref={fileInputRef}
         type="file"
@@ -868,6 +893,7 @@ const MessageBubble = memo(function MessageBubble({
   showReactions,
   onToggleReactions,
   profileId,
+  isEmojiOnly = false,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -883,6 +909,7 @@ const MessageBubble = memo(function MessageBubble({
   showReactions: boolean;
   onToggleReactions: () => void;
   profileId?: string;
+  isEmojiOnly?: boolean;
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -985,6 +1012,10 @@ const MessageBubble = memo(function MessageBubble({
     menuOpenedRef.current = false;
   }, [message.content]);
 
+  // Check if this is an audio message for proper sizing
+  const isAudioMessage = message.media_url && message.media_type === 'audio';
+  const isMediaMessage = message.media_url && (message.media_type === 'image' || message.media_type === 'gif');
+
   return (
     <div className={cn('flex gap-2 sm:gap-2.5 group/message relative', isOwn ? 'justify-end' : 'justify-start')}>
       {/* Reply button - left side for received messages */}
@@ -1005,11 +1036,11 @@ const MessageBubble = memo(function MessageBubble({
       )}
       {!isOwn && !showAvatar && <div className="w-7 sm:w-8 flex-shrink-0" />}
 
-      <div className={cn('max-w-[72%] sm:max-w-[68%] flex flex-col relative', isOwn ? 'items-end' : 'items-start')}>
+      <div className={cn('max-w-[75%] sm:max-w-[70%] flex flex-col relative', isOwn ? 'items-end' : 'items-start')}>
         {repliedMessage && (
           <div
             className={cn(
-              "text-[10px] sm:text-xs px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-t-xl mb-0.5 max-w-full",
+              "text-[10px] sm:text-xs px-3 py-2 sm:px-3.5 sm:py-2 rounded-t-xl mb-0.5 max-w-full",
               isOwn 
                 ? "bg-primary/20 text-primary-foreground/80 rounded-br-xl" 
                 : "bg-muted/60 text-muted-foreground rounded-bl-xl"
@@ -1028,33 +1059,38 @@ const MessageBubble = memo(function MessageBubble({
         <div
           className={cn(
             'relative rounded-2xl break-words select-none',
-            // Lighter padding for cleaner bubbles
-            'px-3.5 py-2 sm:px-4 sm:py-2.5',
+            // Proper padding: 12px vertical, 16px horizontal for text bubbles
+            isEmojiOnly 
+              ? 'px-3 py-1.5 sm:px-3.5 sm:py-2' // Reduced padding for emoji
+              : isMediaMessage
+                ? 'p-2 sm:p-2.5' // Media bubbles: 8-10px inner padding
+                : 'px-4 py-3 sm:px-4 sm:py-3', // Text bubbles: 12px vertical, 16px horizontal
             isOwn 
-              ? `${themeColor.bubble} ${themeColor.text} rounded-br-lg` 
-              : 'bg-muted/60 text-foreground rounded-bl-lg',
+              ? `${themeColor.bubble} ${themeColor.text} rounded-br-md` 
+              : 'bg-muted/60 text-foreground rounded-bl-md',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
-            repliedMessage && 'rounded-t-lg'
+            repliedMessage && 'rounded-t-md'
           )}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
           onDoubleClick={onToggleReactions}
         >
-          {message.media_url && (message.media_type === 'image' || message.media_type === 'gif') && (
+          {isMediaMessage && (
             <div className={message.content ? "mb-2" : ""}>
               <img
                 src={message.media_url}
                 alt={message.media_type === 'gif' ? "GIF" : "Shared image"}
-                className="rounded-xl max-w-full max-h-48 sm:max-h-60 object-cover"
+                className="rounded-xl max-w-full max-h-52 sm:max-h-64 object-cover"
                 loading="lazy"
               />
             </div>
           )}
 
-          {message.media_url && message.media_type === 'audio' && (
-            <div className="min-w-[200px] sm:min-w-[220px]">
+          {/* Voice notes: auto-height with min-height 48px, max width 80% */}
+          {isAudioMessage && (
+            <div className="min-w-[180px] max-w-[80%] min-h-[48px]">
               <AudioMessage src={message.media_url} isOwn={isOwn} />
             </div>
           )}
@@ -1062,11 +1098,16 @@ const MessageBubble = memo(function MessageBubble({
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (
             <p className="text-[13px] sm:text-sm italic opacity-75 leading-relaxed">Message viewed</p>
           ) : message.content ? (
-            <p className="text-[13px] sm:text-sm whitespace-pre-wrap leading-[1.5]">{message.content}</p>
+            <p className={cn(
+              "whitespace-pre-wrap leading-[1.45]",
+              isEmojiOnly 
+                ? "text-2xl sm:text-3xl" // Larger font for emoji-only
+                : "text-[14px] sm:text-[15px]" // Slightly larger for readability
+            )}>{message.content}</p>
           ) : null}
 
           {message.view_mode !== 'permanent' && (
-            <div className="flex items-center gap-1 mt-1 opacity-75">
+            <div className="flex items-center gap-1 mt-1.5 opacity-75">
               {message.view_mode === 'view_once' ? (
                 <EyeOff className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
               ) : (
@@ -1078,47 +1119,53 @@ const MessageBubble = memo(function MessageBubble({
             </div>
           )}
 
-          {/* Reactions - limited, no stacking */}
+          {/* Reactions bar - floats 6-8px below message, capped at 3 visible */}
           {uniqueReactions.length > 0 && (
-            <div className="absolute -bottom-2.5 left-2 flex items-center gap-0.5 bg-background border border-border rounded-full px-1.5 py-0.5 shadow-md">
-              {uniqueReactions.map(([emoji, count]) => (
-                <span key={emoji} className="text-[10px] sm:text-xs flex items-center">
+            <div className="absolute -bottom-3 left-2 flex items-center gap-0.5 bg-background/95 border border-border/50 rounded-full px-1.5 py-0.5 shadow-sm">
+              {uniqueReactions.slice(0, 3).map(([emoji, count]) => (
+                <span key={emoji} className="text-[11px] sm:text-xs flex items-center">
                   {emoji}
-                  {count > 1 && <span className="text-[8px] ml-0.5 text-muted-foreground">{count}</span>}
+                  {count > 1 && <span className="text-[9px] ml-0.5 text-muted-foreground">{count}</span>}
                 </span>
               ))}
+              {uniqueReactions.length > 3 && (
+                <span className="text-[9px] text-muted-foreground ml-0.5">+{uniqueReactions.length - 3}</span>
+              )}
             </div>
           )}
         </div>
 
-        {/* Timestamp and read receipts */}
-        {isOwn && (
-          <div className="flex flex-col items-end mt-1">
-            <div className="flex items-center gap-1">
-              <span className="text-[9px] sm:text-[10px] text-muted-foreground">
-                {format(new Date(message.created_at), 'HH:mm')}
-              </span>
+        {/* Timestamp and read receipts - 4-6px below bubble, lower opacity */}
+        <div className={cn(
+          "flex items-center gap-1 mt-1.5 sm:mt-1.5",
+          isOwn ? "justify-end" : "justify-start"
+        )}>
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground/60">
+            {format(new Date(message.created_at), 'HH:mm')}
+          </span>
+          {isOwn && (
+            <>
               {hasBeenViewed ? (
                 <div className="flex items-center gap-0.5">
-                  <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary" />
+                  <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary/70" />
                   {message.views && message.views.length > 0 && (
-                    <span className="text-[9px] sm:text-[10px] font-medium text-primary">
+                    <span className="text-[9px] sm:text-[10px] font-medium text-primary/70">
                       {message.views.length}
                     </span>
                   )}
                 </div>
               ) : (
-                <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground" />
+                <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground/50" />
               )}
-            </div>
-            
-            {hasBeenViewed && message.views && isGroupChat && (
-              <ReadReceipts 
-                views={message.views} 
-                isGroupChat={isGroupChat}
-              />
-            )}
-          </div>
+            </>
+          )}
+        </div>
+        
+        {hasBeenViewed && message.views && isGroupChat && isOwn && (
+          <ReadReceipts 
+            views={message.views} 
+            isGroupChat={isGroupChat}
+          />
         )}
 
         {/* Quick reactions popup */}
@@ -1235,23 +1282,23 @@ const OptimisticMessageBubble = memo(function OptimisticMessageBubble({
   const isSending = message.status === 'sending';
 
   return (
-    <div className="flex justify-end gap-1.5 sm:gap-2">
-      <div className="max-w-[78%] sm:max-w-[75%] flex flex-col items-end">
+    <div className="flex justify-end gap-2 sm:gap-2.5 mb-2">
+      <div className="max-w-[75%] sm:max-w-[70%] flex flex-col items-end">
         <div
           className={cn(
-            'relative rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 break-words rounded-br-md shadow-sm',
+            'relative rounded-2xl px-4 py-3 sm:px-4 sm:py-3 break-words rounded-br-md',
             isFailed
               ? 'bg-destructive/20 text-destructive border border-destructive/30'
               : 'bg-primary/70 text-primary-foreground',
             isSending && 'opacity-70'
           )}
         >
-          <p className="text-[13px] sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+          <p className="text-[14px] sm:text-[15px] whitespace-pre-wrap leading-[1.45]">{message.content}</p>
         </div>
 
-        <div className="flex items-center gap-1.5 mt-0.5">
+        <div className="flex items-center gap-1.5 mt-1.5">
           {isSending && (
-            <div className="flex items-center gap-1 text-muted-foreground">
+            <div className="flex items-center gap-1 text-muted-foreground/60">
               <Loader2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 animate-spin" />
               <span className="text-[9px] sm:text-[10px]">Sending...</span>
             </div>
@@ -1263,18 +1310,18 @@ const OptimisticMessageBubble = memo(function OptimisticMessageBubble({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-4 w-4 sm:h-5 sm:w-5"
+                className="h-5 w-5 sm:h-6 sm:w-6"
                 onClick={onRetry}
               >
-                <RefreshCw className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-destructive" />
+                <RefreshCw className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-destructive" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-4 w-4 sm:h-5 sm:w-5"
+                className="h-5 w-5 sm:h-6 sm:w-6"
                 onClick={onDismiss}
               >
-                <X className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground" />
+                <X className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
               </Button>
             </div>
           )}
