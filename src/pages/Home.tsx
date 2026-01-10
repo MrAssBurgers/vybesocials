@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useInfinitePosts, useInfiniteFollowingPosts } from '@/hooks/useInfinitePosts';
+import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts } from '@/hooks/useInfinitePosts';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -12,6 +12,9 @@ import { useAuth } from '@/lib/auth';
 import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
+
+// Memoized PostCard for better performance
+const MemoizedPostCard = memo(PostCard);
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -36,6 +39,9 @@ export default function HomePage() {
     isFetchingNextPage: isFetchingNextFollowing,
     refetch: refetchFollowing,
   } = useInfiniteFollowingPosts('post');
+
+  // Prefetch posts for faster navigation
+  usePrefetchPosts();
 
   const forYouPosts = useMemo(() => 
     forYouData?.pages.flatMap(page => page.posts) || [], 
@@ -123,7 +129,7 @@ export default function HomePage() {
               ) : forYouPosts.length > 0 ? (
                 <>
                   {forYouPosts.map((post) => (
-                    <PostCard key={post.id} post={post} />
+                    <MemoizedPostCard key={post.id} post={post} />
                   ))}
                   {/* Load more trigger */}
                   <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
@@ -146,7 +152,7 @@ export default function HomePage() {
               ) : followingPosts.length > 0 ? (
                 <>
                   {followingPosts.map((post) => (
-                    <PostCard key={post.id} post={post} />
+                    <MemoizedPostCard key={post.id} post={post} />
                   ))}
                   {/* Load more trigger */}
                   <div ref={loadMoreRef} className="h-10 flex items-center justify-center">

@@ -2738,7 +2738,58 @@ export type Database = {
       get_comment_count: { Args: { p_post_id: string }; Returns: number }
       get_follower_count: { Args: { profile_id: string }; Returns: number }
       get_following_count: { Args: { profile_id: string }; Returns: number }
+      get_following_posts_with_counts: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_type?: string
+          p_user_id: string
+        }
+        Returns: {
+          author_avatar_url: string
+          author_id: string
+          author_username: string
+          caption: string
+          comment_count: number
+          created_at: string
+          id: string
+          is_bookmarked: boolean
+          is_liked: boolean
+          is_pinned: boolean
+          like_count: number
+          media_url: string
+          tags: string[]
+          thumbnail_url: string
+          type: string
+        }[]
+      }
       get_like_count: { Args: { p_post_id: string }; Returns: number }
+      get_posts_with_counts: {
+        Args: {
+          p_author_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_type?: string
+          p_user_id?: string
+        }
+        Returns: {
+          author_avatar_url: string
+          author_id: string
+          author_username: string
+          caption: string
+          comment_count: number
+          created_at: string
+          id: string
+          is_bookmarked: boolean
+          is_liked: boolean
+          is_pinned: boolean
+          like_count: number
+          media_url: string
+          tags: string[]
+          thumbnail_url: string
+          type: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
