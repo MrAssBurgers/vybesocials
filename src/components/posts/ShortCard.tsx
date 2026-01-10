@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, Play, MoreVertical, Trash2, Flag, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/useModeration';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
 interface ShortCardProps {
   post: {
@@ -42,7 +43,8 @@ interface ShortCardProps {
   isHolding?: boolean;
 }
 
-export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, isHolding = false }: ShortCardProps) {
+// Memoized to prevent re-renders during scroll
+export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted = true, onToggleMute, isHolding = false }: ShortCardProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
@@ -67,6 +69,7 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
 
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
+  const { isSlowConnection } = useNetworkStatus();
 
   // Sync with global mute state
   useEffect(() => {
@@ -277,7 +280,7 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
             loop
             playsInline
             muted={isMuted}
-            preload="auto"
+            preload={isActive ? "auto" : isSlowConnection ? "none" : "metadata"}
             onLoadedData={() => setIsLoading(false)}
             onError={() => {
               setIsLoading(false);
@@ -514,4 +517,4 @@ export function ShortCard({ post, isActive, globalMuted = true, onToggleMute, is
       </div>
     </div>
   );
-}
+});

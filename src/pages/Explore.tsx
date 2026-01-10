@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from 'react';
+import { useState, useMemo, memo, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Search, TrendingUp } from 'lucide-react';
 import { usePosts } from '@/hooks/usePosts';
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { SafeImage, SafeVideo, isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { MediaSkeleton } from '@/components/ui/MediaFallback';
+import { useSmartPreload } from '@/hooks/useSmartPreload';
 
 const popularTags = ['meme', 'fails', 'pets', 'gaming', 'comedy', 'sports', 'music', 'food'];
 
@@ -75,6 +76,10 @@ export default function ExplorePage() {
     if (!posts) return [];
     return posts.filter(post => isValidMediaUrl(post.media_url));
   }, [posts]);
+
+  // Preload images for visible posts
+  const mediaUrls = useMemo(() => validMediaPosts.slice(0, 12).map(p => p.media_url), [validMediaPosts]);
+  useSmartPreload({ urls: mediaUrls, preloadAhead: 6, enabled: true });
 
   const filteredPosts = useMemo(() => {
     return validMediaPosts.filter((post) => {
