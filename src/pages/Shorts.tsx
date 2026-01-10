@@ -5,7 +5,8 @@ import { ShortCard } from '@/components/posts/ShortCard';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useInView } from 'react-intersection-observer';
-
+import { Home, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 export default function ClipsPage() {
   const { 
     data, 
@@ -203,6 +204,14 @@ export default function ClipsPage() {
             </div>
           )}
         </div>
+
+        {/* Navigation button - always visible */}
+        <Link 
+          to="/home"
+          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10 hover:bg-black/60 transition-colors"
+        >
+          <X className="w-5 h-5 text-white" />
+        </Link>
 
         {/* Progress indicator */}
         <div className="fixed right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 pointer-events-none">
