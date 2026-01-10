@@ -8,12 +8,12 @@ import {
   useScreenshotNotification,
   useMarkMessageViewed,
   useAddReaction,
-  useUnsendMessage,
   ViewMode,
   Message,
   useConversations
 } from '@/hooks/useMessages';
 import { useOptimisticMessages, OptimisticMessage } from '@/hooks/useOptimisticMessages';
+import { useUnsendForEveryone, useDeleteForMe, useEditMessage } from '@/hooks/useMessageActions';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,6 +37,9 @@ import { DMSettingsSheetControlled } from './DMSettingsSheetControlled';
 import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { CallButtons } from './CallButtons';
 import { useCallContext } from './CallProvider';
+import { SwipeToReply } from './SwipeToReply';
+import { MessageActionMenu } from './MessageActionMenu';
+import { ReplyPreview } from './ReplyPreview';
 import { 
   ArrowLeft, 
   Send, 
@@ -52,7 +55,9 @@ import {
   Mic,
   Reply,
   CornerUpLeft,
-  Trash2
+  Trash2,
+  Edit3,
+  MoreHorizontal
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -85,7 +90,9 @@ export function ChatView() {
   const { optimisticMessages, send, retry, dismiss, isPending } = useOptimisticMessages(conversationId);
   const markViewed = useMarkMessageViewed();
   const addReaction = useAddReaction();
-  const unsendMessage = useUnsendMessage();
+  const unsendForEveryone = useUnsendForEveryone();
+  const deleteForMe = useDeleteForMe();
+  const editMessage = useEditMessage();
   const { typingUsers, setTyping } = useTypingIndicator(conversationId);
   const { notifyScreenshot } = useScreenshotNotification(conversationId);
   const { startCall } = useCallContext();
@@ -98,6 +105,8 @@ export function ChatView() {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
   // DM Feature Sheet states
   const [showVanishThreads, setShowVanishThreads] = useState(false);
   const [showMemoryPins, setShowMemoryPins] = useState(false);
@@ -465,16 +474,20 @@ export function ChatView() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         
-        {/* Clickable Avatar - navigates to profile - properly sized ring */}
+        {/* Clickable Avatar - navigates to profile - snug ring that fits perfectly */}
         <button 
           onClick={handleAvatarClick}
           className="relative flex-shrink-0 group"
           aria-label="View profile"
         >
-          <Avatar className="h-9 w-9 sm:h-10 sm:w-10 ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all group-active:scale-95">
-            <AvatarImage src={otherMember?.avatar_url || undefined} />
-            <AvatarFallback className="text-sm">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
-          </Avatar>
+          <div className="relative h-9 w-9 sm:h-10 sm:w-10">
+            {/* Ring - exactly matches avatar container */}
+            <div className="absolute inset-0 rounded-full ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all" />
+            <Avatar className="h-full w-full group-active:scale-95 transition-transform">
+              <AvatarImage src={otherMember?.avatar_url || undefined} />
+              <AvatarFallback className="text-sm">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+            </Avatar>
+          </div>
           {!isGroupChat && (
             <OnlineIndicator isOnline={otherMemberOnline} size="sm" className="bottom-0 right-0" />
           )}
@@ -562,25 +575,33 @@ export function ChatView() {
                     </span>
                   </div>
                 )}
-                <MessageBubble
-                  message={message}
-                  isOwn={isOwn}
-                  showAvatar={showAvatar}
-                  sender={message.sender}
-                  isGroupChat={isGroupChat}
-                  onView={() => markViewed.mutate(message.id)}
-                  onReaction={handleReaction}
-                  onReply={() => handleReply(message)}
-                  onUnsend={() => unsendMessage.mutate(message.id)}
-                  allMessages={messages}
-                  themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
-                  showReactions={activeReactionMessageId === message.id}
-                  onToggleReactions={() => setActiveReactionMessageId(
-                    activeReactionMessageId === message.id ? null : message.id
-                  )}
-                  profileId={profile?.id}
-                  isEmojiOnly={isEmojiOnly}
-                />
+                {/* Swipe to reply wrapper */}
+                <SwipeToReply onReply={() => handleReply(message)} isOwn={isOwn}>
+                  <MessageBubble
+                    message={message}
+                    isOwn={isOwn}
+                    showAvatar={showAvatar}
+                    sender={message.sender}
+                    isGroupChat={isGroupChat}
+                    onView={() => markViewed.mutate(message.id)}
+                    onReaction={handleReaction}
+                    onReply={() => handleReply(message)}
+                    onUnsendForEveryone={() => unsendForEveryone.mutate(message.id)}
+                    onDeleteForMe={() => deleteForMe.mutate(message.id)}
+                    onEdit={() => {
+                      setEditingMessageId(message.id);
+                      setEditText(message.content || '');
+                    }}
+                    allMessages={messages}
+                    themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
+                    showReactions={activeReactionMessageId === message.id}
+                    onToggleReactions={() => setActiveReactionMessageId(
+                      activeReactionMessageId === message.id ? null : message.id
+                    )}
+                    profileId={profile?.id}
+                    isEmojiOnly={isEmojiOnly}
+                  />
+                </SwipeToReply>
               </div>
             );
           })}
@@ -887,7 +908,9 @@ const MessageBubble = memo(function MessageBubble({
   onView,
   onReaction,
   onReply,
-  onUnsend,
+  onUnsendForEveryone,
+  onDeleteForMe,
+  onEdit,
   allMessages,
   themeColor = { bubble: 'bg-primary', text: 'text-primary-foreground' },
   showReactions,
@@ -903,7 +926,9 @@ const MessageBubble = memo(function MessageBubble({
   onView: () => void;
   onReaction: (messageId: string, emoji: string) => void;
   onReply: () => void;
-  onUnsend: () => void;
+  onUnsendForEveryone: () => void;
+  onDeleteForMe: () => void;
+  onEdit?: () => void;
   allMessages?: Message[];
   themeColor?: { bubble: string; text: string };
   showReactions: boolean;
@@ -962,9 +987,9 @@ const MessageBubble = memo(function MessageBubble({
   }, [message.id, onReaction, onToggleReactions]);
 
   const handleUnsend = useCallback(() => {
-    onUnsend();
+    onUnsendForEveryone();
     setShowContextMenu(false);
-  }, [onUnsend]);
+  }, [onUnsendForEveryone]);
 
   // Long press handlers for context menu
   const handleTouchStart = useCallback(() => {

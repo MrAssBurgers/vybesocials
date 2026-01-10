@@ -1307,10 +1307,13 @@ export type Database = {
           conversation_id: string
           created_at: string
           deleted_at: string | null
+          deleted_for_users: string[] | null
+          edited_at: string | null
           expires_at: string | null
           id: string
           ignore_deadline: string | null
           is_deleted: boolean | null
+          is_edited: boolean | null
           media_type: string | null
           media_url: string | null
           message_type: string | null
@@ -1327,10 +1330,13 @@ export type Database = {
           conversation_id: string
           created_at?: string
           deleted_at?: string | null
+          deleted_for_users?: string[] | null
+          edited_at?: string | null
           expires_at?: string | null
           id?: string
           ignore_deadline?: string | null
           is_deleted?: boolean | null
+          is_edited?: boolean | null
           media_type?: string | null
           media_url?: string | null
           message_type?: string | null
@@ -1347,10 +1353,13 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           deleted_at?: string | null
+          deleted_for_users?: string[] | null
+          edited_at?: string | null
           expires_at?: string | null
           id?: string
           ignore_deadline?: string | null
           is_deleted?: boolean | null
+          is_edited?: boolean | null
           media_type?: string | null
           media_url?: string | null
           message_type?: string | null
@@ -2340,6 +2349,55 @@ export type Database = {
           },
           {
             foreignKeyName: "user_bans_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_interactions: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          interaction_type: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          interaction_type: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          interaction_type?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_interactions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_interactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_interactions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
