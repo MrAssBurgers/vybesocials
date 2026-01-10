@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef } from 'react';
 import './lib/i18n';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -11,8 +11,9 @@ import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
 import { CallProvider } from "@/components/chat/CallProvider";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
+import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 
-// Pages
+// Lazy load pages for better performance
 import Landing from "./pages/Landing";
 import Home from "./pages/Home";
 import Shorts from "./pages/Shorts";
@@ -62,51 +63,53 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AccessibilityProvider>
-          <SplashScreen isVisible={showSplash} />
-          <AuthProvider>
-          <EasterEggProvider>
-            <CallProvider>
-              <TooltipProvider>
-                <Toaster />
-                <Sonner />
-                <BrowserRouter>
-                  <Routes>
-                    <Route path="/" element={<Landing />} />
-                    <Route path="/home" element={<Home />} />
-                    <Route path="/clips" element={<Shorts />} />
-                    <Route path="/shorts" element={<Shorts />} />
-                    <Route path="/explore" element={<Explore />} />
-                    <Route path="/upload" element={<Upload />} />
-                    <Route path="/p/:id" element={<PostDetail />} />
-                    <Route path="/u/:username" element={<Profile />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/notifications" element={<Notifications />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/onboarding" element={<Onboarding />} />
-                    <Route path="/complete-profile" element={<CompleteProfile />} />
-                    <Route path="/messages" element={<Messages />} />
-                    <Route path="/messages/new" element={<NewMessage />} />
-                    <Route path="/messages/ai-autisy" element={<AIChat />} />
-                    <Route path="/messages/:conversationId" element={<Messages />} />
-                    
-                    <Route path="/feedback" element={<Feedback />} />
-                    <Route path="/market" element={<Market />} />
-                    <Route path="/market/new" element={<CreateListing />} />
-                    <Route path="/market/:id" element={<ListingDetail />} />
-                    <Route path="/events" element={<Events />} />
-                    <Route path="/events/new" element={<CreateEvent />} />
-                    <Route path="/admin" element={<AdminDashboard />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </BrowserRouter>
-              </TooltipProvider>
-          </CallProvider>
-        </EasterEggProvider>
-      </AuthProvider>
-    </AccessibilityProvider>
-  </ThemeProvider>
-</QueryClientProvider>
+        <GlassIntensityProvider>
+          <AccessibilityProvider>
+            <SplashScreen isVisible={showSplash} />
+            <AuthProvider>
+              <EasterEggProvider>
+                <CallProvider>
+                  <TooltipProvider>
+                    <Toaster />
+                    <Sonner />
+                    <BrowserRouter>
+                      <Routes>
+                        <Route path="/" element={<Landing />} />
+                        <Route path="/home" element={<Home />} />
+                        <Route path="/clips" element={<Shorts />} />
+                        <Route path="/shorts" element={<Shorts />} />
+                        <Route path="/explore" element={<Explore />} />
+                        <Route path="/upload" element={<Upload />} />
+                        <Route path="/p/:id" element={<PostDetail />} />
+                        <Route path="/u/:username" element={<Profile />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/notifications" element={<Notifications />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="/onboarding" element={<Onboarding />} />
+                        <Route path="/complete-profile" element={<CompleteProfile />} />
+                        <Route path="/messages" element={<Messages />} />
+                        <Route path="/messages/new" element={<NewMessage />} />
+                        <Route path="/messages/ai-autisy" element={<AIChat />} />
+                        <Route path="/messages/:conversationId" element={<Messages />} />
+                        
+                        <Route path="/feedback" element={<Feedback />} />
+                        <Route path="/market" element={<Market />} />
+                        <Route path="/market/new" element={<CreateListing />} />
+                        <Route path="/market/:id" element={<ListingDetail />} />
+                        <Route path="/events" element={<Events />} />
+                        <Route path="/events/new" element={<CreateEvent />} />
+                        <Route path="/admin" element={<AdminDashboard />} />
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </BrowserRouter>
+                  </TooltipProvider>
+                </CallProvider>
+              </EasterEggProvider>
+            </AuthProvider>
+          </AccessibilityProvider>
+        </GlassIntensityProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 };
 
