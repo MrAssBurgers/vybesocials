@@ -401,7 +401,40 @@ export function useWebRTCCall(callId: string | null, isInitiator: boolean) {
     return pc;
   }, [callId, profile?.id]);
 
-  const startCall = useCallback(async (callType: CallType, otherUserId: string) => {
+  // Wait for call to be accepted before sending offer
+  const waitForAcceptAndSendOffer = useCallback(async (callType: CallType, otherUserId: string) => {
+    if (!callId || !profile?.id) return;
+    
+    // Subscribe to call status changes
+    const checkAccepted = async (): Promise<boolean> => {
+      const { data } = await supabase
+        .from('calls')
+        .select('status')
+        .eq('id', callId)
+        .single();
+      return data?.status === 'accepted';
+    };
+
+    // Poll until accepted or timeout
+    let attempts = 0;
+    const maxAttempts = 60; // 30 seconds
+    
+    while (attempts < maxAttempts) {
+      const accepted = await checkAccepted();
+      if (accepted) {
+        console.log('Call accepted, sending offer...');
+        await sendOffer(callType, otherUserId);
+        return;
+      }
+      await new Promise(r => setTimeout(r, 500));
+      attempts++;
+    }
+    
+    console.log('Call was not accepted in time');
+    cleanup();
+  }, [callId, profile?.id, cleanup]);
+
+  const sendOffer = useCallback(async (callType: CallType, otherUserId: string) => {
     if (!callId || !profile?.id || hasInitializedRef.current) return;
     hasInitializedRef.current = true;
     isCleanedUpRef.current = false;
@@ -421,19 +454,74 @@ export function useWebRTCCall(callId: string | null, isInitiator: boolean) {
         signal_type: 'offer',
         signal_data: { type: 'offer', sdp: offer.sdp },
       });
+      
+      console.log('Offer sent successfully');
     } catch (error) {
-      console.error('Failed to start call:', error);
+      console.error('Failed to send offer:', error);
       cleanup();
     }
   }, [callId, profile?.id, initializeMedia, createPeerConnection, cleanup]);
 
-  const answerCall = useCallback(async (callType: CallType, otherUserId: string, offer: RTCSessionDescriptionInit) => {
-    if (!callId || !profile?.id || hasInitializedRef.current) return;
-    hasInitializedRef.current = true;
+  const startCall = useCallback(async (callType: CallType, otherUserId: string) => {
+    if (!callId || !profile?.id) return;
     isCleanedUpRef.current = false;
 
     try {
+      // Initialize media immediately so user sees their video
+      await initializeMedia(callType);
+      
+      // Wait for call to be accepted, then send offer
+      waitForAcceptAndSendOffer(callType, otherUserId);
+    } catch (error) {
+      console.error('Failed to start call:', error);
+      cleanup();
+    }
+  }, [callId, profile?.id, initializeMedia, waitForAcceptAndSendOffer, cleanup]);
+
+  // Wait for offer then answer - called by receiver after accepting
+  const answerCall = useCallback(async (callType: CallType, otherUserId: string) => {
+    if (!callId || !profile?.id || hasInitializedRef.current) return;
+    isCleanedUpRef.current = false;
+
+    try {
+      // Initialize media immediately
       const stream = await initializeMedia(callType);
+      
+      console.log('Waiting for offer from caller...');
+      
+      // Poll for the offer (initiator sends after call is accepted)
+      let offer: RTCSessionDescriptionInit | null = null;
+      let attempts = 0;
+      const maxAttempts = 30; // 15 seconds
+      
+      while (!offer && attempts < maxAttempts) {
+        const { data } = await supabase
+          .from('call_signals')
+          .select('*')
+          .eq('call_id', callId)
+          .eq('signal_type', 'offer')
+          .eq('to_user_id', profile.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (data?.[0]) {
+          const signalData = data[0].signal_data as { type: 'offer'; sdp: string };
+          offer = { type: 'offer', sdp: signalData.sdp };
+          console.log('Received offer');
+        } else {
+          await new Promise(r => setTimeout(r, 500));
+          attempts++;
+        }
+      }
+
+      if (!offer) {
+        console.error('No offer received from caller');
+        cleanup();
+        return;
+      }
+
+      hasInitializedRef.current = true;
+      
       const pc = createPeerConnection(stream, otherUserId);
       if (!pc) return;
 
@@ -459,6 +547,8 @@ export function useWebRTCCall(callId: string | null, isInitiator: boolean) {
         signal_type: 'answer',
         signal_data: { type: 'answer', sdp: answer.sdp },
       });
+      
+      console.log('Answer sent successfully');
     } catch (error) {
       console.error('Failed to answer call:', error);
       cleanup();
