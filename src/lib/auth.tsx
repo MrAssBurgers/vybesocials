@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { BannedScreen } from '@/components/auth/BannedScreen';
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -17,11 +18,18 @@ interface Profile {
   is_private?: boolean | null;
 }
 
+interface BanInfo {
+  reason: string;
+  expires_at: string | null;
+  is_permanent: boolean;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  banInfo: BanInfo | null;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -36,7 +44,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check if user is banned
+  const checkBanStatus = async (profileId: string) => {
+    const { data, error } = await supabase
+      .from('user_bans')
+      .select('reason, expires_at, is_permanent')
+      .eq('user_id', profileId)
+      .or(`is_permanent.eq.true,expires_at.gt.${new Date().toISOString()}`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!error && data) {
+      setBanInfo(data);
+    } else {
+      setBanInfo(null);
+    }
+  };
 
   // Schedule token refresh before expiry
   const scheduleTokenRefresh = (expiresAt: number) => {
@@ -80,6 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!error && data?.[0]) {
       setProfile(data[0]);
+      // Check ban status after fetching profile
+      checkBanStatus(data[0].id);
       return data[0];
     }
 
@@ -99,6 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!afterEnsureError && afterEnsure?.[0]) {
       setProfile(afterEnsure[0]);
+      // Check ban status after fetching profile
+      checkBanStatus(afterEnsure[0].id);
       return afterEnsure[0];
     }
 
@@ -231,12 +262,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Show banned screen if user is banned
+  if (banInfo) {
+    return (
+      <BannedScreen
+        reason={banInfo.reason}
+        expiresAt={banInfo.expires_at}
+        isPermanent={banInfo.is_permanent}
+      />
+    );
+  }
+
   return (
     <AuthContext.Provider value={{
       user,
       session,
       profile,
       loading,
+      banInfo,
       signUp,
       signIn,
       signOut,
