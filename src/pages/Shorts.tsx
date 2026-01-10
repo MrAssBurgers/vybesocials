@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useInfinitePosts } from '@/hooks/useInfinitePosts';
 import { ShortCard } from '@/components/posts/ShortCard';
@@ -7,6 +7,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useInView } from 'react-intersection-observer';
 import { Home, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useVideoPreload } from '@/hooks/useVideoPreload';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+
 export default function ClipsPage() {
   const { 
     data, 
@@ -16,14 +19,26 @@ export default function ClipsPage() {
     isFetchingNextPage 
   } = useInfinitePosts('short');
   
-  const shorts = data?.pages.flatMap(page => page.posts) || [];
+  const shorts = useMemo(() => data?.pages.flatMap(page => page.posts) || [], [data]);
   
   const [currentIndex, setCurrentIndex] = useState(0);
   const [globalMuted, setGlobalMuted] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const holdTimer = useRef<NodeJS.Timeout | null>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { isSlowConnection } = useNetworkStatus();
+  
+  // Smart preload videos around current position
+  const videoUrls = useMemo(() => shorts.map(s => s.media_url), [shorts]);
+  useVideoPreload(videoUrls, { 
+    currentIndex, 
+    preloadDepth: isSlowConnection ? 1 : 2,
+    enabled: !isScrolling 
+  });
 
   // Infinite scroll trigger
   const { ref: loadMoreRef, inView } = useInView({
@@ -39,6 +54,7 @@ export default function ClipsPage() {
   }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Detect which clip is in view using IntersectionObserver
+  // Also track scrolling state to reduce animations during scroll
   useEffect(() => {
     if (!shorts?.length) return;
 
@@ -65,6 +81,24 @@ export default function ClipsPage() {
 
     return () => observer.disconnect();
   }, [shorts, currentIndex]);
+
+  // Track scrolling to reduce effects during scroll
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      setIsScrolling(true);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = setTimeout(() => setIsScrolling(false), 150);
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, []);
 
   // Keyboard navigation
   useEffect(() => {

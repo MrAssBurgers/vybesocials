@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, memo } from 'react';
 import { cn } from '@/lib/utils';
 import { ImageIcon, Film } from 'lucide-react';
 
@@ -8,7 +8,7 @@ interface MediaFallbackProps {
   className?: string;
 }
 
-export const MediaFallback = forwardRef<HTMLDivElement, MediaFallbackProps>(
+export const MediaFallback = memo(forwardRef<HTMLDivElement, MediaFallbackProps>(
   function MediaFallback({ type = 'image', caption, className }, ref) {
     const isVideo = type === 'video' || type === 'short';
     
@@ -35,13 +35,13 @@ export const MediaFallback = forwardRef<HTMLDivElement, MediaFallbackProps>(
       </div>
     );
   }
-);
+));
 
 interface MediaSkeletonProps {
   className?: string;
 }
 
-export const MediaSkeleton = forwardRef<HTMLDivElement, MediaSkeletonProps>(
+export const MediaSkeleton = memo(forwardRef<HTMLDivElement, MediaSkeletonProps>(
   function MediaSkeleton({ className }, ref) {
     return (
       <div 
@@ -59,4 +59,27 @@ export const MediaSkeleton = forwardRef<HTMLDivElement, MediaSkeletonProps>(
       </div>
     );
   }
-);
+));
+
+// Blur placeholder for blur-up loading effect
+interface BlurPlaceholderProps {
+  src?: string;
+  className?: string;
+}
+
+export const BlurPlaceholder = memo(function BlurPlaceholder({ src, className }: BlurPlaceholderProps) {
+  if (!src) {
+    return <MediaSkeleton className={className} />;
+  }
+  
+  return (
+    <div className={cn("absolute inset-0 overflow-hidden", className)}>
+      <img
+        src={src}
+        alt=""
+        className="w-full h-full object-cover blur-xl scale-110 opacity-50"
+        aria-hidden="true"
+      />
+    </div>
+  );
+});
