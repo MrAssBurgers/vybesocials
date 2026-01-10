@@ -6,11 +6,12 @@ import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 
 interface LiquidGlassButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
-  variant?: 'default' | 'primary' | 'ghost' | 'outline' | 'nav';
+  variant?: 'default' | 'primary' | 'ghost' | 'outline' | 'nav' | 'selected';
   size?: 'sm' | 'md' | 'lg' | 'icon';
   haptic?: boolean;
   sound?: boolean;
-  shimmer?: boolean; // Enable slow color shifting
+  shimmer?: boolean;
+  selected?: boolean; // For nav items / tabs
   children?: React.ReactNode;
 }
 
@@ -22,6 +23,7 @@ export const LiquidGlassButton = forwardRef<HTMLButtonElement, LiquidGlassButton
     haptic = true, 
     sound = true,
     shimmer = false,
+    selected = false,
     children,
     onClick,
     disabled,
@@ -59,6 +61,7 @@ export const LiquidGlassButton = forwardRef<HTMLButtonElement, LiquidGlassButton
       ghost: 'bg-transparent hover:bg-foreground/5',
       outline: 'bg-transparent border border-foreground/15 hover:bg-foreground/5',
       nav: 'bg-transparent hover:bg-foreground/5',
+      selected: 'bg-gradient-to-r from-primary/15 via-accent/10 to-primary/15 border border-primary/25',
     };
 
     const sizeClasses = {
@@ -89,6 +92,7 @@ export const LiquidGlassButton = forwardRef<HTMLButtonElement, LiquidGlassButton
     };
 
     const shouldShimmer = shimmer && !reduceMotion && !isScrolling;
+    const isSelected = selected || variant === 'selected';
 
     return (
       <motion.button
@@ -107,7 +111,7 @@ export const LiquidGlassButton = forwardRef<HTMLButtonElement, LiquidGlassButton
           'relative overflow-hidden font-medium transition-colors backdrop-blur-md',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           'disabled:pointer-events-none disabled:opacity-50',
-          variantClasses[variant],
+          variantClasses[isSelected ? 'selected' : variant],
           sizeClasses[size],
           className
         )}
@@ -118,6 +122,32 @@ export const LiquidGlassButton = forwardRef<HTMLButtonElement, LiquidGlassButton
           <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/5 to-transparent" />
         </div>
+
+        {/* Selected state gradient highlight */}
+        {isSelected && (
+          <motion.div
+            className="absolute inset-0 rounded-[inherit] pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{
+              background: 'linear-gradient(135deg, hsl(var(--primary) / 0.12), hsl(var(--accent) / 0.08), hsl(var(--primary) / 0.12))',
+              boxShadow: 'inset 0 0 0 1px hsl(var(--primary) / 0.2), inset 0 1px 0 hsl(var(--foreground) / 0.05)',
+            }}
+          />
+        )}
+
+        {/* Left accent bar for selected nav items */}
+        {isSelected && (
+          <motion.div
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full pointer-events-none"
+            initial={{ scaleY: 0, opacity: 0 }}
+            animate={{ scaleY: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+            style={{
+              background: 'linear-gradient(180deg, hsl(var(--primary)), hsl(var(--accent)))',
+            }}
+          />
+        )}
 
         {/* Slow color shimmer (only for important buttons) */}
         {shouldShimmer && (

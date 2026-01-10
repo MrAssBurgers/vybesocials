@@ -41,6 +41,7 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
     localStream,
     remoteStream,
     connectionState,
+    callEnded,
     startCall,
     answerCall,
     cleanup,
@@ -52,6 +53,14 @@ export function CallUI({ call, isInitiator, onClose }: CallUIProps) {
   const isVideoCall = call.call_type === 'video';
   const isConnected = call.status === 'accepted' && (connectionState === 'connected' || connectionState === 'connecting');
   const isRinging = call.status === 'ringing';
+
+  // Handle call ended by other party via realtime subscription
+  useEffect(() => {
+    if (callEnded) {
+      console.log('Call ended detected, closing UI...');
+      onClose();
+    }
+  }, [callEnded, onClose]);
 
   // Start the call when component mounts (for initiator) or answer (for receiver)
   useEffect(() => {

@@ -223,6 +223,7 @@ export function useWebRTCCall(callId: string | null, isInitiator: boolean) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>('new');
+  const [callEnded, setCallEnded] = useState(false);
   
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -256,6 +257,7 @@ export function useWebRTCCall(callId: string | null, isInitiator: boolean) {
     setLocalStream(null);
     setRemoteStream(null);
     setConnectionState('new');
+    setCallEnded(true);
     pendingCandidatesRef.current = [];
     hasInitializedRef.current = false;
   }, []);
@@ -263,11 +265,43 @@ export function useWebRTCCall(callId: string | null, isInitiator: boolean) {
   // Cleanup on unmount
   useEffect(() => {
     isCleanedUpRef.current = false;
+    setCallEnded(false);
     
     return () => {
       cleanup();
     };
   }, [callId]);
+
+  // Listen for call status changes - CRITICAL for hangup sync
+  useEffect(() => {
+    if (!callId) return;
+
+    const channel = supabase
+      .channel(`call-status:${callId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'calls',
+          filter: `id=eq.${callId}`,
+        },
+        (payload) => {
+          const newStatus = (payload.new as any).status;
+          
+          // If the other party ended/declined the call, clean up immediately
+          if (newStatus === 'ended' || newStatus === 'declined') {
+            console.log('Call ended by other party, cleaning up...');
+            cleanup();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [callId, cleanup]);
 
   const initializeMedia = useCallback(async (callType: CallType) => {
     // Don't initialize if already have a stream
@@ -514,6 +548,7 @@ export function useWebRTCCall(callId: string | null, isInitiator: boolean) {
     localStream,
     remoteStream,
     connectionState,
+    callEnded,
     startCall,
     answerCall,
     cleanup,
