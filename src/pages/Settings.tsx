@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { haptics } from '@/lib/haptics';
 
-export default function SettingsPage() {
+const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref) {
   const { t, i18n } = useTranslation();
   const { profile, signOut, updateProfile } = useAuth();
   const { 
@@ -492,4 +492,6 @@ export default function SettingsPage() {
       </div>
     </AppLayout>
   );
-}
+});
+
+export default SettingsPage;

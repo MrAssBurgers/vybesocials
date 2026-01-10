@@ -83,12 +83,21 @@ export default function CreateListingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Enhanced validation
     if (!title.trim()) {
       toast.error('Please enter a title');
       return;
     }
+    if (title.trim().length < 3) {
+      toast.error('Title must be at least 3 characters');
+      return;
+    }
     if (!category) {
       toast.error('Please select a category');
+      return;
+    }
+    if (price && isNaN(parseFloat(price))) {
+      toast.error('Please enter a valid price');
       return;
     }
 
@@ -111,10 +120,11 @@ export default function CreateListingPage() {
         status: 'available',
       });
 
-      toast.success('Listing created!');
+      toast.success('Listing created successfully!');
       navigate('/market');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create listing');
+      console.error('Failed to create listing:', error);
+      toast.error(error.message || 'Failed to create listing. Please try again.');
     } finally {
       setUploading(false);
     }

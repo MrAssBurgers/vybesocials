@@ -232,20 +232,39 @@
     pointer-events: none;
   }
 
-  /* GPU-accelerated transforms only */
+  /* GPU-accelerated transforms only - for smooth scrolling */
   .gpu-accelerated {
     transform: translateZ(0);
     will-change: transform, opacity;
     backface-visibility: hidden;
   }
 
-  /* Pause animations during scroll */
+  /* Pause ALL non-essential animations during scroll for performance */
   .is-scrolling .gradient-animated,
   .is-scrolling .animate-liquid-wobble,
   .is-scrolling .animate-glass-breathe,
   .is-scrolling .animate-color-shift,
-  .is-scrolling .animate-subtle-float {
+  .is-scrolling .animate-subtle-float,
+  .is-scrolling .animate-pulse,
+  .is-scrolling .animate-bounce {
     animation-play-state: paused !important;
+  }
+
+  /* Reduce motion during scroll for better performance */
+  .is-scrolling * {
+    transition-duration: 0.1s !important;
+  }
+
+  /* Enable smooth scrolling everywhere */
+  * {
+    scroll-behavior: smooth;
+  }
+
+  /* But disable for reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      scroll-behavior: auto !important;
+    }
   }
 }
 
