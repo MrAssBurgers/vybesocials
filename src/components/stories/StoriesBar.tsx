@@ -147,9 +147,9 @@ function StoryAvatar({
         {showAddButton && !isUploading && (
           <div 
             onClick={handleAddClick}
-            className="absolute -bottom-0.5 -right-0.5 z-10 bg-primary rounded-full p-0.5 border-[1.5px] border-background cursor-pointer active:scale-95 transition-transform"
+            className="absolute -bottom-0.5 -right-0.5 z-10 bg-primary rounded-full p-1 border-2 border-background cursor-pointer active:scale-95 transition-transform"
           >
-            <Plus className="h-2.5 w-2.5 text-primary-foreground" />
+            <Plus className="h-3 w-3 text-primary-foreground" />
           </div>
         )}
         {isUploading && (
