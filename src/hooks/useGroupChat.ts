@@ -75,7 +75,18 @@ export function useCreateGroup() {
 
       if (convError) throw convError;
 
-      // Add the creator as owner
+      // Add creator to conversation_members FIRST (RLS policies depend on this)
+      const { error: memberError } = await supabase
+        .from('conversation_members')
+        .insert({
+          conversation_id: conversation.id,
+          user_id: profile.id,
+          role: 'owner',
+        });
+
+      if (memberError) throw memberError;
+
+      // Then add the creator to group_members as owner
       const { error: ownerError } = await supabase
         .from('group_members')
         .insert({
@@ -85,15 +96,6 @@ export function useCreateGroup() {
         });
 
       if (ownerError) throw ownerError;
-
-      // Also add to conversation_members for compatibility
-      await supabase
-        .from('conversation_members')
-        .insert({
-          conversation_id: conversation.id,
-          user_id: profile.id,
-          role: 'owner',
-        });
 
       // Add other members
       if (params.member_ids.length > 0) {
