@@ -149,11 +149,22 @@ export function useConversations() {
                  msg.created_at > lastReadAt
         ).length;
 
+        const lastMessage = lastMessageMap.get(conv.id) || null;
+
         return {
           ...conv,
-          last_message: lastMessageMap.get(conv.id) || null,
+          last_message: lastMessage,
           unread_count: unreadCount,
+          // Add sort key for proper ordering by last message time
+          _sortTime: lastMessage?.created_at || conv.updated_at,
         };
+      });
+
+      // Sort by last message time (most recent first)
+      result.sort((a, b) => {
+        const timeA = new Date(a._sortTime).getTime();
+        const timeB = new Date(b._sortTime).getTime();
+        return timeB - timeA;
       });
 
       return result as Conversation[];

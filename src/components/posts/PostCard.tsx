@@ -125,43 +125,57 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   );
 }
 
-// Safe image component for post media - now uses object-contain for full image visibility
-function PostImage({ src, caption }: { src: string; caption?: string }) {
+// Natural aspect ratio image component - auto-sizes based on image dimensions
+function NaturalAspectImage({ src, caption }: { src: string; caption?: string }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
 
   if (!isValidMediaUrl(src)) {
-    return <MediaFallback type="image" caption={caption} />;
+    return <MediaFallback type="image" caption={caption} className="aspect-square" />;
   }
 
   if (hasError) {
-    return <MediaFallback type="image" caption={caption} />;
+    return <MediaFallback type="image" caption={caption} className="aspect-square" />;
   }
 
+  const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const ratio = img.naturalWidth / img.naturalHeight;
+    setAspectRatio(ratio);
+    setIsLoaded(true);
+  };
+
+  // Determine container style based on aspect ratio
+  const getContainerStyle = () => {
+    if (!aspectRatio) return { paddingBottom: '100%' }; // Square placeholder
+    
+    // Very tall images (portrait > 4:5) - limit height
+    if (aspectRatio < 0.8) {
+      return { paddingBottom: `${Math.min(125, (1 / aspectRatio) * 100)}%` };
+    }
+    // Wide images (landscape)
+    if (aspectRatio > 1.2) {
+      return { paddingBottom: `${(1 / aspectRatio) * 100}%` };
+    }
+    // Square-ish images
+    return { paddingBottom: `${(1 / aspectRatio) * 100}%` };
+  };
+
   return (
-    <div className="relative w-full h-full">
-      {/* Blurred background for letterboxing */}
-      {isLoaded && (
-        <div 
-          className="absolute inset-0 blur-xl scale-110 opacity-40"
-          style={{ 
-            backgroundImage: `url(${src})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        />
-      )}
+    <div className="relative w-full overflow-hidden" style={getContainerStyle()}>
       {!isLoaded && <MediaSkeleton className="absolute inset-0" />}
       <img
         src={src}
         alt={caption || ''}
         className={cn(
-          "relative w-full h-full object-contain transition-opacity z-10",
+          "absolute inset-0 w-full h-full transition-opacity",
+          aspectRatio && aspectRatio < 0.8 ? "object-cover" : "object-contain",
           isLoaded ? "opacity-100" : "opacity-0"
         )}
         loading="eager"
         decoding="async"
-        onLoad={() => setIsLoaded(true)}
+        onLoad={handleLoad}
         onError={() => setHasError(true)}
       />
     </div>
@@ -397,15 +411,17 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         </div>
       </div>
 
-      {/* Media */}
+      {/* Media - natural aspect ratio */}
       <div 
-        className="relative aspect-square bg-muted cursor-pointer"
+        className="relative w-full bg-muted cursor-pointer"
         onDoubleClick={handleDoubleTap}
       >
         {post.type === 'video' ? (
-          <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
+          <div className="aspect-[9/16] max-h-[70vh]">
+            <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
+          </div>
         ) : (
-          <PostImage src={signedMediaUrl || ''} caption={post.caption} />
+          <NaturalAspectImage src={signedMediaUrl || ''} caption={post.caption} />
         )}
         
         {/* Double tap heart animation - TikTok style */}

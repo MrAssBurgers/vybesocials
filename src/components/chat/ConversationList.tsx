@@ -218,7 +218,7 @@ export function ConversationList() {
           )}
           {friendsForQuickAdd.length > 0 && (
             <QuickAddRow
-              title="Friends"
+              title="Online Friends"
               users={friendsForQuickAdd.slice(0, 8)}
               onSelect={handleQuickAddSelect}
             />
