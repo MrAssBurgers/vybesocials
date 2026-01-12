@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
         caller_id: profile.id,
         receiver_id: receiverId,
         call_type: type,
-        status: "pending",
+        status: "ringing",
         room_url: roomUrl,
         room_name: roomName,
         is_group_call: participants.length > 1,
