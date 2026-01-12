@@ -1,12 +1,9 @@
 import { useState } from 'react';
-import { MoreHorizontal, Trash2, AlertTriangle, Ban, Shield } from 'lucide-react';
+import { Trash2, AlertTriangle, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
   Dialog,
@@ -37,31 +34,33 @@ interface ModeratorActionsMenuProps {
   className?: string;
 }
 
-export function ModeratorActionsMenu({
+// Hook to check if user is mod/admin
+export function useIsModOrAdmin() {
+  const { data: userRole } = useUserRole();
+  return userRole === 'admin' || userRole === 'moderator';
+}
+
+// Inline menu items component - to be used inside existing DropdownMenuContent
+export function ModeratorMenuItems({
   userId,
   username,
   postId,
   commentId,
   onPostDelete,
   onCommentDelete,
-  className,
-}: ModeratorActionsMenuProps) {
-  const { profile } = useAuth();
-  const { data: userRole } = useUserRole();
-  const warnUser = useWarnUser();
-  const banUser = useBanUser();
+  onWarnClick,
+  onBanClick,
+}: {
+  userId: string;
+  username: string;
+  postId?: string;
+  commentId?: string;
+  onPostDelete?: () => void;
+  onCommentDelete?: () => void;
+  onWarnClick: () => void;
+  onBanClick: () => void;
+}) {
   const queryClient = useQueryClient();
-
-  const [warnDialogOpen, setWarnDialogOpen] = useState(false);
-  const [banDialogOpen, setBanDialogOpen] = useState(false);
-  const [reason, setReason] = useState('');
-  const [isPermanent, setIsPermanent] = useState(false);
-  const [banDays, setBanDays] = useState(7);
-
-  const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
-  const isOwnContent = profile?.id === userId;
-
-  if (!isModOrAdmin || isOwnContent) return null;
 
   const handleDeletePost = async () => {
     if (!postId) return;
@@ -93,6 +92,62 @@ export function ModeratorActionsMenu({
     }
   };
 
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+        Mod Actions
+      </div>
+      
+      {postId && (
+        <DropdownMenuItem onClick={handleDeletePost} className="text-destructive">
+          <Trash2 className="h-4 w-4 mr-2" />
+          Delete Post (Mod)
+        </DropdownMenuItem>
+      )}
+      
+      {commentId && (
+        <DropdownMenuItem onClick={handleDeleteComment} className="text-destructive">
+          <Trash2 className="h-4 w-4 mr-2" />
+          Delete Comment (Mod)
+        </DropdownMenuItem>
+      )}
+      
+      <DropdownMenuItem onClick={onWarnClick}>
+        <AlertTriangle className="h-4 w-4 mr-2 text-yellow-500" />
+        Warn User
+      </DropdownMenuItem>
+      
+      <DropdownMenuItem onClick={onBanClick} className="text-destructive">
+        <Ban className="h-4 w-4 mr-2" />
+        Ban User
+      </DropdownMenuItem>
+    </>
+  );
+}
+
+// Dialogs component - renders the warn/ban dialogs
+export function ModeratorDialogs({
+  username,
+  userId,
+  warnDialogOpen,
+  setWarnDialogOpen,
+  banDialogOpen,
+  setBanDialogOpen,
+}: {
+  username: string;
+  userId: string;
+  warnDialogOpen: boolean;
+  setWarnDialogOpen: (open: boolean) => void;
+  banDialogOpen: boolean;
+  setBanDialogOpen: (open: boolean) => void;
+}) {
+  const warnUser = useWarnUser();
+  const banUser = useBanUser();
+  const [reason, setReason] = useState('');
+  const [isPermanent, setIsPermanent] = useState(false);
+  const [banDays, setBanDays] = useState(7);
+
   const handleWarn = async () => {
     if (!reason.trim()) {
       toast.error('Please provide a reason');
@@ -120,44 +175,6 @@ export function ModeratorActionsMenu({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" className={`text-yellow-500 ${className || ''}`}>
-            <Shield className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-            Mod Actions for @{username}
-          </div>
-          <DropdownMenuSeparator />
-          
-          {postId && (
-            <DropdownMenuItem onClick={handleDeletePost} className="text-destructive">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Post
-            </DropdownMenuItem>
-          )}
-          
-          {commentId && (
-            <DropdownMenuItem onClick={handleDeleteComment} className="text-destructive">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Comment
-            </DropdownMenuItem>
-          )}
-          
-          <DropdownMenuItem onClick={() => setWarnDialogOpen(true)}>
-            <AlertTriangle className="h-4 w-4 mr-2 text-yellow-500" />
-            Warn User
-          </DropdownMenuItem>
-          
-          <DropdownMenuItem onClick={() => setBanDialogOpen(true)} className="text-destructive">
-            <Ban className="h-4 w-4 mr-2" />
-            Ban User
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
       {/* Warn Dialog */}
       <Dialog open={warnDialogOpen} onOpenChange={setWarnDialogOpen}>
         <DialogContent>
@@ -250,4 +267,19 @@ export function ModeratorActionsMenu({
       </Dialog>
     </>
   );
+}
+
+// Legacy component for backwards compatibility - now renders nothing visible
+// The actual actions are integrated into parent menus
+export function ModeratorActionsMenu({
+  userId,
+  username,
+  postId,
+  commentId,
+  onPostDelete,
+  onCommentDelete,
+  className,
+}: ModeratorActionsMenuProps) {
+  // Return null - mod actions now live in the main "..." menu
+  return null;
 }

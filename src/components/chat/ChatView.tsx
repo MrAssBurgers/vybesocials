@@ -65,6 +65,8 @@ import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useUserOnlineStatus } from '@/hooks/usePresence';
 import { DMSafetyGate } from './DMSafetyGate';
 import { GroupInfoSheet } from './GroupInfoSheet';
+import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
+import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
 
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
@@ -616,7 +618,11 @@ export function ChatView() {
         </button>
         
         <div className="flex-1 min-w-0">
-          <h2 className="font-semibold text-sm sm:text-base truncate leading-tight">{displayName}</h2>
+          <h2 className="font-semibold text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
+            {displayName}
+            {!isGroupChat && otherMember?.id && isOwner(otherMember.username || '') && <OwnerBadge />}
+            {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <PrincessBadge />}
+          </h2>
           {!isGroupChat && !typingUsers.length && (
             <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight">
               {otherMemberOnline ? 'Online' : 'Offline'}

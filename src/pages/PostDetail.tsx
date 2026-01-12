@@ -2,7 +2,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, Image, X, Loader2, Send, Smile } from 'lucide-react';
-import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
+import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -527,13 +527,7 @@ export default function PostDetailPage() {
                               </AlertDialogContent>
                             </AlertDialog>
                           )}
-                          {/* Mod actions for other users' comments */}
-                          <ModeratorActionsMenu
-                            userId={comment.user.id}
-                            username={comment.user.username}
-                            commentId={comment.id}
-                            postId={post.id}
-                          />
+                          {/* Mod actions now in parent menus - removed standalone shield */}
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground">

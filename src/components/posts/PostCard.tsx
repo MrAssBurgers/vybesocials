@@ -20,10 +20,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { EditPostDialog } from './EditPostDialog';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
+import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
 import { useTogglePin } from '@/hooks/usePosts';
 import { useUserRole } from '@/hooks/useModeration';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
-import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
+import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 
@@ -209,12 +210,15 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const queryClient = useQueryClient();
   const togglePin = useTogglePin();
   const { data: userRole } = useUserRole();
+  const isModOrAdmin = useIsModOrAdmin();
   const [isLiked, setIsLiked] = useState(post.is_liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
   const [showLikeParticles, setShowLikeParticles] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [warnDialogOpen, setWarnDialogOpen] = useState(false);
+  const [banDialogOpen, setBanDialogOpen] = useState(false);
 
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
@@ -344,6 +348,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
               <p className="font-semibold text-sm flex items-center gap-1.5">
                 {post.author.username}
                 {isOwner(post.author.username) && <OwnerBadge />}
+                {isOwnerWife(post.author.id) && <PrincessBadge />}
                 {post.is_pinned && (
                   <Badge variant="secondary" className="text-xs px-1.5 py-0">
                     <Pin className="h-3 w-3 mr-1" />
@@ -358,11 +363,6 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           </Link>
         </UserProfileHoverCard>
         <div className="flex items-center gap-1">
-          <ModeratorActionsMenu
-            userId={post.author.id}
-            username={post.author.username}
-            postId={post.id}
-          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon-sm">
@@ -407,9 +407,28 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                   Report
                 </DropdownMenuItem>
               )}
+              {/* Mod actions - only visible to mods/admins and not on own content */}
+              {isModOrAdmin && !isOwnPost && (
+                <ModeratorMenuItems
+                  userId={post.author.id}
+                  username={post.author.username}
+                  postId={post.id}
+                  onWarnClick={() => setWarnDialogOpen(true)}
+                  onBanClick={() => setBanDialogOpen(true)}
+                />
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        {/* Mod dialogs */}
+        <ModeratorDialogs
+          userId={post.author.id}
+          username={post.author.username}
+          warnDialogOpen={warnDialogOpen}
+          setWarnDialogOpen={setWarnDialogOpen}
+          banDialogOpen={banDialogOpen}
+          setBanDialogOpen={setBanDialogOpen}
+        />
       </div>
 
       {/* Media - natural aspect ratio, NO black padding */}

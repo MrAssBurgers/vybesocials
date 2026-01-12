@@ -13,11 +13,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FriendButton } from '@/components/friends/FriendButton';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
+import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
 import { ClipsGrid } from '@/components/posts/ClipsGrid';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useCreateConversation } from '@/hooks/useMessages';
-import { ModeratorActionsMenu } from '@/components/moderation/ModeratorActionsMenu';
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -160,13 +160,8 @@ export default function ProfilePage() {
                 <h1 className="text-2xl font-bold flex items-center gap-2">
                   @{profile.username}
                   {isOwner(profile.username) && <OwnerBadge />}
+                  {isOwnerWife(profile.id) && <PrincessBadge />}
                 </h1>
-                {!isOwnProfile && (
-                  <ModeratorActionsMenu
-                    userId={profile.id}
-                    username={profile.username}
-                  />
-                )}
               </div>
               {isOwnProfile ? (
                 <Link to="/settings">
