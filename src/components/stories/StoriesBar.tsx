@@ -112,6 +112,7 @@ function StoryAvatar({
   const signedUrl = useSignedUrl(avatarUrl);
 
   const handleAddClick = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     onAddClick?.();
   };
@@ -146,9 +147,9 @@ function StoryAvatar({
         {showAddButton && !isUploading && (
           <div 
             onClick={handleAddClick}
-            className="absolute -bottom-0.5 -right-0.5 bg-primary rounded-full p-1 border-2 border-background cursor-pointer hover:scale-110 transition-transform"
+            className="absolute -bottom-1 -right-1 z-10 bg-primary rounded-full p-2 border-2 border-background cursor-pointer active:scale-95 transition-transform"
           >
-            <Plus className="h-3 w-3 text-primary-foreground" />
+            <Plus className="h-3.5 w-3.5 text-primary-foreground" />
           </div>
         )}
         {isUploading && (
