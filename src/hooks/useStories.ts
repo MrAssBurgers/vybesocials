@@ -12,6 +12,8 @@ export interface Story {
   view_count: number;
   expires_at: string;
   created_at: string;
+  aspect_ratio?: number;
+  duration?: number | null;
   author?: {
     id: string;
     username: string;
@@ -19,6 +21,10 @@ export interface Story {
     display_name: string | null;
   };
   has_viewed?: boolean;
+  // For optimistic UI
+  isOptimistic?: boolean;
+  isUploading?: boolean;
+  uploadProgress?: number;
 }
 
 export interface StoryGroup {
@@ -58,6 +64,7 @@ export function useStories() {
       // Friends are mutual follows
       const friendIds = new Set(followingIds.filter(id => followerIds.includes(id)));
 
+      // Get non-expired stories
       const { data, error } = await supabase
         .from('stories')
         .select(`
@@ -129,6 +136,15 @@ export function useStories() {
   });
 }
 
+interface CreateStoryParams {
+  mediaUrl: string;
+  mediaType: string;
+  caption?: string;
+  isCloseFriendsOnly?: boolean;
+  aspectRatio?: number;
+  duration?: number | null;
+}
+
 export function useCreateStory() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -139,12 +155,9 @@ export function useCreateStory() {
       mediaType,
       caption,
       isCloseFriendsOnly,
-    }: {
-      mediaUrl: string;
-      mediaType: string;
-      caption?: string;
-      isCloseFriendsOnly?: boolean;
-    }) => {
+      aspectRatio,
+      duration,
+    }: CreateStoryParams) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
       const { data, error } = await supabase
@@ -155,14 +168,86 @@ export function useCreateStory() {
           media_type: mediaType,
           caption,
           is_close_friends_only: isCloseFriendsOnly || false,
+          aspect_ratio: aspectRatio || 0.5625,
+          duration: duration,
         })
-        .select()
+        .select(`
+          *,
+          author:profiles!author_id(id, username, avatar_url, display_name)
+        `)
         .single();
 
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onMutate: async (newStory) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['stories'] });
+
+      // Snapshot the previous value
+      const previousStories = queryClient.getQueryData<StoryGroup[]>(['stories', profile?.id]);
+
+      // Optimistically update to the new value
+      if (profile) {
+        const optimisticStory: Story = {
+          id: `optimistic-${Date.now()}`,
+          author_id: profile.id,
+          media_url: newStory.mediaUrl,
+          media_type: newStory.mediaType,
+          caption: newStory.caption || null,
+          is_close_friends_only: newStory.isCloseFriendsOnly || false,
+          view_count: 0,
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          created_at: new Date().toISOString(),
+          aspect_ratio: newStory.aspectRatio,
+          duration: newStory.duration,
+          author: {
+            id: profile.id,
+            username: profile.username,
+            avatar_url: profile.avatar_url,
+            display_name: null,
+          },
+          has_viewed: true,
+          isOptimistic: true,
+          isUploading: true,
+        };
+
+        queryClient.setQueryData<StoryGroup[]>(['stories', profile.id], (old) => {
+          if (!old) {
+            return [{
+              user: optimisticStory.author!,
+              stories: [optimisticStory],
+              hasUnviewed: false,
+            }];
+          }
+
+          const existingOwnGroup = old.find(g => g.user.id === profile.id);
+          if (existingOwnGroup) {
+            return old.map(g => 
+              g.user.id === profile.id 
+                ? { ...g, stories: [optimisticStory, ...g.stories] }
+                : g
+            );
+          } else {
+            return [{
+              user: optimisticStory.author!,
+              stories: [optimisticStory],
+              hasUnviewed: false,
+            }, ...old];
+          }
+        });
+      }
+
+      return { previousStories };
+    },
+    onError: (err, newStory, context) => {
+      // Rollback on error
+      if (context?.previousStories) {
+        queryClient.setQueryData(['stories', profile?.id], context.previousStories);
+      }
+    },
+    onSettled: () => {
+      // Refetch after error or success
       queryClient.invalidateQueries({ queryKey: ['stories'] });
     },
   });

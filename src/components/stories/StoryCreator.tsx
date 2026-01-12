@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
-import { X, Camera, Image as ImageIcon, Star, Send, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Camera, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw } from 'lucide-react';
 import { useCreateStory } from '@/hooks/useStories';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -9,11 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
+import { validateStoryMedia, compressImage, generateStoryFileName } from '@/lib/storyUtils';
 
 interface StoryCreatorProps {
   onClose: () => void;
 }
+
+type UploadState = 'idle' | 'validating' | 'compressing' | 'uploading' | 'saving' | 'error';
 
 export function StoryCreator({ onClose }: StoryCreatorProps) {
   const { t } = useTranslation();
@@ -25,63 +29,160 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
   const [isCloseFriendsOnly, setIsCloseFriendsOnly] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [uploadState, setUploadState] = useState<UploadState>('idle');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [mediaInfo, setMediaInfo] = useState<{
+    aspectRatio: number;
+    duration: number | null;
+    isVideo: boolean;
+  } | null>(null);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const resetState = useCallback(() => {
+    setSelectedFile(null);
+    setPreview(null);
+    setCaption('');
+    setIsCloseFriendsOnly(false);
+    setUploadState('idle');
+    setUploadProgress(0);
+    setErrorMessage(null);
+    setMediaInfo(null);
+  }, []);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
-      toast.error('Please select an image or video');
-      return;
-    }
+    setUploadState('validating');
+    setErrorMessage(null);
 
-    // Validate file size (50MB max)
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error('File size must be less than 50MB');
-      return;
-    }
+    try {
+      const validation = await validateStoryMedia(file);
+      
+      if (!validation.valid) {
+        setErrorMessage(validation.error || 'Invalid media file');
+        setUploadState('error');
+        return;
+      }
 
-    setSelectedFile(file);
-    setPreview(URL.createObjectURL(file));
+      const isVideo = file.type.startsWith('video/');
+      setMediaInfo({
+        aspectRatio: validation.aspectRatio || 0.5625,
+        duration: validation.duration || null,
+        isVideo,
+      });
+
+      setSelectedFile(file);
+      setPreview(URL.createObjectURL(file));
+      setUploadState('idle');
+    } catch (err) {
+      console.error('File validation error:', err);
+      setErrorMessage('Failed to process media file');
+      setUploadState('error');
+    }
+    
+    // Reset file input for re-selection
+    e.target.value = '';
   };
 
   const handleSubmit = async () => {
-    if (!selectedFile || !profile?.id) return;
+    if (!selectedFile || !profile?.id || !mediaInfo) return;
 
-    setIsUploading(true);
+    setUploadState('compressing');
+    setUploadProgress(10);
+    setErrorMessage(null);
 
     try {
-      // Upload to Supabase Storage
-      const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${profile.id}/${Date.now()}.${fileExt}`;
+      let fileToUpload: File | Blob = selectedFile;
 
+      // Compress images (skip for videos)
+      if (!mediaInfo.isVideo) {
+        try {
+          const compressed = await compressImage(selectedFile);
+          fileToUpload = compressed;
+          setUploadProgress(30);
+        } catch (compressErr) {
+          console.warn('Image compression failed, using original:', compressErr);
+        }
+      }
+
+      setUploadState('uploading');
+      setUploadProgress(40);
+
+      // Generate unique filename - use auth.uid() format (user_id, not profile.id)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      
+      const fileName = generateStoryFileName(user.id, mediaInfo.isVideo ? 'video' : 'image');
+
+      // Upload to stories bucket
       const { error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(fileName, selectedFile);
+        .from('stories')
+        .upload(fileName, fileToUpload, {
+          cacheControl: '3600',
+          upsert: false,
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
 
+      setUploadProgress(70);
+
+      // Get public URL
       const { data: { publicUrl } } = supabase.storage
-        .from('media')
+        .from('stories')
         .getPublicUrl(fileName);
 
-      // Create story
+      if (!publicUrl) {
+        throw new Error('Failed to get public URL');
+      }
+
+      setUploadState('saving');
+      setUploadProgress(85);
+
+      // Create story record
       await createStory.mutateAsync({
         mediaUrl: publicUrl,
-        mediaType: selectedFile.type.startsWith('video/') ? 'video' : 'image',
+        mediaType: mediaInfo.isVideo ? 'video' : 'image',
         caption: caption.trim() || undefined,
         isCloseFriendsOnly,
+        aspectRatio: mediaInfo.aspectRatio,
+        duration: mediaInfo.duration,
       });
 
-      toast.success('Story created!');
-      onClose();
+      setUploadProgress(100);
+      toast.success('Story posted!');
+      
+      // Small delay to show completion
+      setTimeout(() => {
+        onClose();
+      }, 300);
     } catch (error) {
       console.error('Failed to create story:', error);
-      toast.error('Failed to create story');
-    } finally {
-      setIsUploading(false);
+      const message = error instanceof Error ? error.message : 'Failed to create story';
+      setErrorMessage(message);
+      setUploadState('error');
+      toast.error(message);
+    }
+  };
+
+  const handleRetry = () => {
+    setUploadState('idle');
+    setErrorMessage(null);
+    setUploadProgress(0);
+  };
+
+  const isProcessing = uploadState !== 'idle' && uploadState !== 'error';
+
+  const getStatusText = () => {
+    switch (uploadState) {
+      case 'validating': return 'Validating...';
+      case 'compressing': return 'Optimizing...';
+      case 'uploading': return 'Uploading...';
+      case 'saving': return 'Saving...';
+      default: return '';
     }
   };
 
@@ -94,7 +195,13 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     >
       {/* Header */}
       <div className="flex items-center justify-between p-4">
-        <Button variant="ghost" size="icon" onClick={onClose} className="text-white">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onClose} 
+          className="text-white"
+          disabled={isProcessing}
+        >
           <X className="h-6 w-6" />
         </Button>
         <h2 className="text-white font-semibold">{t('stories.createStory')}</h2>
@@ -104,8 +211,8 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       {/* Content */}
       <div className="flex-1 flex items-center justify-center p-4">
         {preview ? (
-          <div className="relative w-full max-w-md aspect-[9/16] rounded-2xl overflow-hidden">
-            {selectedFile?.type.startsWith('video/') ? (
+          <div className="relative w-full max-w-md aspect-[9/16] rounded-2xl overflow-hidden bg-black/50">
+            {mediaInfo?.isVideo ? (
               <video
                 src={preview}
                 className="w-full h-full object-cover"
@@ -118,25 +225,75 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
               <img src={preview} alt="Preview" className="w-full h-full object-cover" />
             )}
 
-            {/* Caption input overlay */}
-            <div className="absolute bottom-4 inset-x-4">
-              <Input
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder={t('stories.addCaption')}
-                maxLength={150}
-                className="bg-black/50 border-white/20 text-white placeholder:text-white/50"
-              />
-            </div>
+            {/* Upload overlay */}
+            <AnimatePresence>
+              {isProcessing && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-4"
+                >
+                  <Loader2 className="h-10 w-10 text-white animate-spin" />
+                  <p className="text-white font-medium">{getStatusText()}</p>
+                  <div className="w-48">
+                    <Progress value={uploadProgress} className="h-2" />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            {/* Change button */}
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              className="absolute top-4 right-4"
-            >
-              Change
+            {/* Error overlay */}
+            <AnimatePresence>
+              {uploadState === 'error' && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-4 p-6"
+                >
+                  <AlertCircle className="h-12 w-12 text-red-500" />
+                  <p className="text-white font-medium text-center">{errorMessage}</p>
+                  <Button onClick={handleRetry} variant="secondary" className="gap-2">
+                    <RotateCcw className="h-4 w-4" />
+                    Try Again
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Caption input overlay - only when not processing */}
+            {!isProcessing && uploadState !== 'error' && (
+              <div className="absolute bottom-4 inset-x-4">
+                <Input
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  placeholder={t('stories.addCaption')}
+                  maxLength={150}
+                  className="bg-black/50 border-white/20 text-white placeholder:text-white/50"
+                />
+              </div>
+            )}
+
+            {/* Change button - only when not processing */}
+            {!isProcessing && uploadState !== 'error' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute top-4 right-4"
+              >
+                Change
+              </Button>
+            )}
+          </div>
+        ) : uploadState === 'error' ? (
+          <div className="flex flex-col items-center gap-4 p-8">
+            <AlertCircle className="h-12 w-12 text-red-500" />
+            <p className="text-white/70 text-center">{errorMessage}</p>
+            <Button onClick={handleRetry} variant="secondary" className="gap-2">
+              <RotateCcw className="h-4 w-4" />
+              Try Again
             </Button>
           </div>
         ) : (
@@ -153,12 +310,13 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
               </div>
             </div>
             <p className="text-white/70">{t('stories.selectMedia')}</p>
+            <p className="text-white/40 text-sm">Images or videos up to 60s</p>
           </button>
         )}
       </div>
 
       {/* Footer */}
-      {preview && (
+      {preview && uploadState !== 'error' && (
         <div className="p-4 space-y-4">
           {/* Close friends toggle */}
           <div className="flex items-center justify-between bg-white/10 rounded-lg p-4">
@@ -172,19 +330,20 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
               id="close-friends"
               checked={isCloseFriendsOnly}
               onCheckedChange={setIsCloseFriendsOnly}
+              disabled={isProcessing}
             />
           </div>
 
           {/* Submit button */}
           <Button
             onClick={handleSubmit}
-            disabled={isUploading}
+            disabled={isProcessing}
             className="w-full gradient-animated text-white font-semibold h-12"
           >
-            {isUploading ? (
+            {isProcessing ? (
               <>
                 <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                {t('common.loading')}
+                {getStatusText()}
               </>
             ) : (
               <>
@@ -203,6 +362,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
         accept="image/*,video/*"
         onChange={handleFileSelect}
         className="hidden"
+        capture="environment"
       />
     </motion.div>
   );

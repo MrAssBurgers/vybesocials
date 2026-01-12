@@ -94,6 +94,18 @@ interface StoryAvatarProps {
   onClick: () => void;
 }
 
+interface StoryAvatarProps {
+  avatarUrl?: string | null;
+  username?: string;
+  displayName?: string | null;
+  label?: string;
+  hasUnviewed?: boolean;
+  hasStory?: boolean;
+  showAddButton?: boolean;
+  isUploading?: boolean;
+  onClick: () => void;
+}
+
 function StoryAvatar({ 
   avatarUrl, 
   username, 
@@ -102,6 +114,7 @@ function StoryAvatar({
   hasUnviewed, 
   hasStory,
   showAddButton,
+  isUploading,
   onClick 
 }: StoryAvatarProps) {
   const signedUrl = useSignedUrl(avatarUrl);
@@ -115,15 +128,17 @@ function StoryAvatar({
       <div className="relative">
         <div className={cn(
           "h-[68px] w-[68px] rounded-full p-[3px]",
-          hasStory && hasUnviewed 
-            ? "bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-500" 
-            : hasStory 
-              ? "bg-muted-foreground/30" 
-              : "bg-transparent"
+          isUploading 
+            ? "bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-500 animate-pulse"
+            : hasStory && hasUnviewed 
+              ? "bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-500" 
+              : hasStory 
+                ? "bg-muted-foreground/30" 
+                : "bg-transparent"
         )}>
           <Avatar className={cn(
             "h-full w-full border-[3px] border-background",
-            !hasStory && "border-0"
+            !hasStory && !isUploading && "border-0"
           )}>
             <AvatarImage src={signedUrl || undefined} className="object-cover" />
             <AvatarFallback className="bg-muted text-muted-foreground text-lg">
@@ -131,14 +146,19 @@ function StoryAvatar({
             </AvatarFallback>
           </Avatar>
         </div>
-        {showAddButton && (
+        {showAddButton && !isUploading && (
           <div className="absolute -bottom-0.5 -right-0.5 bg-primary rounded-full p-1 border-2 border-background">
             <Plus className="h-3 w-3 text-primary-foreground" />
           </div>
         )}
+        {isUploading && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-[68px] w-[68px] rounded-full border-2 border-transparent border-t-white animate-spin" />
+          </div>
+        )}
       </div>
       <span className="text-[11px] font-medium text-muted-foreground truncate w-16 text-center leading-tight">
-        {label || displayName || username}
+        {isUploading ? 'Posting...' : label || displayName || username}
       </span>
     </motion.button>
   );

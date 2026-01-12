@@ -2615,9 +2615,11 @@ export type Database = {
       }
       stories: {
         Row: {
+          aspect_ratio: number | null
           author_id: string
           caption: string | null
           created_at: string
+          duration: number | null
           expires_at: string
           id: string
           is_close_friends_only: boolean | null
@@ -2626,9 +2628,11 @@ export type Database = {
           view_count: number | null
         }
         Insert: {
+          aspect_ratio?: number | null
           author_id: string
           caption?: string | null
           created_at?: string
+          duration?: number | null
           expires_at?: string
           id?: string
           is_close_friends_only?: boolean | null
@@ -2637,9 +2641,11 @@ export type Database = {
           view_count?: number | null
         }
         Update: {
+          aspect_ratio?: number | null
           author_id?: string
           caption?: string | null
           created_at?: string
+          duration?: number | null
           expires_at?: string
           id?: string
           is_close_friends_only?: boolean | null
