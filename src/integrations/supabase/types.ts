@@ -229,6 +229,8 @@ export type Database = {
           is_group_call: boolean | null
           max_participants: number | null
           receiver_id: string
+          room_name: string | null
+          room_url: string | null
           started_at: string | null
           status: string
         }
@@ -242,6 +244,8 @@ export type Database = {
           is_group_call?: boolean | null
           max_participants?: number | null
           receiver_id: string
+          room_name?: string | null
+          room_url?: string | null
           started_at?: string | null
           status?: string
         }
@@ -255,6 +259,8 @@ export type Database = {
           is_group_call?: boolean | null
           max_participants?: number | null
           receiver_id?: string
+          room_name?: string | null
+          room_url?: string | null
           started_at?: string | null
           status?: string
         }
