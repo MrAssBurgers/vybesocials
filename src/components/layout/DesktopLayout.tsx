@@ -19,7 +19,7 @@ export function DesktopLayout({ children, hideRightSidebar = false, fullWidth = 
     return <>{children}</>;
   }
 
-  // Calculate margins based on sidebar states - minimal spacing
+  // Tighter margins - reduced spacing between sidebars and content
   const leftMargin = leftCollapsed ? 'lg:ml-14' : 'lg:ml-[180px] xl:ml-[200px] 2xl:ml-[220px]';
   const rightMargin = hideRightSidebar ? '' : 'xl:mr-[240px] 2xl:mr-[280px]';
 
@@ -39,11 +39,11 @@ export function DesktopLayout({ children, hideRightSidebar = false, fullWidth = 
           rightMargin
         )}
       >
-        {/* Center content with max-width for ultra-wide */}
+        {/* Center content - fill available space */}
         <div 
           className={cn(
-            "mx-auto w-full",
-            fullWidth ? "" : "max-w-[900px] xl:max-w-[1000px] 2xl:px-6"
+            "mx-auto w-full px-2 lg:px-3",
+            fullWidth ? "" : "max-w-full"
           )}
         >
           {children}

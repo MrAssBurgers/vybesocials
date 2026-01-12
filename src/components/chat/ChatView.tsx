@@ -56,7 +56,8 @@ import {
   CornerUpLeft,
   Trash2,
   Edit3,
-  MoreHorizontal
+  MoreHorizontal,
+  Users
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -598,22 +599,39 @@ export function ChatView() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         
-        {/* Clickable Avatar - navigates to profile - snug ring that fits perfectly */}
+        {/* Clickable Avatar - navigates to profile or opens group info */}
         <button 
           onClick={handleAvatarClick}
           className="relative flex-shrink-0 group"
-          aria-label="View profile"
+          aria-label={isGroupChat ? "View group info" : "View profile"}
         >
           <div className="relative h-9 w-9 sm:h-10 sm:w-10">
             {/* Ring - exactly matches avatar container */}
             <div className="absolute inset-0 rounded-full ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all" />
             <Avatar className="h-full w-full group-active:scale-95 transition-transform">
-              <AvatarImage src={otherMember?.avatar_url || undefined} />
-              <AvatarFallback className="text-sm">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+              {isGroupChat ? (
+                conversation?.avatar_url ? (
+                  <AvatarImage src={conversation.avatar_url} />
+                ) : (
+                  <AvatarFallback className="text-sm bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                    <Users className="h-4 w-4" />
+                  </AvatarFallback>
+                )
+              ) : (
+                <>
+                  <AvatarImage src={otherMember?.avatar_url || undefined} />
+                  <AvatarFallback className="text-sm">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+                </>
+              )}
             </Avatar>
           </div>
           {!isGroupChat && (
             <OnlineIndicator isOnline={otherMemberOnline} size="sm" className="bottom-0 right-0" />
+          )}
+          {isGroupChat && (
+            <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-background">
+              {otherMembers.length + 1}
+            </div>
           )}
         </button>
         
@@ -623,11 +641,18 @@ export function ChatView() {
             {!isGroupChat && otherMember?.id && isOwner(otherMember.username || '') && <OwnerBadge />}
             {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <PrincessBadge />}
           </h2>
-          {!isGroupChat && !typingUsers.length && (
+          {isGroupChat ? (
+            <button 
+              onClick={() => setShowGroupInfo(true)}
+              className="text-[11px] sm:text-xs text-muted-foreground leading-tight hover:text-primary transition-colors"
+            >
+              {otherMembers.length + 1} members · Tap for info
+            </button>
+          ) : !typingUsers.length ? (
             <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight">
               {otherMemberOnline ? 'Online' : 'Offline'}
             </p>
-          )}
+          ) : null}
           {typingUsers.length > 0 && (
             <p className="text-[11px] sm:text-xs text-primary flex items-center gap-1 leading-tight">
               <Sparkles className="h-3 w-3" />
