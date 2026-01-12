@@ -300,25 +300,63 @@ export function DailyCallRoot({
         // If audio-only retry, only request microphone
         const callType = audioOnlyRetry ? 'audio' : activeCall.call_type;
         
+        console.log('[DailyCallRoot] Starting join flow, callType:', callType);
+        
         // MANDATORY: only join after media permissions are granted
-        await requestCallMediaPermissions(callType);
-        await ensureAudioInputDevice();
+        try {
+          await requestCallMediaPermissions(callType);
+        } catch (permErr: any) {
+          console.error('[DailyCallRoot] Permission error:', permErr);
+          void failAndEnd(permErr.message || 'Microphone permission required', true);
+          return;
+        }
+
+        try {
+          await ensureAudioInputDevice();
+        } catch (deviceErr: any) {
+          console.warn('[DailyCallRoot] Device check warning:', deviceErr);
+          // Don't fail - continue anyway
+        }
 
         // ANDROID SAFETY: wait one animation frame after permission resolution
         if (isAndroid()) {
           await nextAnimationFrame();
         }
 
+        console.log('[DailyCallRoot] Getting meeting token...');
+        
         // Get meeting token from backend
-        const tokenData = await getTokenMutation.mutateAsync({
-          roomName: activeCall.room_name!,
-          callId: activeCall.id,
-        });
+        let tokenData;
+        try {
+          tokenData = await getTokenMutation.mutateAsync({
+            roomName: activeCall.room_name!,
+            callId: activeCall.id,
+          });
+        } catch (tokenErr: any) {
+          console.error('[DailyCallRoot] Token fetch failed:', tokenErr);
+          void failAndEnd('Failed to get call credentials. Please try again.');
+          return;
+        }
 
         setCallToken(tokenData.token);
+        
+        console.log('[DailyCallRoot] Joining room with token...');
 
         // Join with token
-        await joinRoom(activeCall.room_url!, tokenData.token);
+        try {
+          await joinRoom(activeCall.room_url!, tokenData.token);
+        } catch (joinErr: any) {
+          console.error('[DailyCallRoot] Room join failed:', joinErr);
+          const isNetworkError = joinErr.message?.includes('timeout') || 
+                                  joinErr.message?.includes('network') ||
+                                  joinErr.message?.includes('WebSocket');
+          void failAndEnd(
+            isNetworkError 
+              ? 'Network connection failed. Your network may be blocking video calls.'
+              : 'Call failed to connect. Check permissions or network.'
+          );
+          return;
+        }
         
         // If audio-only retry succeeded, disable video after joining
         if (audioOnlyRetry) {
@@ -327,8 +365,10 @@ export function DailyCallRoot({
             daily.setLocalVideo(false);
           }
         }
+        
+        console.log('[DailyCallRoot] Join flow completed successfully');
       } catch (err: any) {
-        console.error('[DailyCallRoot] join failed:', err);
+        console.error('[DailyCallRoot] Unexpected join error:', err);
         const msg = err?.message || 'Call failed to connect. Check permissions or network.';
         void failAndEnd(msg);
       }
