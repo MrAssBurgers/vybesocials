@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useMyServers, Server, ServerRole } from '@/hooks/useServers';
+import { useUnreadCountPerServer } from '@/hooks/useServerNotifications';
 import { CreateServerDialog } from './CreateServerDialog';
 import { JoinServerDialog } from './JoinServerDialog';
 
@@ -17,6 +18,7 @@ interface ServerListProps {
 
 export const ServerList = memo(function ServerList({ selectedServerId, onSelectServer }: ServerListProps) {
   const { data: servers = [], isLoading } = useMyServers();
+  const { data: unreadCounts = {} } = useUnreadCountPerServer();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showJoinDialog, setShowJoinDialog] = useState(false);
 
@@ -32,6 +34,7 @@ export const ServerList = memo(function ServerList({ selectedServerId, onSelectS
                 server={server}
                 isSelected={selectedServerId === server.id}
                 onClick={() => onSelectServer(server.id)}
+                unreadCount={unreadCounts[server.id] || 0}
               />
             ))}
 
@@ -90,10 +93,12 @@ const ServerIcon = memo(function ServerIcon({
   server,
   isSelected,
   onClick,
+  unreadCount,
 }: {
   server: Server & { myRole: ServerRole };
   isSelected: boolean;
   onClick: () => void;
+  unreadCount: number;
 }) {
   return (
     <TooltipProvider>
@@ -130,12 +135,22 @@ const ServerIcon = memo(function ServerIcon({
                 </div>
               )}
             </div>
+
+            {/* Unread badge */}
+            {unreadCount > 0 && !isSelected && (
+              <div className="absolute -bottom-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center border-2 border-background">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </div>
+            )}
           </button>
         </TooltipTrigger>
         <TooltipContent side="right" className="flex items-center gap-2">
           <p>{server.name}</p>
           {server.myRole === 'owner' && <Crown className="h-3 w-3 text-yellow-500" />}
           {server.myRole === 'admin' && <Shield className="h-3 w-3 text-blue-500" />}
+          {unreadCount > 0 && (
+            <span className="text-xs text-muted-foreground">({unreadCount} new)</span>
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
