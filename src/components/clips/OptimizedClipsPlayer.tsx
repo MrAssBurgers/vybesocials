@@ -341,14 +341,17 @@ export function OptimizedClipsPlayer({
     y.set(0);
   }, [currentIndex, clips.length, y]);
 
-  // Handle scroll/wheel for desktop
+  // Handle scroll/wheel for desktop only - use passive listener on mobile
   const handleWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault();
-    
-    if (e.deltaY > 30 && currentIndex < clips.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-    } else if (e.deltaY < -30 && currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1);
+    // Only prevent default on desktop where wheel scroll hijacking is intentional
+    if (window.matchMedia('(pointer: fine)').matches) {
+      e.preventDefault();
+      
+      if (e.deltaY > 30 && currentIndex < clips.length - 1) {
+        setCurrentIndex(prev => prev + 1);
+      } else if (e.deltaY < -30 && currentIndex > 0) {
+        setCurrentIndex(prev => prev - 1);
+      }
     }
   }, [currentIndex, clips.length]);
 
@@ -356,8 +359,12 @@ export function OptimizedClipsPlayer({
     const container = containerRef.current;
     if (!container) return;
 
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
+    // Only add wheel handler on desktop
+    const isDesktop = window.matchMedia('(pointer: fine)').matches;
+    if (isDesktop) {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+      return () => container.removeEventListener('wheel', handleWheel);
+    }
   }, [handleWheel]);
 
   if (clips.length === 0) {
@@ -371,7 +378,8 @@ export function OptimizedClipsPlayer({
   return (
     <div 
       ref={containerRef}
-      className="relative h-full w-full bg-black overflow-hidden touch-none"
+      className="relative h-full w-full bg-black overflow-hidden"
+      style={{ touchAction: 'pan-y' }}
     >
       <motion.div
         drag="y"
