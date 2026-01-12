@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import DailyIframe from '@daily-co/daily-js';
 import { 
   PhoneOff, 
   Mic, 
@@ -18,6 +17,15 @@ import { cn } from '@/lib/utils';
 import { DailyCall, useEndDailyCall } from '@/hooks/useDailyCalls';
 import { callSounds } from '@/lib/callSounds';
 import { toast } from 'sonner';
+import {
+  hasDailyInstance,
+  createDailyInstance,
+  destroyDailyInstance,
+  getDailyInstance,
+  isCurrentlyJoining,
+  setJoiningState,
+  getCurrentRoomUrl,
+} from '@/lib/dailySingleton';
 
 interface DailyCallUIProps {
   call: DailyCall;
@@ -36,8 +44,7 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
   const [dailyReady, setDailyReady] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const dailyRef = useRef<ReturnType<typeof DailyIframe.createFrame> | null>(null);
-  const hasJoinedRef = useRef(false);
+  const hasInitializedRef = useRef(false);
   const isUnmountingRef = useRef(false);
   const joinTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const onCloseRef = useRef(onClose);
@@ -62,19 +69,11 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
     }
   }, []);
 
-  // Cleanup helper
+  // Cleanup helper - uses singleton
   const cleanupDaily = useCallback(() => {
     clearJoinTimeout();
-    if (dailyRef.current) {
-      try {
-        dailyRef.current.leave().catch(() => {});
-        dailyRef.current.destroy();
-      } catch (e) {
-        console.error('[DailyCallUI] Cleanup error:', e);
-      }
-      dailyRef.current = null;
-    }
-    hasJoinedRef.current = false;
+    destroyDailyInstance();
+    hasInitializedRef.current = false;
   }, [clearJoinTimeout]);
 
   // Handle ending the call
@@ -100,17 +99,11 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
     if (!url) return false;
     if (typeof url !== 'string') return false;
     if (!url.startsWith('https://')) return false;
-    if (url.length < 20) return false; // Basic sanity check
+    if (url.length < 20) return false;
     return true;
   }, []);
 
-  // Permissions are requested from a user gesture:
-  // - Outgoing calls: DailyCallButtons (call toolbar)
-  // - Incoming calls: DailyIncomingCallDialog (Accept)
-  // Mobile browsers can block permission prompts not triggered by a user gesture,
-  // so we do NOT request mic/camera permissions inside this component/effect.
-
-  // Main join flow
+  // Main join flow - SINGLETON PATTERN
   useEffect(() => {
     // Only proceed if we're ready to connect
     if (callPhase === 'ringing') return;
@@ -126,15 +119,28 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
       return;
     }
     
-    // CRITICAL: Prevent double join
-    if (hasJoinedRef.current) {
-      console.log('[DailyCallUI] Already joined, skipping');
+    // CRITICAL: Prevent duplicate initialization
+    if (hasInitializedRef.current) {
+      console.log('[DailyCallUI] Already initialized, skipping');
       return;
     }
 
-    // Mark as joining BEFORE any async work
-    hasJoinedRef.current = true;
+    // CRITICAL: Check if Daily is already joining somewhere
+    if (isCurrentlyJoining()) {
+      console.log('[DailyCallUI] Daily is already joining, skipping');
+      return;
+    }
+
+    // CRITICAL: Check if already in this room
+    if (getCurrentRoomUrl() === call.room_url) {
+      console.log('[DailyCallUI] Already in this room, skipping');
+      return;
+    }
+
+    // Mark as initializing BEFORE any async work
+    hasInitializedRef.current = true;
     isUnmountingRef.current = false;
+    setJoiningState(true);
 
     const roomUrl = call.room_url;
     console.log('[DailyCallUI] Starting join flow with room:', roomUrl);
@@ -142,17 +148,27 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
     const initAndJoin = async () => {
       try {
         // Secure context requirement (HTTPS)
-        if (!window.isSecureContext || window.location.protocol !== 'https:') {
+        if (typeof window !== 'undefined' && (!window.isSecureContext || window.location.protocol !== 'https:')) {
           toast.error('Calls require a secure (HTTPS) connection');
-          hasJoinedRef.current = false;
+          hasInitializedRef.current = false;
+          setJoiningState(false);
           return;
         }
 
-        if (isUnmountingRef.current) return;
+        if (isUnmountingRef.current) {
+          setJoiningState(false);
+          return;
+        }
 
-        // Step 1: Create Daily Prebuilt iframe (single instance)
-        console.log('[DailyCallUI] Creating Daily frame');
-        const daily = DailyIframe.createFrame(containerRef.current!, {
+        // CRITICAL: Destroy any existing instance before creating new one
+        if (hasDailyInstance()) {
+          console.log('[DailyCallUI] Destroying existing Daily instance');
+          destroyDailyInstance();
+        }
+
+        // Step 1: Create Daily Prebuilt iframe via singleton
+        console.log('[DailyCallUI] Creating Daily frame via singleton');
+        const daily = createDailyInstance(containerRef.current!, {
           iframeStyle: {
             position: 'absolute',
             inset: '0',
@@ -165,19 +181,21 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
           showFullscreenButton: false,
         });
 
-        dailyRef.current = daily;
-
         // Step 2: Attach event listeners BEFORE join()
         daily.on('joined-meeting', () => {
           console.log('[DailyCallUI] ✓ joined-meeting');
           clearJoinTimeout();
+          setJoiningState(false);
           if (isUnmountingRef.current) return;
 
-          // Ensure correct starting media state
-          if (call.call_type === 'audio') {
-            dailyRef.current?.setLocalVideo(false);
+          const instance = getDailyInstance();
+          if (instance) {
+            // Ensure correct starting media state
+            if (call.call_type === 'audio') {
+              instance.setLocalVideo(false);
+            }
+            instance.setLocalAudio(true);
           }
-          dailyRef.current?.setLocalAudio(true);
 
           setDailyReady(true);
           onConnectedRef.current();
@@ -188,6 +206,7 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
         daily.on('error', (event: any) => {
           console.error('[DailyCallUI] Daily error event:', event);
           clearJoinTimeout();
+          setJoiningState(false);
           if (isUnmountingRef.current) return;
 
           const msg =
@@ -202,24 +221,33 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
 
         daily.on('left-meeting', () => {
           console.log('[DailyCallUI] left-meeting');
+          setJoiningState(false);
         });
 
         // Step 3: Failsafe timeout (15s)
         joinTimeoutRef.current = setTimeout(() => {
           console.error('[DailyCallUI] Join timeout after 15s');
+          setJoiningState(false);
           if (isUnmountingRef.current) return;
           toast.error('Call failed to connect. Check permissions or network.');
           handleEndCall();
         }, 15000);
 
-        // Step 4: Join EXACTLY ONCE with correct syntax
+        // Step 4: Join with correct syntax
         console.log('[DailyCallUI] Calling daily.join({ url })', roomUrl);
         await daily.join({ url: roomUrl });
         console.log('[DailyCallUI] daily.join() promise resolved');
       } catch (error: any) {
         console.error('[DailyCallUI] Join failed:', error);
         clearJoinTimeout();
-        hasJoinedRef.current = false;
+        hasInitializedRef.current = false;
+        setJoiningState(false);
+
+        // Check for duplicate instance error specifically
+        if (error?.message?.includes('Duplicate')) {
+          console.error('[DailyCallUI] Duplicate instance detected, cleaning up');
+          destroyDailyInstance();
+        }
 
         if (!isUnmountingRef.current) {
           const errorMessage = error?.message || 'Failed to join call';
@@ -235,6 +263,7 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
     return () => {
       console.log('[DailyCallUI] Component unmounting');
       isUnmountingRef.current = true;
+      setJoiningState(false);
       cleanupDaily();
     };
   }, [call.room_url, callPhase, call.call_type, isValidRoomUrl, clearJoinTimeout, cleanupDaily, handleEndCall]);
@@ -251,17 +280,19 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
   }, [dailyReady]);
 
   const handleToggleMute = useCallback(() => {
-    if (dailyRef.current && dailyReady) {
+    const instance = getDailyInstance();
+    if (instance && dailyReady) {
       const newMuted = !isMuted;
-      dailyRef.current.setLocalAudio(!newMuted);
+      instance.setLocalAudio(!newMuted);
       setIsMuted(newMuted);
     }
   }, [isMuted, dailyReady]);
 
   const handleToggleVideo = useCallback(() => {
-    if (dailyRef.current && isVideoCall && dailyReady) {
+    const instance = getDailyInstance();
+    if (instance && isVideoCall && dailyReady) {
       const newVideoOff = !isVideoOff;
-      dailyRef.current.setLocalVideo(!newVideoOff);
+      instance.setLocalVideo(!newVideoOff);
       setIsVideoOff(newVideoOff);
     }
   }, [isVideoOff, isVideoCall, dailyReady]);
