@@ -39,6 +39,7 @@ const ListingDetail = lazy(() => import("./pages/ListingDetail"));
 const Events = lazy(() => import("./pages/Events"));
 const CreateEvent = lazy(() => import("./pages/CreateEvent"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const Community = lazy(() => import("./pages/Community"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -135,6 +136,7 @@ const App = () => {
                           <Route path="/events" element={<Events />} />
                           <Route path="/events/new" element={<CreateEvent />} />
                           <Route path="/admin" element={<AdminDashboard />} />
+                          <Route path="/community" element={<Community />} />
                           <Route path="*" element={<NotFound />} />
                         </Routes>
                       </Suspense>
