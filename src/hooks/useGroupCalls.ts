@@ -288,12 +288,18 @@ export function useGroupWebRTC(callId: string | null, isVideo: boolean) {
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && callId && profile?.id) {
+        const candidateJson = event.candidate.toJSON();
+        const signalData = {
+          candidate: candidateJson.candidate || null,
+          sdpMid: candidateJson.sdpMid || null,
+          sdpMLineIndex: candidateJson.sdpMLineIndex ?? null,
+        };
         supabase.from('call_signals').insert([{
           call_id: callId,
           from_user_id: profile.id,
           to_user_id: peerId,
           signal_type: 'ice-candidate',
-          signal_data: event.candidate.toJSON(),
+          signal_data: signalData,
         }]);
       }
     };
