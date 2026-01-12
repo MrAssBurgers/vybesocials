@@ -21,6 +21,7 @@ import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
+import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
@@ -353,7 +354,8 @@ const ConversationItem = memo(function ConversationItem({
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="font-semibold text-base truncate">{displayName}</span>
-            {otherMember && isOwner(otherMember.id) && <OwnerBadge />}
+            {otherMember && isOwner(otherMember.username || '') && <OwnerBadge />}
+            {otherMember && isOwnerWife(otherMember.id) && <PrincessBadge />}
           </div>
           {formattedTime && (
             <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formattedTime}</span>
