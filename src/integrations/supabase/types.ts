@@ -3442,7 +3442,7 @@ export type Database = {
       is_server_member: { Args: { p_server_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      app_role: "admin" | "moderator" | "user" | "owner_wife"
       group_role: "owner" | "admin" | "member"
     }
     CompositeTypes: {
@@ -3571,7 +3571,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user"],
+      app_role: ["admin", "moderator", "user", "owner_wife"],
       group_role: ["owner", "admin", "member"],
     },
   },
