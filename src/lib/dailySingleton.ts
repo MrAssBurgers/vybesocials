@@ -41,7 +41,7 @@ export function isCurrentlyJoining(): boolean {
   return isJoining;
 }
 
-export async function joinRoom(roomUrl: string): Promise<void> {
+export async function joinRoom(roomUrl: string, token?: string): Promise<void> {
   if (!dailyInstance) throw new Error('Daily is not initialized');
 
   if (isJoining) return;
@@ -51,7 +51,11 @@ export async function joinRoom(roomUrl: string): Promise<void> {
   currentRoomUrl = roomUrl;
 
   try {
-    await dailyInstance.join({ url: roomUrl });
+    const joinOptions: { url: string; token?: string } = { url: roomUrl };
+    if (token) {
+      joinOptions.token = token;
+    }
+    await dailyInstance.join(joinOptions);
   } catch (e) {
     currentRoomUrl = null;
     throw e;
