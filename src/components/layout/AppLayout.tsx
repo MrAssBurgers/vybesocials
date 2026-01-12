@@ -55,8 +55,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
   // Desktop layout with sidebars
   if (isDesktop) {
-    const leftMargin = leftCollapsed ? 'lg:ml-16' : 'lg:ml-[260px] xl:ml-[280px] 2xl:ml-[300px]';
-    const rightMargin = hideRightSidebar ? '' : 'xl:mr-[340px] 2xl:mr-[380px]';
+    const leftMargin = leftCollapsed ? 'lg:ml-16' : 'lg:ml-[220px] xl:ml-[240px] 2xl:ml-[260px]';
+    const rightMargin = hideRightSidebar ? '' : 'xl:mr-[280px] 2xl:mr-[320px]';
 
     return (
       <div ref={ref} className="min-h-screen w-full overflow-x-hidden">
@@ -78,7 +78,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           <div 
             className={cn(
               "mx-auto w-full px-4 lg:px-6 py-4",
-              fullWidth ? "" : "max-w-[1200px]"
+              fullWidth ? "" : "max-w-[1400px] 2xl:max-w-[1600px]"
             )}
           >
             {children}
