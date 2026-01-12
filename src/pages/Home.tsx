@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts } from '@/hooks/useInfinitePosts';
 import { PostCard } from '@/components/posts/PostCard';
@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/auth';
 import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
+import { Button } from '@/components/ui/button';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
@@ -159,6 +160,10 @@ export default function HomePage() {
             <TabsList className="w-full mb-6 bg-secondary">
               <TabsTrigger value="foryou" className="flex-1">For You</TabsTrigger>
               <TabsTrigger value="following" className="flex-1">Following</TabsTrigger>
+              <TabsTrigger value="communities" className="flex-1" onClick={() => navigate('/community')}>
+                <Users className="h-4 w-4 mr-1" />
+                Servers
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="foryou" className="space-y-6">
