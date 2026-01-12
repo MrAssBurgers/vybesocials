@@ -15,9 +15,12 @@ export default function CompleteProfile() {
   const navigate = useNavigate();
   const { user, profile, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [usernameError, setUsernameError] = useState('');
+  const [nameError, setNameError] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -111,6 +114,13 @@ export default function CompleteProfile() {
     e.preventDefault();
     if (!user) return;
 
+    // Validate first and last name
+    if (!firstName.trim() || !lastName.trim()) {
+      setNameError('First and last name are required');
+      return;
+    }
+    setNameError('');
+
     setLoading(true);
     try {
       const isValid = await validateUsername(username);
@@ -134,6 +144,9 @@ export default function CompleteProfile() {
         .upsert({
           user_id: user.id,
           username: username.toLowerCase(),
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          display_name: `${firstName.trim()} ${lastName.trim()}`,
           bio: bio,
           avatar_url: avatarUrl,
         }, {
@@ -215,6 +228,41 @@ export default function CompleteProfile() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* First & Last Name */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name *</Label>
+                <Input
+                  id="firstName"
+                  placeholder="First name"
+                  value={firstName}
+                  onChange={(e) => {
+                    setFirstName(e.target.value);
+                    setNameError('');
+                  }}
+                  className="bg-secondary border-border"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name *</Label>
+                <Input
+                  id="lastName"
+                  placeholder="Last name"
+                  value={lastName}
+                  onChange={(e) => {
+                    setLastName(e.target.value);
+                    setNameError('');
+                  }}
+                  className="bg-secondary border-border"
+                  required
+                />
+              </div>
+            </div>
+            {nameError && (
+              <p className="text-sm text-destructive -mt-4">{nameError}</p>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="username">Username *</Label>
               <Input
@@ -250,7 +298,7 @@ export default function CompleteProfile() {
               type="submit"
               className="w-full gradient-animated text-white font-semibold"
               size="lg"
-              disabled={loading || !username}
+              disabled={loading || !username || !firstName || !lastName}
             >
               {loading ? 'Creating...' : 'Continue'}
             </Button>

@@ -29,6 +29,8 @@ export default function Onboarding() {
   const [interests, setInterests] = useState<string[]>([]);
   const [following, setFollowing] = useState<string[]>([]);
   const [profileData, setProfileData] = useState({
+    firstName: '',
+    lastName: '',
     displayName: profile?.username || '',
     bio: '',
     linkUrl: '',
@@ -43,7 +45,7 @@ export default function Onboarding() {
     switch (step) {
       case 1: return interests.length >= 3;
       case 2: return true; // Can skip following
-      case 3: return profileData.displayName.length > 0;
+      case 3: return profileData.firstName.length > 0 && profileData.lastName.length > 0;
       case 4: return true;
       case 5: return true;
       case 6: return true; // Phone is optional
@@ -90,7 +92,9 @@ export default function Onboarding() {
       const { error } = await supabase
         .from('profiles')
         .update({
-          display_name: profileData.displayName,
+          first_name: profileData.firstName,
+          last_name: profileData.lastName,
+          display_name: profileData.displayName || `${profileData.firstName} ${profileData.lastName}`.trim(),
           bio: profileData.bio,
           link_url: profileData.linkUrl,
           avatar_url: avatarUrl,

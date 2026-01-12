@@ -6,11 +6,15 @@ export interface UserWithMutualFriends {
   id: string;
   username: string;
   display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   avatar_url: string | null;
   mutual_friends_count: number;
   mutual_friends: {
     id: string;
     username: string;
+    first_name: string | null;
+    last_name: string | null;
     avatar_url: string | null;
   }[];
 }
@@ -88,7 +92,7 @@ export function useMutualFriends() {
 
       const { data: suggestedProfiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url')
+        .select('id, username, display_name, first_name, last_name, avatar_url')
         .in('id', suggestedIds);
 
       // Get mutual friend profiles
@@ -97,7 +101,7 @@ export function useMutualFriends() {
       
       const { data: mutualProfiles } = await supabase
         .from('profiles')
-        .select('id, username, avatar_url')
+        .select('id, username, first_name, last_name, avatar_url')
         .in('id', Array.from(allMutualIds));
 
       const mutualProfileMap = new Map(
@@ -112,6 +116,8 @@ export function useMutualFriends() {
             id: p.id,
             username: p.username,
             display_name: p.display_name,
+            first_name: p.first_name,
+            last_name: p.last_name,
             avatar_url: p.avatar_url,
             mutual_friends_count: mutualIds.length,
             mutual_friends: mutualIds

@@ -2075,11 +2075,13 @@ export type Database = {
           coins_balance: number | null
           created_at: string
           display_name: string | null
+          first_name: string | null
           id: string
           interests: string[] | null
           is_private: boolean | null
           is_verified: boolean | null
           language: string | null
+          last_name: string | null
           link_url: string | null
           location: string | null
           onboarding_completed: boolean | null
@@ -2096,11 +2098,13 @@ export type Database = {
           coins_balance?: number | null
           created_at?: string
           display_name?: string | null
+          first_name?: string | null
           id?: string
           interests?: string[] | null
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
+          last_name?: string | null
           link_url?: string | null
           location?: string | null
           onboarding_completed?: boolean | null
@@ -2117,11 +2121,13 @@ export type Database = {
           coins_balance?: number | null
           created_at?: string
           display_name?: string | null
+          first_name?: string | null
           id?: string
           interests?: string[] | null
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
+          last_name?: string | null
           link_url?: string | null
           location?: string | null
           onboarding_completed?: boolean | null
