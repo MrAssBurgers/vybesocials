@@ -54,82 +54,49 @@ export function useGroupMembers(conversationId: string | undefined) {
 
 export function useCreateGroup() {
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
 
   return useMutation({
     mutationFn: async (params: CreateGroupParams) => {
-      if (!profile?.id) throw new Error('Must be logged in');
-
-      // Create the conversation
-      const { data: conversation, error: convError } = await supabase
-        .from('conversations')
-        .insert({
-          name: params.name,
-          is_group: true,
-          avatar_url: params.avatar_url || null,
-          description: params.description || null,
-          created_by: profile.id,
-        })
-        .select()
-        .single();
-
-      if (convError) throw convError;
-
-      // Add creator to conversation_members FIRST (RLS policies depend on this)
-      const { error: memberError } = await supabase
-        .from('conversation_members')
-        .insert({
-          conversation_id: conversation.id,
-          user_id: profile.id,
-          role: 'owner',
-        });
-
-      if (memberError) throw memberError;
-
-      // Then add the creator to group_members as owner
-      const { error: ownerError } = await supabase
-        .from('group_members')
-        .insert({
-          conversation_id: conversation.id,
-          user_id: profile.id,
-          role: 'owner' as GroupRole,
-        });
-
-      if (ownerError) throw ownerError;
-
-      // Add other members
-      if (params.member_ids.length > 0) {
-        const memberInserts = params.member_ids.map(userId => ({
-          conversation_id: conversation.id,
-          user_id: userId,
-          role: 'member' as GroupRole,
-          invited_by: profile.id,
-        }));
-
-        const { error: membersError } = await supabase
-          .from('group_members')
-          .insert(memberInserts);
-
-        if (membersError) throw membersError;
-
-        // Also add to conversation_members
-        await supabase
-          .from('conversation_members')
-          .insert(params.member_ids.map(userId => ({
-            conversation_id: conversation.id,
-            user_id: userId,
-            role: 'member',
-          })));
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Must be logged in');
       }
 
-      return conversation;
+      // Build clean payload
+      const payload = {
+        name: params.name.trim(),
+        memberIds: params.member_ids.filter(id => id && typeof id === 'string'),
+      };
+
+      console.log('[useCreateGroup] sending payload:', payload);
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-group`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const data = await response.json();
+      console.log('[useCreateGroup] response:', data);
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to create group');
+      }
+
+      return { id: data.id, name: data.name };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       toast.success('Group created!');
     },
-    onError: (error) => {
-      toast.error('Failed to create group');
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to create group');
       console.error('Create group error:', error);
     },
   });
