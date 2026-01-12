@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     // Verify the call exists and user is caller or receiver
     const { data: call, error: callError } = await supabase
       .from("calls")
-      .select("id, room_name, room_url, caller_id, receiver_id, conversation_id, status")
+      .select("id, room_name, room_url, caller_id, receiver_id, conversation_id, status, call_type")
       .eq("id", callId)
       .single();
 
@@ -150,10 +150,10 @@ Deno.serve(async (req) => {
           exp: expireTime,
           user_id: profile.id,
           user_name: profile.display_name || profile.username,
-          // Allow join + control own audio/video
-          enable_screenshare: true,
+          // Match room config: audio calls start with video off
+          enable_screenshare: call.call_type === 'video',
           start_audio_off: false,
-          start_video_off: false,
+          start_video_off: call.call_type === 'audio',
         },
       }),
     });

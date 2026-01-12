@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DailyCall, useAcceptDailyCall, useDeclineDailyCall } from '@/hooks/useDailyCalls';
 import { callSounds } from '@/lib/callSounds';
 import { toast } from 'sonner';
+import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
 
 interface DailyIncomingCallDialogProps {
   call: DailyCall;
@@ -39,18 +40,10 @@ export function DailyIncomingCallDialog({ call, onAccept, onDecline }: DailyInco
 
     // CRITICAL (mobile-safe): request permissions from the user gesture BEFORE accepting/joining
     try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('Media devices not supported');
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: needsVideo,
-      });
-      stream.getTracks().forEach((t) => t.stop());
+      await requestCallMediaPermissions(needsVideo ? 'video' : 'audio');
     } catch (err) {
       console.error('[DailyIncomingCallDialog] Permission denied:', err);
-      toast.error(`Please allow ${needsVideo ? 'camera + microphone' : 'microphone'} access`);
+      toast.error(err instanceof Error ? err.message : 'Microphone/Camera permission required');
       hasResponded.current = false;
       setIsProcessing(false);
       // Keep the incoming call dialog active
