@@ -193,11 +193,10 @@ export default function ClipsPage() {
         className="h-dvh overflow-y-scroll scrollbar-hide bg-black"
         style={{ 
           scrollSnapType: 'y mandatory',
-          scrollBehavior: 'smooth',
-          overscrollBehavior: 'none',
+          overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch',
-          // TikTok-like scroll physics
           scrollSnapStop: 'always',
+          touchAction: 'pan-y',
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}

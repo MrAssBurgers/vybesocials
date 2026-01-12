@@ -145,8 +145,7 @@ export function ToyboxModal({
         transition={{ duration: 0.15 }}
         className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
         onClick={handleBackdropClick}
-        // Prevent scroll on body while open
-        onTouchMove={(e) => e.preventDefault()}
+        // Let touch events through - don't block scrolling globally
       >
         {/* Modal container - absolutely centered and locked */}
         <motion.div

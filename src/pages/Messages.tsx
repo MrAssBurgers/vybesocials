@@ -14,20 +14,35 @@ export default function Messages() {
 
   return (
     <AppLayout hideRightSidebar fullWidth hideNav={hideNavOnMobile}>
-      <div className={`
-        ${hideNavOnMobile 
-          ? 'h-[100dvh] fixed inset-0 z-50' 
-          : 'h-[calc(100vh-5rem)] md:h-[calc(100vh-2rem)] lg:h-screen'
-        } 
-        flex overflow-hidden max-w-full bg-background
-      `}>
+      <div 
+        className={`
+          ${hideNavOnMobile 
+            ? 'h-[100dvh] fixed inset-0 z-50' 
+            : 'h-[calc(100dvh-5rem)] md:h-[calc(100dvh-2rem)] lg:h-screen'
+          } 
+          flex max-w-full bg-background
+        `}
+        style={{ overflow: 'hidden' }}
+      >
         {/* Conversation list - hidden on mobile when in chat */}
-        <div className={`w-full md:w-80 lg:w-96 border-r border-border flex-shrink-0 overflow-hidden ${isInChat ? 'hidden md:block' : ''}`}>
+        <div 
+          className={`w-full md:w-80 lg:w-96 border-r border-border flex-shrink-0 ${isInChat ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}
+          style={{ 
+            overflow: 'hidden',
+            height: '100%',
+          }}
+        >
           <ConversationList />
         </div>
         
         {/* Chat area - full screen on mobile */}
-        <div className={`flex-1 min-w-0 ${!isInChat ? 'hidden md:flex' : 'flex'} flex-col overflow-hidden`}>
+        <div 
+          className={`flex-1 min-w-0 ${!isInChat ? 'hidden md:flex' : 'flex'} flex-col`}
+          style={{ 
+            overflow: 'hidden',
+            height: '100%',
+          }}
+        >
           {isInChat ? (
             <ChatView />
           ) : (
