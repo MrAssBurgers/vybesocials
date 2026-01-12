@@ -157,11 +157,11 @@ export default function HomePage() {
         
         <div className="px-4 pb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="w-full mb-6 bg-secondary">
-              <TabsTrigger value="foryou" className="flex-1">For You</TabsTrigger>
-              <TabsTrigger value="following" className="flex-1">Following</TabsTrigger>
-              <TabsTrigger value="communities" className="flex-1" onClick={() => navigate('/community')}>
-                <Users className="h-4 w-4 mr-1" />
+            <TabsList className="w-full mb-6 bg-secondary p-1 gap-1">
+              <TabsTrigger value="foryou" className="flex-1 px-3 py-1.5 text-sm">For You</TabsTrigger>
+              <TabsTrigger value="following" className="flex-1 px-3 py-1.5 text-sm">Following</TabsTrigger>
+              <TabsTrigger value="communities" className="flex-1 px-3 py-1.5 text-sm" onClick={() => navigate('/community')}>
+                <Users className="h-4 w-4 mr-1.5" />
                 Servers
               </TabsTrigger>
             </TabsList>
