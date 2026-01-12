@@ -2929,6 +2929,17 @@ export type Database = {
         Args: { other_profile_id: string }
         Returns: string
       }
+      create_group_chat: {
+        Args: {
+          p_creator_profile_id: string
+          p_member_profile_ids: string[]
+          p_name: string
+        }
+        Returns: {
+          group_id: string
+          group_name: string
+        }[]
+      }
       current_profile_id: { Args: never; Returns: string }
       ensure_profile: { Args: never; Returns: string }
       filter_profanity: { Args: { input_text: string }; Returns: string }
