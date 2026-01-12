@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, Calendar, X, Shield } from 'lucide-react';
+import { ShoppingBag, Calendar, X, Shield, Users } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -104,12 +104,29 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
                   </div>
                 </motion.button>
 
+                {/* Communities/Servers */}
+                <motion.button
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.25 }}
+                  onClick={() => handleNavigate('/community')}
+                  className="w-full p-4 rounded-2xl liquid-glass-button flex items-center gap-4 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
+                    <Users className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <p className="font-semibold text-lg">Communities</p>
+                    <p className="text-sm text-muted-foreground">Discord-style servers</p>
+                  </div>
+                </motion.button>
+
                 {/* Admin Panel - Only visible to admins/mods */}
                 {isModOrAdmin && (
                   <motion.button
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.25 }}
+                    transition={{ delay: 0.3 }}
                     onClick={() => handleNavigate('/admin')}
                     className="w-full p-4 rounded-2xl liquid-glass-button flex items-center gap-4 hover:scale-[1.02] active:scale-[0.98] transition-transform"
                   >
