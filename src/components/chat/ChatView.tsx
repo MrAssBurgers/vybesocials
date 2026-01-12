@@ -146,6 +146,7 @@ export function ChatView() {
   useEffect(() => {
     if (!profile?.id || !conversationId) return;
 
+    // Update last_read_at for unread badge
     if (lastReadSyncedForConversationRef.current !== conversationId) {
       lastReadSyncedForConversationRef.current = conversationId;
 
@@ -160,24 +161,31 @@ export function ChatView() {
             return;
           }
           queryClient.invalidateQueries({ queryKey: ['conversations'] });
+          queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
         });
     }
 
-    if (messageNotifsClearedForConversationRef.current !== conversationId) {
+    // Clear message notifications from senders in this conversation
+    if (messageNotifsClearedForConversationRef.current !== conversationId && otherMembers.length > 0) {
       messageNotifsClearedForConversationRef.current = conversationId;
 
+      // Get all member IDs from this conversation (excluding current user)
+      const otherMemberIds = otherMembers.map(m => m.user_id);
+
+      // Clear notifications from these specific users
       supabase
         .from('notifications')
         .update({ read: true })
         .eq('user_id', profile.id)
         .eq('type', 'message')
         .eq('read', false)
+        .in('actor_id', otherMemberIds)
         .then(() => {
           queryClient.invalidateQueries({ queryKey: ['notifications'] });
           queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
         });
     }
-  }, [conversationId, profile?.id, queryClient]);
+  }, [conversationId, profile?.id, queryClient, otherMembers]);
 
   // Auto-mark messages as read
   useEffect(() => {
