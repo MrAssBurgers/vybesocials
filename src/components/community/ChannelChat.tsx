@@ -98,35 +98,39 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 px-4">
-        <div className="py-4 space-y-4">
+      <ScrollArea className="flex-1 px-3 sm:px-4">
+        <div className="py-4">
           {groupedMessages.map((group) => (
             <div key={group.date}>
               {/* Date separator */}
-              <div className="flex items-center gap-4 my-4">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-xs text-muted-foreground font-medium">
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-border/50" />
+                <span className="text-[11px] text-muted-foreground/60 font-medium">
                   {formatDateHeader(group.date)}
                 </span>
-                <div className="flex-1 h-px bg-border" />
+                <div className="flex-1 h-px bg-border/50" />
               </div>
 
-              {/* Messages for this date */}
-              <div className="space-y-3">
+              {/* Messages for this date - tighter same-sender, looser different-sender */}
+              <div className="flex flex-col">
                 {group.messages.map((message, index) => {
                   const prevMessage = index > 0 ? group.messages[index - 1] : null;
                   const showFullHeader = !prevMessage || 
                     prevMessage.sender_id !== message.sender_id ||
                     new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime() > 5 * 60 * 1000;
+                  
+                  // Instagram-like spacing
+                  const spacingClass = showFullHeader ? 'pt-4' : 'pt-1';
 
                   return (
-                    <MessageItem
-                      key={message.id}
-                      message={message}
-                      isOwn={message.sender_id === profile?.id}
-                      showFullHeader={showFullHeader}
-                      canModerate={canModerate}
-                    />
+                    <div key={message.id} className={cn(spacingClass, index === 0 && 'pt-0')}>
+                      <MessageItem
+                        message={message}
+                        isOwn={message.sender_id === profile?.id}
+                        showFullHeader={showFullHeader}
+                        canModerate={canModerate}
+                      />
+                    </div>
                   );
                 })}
               </div>
@@ -197,11 +201,11 @@ const MessageItem = memo(function MessageItem({
 
   return (
     <div className={cn(
-      "group flex gap-3 hover:bg-muted/30 -mx-2 px-2 py-1 rounded-lg transition-colors",
-      !showFullHeader && "pl-14"
+      "group flex gap-3 hover:bg-muted/20 -mx-2 px-3 py-1.5 rounded-xl transition-colors",
+      !showFullHeader && "pl-[52px] sm:pl-14"
     )}>
       {showFullHeader && (
-        <Avatar className="h-10 w-10 flex-shrink-0">
+        <Avatar className="h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0 mt-0.5">
           <AvatarImage src={message.sender?.avatar_url || undefined} />
           <AvatarFallback>
             {(message.sender?.display_name || message.sender?.username)?.[0]?.toUpperCase()}
@@ -211,21 +215,21 @@ const MessageItem = memo(function MessageItem({
 
       <div className="flex-1 min-w-0">
         {showFullHeader && (
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="font-semibold text-sm">
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="font-semibold text-[14px] sm:text-sm">
               {message.sender?.display_name || message.sender?.username}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-[10px] text-muted-foreground/50 font-light">
               {format(new Date(message.created_at), 'h:mm a')}
             </span>
           </div>
         )}
 
         <div className="flex items-start gap-2">
-          <p className="text-sm text-foreground break-words flex-1">
+          <p className="text-[14px] sm:text-sm text-foreground break-words flex-1 leading-[1.4]">
             {message.content}
             {message.is_edited && (
-              <span className="text-xs text-muted-foreground ml-1">(edited)</span>
+              <span className="text-[10px] text-muted-foreground/60 ml-1.5">(edited)</span>
             )}
           </p>
 
