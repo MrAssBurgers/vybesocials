@@ -653,15 +653,14 @@ export function ChatView() {
         </DropdownMenu>
       </header>
 
-      {/* Messages - scrollable area with Instagram/iMessage quality spacing */}
+      {/* Messages - scrollable area with edge-to-edge bubbles */}
       <div className={cn(
         "flex-1 overflow-y-auto min-h-0",
-        "px-1 sm:px-4 py-3 sm:py-4", // Minimal horizontal padding on mobile
-        // Reduce blur on mobile for performance
+        "px-3 sm:px-4 py-3 sm:py-4", // Consistent padding on all sides
         "sm:backdrop-blur-none",
         getWallpaperClass()
       )}>
-        {/* Airy spacing between messages - Instagram/Snapchat quality */}
+        {/* Messages container */}
         <div className="flex flex-col gap-0 pb-20 sm:pb-24">
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
             // Instagram/Snapchat spacing rules:
@@ -1189,30 +1188,28 @@ const MessageBubble = memo(function MessageBubble({
 
   return (
     <div className={cn(
-      'flex gap-2 sm:gap-2.5 group/message relative w-full',
-      isOwn ? 'justify-end pr-1 pl-10 sm:pl-14' : 'justify-start pl-1 pr-10 sm:pr-14'
+      'flex w-full group/message relative',
+      isOwn ? 'justify-end' : 'justify-start'
     )}>
-      {/* Reply button - left side for received messages */}
-      {!isOwn && (
-        <button
-          onClick={onReply}
-          className="self-center opacity-0 group-hover/message:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-muted order-2"
-        >
-          <Reply className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
-        </button>
-      )}
+      {/* Container for avatar + bubble - left aligned for received */}
+      <div className={cn(
+        'flex gap-2 sm:gap-2.5 items-end',
+        isOwn ? 'flex-row-reverse' : 'flex-row',
+        // Max width but auto-shrink to content
+        'max-w-[85%] sm:max-w-[75%]'
+      )}>
+        {/* Avatar - only for received messages */}
+        {!isOwn && showAvatar && (
+          <Avatar className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 ring-1 ring-background shadow-sm">
+            <AvatarImage src={sender?.avatar_url || undefined} />
+            <AvatarFallback className="text-xs">{sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
+          </Avatar>
+        )}
+        {/* Spacer for consecutive messages from same sender */}
+        {!isOwn && !showAvatar && <div className="w-8 sm:w-9 flex-shrink-0" />}
 
-      {/* Avatar - aligned with first message, 8px gap from bubble */}
-      {!isOwn && showAvatar && (
-        <Avatar className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 ring-1 ring-background shadow-sm self-end">
-          <AvatarImage src={sender?.avatar_url || undefined} />
-          <AvatarFallback className="text-xs">{sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
-        </Avatar>
-      )}
-      {/* Spacer for consecutive messages from same sender */}
-      {!isOwn && !showAvatar && <div className="w-8 sm:w-9 flex-shrink-0" />}
-
-      <div className={cn('max-w-[78%] sm:max-w-[68%] flex flex-col relative', isOwn ? 'items-end' : 'items-start')}>
+        {/* Message content wrapper - auto width based on content */}
+        <div className={cn('flex flex-col', isOwn ? 'items-end' : 'items-start')}>
         {/* Reply preview - clear spacing with rounded container */}
         {repliedMessage && (
           <div
@@ -1406,36 +1403,7 @@ const MessageBubble = memo(function MessageBubble({
             </button>
           </div>
         )}
-      </div>
-
-      {/* Action buttons - right side for own messages + delete for all messages */}
-      <div className="self-center flex items-center gap-0.5 opacity-0 group-hover/message:opacity-100 transition-opacity">
-        {isOwn && (
-          <>
-            <button
-              onClick={onReply}
-              className="p-1.5 rounded-full hover:bg-muted"
-              title="Reply"
-            >
-              <Reply className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
-            </button>
-            <button
-              onClick={handleUnsend}
-              className="p-1.5 rounded-full hover:bg-destructive/10"
-              title="Unsend message"
-            >
-              <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground hover:text-destructive" />
-            </button>
-          </>
-        )}
-        {/* Delete for me button - shown for all messages */}
-        <button
-          onClick={onDeleteForMe}
-          className="p-1.5 rounded-full hover:bg-destructive/10"
-          title="Delete for me"
-        >
-          <X className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground hover:text-destructive" />
-        </button>
+        </div>
       </div>
     </div>
   );
@@ -1476,8 +1444,8 @@ const OptimisticMessageBubble = memo(function OptimisticMessageBubble({
   const isSending = message.status === 'sending';
 
   return (
-    <div className="flex justify-end gap-2.5 pt-1.5 pr-1 pl-10 sm:pl-14">
-      <div className="max-w-[78%] sm:max-w-[68%] flex flex-col items-end">
+    <div className="flex w-full justify-end pt-1.5">
+      <div className="max-w-[85%] sm:max-w-[75%] flex flex-col items-end">
         <div
           className={cn(
             'relative rounded-[20px] px-[14px] py-[10px] sm:px-4 sm:py-3 break-words rounded-br-lg',
@@ -1490,32 +1458,32 @@ const OptimisticMessageBubble = memo(function OptimisticMessageBubble({
           <p className="text-[14px] sm:text-[15px] whitespace-pre-wrap leading-[1.4]">{message.content}</p>
         </div>
 
-        <div className="flex items-center gap-1.5 mt-1.5">
+        <div className="flex items-center gap-1.5 mt-2">
           {isSending && (
-            <div className="flex items-center gap-1 text-muted-foreground/60">
-              <Loader2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 animate-spin" />
-              <span className="text-[9px] sm:text-[10px]">Sending...</span>
+            <div className="flex items-center gap-1 text-muted-foreground/50">
+              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+              <span className="text-[10px]">Sending...</span>
             </div>
           )}
 
           {isFailed && (
             <div className="flex items-center gap-1">
-              <span className="text-[9px] sm:text-[10px] text-destructive">Failed</span>
+              <span className="text-[10px] text-destructive">Failed</span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-5 w-5 sm:h-6 sm:w-6"
+                className="h-5 w-5"
                 onClick={onRetry}
               >
-                <RefreshCw className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-destructive" />
+                <RefreshCw className="h-3 w-3 text-destructive" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-5 w-5 sm:h-6 sm:w-6"
+                className="h-5 w-5"
                 onClick={onDismiss}
               >
-                <X className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+                <X className="h-3 w-3 text-muted-foreground" />
               </Button>
             </div>
           )}
