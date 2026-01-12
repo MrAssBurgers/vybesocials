@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import DailyIframe, { DailyCall as DailyCallObject } from '@daily-co/daily-js';
+import DailyIframe from '@daily-co/daily-js';
 import { 
   PhoneOff, 
   Mic, 
@@ -36,7 +36,7 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
   const [dailyReady, setDailyReady] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const dailyRef = useRef<DailyCallObject | null>(null);
+  const dailyRef = useRef<ReturnType<typeof DailyIframe.createFrame> | null>(null);
   const hasJoinedRef = useRef(false);
   const isUnmountingRef = useRef(false);
   const joinTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -104,23 +104,11 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
     return true;
   }, []);
 
-  // Request media permissions before joining (mobile requirement)
-  const requestMediaPermissions = useCallback(async (needsVideo: boolean): Promise<boolean> => {
-    try {
-      const constraints: MediaStreamConstraints = {
-        audio: true,
-        video: needsVideo,
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      // Stop the tracks immediately - Daily will request its own
-      stream.getTracks().forEach(track => track.stop());
-      console.log('[DailyCallUI] Media permissions granted');
-      return true;
-    } catch (error) {
-      console.error('[DailyCallUI] Media permission denied:', error);
-      return false;
-    }
-  }, []);
+  // Permissions are requested from a user gesture:
+  // - Outgoing calls: DailyCallButtons (call toolbar)
+  // - Incoming calls: DailyIncomingCallDialog (Accept)
+  // Mobile browsers can block permission prompts not triggered by a user gesture,
+  // so we do NOT request mic/camera permissions inside this component/effect.
 
   // Main join flow
   useEffect(() => {
@@ -153,80 +141,86 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
 
     const initAndJoin = async () => {
       try {
-        // Step 1: Request permissions first (mobile requirement)
-        const hasPermissions = await requestMediaPermissions(call.call_type === 'video');
-        if (!hasPermissions) {
-          console.error('[DailyCallUI] Permissions denied, aborting');
-          toast.error('Microphone permission required for calls');
+        // Secure context requirement (HTTPS)
+        if (!window.isSecureContext || window.location.protocol !== 'https:') {
+          toast.error('Calls require a secure (HTTPS) connection');
           hasJoinedRef.current = false;
-          handleEndCall();
           return;
         }
 
         if (isUnmountingRef.current) return;
 
-        // Step 2: Create Daily call object
-        console.log('[DailyCallUI] Creating Daily call object');
-        const daily = DailyIframe.createCallObject({
-          audioSource: true,
-          videoSource: call.call_type === 'video',
+        // Step 1: Create Daily Prebuilt iframe (single instance)
+        console.log('[DailyCallUI] Creating Daily frame');
+        const daily = DailyIframe.createFrame(containerRef.current!, {
+          iframeStyle: {
+            position: 'absolute',
+            inset: '0',
+            width: '100%',
+            height: '100%',
+            border: 'none',
+            borderRadius: '0',
+          },
+          showLeaveButton: false,
+          showFullscreenButton: false,
         });
 
-        // Store reference immediately
         dailyRef.current = daily;
 
-        // Step 3: Attach ALL event listeners BEFORE join
+        // Step 2: Attach event listeners BEFORE join()
         daily.on('joined-meeting', () => {
-          console.log('[DailyCallUI] ✓ joined-meeting event');
+          console.log('[DailyCallUI] ✓ joined-meeting');
           clearJoinTimeout();
-          if (!isUnmountingRef.current) {
-            setDailyReady(true);
-            onConnectedRef.current();
-            callSounds.stopAll();
-            callSounds.connect();
+          if (isUnmountingRef.current) return;
+
+          // Ensure correct starting media state
+          if (call.call_type === 'audio') {
+            dailyRef.current?.setLocalVideo(false);
           }
+          dailyRef.current?.setLocalAudio(true);
+
+          setDailyReady(true);
+          onConnectedRef.current();
+          callSounds.stopAll();
+          callSounds.connect();
+        });
+
+        daily.on('error', (event: any) => {
+          console.error('[DailyCallUI] Daily error event:', event);
+          clearJoinTimeout();
+          if (isUnmountingRef.current) return;
+
+          const msg =
+            event?.errorMsg ||
+            event?.error?.msg ||
+            event?.error ||
+            'Call failed to connect. Check permissions or network.';
+
+          toast.error(typeof msg === 'string' ? msg : 'Call failed to connect. Check permissions or network.');
+          handleEndCall();
         });
 
         daily.on('left-meeting', () => {
-          console.log('[DailyCallUI] left-meeting event');
+          console.log('[DailyCallUI] left-meeting');
         });
 
-        daily.on('error', (event) => {
-          console.error('[DailyCallUI] Daily error event:', event);
-          clearJoinTimeout();
-          if (!isUnmountingRef.current) {
-            toast.error('Call connection error');
-            handleEndCall();
-          }
-        });
-
-        daily.on('camera-error', (event) => {
-          console.warn('[DailyCallUI] Camera error:', event);
-        });
-
-        // Step 4: Set up failsafe timeout (15 seconds)
+        // Step 3: Failsafe timeout (15s)
         joinTimeoutRef.current = setTimeout(() => {
           console.error('[DailyCallUI] Join timeout after 15s');
-          if (!isUnmountingRef.current && !dailyReady) {
-            toast.error('Call failed to connect');
-            handleEndCall();
-          }
+          if (isUnmountingRef.current) return;
+          toast.error('Call failed to connect. Check permissions or network.');
+          handleEndCall();
         }, 15000);
 
-        // Step 5: CALL JOIN with proper syntax
-        console.log('[DailyCallUI] Calling daily.join({ url: "..." })');
-        await daily.join({
-          url: roomUrl,
-          startVideoOff: call.call_type === 'audio',
-          startAudioOff: false,
-        });
+        // Step 4: Join EXACTLY ONCE with correct syntax
+        console.log('[DailyCallUI] Calling daily.join({ url })', roomUrl);
+        await daily.join({ url: roomUrl });
         console.log('[DailyCallUI] daily.join() promise resolved');
-
       } catch (error: any) {
         console.error('[DailyCallUI] Join failed:', error);
         clearJoinTimeout();
         hasJoinedRef.current = false;
-        
+
         if (!isUnmountingRef.current) {
           const errorMessage = error?.message || 'Failed to join call';
           toast.error(errorMessage);
@@ -243,7 +237,7 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
       isUnmountingRef.current = true;
       cleanupDaily();
     };
-  }, [call.room_url, callPhase, call.call_type, isValidRoomUrl, requestMediaPermissions, clearJoinTimeout, cleanupDaily, handleEndCall, dailyReady]);
+  }, [call.room_url, callPhase, call.call_type, isValidRoomUrl, clearJoinTimeout, cleanupDaily, handleEndCall]);
 
   // Call duration timer
   useEffect(() => {
@@ -404,7 +398,7 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
       </motion.div>
 
       {/* Main content area */}
-      <div className="flex-1 relative overflow-hidden bg-black" ref={containerRef}>
+      <div className="flex-1 relative bg-black" ref={containerRef}>
         {!dailyReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-black/50 via-black to-black/50 z-10">
             {isRinging && <RingingPulse />}

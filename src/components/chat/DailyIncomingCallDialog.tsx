@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DailyCall, useAcceptDailyCall, useDeclineDailyCall } from '@/hooks/useDailyCalls';
 import { callSounds } from '@/lib/callSounds';
+import { toast } from 'sonner';
 
 interface DailyIncomingCallDialogProps {
   call: DailyCall;
@@ -33,9 +34,32 @@ export function DailyIncomingCallDialog({ call, onAccept, onDecline }: DailyInco
     if (hasResponded.current || isProcessing) return;
     hasResponded.current = true;
     setIsProcessing(true);
-    
+
+    const needsVideo = call.call_type === 'video';
+
+    // CRITICAL (mobile-safe): request permissions from the user gesture BEFORE accepting/joining
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Media devices not supported');
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: needsVideo,
+      });
+      stream.getTracks().forEach((t) => t.stop());
+    } catch (err) {
+      console.error('[DailyIncomingCallDialog] Permission denied:', err);
+      toast.error(`Please allow ${needsVideo ? 'camera + microphone' : 'microphone'} access`);
+      hasResponded.current = false;
+      setIsProcessing(false);
+      // Keep the incoming call dialog active
+      callSounds.startRinging();
+      return;
+    }
+
     callSounds.stopAll();
-    
+
     try {
       console.log('[DailyIncomingCallDialog] Accepting call:', call.id);
       const updatedCall = await acceptCall.mutateAsync(call.id);
@@ -45,7 +69,7 @@ export function DailyIncomingCallDialog({ call, onAccept, onDecline }: DailyInco
       hasResponded.current = false;
       setIsProcessing(false);
     }
-  }, [acceptCall, call.id, onAccept, isProcessing]);
+  }, [acceptCall, call.id, call.call_type, onAccept, isProcessing]);
 
   const handleDecline = useCallback(async () => {
     // CRITICAL: Double-check with both ref and state to prevent double-tap

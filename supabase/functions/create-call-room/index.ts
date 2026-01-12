@@ -133,8 +133,10 @@ Deno.serve(async (req) => {
         privacy: "private",
         properties: {
           exp: expireTime,
-          start_audio_off: type === "video", // Audio calls start with audio on
-          start_video_off: type === "audio", // Audio calls have video off
+          // Always allow audio to start ON by default; UI can mute if needed
+          start_audio_off: false,
+          // Audio calls should start with video OFF
+          start_video_off: type === "audio",
           enable_chat: true,
           enable_screenshare: type === "video",
           max_participants: Math.max(participants.length + 1, 10),
