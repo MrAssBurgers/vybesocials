@@ -191,12 +191,12 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black flex flex-col"
+      className="fixed inset-0 z-50 bg-black flex flex-col overflow-hidden"
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4">
+      <div className="flex items-center justify-between p-3 flex-shrink-0">
         <Button 
-          variant="ghost" 
+          variant="ghost"
           size="icon" 
           onClick={onClose} 
           className="text-white"
@@ -209,9 +209,9 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center p-4 min-h-0 overflow-auto">
         {preview ? (
-          <div className="relative w-full max-w-md aspect-[9/16] rounded-2xl overflow-hidden bg-black/50">
+          <div className="relative w-full max-w-sm max-h-[60vh] aspect-[9/16] rounded-2xl overflow-hidden bg-black/50 flex-shrink-0">
             {mediaInfo?.isVideo ? (
               <video
                 src={preview}
