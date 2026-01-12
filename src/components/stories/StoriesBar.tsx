@@ -129,9 +129,9 @@ function StoryAvatar({
         <div className={cn(
           "h-[68px] w-[68px] rounded-full p-[3px]",
           isUploading 
-            ? "bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-500 animate-pulse"
+            ? "bg-gradient-to-tr from-[hsl(var(--neon-pink))] via-[hsl(var(--neon-purple))] to-[hsl(var(--neon-cyan))] animate-pulse"
             : hasStory && hasUnviewed 
-              ? "bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-500" 
+              ? "bg-gradient-to-tr from-[hsl(var(--neon-pink))] via-[hsl(var(--neon-purple))] to-[hsl(var(--neon-cyan))]" 
               : hasStory 
                 ? "bg-muted-foreground/30" 
                 : "bg-transparent"
