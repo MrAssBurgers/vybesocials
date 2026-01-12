@@ -648,7 +648,7 @@ export function ChatView() {
       {/* Messages - scrollable area with Instagram/iMessage quality spacing */}
       <div className={cn(
         "flex-1 overflow-y-auto min-h-0",
-        "px-3 sm:px-5 py-3 sm:py-4",
+        "px-1 sm:px-4 py-3 sm:py-4", // Minimal horizontal padding on mobile
         // Reduce blur on mobile for performance
         "sm:backdrop-blur-none",
         getWallpaperClass()
@@ -758,7 +758,7 @@ export function ChatView() {
 
           {/* Typing indicator - proper z-index */}
           {typingUsers.length > 0 && (
-            <div className="flex items-start gap-2 max-w-[80%] relative z-10 mb-2">
+            <div className="flex items-start gap-1.5 max-w-[80%] relative z-10 mb-2 pl-0">
               <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0">
                 <AvatarImage src={otherMember?.avatar_url || undefined} />
                 <AvatarFallback className="text-xs">{otherMember?.username?.charAt(0)}</AvatarFallback>
@@ -1177,26 +1177,29 @@ const MessageBubble = memo(function MessageBubble({
   const isMediaMessage = message.media_url && (message.media_type === 'image' || message.media_type === 'gif');
 
   return (
-    <div className={cn('flex gap-2 sm:gap-2.5 group/message relative', isOwn ? 'justify-end' : 'justify-start')}>
+    <div className={cn(
+      'flex gap-1.5 sm:gap-2 group/message relative w-full',
+      isOwn ? 'justify-end pr-0 pl-8 sm:pl-12' : 'justify-start pl-0 pr-8 sm:pr-12'
+    )}>
       {/* Reply button - left side for received messages */}
       {!isOwn && (
         <button
           onClick={onReply}
-          className="self-center opacity-0 group-hover/message:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-muted"
+          className="self-center opacity-0 group-hover/message:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-muted order-2"
         >
           <Reply className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
         </button>
       )}
 
       {!isOwn && showAvatar && (
-        <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0 ring-1 ring-background shadow-sm self-end">
+        <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0 ring-1 ring-background shadow-sm self-end ml-0">
           <AvatarImage src={sender?.avatar_url || undefined} />
           <AvatarFallback className="text-xs">{sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
       )}
       {!isOwn && !showAvatar && <div className="w-7 sm:w-8 flex-shrink-0" />}
 
-      <div className={cn('max-w-[75%] sm:max-w-[70%] flex flex-col relative', isOwn ? 'items-end' : 'items-start')}>
+      <div className={cn('max-w-[80%] sm:max-w-[70%] flex flex-col relative', isOwn ? 'items-end' : 'items-start')}>
         {repliedMessage && (
           <div
             className={cn(
