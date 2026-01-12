@@ -1,10 +1,10 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, memo, useCallback } from 'react';
 import './lib/i18n';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
@@ -13,6 +13,8 @@ import { SplashScreen } from "@/components/ui/SplashScreen";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
+import { Skeleton } from "@/components/ui/skeleton";
+import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
 
 // Lazy load pages for code splitting - reduces initial bundle size
 const Landing = lazy(() => import("./pages/Landing"));
@@ -41,12 +43,45 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 10, // 10 seconds
-      gcTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60, // 1 minute - longer cache for smoother navigation
+      gcTime: 1000 * 60 * 10, // 10 minutes
       refetchOnWindowFocus: false,
+      refetchOnMount: false, // Don't refetch on mount for instant display
     },
   },
 });
+
+// Minimal loading fallback - just enough to prevent layout shift
+const PageFallback = memo(() => (
+  <div className="min-h-screen bg-background p-4">
+    <div className="max-w-xl mx-auto space-y-4">
+      <Skeleton className="h-12 w-full rounded-xl" />
+      <Skeleton className="h-64 w-full rounded-xl" />
+      <Skeleton className="h-32 w-full rounded-xl" />
+    </div>
+  </div>
+));
+
+// Scroll restoration on route change
+function ScrollRestoration() {
+  const location = useLocation();
+  
+  useEffect(() => {
+    // Save scroll position before leaving
+    const handleBeforeUnload = () => {
+      saveScrollPosition(location.pathname);
+    };
+    
+    // Restore scroll position on mount
+    restoreScrollPosition(location.pathname);
+    
+    return () => {
+      saveScrollPosition(location.pathname);
+    };
+  }, [location.pathname]);
+  
+  return null;
+}
 
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -55,7 +90,7 @@ const App = () => {
     // Show splash for minimum time, then hide
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 1500);
+    }, 1200); // Slightly faster splash
 
     return () => clearTimeout(timer);
   }, []);
@@ -73,7 +108,8 @@ const App = () => {
                     <Toaster />
                     <Sonner />
                     <BrowserRouter>
-                      <Suspense fallback={null}>
+                      <ScrollRestoration />
+                      <Suspense fallback={<PageFallback />}>
                         <Routes>
                           <Route path="/" element={<Landing />} />
                           <Route path="/home" element={<Home />} />
