@@ -175,7 +175,6 @@ export function DailyCallRoot({
 
     daily.on('joined-meeting', handleJoined);
     daily.on('error', handleError);
-    daily.on('error', handleError);
 
     return () => {
       // Root should not unmount in normal operation, but keep this safe.
