@@ -64,6 +64,7 @@ import { cn } from '@/lib/utils';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useUserOnlineStatus } from '@/hooks/usePresence';
 import { DMSafetyGate } from './DMSafetyGate';
+import { GroupInfoSheet } from './GroupInfoSheet';
 
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
@@ -113,6 +114,7 @@ export function ChatView() {
   const [showMemoryPins, setShowMemoryPins] = useState(false);
   const [showScheduleMessage, setShowScheduleMessage] = useState(false);
   const [showDMSettings, setShowDMSettings] = useState(false);
+  const [showGroupInfo, setShowGroupInfo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -547,12 +549,14 @@ export function ChatView() {
     });
   }, [messages, profile?.id]);
 
-  // Navigate to profile when avatar clicked
+  // Navigate to profile when avatar clicked, or open group info for group chats
   const handleAvatarClick = useCallback(() => {
-    if (otherMember?.username) {
+    if (isGroupChat) {
+      setShowGroupInfo(true);
+    } else if (otherMember?.username) {
       navigate(`/u/${otherMember.username}`);
     }
-  }, [otherMember?.username, navigate]);
+  }, [isGroupChat, otherMember?.username, navigate]);
 
   // Get chat wallpaper background class
   const getWallpaperClass = useCallback(() => {
@@ -638,6 +642,18 @@ export function ChatView() {
         <MemoryPinsSheet conversationId={conversationId!} messages={messages || []} open={showMemoryPins} onOpenChange={setShowMemoryPins} />
         <ScheduleMessageSheet conversationId={conversationId!} open={showScheduleMessage} onOpenChange={setShowScheduleMessage} />
         <DMSettingsSheetControlled conversationId={conversationId!} open={showDMSettings} onOpenChange={setShowDMSettings} />
+        
+        {/* Group Info Sheet */}
+        {isGroupChat && (
+          <GroupInfoSheet
+            open={showGroupInfo}
+            onOpenChange={setShowGroupInfo}
+            conversationId={conversationId!}
+            groupName={conversation?.name || 'Group Chat'}
+            groupAvatar={conversation?.avatar_url}
+            creatorId={conversation?.members?.find(m => m.role === 'owner')?.user_id}
+          />
+        )}
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
