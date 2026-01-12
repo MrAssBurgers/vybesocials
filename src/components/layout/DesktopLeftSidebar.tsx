@@ -21,6 +21,7 @@ import { useUnreadMessagesCount } from '@/hooks/useMessages';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { VYBEHub } from '@/components/hub/VYBEHub';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useMyServers } from '@/hooks/useServers';
 
 interface NavItemData {
   icon: LucideIcon;
@@ -127,11 +128,14 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
   const isMrassburgers = profile?.username?.toLowerCase() === 'mrassburgers';
   const showAdminLink = isAdminOrMod || isMrassburgers;
 
+  const { data: myServers = [] } = useMyServers();
+
   const mainNavItems: NavItemData[] = [
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0 },
     { icon: Film, labelKey: 'nav.clips', path: '/clips', badge: 0 },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0 },
     { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages },
+    { icon: Users, label: 'Community', path: '/community', badge: 0 },
     { icon: ShoppingBag, label: 'Market', path: '/market', badge: 0 },
     { icon: Calendar, label: 'Events', path: '/events', badge: 0 },
     { icon: Bell, labelKey: 'nav.notifications', path: '/notifications', badge: unreadNotifications },
@@ -284,20 +288,54 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
           </Tooltip>
         </div>
 
-        {/* Communities Section - Show empty state */}
+        {/* Communities Section - Show user's servers */}
         {!collapsed && (
           <div className="px-3 py-2">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Communities
               </span>
+              <Link to="/community" className="text-xs text-primary hover:underline">
+                View all
+              </Link>
             </div>
-            <div className="p-3 rounded-xl liquid-glass-subtle text-center">
-              <Users className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-              <p className="text-xs text-muted-foreground">
-                You're not in any communities yet
-              </p>
-            </div>
+            {myServers.length > 0 ? (
+              <div className="space-y-1">
+                {myServers.slice(0, 4).map((server) => (
+                  <Link
+                    key={server.id}
+                    to={`/community?server=${server.id}`}
+                    className="flex items-center gap-2 p-2 rounded-xl hover:bg-sidebar-accent/30 transition-all"
+                  >
+                    <Avatar className="h-8 w-8">
+                      {server.icon_url ? (
+                        <AvatarImage src={server.icon_url} />
+                      ) : (
+                        <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xs">
+                          {server.name[0]?.toUpperCase()}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                    <span className="text-sm font-medium truncate">{server.name}</span>
+                  </Link>
+                ))}
+                {myServers.length > 4 && (
+                  <Link to="/community" className="block text-center text-xs text-muted-foreground hover:text-foreground py-1">
+                    +{myServers.length - 4} more
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl liquid-glass-subtle text-center">
+                <Users className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+                <p className="text-xs text-muted-foreground">
+                  You're not in any communities yet
+                </p>
+                <Link to="/community" className="text-xs text-primary hover:underline mt-1 block">
+                  Browse servers
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
