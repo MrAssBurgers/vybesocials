@@ -30,8 +30,8 @@ export function CreateGroupDialog({ open, onOpenChange, onSuccess }: CreateGroup
     if (!searchQuery.trim()) return friends;
     const query = searchQuery.toLowerCase();
     return friends.filter((friend: any) => 
-      friend.friend?.username?.toLowerCase().includes(query) ||
-      friend.friend?.display_name?.toLowerCase().includes(query)
+      friend?.username?.toLowerCase().includes(query) ||
+      friend?.display_name?.toLowerCase().includes(query)
     );
   }, [friends, searchQuery]);
 
@@ -161,30 +161,42 @@ export function CreateGroupDialog({ open, onOpenChange, onSuccess }: CreateGroup
                   />
                 </div>
 
-                {/* Selected count */}
-                <p className="text-sm text-muted-foreground">
-                  {selectedMembers.length} selected
-                </p>
+                {/* Selected members chips */}
+                {selectedMembers.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedMembers.map((memberId) => {
+                      const friend = friends.find((f: any) => f?.id === memberId);
+                      if (!friend) return null;
+                      return (
+                        <div
+                          key={memberId}
+                          className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded-full text-sm"
+                        >
+                          <span>{friend.display_name || friend.username}</span>
+                          <button
+                            onClick={() => toggleMember(memberId)}
+                            className="hover:bg-primary/20 rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Friends list */}
                 <ScrollArea className="h-[300px] -mx-4 px-4">
                   <div className="space-y-1">
-                    {filteredFriends.map((friendship: any) => {
-                      const friend = friendship.friend;
+                    {filteredFriends.map((friend: any) => {
                       if (!friend) return null;
                       
                       const isSelected = selectedMembers.includes(friend.id);
                       
                       return (
-                        <button
+                        <div
                           key={friend.id}
-                          onClick={() => toggleMember(friend.id)}
-                          className={cn(
-                            "w-full flex items-center gap-3 p-3 rounded-xl transition-colors",
-                            isSelected 
-                              ? "bg-primary/10" 
-                              : "hover:bg-muted/50"
-                          )}
+                          className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors"
                         >
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={friend.avatar_url || undefined} />
@@ -193,26 +205,31 @@ export function CreateGroupDialog({ open, onOpenChange, onSuccess }: CreateGroup
                             </AvatarFallback>
                           </Avatar>
                           
-                          <div className="flex-1 text-left">
-                            <p className="font-medium">
+                          <div className="flex-1 text-left min-w-0">
+                            <p className="font-medium truncate">
                               {friend.display_name || friend.username}
                             </p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm text-muted-foreground truncate">
                               @{friend.username}
                             </p>
                           </div>
 
-                          <div className={cn(
-                            "h-6 w-6 rounded-full border-2 flex items-center justify-center transition-colors",
-                            isSelected 
-                              ? "bg-primary border-primary" 
-                              : "border-muted-foreground/30"
-                          )}>
-                            {isSelected && (
-                              <Check className="h-4 w-4 text-primary-foreground" />
+                          <Button
+                            size="sm"
+                            variant={isSelected ? "secondary" : "default"}
+                            onClick={() => toggleMember(friend.id)}
+                            className="flex-shrink-0"
+                          >
+                            {isSelected ? (
+                              <>
+                                <Check className="h-4 w-4 mr-1" />
+                                Added
+                              </>
+                            ) : (
+                              'Add'
                             )}
-                          </div>
-                        </button>
+                          </Button>
+                        </div>
                       );
                     })}
 
