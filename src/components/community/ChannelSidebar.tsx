@@ -1,5 +1,4 @@
 import { memo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Hash, Volume2, Megaphone, Plus, Settings, ChevronDown, Users, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -11,8 +10,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { useServer, useChannels, useMyServerRole, Channel } from '@/hooks/useServers';
+import { useServer, useChannels, useMyServerRole, Channel, ServerRole } from '@/hooks/useServers';
 import { CreateChannelDialog } from './CreateChannelDialog';
+import { ServerSettingsSheet } from './ServerSettingsSheet';
 import { toast } from 'sonner';
 
 interface ChannelSidebarProps {
@@ -30,6 +30,7 @@ export const ChannelSidebar = memo(function ChannelSidebar({
   const { data: channels = [] } = useChannels(serverId);
   const { data: myRole } = useMyServerRole(serverId);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
 
   const canManageChannels = myRole === 'owner' || myRole === 'admin';
@@ -73,7 +74,7 @@ export const ChannelSidebar = memo(function ChannelSidebar({
           {canManageChannels && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowSettings(true)}>
                 <Settings className="h-4 w-4 mr-2" />
                 Server Settings
               </DropdownMenuItem>
@@ -122,6 +123,13 @@ export const ChannelSidebar = memo(function ChannelSidebar({
         open={showCreateChannel}
         onOpenChange={setShowCreateChannel}
         serverId={serverId}
+      />
+
+      <ServerSettingsSheet
+        open={showSettings}
+        onOpenChange={setShowSettings}
+        serverId={serverId}
+        myRole={myRole as ServerRole | null}
       />
     </div>
   );

@@ -1380,29 +1380,45 @@ const MessageBubble = memo(function MessageBubble({
                 <Trash2 className="h-4 w-4" /> Unsend
               </button>
             )}
+            <button
+              onClick={() => { onDeleteForMe(); setShowContextMenu(false); menuOpenedRef.current = false; }}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-muted text-muted-foreground flex items-center gap-2"
+            >
+              <X className="h-4 w-4" /> Delete for me
+            </button>
           </div>
         )}
       </div>
 
-      {/* Action buttons - right side for own messages */}
-      {isOwn && (
-        <div className="self-center flex items-center gap-0.5 opacity-0 group-hover/message:opacity-100 transition-opacity">
-          <button
-            onClick={onReply}
-            className="p-1.5 rounded-full hover:bg-muted"
-            title="Reply"
-          >
-            <Reply className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
-          </button>
-          <button
-            onClick={handleUnsend}
-            className="p-1.5 rounded-full hover:bg-destructive/10"
-            title="Unsend message"
-          >
-            <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground hover:text-destructive" />
-          </button>
-        </div>
-      )}
+      {/* Action buttons - right side for own messages + delete for all messages */}
+      <div className="self-center flex items-center gap-0.5 opacity-0 group-hover/message:opacity-100 transition-opacity">
+        {isOwn && (
+          <>
+            <button
+              onClick={onReply}
+              className="p-1.5 rounded-full hover:bg-muted"
+              title="Reply"
+            >
+              <Reply className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+            </button>
+            <button
+              onClick={handleUnsend}
+              className="p-1.5 rounded-full hover:bg-destructive/10"
+              title="Unsend message"
+            >
+              <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground hover:text-destructive" />
+            </button>
+          </>
+        )}
+        {/* Delete for me button - shown for all messages */}
+        <button
+          onClick={onDeleteForMe}
+          className="p-1.5 rounded-full hover:bg-destructive/10"
+          title="Delete for me"
+        >
+          <X className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground hover:text-destructive" />
+        </button>
+      </div>
     </div>
   );
 }, (prevProps, nextProps) => {
