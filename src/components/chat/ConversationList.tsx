@@ -166,23 +166,23 @@ export function ConversationList() {
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">{t('messages.title')}</h1>
-          <div className="flex items-center gap-1">
-            {/* Create Group Button */}
-            <Button 
-              size="icon" 
-              variant="ghost"
-              onClick={() => setIsGroupDialogOpen(true)}
-              className="h-9 w-9"
-            >
-              <UsersRound className="h-5 w-5" />
-            </Button>
-            {/* New 1:1 Chat */}
-            <NewChatDialog 
-              open={isNewChatOpen} 
-              onOpenChange={setIsNewChatOpen}
-              onSelectUser={handleQuickAddSelect}
-            />
-          </div>
+          <NewChatDialog 
+            open={isNewChatOpen} 
+            onOpenChange={setIsNewChatOpen}
+            onSelectUser={handleQuickAddSelect}
+          />
+        </div>
+        
+        {/* Centered Create Group Button */}
+        <div className="flex justify-center mb-4">
+          <Button 
+            variant="outline"
+            onClick={() => setIsGroupDialogOpen(true)}
+            className="gap-2"
+          >
+            <UsersRound className="h-4 w-4" />
+            Create Group
+          </Button>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
