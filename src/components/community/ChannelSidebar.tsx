@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { Hash, Volume2, Megaphone, Plus, Settings, ChevronDown, Users, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useServer, useChannels, useMyServerRole, Channel, ServerRole } from '@/hooks/useServers';
+import { useUnreadCountPerChannel, useMarkChannelRead } from '@/hooks/useServerNotifications';
 import { CreateChannelDialog } from './CreateChannelDialog';
 import { ServerSettingsSheet } from './ServerSettingsSheet';
 import { toast } from 'sonner';
@@ -29,9 +30,18 @@ export const ChannelSidebar = memo(function ChannelSidebar({
   const { data: server } = useServer(serverId);
   const { data: channels = [] } = useChannels(serverId);
   const { data: myRole } = useMyServerRole(serverId);
+  const { data: unreadCounts = {} } = useUnreadCountPerChannel(serverId);
+  const markChannelRead = useMarkChannelRead();
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
+
+  // Mark channel as read when selected
+  useEffect(() => {
+    if (selectedChannelId && unreadCounts[selectedChannelId] > 0) {
+      markChannelRead.mutate(selectedChannelId);
+    }
+  }, [selectedChannelId]);
 
   const canManageChannels = myRole === 'owner' || myRole === 'admin';
 
@@ -94,6 +104,7 @@ export const ChannelSidebar = memo(function ChannelSidebar({
           canManage={canManageChannels}
           onCreateChannel={() => setShowCreateChannel(true)}
           icon={<Hash className="h-4 w-4" />}
+          unreadCounts={unreadCounts}
         />
 
         {/* Announcement channels */}
@@ -105,6 +116,7 @@ export const ChannelSidebar = memo(function ChannelSidebar({
             onSelectChannel={onSelectChannel}
             canManage={canManageChannels}
             icon={<Megaphone className="h-4 w-4" />}
+            unreadCounts={unreadCounts}
           />
         )}
 
@@ -116,6 +128,7 @@ export const ChannelSidebar = memo(function ChannelSidebar({
           onSelectChannel={onSelectChannel}
           canManage={canManageChannels}
           icon={<Volume2 className="h-4 w-4" />}
+          unreadCounts={unreadCounts}
         />
       </ScrollArea>
 
@@ -144,6 +157,7 @@ function ChannelGroup({
   canManage,
   onCreateChannel,
   icon,
+  unreadCounts = {},
 }: {
   title: string;
   channels: Channel[];
@@ -152,8 +166,12 @@ function ChannelGroup({
   canManage: boolean;
   onCreateChannel?: () => void;
   icon: React.ReactNode;
+  unreadCounts?: Record<string, number>;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
+  
+  // Calculate total unread for this group
+  const totalUnread = channels.reduce((sum, c) => sum + (unreadCounts[c.id] || 0), 0);
 
   return (
     <div className="mb-4">
@@ -170,6 +188,11 @@ function ChannelGroup({
             )}
           />
           <span>{title}</span>
+          {totalUnread > 0 && !isExpanded && (
+            <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-destructive text-destructive-foreground rounded-full">
+              {totalUnread}
+            </span>
+          )}
         </div>
         {canManage && onCreateChannel && (
           <button
@@ -194,6 +217,7 @@ function ChannelGroup({
               isSelected={selectedChannelId === channel.id}
               onClick={() => onSelectChannel(channel.id)}
               icon={icon}
+              unreadCount={unreadCounts[channel.id] || 0}
             />
           ))}
           {channels.length === 0 && (
@@ -211,12 +235,16 @@ const ChannelItem = memo(function ChannelItem({
   isSelected,
   onClick,
   icon,
+  unreadCount,
 }: {
   channel: Channel;
   isSelected: boolean;
   onClick: () => void;
   icon: React.ReactNode;
+  unreadCount: number;
 }) {
+  const hasUnread = unreadCount > 0 && !isSelected;
+  
   return (
     <button
       onClick={onClick}
@@ -224,11 +252,18 @@ const ChannelItem = memo(function ChannelItem({
         "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
         isSelected
           ? "bg-muted text-foreground"
+          : hasUnread
+          ? "text-foreground font-medium hover:bg-muted/50"
           : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
       )}
     >
-      <span className="text-muted-foreground">{icon}</span>
-      <span className="truncate text-sm">{channel.name}</span>
+      <span className={cn("text-muted-foreground", hasUnread && "text-foreground")}>{icon}</span>
+      <span className="truncate text-sm flex-1">{channel.name}</span>
+      {hasUnread && (
+        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center">
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </span>
+      )}
     </button>
   );
 });
