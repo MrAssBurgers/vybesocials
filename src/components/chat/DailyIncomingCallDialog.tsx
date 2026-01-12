@@ -16,6 +16,7 @@ export function DailyIncomingCallDialog({ call, onAccept, onDecline }: DailyInco
   const acceptCall = useAcceptDailyCall();
   const declineCall = useDeclineDailyCall();
   const [timeLeft, setTimeLeft] = useState(30);
+  const [isProcessing, setIsProcessing] = useState(false);
   const hasResponded = useRef(false);
 
   // Start ringing sound when dialog appears
@@ -28,31 +29,43 @@ export function DailyIncomingCallDialog({ call, onAccept, onDecline }: DailyInco
   }, []);
 
   const handleAccept = useCallback(async () => {
-    if (hasResponded.current) return;
+    // CRITICAL: Double-check with both ref and state to prevent double-tap
+    if (hasResponded.current || isProcessing) return;
     hasResponded.current = true;
+    setIsProcessing(true);
+    
     callSounds.stopAll();
     
     try {
+      console.log('[DailyIncomingCallDialog] Accepting call:', call.id);
       const updatedCall = await acceptCall.mutateAsync(call.id);
       onAccept(updatedCall);
     } catch (error) {
+      console.error('[DailyIncomingCallDialog] Accept error:', error);
       hasResponded.current = false;
+      setIsProcessing(false);
     }
-  }, [acceptCall, call.id, onAccept]);
+  }, [acceptCall, call.id, onAccept, isProcessing]);
 
   const handleDecline = useCallback(async () => {
-    if (hasResponded.current) return;
+    // CRITICAL: Double-check with both ref and state to prevent double-tap
+    if (hasResponded.current || isProcessing) return;
     hasResponded.current = true;
+    setIsProcessing(true);
+    
     callSounds.stopAll();
     callSounds.end();
     
     try {
+      console.log('[DailyIncomingCallDialog] Declining call:', call.id);
       await declineCall.mutateAsync(call.id);
       onDecline();
     } catch (error) {
+      console.error('[DailyIncomingCallDialog] Decline error:', error);
       hasResponded.current = false;
+      setIsProcessing(false);
     }
-  }, [declineCall, call.id, onDecline]);
+  }, [declineCall, call.id, onDecline, isProcessing]);
 
   // Countdown timer with auto-decline
   useEffect(() => {
@@ -179,9 +192,9 @@ export function DailyIncomingCallDialog({ call, onAccept, onDecline }: DailyInco
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30"
+                className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 disabled:opacity-50"
                 onClick={handleDecline}
-                disabled={acceptCall.isPending || declineCall.isPending}
+                disabled={isProcessing || acceptCall.isPending || declineCall.isPending}
               >
                 <PhoneOff className="h-7 w-7" />
               </Button>
@@ -199,9 +212,9 @@ export function DailyIncomingCallDialog({ call, onAccept, onDecline }: DailyInco
             >
               <Button
                 size="icon"
-                className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/30"
+                className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/30 disabled:opacity-50"
                 onClick={handleAccept}
-                disabled={acceptCall.isPending || declineCall.isPending}
+                disabled={isProcessing || acceptCall.isPending || declineCall.isPending}
               >
                 {isVideoCall ? (
                   <Video className="h-7 w-7" />

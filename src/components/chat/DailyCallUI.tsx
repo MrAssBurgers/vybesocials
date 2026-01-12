@@ -35,7 +35,16 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
   const [dailyReady, setDailyReady] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  // CRITICAL: Store Daily object in a stable ref - NEVER recreate
   const dailyRef = useRef<ReturnType<typeof DailyIframe.createFrame> | null>(null);
+  // Track if we've already initialized to prevent double-mount
+  const isInitializedRef = useRef(false);
+  // Track if component is unmounting to prevent state updates
+  const isUnmountingRef = useRef(false);
+  // Store callbacks in refs to avoid closure issues
+  const onCloseRef = useRef(onClose);
+  const onConnectedRef = useRef(onConnected);
+  
   const endCallMutation = useEndDailyCall();
 
   const otherUser = isInitiator ? call.receiver : call.caller;
@@ -43,14 +52,33 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
   const isConnected = callPhase === 'connected';
   const isRinging = callPhase === 'ringing';
 
-  // Initialize Daily when call is accepted and we have a room URL
+  // Keep refs updated
   useEffect(() => {
+    onCloseRef.current = onClose;
+    onConnectedRef.current = onConnected;
+  }, [onClose, onConnected]);
+
+  // CRITICAL: Initialize Daily ONLY ONCE when we have a room URL
+  // This effect should only run once per call session
+  useEffect(() => {
+    // Guard: Only proceed if we're in connecting/connected phase
     if (callPhase !== 'connecting' && callPhase !== 'connected') return;
-    if (!call.room_url || dailyRef.current) return;
+    // Guard: Must have room URL
+    if (!call.room_url) return;
+    // Guard: Must have container
     if (!containerRef.current) return;
+    // CRITICAL GUARD: Prevent double initialization
+    if (isInitializedRef.current) return;
+    if (dailyRef.current) return;
+
+    // Mark as initialized IMMEDIATELY to prevent race conditions
+    isInitializedRef.current = true;
+    isUnmountingRef.current = false;
 
     const initDaily = async () => {
       try {
+        console.log('[DailyCallUI] Creating Daily frame (single instance)');
+        
         const daily = DailyIframe.createFrame(containerRef.current!, {
           iframeStyle: {
             position: 'absolute',
@@ -65,41 +93,64 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
           showFullscreenButton: false,
         });
 
+        // Store in ref IMMEDIATELY after creation
         dailyRef.current = daily;
 
+        // Set up event listeners
         daily.on('joined-meeting', () => {
-          setDailyReady(true);
-          onConnected();
-          callSounds.connect();
+          console.log('[DailyCallUI] Joined meeting');
+          if (!isUnmountingRef.current) {
+            setDailyReady(true);
+            onConnectedRef.current();
+            callSounds.connect();
+          }
         });
 
         daily.on('left-meeting', () => {
-          handleEndCall();
+          console.log('[DailyCallUI] Left meeting');
+          // Don't call handleEndCall here - it creates circular issues
+          // The user explicitly leaves via button, or component unmounts
         });
 
         daily.on('error', (event) => {
-          console.error('Daily error:', event);
+          console.error('[DailyCallUI] Daily error:', event);
         });
 
+        // Join the room
+        console.log('[DailyCallUI] Joining room:', call.room_url);
         await daily.join({
           url: call.room_url!,
           startVideoOff: call.call_type === 'audio',
           startAudioOff: false,
         });
       } catch (error) {
-        console.error('Failed to join Daily room:', error);
+        console.error('[DailyCallUI] Failed to join Daily room:', error);
+        // Reset initialization flag on error so retry is possible
+        isInitializedRef.current = false;
       }
     };
 
     initDaily();
 
+    // Cleanup ONLY on unmount
     return () => {
+      console.log('[DailyCallUI] Component unmounting, cleaning up Daily');
+      isUnmountingRef.current = true;
+      
       if (dailyRef.current) {
-        dailyRef.current.destroy();
+        try {
+          dailyRef.current.leave().catch(() => {});
+          dailyRef.current.destroy();
+        } catch (e) {
+          console.error('[DailyCallUI] Cleanup error:', e);
+        }
         dailyRef.current = null;
       }
+      isInitializedRef.current = false;
     };
-  }, [callPhase, call.room_url]);
+  // CRITICAL: Empty dependency array - run ONCE only
+  // We use refs for room_url check inside the effect
+  }, [call.room_url, callPhase, call.call_type]);
 
   // Call duration timer
   useEffect(() => {
@@ -112,41 +163,50 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
     return () => clearInterval(interval);
   }, [callPhase]);
 
+  // Handle ending the call - stable callback
   const handleEndCall = useCallback(async () => {
+    // Prevent multiple end call attempts
+    if (isUnmountingRef.current) return;
+    isUnmountingRef.current = true;
+    
     callSounds.end();
     
+    // Clean up Daily
     if (dailyRef.current) {
       try {
         await dailyRef.current.leave();
         dailyRef.current.destroy();
         dailyRef.current = null;
       } catch (e) {
-        console.error('Error leaving Daily:', e);
+        console.error('[DailyCallUI] Error leaving Daily:', e);
       }
     }
 
+    // Update database
     try {
       await endCallMutation.mutateAsync(call.id);
+    } catch (e) {
+      console.error('[DailyCallUI] Error ending call in DB:', e);
     } finally {
-      onClose();
+      onCloseRef.current();
     }
-  }, [endCallMutation, call.id, onClose]);
+  }, [endCallMutation, call.id]);
 
   const handleToggleMute = useCallback(() => {
-    if (dailyRef.current) {
+    if (dailyRef.current && dailyReady) {
       const newMuted = !isMuted;
       dailyRef.current.setLocalAudio(!newMuted);
       setIsMuted(newMuted);
     }
-  }, [isMuted]);
+  }, [isMuted, dailyReady]);
 
   const handleToggleVideo = useCallback(() => {
-    if (dailyRef.current && isVideoCall) {
+    if (dailyRef.current && isVideoCall && dailyReady) {
       const newVideoOff = !isVideoOff;
       dailyRef.current.setLocalVideo(!newVideoOff);
       setIsVideoOff(newVideoOff);
     }
-  }, [isVideoOff, isVideoCall]);
+  }, [isVideoOff, isVideoCall, dailyReady]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
