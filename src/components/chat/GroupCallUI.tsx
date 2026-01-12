@@ -224,7 +224,7 @@ export function GroupCallUI({
                   <Avatar className="h-20 w-20">
                     <AvatarImage src={profile?.avatar_url || undefined} />
                     <AvatarFallback className="text-2xl">
-                      {(profile?.display_name || profile?.username)?.[0]?.toUpperCase()}
+                      {(profile?.username)?.[0]?.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 </div>
