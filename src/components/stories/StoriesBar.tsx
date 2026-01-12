@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Plus } from 'lucide-react';
-import { useStories, StoryGroup } from '@/hooks/useStories';
+import { useStories } from '@/hooks/useStories';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StoryViewer } from './StoryViewer';
 import { StoryCreator } from './StoryCreator';
 import { cn } from '@/lib/utils';
+import { useSignedUrl } from '@/hooks/useSignedUrl';
 
 export function StoriesBar() {
   const { t } = useTranslation();
@@ -35,81 +36,110 @@ export function StoriesBar() {
 
   return (
     <>
-      <div className="flex gap-4 p-4 overflow-x-auto scrollbar-hide">
+      <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide">
         {/* Add Story Button / Own Story */}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
+        <StoryAvatar
+          avatarUrl={profile?.avatar_url}
+          username={profile?.username}
+          label={t('stories.yourStory')}
+          hasUnviewed={ownStoryGroup?.hasUnviewed}
+          hasStory={!!ownStoryGroup}
+          showAddButton={!ownStoryGroup}
           onClick={() => ownStoryGroup ? setSelectedGroupIndex(0) : setShowCreator(true)}
-          className="flex flex-col items-center gap-2 flex-shrink-0"
-        >
-          <div className="relative">
-            <div className={cn(
-              "h-16 w-16 rounded-full p-0.5",
-              ownStoryGroup?.hasUnviewed 
-                ? "bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500" 
-                : ownStoryGroup 
-                  ? "bg-muted" 
-                  : ""
-            )}>
-              <Avatar className="h-full w-full border-2 border-background">
-                <AvatarImage src={profile?.avatar_url || undefined} />
-                <AvatarFallback className="bg-primary/10 text-primary">
-                  {profile?.username?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </div>
-            {!ownStoryGroup && (
-              <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-1">
-                <Plus className="h-3 w-3 text-primary-foreground" />
-              </div>
-            )}
-          </div>
-          <span className="text-xs font-medium text-muted-foreground truncate w-16 text-center">
-            {t('stories.yourStory')}
-          </span>
-        </motion.button>
+        />
 
         {/* Other Users' Stories */}
         {otherGroups.map((group, index) => (
-          <motion.button
+          <StoryAvatar
             key={group.user.id}
-            whileTap={{ scale: 0.95 }}
+            avatarUrl={group.user.avatar_url}
+            username={group.user.username}
+            displayName={group.user.display_name}
+            hasUnviewed={group.hasUnviewed}
+            hasStory={true}
             onClick={() => setSelectedGroupIndex(ownStoryGroup ? index + 1 : index)}
-            className="flex flex-col items-center gap-2 flex-shrink-0"
-          >
-            <div className={cn(
-              "h-16 w-16 rounded-full p-0.5",
-              group.hasUnviewed 
-                ? "bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500" 
-                : "bg-muted"
-            )}>
-              <Avatar className="h-full w-full border-2 border-background">
-                <AvatarImage src={group.user.avatar_url || undefined} />
-                <AvatarFallback>
-                  {group.user.username?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </div>
-            <span className="text-xs font-medium text-muted-foreground truncate w-16 text-center">
-              {group.user.display_name || group.user.username}
-            </span>
-          </motion.button>
+          />
         ))}
       </div>
 
       {/* Story Viewer */}
-      {selectedGroupIndex !== null && storyGroups && (
-        <StoryViewer
-          groups={storyGroups}
-          initialGroupIndex={selectedGroupIndex}
-          onClose={() => setSelectedGroupIndex(null)}
-        />
-      )}
+      <AnimatePresence>
+        {selectedGroupIndex !== null && storyGroups && (
+          <StoryViewer
+            groups={storyGroups}
+            initialGroupIndex={selectedGroupIndex}
+            onClose={() => setSelectedGroupIndex(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Story Creator */}
-      {showCreator && (
-        <StoryCreator onClose={() => setShowCreator(false)} />
-      )}
+      <AnimatePresence>
+        {showCreator && (
+          <StoryCreator onClose={() => setShowCreator(false)} />
+        )}
+      </AnimatePresence>
     </>
+  );
+}
+
+interface StoryAvatarProps {
+  avatarUrl?: string | null;
+  username?: string;
+  displayName?: string | null;
+  label?: string;
+  hasUnviewed?: boolean;
+  hasStory?: boolean;
+  showAddButton?: boolean;
+  onClick: () => void;
+}
+
+function StoryAvatar({ 
+  avatarUrl, 
+  username, 
+  displayName,
+  label,
+  hasUnviewed, 
+  hasStory,
+  showAddButton,
+  onClick 
+}: StoryAvatarProps) {
+  const signedUrl = useSignedUrl(avatarUrl);
+  
+  return (
+    <motion.button
+      whileTap={{ scale: 0.95 }}
+      onClick={onClick}
+      className="flex flex-col items-center gap-1.5 flex-shrink-0"
+    >
+      <div className="relative">
+        <div className={cn(
+          "h-[68px] w-[68px] rounded-full p-[3px]",
+          hasStory && hasUnviewed 
+            ? "bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-500" 
+            : hasStory 
+              ? "bg-muted-foreground/30" 
+              : "bg-transparent"
+        )}>
+          <Avatar className={cn(
+            "h-full w-full border-[3px] border-background",
+            !hasStory && "border-0"
+          )}>
+            <AvatarImage src={signedUrl || undefined} className="object-cover" />
+            <AvatarFallback className="bg-muted text-muted-foreground text-lg">
+              {username?.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </div>
+        {showAddButton && (
+          <div className="absolute -bottom-0.5 -right-0.5 bg-primary rounded-full p-1 border-2 border-background">
+            <Plus className="h-3 w-3 text-primary-foreground" />
+          </div>
+        )}
+      </div>
+      <span className="text-[11px] font-medium text-muted-foreground truncate w-16 text-center leading-tight">
+        {label || displayName || username}
+      </span>
+    </motion.button>
   );
 }
