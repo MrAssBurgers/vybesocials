@@ -16,9 +16,51 @@ import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
 
+// Memoized post list to prevent unnecessary re-renders
+const PostList = memo(({ 
+  posts, 
+  isLoading, 
+  isFetchingNext, 
+  loadMoreRef,
+  emptyIcon,
+  emptyText
+}: { 
+  posts: any[]; 
+  isLoading: boolean;
+  isFetchingNext: boolean;
+  loadMoreRef: (node: HTMLDivElement | null) => void;
+  emptyIcon: string;
+  emptyText: string;
+}) => {
+  if (isLoading) {
+    return <PostSkeletonList count={3} />;
+  }
+
+  if (posts.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-4xl mb-4">{emptyIcon}</p>
+        <p className="text-muted-foreground">{emptyText}</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {posts.map((post) => (
+        <MemoizedPostCard key={post.id} post={post} />
+      ))}
+      <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
+        {isFetchingNext && (
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        )}
+      </div>
+    </>
+  );
+});
+
 export default function HomePage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { user, profile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('foryou');
   
@@ -84,8 +126,6 @@ export default function HomePage() {
     if (node) observerRef.current.observe(node);
   }, [activeTab, hasNextForYou, hasNextFollowing, isFetchingNextForYou, isFetchingNextFollowing, fetchNextForYou, fetchNextFollowing]);
 
-  // Home feed is photo posts only (videos/clips live in Clips).
-
   // Redirect new Google users who don't have a profile/username yet
   useEffect(() => {
     if (!authLoading && user && !profile?.username) {
@@ -103,13 +143,11 @@ export default function HomePage() {
       />
 
       <div 
-        className="max-w-xl mx-auto transition-transform duration-100"
+        className="max-w-xl mx-auto"
         style={{ 
-          transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : 'none' 
+          transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : undefined 
         }}
       >
-      {/* Header search is in MobileHeader - no duplicate needed here */}
-
         {/* Announcements Banner */}
         <AnnouncementBanner />
 
@@ -124,49 +162,25 @@ export default function HomePage() {
             </TabsList>
 
             <TabsContent value="foryou" className="space-y-6">
-              {forYouLoading ? (
-                <PostSkeletonList count={3} />
-              ) : forYouPosts.length > 0 ? (
-                <>
-                  {forYouPosts.map((post) => (
-                    <MemoizedPostCard key={post.id} post={post} />
-                  ))}
-                  {/* Load more trigger */}
-                  <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
-                    {isFetchingNextForYou && (
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-4xl mb-4">😴</p>
-                  <p className="text-muted-foreground">No posts yet. Be the first to create one!</p>
-                </div>
-              )}
+              <PostList
+                posts={forYouPosts}
+                isLoading={forYouLoading}
+                isFetchingNext={isFetchingNextForYou}
+                loadMoreRef={loadMoreRef}
+                emptyIcon="😴"
+                emptyText="No posts yet. Be the first to create one!"
+              />
             </TabsContent>
 
             <TabsContent value="following" className="space-y-6">
-              {followingLoading ? (
-                <PostSkeletonList count={3} />
-              ) : followingPosts.length > 0 ? (
-                <>
-                  {followingPosts.map((post) => (
-                    <MemoizedPostCard key={post.id} post={post} />
-                  ))}
-                  {/* Load more trigger */}
-                  <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
-                    {isFetchingNextFollowing && (
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-4xl mb-4">👀</p>
-                  <p className="text-muted-foreground">Follow creators to see their posts here!</p>
-                </div>
-              )}
+              <PostList
+                posts={followingPosts}
+                isLoading={followingLoading}
+                isFetchingNext={isFetchingNextFollowing}
+                loadMoreRef={loadMoreRef}
+                emptyIcon="👀"
+                emptyText="Follow creators to see their posts here!"
+              />
             </TabsContent>
           </Tabs>
         </div>
