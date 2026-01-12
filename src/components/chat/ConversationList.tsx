@@ -327,6 +327,9 @@ const ConversationItem = memo(function ConversationItem({
   const lastMessage = conversation.last_message;
   const unreadCount = conversation.unread_count || 0;
   const isPinned = conversation.members?.find((m) => m.user_id === currentUserId)?.is_pinned;
+  
+  // Get member count for groups
+  const memberCount = conversation.is_group ? (conversation.members?.length || 0) : 0;
 
   const formattedTime = useMemo(() => {
     if (!lastMessage?.created_at) return null;
@@ -339,12 +342,32 @@ const ConversationItem = memo(function ConversationItem({
       className="w-full flex items-center gap-4 p-4 rounded-2xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-2"
     >
       <div className="relative flex-shrink-0">
-        <Avatar className="h-14 w-14 ring-2 ring-background shadow-md">
-          <AvatarImage src={avatarUrl || undefined} />
-          <AvatarFallback className="text-lg">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
-        </Avatar>
-        {!conversation.is_group && (
-          <OnlineIndicator isOnline={isOnline} size="sm" className="bottom-0 right-0" />
+        {conversation.is_group ? (
+          // Group chat avatar with member count badge
+          <div className="relative">
+            <Avatar className="h-14 w-14 ring-2 ring-background shadow-md">
+              {avatarUrl ? (
+                <AvatarImage src={avatarUrl} />
+              ) : (
+                <AvatarFallback className="text-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                  <Users className="h-6 w-6" />
+                </AvatarFallback>
+              )}
+            </Avatar>
+            {/* Member count badge */}
+            <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center border-2 border-background">
+              {memberCount}
+            </div>
+          </div>
+        ) : (
+          // DM avatar with online status
+          <>
+            <Avatar className="h-14 w-14 ring-2 ring-background shadow-md">
+              <AvatarImage src={avatarUrl || undefined} />
+              <AvatarFallback className="text-lg">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <OnlineIndicator isOnline={isOnline} size="sm" className="bottom-0 right-0" />
+          </>
         )}
         {isPinned && (
           <div className="absolute -top-1 -right-1 bg-primary rounded-full p-0.5">
@@ -357,8 +380,13 @@ const ConversationItem = memo(function ConversationItem({
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="font-semibold text-base truncate">{displayName}</span>
-            {otherMember && isOwner(otherMember.username || '') && <OwnerBadge />}
-            {otherMember && isOwnerWife(otherMember.id) && <PrincessBadge />}
+            {conversation.is_group && (
+              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full flex-shrink-0">
+                Group
+              </span>
+            )}
+            {!conversation.is_group && otherMember && isOwner(otherMember.username || '') && <OwnerBadge />}
+            {!conversation.is_group && otherMember && isOwnerWife(otherMember.id) && <PrincessBadge />}
           </div>
           {formattedTime && (
             <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formattedTime}</span>
@@ -386,6 +414,11 @@ const ConversationItem = memo(function ConversationItem({
                     : lastMessage.content || 'Message'}
                 </p>
               </>
+            )}
+            {!lastMessage && conversation.is_group && (
+              <p className="text-sm text-muted-foreground truncate">
+                Start chatting with the group
+              </p>
             )}
           </div>
 

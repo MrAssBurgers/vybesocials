@@ -172,7 +172,7 @@ export function DesktopRightSidebar() {
   const contextCard = getContextCard();
 
   return (
-    <aside className="hidden xl:flex fixed right-0 top-0 h-screen w-[260px] 2xl:w-[300px] flex-col liquid-glass border-l border-border/50 z-40">
+    <aside className="hidden xl:flex fixed right-0 top-0 h-screen w-[240px] 2xl:w-[280px] flex-col liquid-glass border-l border-border/50 z-40">
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">
           {/* Quick Search */}
