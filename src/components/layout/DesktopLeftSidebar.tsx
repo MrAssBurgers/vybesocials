@@ -191,7 +191,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
         className={cn(
           "hidden lg:flex fixed left-0 top-0 h-screen flex-col liquid-glass border-r border-border/50 z-40",
           "transition-[width] duration-200 ease-out",
-          collapsed ? "w-16" : "w-[260px] xl:w-[280px] 2xl:w-[300px]"
+          collapsed ? "w-16" : "w-[220px] xl:w-[240px] 2xl:w-[260px]"
         )}
       >
         {/* Brand Row */}
