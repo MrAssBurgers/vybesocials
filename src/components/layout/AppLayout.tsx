@@ -53,10 +53,11 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     return <Navigate to="/" replace />;
   }
 
-  // Desktop layout with sidebars
+  // Desktop layout with sidebars - tighter spacing to reduce black gaps
   if (isDesktop) {
-    const leftMargin = leftCollapsed ? 'lg:ml-16' : 'lg:ml-[220px] xl:ml-[240px] 2xl:ml-[260px]';
-    const rightMargin = hideRightSidebar ? '' : 'xl:mr-[280px] 2xl:mr-[320px]';
+    // Reduced margins for sidebars to bring content closer to center
+    const leftMargin = leftCollapsed ? 'lg:ml-14' : 'lg:ml-[200px] xl:ml-[220px] 2xl:ml-[240px]';
+    const rightMargin = hideRightSidebar ? '' : 'xl:mr-[260px] 2xl:mr-[300px]';
 
     return (
       <div ref={ref} className="min-h-screen w-full overflow-x-hidden">
@@ -66,7 +67,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           onCollapsedChange={setLeftCollapsed}
         />
 
-        {/* Main Content Area */}
+        {/* Main Content Area - reduced gaps */}
         <main 
           className={cn(
             "min-h-screen transition-[margin] duration-200 ease-out",
@@ -74,11 +75,11 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             rightMargin
           )}
         >
-          {/* Center content with max-width for ultra-wide */}
+          {/* Center content - expanded max-width to fill more space */}
           <div 
             className={cn(
-              "mx-auto w-full px-4 lg:px-6 py-4",
-              fullWidth ? "" : "max-w-[1400px] 2xl:max-w-[1600px]"
+              "mx-auto w-full px-3 lg:px-4 py-4",
+              fullWidth ? "" : "max-w-[1600px] 2xl:max-w-[1920px]"
             )}
           >
             {children}

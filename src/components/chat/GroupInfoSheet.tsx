@@ -232,7 +232,7 @@ export const GroupInfoSheet = memo(function GroupInfoSheet({
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent className="z-[100]">
+                        <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>Remove member?</AlertDialogTitle>
                             <AlertDialogDescription>
@@ -265,7 +265,7 @@ export const GroupInfoSheet = memo(function GroupInfoSheet({
                     Leave Group
                   </Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent className="z-[100]">
+                <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Leave group?</AlertDialogTitle>
                     <AlertDialogDescription>
