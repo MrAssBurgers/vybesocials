@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.create-call-room]
 verify_jwt = false
+
+[functions.groups-debug-create]
+verify_jwt = false
