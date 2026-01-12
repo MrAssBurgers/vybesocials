@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConversations, useCreateConversation, Conversation } from '@/hooks/useMessages';
-import { useFriends } from '@/hooks/useFriends';
+import { useOnlineFriends } from '@/hooks/useOnlineFriends';
 import { useAuth } from '@/lib/auth';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Circle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
@@ -70,7 +70,7 @@ export function ConversationList() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const { data: conversations, isLoading } = useConversations();
-  const { data: friends } = useFriends();
+  const { onlineFriends, onlineCount } = useOnlineFriends();
   const createConversation = useCreateConversation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
@@ -98,16 +98,18 @@ export function ConversationList() {
     setRecentUsers(getRecentMessageUsers());
   }, []);
 
-  const friendsForQuickAdd = useMemo<RecentMessageUser[]>(() => 
-    (friends || [])
-      .filter((f): f is NonNullable<typeof f> => f !== null && f.id !== profile?.id)
+  // Convert online friends to the format needed for QuickAddRow
+  const onlineFriendsForQuickAdd = useMemo(() => 
+    onlineFriends
+      .filter(f => f.id !== profile?.id)
       .map(f => ({
         id: f.id,
         username: f.username,
         avatar_url: f.avatar_url,
         display_name: f.display_name,
+        isOnline: true,
       })),
-    [friends, profile?.id]
+    [onlineFriends, profile?.id]
   );
 
   const handleQuickAddSelect = useCallback(async (userId: string) => {
@@ -207,8 +209,8 @@ export function ConversationList() {
         }}
       />
 
-      {/* Quick Add Section */}
-      {!searchQuery && (recentUsers.length > 0 || friendsForQuickAdd.length > 0) && (
+      {/* Quick Add Section - Online Friends */}
+      {!searchQuery && (recentUsers.length > 0 || onlineFriendsForQuickAdd.length > 0) && (
         <div className="px-4 pt-2 space-y-3">
           {recentUsers.length > 0 && (
             <QuickAddRow
@@ -217,11 +219,12 @@ export function ConversationList() {
               onSelect={handleQuickAddSelect}
             />
           )}
-          {friendsForQuickAdd.length > 0 && (
+          {onlineFriendsForQuickAdd.length > 0 && (
             <QuickAddRow
-              title="Online Friends"
-              users={friendsForQuickAdd.slice(0, 8)}
+              title={`Online Friends (${onlineCount})`}
+              users={onlineFriendsForQuickAdd.slice(0, 8)}
               onSelect={handleQuickAddSelect}
+              showOnlineIndicator
             />
           )}
         </div>

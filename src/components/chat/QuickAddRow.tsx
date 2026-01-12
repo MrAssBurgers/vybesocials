@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { OnlineIndicator } from "@/components/ui/OnlineIndicator";
 import type { RecentMessageUser } from "@/lib/recentMessageUsers";
 
 const containerVariants = {
@@ -19,14 +20,20 @@ const itemVariants = {
   },
 };
 
+export interface QuickAddUser extends RecentMessageUser {
+  isOnline?: boolean;
+}
+
 export function QuickAddRow({
   title,
   users,
   onSelect,
+  showOnlineIndicator = false,
 }: {
   title: string;
-  users: RecentMessageUser[];
+  users: QuickAddUser[];
   onSelect: (userId: string) => void;
+  showOnlineIndicator?: boolean;
 }) {
   if (!users.length) return null;
 
@@ -59,6 +66,7 @@ export function QuickAddRow({
             <motion.div
               whileHover={{ rotate: [0, -5, 5, 0] }}
               transition={{ duration: 0.3 }}
+              className="relative"
             >
               <Avatar className="h-12 w-12 ring-2 ring-background shadow-md">
                 <AvatarImage src={u.avatar_url || undefined} alt={u.username} />
@@ -66,6 +74,9 @@ export function QuickAddRow({
                   {(u.display_name || u.username).charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
+              {showOnlineIndicator && u.isOnline && (
+                <OnlineIndicator isOnline={true} size="sm" className="bottom-0 right-0" />
+              )}
             </motion.div>
             <motion.span 
               initial={{ opacity: 0 }}
