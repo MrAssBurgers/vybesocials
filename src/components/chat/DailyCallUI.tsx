@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import DailyIframe from '@daily-co/daily-js';
+import { motion } from 'framer-motion';
+import DailyIframe, { DailyCall as DailyCallObject } from '@daily-co/daily-js';
 import { 
   PhoneOff, 
   Mic, 
@@ -36,8 +36,8 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
   const [dailyReady, setDailyReady] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const dailyRef = useRef<ReturnType<typeof DailyIframe.createFrame> | null>(null);
-  const isInitializedRef = useRef(false);
+  const dailyRef = useRef<DailyCallObject | null>(null);
+  const hasJoinedRef = useRef(false);
   const isUnmountingRef = useRef(false);
   const joinTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const onCloseRef = useRef(onClose);
@@ -47,7 +47,6 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
 
   const otherUser = isInitiator ? call.receiver : call.caller;
   const isVideoCall = call.call_type === 'video';
-  const isConnected = callPhase === 'connected';
   const isRinging = callPhase === 'ringing';
 
   // Keep refs updated
@@ -56,7 +55,6 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
     onConnectedRef.current = onConnected;
   }, [onClose, onConnected]);
 
-  // Clear join timeout helper
   const clearJoinTimeout = useCallback(() => {
     if (joinTimeoutRef.current) {
       clearTimeout(joinTimeoutRef.current);
@@ -64,24 +62,29 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
     }
   }, []);
 
-  // Handle ending the call - stable callback
+  // Cleanup helper
+  const cleanupDaily = useCallback(() => {
+    clearJoinTimeout();
+    if (dailyRef.current) {
+      try {
+        dailyRef.current.leave().catch(() => {});
+        dailyRef.current.destroy();
+      } catch (e) {
+        console.error('[DailyCallUI] Cleanup error:', e);
+      }
+      dailyRef.current = null;
+    }
+    hasJoinedRef.current = false;
+  }, [clearJoinTimeout]);
+
+  // Handle ending the call
   const handleEndCall = useCallback(async () => {
     if (isUnmountingRef.current) return;
     isUnmountingRef.current = true;
     
-    clearJoinTimeout();
     callSounds.stopAll();
     callSounds.end();
-    
-    if (dailyRef.current) {
-      try {
-        await dailyRef.current.leave();
-        dailyRef.current.destroy();
-        dailyRef.current = null;
-      } catch (e) {
-        console.error('[DailyCallUI] Error leaving Daily:', e);
-      }
-    }
+    cleanupDaily();
 
     try {
       await endCallMutation.mutateAsync(call.id);
@@ -90,55 +93,91 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
     } finally {
       onCloseRef.current();
     }
-  }, [endCallMutation, call.id, clearJoinTimeout]);
+  }, [endCallMutation, call.id, cleanupDaily]);
 
-  // CRITICAL: Initialize Daily and join IMMEDIATELY when we have a room URL
+  // CRITICAL: Validate room URL
+  const isValidRoomUrl = useCallback((url: string | null | undefined): url is string => {
+    if (!url) return false;
+    if (typeof url !== 'string') return false;
+    if (!url.startsWith('https://')) return false;
+    if (url.length < 20) return false; // Basic sanity check
+    return true;
+  }, []);
+
+  // Request media permissions before joining (mobile requirement)
+  const requestMediaPermissions = useCallback(async (needsVideo: boolean): Promise<boolean> => {
+    try {
+      const constraints: MediaStreamConstraints = {
+        audio: true,
+        video: needsVideo,
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Stop the tracks immediately - Daily will request its own
+      stream.getTracks().forEach(track => track.stop());
+      console.log('[DailyCallUI] Media permissions granted');
+      return true;
+    } catch (error) {
+      console.error('[DailyCallUI] Media permission denied:', error);
+      return false;
+    }
+  }, []);
+
+  // Main join flow
   useEffect(() => {
-    // Only proceed if we're ready to connect (not just ringing)
+    // Only proceed if we're ready to connect
     if (callPhase === 'ringing') return;
-    if (!call.room_url) {
-      console.log('[DailyCallUI] No room URL yet, waiting...');
+    
+    // CRITICAL: Validate room URL
+    if (!isValidRoomUrl(call.room_url)) {
+      console.log('[DailyCallUI] Invalid or missing room URL:', call.room_url);
       return;
     }
+    
     if (!containerRef.current) {
       console.log('[DailyCallUI] No container ref yet');
       return;
     }
-    // Prevent double initialization
-    if (isInitializedRef.current || dailyRef.current) {
-      console.log('[DailyCallUI] Already initialized, skipping');
+    
+    // CRITICAL: Prevent double join
+    if (hasJoinedRef.current) {
+      console.log('[DailyCallUI] Already joined, skipping');
       return;
     }
 
-    isInitializedRef.current = true;
+    // Mark as joining BEFORE any async work
+    hasJoinedRef.current = true;
     isUnmountingRef.current = false;
 
-    console.log('[DailyCallUI] Starting Daily initialization with room:', call.room_url);
+    const roomUrl = call.room_url;
+    console.log('[DailyCallUI] Starting join flow with room:', roomUrl);
 
     const initAndJoin = async () => {
       try {
-        // Step 1: Create the Daily call object
-        console.log('[DailyCallUI] Creating Daily frame');
-        const daily = DailyIframe.createFrame(containerRef.current!, {
-          iframeStyle: {
-            position: 'absolute',
-            top: '0',
-            left: '0',
-            width: '100%',
-            height: '100%',
-            border: 'none',
-            borderRadius: '0',
-          },
-          showLeaveButton: false,
-          showFullscreenButton: false,
+        // Step 1: Request permissions first (mobile requirement)
+        const hasPermissions = await requestMediaPermissions(call.call_type === 'video');
+        if (!hasPermissions) {
+          console.error('[DailyCallUI] Permissions denied, aborting');
+          toast.error('Microphone permission required for calls');
+          hasJoinedRef.current = false;
+          handleEndCall();
+          return;
+        }
+
+        if (isUnmountingRef.current) return;
+
+        // Step 2: Create Daily call object
+        console.log('[DailyCallUI] Creating Daily call object');
+        const daily = DailyIframe.createCallObject({
+          audioSource: true,
+          videoSource: call.call_type === 'video',
         });
 
-        // Store in ref IMMEDIATELY
+        // Store reference immediately
         dailyRef.current = daily;
 
-        // Step 2: Attach ALL event listeners BEFORE joining
+        // Step 3: Attach ALL event listeners BEFORE join
         daily.on('joined-meeting', () => {
-          console.log('[DailyCallUI] ✓ joined-meeting event fired');
+          console.log('[DailyCallUI] ✓ joined-meeting event');
           clearJoinTimeout();
           if (!isUnmountingRef.current) {
             setDailyReady(true);
@@ -149,71 +188,62 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
         });
 
         daily.on('left-meeting', () => {
-          console.log('[DailyCallUI] left-meeting event fired');
+          console.log('[DailyCallUI] left-meeting event');
         });
 
         daily.on('error', (event) => {
-          console.error('[DailyCallUI] Daily error:', event);
+          console.error('[DailyCallUI] Daily error event:', event);
           clearJoinTimeout();
           if (!isUnmountingRef.current) {
             toast.error('Call connection error');
+            handleEndCall();
           }
         });
 
-        daily.on('participant-joined', (event) => {
-          console.log('[DailyCallUI] Participant joined:', event?.participant?.user_id);
+        daily.on('camera-error', (event) => {
+          console.warn('[DailyCallUI] Camera error:', event);
         });
 
-        // Step 3: Set up FAILSAFE TIMEOUT (15 seconds)
+        // Step 4: Set up failsafe timeout (15 seconds)
         joinTimeoutRef.current = setTimeout(() => {
-          console.error('[DailyCallUI] Join timeout - call failed to connect');
-          if (!isUnmountingRef.current && dailyRef.current && !dailyReady) {
+          console.error('[DailyCallUI] Join timeout after 15s');
+          if (!isUnmountingRef.current && !dailyReady) {
             toast.error('Call failed to connect');
             handleEndCall();
           }
         }, 15000);
 
-        // Step 4: IMMEDIATELY call join
-        console.log('[DailyCallUI] Calling daily.join() with URL:', call.room_url);
+        // Step 5: CALL JOIN with proper syntax
+        console.log('[DailyCallUI] Calling daily.join({ url: "..." })');
         await daily.join({
-          url: call.room_url!,
+          url: roomUrl,
           startVideoOff: call.call_type === 'audio',
           startAudioOff: false,
         });
-        console.log('[DailyCallUI] daily.join() completed');
+        console.log('[DailyCallUI] daily.join() promise resolved');
 
-      } catch (error) {
-        console.error('[DailyCallUI] Failed to join Daily room:', error);
+      } catch (error: any) {
+        console.error('[DailyCallUI] Join failed:', error);
         clearJoinTimeout();
-        isInitializedRef.current = false;
+        hasJoinedRef.current = false;
+        
         if (!isUnmountingRef.current) {
-          toast.error('Failed to join call');
+          const errorMessage = error?.message || 'Failed to join call';
+          toast.error(errorMessage);
           handleEndCall();
         }
       }
     };
 
-    // Execute immediately - no delays
     initAndJoin();
 
     // Cleanup on unmount
     return () => {
       console.log('[DailyCallUI] Component unmounting');
       isUnmountingRef.current = true;
-      clearJoinTimeout();
-      
-      if (dailyRef.current) {
-        try {
-          dailyRef.current.leave().catch(() => {});
-          dailyRef.current.destroy();
-        } catch (e) {
-          console.error('[DailyCallUI] Cleanup error:', e);
-        }
-        dailyRef.current = null;
-      }
-      isInitializedRef.current = false;
+      cleanupDaily();
     };
-  }, [call.room_url, callPhase, call.call_type, clearJoinTimeout, handleEndCall]);
+  }, [call.room_url, callPhase, call.call_type, isValidRoomUrl, requestMediaPermissions, clearJoinTimeout, cleanupDaily, handleEndCall, dailyReady]);
 
   // Call duration timer
   useEffect(() => {
@@ -254,7 +284,6 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
     return formatDuration(callDuration);
   };
 
-  // Ringing pulse animation
   const RingingPulse = () => (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
       {[...Array(3)].map((_, i) => (
@@ -278,7 +307,6 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
     </div>
   );
 
-  // Minimized view
   if (isMinimized) {
     return (
       <motion.div
@@ -375,9 +403,8 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
         </Button>
       </motion.div>
 
-      {/* Main content - Daily iframe or ringing UI */}
+      {/* Main content area */}
       <div className="flex-1 relative overflow-hidden bg-black" ref={containerRef}>
-        {/* Show ringing/connecting UI when not yet connected */}
         {!dailyReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-black/50 via-black to-black/50 z-10">
             {isRinging && <RingingPulse />}
@@ -417,7 +444,6 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
         className="absolute bottom-0 left-0 right-0 p-5 pb-10 bg-gradient-to-t from-black via-black/80 to-transparent z-20"
       >
         <div className="flex items-center justify-center gap-4">
-          {/* Mute */}
           <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}>
             <Button
               variant="ghost"
@@ -434,7 +460,6 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
             </Button>
           </motion.div>
 
-          {/* Video toggle */}
           {isVideoCall && (
             <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}>
               <Button
@@ -453,7 +478,6 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
             </motion.div>
           )}
 
-          {/* Speaker */}
           <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}>
             <Button
               variant="ghost"
@@ -470,7 +494,6 @@ export function DailyCallUI({ call, isInitiator, callPhase, onClose, onConnected
             </Button>
           </motion.div>
 
-          {/* End call */}
           <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}>
             <Button
               variant="destructive"
