@@ -1,8 +1,8 @@
-import { useState, useCallback, createContext, useContext, ReactNode, useRef } from 'react';
+import { useCallback, createContext, useContext, ReactNode, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { DailyCall, useIncomingDailyCalls, useDailyCallState } from '@/hooks/useDailyCalls';
-import { DailyCallUI } from './DailyCallUI';
 import { DailyIncomingCallDialog } from './DailyIncomingCallDialog';
+import { DailyCallRoot } from './DailyCallRoot';
 import { useAuth } from '@/lib/auth';
 import { callSounds } from '@/lib/callSounds';
 
@@ -32,8 +32,8 @@ export function DailyCallProvider({ children }: DailyCallProviderProps) {
   const { profile } = useAuth();
   const { incomingCall, dismissIncomingCall } = useIncomingDailyCalls();
   const { activeCall, isInitiator, callPhase, startCall: setCall, endCall, setConnected } = useDailyCallState();
-  
-  // CRITICAL: Track if we're currently processing an accept to prevent double-mount
+
+  // CRITICAL: Track if we're currently processing an accept to prevent double-accept
   const isAcceptingRef = useRef(false);
 
   const startCall = useCallback((call: DailyCall) => {
@@ -41,21 +41,19 @@ export function DailyCallProvider({ children }: DailyCallProviderProps) {
   }, [profile?.id, setCall]);
 
   const handleAcceptCall = useCallback(async (call: DailyCall) => {
-    // CRITICAL: Prevent double-accept
     if (isAcceptingRef.current) {
       console.log('[DailyCallProvider] Already accepting call, ignoring');
       return;
     }
     isAcceptingRef.current = true;
-    
+
     console.log('[DailyCallProvider] Accepting call:', call.id);
     dismissIncomingCall();
     callSounds.stopAll();
-    
+
     // Small delay for smooth transition, then set call
     setTimeout(() => {
       setCall(call, false);
-      // Reset the flag after call is set
       setTimeout(() => {
         isAcceptingRef.current = false;
       }, 500);
@@ -88,19 +86,15 @@ export function DailyCallProvider({ children }: DailyCallProviderProps) {
         )}
       </AnimatePresence>
 
-      {/* Active call UI - only render ONCE per call */}
-      <AnimatePresence>
-        {activeCall && callPhase !== 'idle' && (
-          <DailyCallUI
-            key={activeCall.id} // CRITICAL: Key by call ID to prevent re-mount
-            call={activeCall}
-            isInitiator={isInitiator}
-            callPhase={callPhase as 'ringing' | 'connecting' | 'connected'}
-            onClose={handleCloseCall}
-            onConnected={setConnected}
-          />
-        )}
-      </AnimatePresence>
+      {/* SINGLE, PERMANENT Daily root (iframe mounted once, never conditional) */}
+      <DailyCallRoot
+        activeCall={activeCall}
+        isInitiator={isInitiator}
+        callPhase={callPhase}
+        onClose={handleCloseCall}
+        onConnected={setConnected}
+      />
     </DailyCallContext.Provider>
   );
 }
+
