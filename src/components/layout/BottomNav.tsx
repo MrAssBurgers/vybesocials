@@ -1,4 +1,4 @@
-import { Home, Film, PlusCircle, MessageCircle, Users } from 'lucide-react';
+import { Home, Film, PlusCircle, MessageCircle, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion';
@@ -99,7 +99,7 @@ export function BottomNav() {
     { icon: Film, path: '/clips', badge: 0 },
     { icon: PlusCircle, path: '/upload', isCreate: true, badge: 0 },
     { icon: MessageCircle, path: '/messages', badge: unreadMessages },
-    { icon: Users, path: '/community', badge: 0 },
+    { icon: Settings, path: '/settings', badge: 0 },
   ];
 
   return (
