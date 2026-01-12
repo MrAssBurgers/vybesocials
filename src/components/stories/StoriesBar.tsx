@@ -37,16 +37,32 @@ export function StoriesBar() {
   return (
     <>
       <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide">
-        {/* Add Story Button / Own Story */}
-        <StoryAvatar
-          avatarUrl={profile?.avatar_url}
-          username={profile?.username}
-          label={t('stories.yourStory')}
-          hasUnviewed={ownStoryGroup?.hasUnviewed}
-          hasStory={!!ownStoryGroup}
-          showAddButton={!ownStoryGroup}
-          onClick={() => ownStoryGroup ? setSelectedGroupIndex(0) : setShowCreator(true)}
-        />
+        {/* Always visible Add Story Button */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowCreator(true)}
+          className="flex flex-col items-center gap-1.5 flex-shrink-0"
+        >
+          <div className="relative h-[68px] w-[68px] rounded-full bg-muted/50 border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition-colors">
+            <Plus className="h-7 w-7 text-muted-foreground" />
+          </div>
+          <span className="text-[11px] font-medium text-muted-foreground truncate w-16 text-center leading-tight">
+            Add Story
+          </span>
+        </motion.button>
+
+        {/* Own Story (if exists) */}
+        {ownStoryGroup && (
+          <StoryAvatar
+            avatarUrl={profile?.avatar_url}
+            username={profile?.username}
+            label={t('stories.yourStory')}
+            hasUnviewed={ownStoryGroup.hasUnviewed}
+            hasStory={true}
+            showAddButton={false}
+            onClick={() => setSelectedGroupIndex(0)}
+          />
+        )}
 
         {/* Other Users' Stories */}
         {otherGroups.map((group, index) => (
