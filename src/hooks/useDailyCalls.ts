@@ -75,6 +75,33 @@ export function useCreateDailyRoom() {
   });
 }
 
+// Fetch a meeting token for joining a private Daily room
+export function useGetCallToken() {
+  return useMutation({
+    mutationFn: async ({
+      roomName,
+      callId,
+    }: {
+      roomName: string;
+      callId: string;
+    }) => {
+      const response = await supabase.functions.invoke('get-call-token', {
+        body: { roomName, callId },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to get call token');
+      }
+
+      return response.data as { roomUrl: string; roomName: string; token: string };
+    },
+    onError: (error: any) => {
+      console.error('Get call token error:', error);
+      toast.error(error.message || 'Failed to authorize call');
+    },
+  });
+}
+
 // Send call invite after room creation
 export function useSendCallInvite() {
   const { profile } = useAuth();

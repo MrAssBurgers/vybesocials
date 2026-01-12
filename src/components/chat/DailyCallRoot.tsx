@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { callSounds } from '@/lib/callSounds';
-import { DailyCall, useEndDailyCall } from '@/hooks/useDailyCalls';
+import { DailyCall, useEndDailyCall, useGetCallToken } from '@/hooks/useDailyCalls';
 import { DailyCallUI } from './DailyCallUI';
 import {
   ensureDailyFrame,
@@ -37,6 +37,7 @@ export function DailyCallRoot({
   const joinAttemptedRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFailingRef = useRef(false);
+  const [callToken, setCallToken] = useState<string | null>(null);
 
   const activeCallRef = useRef<DailyCall | null>(activeCall);
   const callPhaseRef = useRef(callPhase);
@@ -44,6 +45,7 @@ export function DailyCallRoot({
   const onConnectedRef = useRef(onConnected);
 
   const endCallMutation = useEndDailyCall();
+  const getTokenMutation = useGetCallToken();
 
   useEffect(() => {
     activeCallRef.current = activeCall;
@@ -54,6 +56,7 @@ export function DailyCallRoot({
     // Reset per-call guards
     joinAttemptedRef.current = false;
     isFailingRef.current = false;
+    setCallToken(null);
   }, [activeCall?.id]);
 
   const isVisible = useMemo(() => {
@@ -146,12 +149,13 @@ export function DailyCallRoot({
     };
   }, []);
 
-  // 2) Join flow (join exactly once per call, without remounting iframe)
+  // 2) Token fetch + Join flow (join exactly once per call, without remounting iframe)
   useEffect(() => {
     // If no call, ensure we're not in a room
     if (!activeCall || callPhase === 'idle') {
       clearJoinTimeout();
       joinAttemptedRef.current = false;
+      setCallToken(null);
       void leaveRoom();
       return;
     }
@@ -162,6 +166,12 @@ export function DailyCallRoot({
     // Validate room URL
     if (!isValidRoomUrl(activeCall.room_url)) {
       void failAndEnd('Invalid call room URL');
+      return;
+    }
+
+    // Validate room name exists
+    if (!activeCall.room_name) {
+      void failAndEnd('Missing room name');
       return;
     }
 
@@ -184,17 +194,35 @@ export function DailyCallRoot({
       void failAndEnd('Call failed to connect. Check permissions or network.');
     }, 15000);
 
-    joinRoom(activeCall.room_url).catch((err) => {
-      console.error('[DailyCallRoot] joinRoom failed:', err);
-      void failAndEnd('Call failed to connect. Check permissions or network.');
-    });
-  }, [activeCall?.id, activeCall?.room_url, callPhase]);
+    // Fetch token first, then join
+    const doJoin = async () => {
+      try {
+        // Get meeting token from backend
+        const tokenData = await getTokenMutation.mutateAsync({
+          roomName: activeCall.room_name!,
+          callId: activeCall.id,
+        });
+
+        setCallToken(tokenData.token);
+
+        // Join with token
+        await joinRoom(activeCall.room_url!, tokenData.token);
+      } catch (err: any) {
+        console.error('[DailyCallRoot] join failed:', err);
+        const msg = err?.message || 'Call failed to connect. Check permissions or network.';
+        void failAndEnd(msg);
+      }
+    };
+
+    doJoin();
+  }, [activeCall?.id, activeCall?.room_url, activeCall?.room_name, callPhase]);
 
   // Ensure we leave the room when the call ends in the DB (remote hangup)
   useEffect(() => {
     if (callPhase === 'idle' || !activeCall) {
       clearJoinTimeout();
       joinAttemptedRef.current = false;
+      setCallToken(null);
       void leaveRoom();
     }
   }, [callPhase, activeCall]);
