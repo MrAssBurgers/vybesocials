@@ -8,6 +8,8 @@ import { Camera, Link } from 'lucide-react';
 import { useRef, useState } from 'react';
 
 interface ProfileData {
+  firstName: string;
+  lastName: string;
   displayName: string;
   bio: string;
   linkUrl: string;
@@ -56,7 +58,7 @@ export function ProfileSetup({ data, onChange, username }: ProfileSetupProps) {
           <Avatar className="h-24 w-24 ring-4 ring-primary/20">
             <AvatarImage src={data.avatarPreview || ''} />
             <AvatarFallback className="gradient-animated text-3xl">
-              {data.displayName?.[0] || username?.[0] || '?'}
+              {data.firstName?.[0] || data.displayName?.[0] || username?.[0] || '?'}
             </AvatarFallback>
           </Avatar>
           <button
@@ -83,6 +85,44 @@ export function ProfileSetup({ data, onChange, username }: ProfileSetupProps) {
         transition={{ delay: 0.1 }}
         className="space-y-4"
       >
+        {/* First & Last Name */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="firstName">First Name *</Label>
+            <Input
+              id="firstName"
+              placeholder="First name"
+              value={data.firstName}
+              onChange={(e) => {
+                const firstName = e.target.value;
+                onChange({ 
+                  ...data, 
+                  firstName,
+                  displayName: `${firstName} ${data.lastName}`.trim() || data.displayName,
+                });
+              }}
+              className="bg-card border-border"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="lastName">Last Name *</Label>
+            <Input
+              id="lastName"
+              placeholder="Last name"
+              value={data.lastName}
+              onChange={(e) => {
+                const lastName = e.target.value;
+                onChange({ 
+                  ...data, 
+                  lastName,
+                  displayName: `${data.firstName} ${lastName}`.trim() || data.displayName,
+                });
+              }}
+              className="bg-card border-border"
+            />
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="displayName">{t('onboarding.displayName')}</Label>
           <Input
@@ -91,7 +131,9 @@ export function ProfileSetup({ data, onChange, username }: ProfileSetupProps) {
             value={data.displayName}
             onChange={(e) => onChange({ ...data, displayName: e.target.value })}
             className="bg-card border-border"
+            disabled
           />
+          <p className="text-xs text-muted-foreground">Auto-generated from your name</p>
         </div>
 
         <div className="space-y-2">
