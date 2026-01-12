@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
 import { 
   Search, TrendingUp, ShoppingBag, Calendar, 
   Volume2, VolumeX, Bookmark, Users, Sparkles, ChevronRight,
@@ -14,12 +15,59 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
-import { useConversations } from '@/hooks/useMessages';
+import { useConversations, useCreateConversation } from '@/hooks/useMessages';
 import { useFriends } from '@/hooks/useFriends';
 import { useEvents } from '@/hooks/useEvents';
 import { useListings } from '@/hooks/useMarketplace';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
+
+// Online friend avatar with click-to-DM functionality
+const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend: any }) {
+  const navigate = useNavigate();
+  const createConversation = useCreateConversation();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleClick = useCallback(async () => {
+    if (!friend?.id || isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      const conversation = await createConversation.mutateAsync({ memberIds: [friend.id] });
+      navigate(`/messages/${conversation.id}`);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to start conversation');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [friend?.id, createConversation, navigate, isLoading]);
+
+  return (
+    <motion.button
+      onClick={handleClick}
+      disabled={isLoading}
+      whileHover={{ scale: 1.08 }}
+      whileTap={{ scale: 0.95 }}
+      className="flex-shrink-0 group relative"
+    >
+      <div className="relative">
+        <Avatar className="h-10 w-10 ring-2 ring-background group-hover:ring-primary/50 transition-all group-active:ring-primary/70">
+          <AvatarImage src={friend?.avatar_url || undefined} />
+          <AvatarFallback className="text-xs bg-gradient-to-br from-pink-500 to-purple-500">
+            {friend?.username?.[0]?.toUpperCase() || '?'}
+          </AvatarFallback>
+        </Avatar>
+        <OnlineIndicator isOnline={true} size="sm" className="bottom-0 right-0" />
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded-full">
+            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+      </div>
+    </motion.button>
+  );
+});
 
 export function DesktopRightSidebar() {
   const { t } = useTranslation();
@@ -143,11 +191,11 @@ export function DesktopRightSidebar() {
             </kbd>
           </div>
 
-          {/* Friends Online Strip */}
+          {/* Online Friends Strip */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Friends Online ({onlineFriends.length})
+                Online Friends ({onlineFriends.length})
               </span>
             </div>
             {friendsLoading ? (
@@ -159,21 +207,7 @@ export function DesktopRightSidebar() {
             ) : onlineFriends.length > 0 ? (
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {onlineFriends.slice(0, 8).map((friend, i) => (
-                  <Link
-                    key={friend?.id || i}
-                    to={`/messages/new?user=${friend?.id}`}
-                    className="flex-shrink-0 group"
-                  >
-                    <div className="relative">
-                      <Avatar className="h-10 w-10 ring-2 ring-background group-hover:ring-primary/50 transition-all">
-                        <AvatarImage src={friend?.avatar_url || undefined} />
-                        <AvatarFallback className="text-xs bg-gradient-to-br from-pink-500 to-purple-500">
-                          {friend?.username?.[0]?.toUpperCase() || '?'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <OnlineIndicator isOnline={true} size="sm" className="bottom-0 right-0" />
-                    </div>
-                  </Link>
+                  <OnlineFriendAvatar key={friend?.id || i} friend={friend} />
                 ))}
               </div>
             ) : friends && friends.length > 0 ? (
