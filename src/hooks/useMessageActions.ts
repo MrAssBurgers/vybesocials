@@ -3,7 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
-// Unsend message for everyone (soft delete - shows "Message unsent" placeholder)
+/**
+ * Unsend message for everyone (soft delete via UPDATE - no new row insertion)
+ * Sets is_deleted = true, clears content/media on existing row
+ */
 export function useUnsendForEveryone() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -26,14 +29,17 @@ export function useUnsendForEveryone() {
         throw new Error('You can only unsend your own messages');
       }
 
-      // Soft delete - mark as deleted so it shows "Message unsent" to both users
+      // Soft delete via UPDATE (no INSERT) - RLS-safe
       const { error } = await supabase
         .from('messages')
         .update({ 
           is_deleted: true,
           deleted_at: new Date().toISOString(),
+          content: null,
+          media_url: null,
         })
-        .eq('id', messageId);
+        .eq('id', messageId)
+        .eq('sender_id', profile.id);
 
       if (error) throw error;
 
@@ -51,7 +57,9 @@ export function useUnsendForEveryone() {
   });
 }
 
-// Delete message for current user only (hide from their view)
+/**
+ * Delete message for current user only (uses separate table, no touching messages row)
+ */
 export function useDeleteForMe() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -60,27 +68,25 @@ export function useDeleteForMe() {
     mutationFn: async (messageId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // Get current deleted_for_users array and add current user
+      // Get conversation ID for cache invalidation
       const { data: message, error: fetchError } = await supabase
         .from('messages')
-        .select('conversation_id, deleted_for_users')
+        .select('conversation_id')
         .eq('id', messageId)
         .maybeSingle();
 
       if (fetchError) throw fetchError;
       if (!message) throw new Error('Message not found');
 
-      const currentDeletedFor = (message.deleted_for_users as string[]) || [];
-      if (!currentDeletedFor.includes(profile.id)) {
-        currentDeletedFor.push(profile.id);
-      }
-
+      // Insert into message_deletions table (RLS ensures user_id = current user)
       const { error } = await supabase
-        .from('messages')
-        .update({ 
-          deleted_for_users: currentDeletedFor
-        })
-        .eq('id', messageId);
+        .from('message_deletions')
+        .upsert({
+          message_id: messageId,
+          user_id: profile.id,
+        }, {
+          onConflict: 'message_id,user_id',
+        });
 
       if (error) throw error;
 
