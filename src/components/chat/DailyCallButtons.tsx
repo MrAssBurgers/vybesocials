@@ -6,6 +6,7 @@ import { useCreateDailyRoom, useSendCallInvite, DailyCall, DailyCallType } from 
 import { useDailyCallContext } from './DailyCallProvider';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
 
 interface DailyCallButtonsProps {
   conversationId: string;
@@ -21,18 +22,11 @@ export function DailyCallButtons({ conversationId, receiverId }: DailyCallButton
   const handleStartCall = async (callType: DailyCallType) => {
     setIsStarting(true);
     try {
-      // Request permissions first
-      const constraints = {
-        audio: true,
-        video: callType === 'video',
-      };
-      
+      // Request permissions first (must happen from the user gesture)
       try {
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        // Stop tracks immediately, we just needed to check permission
-        stream.getTracks().forEach(t => t.stop());
-      } catch (err) {
-        toast.error(`Please allow ${callType === 'video' ? 'camera and microphone' : 'microphone'} access`);
+        await requestCallMediaPermissions(callType);
+      } catch (err: any) {
+        toast.error(err?.message || (callType === 'video' ? 'Microphone/Camera permission required' : 'Microphone permission required'));
         setIsStarting(false);
         return;
       }

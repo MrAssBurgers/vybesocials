@@ -12,7 +12,9 @@ import {
   isCurrentlyJoining,
   joinRoom,
   leaveRoom,
+  destroyDailyInstance,
 } from '@/lib/dailySingleton';
+import { ensureAudioInputDevice, isAndroid, nextAnimationFrame, requestCallMediaPermissions } from '@/lib/mediaPermissions';
 
 interface DailyCallRootProps {
   activeCall: DailyCall | null;
@@ -37,7 +39,24 @@ export function DailyCallRoot({
   const joinAttemptedRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFailingRef = useRef(false);
+  const joinedHandlerRef = useRef<(() => void) | null>(null);
+  const errorHandlerRef = useRef<((event: any) => void) | null>(null);
   const [callToken, setCallToken] = useState<string | null>(null);
+
+  const dailyFrameOptions = useMemo(
+    () => ({
+      iframeStyle: {
+        position: 'absolute',
+        inset: '0',
+        width: '100%',
+        height: '100%',
+        border: 'none',
+      },
+      showLeaveButton: false,
+      showFullscreenButton: false,
+    }),
+    []
+  );
 
   const activeCallRef = useRef<DailyCall | null>(activeCall);
   const callPhaseRef = useRef(callPhase);
@@ -83,6 +102,27 @@ export function DailyCallRoot({
       // ignore
     }
 
+    // FAILSAFE: hard-reset the call object/iframe so we can restart cleanly after failures/timeouts
+    try {
+      const joined = joinedHandlerRef.current;
+      const onErr = errorHandlerRef.current;
+      const current = getDailyInstance();
+      if (current && joined && onErr) {
+        current.off('joined-meeting', joined);
+        current.off('error', onErr);
+      }
+
+      await destroyDailyInstance();
+
+      if (containerRef.current && joined && onErr) {
+        const next = ensureDailyFrame(containerRef.current, dailyFrameOptions);
+        next.on('joined-meeting', joined);
+        next.on('error', onErr);
+      }
+    } catch {
+      // ignore
+    }
+
     const callId = activeCallRef.current?.id;
     if (callId) {
       try {
@@ -99,17 +139,7 @@ export function DailyCallRoot({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const daily = ensureDailyFrame(containerRef.current, {
-      iframeStyle: {
-        position: 'absolute',
-        inset: '0',
-        width: '100%',
-        height: '100%',
-        border: 'none',
-      },
-      showLeaveButton: false,
-      showFullscreenButton: false,
-    });
+    const daily = ensureDailyFrame(containerRef.current, dailyFrameOptions);
 
     // Attach listeners ONCE (handlers use refs for latest call state)
     const handleJoined = () => {
@@ -139,7 +169,12 @@ export function DailyCallRoot({
       void failAndEnd(typeof msg === 'string' ? msg : 'Call failed to connect. Check permissions or network.');
     };
 
+    // Save handlers so we can re-bind them after a hard reset
+    joinedHandlerRef.current = handleJoined;
+    errorHandlerRef.current = handleError;
+
     daily.on('joined-meeting', handleJoined);
+    daily.on('error', handleError);
     daily.on('error', handleError);
 
     return () => {
@@ -197,6 +232,15 @@ export function DailyCallRoot({
     // Fetch token first, then join
     const doJoin = async () => {
       try {
+        // MANDATORY: only join after media permissions are granted
+        await requestCallMediaPermissions(activeCall.call_type);
+        await ensureAudioInputDevice();
+
+        // ANDROID SAFETY: wait one animation frame after permission resolution
+        if (isAndroid()) {
+          await nextAnimationFrame();
+        }
+
         // Get meeting token from backend
         const tokenData = await getTokenMutation.mutateAsync({
           roomName: activeCall.room_name!,
