@@ -75,6 +75,7 @@ export function ConversationList() {
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
+  const [isCreatingDebugGroup, setIsCreatingDebugGroup] = useState(false);
 
   // Get user IDs for online status check - memoized
   const otherMemberIds = useMemo(() => {
@@ -144,6 +145,48 @@ export function ConversationList() {
     navigate(`/messages/${convId}`);
   }, [navigate]);
 
+  const showDevTools = import.meta.env.DEV;
+
+  const handleCreateDebugGroup = useCallback(async () => {
+    try {
+      setIsCreatingDebugGroup(true);
+      const headers = await getFunctionAuthHeaders();
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/groups-debug-create`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ ignored: true }),
+        }
+      );
+
+      const text = await res.text();
+      let payload: any = null;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        payload = { raw: text };
+      }
+
+      if (!res.ok) {
+        console.error('[groups-debug-create] error response:', payload);
+        toast.error(payload?.error || `Debug create failed (${res.status})`);
+        return;
+      }
+
+      toast.success(`Debug group created: ${payload?.groupId || 'ok'}`);
+      if (payload?.groupId) {
+        navigate(`/messages/${payload.groupId}`);
+      }
+    } catch (e: any) {
+      console.error('[groups-debug-create] request failed:', e);
+      toast.error(e?.message || 'Debug create failed');
+    } finally {
+      setIsCreatingDebugGroup(false);
+    }
+  }, [navigate]);
+
   if (isLoading) {
     return (
       <div className="space-y-4 p-4">
@@ -167,6 +210,18 @@ export function ConversationList() {
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">{t('messages.title')}</h1>
           <div className="flex items-center gap-1">
+            {/* TEMP DEV ONLY: Debug group creation canary */}
+            {showDevTools && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCreateDebugGroup}
+                disabled={isCreatingDebugGroup}
+              >
+                {isCreatingDebugGroup ? 'Creating…' : 'Create Debug Group'}
+              </Button>
+            )}
+
             {/* Create Group Button */}
             <Button 
               size="icon" 
