@@ -19,9 +19,9 @@ export function DesktopLayout({ children, hideRightSidebar = false, fullWidth = 
     return <>{children}</>;
   }
 
-  // Calculate margins based on sidebar states - tighter spacing
-  const leftMargin = leftCollapsed ? 'lg:ml-16' : 'lg:ml-[220px] xl:ml-[240px] 2xl:ml-[260px]';
-  const rightMargin = hideRightSidebar ? '' : 'xl:mr-[280px] 2xl:mr-[320px]';
+  // Calculate margins based on sidebar states - minimal spacing
+  const leftMargin = leftCollapsed ? 'lg:ml-14' : 'lg:ml-[180px] xl:ml-[200px] 2xl:ml-[220px]';
+  const rightMargin = hideRightSidebar ? '' : 'xl:mr-[240px] 2xl:mr-[280px]';
 
   return (
     <div className="min-h-screen w-full">

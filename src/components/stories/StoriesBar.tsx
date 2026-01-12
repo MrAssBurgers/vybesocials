@@ -46,6 +46,7 @@ export function StoriesBar() {
           hasStory={!!ownStoryGroup}
           showAddButton={true}
           onClick={() => ownStoryGroup ? setSelectedGroupIndex(0) : setShowCreator(true)}
+          onAddClick={() => setShowCreator(true)}
         />
 
         {/* Other Users' Stories */}
@@ -91,19 +92,9 @@ interface StoryAvatarProps {
   hasUnviewed?: boolean;
   hasStory?: boolean;
   showAddButton?: boolean;
-  onClick: () => void;
-}
-
-interface StoryAvatarProps {
-  avatarUrl?: string | null;
-  username?: string;
-  displayName?: string | null;
-  label?: string;
-  hasUnviewed?: boolean;
-  hasStory?: boolean;
-  showAddButton?: boolean;
   isUploading?: boolean;
   onClick: () => void;
+  onAddClick?: () => void;
 }
 
 function StoryAvatar({ 
@@ -115,9 +106,15 @@ function StoryAvatar({
   hasStory,
   showAddButton,
   isUploading,
-  onClick 
+  onClick,
+  onAddClick 
 }: StoryAvatarProps) {
   const signedUrl = useSignedUrl(avatarUrl);
+
+  const handleAddClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onAddClick?.();
+  };
   
   return (
     <motion.button
@@ -147,7 +144,10 @@ function StoryAvatar({
           </Avatar>
         </div>
         {showAddButton && !isUploading && (
-          <div className="absolute -bottom-0.5 -right-0.5 bg-primary rounded-full p-1 border-2 border-background">
+          <div 
+            onClick={handleAddClick}
+            className="absolute -bottom-0.5 -right-0.5 bg-primary rounded-full p-1 border-2 border-background cursor-pointer hover:scale-110 transition-transform"
+          >
             <Plus className="h-3 w-3 text-primary-foreground" />
           </div>
         )}
