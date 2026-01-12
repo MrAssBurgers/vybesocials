@@ -44,12 +44,23 @@ export function CreateGroupDialog({ open, onOpenChange, onSuccess }: CreateGroup
   };
 
   const handleCreate = async () => {
-    if (!groupName.trim() || selectedMembers.length === 0) return;
+    const cleanName = groupName.trim();
+    if (!cleanName || selectedMembers.length === 0 || createGroup.isPending) return;
+
+    // Build clean member IDs (exclude creator if accidentally included)
+    const cleanMemberIds = selectedMembers.filter(id => id && id !== profile?.id);
+    
+    if (cleanMemberIds.length === 0) {
+      console.error('No valid members selected');
+      return;
+    }
+
+    console.log('[CreateGroupDialog] creating group:', { name: cleanName, memberIds: cleanMemberIds });
 
     try {
       const result = await createGroup.mutateAsync({
-        name: groupName.trim(),
-        member_ids: selectedMembers,
+        name: cleanName,
+        member_ids: cleanMemberIds,
       });
       
       onOpenChange(false);
