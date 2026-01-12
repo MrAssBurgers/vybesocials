@@ -42,23 +42,23 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   return (
     <button
       onClick={() => navigate('/messages/ai-autisy')}
-      className="w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 transition-colors"
+      className="w-full flex items-center gap-4 p-4 rounded-2xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-2"
     >
       <div className="relative flex-shrink-0">
-        <div className="h-12 w-12 rounded-full gradient-animated flex items-center justify-center">
-          <Bot className="h-6 w-6 text-white" />
+        <div className="h-14 w-14 rounded-full gradient-animated flex items-center justify-center shadow-md">
+          <Bot className="h-7 w-7 text-white" />
         </div>
         <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-background" />
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <span className="font-semibold flex items-center gap-1">
+      <div className="flex-1 min-w-0 py-1">
+        <div className="flex items-center justify-between mb-1">
+          <span className="font-semibold text-base flex items-center gap-1.5">
             Autisy
-            <Sparkles className="h-3 w-3 text-primary" />
+            <Sparkles className="h-4 w-4 text-primary" />
           </span>
-          <span className="text-xs text-muted-foreground">AI</span>
+          <span className="text-xs text-muted-foreground px-2 py-0.5 bg-primary/10 rounded-full">AI</span>
         </div>
-        <p className="text-sm text-muted-foreground truncate">{lastAIMessage.slice(0, 40)}...</p>
+        <p className="text-sm text-muted-foreground truncate">{lastAIMessage.slice(0, 50)}...</p>
       </div>
     </button>
   );
@@ -227,19 +227,19 @@ export function ConversationList() {
       )}
 
       {/* Conversation List */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-2">
-          <p className="text-xs text-muted-foreground px-2 mb-2 flex items-center gap-1">
-            <Users className="h-3 w-3" />
+      <ScrollArea className="flex-1">
+        <div className="p-3 space-y-1">
+          <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
+            <Users className="h-3.5 w-3.5" />
             Friends & AI
           </p>
           <AutisyAIChatRow />
         </div>
 
         {pinnedConversations.length > 0 && (
-          <div className="p-2">
-            <p className="text-xs text-muted-foreground px-2 mb-2 flex items-center gap-1">
-              <Pin className="h-3 w-3" />
+          <div className="p-3 space-y-1">
+            <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
+              <Pin className="h-3.5 w-3.5" />
               {t('messages.pinned')}
             </p>
             {pinnedConversations.map((conv) => (
@@ -256,32 +256,40 @@ export function ConversationList() {
           </div>
         )}
 
-        <div className="p-2">
+        <div className="p-3 space-y-1">
           {unpinnedConversations.length > 0 ? (
-            unpinnedConversations.map((conv) => (
-              <ConversationItem
-                key={conv.id}
-                conversation={conv}
-                onClick={() => handleConversationClick(conv.id)}
-                isOnline={!conv.is_group && conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id 
-                  ? onlineStatus[conv.members.find(m => m.user_id !== profile?.id)?.profile?.id || ''] 
-                  : false}
-                currentUserId={profile?.id}
-              />
-            ))
+            <>
+              <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
+                <MessageCircle className="h-3.5 w-3.5" />
+                All Messages
+              </p>
+              {unpinnedConversations.map((conv) => (
+                <ConversationItem
+                  key={conv.id}
+                  conversation={conv}
+                  onClick={() => handleConversationClick(conv.id)}
+                  isOnline={!conv.is_group && conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id 
+                    ? onlineStatus[conv.members.find(m => m.user_id !== profile?.id)?.profile?.id || ''] 
+                    : false}
+                  currentUserId={profile?.id}
+                />
+              ))}
+            </>
           ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <MessageCircle className="h-16 w-16 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">{t('messages.noConversations')}</h3>
-              <p className="text-muted-foreground mb-4">{t('messages.startChatting')}</p>
-              <Button onClick={() => setIsNewChatOpen(true)}>
+            <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+              <div className="w-20 h-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
+                <MessageCircle className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">{t('messages.noConversations')}</h3>
+              <p className="text-muted-foreground mb-6 text-sm">{t('messages.startChatting')}</p>
+              <Button onClick={() => setIsNewChatOpen(true)} size="lg" className="rounded-full px-6">
                 <Plus className="h-4 w-4 mr-2" />
                 {t('messages.newChat')}
               </Button>
             </div>
           )}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 }
@@ -324,12 +332,12 @@ const ConversationItem = memo(function ConversationItem({
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 transition-colors"
+      className="w-full flex items-center gap-4 p-4 rounded-2xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-2"
     >
       <div className="relative flex-shrink-0">
-        <Avatar className="h-12 w-12 ring-2 ring-background">
+        <Avatar className="h-14 w-14 ring-2 ring-background shadow-md">
           <AvatarImage src={avatarUrl || undefined} />
-          <AvatarFallback>{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+          <AvatarFallback className="text-lg">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
         {!conversation.is_group && (
           <OnlineIndicator isOnline={isOnline} size="sm" className="bottom-0 right-0" />
@@ -341,27 +349,27 @@ const ConversationItem = memo(function ConversationItem({
         )}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
+      <div className="flex-1 min-w-0 py-1">
+        <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-semibold truncate">{displayName}</span>
+            <span className="font-semibold text-base truncate">{displayName}</span>
             {otherMember && isOwner(otherMember.id) && <OwnerBadge />}
           </div>
           {formattedTime && (
-            <span className="text-xs text-muted-foreground flex-shrink-0">{formattedTime}</span>
+            <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formattedTime}</span>
           )}
         </div>
 
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {lastMessage && (
               <>
                 {lastMessage.sender_id === currentUserId && (
                   <span className="flex-shrink-0">
                     {unreadCount === 0 ? (
-                      <CheckCheck className="h-3.5 w-3.5 text-primary" />
+                      <CheckCheck className="h-4 w-4 text-primary" />
                     ) : (
-                      <Check className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Check className="h-4 w-4 text-muted-foreground" />
                     )}
                   </span>
                 )}
@@ -377,7 +385,7 @@ const ConversationItem = memo(function ConversationItem({
           </div>
 
           {unreadCount > 0 && (
-            <span className="flex-shrink-0 bg-primary text-primary-foreground text-xs font-bold px-2 py-0.5 rounded-full ml-2">
+            <span className="flex-shrink-0 bg-primary text-primary-foreground text-xs font-bold px-2.5 py-1 rounded-full ml-2 shadow-sm">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}

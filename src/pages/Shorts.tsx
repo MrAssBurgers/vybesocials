@@ -190,24 +190,30 @@ export default function ClipsPage() {
     <AppLayout hideNav>
       <div
         ref={containerRef}
-        className="h-dvh overflow-y-scroll snap-y snap-mandatory scrollbar-hide bg-black"
+        className="h-dvh overflow-y-scroll scrollbar-hide bg-black"
         style={{ 
-          scrollSnapType: 'y mandatory', 
-          overscrollBehavior: 'contain',
+          scrollSnapType: 'y mandatory',
+          scrollBehavior: 'smooth',
+          overscrollBehavior: 'none',
           WebkitOverflowScrolling: 'touch',
+          // TikTok-like scroll physics
+          scrollSnapStop: 'always',
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Instagram Reels-style vertical scroll container */}
+        {/* TikTok-style vertical scroll container */}
         <div className="flex flex-col w-full">
           {shorts.map((short, index) => (
             <div
               key={short.id}
               ref={(el) => { itemRefs.current[index] = el; }}
-              className="h-dvh w-full snap-start snap-always flex-shrink-0 flex justify-center"
-              style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
+              className="h-dvh w-full flex-shrink-0 flex justify-center"
+              style={{ 
+                scrollSnapAlign: 'start',
+                scrollSnapStop: 'always',
+              }}
             >
               {/* Full screen container */}
               <div className="relative h-full w-full max-w-[500px]">
@@ -226,7 +232,7 @@ export default function ClipsPage() {
           {hasNextPage && (
             <div 
               ref={loadMoreRef} 
-              className="h-20 flex items-center justify-center bg-black"
+              className="h-20 flex items-center justify-center bg-black snap-start"
             >
               {isFetchingNextPage && (
                 <motion.div
