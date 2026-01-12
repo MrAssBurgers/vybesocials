@@ -661,33 +661,36 @@ export function ChatView() {
         "sm:backdrop-blur-none",
         getWallpaperClass()
       )}>
-        {/* Airy spacing between messages - never squished */}
-        <div className="flex flex-col pb-20 sm:pb-24">
+        {/* Airy spacing between messages - Instagram/Snapchat quality */}
+        <div className="flex flex-col gap-0 pb-20 sm:pb-24">
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
-            // Instagram/iMessage spacing rules:
-            // Same sender consecutive: 8-10px (mb-2)
-            // Different sender: 14-18px (mb-3.5 to mb-4)
-            // Media ↔ text transitions: 18-22px (mb-5)
+            // Instagram/Snapchat spacing rules:
+            // Same sender consecutive: 4-6px gap (tight grouping)
+            // Different sender: 16-20px gap (clear separation)
+            // After reply preview: 12-14px gap
             const prevItem = index > 0 ? messageItems[index - 1] : null;
             const senderChanged = prevItem && prevItem.isOwn !== isOwn;
+            const hasReply = !!message.reply_to_id;
             
-            // Calculate margin based on context
-            let marginClass = 'mb-2'; // Default: same sender (8px)
+            // Calculate margin based on context - use pt for top margin
+            let spacingClass = 'pt-1.5'; // Default: same sender (6px)
             if (senderChanged) {
-              marginClass = 'mb-3.5 sm:mb-4'; // Different sender (14-16px)
+              spacingClass = 'pt-4 sm:pt-5'; // Different sender (16-20px)
+            } else if (hasReply) {
+              spacingClass = 'pt-3 sm:pt-3.5'; // After reply (12-14px)
             }
-            if (isMediaTransition || (prevItem && prevItem.isMediaTransition)) {
-              marginClass = 'mb-5 sm:mb-5'; // Media transition (20px)
+            if (isMediaTransition) {
+              spacingClass = 'pt-4 sm:pt-5'; // Media transition (16-20px)
             }
             
             return (
               <div 
                 key={message.id}
-                className={cn(marginClass)}
+                className={cn(spacingClass, index === 0 && 'pt-0')}
               >
                 {showTimestamp && (
-                  <div className="text-center py-7 sm:py-8">
-                    <span className="text-[10px] sm:text-xs text-muted-foreground/60 bg-muted/40 px-3.5 py-1.5 rounded-full font-medium tracking-wide">
+                  <div className="text-center py-5 sm:py-6">
+                    <span className="text-[10px] sm:text-[11px] text-muted-foreground/50 bg-muted/30 px-3 py-1 rounded-full font-medium">
                       {formatMessageDate(message.created_at)}
                     </span>
                   </div>
@@ -1186,8 +1189,8 @@ const MessageBubble = memo(function MessageBubble({
 
   return (
     <div className={cn(
-      'flex gap-1.5 sm:gap-2 group/message relative w-full',
-      isOwn ? 'justify-end pr-0 pl-8 sm:pl-12' : 'justify-start pl-0 pr-8 sm:pr-12'
+      'flex gap-2 sm:gap-2.5 group/message relative w-full',
+      isOwn ? 'justify-end pr-1 pl-10 sm:pl-14' : 'justify-start pl-1 pr-10 sm:pr-14'
     )}>
       {/* Reply button - left side for received messages */}
       {!isOwn && (
@@ -1199,49 +1202,53 @@ const MessageBubble = memo(function MessageBubble({
         </button>
       )}
 
+      {/* Avatar - aligned with first message, 8px gap from bubble */}
       {!isOwn && showAvatar && (
-        <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0 ring-1 ring-background shadow-sm self-end ml-0">
+        <Avatar className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 ring-1 ring-background shadow-sm self-end">
           <AvatarImage src={sender?.avatar_url || undefined} />
           <AvatarFallback className="text-xs">{sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
       )}
-      {!isOwn && !showAvatar && <div className="w-7 sm:w-8 flex-shrink-0" />}
+      {/* Spacer for consecutive messages from same sender */}
+      {!isOwn && !showAvatar && <div className="w-8 sm:w-9 flex-shrink-0" />}
 
-      <div className={cn('max-w-[80%] sm:max-w-[70%] flex flex-col relative', isOwn ? 'items-end' : 'items-start')}>
+      <div className={cn('max-w-[78%] sm:max-w-[68%] flex flex-col relative', isOwn ? 'items-end' : 'items-start')}>
+        {/* Reply preview - clear spacing with rounded container */}
         {repliedMessage && (
           <div
             className={cn(
-              "text-[10px] sm:text-xs px-3 py-2 sm:px-3.5 sm:py-2 rounded-t-xl mb-0.5 max-w-full",
+              "text-[10px] sm:text-[11px] px-3.5 py-2.5 sm:px-4 sm:py-2.5 rounded-2xl mb-1.5 max-w-full",
               isOwn 
-                ? "bg-primary/20 text-primary-foreground/80 rounded-br-xl" 
-                : "bg-muted/60 text-muted-foreground rounded-bl-xl"
+                ? "bg-primary/15 text-primary-foreground/70 rounded-br-lg" 
+                : "bg-muted/50 text-muted-foreground rounded-bl-lg"
             )}
           >
-            <div className="flex items-center gap-1 mb-0.5">
-              <CornerUpLeft className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-              <span className="font-medium">{repliedMessage.sender?.username || 'Message'}</span>
+            <div className="flex items-center gap-1.5 mb-1">
+              <CornerUpLeft className="h-3 w-3" />
+              <span className="font-medium text-[11px]">{repliedMessage.sender?.username || 'Message'}</span>
             </div>
-            <p className="truncate opacity-80">
+            <p className="truncate opacity-75 text-[11px]">
               {repliedMessage.content || (repliedMessage.media_type === 'image' ? '📷 Photo' : '🎤 Voice')}
             </p>
           </div>
         )}
 
+        {/* Message bubble - Instagram-quality padding and radius */}
         <div
           className={cn(
-            'relative rounded-2xl break-words select-none',
-            // Proper padding: 12px vertical, 16px horizontal for text bubbles
+            'relative rounded-[20px] break-words select-none',
+            // Padding: 14-16px horizontal, 10-12px vertical
             isEmojiOnly 
-              ? 'px-3 py-1.5 sm:px-3.5 sm:py-2' // Reduced padding for emoji
+              ? 'px-3 py-2' // Reduced padding for emoji
               : isMediaMessage
-                ? 'p-2 sm:p-2.5' // Media bubbles: 8-10px inner padding
-                : 'px-4 py-3 sm:px-4 sm:py-3', // Text bubbles: 12px vertical, 16px horizontal
+                ? 'p-1.5 sm:p-2' // Media bubbles: minimal padding
+                : 'px-[14px] py-[10px] sm:px-4 sm:py-3', // Text: 14-16px H, 10-12px V
             isOwn 
-              ? `${themeColor.bubble} ${themeColor.text} rounded-br-md` 
-              : 'bg-muted/60 text-foreground rounded-bl-md',
+              ? `${themeColor.bubble} ${themeColor.text} rounded-br-lg` 
+              : 'bg-muted/70 text-foreground rounded-bl-lg',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
-            repliedMessage && 'rounded-t-md'
+            repliedMessage && 'rounded-t-[14px]'
           )}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -1267,66 +1274,66 @@ const MessageBubble = memo(function MessageBubble({
           )}
 
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (
-            <p className="text-[13px] sm:text-sm italic opacity-75 leading-relaxed">Message viewed</p>
+            <p className="text-[13px] sm:text-sm italic opacity-75 leading-[1.4]">Message viewed</p>
           ) : message.content ? (
             <p className={cn(
-              "whitespace-pre-wrap leading-[1.45]",
+              "whitespace-pre-wrap leading-[1.4]",
               isEmojiOnly 
                 ? "text-2xl sm:text-3xl" // Larger font for emoji-only
-                : "text-[14px] sm:text-[15px]" // Slightly larger for readability
+                : "text-[14px] sm:text-[15px]" // Readable size
             )}>{message.content}</p>
           ) : null}
 
           {message.view_mode !== 'permanent' && (
-            <div className="flex items-center gap-1 mt-1.5 opacity-75">
+            <div className="flex items-center gap-1 mt-1 opacity-70">
               {message.view_mode === 'view_once' ? (
-                <EyeOff className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                <EyeOff className="h-2.5 w-2.5" />
               ) : (
-                <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                <Clock className="h-2.5 w-2.5" />
               )}
-              <span className="text-[9px] sm:text-[10px]">
+              <span className="text-[9px]">
                 {message.view_mode === 'view_once' ? 'View once' : '24h'}
               </span>
             </div>
           )}
-
-          {/* Reactions bar - floats 6-8px below message, capped at 3 visible */}
-          {uniqueReactions.length > 0 && (
-            <div className="absolute -bottom-3 left-2 flex items-center gap-0.5 bg-background/95 border border-border/50 rounded-full px-1.5 py-0.5 shadow-sm">
-              {uniqueReactions.slice(0, 3).map(([emoji, count]) => (
-                <span key={emoji} className="text-[11px] sm:text-xs flex items-center">
-                  {emoji}
-                  {count > 1 && <span className="text-[9px] ml-0.5 text-muted-foreground">{count}</span>}
-                </span>
-              ))}
-              {uniqueReactions.length > 3 && (
-                <span className="text-[9px] text-muted-foreground ml-0.5">+{uniqueReactions.length - 3}</span>
-              )}
-            </div>
-          )}
         </div>
 
-        {/* Timestamp and read receipts - 4-6px below bubble, lower opacity */}
+        {/* Reactions bar - floats below message */}
+        {uniqueReactions.length > 0 && (
+          <div className="flex items-center gap-0.5 mt-1 bg-background/95 border border-border/40 rounded-full px-1.5 py-0.5 shadow-sm self-start">
+            {uniqueReactions.slice(0, 3).map(([emoji, count]) => (
+              <span key={emoji} className="text-xs flex items-center">
+                {emoji}
+                {count > 1 && <span className="text-[9px] ml-0.5 text-muted-foreground">{count}</span>}
+              </span>
+            ))}
+            {uniqueReactions.length > 3 && (
+              <span className="text-[9px] text-muted-foreground ml-0.5">+{uniqueReactions.length - 3}</span>
+            )}
+          </div>
+        )}
+
+        {/* Timestamp and read receipts - 6-8px below bubble */}
         <div className={cn(
-          "flex items-center gap-1 mt-1.5 sm:mt-1.5",
+          "flex items-center gap-1.5 mt-2",
           isOwn ? "justify-end" : "justify-start"
         )}>
-          <span className="text-[9px] sm:text-[10px] text-muted-foreground/60">
+          <span className="text-[10px] text-muted-foreground/50 font-light">
             {format(new Date(message.created_at), 'HH:mm')}
           </span>
           {isOwn && (
             <>
               {hasBeenViewed ? (
                 <div className="flex items-center gap-0.5">
-                  <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary/70" />
+                  <Eye className="h-3 w-3 text-primary/60" />
                   {message.views && message.views.length > 0 && (
-                    <span className="text-[9px] sm:text-[10px] font-medium text-primary/70">
+                    <span className="text-[9px] font-medium text-primary/60">
                       {message.views.length}
                     </span>
                   )}
                 </div>
               ) : (
-                <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground/50" />
+                <Check className="h-2.5 w-2.5 text-muted-foreground/40" />
               )}
             </>
           )}
@@ -1469,18 +1476,18 @@ const OptimisticMessageBubble = memo(function OptimisticMessageBubble({
   const isSending = message.status === 'sending';
 
   return (
-    <div className="flex justify-end gap-2 sm:gap-2.5 mb-2">
-      <div className="max-w-[75%] sm:max-w-[70%] flex flex-col items-end">
+    <div className="flex justify-end gap-2.5 pt-1.5 pr-1 pl-10 sm:pl-14">
+      <div className="max-w-[78%] sm:max-w-[68%] flex flex-col items-end">
         <div
           className={cn(
-            'relative rounded-2xl px-4 py-3 sm:px-4 sm:py-3 break-words rounded-br-md',
+            'relative rounded-[20px] px-[14px] py-[10px] sm:px-4 sm:py-3 break-words rounded-br-lg',
             isFailed
               ? 'bg-destructive/20 text-destructive border border-destructive/30'
               : 'bg-primary/70 text-primary-foreground',
             isSending && 'opacity-70'
           )}
         >
-          <p className="text-[14px] sm:text-[15px] whitespace-pre-wrap leading-[1.45]">{message.content}</p>
+          <p className="text-[14px] sm:text-[15px] whitespace-pre-wrap leading-[1.4]">{message.content}</p>
         </div>
 
         <div className="flex items-center gap-1.5 mt-1.5">
