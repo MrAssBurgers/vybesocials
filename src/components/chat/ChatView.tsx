@@ -35,8 +35,7 @@ import { MemoryPinsSheet } from './MemoryPinsSheet';
 import { ScheduleMessageSheet } from './ScheduleMessageSheet';
 import { DMSettingsSheetControlled } from './DMSettingsSheetControlled';
 import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
-import { CallButtons } from './CallButtons';
-import { useCallContext } from './CallProvider';
+import { DailyCallButtons } from './DailyCallButtons';
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
 import { ReplyPreview } from './ReplyPreview';
@@ -95,7 +94,7 @@ export function ChatView() {
   const editMessage = useEditMessage();
   const { typingUsers, setTyping } = useTypingIndicator(conversationId);
   const { notifyScreenshot } = useScreenshotNotification(conversationId);
-  const { startCall } = useCallContext();
+  
   const { settings } = useDMSettings(conversationId);
 
   const [messageText, setMessageText] = useState('');
@@ -620,10 +619,9 @@ export function ChatView() {
         </div>
         
         {!isGroupChat && otherMember?.id && (
-          <CallButtons
+          <DailyCallButtons
             conversationId={conversationId!}
             receiverId={otherMember.id}
-            onCallStarted={startCall}
           />
         )}
         

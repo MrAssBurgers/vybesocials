@@ -8,7 +8,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
-import { CallProvider } from "@/components/chat/CallProvider";
+import { DailyCallProvider } from "@/components/chat/DailyCallProvider";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
@@ -103,7 +103,7 @@ const App = () => {
             <SplashScreen isVisible={showSplash} />
             <AuthProvider>
               <EasterEggProvider>
-                <CallProvider>
+                <DailyCallProvider>
                   <TooltipProvider>
                     <Toaster />
                     <Sonner />
@@ -141,7 +141,7 @@ const App = () => {
                       <PushNotificationPrompt />
                     </BrowserRouter>
                   </TooltipProvider>
-                </CallProvider>
+                </DailyCallProvider>
               </EasterEggProvider>
             </AuthProvider>
           </AccessibilityProvider>
