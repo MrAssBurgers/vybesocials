@@ -23,10 +23,14 @@ function stopTracks(stream: MediaStream) {
 export async function requestCallMediaPermissions(callType: CallMediaType): Promise<void> {
   assertMediaSupported();
 
+  console.log('[mediaPermissions] Requesting permissions for:', callType);
+
   try {
     const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    console.log('[mediaPermissions] Microphone access granted');
     stopTracks(micStream);
-  } catch {
+  } catch (err: any) {
+    console.error('[mediaPermissions] Microphone access denied:', err);
     // Mic is always required for calls in this app
     throw new Error(callType === 'video' ? 'Microphone/Camera permission required' : 'Microphone permission required');
   }
@@ -34,9 +38,11 @@ export async function requestCallMediaPermissions(callType: CallMediaType): Prom
   if (callType === 'video') {
     try {
       const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      console.log('[mediaPermissions] Camera access granted');
       stopTracks(camStream);
-    } catch {
-      throw new Error('Microphone/Camera permission required');
+    } catch (err: any) {
+      console.warn('[mediaPermissions] Camera access denied, continuing with audio only:', err);
+      // Don't throw for camera - allow audio-only fallback
     }
   }
 }
@@ -44,19 +50,30 @@ export async function requestCallMediaPermissions(callType: CallMediaType): Prom
 /**
  * Android safety: after granting mic permission, ensure we can see an audio input device.
  */
-export async function ensureAudioInputDevice(retries = 5, delayMs = 150): Promise<void> {
+export async function ensureAudioInputDevice(retries = 5, delayMs = 200): Promise<void> {
   if (typeof navigator === 'undefined') return;
   if (!navigator.mediaDevices?.enumerateDevices) return;
 
+  console.log('[mediaPermissions] Checking for audio input devices...');
+
   for (let i = 0; i < retries; i++) {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const hasAudioInput = devices.some((d) => d.kind === 'audioinput');
-    if (hasAudioInput) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter((d) => d.kind === 'audioinput');
+      console.log(`[mediaPermissions] Found ${audioInputs.length} audio input device(s), attempt ${i + 1}`);
+      
+      if (audioInputs.length > 0) {
+        return;
+      }
+    } catch (err) {
+      console.warn('[mediaPermissions] Failed to enumerate devices:', err);
+    }
 
     await new Promise((r) => setTimeout(r, delayMs));
   }
 
-  throw new Error('Microphone permission required');
+  // Don't throw - some devices may not report audio inputs properly but still work
+  console.warn('[mediaPermissions] No audio input devices found after retries, proceeding anyway');
 }
 
 export function isAndroid(): boolean {

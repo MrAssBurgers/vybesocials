@@ -44,19 +44,40 @@ export function isCurrentlyJoining(): boolean {
 export async function joinRoom(roomUrl: string, token?: string): Promise<void> {
   if (!dailyInstance) throw new Error('Daily is not initialized');
 
-  if (isJoining) return;
-  if (currentRoomUrl === roomUrl) return;
+  if (isJoining) {
+    console.log('[dailySingleton] Already joining, skipping');
+    return;
+  }
+  if (currentRoomUrl === roomUrl) {
+    console.log('[dailySingleton] Already in room:', roomUrl);
+    return;
+  }
 
   isJoining = true;
   currentRoomUrl = roomUrl;
 
   try {
-    const joinOptions: { url: string; token?: string } = { url: roomUrl };
+    console.log('[dailySingleton] Joining room:', roomUrl, 'with token:', !!token);
+    
+    const joinOptions: { url: string; token?: string; showLocalVideo?: boolean; showParticipantsBar?: boolean } = { 
+      url: roomUrl,
+      showLocalVideo: true,
+      showParticipantsBar: false,
+    };
     if (token) {
       joinOptions.token = token;
     }
-    await dailyInstance.join(joinOptions);
-  } catch (e) {
+    
+    // Add timeout for join operation
+    const joinPromise = dailyInstance.join(joinOptions);
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Join operation timed out')), 20000)
+    );
+    
+    await Promise.race([joinPromise, timeoutPromise]);
+    console.log('[dailySingleton] Successfully joined room');
+  } catch (e: any) {
+    console.error('[dailySingleton] Join failed:', e);
     currentRoomUrl = null;
     throw e;
   } finally {
