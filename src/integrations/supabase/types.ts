@@ -226,6 +226,8 @@ export type Database = {
           created_at: string
           ended_at: string | null
           id: string
+          is_group_call: boolean | null
+          max_participants: number | null
           receiver_id: string
           started_at: string | null
           status: string
@@ -237,6 +239,8 @@ export type Database = {
           created_at?: string
           ended_at?: string | null
           id?: string
+          is_group_call?: boolean | null
+          max_participants?: number | null
           receiver_id: string
           started_at?: string | null
           status?: string
@@ -248,6 +252,8 @@ export type Database = {
           created_at?: string
           ended_at?: string | null
           id?: string
+          is_group_call?: boolean | null
+          max_participants?: number | null
           receiver_id?: string
           started_at?: string | null
           status?: string
@@ -506,8 +512,10 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           created_by: string | null
+          description: string | null
           id: string
           is_group: boolean | null
+          max_members: number | null
           name: string | null
           updated_at: string
         }
@@ -515,8 +523,10 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
           id?: string
           is_group?: boolean | null
+          max_members?: number | null
           name?: string | null
           updated_at?: string
         }
@@ -524,8 +534,10 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
           id?: string
           is_group?: boolean | null
+          max_members?: number | null
           name?: string | null
           updated_at?: string
         }
@@ -1008,6 +1020,127 @@ export type Database = {
           {
             foreignKeyName: "friend_requests_sender_id_fkey"
             columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_call_participants: {
+        Row: {
+          call_id: string
+          id: string
+          is_muted: boolean | null
+          is_video_enabled: boolean | null
+          joined_at: string
+          left_at: string | null
+          user_id: string
+        }
+        Insert: {
+          call_id: string
+          id?: string
+          is_muted?: boolean | null
+          is_video_enabled?: boolean | null
+          joined_at?: string
+          left_at?: string | null
+          user_id: string
+        }
+        Update: {
+          call_id?: string
+          id?: string
+          is_muted?: boolean | null
+          is_video_enabled?: boolean | null
+          joined_at?: string
+          left_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_call_participants_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_call_participants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_call_participants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_members: {
+        Row: {
+          conversation_id: string
+          id: string
+          invited_by: string | null
+          is_muted: boolean | null
+          joined_at: string
+          nickname: string | null
+          role: Database["public"]["Enums"]["group_role"]
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          id?: string
+          invited_by?: string | null
+          is_muted?: boolean | null
+          joined_at?: string
+          nickname?: string | null
+          role?: Database["public"]["Enums"]["group_role"]
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          id?: string
+          invited_by?: string | null
+          is_muted?: boolean | null
+          joined_at?: string
+          nickname?: string | null
+          role?: Database["public"]["Enums"]["group_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_members_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_members_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_members_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
             referencedColumns: ["id"]
@@ -2866,6 +2999,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      group_role: "owner" | "admin" | "member"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2994,6 +3128,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      group_role: ["owner", "admin", "member"],
     },
   },
 } as const
