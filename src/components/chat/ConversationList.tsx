@@ -13,17 +13,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
 import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
+import { CreateGroupDialog } from './CreateGroupDialog';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
-
-// Autisy AI chat row - now navigates to full chat page
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
 
@@ -74,6 +73,7 @@ export function ConversationList() {
   const createConversation = useCreateConversation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
 
   // Get user IDs for online status check - memoized
@@ -166,11 +166,23 @@ export function ConversationList() {
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">{t('messages.title')}</h1>
-          <NewChatDialog 
-            open={isNewChatOpen} 
-            onOpenChange={setIsNewChatOpen}
-            onSelectUser={handleQuickAddSelect}
-          />
+          <div className="flex items-center gap-1">
+            {/* Create Group Button */}
+            <Button 
+              size="icon" 
+              variant="ghost"
+              onClick={() => setIsGroupDialogOpen(true)}
+              className="h-9 w-9"
+            >
+              <UsersRound className="h-5 w-5" />
+            </Button>
+            {/* New 1:1 Chat */}
+            <NewChatDialog 
+              open={isNewChatOpen} 
+              onOpenChange={setIsNewChatOpen}
+              onSelectUser={handleQuickAddSelect}
+            />
+          </div>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -182,6 +194,15 @@ export function ConversationList() {
           />
         </div>
       </div>
+      
+      {/* Create Group Dialog */}
+      <CreateGroupDialog 
+        open={isGroupDialogOpen}
+        onOpenChange={setIsGroupDialogOpen}
+        onSuccess={(conversationId) => {
+          navigate(`/messages/${conversationId}`);
+        }}
+      />
 
       {/* Quick Add Section */}
       {!searchQuery && (recentUsers.length > 0 || friendsForQuickAdd.length > 0) && (

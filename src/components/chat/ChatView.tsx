@@ -103,6 +103,8 @@ export function ChatView() {
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [pendingImage, setPendingImage] = useState<{ url: string; file: File } | null>(null);
+  const uploadingRef = useRef(false); // Prevent double uploads
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -291,77 +293,7 @@ export function ChatView() {
     }
   }, [addReaction]);
 
-  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !conversationId || !profile?.id) return;
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be less than 5MB');
-      return;
-    }
-
-    setIsUploadingMedia(true);
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('chat-media')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('chat-media')
-        .getPublicUrl(fileName);
-
-      await sendMediaMessage(publicUrl, 'image');
-    } catch (error) {
-      console.error('Failed to upload image:', error);
-      toast.error('Failed to upload image');
-    } finally {
-      setIsUploadingMedia(false);
-    }
-  }, [conversationId, profile?.id, profile?.user_id]);
-
-  const handleVoiceRecordingComplete = useCallback(async (blob: Blob) => {
-    if (!conversationId || !profile?.id) return;
-
-    setIsUploadingMedia(true);
-
-    try {
-      const fileName = `${profile.user_id}/${Date.now()}.webm`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('chat-media')
-        .upload(fileName, blob);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('chat-media')
-        .getPublicUrl(fileName);
-
-      await sendMediaMessage(publicUrl, 'audio');
-      setIsRecordingVoice(false);
-    } catch (error) {
-      console.error('Failed to upload voice message:', error);
-      toast.error('Failed to upload voice message');
-    } finally {
-      setIsUploadingMedia(false);
-    }
-  }, [conversationId, profile?.id, profile?.user_id]);
-
+  // Send media message helper
   const sendMediaMessage = useCallback(async (mediaUrl: string, mediaType: string) => {
     if (!conversationId || !profile?.id) return;
 
@@ -393,6 +325,185 @@ export function ChatView() {
     queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
     queryClient.invalidateQueries({ queryKey: ['conversations'] });
   }, [conversationId, profile?.id, viewMode, replyingTo?.id, queryClient]);
+
+  // Compress image before upload for better mobile performance
+  const compressImage = useCallback(async (file: File): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new window.Image();
+      
+      img.onload = () => {
+        // Max dimensions for chat images
+        const maxWidth = 1200;
+        const maxHeight = 1200;
+        let { width, height } = img;
+        
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob(
+          (blob) => resolve(blob || file),
+          'image/jpeg',
+          0.85 // Quality
+        );
+      };
+      
+      img.onerror = () => resolve(file);
+      img.src = URL.createObjectURL(file);
+    });
+  }, []);
+
+  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !conversationId || !profile?.id) return;
+
+    // Prevent double uploads
+    if (uploadingRef.current) return;
+    uploadingRef.current = true;
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      uploadingRef.current = false;
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image must be less than 10MB');
+      uploadingRef.current = false;
+      return;
+    }
+
+    // Create optimistic preview immediately
+    const previewUrl = URL.createObjectURL(file);
+    setPendingImage({ url: previewUrl, file });
+    setIsUploadingMedia(true);
+
+    try {
+      // Compress image for faster upload
+      const compressedBlob = await compressImage(file);
+      const fileExt = file.type === 'image/png' ? 'png' : 'jpg';
+      const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(fileName, compressedBlob, {
+          contentType: `image/${fileExt}`,
+          cacheControl: '31536000', // 1 year cache
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(fileName);
+
+      await sendMediaMessage(publicUrl, 'image');
+      
+      // Clean up preview
+      URL.revokeObjectURL(previewUrl);
+      setPendingImage(null);
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      toast.error('Failed to upload image. Tap to retry.');
+      // Keep preview for retry
+    } finally {
+      setIsUploadingMedia(false);
+      uploadingRef.current = false;
+    }
+  }, [conversationId, profile?.id, profile?.user_id, compressImage, sendMediaMessage]);
+
+  const handleVoiceRecordingComplete = useCallback(async (blob: Blob) => {
+    if (!conversationId || !profile?.id) return;
+
+    setIsUploadingMedia(true);
+
+    try {
+      const fileName = `${profile.user_id}/${Date.now()}.webm`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(fileName, blob);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(fileName);
+
+      await sendMediaMessage(publicUrl, 'audio');
+      setIsRecordingVoice(false);
+    } catch (error) {
+      console.error('Failed to upload voice message:', error);
+      toast.error('Failed to upload voice message');
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  }, [conversationId, profile?.id, profile?.user_id]);
+
+
+  // Handle direct file selection (from Toybox)
+  const handleDirectImageSelect = useCallback(async (file: File) => {
+    if (!file || !conversationId || !profile?.id) return;
+    if (uploadingRef.current) return;
+    uploadingRef.current = true;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      uploadingRef.current = false;
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image must be less than 10MB');
+      uploadingRef.current = false;
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setPendingImage({ url: previewUrl, file });
+    setIsUploadingMedia(true);
+
+    try {
+      const compressedBlob = await compressImage(file);
+      const fileExt = file.type === 'image/png' ? 'png' : 'jpg';
+      const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(fileName, compressedBlob, {
+          contentType: `image/${fileExt}`,
+          cacheControl: '31536000',
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(fileName);
+
+      await sendMediaMessage(publicUrl, 'image');
+      URL.revokeObjectURL(previewUrl);
+      setPendingImage(null);
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      toast.error('Failed to upload image. Tap to retry.');
+    } finally {
+      setIsUploadingMedia(false);
+      uploadingRef.current = false;
+    }
+  }, [conversationId, profile?.id, profile?.user_id, compressImage, sendMediaMessage]);
 
   const handleReply = useCallback((msg: Message) => {
     setReplyingTo(msg);
@@ -615,6 +726,38 @@ export function ChatView() {
             />
           ))}
 
+          {/* Pending image upload preview */}
+          {pendingImage && (
+            <div className="flex justify-end mb-3">
+              <div className="relative max-w-[75%] rounded-2xl overflow-hidden">
+                <img 
+                  src={pendingImage.url} 
+                  alt="Uploading..." 
+                  className="max-w-full max-h-64 object-cover rounded-2xl opacity-70"
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                  {isUploadingMedia ? (
+                    <Loader2 className="h-8 w-8 text-white animate-spin" />
+                  ) : (
+                    <button
+                      onClick={() => {
+                        // Retry logic - re-trigger the upload
+                        if (pendingImage.file) {
+                          const event = { target: { files: [pendingImage.file] } } as unknown as React.ChangeEvent<HTMLInputElement>;
+                          handleImageSelect(event);
+                        }
+                      }}
+                      className="flex items-center gap-2 px-3 py-2 bg-destructive text-destructive-foreground rounded-lg"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Retry
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Typing indicator - proper z-index */}
           {typingUsers.length > 0 && (
             <div className="flex items-start gap-2 max-w-[80%] relative z-10 mb-2">
@@ -800,20 +943,14 @@ const MessageInputArea = memo(function MessageInputArea({
           <div className="flex items-center gap-1 sm:gap-2">
             <Toybox
               onImageSelect={async (file) => {
-                if (fileInputRef.current) {
-                  const dt = new DataTransfer();
-                  dt.items.add(file);
-                  fileInputRef.current.files = dt.files;
-                  handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
-                }
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
               }}
               onVideoSelect={async (file) => {
-                if (fileInputRef.current) {
-                  const dt = new DataTransfer();
-                  dt.items.add(file);
-                  fileInputRef.current.files = dt.files;
-                  handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
-                }
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
               }}
               onGifSelect={async (gifUrl) => {
                 await sendMediaMessage(gifUrl, 'gif');
