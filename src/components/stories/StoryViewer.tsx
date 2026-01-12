@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { X, Pause, Play, Eye, Send, Heart } from 'lucide-react';
+import { X, Pause, Play, Eye, Send, Heart, ChevronUp, Users } from 'lucide-react';
 import { StoryGroup, useViewStory } from '@/hooks/useStories';
+import { useStoryLikes, useLikeStory } from '@/hooks/useStoryLikes';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { StoryMedia } from './StoryMedia';
@@ -20,6 +22,7 @@ interface StoryViewerProps {
 export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerProps) {
   const { profile } = useAuth();
   const viewStory = useViewStory();
+  const likeStory = useLikeStory();
   
   const [groupIndex, setGroupIndex] = useState(initialGroupIndex);
   const [storyIndex, setStoryIndex] = useState(0);
@@ -28,6 +31,8 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   const [replyText, setReplyText] = useState('');
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [direction, setDirection] = useState(0);
+  const [showLikesPanel, setShowLikesPanel] = useState(false);
+  const [likeAnimating, setLikeAnimating] = useState(false);
   
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
@@ -36,6 +41,9 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   const currentStory = currentGroup?.stories[storyIndex];
   const isOwnStory = currentGroup?.user.id === profile?.id;
   const signedAvatarUrl = useSignedUrl(currentGroup?.user.avatar_url);
+  
+  // Get like data for current story
+  const { data: likeData } = useStoryLikes(currentStory?.id);
 
   const STORY_DURATION = currentStory?.media_type === 'video' ? 15000 : 5000;
 
@@ -187,10 +195,19 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
     setShowReplyInput(false);
   }, [replyText]);
 
-  const handleReaction = useCallback(() => {
-    // TODO: Implement story reaction
-    console.log('React to story');
-  }, []);
+  const handleLike = useCallback(() => {
+    if (!currentStory || likeStory.isPending) return;
+    
+    const action = likeData?.hasLiked ? 'unlike' : 'like';
+    
+    // Animate heart
+    if (action === 'like') {
+      setLikeAnimating(true);
+      setTimeout(() => setLikeAnimating(false), 600);
+    }
+    
+    likeStory.mutate({ storyId: currentStory.id, action });
+  }, [currentStory, likeData?.hasLiked, likeStory]);
 
   if (!currentStory) return null;
 
@@ -338,18 +355,30 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
         {/* Bottom section */}
         <div className="absolute bottom-4 inset-x-4 z-10">
           {isOwnStory ? (
-            // View count for own stories
-            <div className="flex justify-center">
+            // View count + likes for own stories
+            <div className="flex justify-center gap-3">
               <button 
                 className="flex items-center gap-2 text-white bg-black/40 backdrop-blur-sm rounded-full px-4 py-2.5"
                 onClick={(e) => e.stopPropagation()}
               >
                 <Eye className="h-4 w-4" />
-                <span className="text-sm font-medium">{currentStory.view_count || 0} views</span>
+                <span className="text-sm font-medium">{currentStory.view_count || 0}</span>
+              </button>
+              
+              <button 
+                className="flex items-center gap-2 text-white bg-black/40 backdrop-blur-sm rounded-full px-4 py-2.5"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowLikesPanel(true);
+                  setIsPaused(true);
+                }}
+              >
+                <Heart className="h-4 w-4 fill-current text-rose-500" />
+                <span className="text-sm font-medium">{likeData?.count || 0}</span>
               </button>
             </div>
           ) : (
-            // Reply input for others' stories
+            // Reply input + like button for others' stories
             <div className="flex items-center gap-2">
               <div className="flex-1 relative">
                 <Input
@@ -391,21 +420,94 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
               <Button
                 size="icon"
                 variant="ghost"
-                className="text-white hover:bg-white/20 h-10 w-10 flex-shrink-0"
+                className={cn(
+                  "text-white hover:bg-white/20 h-10 w-10 flex-shrink-0 transition-transform",
+                  likeAnimating && "scale-125"
+                )}
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleReaction();
+                  handleLike();
                 }}
               >
-                <Heart className="h-5 w-5" />
+                <Heart className={cn(
+                  "h-5 w-5 transition-all",
+                  likeData?.hasLiked && "fill-current text-rose-500",
+                  likeAnimating && "animate-pulse"
+                )} />
               </Button>
             </div>
           )}
         </div>
 
+        {/* Like animation overlay */}
+        <AnimatePresence>
+          {likeAnimating && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0 }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"
+            >
+              <Heart className="h-24 w-24 text-rose-500 fill-current" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Likes panel for story owners */}
+        <AnimatePresence>
+          {showLikesPanel && (
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              className="absolute inset-x-0 bottom-0 h-[60%] bg-black/90 backdrop-blur-xl rounded-t-3xl z-30"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-white font-semibold flex items-center gap-2">
+                    <Heart className="h-5 w-5 text-rose-500 fill-current" />
+                    {likeData?.count || 0} Likes
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white"
+                    onClick={() => {
+                      setShowLikesPanel(false);
+                      setIsPaused(false);
+                    }}
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+                <ScrollArea className="h-[calc(100%-60px)]">
+                  {likeData?.likes && likeData.likes.length > 0 ? (
+                    <div className="space-y-3">
+                      {likeData.likes.map((like) => (
+                        <div key={like.id} className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={like.profile?.avatar_url || undefined} />
+                            <AvatarFallback>{like.profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-white font-medium">
+                            {like.profile?.display_name || like.profile?.username}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-white/50 text-center py-8">No likes yet</p>
+                  )}
+                </ScrollArea>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Pause indicator */}
         <AnimatePresence>
-          {isPaused && !showReplyInput && (
+          {isPaused && !showReplyInput && !showLikesPanel && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}

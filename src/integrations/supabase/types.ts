@@ -2623,6 +2623,7 @@ export type Database = {
           expires_at: string
           id: string
           is_close_friends_only: boolean | null
+          like_count: number
           media_type: string
           media_url: string
           view_count: number | null
@@ -2636,6 +2637,7 @@ export type Database = {
           expires_at?: string
           id?: string
           is_close_friends_only?: boolean | null
+          like_count?: number
           media_type?: string
           media_url: string
           view_count?: number | null
@@ -2649,6 +2651,7 @@ export type Database = {
           expires_at?: string
           id?: string
           is_close_friends_only?: boolean | null
+          like_count?: number
           media_type?: string
           media_url?: string
           view_count?: number | null
@@ -2664,6 +2667,49 @@ export type Database = {
           {
             foreignKeyName: "stories_author_id_fkey"
             columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      story_likes: {
+        Row: {
+          created_at: string
+          id: string
+          story_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          story_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          story_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_likes_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_likes_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
             referencedColumns: ["id"]
