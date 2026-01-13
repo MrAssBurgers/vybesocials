@@ -64,7 +64,14 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           />
 
           {/* Main Content Area - ONLY scrollable area */}
-          <main className="flex-1 min-w-0 h-screen overflow-y-auto overflow-x-hidden">
+          <main 
+            className="flex-1 min-w-0 h-screen overflow-y-auto overflow-x-hidden"
+            style={{
+              overscrollBehavior: 'contain',
+              WebkitOverflowScrolling: 'touch',
+              contain: 'layout style',
+            }}
+          >
             <div 
               className={cn(
                 "mx-auto w-full px-2 lg:px-3 py-3",
@@ -84,7 +91,14 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
   // Mobile/Tablet layout
   return (
-    <div ref={ref} className="min-h-screen w-full overflow-x-hidden">
+    <div 
+      ref={ref} 
+      className="min-h-screen w-full overflow-x-hidden"
+      style={{
+        overscrollBehavior: 'contain',
+        WebkitOverflowScrolling: 'touch',
+      }}
+    >
       {/* Header - visible on mobile/tablet */}
       {!hideNav && <MobileHeader />}
 

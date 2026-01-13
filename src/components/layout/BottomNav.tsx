@@ -10,44 +10,69 @@ import { playSound } from '@/lib/sounds';
 import { CreateMenu } from '@/components/hub/CreateMenu';
 import { VYBEHub } from '@/components/hub/VYBEHub';
 
-// Hook to detect scroll direction
+// Singleton scroll direction detection to prevent duplicate listeners
+let scrollDirectionListener: (() => void) | null = null;
+let scrollVisibility = true;
+const scrollVisibilityListeners = new Set<(visible: boolean) => void>();
+
+function setupScrollDirectionListener() {
+  if (scrollDirectionListener) return;
+  
+  let lastScrollY = 0;
+  let ticking = false;
+
+  const handleScroll = () => {
+    if (!ticking) {
+      window.requestAnimationFrame(() => {
+        const currentScrollY = window.scrollY;
+        const scrollDiff = currentScrollY - lastScrollY;
+        
+        if (Math.abs(scrollDiff) > 10) {
+          if (scrollDiff > 0 && currentScrollY > 50) {
+            scrollVisibility = false;
+          } else {
+            scrollVisibility = true;
+          }
+        }
+        
+        if (currentScrollY < 50) {
+          scrollVisibility = true;
+        }
+        
+        lastScrollY = currentScrollY;
+        ticking = false;
+        
+        // Notify all listeners
+        scrollVisibilityListeners.forEach(fn => fn(scrollVisibility));
+      });
+      ticking = true;
+    }
+  };
+
+  window.addEventListener('scroll', handleScroll, { passive: true });
+  scrollDirectionListener = () => {
+    window.removeEventListener('scroll', handleScroll);
+    scrollDirectionListener = null;
+  };
+}
+
+// Hook to detect scroll direction - uses singleton listener
 function useScrollDirection() {
   const [isVisible, setIsVisible] = useState(true);
-  const lastScrollY = useRef(0);
-  const ticking = useRef(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (!ticking.current) {
-        window.requestAnimationFrame(() => {
-          const currentScrollY = window.scrollY;
-          const scrollDiff = currentScrollY - lastScrollY.current;
-          
-          // Only trigger hide/show after a threshold to avoid jitter
-          if (Math.abs(scrollDiff) > 10) {
-            if (scrollDiff > 0 && currentScrollY > 50) {
-              // Scrolling down - hide
-              setIsVisible(false);
-            } else {
-              // Scrolling up - show
-              setIsVisible(true);
-            }
-          }
-          
-          // Always show at top of page
-          if (currentScrollY < 50) {
-            setIsVisible(true);
-          }
-          
-          lastScrollY.current = currentScrollY;
-          ticking.current = false;
-        });
-        ticking.current = true;
+    setupScrollDirectionListener();
+    
+    scrollVisibilityListeners.add(setIsVisible);
+    setIsVisible(scrollVisibility);
+
+    return () => {
+      scrollVisibilityListeners.delete(setIsVisible);
+      // Only cleanup if no more listeners
+      if (scrollVisibilityListeners.size === 0 && scrollDirectionListener) {
+        scrollDirectionListener();
       }
     };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   return isVisible;

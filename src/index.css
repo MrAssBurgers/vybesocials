@@ -295,19 +295,20 @@
     animation-play-state: paused !important;
   }
 
-  /* Reduce motion complexity during scroll */
+  /* Reduce motion and transition complexity during scroll */
   .is-scrolling * {
-    transition-duration: 0ms !important;
+    transition-duration: 50ms !important;
+    transition-delay: 0ms !important;
   }
 
-  /* Reduce motion during scroll for better performance */
-  .is-scrolling * {
-    transition-duration: 0.1s !important;
+  /* Will-change optimization - applied only when needed */
+  .will-scroll {
+    will-change: scroll-position;
   }
 
   /* Enable smooth scrolling everywhere - but not on iOS where it causes issues */
   @supports not (-webkit-touch-callout: none) {
-    * {
+    html {
       scroll-behavior: smooth;
     }
   }
@@ -335,6 +336,26 @@
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     touch-action: pan-y;
+  }
+
+  /* Hide scrollbar utility */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Contain utility for layout isolation */
+  .layout-contain {
+    contain: layout;
+  }
+  .style-contain {
+    contain: style;
+  }
+  .paint-contain {
+    contain: paint;
   }
 }
 

@@ -552,7 +552,7 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background relative" style={{ overflow: 'visible' }}>
+    <div className="flex flex-col h-full bg-background relative overflow-hidden">
       {/* Header - fixed height, compact on mobile */}
       <header className="flex-shrink-0 h-14 sm:h-16 px-2 sm:px-4 border-b border-border flex items-center gap-2 sm:gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20">
         <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10">
@@ -683,15 +683,16 @@ export function ChatView() {
       {/* Messages - scrollable area with edge-to-edge bubbles */}
       <div 
         className={cn(
-          "flex-1 overflow-y-auto min-h-0",
+          "flex-1 overflow-y-auto overflow-x-hidden min-h-0",
           "px-3 sm:px-4 py-3 sm:py-4",
-          "sm:backdrop-blur-none",
+          "scroll-smooth",
           getWallpaperClass()
         )}
         style={{ 
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
           touchAction: 'pan-y',
+          contain: 'strict',
         }}
       >
         {/* Messages container */}

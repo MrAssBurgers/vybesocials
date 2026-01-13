@@ -13,48 +13,22 @@ interface PresenceUser {
 export function useChatPresence(conversationId: string | undefined) {
   const { profile } = useAuth();
   const [presentUsers, setPresentUsers] = useState<PresenceUser[]>([]);
-  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
-  const typingTimeoutRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
-
-  // Join presence when viewing a chat
-  const joinPresence = useCallback(async () => {
-    if (!conversationId || !profile?.id) return;
-
-    try {
-      await supabase
-        .from('chat_presence')
-        .upsert(
-          {
-            conversation_id: conversationId,
-            user_id: profile.id,
-            last_seen_at: new Date().toISOString(),
-          },
-          { onConflict: 'conversation_id,user_id' }
-        );
-    } catch (error) {
-      console.error('Failed to join presence:', error);
-    }
+  const conversationIdRef = useRef(conversationId);
+  const profileIdRef = useRef(profile?.id);
+  
+  // Keep refs updated
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+    profileIdRef.current = profile?.id;
   }, [conversationId, profile?.id]);
 
-  // Leave presence when leaving the chat
-  const leavePresence = useCallback(async () => {
-    if (!conversationId || !profile?.id) return;
-
-    try {
-      await supabase
-        .from('chat_presence')
-        .delete()
-        .eq('conversation_id', conversationId)
-        .eq('user_id', profile.id);
-    } catch (error) {
-      console.error('Failed to leave presence:', error);
-    }
-  }, [conversationId, profile?.id]);
-
-  // Update typing state
+  // Stable setTyping function
   const setTyping = useCallback(async (isTyping: boolean) => {
-    if (!conversationId || !profile?.id) return;
+    const cid = conversationIdRef.current;
+    const pid = profileIdRef.current;
+    if (!cid || !pid) return;
 
     try {
       if (isTyping) {
@@ -62,8 +36,8 @@ export function useChatPresence(conversationId: string | undefined) {
           .from('typing_indicators')
           .upsert(
             {
-              conversation_id: conversationId,
-              user_id: profile.id,
+              conversation_id: cid,
+              user_id: pid,
               started_at: new Date().toISOString(),
             },
             { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
@@ -72,70 +46,102 @@ export function useChatPresence(conversationId: string | undefined) {
         await supabase
           .from('typing_indicators')
           .delete()
-          .eq('conversation_id', conversationId)
-          .eq('user_id', profile.id);
+          .eq('conversation_id', cid)
+          .eq('user_id', pid);
       }
     } catch (error) {
-      console.error('Failed to update typing:', error);
+      // Silent fail for typing - non-critical
     }
-  }, [conversationId, profile?.id]);
-
-  // Fetch current presence
-  const fetchPresence = useCallback(async () => {
-    if (!conversationId || !profile?.id) return;
-
-    try {
-      // Get presence data (users viewing this chat in last 30 seconds)
-      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
-      
-      const { data: presenceData } = await supabase
-        .from('chat_presence')
-        .select(`
-          user_id,
-          profiles:user_id(id, username, avatar_url, display_name)
-        `)
-        .eq('conversation_id', conversationId)
-        .neq('user_id', profile.id)
-        .gt('last_seen_at', thirtySecondsAgo);
-
-      // Get typing indicators (last 5 seconds)
-      const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
-      const { data: typingData } = await supabase
-        .from('typing_indicators')
-        .select('user_id')
-        .eq('conversation_id', conversationId)
-        .neq('user_id', profile.id)
-        .gt('started_at', fiveSecondsAgo);
-
-      const typingSet = new Set(typingData?.map(t => t.user_id) || []);
-      setTypingUsers(typingSet);
-
-      const users: PresenceUser[] = (presenceData || []).map((p: any) => ({
-        user_id: p.user_id,
-        username: p.profiles?.username || '',
-        avatar_url: p.profiles?.avatar_url,
-        display_name: p.profiles?.display_name,
-        is_typing: typingSet.has(p.user_id),
-      }));
-
-      setPresentUsers(users);
-    } catch (error) {
-      console.error('Failed to fetch presence:', error);
-    }
-  }, [conversationId, profile?.id]);
+  }, []);
 
   // Setup presence and subscriptions
   useEffect(() => {
     if (!conversationId || !profile?.id) return;
 
-    // Join presence immediately
+    let isMounted = true;
+    const profileId = profile.id;
+
+    // Join presence
+    const joinPresence = async () => {
+      if (!isMounted) return;
+      try {
+        await supabase
+          .from('chat_presence')
+          .upsert(
+            {
+              conversation_id: conversationId,
+              user_id: profileId,
+              last_seen_at: new Date().toISOString(),
+            },
+            { onConflict: 'conversation_id,user_id' }
+          );
+      } catch (error) {
+        // Silent fail
+      }
+    };
+
+    // Leave presence
+    const leavePresence = async () => {
+      try {
+        await supabase
+          .from('chat_presence')
+          .delete()
+          .eq('conversation_id', conversationId)
+          .eq('user_id', profileId);
+      } catch (error) {
+        // Silent fail
+      }
+    };
+
+    // Fetch current presence
+    const fetchPresence = async () => {
+      if (!isMounted) return;
+      try {
+        const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+        
+        const { data: presenceData } = await supabase
+          .from('chat_presence')
+          .select(`
+            user_id,
+            profiles:user_id(id, username, avatar_url, display_name)
+          `)
+          .eq('conversation_id', conversationId)
+          .neq('user_id', profileId)
+          .gt('last_seen_at', thirtySecondsAgo);
+
+        const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
+        const { data: typingData } = await supabase
+          .from('typing_indicators')
+          .select('user_id')
+          .eq('conversation_id', conversationId)
+          .neq('user_id', profileId)
+          .gt('started_at', fiveSecondsAgo);
+
+        if (!isMounted) return;
+
+        const typingSet = new Set(typingData?.map(t => t.user_id) || []);
+        setTypingUsers(Array.from(typingSet));
+
+        const users: PresenceUser[] = (presenceData || []).map((p: any) => ({
+          user_id: p.user_id,
+          username: p.profiles?.username || '',
+          avatar_url: p.profiles?.avatar_url,
+          display_name: p.profiles?.display_name,
+          is_typing: typingSet.has(p.user_id),
+        }));
+
+        setPresentUsers(users);
+      } catch (error) {
+        // Silent fail
+      }
+    };
+
+    // Initial setup
     joinPresence();
     fetchPresence();
 
-    // Heartbeat every 10 seconds to keep presence alive
-    heartbeatRef.current = setInterval(() => {
-      joinPresence();
-    }, 10000);
+    // Heartbeat every 10 seconds
+    heartbeatRef.current = setInterval(joinPresence, 10000);
 
     // Subscribe to presence changes
     const presenceChannel = supabase
@@ -149,7 +155,7 @@ export function useChatPresence(conversationId: string | undefined) {
           filter: `conversation_id=eq.${conversationId}`,
         },
         () => {
-          fetchPresence();
+          if (isMounted) fetchPresence();
         }
       )
       .subscribe();
@@ -166,46 +172,40 @@ export function useChatPresence(conversationId: string | undefined) {
           filter: `conversation_id=eq.${conversationId}`,
         },
         () => {
-          fetchPresence();
+          if (isMounted) fetchPresence();
         }
       )
       .subscribe();
 
-    // Cleanup on unmount or conversation change
-    return () => {
-      if (heartbeatRef.current) {
-        clearInterval(heartbeatRef.current);
-      }
-      leavePresence();
-      supabase.removeChannel(presenceChannel);
-      supabase.removeChannel(typingChannel);
-      
-      // Clear all typing timeouts
-      typingTimeoutRefs.current.forEach(timeout => clearTimeout(timeout));
-      typingTimeoutRefs.current.clear();
-    };
-  }, [conversationId, profile?.id, joinPresence, leavePresence, fetchPresence]);
-
-  // Handle visibility change - leave presence when tab is hidden
-  useEffect(() => {
+    // Visibility change handler
     const handleVisibilityChange = () => {
       if (document.hidden) {
         leavePresence();
-      } else {
+      } else if (isMounted) {
         joinPresence();
         fetchPresence();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup
     return () => {
+      isMounted = false;
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+      leavePresence();
+      supabase.removeChannel(presenceChannel);
+      supabase.removeChannel(typingChannel);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [joinPresence, leavePresence, fetchPresence]);
+  }, [conversationId, profile?.id]);
 
   return {
     presentUsers,
-    typingUsers: Array.from(typingUsers),
+    typingUsers,
     setTyping,
   };
 }

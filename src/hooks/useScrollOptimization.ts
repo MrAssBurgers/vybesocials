@@ -1,20 +1,21 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 
 // Shared state to prevent multiple listeners
 let scrollListenerAttached = false;
 let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 let rafId: number | null = null;
+let isScrolling = false;
 
 /**
  * Hook to detect scrolling and add/remove 'is-scrolling' class to document
  * Uses requestAnimationFrame for smoother performance
+ * SINGLETON: Only one listener across all components
  */
 export function useScrollOptimization() {
   useEffect(() => {
     if (scrollListenerAttached) return;
     scrollListenerAttached = true;
 
-    let isScrolling = false;
     let ticking = false;
 
     const handleScroll = () => {
@@ -30,7 +31,7 @@ export function useScrollOptimization() {
           scrollTimeout = setTimeout(() => {
             isScrolling = false;
             document.documentElement.classList.remove('is-scrolling');
-          }, 100);
+          }, 150);
 
           ticking = false;
         });
@@ -43,8 +44,15 @@ export function useScrollOptimization() {
     return () => {
       window.removeEventListener('scroll', handleScroll);
       scrollListenerAttached = false;
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      if (rafId) cancelAnimationFrame(rafId);
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = null;
+      }
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      isScrolling = false;
       document.documentElement.classList.remove('is-scrolling');
     };
   }, []);
@@ -61,38 +69,47 @@ export function useGPUAcceleration(ref: React.RefObject<HTMLElement>) {
 
     // Use contain for better performance isolation
     element.style.contain = 'layout style paint';
-    element.style.transform = 'translate3d(0, 0, 0)';
+    element.style.transform = 'translateZ(0)';
+    element.style.backfaceVisibility = 'hidden';
 
     return () => {
       element.style.contain = '';
       element.style.transform = '';
+      element.style.backfaceVisibility = '';
     };
   }, [ref]);
 }
 
 /**
- * Reduced motion detection
+ * Reduced motion detection - cached result
  */
+let cachedReducedMotion: boolean | null = null;
 export function usePrefersReducedMotion() {
-  const mediaQuery = typeof window !== 'undefined' 
-    ? window.matchMedia('(prefers-reduced-motion: reduce)')
-    : null;
-  
-  return mediaQuery?.matches ?? false;
+  if (cachedReducedMotion === null && typeof window !== 'undefined') {
+    cachedReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+  return cachedReducedMotion ?? false;
 }
 
 /**
- * Frame-rate aware animation hook
+ * Frame-rate aware animation hook - optimized to avoid memory leaks
  */
 export function useFrameCallback(callback: () => void, enabled = true) {
   const frameRef = useRef<number>();
   const callbackRef = useRef(callback);
-  callbackRef.current = callback;
+  
+  // Update callback ref without triggering effect
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
 
   useEffect(() => {
     if (!enabled) return;
 
+    let isActive = true;
+
     const tick = () => {
+      if (!isActive) return;
       callbackRef.current();
       frameRef.current = requestAnimationFrame(tick);
     };
@@ -100,6 +117,7 @@ export function useFrameCallback(callback: () => void, enabled = true) {
     frameRef.current = requestAnimationFrame(tick);
 
     return () => {
+      isActive = false;
       if (frameRef.current) {
         cancelAnimationFrame(frameRef.current);
       }
