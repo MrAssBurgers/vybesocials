@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, UserPlus, UserCheck, Check, X, Users } from 'lucide-react';
+import { Heart, MessageCircle, UserPlus, UserCheck, Check, X, Users, PhoneMissed } from 'lucide-react';
 import { useNotifications, useMarkNotificationsRead, NotificationType } from '@/hooks/useNotifications';
 import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -42,6 +42,8 @@ export default function NotificationsPage() {
         return <UserCheck className="h-4 w-4 text-green-500" />;
       case 'friend_declined':
         return <X className="h-4 w-4 text-destructive" />;
+      case 'missed_call':
+        return <PhoneMissed className="h-4 w-4 text-destructive" />;
       default:
         return null;
     }
@@ -65,6 +67,8 @@ export default function NotificationsPage() {
         return 'sent you a message';
       case 'mention':
         return 'mentioned you';
+      case 'missed_call':
+        return 'tried to call you';
       default:
         return '';
     }

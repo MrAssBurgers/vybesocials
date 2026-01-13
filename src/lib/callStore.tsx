@@ -307,22 +307,35 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, error, phase: error ? 'error' : prev.phase }));
   }, []);
 
-  const dismissIncoming = useCallback(() => {
+  const dismissIncoming = useCallback(async () => {
     console.log('[CallStore] Dismissing incoming call');
     callSounds.stopAll();
 
     if (incomingCall?.id) {
-      supabase
+      // Update call status to declined
+      await supabase
         .from('calls')
         .update({ status: 'declined' })
-        .eq('id', incomingCall.id)
-        .then(() => {
-          console.log('[CallStore] Incoming call declined');
-        });
+        .eq('id', incomingCall.id);
+      
+      console.log('[CallStore] Incoming call declined');
+      
+      // Create missed call notification for the receiver (current user declined)
+      // The caller should be notified that their call was not answered
+      if (incomingCall.caller?.id && profile?.id) {
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: profile.id,
+            actor_id: incomingCall.caller.id,
+            type: 'missed_call',
+          });
+        console.log('[CallStore] Missed call notification created');
+      }
     }
 
     setIncomingCall(null);
-  }, [incomingCall?.id]);
+  }, [incomingCall?.id, incomingCall?.caller?.id, profile?.id]);
 
   // Combine active call state with incoming call for context
   const effectiveState: CallStoreState = incomingCall && state.phase === 'idle'
