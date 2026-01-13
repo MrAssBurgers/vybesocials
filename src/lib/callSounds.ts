@@ -1,12 +1,13 @@
-// Call Sound Effects System
-// Provides ringing, connect, and end call sounds
+// Call & Notification Sound Effects System
+// Provides ringing, connect, end call, and message notification sounds
 
-type CallSoundType = 'ringing' | 'connect' | 'end' | 'ringback';
+type CallSoundType = 'ringing' | 'connect' | 'end' | 'ringback' | 'message';
 
 // Audio context singleton
 let audioContext: AudioContext | null = null;
 let ringingInterval: number | null = null;
 let ringbackInterval: number | null = null;
+let lastMessageSoundTime = 0; // Debounce message sounds
 
 // Get or create audio context
 function getAudioContext(): AudioContext | null {
@@ -64,6 +65,33 @@ function playVYBERing(ctx: AudioContext, time: number): void {
   
   // Sparkle on the bell note
   playNotifNote(ctx, 2637.02, time + 0.29, 0.3, 0.1); // E7 shimmer
+}
+
+// Iconic message notification - quick "pop-ding!" (like Discord/Snap but unique)
+function playMessageNotif(ctx: AudioContext, time: number): void {
+  // Quick two-note ping: pop -> ding!
+  const notes = [
+    { freq: 1396.91, delay: 0, duration: 0.06 },    // F6 - quick pop
+    { freq: 1864.66, delay: 0.07, duration: 0.15 }, // A#6 - satisfying ding
+  ];
+  
+  notes.forEach(note => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.frequency.setValueAtTime(note.freq, time + note.delay);
+    osc.type = 'triangle';
+    
+    gain.gain.setValueAtTime(0, time + note.delay);
+    gain.gain.linearRampToValueAtTime(0.18, time + note.delay + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + note.delay + note.duration);
+    
+    osc.start(time + note.delay);
+    osc.stop(time + note.delay + note.duration);
+  });
 }
 
 // Outgoing call sound - smooth pulsing tone (caller hears while waiting)
@@ -198,6 +226,19 @@ export function playCallEnd(): void {
   }
 }
 
+// Play message notification sound (debounced)
+export function playMessageSound(): void {
+  const now = Date.now();
+  // Debounce: don't play more than once per 500ms
+  if (now - lastMessageSoundTime < 500) return;
+  lastMessageSoundTime = now;
+  
+  const ctx = getAudioContext();
+  if (ctx) {
+    playMessageNotif(ctx, ctx.currentTime);
+  }
+}
+
 // Stop all call sounds
 export function stopAllCallSounds(): void {
   if (ringingInterval) {
@@ -217,4 +258,5 @@ export const callSounds = {
   connect: playCallConnect,
   end: playCallEnd,
   stopAll: stopAllCallSounds,
+  message: playMessageSound,
 };

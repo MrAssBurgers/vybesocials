@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, PanInfo } from 'framer-motion';
 import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, Play, Pause } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
+
+// Detect if on mobile/tablet for simpler animations
+const isMobileDevice = () => typeof window !== 'undefined' && 
+  (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 1024);
 
 interface Clip {
   id: string;
@@ -66,13 +69,27 @@ const ClipItem = memo(function ClipItem({
   const thumbnailUrl = useSignedUrl(clip.thumbnail_url || null);
   const isUrlLoading = !signedUrl;
 
-  // Handle video play/pause based on visibility
+  // Handle video play/pause based on visibility - with better error handling for mobile
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !signedUrl) return;
 
-    if (isActive && signedUrl) {
-      video.play().then(() => setIsPlaying(true)).catch(() => {});
+    if (isActive) {
+      // Use a small delay on mobile to prevent race conditions
+      const playVideo = async () => {
+        try {
+          await video.play();
+          setIsPlaying(true);
+        } catch (err) {
+          // Autoplay blocked - that's okay, user can tap to play
+          console.log('Autoplay blocked, waiting for user interaction');
+          setIsPlaying(false);
+        }
+      };
+      
+      // Small delay helps mobile browsers
+      const timeout = setTimeout(playVideo, 100);
+      return () => clearTimeout(timeout);
     } else {
       video.pause();
       setIsPlaying(false);
@@ -375,48 +392,80 @@ export function OptimizedClipsPlayer({
     );
   }
 
+  // Use simpler rendering on mobile to prevent crashes
+  const isMobile = useMemo(() => isMobileDevice(), []);
+
   return (
     <div 
       ref={containerRef}
       className="relative h-full w-full bg-black overflow-hidden"
       style={{ touchAction: 'pan-y' }}
     >
-      <motion.div
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={0.2}
-        onDragEnd={handleDragEnd}
-        style={{ y }}
-        className="h-full w-full"
-      >
-        <AnimatePresence mode="popLayout" initial={false}>
-          {visibleClips.map(({ clip, index }) => (
-            <motion.div
-              key={clip.id}
-              initial={{ opacity: 0, y: index > currentIndex ? '100%' : '-100%' }}
-              animate={{ 
-                opacity: index === currentIndex ? 1 : 0,
-                y: index === currentIndex ? 0 : index > currentIndex ? '100%' : '-100%',
-              }}
-              exit={{ opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute inset-0"
-            >
-              <ClipItem
-                clip={clip}
-                isActive={index === currentIndex}
-                isMuted={isMuted}
-                onToggleMute={handleToggleMute}
-                onLike={onLike}
-                onComment={onComment}
-                onShare={onShare}
-                onSave={onSave}
-                onViewAuthor={onViewAuthor}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </motion.div>
+      {isMobile ? (
+        // Simpler mobile version - no complex animations
+        <div className="h-full w-full">
+          {clips[currentIndex] && (
+            <ClipItem
+              clip={clips[currentIndex]}
+              isActive={true}
+              isMuted={isMuted}
+              onToggleMute={handleToggleMute}
+              onLike={onLike}
+              onComment={onComment}
+              onShare={onShare}
+              onSave={onSave}
+              onViewAuthor={onViewAuthor}
+            />
+          )}
+          {/* Touch zones for navigation */}
+          <div 
+            className="absolute top-0 left-0 right-0 h-1/3 z-10"
+            onClick={() => currentIndex > 0 && setCurrentIndex(prev => prev - 1)}
+          />
+          <div 
+            className="absolute bottom-0 left-0 right-0 h-1/3 z-10"
+            onClick={() => currentIndex < clips.length - 1 && setCurrentIndex(prev => prev + 1)}
+          />
+        </div>
+      ) : (
+        // Desktop version with full animations
+        <motion.div
+          drag="y"
+          dragConstraints={{ top: 0, bottom: 0 }}
+          dragElastic={0.2}
+          onDragEnd={handleDragEnd}
+          style={{ y }}
+          className="h-full w-full"
+        >
+          <AnimatePresence mode="popLayout" initial={false}>
+            {visibleClips.map(({ clip, index }) => (
+              <motion.div
+                key={clip.id}
+                initial={{ opacity: 0, y: index > currentIndex ? '100%' : '-100%' }}
+                animate={{ 
+                  opacity: index === currentIndex ? 1 : 0,
+                  y: index === currentIndex ? 0 : index > currentIndex ? '100%' : '-100%',
+                }}
+                exit={{ opacity: 0 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                className="absolute inset-0"
+              >
+                <ClipItem
+                  clip={clip}
+                  isActive={index === currentIndex}
+                  isMuted={isMuted}
+                  onToggleMute={handleToggleMute}
+                  onLike={onLike}
+                  onComment={onComment}
+                  onShare={onShare}
+                  onSave={onSave}
+                  onViewAuthor={onViewAuthor}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
+      )}
 
       {/* Progress indicators */}
       <div className="absolute top-2 left-2 right-2 flex gap-1 z-30">
