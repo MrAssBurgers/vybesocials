@@ -23,6 +23,7 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
+import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 
 interface ShortCardProps {
   post: {
@@ -53,6 +54,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
   const { data: authorRole } = useUserRoleById(post.author.id);
+  const isModOrAdmin = useIsModOrAdmin();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,6 +67,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [showHeart, setShowHeart] = useState(false);
   const [showLikeParticles, setShowLikeParticles] = useState(false);
   const [viewCount, setViewCount] = useState(post.view_count || 0);
+  const [warnDialogOpen, setWarnDialogOpen] = useState(false);
+  const [banDialogOpen, setBanDialogOpen] = useState(false);
   const hasCountedView = useRef(false);
   const lastTapTime = useRef(0);
 
@@ -495,8 +499,28 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
                 Report
               </DropdownMenuItem>
             )}
+            {/* Mod actions - only visible to mods/admins and not on own content */}
+            {isModOrAdmin && !isOwnPost && (
+              <ModeratorMenuItems
+                userId={post.author.id}
+                username={post.author.username}
+                postId={post.id}
+                onWarnClick={() => setWarnDialogOpen(true)}
+                onBanClick={() => setBanDialogOpen(true)}
+              />
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
+        
+        {/* Mod dialogs */}
+        <ModeratorDialogs
+          userId={post.author.id}
+          username={post.author.username}
+          warnDialogOpen={warnDialogOpen}
+          setWarnDialogOpen={setWarnDialogOpen}
+          banDialogOpen={banDialogOpen}
+          setBanDialogOpen={setBanDialogOpen}
+        />
       </div>
 
       <div className="absolute left-4 right-20 bottom-4 z-10">
