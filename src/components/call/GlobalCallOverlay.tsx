@@ -134,6 +134,38 @@ export function GlobalCallOverlay() {
         console.error('[CallOverlay] Failed to enable media:', err);
       }
 
+      // Check for any existing participants already in the room
+      // This handles the case where the other person joined before us
+      setTimeout(() => {
+        try {
+          const participants = daily.participants();
+          console.log('[CallOverlay] Checking existing participants:', Object.keys(participants));
+          
+          Object.values(participants).forEach((p: any) => {
+            if (!p.local && p.video) {
+              console.log('[CallOverlay] Found existing remote participant with video:', p.session_id);
+              setRemoteParticipant(p);
+              
+              // Try to attach their video
+              const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
+              if (videoTrack && remoteVideoRef.current) {
+                console.log('[CallOverlay] Attaching existing remote video');
+                try {
+                  const stream = new MediaStream([videoTrack]);
+                  remoteVideoRef.current.srcObject = stream;
+                  remoteVideoRef.current.play().catch(console.error);
+                  setHasRemoteVideo(true);
+                } catch (err) {
+                  console.error('[CallOverlay] Failed to attach existing video:', err);
+                }
+              }
+            }
+          });
+        } catch (err) {
+          console.error('[CallOverlay] Error checking participants:', err);
+        }
+      }, 500); // Small delay to ensure tracks are ready
+
       callSounds.stopAll();
       callSounds.connect();
       setPhase('connected');
@@ -158,11 +190,42 @@ export function GlobalCallOverlay() {
       endCall();
     });
 
+    // Helper to attach remote participant video
+    const attachRemoteParticipantVideo = (p: DailyParticipant, videoEl: HTMLVideoElement | null) => {
+      if (!p || !videoEl) return;
+      
+      // Check multiple track access patterns for compatibility
+      const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
+      const trackState = p.tracks?.video?.state;
+      const hasVideo = p.video && (trackState === 'playable' || trackState === 'loading');
+      
+      console.log('[CallOverlay] Checking remote video:', {
+        hasVideo: p.video,
+        trackState,
+        hasTrack: !!videoTrack,
+        participantId: p.session_id
+      });
+      
+      if (hasVideo && videoTrack) {
+        console.log('[CallOverlay] Attaching remote video track');
+        try {
+          const stream = new MediaStream([videoTrack]);
+          videoEl.srcObject = stream;
+          videoEl.play().catch(err => console.error('[CallOverlay] Remote video play failed:', err));
+          setHasRemoteVideo(true);
+        } catch (err) {
+          console.error('[CallOverlay] Failed to attach remote video:', err);
+        }
+      }
+    };
+
     // Track participants
     daily.on('participant-joined', (event: any) => {
       console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.session_id);
       if (event?.participant && !event.participant.local) {
         setRemoteParticipant(event.participant);
+        // Immediately try to attach video if available
+        attachRemoteParticipantVideo(event.participant, remoteVideoRef.current);
       }
     });
 
@@ -171,6 +234,9 @@ export function GlobalCallOverlay() {
       if (event?.participant && !event.participant.local) {
         setRemoteParticipant(null);
         setHasRemoteVideo(false);
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = null;
+        }
       }
     });
 
@@ -180,21 +246,17 @@ export function GlobalCallOverlay() {
       const p = event.participant;
       if (p.local) {
         // Update local video state
-        const hasVideo = p.video && p.tracks?.video?.state === 'playable';
-        setHasLocalVideo(hasVideo);
+        const hasVideo = p.video && (p.tracks?.video?.state === 'playable' || p.tracks?.video?.state === 'loading');
+        const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
+        setHasLocalVideo(hasVideo && !!videoTrack);
         
-        if (hasVideo && p.tracks.video.track && localVideoRef.current) {
-          attachTrack(p.tracks.video.track, localVideoRef.current);
+        if (hasVideo && videoTrack && localVideoRef.current) {
+          attachTrack(videoTrack, localVideoRef.current);
         }
       } else {
         // Update remote participant
         setRemoteParticipant(p);
-        const hasVideo = p.video && p.tracks?.video?.state === 'playable';
-        setHasRemoteVideo(hasVideo);
-        
-        if (hasVideo && p.tracks.video.track && remoteVideoRef.current) {
-          attachTrack(p.tracks.video.track, remoteVideoRef.current);
-        }
+        attachRemoteParticipantVideo(p, remoteVideoRef.current);
       }
     });
 
