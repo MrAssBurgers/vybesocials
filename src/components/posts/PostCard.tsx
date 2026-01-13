@@ -21,8 +21,10 @@ import { toast } from 'sonner';
 import { EditPostDialog } from './EditPostDialog';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
+import { ModBadge } from '@/components/ui/ModBadge';
 import { useTogglePin } from '@/hooks/usePosts';
 import { useUserRole } from '@/hooks/useModeration';
+import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
@@ -211,6 +213,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const queryClient = useQueryClient();
   const togglePin = useTogglePin();
   const { data: userRole } = useUserRole();
+  const { data: authorRole } = useUserRoleById(post.author.id);
   const isModOrAdmin = useIsModOrAdmin();
   const [isLiked, setIsLiked] = useState(post.is_liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
@@ -348,6 +351,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
             <div>
               <p className="font-semibold text-sm flex items-center gap-1.5">
                 {post.author.username}
+                {authorRole && <ModBadge role={authorRole} />}
                 {isOwner(post.author.username) && <OwnerBadge />}
                 {isOwnerWife(post.author.id) && <PrincessBadge />}
                 {post.is_pinned && (
@@ -371,6 +375,12 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {/* Show author's mod badge in menu header */}
+              {authorRole && (
+                <div className="px-2 py-1.5 flex items-center gap-2 border-b border-border/50 mb-1">
+                  <ModBadge role={authorRole} showLabel />
+                </div>
+              )}
               {isOwnPost && (
                 <>
                   <DropdownMenuItem onClick={handleTogglePin}>
