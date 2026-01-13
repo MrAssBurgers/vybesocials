@@ -22,9 +22,10 @@ import { callSounds } from '@/lib/callSounds';
 import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall } from '@daily-co/daily-js';
 
-// Module-level singleton to prevent duplicates across React re-renders / Strict Mode
+// Module-level singleton to prevent duplicates across React re-renders / Strict Mode / HMR
 let globalDailyInstance: DailyCall | null = null;
 let globalDailyCreating = false;
+let globalListenersAttached = false;
 
 // DOM check to prevent duplicate iframes
 function hasExistingDailyIframe(): boolean {
@@ -83,10 +84,8 @@ export function GlobalCallOverlay() {
   // Refs for persistent iframe
   const containerRef = useRef<HTMLDivElement>(null);
   const dailyRef = useRef<DailyCall | null>(null);
-  const listenersAttached = useRef(false);
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initStarted = useRef(false);
   
   // Local UI state
   const [isMuted, setIsMuted] = useState(false);
@@ -111,17 +110,22 @@ export function GlobalCallOverlay() {
   // Create Daily iframe ONCE on mount using singleton pattern
   useEffect(() => {
     if (!containerRef.current) return;
-    if (initStarted.current) return; // Prevent React Strict Mode double-init
-    initStarted.current = true;
+    
+    // If global instance exists, just sync the ref
+    if (globalDailyInstance) {
+      dailyRef.current = globalDailyInstance;
+      console.log('[CallOverlay] Synced to existing global Daily instance');
+      return;
+    }
     
     const daily = getOrCreateDailyInstance(containerRef.current);
     if (!daily) return;
     
     dailyRef.current = daily;
 
-    // Attach event listeners ONCE
-    if (!listenersAttached.current) {
-      listenersAttached.current = true;
+    // Attach event listeners ONCE (using module-level flag)
+    if (!globalListenersAttached) {
+      globalListenersAttached = true;
 
       daily.on('joining-meeting', () => {
         console.log('[CallOverlay] 📞 joining-meeting event');
