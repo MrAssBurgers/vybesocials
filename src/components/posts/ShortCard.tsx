@@ -276,7 +276,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           <video
             ref={videoRef}
             src={signedMediaUrl || undefined}
-            className={cn("h-full w-full object-cover", isLoading && "opacity-0")}
+            className={cn("h-full w-full object-contain", isLoading && "opacity-0")}
             loop
             playsInline
             muted={isMuted}
@@ -291,7 +291,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           <img
             src={signedMediaUrl}
             alt={post.caption}
-            className={cn("h-full w-full object-cover", isLoading && "opacity-0")}
+            className={cn("h-full w-full object-contain", isLoading && "opacity-0")}
             loading="eager"
             onLoad={() => setIsLoading(false)}
             onError={() => {
