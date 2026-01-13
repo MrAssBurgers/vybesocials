@@ -19,6 +19,11 @@ import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
 import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
 import { TutorialProvider } from "@/components/tutorial/TutorialProvider";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
+import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
+import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
+
+// Expose query client for error recovery
+(window as any).__REACT_QUERY_CLIENT__ = null;
 
 // Lazy load pages for code splitting
 const Landing = lazy(() => import("./pages/Landing"));
@@ -62,6 +67,9 @@ const queryClient = new QueryClient({
   },
 });
 
+// Expose for error recovery
+(window as any).__REACT_QUERY_CLIENT__ = queryClient;
+
 const PageFallback = memo(() => (
   <div className="min-h-screen bg-background p-4">
     <div className="max-w-xl mx-auto space-y-4">
@@ -102,63 +110,66 @@ const App = memo(() => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <GlassIntensityProvider>
-          <AccessibilityProvider>
-            <SplashScreen isVisible={showSplash} />
-            <AuthProvider>
-              <TutorialProvider>
-                <EasterEggProvider>
-                  <CallStoreProvider>
-                    <TooltipProvider>
-                      <Toaster />
-                      <Sonner />
-                      <BrowserRouter>
-                        <ScrollRestoration />
-                        <Suspense fallback={<PageFallback />}>
-                          <Routes>
-                            <Route path="/" element={<Landing />} />
-                            <Route path="/home" element={<Home />} />
-                            <Route path="/clips" element={<Shorts />} />
-                            <Route path="/shorts" element={<Shorts />} />
-                            <Route path="/explore" element={<Explore />} />
-                            <Route path="/upload" element={<Upload />} />
-                            <Route path="/p/:id" element={<PostDetail />} />
-                            <Route path="/u/:username" element={<Profile />} />
-                            <Route path="/profile" element={<Profile />} />
-                            <Route path="/notifications" element={<Notifications />} />
-                            <Route path="/settings" element={<Settings />} />
-                            <Route path="/onboarding" element={<Onboarding />} />
-                            <Route path="/complete-profile" element={<CompleteProfile />} />
-                            <Route path="/messages" element={<Messages />} />
-                            <Route path="/messages/new" element={<NewMessage />} />
-                            <Route path="/messages/ai-autisy" element={<AIChat />} />
-                            <Route path="/messages/:conversationId" element={<Messages />} />
-                            <Route path="/feedback" element={<Feedback />} />
-                            <Route path="/market" element={<Market />} />
-                            <Route path="/market/new" element={<CreateListing />} />
-                            <Route path="/market/:id" element={<ListingDetail />} />
-                            <Route path="/events" element={<Events />} />
-                            <Route path="/events/new" element={<CreateEvent />} />
-                            <Route path="/admin" element={<AdminDashboard />} />
-                            <Route path="/community" element={<Community />} />
-                            <Route path="*" element={<NotFound />} />
-                          </Routes>
-                        </Suspense>
-                        <RootBottomNavMount />
-                        <PushNotificationPrompt />
-                        <GlobalCallOverlay />
-                      </BrowserRouter>
-                    </TooltipProvider>
-                  </CallStoreProvider>
-                </EasterEggProvider>
-              </TutorialProvider>
-            </AuthProvider>
-          </AccessibilityProvider>
-        </GlassIntensityProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <SmartErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <GlassIntensityProvider>
+            <AccessibilityProvider>
+              <SplashScreen isVisible={showSplash} />
+              <GlobalErrorHandler />
+              <AuthProvider>
+                <TutorialProvider>
+                  <EasterEggProvider>
+                    <CallStoreProvider>
+                      <TooltipProvider>
+                        <Toaster />
+                        <Sonner />
+                        <BrowserRouter>
+                          <ScrollRestoration />
+                          <Suspense fallback={<PageFallback />}>
+                            <Routes>
+                              <Route path="/" element={<Landing />} />
+                              <Route path="/home" element={<Home />} />
+                              <Route path="/clips" element={<Shorts />} />
+                              <Route path="/shorts" element={<Shorts />} />
+                              <Route path="/explore" element={<Explore />} />
+                              <Route path="/upload" element={<Upload />} />
+                              <Route path="/p/:id" element={<PostDetail />} />
+                              <Route path="/u/:username" element={<Profile />} />
+                              <Route path="/profile" element={<Profile />} />
+                              <Route path="/notifications" element={<Notifications />} />
+                              <Route path="/settings" element={<Settings />} />
+                              <Route path="/onboarding" element={<Onboarding />} />
+                              <Route path="/complete-profile" element={<CompleteProfile />} />
+                              <Route path="/messages" element={<Messages />} />
+                              <Route path="/messages/new" element={<NewMessage />} />
+                              <Route path="/messages/ai-autisy" element={<AIChat />} />
+                              <Route path="/messages/:conversationId" element={<Messages />} />
+                              <Route path="/feedback" element={<Feedback />} />
+                              <Route path="/market" element={<Market />} />
+                              <Route path="/market/new" element={<CreateListing />} />
+                              <Route path="/market/:id" element={<ListingDetail />} />
+                              <Route path="/events" element={<Events />} />
+                              <Route path="/events/new" element={<CreateEvent />} />
+                              <Route path="/admin" element={<AdminDashboard />} />
+                              <Route path="/community" element={<Community />} />
+                              <Route path="*" element={<NotFound />} />
+                            </Routes>
+                          </Suspense>
+                          <RootBottomNavMount />
+                          <PushNotificationPrompt />
+                          <GlobalCallOverlay />
+                        </BrowserRouter>
+                      </TooltipProvider>
+                    </CallStoreProvider>
+                  </EasterEggProvider>
+                </TutorialProvider>
+              </AuthProvider>
+            </AccessibilityProvider>
+          </GlassIntensityProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </SmartErrorBoundary>
   );
 });
 
