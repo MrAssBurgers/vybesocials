@@ -72,7 +72,7 @@ export default function HomePage() {
     hasNextPage: hasNextForYou,
     isFetchingNextPage: isFetchingNextForYou,
     refetch: refetchForYou,
-  } = useInfinitePosts('post');
+  } = useInfinitePosts();
   
   const {
     data: followingData,
@@ -81,7 +81,7 @@ export default function HomePage() {
     hasNextPage: hasNextFollowing,
     isFetchingNextPage: isFetchingNextFollowing,
     refetch: refetchFollowing,
-  } = useInfiniteFollowingPosts('post');
+  } = useInfiniteFollowingPosts();
 
   // Prefetch posts for faster navigation
   usePrefetchPosts();
