@@ -3,6 +3,7 @@
  * 
  * Simple buttons to start audio/video calls using the global call store.
  * Pre-warms camera on hover for instant FaceTime-like video startup.
+ * Supports both 1:1 and group calls.
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -16,9 +17,21 @@ import { preloadCameraStream } from '@/hooks/useCameraPreload';
 interface CallButtonsProps {
   conversationId: string;
   receiverId: string;
+  // Group call support
+  isGroupCall?: boolean;
+  groupName?: string;
+  groupAvatar?: string | null;
+  participantIds?: string[];
 }
 
-export function CallButtons({ conversationId, receiverId }: CallButtonsProps) {
+export function CallButtons({ 
+  conversationId, 
+  receiverId,
+  isGroupCall,
+  groupName,
+  groupAvatar,
+  participantIds,
+}: CallButtonsProps) {
   const { state, startCall } = useCallStore();
   const [isStarting, setIsStarting] = useState<CallType | null>(null);
 
@@ -47,11 +60,15 @@ export function CallButtons({ conversationId, receiverId }: CallButtonsProps) {
       // Request permissions (will be fast if already granted)
       await requestCallMediaPermissions(callType);
 
-      // Start the call
+      // Start the call with group info if applicable
       await startCall({
         callType,
         conversationId,
         receiverId,
+        isGroupCall,
+        groupName,
+        groupAvatar,
+        participantIds,
       });
     } catch (error: any) {
       console.error('[CallButtons] Failed to start call:', error);
@@ -60,7 +77,7 @@ export function CallButtons({ conversationId, receiverId }: CallButtonsProps) {
       startGuardRef.current = false;
       setIsStarting(null);
     }
-  }, [state.phase, startCall, conversationId, receiverId]);
+  }, [state.phase, startCall, conversationId, receiverId, isGroupCall, groupName, groupAvatar, participantIds]);
 
   const isDisabled = state.phase !== 'idle' || isStarting !== null;
 
@@ -78,7 +95,7 @@ export function CallButtons({ conversationId, receiverId }: CallButtonsProps) {
         onClick={() => handleStartCall('audio')}
         onTouchEnd={handleTouchStart('audio')}
         disabled={isDisabled}
-        title="Audio call"
+        title={isGroupCall ? "Group audio call" : "Audio call"}
         className="active:scale-95 transition-transform touch-manipulation"
       >
         {isStarting === 'audio' ? (
@@ -95,7 +112,7 @@ export function CallButtons({ conversationId, receiverId }: CallButtonsProps) {
         onMouseEnter={handleVideoButtonHover}
         onFocus={handleVideoButtonHover}
         disabled={isDisabled}
-        title="Video call"
+        title={isGroupCall ? "Group FaceTime" : "FaceTime"}
         className="active:scale-95 transition-transform touch-manipulation"
       >
         {isStarting === 'video' ? (

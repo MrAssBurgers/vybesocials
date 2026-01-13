@@ -30,6 +30,11 @@ export interface CallData {
   caller: CallUser;
   receiver: CallUser;
   isInitiator: boolean;
+  // Group call support
+  isGroupCall?: boolean;
+  groupName?: string;
+  groupAvatar?: string | null;
+  participants?: CallUser[];
 }
 
 interface CallStoreState {
@@ -44,6 +49,11 @@ interface CallStoreContextType {
     callType: CallType;
     conversationId: string;
     receiverId: string;
+    // Group call support
+    isGroupCall?: boolean;
+    groupName?: string;
+    groupAvatar?: string | null;
+    participantIds?: string[];
   }) => Promise<void>;
   acceptCall: (call: CallData) => void;
   endCall: () => Promise<void>;
@@ -59,7 +69,7 @@ const initialState: CallStoreState = {
 };
 
 // Show browser notification for incoming call
-function showCallNotification(caller: CallUser, callType: CallType) {
+function showCallNotification(caller: CallUser, callType: CallType, isGroupCall?: boolean, groupName?: string) {
   // Request permission if needed
   if (!('Notification' in window)) return;
   
@@ -70,8 +80,10 @@ function showCallNotification(caller: CallUser, callType: CallType) {
   
   if (Notification.permission !== 'granted') return;
   
-  const callerName = caller.display_name || caller.username || 'Someone';
-  const callTypeLabel = callType === 'video' ? '📹 Video' : '📞 Audio';
+  const callerName = isGroupCall && groupName 
+    ? groupName 
+    : (caller.display_name || caller.username || 'Someone');
+  const callTypeLabel = callType === 'video' ? '📹 FaceTime' : '📞 Audio';
   
   const notification = new Notification(`VYBE - Incoming ${callTypeLabel} Call`, {
     body: `${callerName} is calling you`,
@@ -119,18 +131,32 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
           console.log('[CallStore] Incoming call detected:', newCall.id);
 
-          // Fetch full call data with profiles
-          const { data } = await supabase
-            .from('calls')
-            .select(`
-              *,
-              caller:profiles!calls_caller_id_fkey(id, username, display_name, avatar_url),
-              receiver:profiles!calls_receiver_id_fkey(id, username, display_name, avatar_url)
-            `)
-            .eq('id', newCall.id)
-            .single();
+          // Fetch full call data with profiles and conversation info for group calls
+          const [callResult, conversationResult] = await Promise.all([
+            supabase
+              .from('calls')
+              .select(`
+                *,
+                caller:profiles!calls_caller_id_fkey(id, username, display_name, avatar_url),
+                receiver:profiles!calls_receiver_id_fkey(id, username, display_name, avatar_url)
+              `)
+              .eq('id', newCall.id)
+              .single(),
+            supabase
+              .from('conversations')
+              .select('id, name, avatar_url, is_group')
+              .eq('id', newCall.conversation_id)
+              .single()
+          ]);
+
+          const data = callResult.data;
+          const conversation = conversationResult.data;
 
           if (data && data.room_url) {
+            const isGroupCall = data.is_group_call || conversation?.is_group || false;
+            const groupName = conversation?.name || undefined;
+            const groupAvatar = conversation?.avatar_url || null;
+
             const callData: CallData = {
               id: data.id,
               roomUrl: data.room_url,
@@ -140,13 +166,16 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
               caller: data.caller as CallUser,
               receiver: data.receiver as CallUser,
               isInitiator: false,
+              isGroupCall,
+              groupName,
+              groupAvatar,
             };
 
             setIncomingCall(callData);
             callSounds.startRinging();
             
             // Show browser notification with VYBE branding
-            showCallNotification(data.caller as CallUser, data.call_type as CallType);
+            showCallNotification(data.caller as CallUser, data.call_type as CallType, isGroupCall, groupName);
           }
         }
       )
@@ -191,6 +220,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     callType: CallType;
     conversationId: string;
     receiverId: string;
+    // Group call support
+    isGroupCall?: boolean;
+    groupName?: string;
+    groupAvatar?: string | null;
+    participantIds?: string[];
   }) => {
     if (!profile?.id) throw new Error('Not authenticated');
     if (state.phase !== 'idle') {
@@ -202,12 +236,17 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     setState({ phase: 'creating', call: null, error: null });
 
     try {
+      // For group calls, use all participants; for 1:1, just the receiver
+      const allParticipants = params.participantIds && params.participantIds.length > 0
+        ? params.participantIds.filter(id => id !== profile.id)
+        : [params.receiverId];
+
       // Create room via edge function
       const { data: roomData, error: roomError } = await supabase.functions.invoke('create-call-room', {
         body: {
           type: params.callType,
           conversationId: params.conversationId,
-          participants: [params.receiverId],
+          participants: allParticipants,
         },
       });
 
@@ -228,6 +267,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           status: 'ringing',
           room_url: roomData.roomUrl,
           room_name: roomData.roomName,
+          is_group_call: params.isGroupCall || false,
+          max_participants: allParticipants.length + 1,
         })
         .select(`
           *,
@@ -251,6 +292,9 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         caller: callRecord.caller as CallUser,
         receiver: callRecord.receiver as CallUser,
         isInitiator: true,
+        isGroupCall: params.isGroupCall,
+        groupName: params.groupName,
+        groupAvatar: params.groupAvatar,
       };
 
       // Start ringback sound for caller
