@@ -1,11 +1,12 @@
-import { useState, memo } from 'react';
-import { Settings, Trash2, RefreshCw, Globe, Lock, Copy, Check, Users, Hash } from 'lucide-react';
+import { useState, memo, useRef } from 'react';
+import { Settings, Trash2, RefreshCw, Globe, Lock, Copy, Check, Users, Hash, Camera, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import {
   Sheet,
   SheetContent,
@@ -24,7 +25,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useServer, useServerMembers, useChannels, useLeaveServer, useRemoveServerMember, useUpdateServerMemberRole, ServerRole } from '@/hooks/useServers';
-import { useUpdateServer, useDeleteServer, useRegenerateInviteCode, useDeleteChannel } from '@/hooks/useServerSettings';
+import { useUpdateServer, useDeleteServer, useRegenerateInviteCode, useDeleteChannel, useUploadServerIcon } from '@/hooks/useServerSettings';
 import { toast } from 'sonner';
 
 interface ServerSettingsSheetProps {
@@ -53,12 +54,16 @@ export const ServerSettingsSheet = memo(function ServerSettingsSheet({
   const removeMember = useRemoveServerMember();
   const updateRole = useUpdateServerMemberRole();
   const deleteChannel = useDeleteChannel();
+  const uploadIcon = useUploadServerIcon();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [activeTab, setActiveTab] = useState<'general' | 'members' | 'channels'>('general');
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+  const [isUploadingIcon, setIsUploadingIcon] = useState(false);
 
   const isOwner = myRole === 'owner';
   const canManage = myRole === 'owner' || myRole === 'admin';
@@ -71,6 +76,42 @@ export const ServerSettingsSheet = memo(function ServerSettingsSheet({
       setIsPublic(server.is_public);
     }
   });
+
+  const handleIconChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB');
+      return;
+    }
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setIconPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload immediately
+    setIsUploadingIcon(true);
+    try {
+      const publicUrl = await uploadIcon.mutateAsync({ serverId, file });
+      await updateServer.mutateAsync({ serverId, iconUrl: publicUrl });
+      toast.success('Server icon updated!');
+    } catch (error) {
+      setIconPreview(null);
+    } finally {
+      setIsUploadingIcon(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -165,6 +206,55 @@ export const ServerSettingsSheet = memo(function ServerSettingsSheet({
         {/* General Tab */}
         {activeTab === 'general' && (
           <div className="space-y-6">
+            {/* Server Icon */}
+            {canManage && (
+              <div className="space-y-2">
+                <Label>Server Icon</Label>
+                <div className="flex items-center gap-4">
+                  <div className="relative group">
+                    <Avatar className="h-20 w-20 border-2 border-border">
+                      <AvatarImage src={iconPreview || server?.icon_url || undefined} />
+                      <AvatarFallback className="text-2xl font-bold bg-primary/20">
+                        {(name || server?.name)?.[0]?.toUpperCase() || 'S'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingIcon}
+                      className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {isUploadingIcon ? (
+                        <Loader2 className="h-6 w-6 text-white animate-spin" />
+                      ) : (
+                        <Camera className="h-6 w-6 text-white" />
+                      )}
+                    </button>
+                  </div>
+                  <div className="flex-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingIcon}
+                    >
+                      {isUploadingIcon ? 'Uploading...' : 'Change Icon'}
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      JPG, PNG or GIF. Max 5MB.
+                    </p>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleIconChange}
+                    className="hidden"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Server Name */}
             {canManage && (
               <div className="space-y-2">
