@@ -24,53 +24,42 @@ import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall } from '@daily-co/daily-js';
 import { PreJoinScreen } from './PreJoinScreen';
 
-// Module-level singleton to prevent duplicates across React re-renders / Strict Mode / HMR
+// Module-level state - Daily instance is created LAZILY when needed
 let globalDailyInstance: DailyCall | null = null;
-let globalDailyCreating = false;
 let globalListenersAttached = false;
 
-// DOM check to prevent duplicate iframes
-function hasExistingDailyIframe(): boolean {
-  if (typeof document === 'undefined') return false;
-  const existing = document.querySelector('iframe[allow*="camera"]');
-  return !!existing;
+// Clean up any orphaned Daily iframes from DOM
+function cleanupOrphanedIframes() {
+  if (typeof document === 'undefined') return;
+  const iframes = document.querySelectorAll('iframe[allow*="camera"], iframe[title*="daily"]');
+  iframes.forEach(iframe => {
+    console.log('[CallOverlay] Removing orphaned iframe');
+    iframe.remove();
+  });
 }
 
-// Get or create the singleton Daily instance
-function getOrCreateDailyInstance(container: HTMLDivElement): DailyCall | null {
-  // Already have one - verify it's still valid
+// Fully destroy Daily instance
+function destroyDailyInstance() {
   if (globalDailyInstance) {
     try {
-      // Check if instance is still usable
-      const state = globalDailyInstance.meetingState();
-      console.log('[CallOverlay] Reusing existing Daily instance, state:', state);
-      return globalDailyInstance;
+      console.log('[CallOverlay] Destroying Daily instance');
+      globalDailyInstance.destroy();
     } catch (err) {
-      console.warn('[CallOverlay] Existing Daily instance is invalid, will create new one');
-      globalDailyInstance = null;
-      globalListenersAttached = false;
+      console.warn('[CallOverlay] Error destroying Daily:', err);
     }
+    globalDailyInstance = null;
+    globalListenersAttached = false;
   }
-  
-  // Another effect is already creating
-  if (globalDailyCreating) {
-    console.log('[CallOverlay] Daily creation already in progress');
-    return null;
-  }
-  
-  // Check DOM for orphaned iframes and remove them
-  if (hasExistingDailyIframe()) {
-    console.warn('[CallOverlay] Orphaned Daily iframe found, removing...');
-    const existing = document.querySelector('iframe[allow*="camera"]');
-    if (existing) {
-      existing.remove();
-    }
-  }
-  
-  globalDailyCreating = true;
+  cleanupOrphanedIframes();
+}
+
+// Create a FRESH Daily instance - always destroys old one first
+function createFreshDailyInstance(container: HTMLDivElement): DailyCall | null {
+  // Always start clean
+  destroyDailyInstance();
   
   try {
-    console.log('[CallOverlay] Creating singleton Daily iframe');
+    console.log('[CallOverlay] Creating fresh Daily instance');
     const daily = DailyIframe.createFrame(container, {
       iframeStyle: {
         width: '100%',
@@ -79,19 +68,18 @@ function getOrCreateDailyInstance(container: HTMLDivElement): DailyCall | null {
       },
       showLeaveButton: false,
       showFullscreenButton: true,
-      // Start with audio/video off - we enable after join
       startAudioOff: true,
       startVideoOff: true,
     });
     
     globalDailyInstance = daily;
-    globalListenersAttached = false; // Reset so we attach fresh listeners
+    globalListenersAttached = false;
+    console.log('[CallOverlay] Daily instance created successfully');
     return daily;
   } catch (err) {
     console.error('[CallOverlay] Failed to create Daily iframe:', err);
+    cleanupOrphanedIframes();
     return null;
-  } finally {
-    globalDailyCreating = false;
   }
 }
 
@@ -127,92 +115,69 @@ export function GlobalCallOverlay() {
     }
   }, []);
 
-  // Create Daily iframe ONCE on mount using singleton pattern
-  useEffect(() => {
-    if (!containerRef.current) return;
-    
-    let daily: DailyCall | null = null;
-    
-    // If global instance exists, verify and sync
-    if (globalDailyInstance) {
-      try {
-        globalDailyInstance.meetingState(); // verify it's valid
-        dailyRef.current = globalDailyInstance;
-        daily = globalDailyInstance;
-        console.log('[CallOverlay] Synced to existing global Daily instance');
-      } catch {
-        console.warn('[CallOverlay] Existing instance invalid, recreating');
-        globalDailyInstance = null;
-        globalListenersAttached = false;
+  // Helper to attach event listeners to Daily instance
+  const attachDailyListeners = useCallback((daily: DailyCall) => {
+    if (globalListenersAttached) return;
+    globalListenersAttached = true;
+    console.log('[CallOverlay] Attaching Daily event listeners');
+
+    daily.on('joining-meeting', () => {
+      console.log('[CallOverlay] 📞 joining-meeting event');
+    });
+
+    daily.on('joined-meeting', () => {
+      console.log('[CallOverlay] ✅ joined-meeting event');
+      clearJoinTimeout();
+      
+      if (stateRef.current.phase !== 'joining') {
+        console.log('[CallOverlay] Ignoring joined-meeting (not in joining phase)');
+        return;
       }
-    }
-    
-    // Create new instance if needed
-    if (!daily) {
-      daily = getOrCreateDailyInstance(containerRef.current);
-      if (!daily) return;
-      dailyRef.current = daily;
-    }
 
-    // Attach event listeners (using module-level flag to prevent duplicates)
-    if (!globalListenersAttached && daily) {
-      globalListenersAttached = true;
-      console.log('[CallOverlay] Attaching Daily event listeners');
-
-      daily.on('joining-meeting', () => {
-        console.log('[CallOverlay] 📞 joining-meeting event');
-      });
-
-      daily.on('joined-meeting', () => {
-        console.log('[CallOverlay] ✅ joined-meeting event');
-        clearJoinTimeout();
-        
-        if (stateRef.current.phase !== 'joining') {
-          console.log('[CallOverlay] Ignoring joined-meeting (not in joining phase)');
-          return;
-        }
-
-        // CRITICAL: Enable media after joining
-        try {
-          if (dailyRef.current) {
-            dailyRef.current.setLocalAudio(true);
-            if (stateRef.current.call?.callType === 'video') {
-              dailyRef.current.setLocalVideo(true);
-            } else {
-              dailyRef.current.setLocalVideo(false);
-            }
+      // CRITICAL: Enable media after joining
+      try {
+        if (dailyRef.current) {
+          dailyRef.current.setLocalAudio(true);
+          if (stateRef.current.call?.callType === 'video') {
+            dailyRef.current.setLocalVideo(true);
+          } else {
+            dailyRef.current.setLocalVideo(false);
           }
-          console.log('[CallOverlay] Media enabled');
-        } catch (err) {
-          console.error('[CallOverlay] Failed to enable media:', err);
         }
+        console.log('[CallOverlay] Media enabled');
+      } catch (err) {
+        console.error('[CallOverlay] Failed to enable media:', err);
+      }
 
-        callSounds.stopAll();
-        callSounds.connect();
-        setPhase('connected');
-      });
+      callSounds.stopAll();
+      callSounds.connect();
+      setPhase('connected');
+    });
 
-      daily.on('left-meeting', () => {
-        console.log('[CallOverlay] 👋 left-meeting event');
-        clearJoinTimeout();
-        isLeavingRef.current = false;
-      });
+    daily.on('left-meeting', () => {
+      console.log('[CallOverlay] 👋 left-meeting event');
+      clearJoinTimeout();
+      isLeavingRef.current = false;
+    });
 
-      daily.on('error', (event: any) => {
-        console.error('[CallOverlay] ❌ error event:', event);
-        clearJoinTimeout();
-        
-        const msg = event?.errorMsg || event?.error?.msg || 'Call error';
-        toast.error(msg);
-        setError(msg);
-        endCall();
-      });
-    }
-
-    return () => {
-      // Don't destroy on unmount - keep iframe permanent
-    };
+    daily.on('error', (event: any) => {
+      console.error('[CallOverlay] ❌ error event:', event);
+      clearJoinTimeout();
+      
+      const msg = event?.errorMsg || event?.error?.msg || 'Call error';
+      toast.error(msg);
+      setError(msg);
+      endCall();
+    });
   }, [clearJoinTimeout, setPhase, setError, endCall]);
+
+  // Cleanup on unmount - destroy Daily instance
+  useEffect(() => {
+    return () => {
+      // Destroy on unmount to prevent stale instances
+      destroyDailyInstance();
+    };
+  }, []);
 
   // Show pre-join screen when creating a call
   useEffect(() => {
@@ -230,21 +195,38 @@ export function GlobalCallOverlay() {
     }
   }, [state.phase]);
 
-  // Join room when phase becomes 'joining'
+  // Join room when phase becomes 'joining' - CREATE Daily instance lazily here
   useEffect(() => {
     if (state.phase !== 'joining' || !state.call?.roomUrl || !state.call?.roomName) return;
-    if (!dailyRef.current) {
-      console.error('[CallOverlay] No Daily instance for join');
+    if (!containerRef.current) {
+      console.error('[CallOverlay] No container for Daily');
       setError('Call system not ready');
       return;
     }
     if (isLeavingRef.current) return;
 
-    const daily = dailyRef.current;
     let cancelled = false;
 
     const doJoin = async () => {
       console.log('[CallOverlay] Starting join flow for:', state.call?.roomUrl);
+
+      // Update pre-join status
+      setPreJoinStatus('Initializing...');
+
+      // Create fresh Daily instance for this call
+      const daily = createFreshDailyInstance(containerRef.current!);
+      if (!daily) {
+        console.error('[CallOverlay] Failed to create Daily instance');
+        setError('Failed to initialize call');
+        endCall();
+        return;
+      }
+      dailyRef.current = daily;
+      
+      // Attach event listeners
+      attachDailyListeners(daily);
+
+      if (cancelled) return;
 
       // Update pre-join status
       setPreJoinStatus('Requesting permissions...');
@@ -303,19 +285,6 @@ export function GlobalCallOverlay() {
 
       if (cancelled) return;
 
-      // Leave any previous room first
-      try {
-        const meetingState = daily.meetingState();
-        if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
-          console.log('[CallOverlay] Leaving previous room');
-          await daily.leave();
-        }
-      } catch {
-        // ignore
-      }
-
-      if (cancelled) return;
-
       // Set 15 second timeout for join
       clearJoinTimeout();
       joinTimeoutRef.current = setTimeout(() => {
@@ -344,7 +313,7 @@ export function GlobalCallOverlay() {
       cancelled = true;
       clearJoinTimeout();
     };
-  }, [state.phase, state.call?.roomUrl, state.call?.roomName, state.call?.id, state.call?.callType, clearJoinTimeout, endCall, setError]);
+  }, [state.phase, state.call?.roomUrl, state.call?.roomName, state.call?.id, state.call?.callType, clearJoinTimeout, endCall, setError, attachDailyListeners]);
 
   // Call duration timer
   useEffect(() => {
