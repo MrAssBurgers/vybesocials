@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import { callSounds } from '@/lib/callSounds';
 
 export type ViewMode = 'view_once' | '24h' | 'permanent';
 
@@ -174,9 +175,16 @@ export function useConversations() {
     refetchOnWindowFocus: false,
   });
 
-  // Real-time subscription for conversations
+  // Real-time subscription for conversations with notification sound
   useEffect(() => {
     if (!profile?.id) return;
+
+    // Track which conversation user is currently viewing
+    const getCurrentConversation = () => {
+      const path = window.location.pathname;
+      const match = path.match(/\/messages\/([a-f0-9-]+)/);
+      return match ? match[1] : null;
+    };
 
     const channel = supabase
       .channel('conversations-realtime')
@@ -188,7 +196,22 @@ export function useConversations() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
-        () => queryClient.invalidateQueries({ queryKey: ['conversations'] })
+        (payload) => {
+          const newMessage = payload.new as any;
+          const currentConvo = getCurrentConversation();
+          
+          // Play sound if message is from someone else AND not viewing that conversation
+          if (newMessage.sender_id !== profile.id) {
+            const isViewingConvo = currentConvo === newMessage.conversation_id;
+            const isDocumentVisible = document.visibilityState === 'visible';
+            
+            if (!isViewingConvo || !isDocumentVisible) {
+              callSounds.message();
+            }
+          }
+          
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        }
       )
       .subscribe();
 
