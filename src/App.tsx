@@ -118,13 +118,13 @@ const App = memo(() => {
               <SplashScreen isVisible={showSplash} />
               <GlobalErrorHandler />
               <AuthProvider>
-                <TutorialProvider>
-                  <EasterEggProvider>
-                    <CallStoreProvider>
-                      <TooltipProvider>
-                        <Toaster />
-                        <Sonner />
-                        <BrowserRouter>
+                <EasterEggProvider>
+                  <CallStoreProvider>
+                    <TooltipProvider>
+                      <Toaster />
+                      <Sonner />
+                      <BrowserRouter>
+                        <TutorialProvider>
                           <ScrollRestoration />
                           <Suspense fallback={<PageFallback />}>
                             <Routes>
@@ -159,11 +159,11 @@ const App = memo(() => {
                           <RootBottomNavMount />
                           <PushNotificationPrompt />
                           <GlobalCallOverlay />
-                        </BrowserRouter>
-                      </TooltipProvider>
-                    </CallStoreProvider>
-                  </EasterEggProvider>
-                </TutorialProvider>
+                        </TutorialProvider>
+                      </BrowserRouter>
+                    </TooltipProvider>
+                  </CallStoreProvider>
+                </EasterEggProvider>
               </AuthProvider>
             </AccessibilityProvider>
           </GlassIntensityProvider>

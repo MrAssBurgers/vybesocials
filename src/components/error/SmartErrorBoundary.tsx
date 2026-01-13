@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { RefreshCw } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
@@ -10,7 +11,7 @@ interface State {
   error: Error | null;
 }
 
-// Simplified error boundary - just catches errors and recovers silently
+// Simplified error boundary - minimal fallback UI
 class SmartErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
@@ -30,15 +31,28 @@ class SmartErrorBoundary extends Component<Props, State> {
       console.error('[SmartErrorBoundary] Caught error:', error);
       console.error('[SmartErrorBoundary] Component stack:', errorInfo.componentStack);
     }
-    
-    // Auto-recover after a brief moment
-    setTimeout(() => {
-      this.setState({ hasError: false, error: null });
-    }, 100);
   }
 
+  handleRefresh = () => {
+    window.location.reload();
+  };
+
   render() {
-    // Always render children - never show error UI
+    if (this.state.hasError) {
+      // Show minimal reload button instead of full error UI
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+          <button
+            onClick={this.handleRefresh}
+            className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-opacity"
+          >
+            <RefreshCw className="w-5 h-5" />
+            Refresh
+          </button>
+        </div>
+      );
+    }
+
     return this.props.children;
   }
 }
