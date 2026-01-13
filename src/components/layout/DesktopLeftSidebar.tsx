@@ -29,6 +29,7 @@ interface NavItemData {
   labelKey?: string;
   path: string;
   badge: number;
+  tutorialId?: string;
 }
 
 interface DesktopLeftSidebarProps {
@@ -66,6 +67,7 @@ const NavLinkContent = forwardRef<
         ref={ref}
         to={item.path}
         onClick={triggerNavFeedback}
+        data-tutorial={item.tutorialId}
         className={cn(
           "flex items-center gap-3 rounded-xl transition-all relative group overflow-hidden backdrop-blur-sm",
           collapsed ? "px-3 py-3 justify-center" : "px-3 py-2.5",
@@ -133,15 +135,15 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
   const { data: myServers = [] } = useMyServers();
 
   const mainNavItems: NavItemData[] = [
-    { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0 },
-    { icon: Film, labelKey: 'nav.clips', path: '/clips', badge: 0 },
-    { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0 },
-    { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages },
-    { icon: Users, label: 'Community', path: '/community', badge: 0 },
+    { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0, tutorialId: 'sidebar-home' },
+    { icon: Film, labelKey: 'nav.clips', path: '/clips', badge: 0, tutorialId: 'sidebar-clips' },
+    { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0, tutorialId: 'sidebar-explore' },
+    { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages, tutorialId: 'sidebar-messages' },
+    { icon: Users, label: 'Community', path: '/community', badge: 0, tutorialId: 'sidebar-community' },
     { icon: ShoppingBag, label: 'Market', path: '/market', badge: 0 },
     { icon: Calendar, label: 'Events', path: '/events', badge: 0 },
-    { icon: Bell, labelKey: 'nav.notifications', path: '/notifications', badge: unreadNotifications },
-    { icon: Settings, labelKey: 'nav.settings', path: '/settings', badge: 0 },
+    { icon: Bell, labelKey: 'nav.notifications', path: '/notifications', badge: unreadNotifications, tutorialId: 'sidebar-notifications' },
+    { icon: Settings, labelKey: 'nav.settings', path: '/settings', badge: 0, tutorialId: 'sidebar-settings' },
   ];
 
   const handleSignOut = async () => {
@@ -197,6 +199,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
             ? "w-[72px]" 
             : "w-[200px] xl:w-[220px] 2xl:w-[240px]"
         )}
+        data-tutorial-sidebar
       >
         {/* Brand Row */}
         <div className={cn(

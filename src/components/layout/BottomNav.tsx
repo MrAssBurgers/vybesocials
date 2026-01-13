@@ -83,17 +83,20 @@ const NavItem = memo(({
   path, 
   icon: Icon, 
   badge, 
-  isActive 
+  isActive,
+  tutorialId,
 }: { 
   path: string; 
   icon: typeof Home; 
   badge: number; 
   isActive: boolean;
+  tutorialId?: string;
 }) => (
   <Link
     to={path}
     className="relative flex items-center justify-center min-h-[44px] min-w-[44px]"
     onClick={triggerNavFeedback}
+    data-tutorial={tutorialId}
   >
     <div className="relative p-2">
       {isActive && (
@@ -148,13 +151,13 @@ export function BottomNav() {
     lastTapTime.current = now;
   }, []);
 
-  // Updated nav order: Home | Clips | Upload | Messages | Community
+  // Updated nav order: Home | Clips | Upload | Messages | Settings
   const navItems = [
-    { icon: Home, path: '/home', badge: 0 },
-    { icon: Film, path: '/clips', badge: 0 },
-    { icon: PlusCircle, path: '/upload', isCreate: true, badge: 0 },
-    { icon: MessageCircle, path: '/messages', badge: unreadMessages },
-    { icon: Settings, path: '/settings', badge: 0 },
+    { icon: Home, path: '/home', badge: 0, tutorialId: 'home-nav' },
+    { icon: Film, path: '/clips', badge: 0, tutorialId: 'clips-nav' },
+    { icon: PlusCircle, path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav' },
+    { icon: MessageCircle, path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav' },
+    { icon: Settings, path: '/settings', badge: 0, tutorialId: 'settings-nav' },
   ];
 
   return (
@@ -165,6 +168,7 @@ export function BottomNav() {
       <motion.nav 
         className="fixed bottom-0 left-0 right-0 z-[2147483647] w-full pb-[env(safe-area-inset-bottom)] pointer-events-auto"
         aria-label="Bottom navigation"
+        data-tutorial-bottomnav
         initial={false}
         animate={{
           y: isVisible ? 0 : 100,
@@ -204,6 +208,7 @@ export function BottomNav() {
                   icon={item.icon}
                   badge={item.badge}
                   isActive={isActive}
+                  tutorialId={item.tutorialId}
                 />
               );
             })}
