@@ -6,6 +6,7 @@
  * - No prebuilt Daily UI (no green Join button, no Goodbye screen)
  * - Glassmorphic modern design
  * - Call settings with mic/camera controls
+ * - INSTANT camera loading like FaceTime
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -20,6 +21,7 @@ import { callSounds } from '@/lib/callSounds';
 import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall, DailyParticipant } from '@daily-co/daily-js';
 import { CallSettingsSheet } from './CallSettingsSheet';
+import { useCameraPreload, stopPreloadedCamera, getPreloadedStream } from '@/hooks/useCameraPreload';
 
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, setPhase, setError, dismissIncoming } = useCallStore();
@@ -47,6 +49,12 @@ export function GlobalCallOverlay() {
   const [currentMicId, setCurrentMicId] = useState<string | undefined>();
   const [currentCameraId, setCurrentCameraId] = useState<string | undefined>();
   const [currentSpeakerId, setCurrentSpeakerId] = useState<string | undefined>();
+  
+  // INSTANT CAMERA: Preload camera for video calls
+  const isVideoCall = state.call?.callType === 'video';
+  const shouldPreloadCamera = isVideoCall && state.phase !== 'idle';
+  const { stream: preloadedStream, isReady: cameraReady, attachToVideo } = useCameraPreload(shouldPreloadCamera);
+  const preloadVideoRef = useRef<HTMLVideoElement>(null);
 
   // Track call data for stale closure prevention
   const stateRef = useRef(state);
@@ -368,6 +376,9 @@ export function GlobalCallOverlay() {
     clearJoinTimeout();
     isLeavingRef.current = true;
 
+    // Stop preloaded camera
+    stopPreloadedCamera();
+
     // Call daily.leave()
     const daily = dailyRef.current;
     if (daily) {
@@ -475,12 +486,14 @@ export function GlobalCallOverlay() {
   // Get other user
   const otherUser = state.call?.isInitiator ? state.call.receiver : state.call?.caller;
   const isVisible = state.phase !== 'idle';
-  const isVideoCall = state.call?.callType === 'video';
   const isRinging = state.phase === 'ringing';
   const isConnected = state.phase === 'connected';
   const isConnecting = state.phase === 'creating' || state.phase === 'joining';
   // We're "ringing out" when connected to the room but waiting for the other person
   const isRingingOut = isConnected && !remoteParticipant && state.call?.isInitiator;
+  
+  // Show preloaded camera while Daily hasn't started yet (instant video like FaceTime)
+  const showPreloadedLocalVideo = isVideoCall && cameraReady && !hasLocalVideo && !isVideoOff;
 
   return (
     <>
@@ -574,19 +587,35 @@ export function GlobalCallOverlay() {
                   )}
                 </div>
 
-                {/* Local Video - Picture-in-Picture */}
-                {hasLocalVideo && (
+                {/* Local Video - Picture-in-Picture (INSTANT - shows preloaded camera immediately) */}
+                {(hasLocalVideo || showPreloadedLocalVideo) && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20"
                   >
+                    {/* Show preloaded stream while Daily camera initializes */}
+                    {showPreloadedLocalVideo && (
+                      <video
+                        ref={(el) => {
+                          if (el) attachToVideo(el);
+                        }}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover absolute inset-0"
+                      />
+                    )}
+                    {/* Daily-managed local video (takes over once ready) */}
                     <video
                       ref={localVideoRef}
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover"
+                      className={cn(
+                        "w-full h-full object-cover",
+                        !hasLocalVideo && "opacity-0 absolute"
+                      )}
                     />
                   </motion.div>
                 )}
