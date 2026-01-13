@@ -53,23 +53,16 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     return <Navigate to="/" replace />;
   }
 
-  // Desktop/Tablet layout with sidebars
+  // Desktop layout with sidebars (lg+ only, NOT tablets or iPads)
   if (isDesktop) {
-    // Tablet (including iPad) gets smaller sidebars
-    const isTabletLayout = isTablet || isIPad;
-    
-    // Adjust margins based on device - tighter for tablets
+    // Adjust margins based on collapsed state
     const leftMargin = leftCollapsed 
-      ? 'md:ml-14' 
-      : isTabletLayout 
-        ? 'md:ml-[140px] lg:ml-[160px]' 
-        : 'lg:ml-[180px] xl:ml-[200px] 2xl:ml-[220px]';
+      ? 'lg:ml-14' 
+      : 'lg:ml-[180px] xl:ml-[200px] 2xl:ml-[220px]';
     
     const rightMargin = hideRightSidebar 
       ? '' 
-      : isTabletLayout
-        ? 'md:mr-[180px] lg:mr-[200px]'
-        : 'xl:mr-[240px] 2xl:mr-[280px]';
+      : 'lg:mr-[200px] xl:mr-[240px] 2xl:mr-[280px]';
 
     return (
       <div ref={ref} className="min-h-screen w-full overflow-x-hidden">
@@ -77,10 +70,9 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
         <DesktopLeftSidebar 
           collapsed={leftCollapsed} 
           onCollapsedChange={setLeftCollapsed}
-          compact={isTabletLayout}
         />
 
-        {/* Main Content Area - minimal gaps */}
+        {/* Main Content Area */}
         <main 
           className={cn(
             "min-h-screen transition-[margin] duration-200 ease-out",
@@ -88,7 +80,6 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             rightMargin
           )}
         >
-          {/* Center content - fill available space */}
           <div 
             className={cn(
               "mx-auto w-full px-2 lg:px-3 py-3",
@@ -99,8 +90,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           </div>
         </main>
 
-        {/* Right Sidebar - hide on small tablets */}
-        {!hideRightSidebar && <DesktopRightSidebar compact={isTabletLayout} />}
+        {/* Right Sidebar */}
+        {!hideRightSidebar && <DesktopRightSidebar />}
       </div>
     );
   }
