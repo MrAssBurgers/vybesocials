@@ -75,19 +75,9 @@ export function GlobalCallOverlay() {
         width: '100%',
         height: '100%',
         border: 'none',
-        borderRadius: '16px',
       },
-      // Hide ALL Daily Prebuilt UI - we use our own controls
       showLeaveButton: false,
-      showFullscreenButton: false,
-      showLocalVideo: true,
-      showParticipantsBar: false,
-      activeSpeakerMode: true,
-      layoutConfig: {
-        grid: {
-          maxTilesPerPage: 2,
-        },
-      },
+      showFullscreenButton: true,
     });
 
     dailyRef.current = daily;
