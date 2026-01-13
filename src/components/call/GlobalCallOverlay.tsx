@@ -50,11 +50,25 @@ export function GlobalCallOverlay() {
   const [currentCameraId, setCurrentCameraId] = useState<string | undefined>();
   const [currentSpeakerId, setCurrentSpeakerId] = useState<string | undefined>();
   
-  // INSTANT CAMERA: Preload camera for video calls
+  // INSTANT CAMERA: Preload camera for video calls - start as soon as call begins
   const isVideoCall = state.call?.callType === 'video';
-  const shouldPreloadCamera = isVideoCall && state.phase !== 'idle';
+  const isActiveCall = state.phase !== 'idle';
+  const shouldPreloadCamera = isVideoCall && isActiveCall;
+  
+  // Use camera preload for instant video display
   const { stream: preloadedStream, isReady: cameraReady, attachToVideo } = useCameraPreload(shouldPreloadCamera);
+  
+  // Ref for preloaded video element
   const preloadVideoRef = useRef<HTMLVideoElement>(null);
+  
+  // Attach preloaded stream to video element when ready
+  useEffect(() => {
+    if (preloadVideoRef.current && preloadedStream && cameraReady) {
+      preloadVideoRef.current.srcObject = preloadedStream;
+      preloadVideoRef.current.play().catch(console.error);
+      console.log('[CallOverlay] Preloaded camera attached to video element');
+    }
+  }, [preloadedStream, cameraReady]);
 
   // Track call data for stale closure prevention
   const stateRef = useRef(state);
@@ -493,7 +507,11 @@ export function GlobalCallOverlay() {
   const isRingingOut = isConnected && !remoteParticipant && state.call?.isInitiator;
   
   // Show preloaded camera while Daily hasn't started yet (instant video like FaceTime)
-  const showPreloadedLocalVideo = isVideoCall && cameraReady && !hasLocalVideo && !isVideoOff;
+  // Show it as soon as we have the stream, even before Daily is connected
+  const showPreloadedLocalVideo = isVideoCall && cameraReady && preloadedStream && !hasLocalVideo && !isVideoOff;
+  
+  // Always show local video in video calls (either preloaded or Daily-managed)
+  const showLocalVideoContainer = isVideoCall && (hasLocalVideo || showPreloadedLocalVideo) && !isVideoOff;
 
   return (
     <>
@@ -588,22 +606,22 @@ export function GlobalCallOverlay() {
                 </div>
 
                 {/* Local Video - Picture-in-Picture (INSTANT - shows preloaded camera immediately) */}
-                {(hasLocalVideo || showPreloadedLocalVideo) && (
+                {showLocalVideoContainer && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20"
+                    transition={{ duration: 0.2 }}
+                    className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 bg-black"
                   >
-                    {/* Show preloaded stream while Daily camera initializes */}
+                    {/* Show preloaded stream while Daily camera initializes - INSTANT like FaceTime */}
                     {showPreloadedLocalVideo && (
                       <video
-                        ref={(el) => {
-                          if (el) attachToVideo(el);
-                        }}
+                        ref={preloadVideoRef}
                         autoPlay
                         playsInline
                         muted
-                        className="w-full h-full object-cover absolute inset-0"
+                        className="w-full h-full object-cover absolute inset-0 z-10"
+                        style={{ transform: 'scaleX(-1)' }} // Mirror for selfie view
                       />
                     )}
                     {/* Daily-managed local video (takes over once ready) */}
@@ -613,9 +631,10 @@ export function GlobalCallOverlay() {
                       playsInline
                       muted
                       className={cn(
-                        "w-full h-full object-cover",
-                        !hasLocalVideo && "opacity-0 absolute"
+                        "w-full h-full object-cover absolute inset-0",
+                        hasLocalVideo ? "z-20" : "opacity-0"
                       )}
+                      style={{ transform: 'scaleX(-1)' }} // Mirror for selfie view
                     />
                   </motion.div>
                 )}
@@ -955,7 +974,7 @@ export function GlobalCallOverlay() {
   );
 }
 
-// Incoming call dialog component
+// Incoming call dialog component with instant camera preview
 function IncomingCallDialog({
   call,
   onAccept,
@@ -968,6 +987,21 @@ function IncomingCallDialog({
   const [timeLeft, setTimeLeft] = useState(30);
   const [isProcessing, setIsProcessing] = useState(false);
   const processingRef = useRef(false);
+  const cameraPreviewRef = useRef<HTMLVideoElement>(null);
+  
+  const isVideoCall = call.callType === 'video';
+  const caller = call.caller;
+  
+  // Preload camera for video calls - shows your face immediately
+  const { stream: preloadedStream, isReady: cameraReady } = useCameraPreload(isVideoCall);
+  
+  // Attach preloaded stream to preview video
+  useEffect(() => {
+    if (cameraPreviewRef.current && preloadedStream && cameraReady) {
+      cameraPreviewRef.current.srcObject = preloadedStream;
+      cameraPreviewRef.current.play().catch(console.error);
+    }
+  }, [preloadedStream, cameraReady]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -998,13 +1032,25 @@ function IncomingCallDialog({
     onDecline();
   };
 
-  const isVideoCall = call.callType === 'video';
-  const caller = call.caller;
-
   return (
     <>
+      {/* Your camera preview in background for video calls - FaceTime style */}
+      {isVideoCall && cameraReady && preloadedStream && (
+        <div className="absolute inset-0 overflow-hidden">
+          <video
+            ref={cameraPreviewRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover opacity-30"
+            style={{ transform: 'scaleX(-1)' }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
+        </div>
+      )}
+      
       {/* Animated background orbs */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           animate={{
             x: [0, 50, 0],
@@ -1027,7 +1073,7 @@ function IncomingCallDialog({
         />
       </div>
 
-      <div className="absolute inset-0 backdrop-blur-3xl" />
+      {!isVideoCall && <div className="absolute inset-0 backdrop-blur-3xl" />}
 
       <motion.div
         initial={{ scale: 0.8, y: 40 }}
