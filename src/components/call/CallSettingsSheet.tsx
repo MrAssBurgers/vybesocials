@@ -172,7 +172,7 @@ export function CallSettingsSheet({
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent 
         side="right" 
-        className="w-[340px] sm:w-[400px] p-0 border-l border-white/10 bg-transparent"
+        className="w-[340px] sm:w-[400px] p-0 border-l border-white/10 bg-transparent z-[10000]"
       >
         {/* Glassmorphic container */}
         <div className="h-full backdrop-blur-2xl bg-gradient-to-b from-background/95 via-background/90 to-background/95">
