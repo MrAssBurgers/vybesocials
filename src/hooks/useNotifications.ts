@@ -57,6 +57,7 @@ export function useNotifications() {
     queryFn: async (): Promise<Notification[]> => {
       if (!profile) return [];
 
+      // Use a simpler query structure for faster loading
       const { data, error } = await supabase
         .from('notifications')
         .select(`
@@ -65,27 +66,43 @@ export function useNotifications() {
           read,
           created_at,
           post_id,
-          actor:profiles!actor_id (
-            id,
-            username,
-            avatar_url,
-            display_name
-          )
+          actor_id
         `)
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(30); // Reduced limit for faster initial load
 
       if (error) throw error;
+      if (!data || data.length === 0) return [];
 
-      return (data || []).map(n => ({
-        ...n,
+      // Batch fetch all unique actor profiles in one query
+      const actorIds = [...new Set(data.map(n => n.actor_id))];
+      const { data: actors } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url, display_name')
+        .in('id', actorIds);
+
+      const actorMap = new Map(actors?.map(a => [a.id, a]) || []);
+
+      return data.map(n => ({
+        id: n.id,
         type: n.type as NotificationType,
-        actor: n.actor as unknown as Notification['actor'],
+        read: n.read,
+        created_at: n.created_at,
+        post_id: n.post_id,
+        actor: actorMap.get(n.actor_id) || {
+          id: n.actor_id,
+          username: 'unknown',
+          avatar_url: null,
+          display_name: null,
+        },
       }));
     },
     enabled: !!profile,
-    staleTime: 10000, // Cache for 10 seconds
+    staleTime: 30000, // Cache for 30 seconds
+    gcTime: 1000 * 60 * 5, // Keep in cache for 5 minutes
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Subscribe to real-time notifications
@@ -191,8 +208,10 @@ export function useUnreadCount() {
       return count || 0;
     },
     enabled: !!profile,
-    staleTime: 5000,
-    refetchInterval: 15000,
+    staleTime: 30000, // Cache longer
+    gcTime: 1000 * 60 * 5,
+    refetchInterval: 30000, // Less frequent polling
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -213,6 +232,8 @@ export function usePendingFriendRequestCount() {
       return count || 0;
     },
     enabled: !!profile,
-    staleTime: 10000,
+    staleTime: 30000,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
   });
 }
