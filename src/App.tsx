@@ -45,10 +45,16 @@ const Community = lazy(() => import("./pages/Community"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60,
-      gcTime: 1000 * 60 * 10,
+      staleTime: 1000 * 60 * 5, // 5 minutes - reduce refetches
+      gcTime: 1000 * 60 * 30, // 30 minutes cache
       refetchOnWindowFocus: false,
       refetchOnMount: false,
+      refetchOnReconnect: false,
+      retry: 1, // Only retry once
+      retryDelay: 1000,
+    },
+    mutations: {
+      retry: 0, // Don't retry mutations
     },
   },
 });
@@ -77,13 +83,14 @@ function ScrollRestoration() {
   return null;
 }
 
-const App = () => {
+const App = memo(() => {
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
+    // Faster splash - 800ms
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 1200);
+    }, 800);
 
     return () => clearTimeout(timer);
   }, []);
@@ -144,6 +151,6 @@ const App = () => {
       </ThemeProvider>
     </QueryClientProvider>
   );
-};
+});
 
 export default App;
