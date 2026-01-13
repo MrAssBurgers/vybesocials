@@ -22,7 +22,10 @@ import DailyIframe, { DailyCall, DailyParticipant } from '@daily-co/daily-js';
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, setPhase, setError, dismissIncoming } = useCallStore();
   
-  // Daily call object ref
+  // Hidden Daily iframe container (headless frame for media + signaling)
+  const frameContainerRef = useRef<HTMLDivElement>(null);
+
+  // Daily call ref (Daily frame call object)
   const dailyRef = useRef<DailyCall | null>(null);
   const listenersAttached = useRef(false);
   const isLeavingRef = useRef(false);
@@ -198,39 +201,48 @@ export function GlobalCallOverlay() {
     });
   }, [clearJoinTimeout, setPhase, setError, endCall, attachTrack]);
 
-  // Create Daily call object on-demand (lazy initialization)
+  // Create Daily call instance on-demand using a hidden frame.
+  // This avoids Daily Prebuilt UI while staying stable in more environments.
   const getOrCreateDaily = useCallback(async (): Promise<DailyCall | null> => {
-    // Return existing instance
     if (dailyRef.current) return dailyRef.current;
-    
-    // Prevent double initialization
+
+    if (!frameContainerRef.current) {
+      console.error('[CallOverlay] Daily frame container not mounted');
+      return null;
+    }
+
     if (initializingRef.current) {
-      // Wait for existing initialization
       let attempts = 0;
       while (initializingRef.current && attempts < 50) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         attempts++;
       }
       return dailyRef.current;
     }
-    
+
     initializingRef.current = true;
-    
+
     try {
-      console.log('[CallOverlay] Creating Daily Call Object');
-      
-      const daily = DailyIframe.createCallObject({
-        subscribeToTracksAutomatically: true,
+      console.log('[CallOverlay] Creating hidden Daily frame');
+
+      const daily = DailyIframe.createFrame(frameContainerRef.current, {
+        iframeStyle: {
+          position: 'absolute',
+          width: '1px',
+          height: '1px',
+          border: '0',
+          opacity: '0',
+          pointerEvents: 'none',
+          left: '-9999px',
+          top: '-9999px',
+        },
+        showLeaveButton: false,
+        showFullscreenButton: false,
       });
-      
-      if (!isMountedRef.current) {
-        daily.destroy();
-        return null;
-      }
 
       dailyRef.current = daily;
       setupDailyListeners(daily);
-      
+
       initializingRef.current = false;
       return daily;
     } catch (err) {
@@ -485,6 +497,13 @@ export function GlobalCallOverlay() {
 
   return (
     <>
+      {/* Hidden Daily frame container (kept offscreen). */}
+      <div
+        ref={frameContainerRef}
+        aria-hidden
+        className="fixed -left-[9999px] -top-[9999px] h-px w-px opacity-0 pointer-events-none"
+      />
+
       {/* Main Call UI (not ringing) */}
       <AnimatePresence>
         {isVisible && !isRinging && (
