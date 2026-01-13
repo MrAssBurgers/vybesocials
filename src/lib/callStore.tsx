@@ -169,9 +169,9 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       // Create room via edge function
       const { data: roomData, error: roomError } = await supabase.functions.invoke('create-call-room', {
         body: {
-          callType: params.callType,
+          type: params.callType,
           conversationId: params.conversationId,
-          receiverId: params.receiverId,
+          participants: [params.receiverId],
         },
       });
 

@@ -663,11 +663,11 @@ export function ChatView() {
         </div>
         
         {!isGroupChat && otherMember?.id && (
-          <CallButtons conversationId={conversationId!} />
+          <CallButtons conversationId={conversationId!} receiverId={otherMember.id} />
         )}
         
-        {isGroupChat && (
-          <CallButtons conversationId={conversationId!} />
+        {isGroupChat && otherMember?.id && (
+          <CallButtons conversationId={conversationId!} receiverId={otherMember.id} />
         )}
 
 
