@@ -38,16 +38,28 @@ export function CallOverlayProvider({ children }: { children: ReactNode }) {
     callType: 'audio' | 'video';
     conversationId: string;
   }) => {
-    setState({
-      isOpen: true,
-      roomUrl: params.roomUrl,
-      roomName: params.roomName,
-      callType: params.callType,
-      conversationId: params.conversationId,
+    console.log('[CALL DEBUG] CallOverlayProvider.openCall called with:', params);
+    
+    // Guard: don't open if already open
+    setState(prev => {
+      if (prev.isOpen) {
+        console.log('[CALL DEBUG] CallOverlay already open, ignoring openCall');
+        return prev;
+      }
+      
+      console.log('[CALL DEBUG] Setting CallOverlay state to open');
+      return {
+        isOpen: true,
+        roomUrl: params.roomUrl,
+        roomName: params.roomName,
+        callType: params.callType,
+        conversationId: params.conversationId,
+      };
     });
   }, []);
 
   const closeCall = useCallback(() => {
+    console.log('[CALL DEBUG] CallOverlayProvider.closeCall called');
     setState(initialState);
   }, []);
 

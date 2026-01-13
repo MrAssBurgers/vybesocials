@@ -190,13 +190,11 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
     <TooltipProvider>
       <aside 
         className={cn(
-          "hidden md:flex fixed left-0 top-0 h-screen flex-col liquid-glass border-r border-border/50 z-40",
+          "hidden lg:flex fixed left-0 top-0 h-screen flex-col liquid-glass border-r border-border/50 z-40",
           "transition-[width] duration-200 ease-out",
           collapsed 
             ? "w-14" 
-            : compact 
-              ? "w-[140px] lg:w-[160px]" 
-              : "w-[180px] xl:w-[200px] 2xl:w-[220px]"
+            : "w-[180px] xl:w-[200px] 2xl:w-[220px]"
         )}
       >
         {/* Brand Row */}

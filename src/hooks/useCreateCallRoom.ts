@@ -10,33 +10,47 @@ interface CreateRoomResponse {
 
 export function useCreateCallRoom() {
   const [isLoading, setIsLoading] = useState(false);
-  const { openCall } = useCallOverlay();
+  const { openCall, state } = useCallOverlay();
 
   const createRoomAndOpen = useCallback(async (params: {
     callType: 'audio' | 'video';
     conversationId: string;
   }) => {
-    if (isLoading) return;
+    console.log('[CALL DEBUG] Call button pressed', { callType: params.callType, conversationId: params.conversationId });
+    
+    if (isLoading) {
+      console.log('[CALL DEBUG] Already loading, ignoring');
+      return;
+    }
+    
+    // Guard: if overlay is already open, do nothing
+    if (state.isOpen) {
+      console.log('[CALL DEBUG] CallOverlay already open, ignoring');
+      return;
+    }
     
     setIsLoading(true);
 
     try {
       // Request mic permission first (must happen from user gesture)
+      console.log('[CALL DEBUG] Requesting media permissions...');
       try {
         await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: params.callType === 'video',
         });
-      } catch (permError) {
-        toast.error(
-          params.callType === 'video'
-            ? 'Microphone and camera permission required'
-            : 'Microphone permission required'
-        );
+        console.log('[CALL DEBUG] Media permissions granted');
+      } catch (permError: any) {
+        const errMsg = params.callType === 'video'
+          ? 'Microphone and camera permission required'
+          : 'Microphone permission required';
+        console.error('[CALL DEBUG] Media permission denied:', permError);
+        toast.error(errMsg);
         return;
       }
 
       // POST to our edge function
+      console.log('[CALL DEBUG] Calling api-calls-create-room...');
       const { data, error } = await supabase.functions.invoke<CreateRoomResponse>(
         'api-calls-create-room',
         {
@@ -47,15 +61,31 @@ export function useCreateCallRoom() {
         }
       );
 
+      console.log('[CALL DEBUG] Edge function response:', { data, error });
+
       if (error) {
-        console.error('Create room error:', error);
-        throw new Error(error.message || 'Failed to create room');
+        const errMsg = error.message || 'Failed to create room';
+        console.error('[CALL DEBUG] Create room error:', error);
+        toast.error(`Call failed: ${errMsg}`);
+        return;
       }
 
-      if (!data?.roomUrl || !data?.roomName) {
-        throw new Error('Invalid response from server');
+      if (!data?.roomUrl) {
+        const errMsg = 'No roomUrl in response';
+        console.error('[CALL DEBUG] Invalid response - missing roomUrl:', data);
+        toast.error(`Call failed: ${errMsg}`);
+        return;
+      }
+      
+      if (!data?.roomName) {
+        const errMsg = 'No roomName in response';
+        console.error('[CALL DEBUG] Invalid response - missing roomName:', data);
+        toast.error(`Call failed: ${errMsg}`);
+        return;
       }
 
+      console.log('[CALL DEBUG] Opening CallOverlay with roomUrl:', data.roomUrl);
+      
       // Open the CallOverlay with the roomUrl
       openCall({
         roomUrl: data.roomUrl,
@@ -63,14 +93,17 @@ export function useCreateCallRoom() {
         callType: params.callType,
         conversationId: params.conversationId,
       });
+      
+      console.log('[CALL DEBUG] openCall() called successfully');
 
     } catch (error: any) {
-      console.error('Failed to create call room:', error);
-      toast.error(error.message || 'Failed to start call');
+      const errMsg = error?.message || 'Unknown error occurred';
+      console.error('[CALL DEBUG] Unexpected error:', error);
+      toast.error(`Call failed: ${errMsg}`);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, openCall]);
+  }, [isLoading, openCall, state.isOpen]);
 
   return {
     createRoomAndOpen,

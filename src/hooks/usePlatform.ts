@@ -269,18 +269,17 @@ export function useBreakpoint() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // iPad in portrait/landscape should get tablet treatment
-  // Tablet gets desktop-like layout with sidebars
+  // Desktop = sidebars, Tablet/iPad/Mobile = bottom nav
   const isMobileBreakpoint = breakpoint === 'xs' || breakpoint === 'sm';
-  const isTabletBreakpoint = breakpoint === 'md';
+  const isTabletBreakpoint = breakpoint === 'md' || isIPad;
   const isDesktopBreakpoint = breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl';
 
   return {
     breakpoint,
     isMobile: isMobileBreakpoint && !isIPad,
-    isTablet: isTabletBreakpoint || (isIPad && isMobileBreakpoint),
-    // Tablets and iPads should get desktop-style layout with sidebars
-    isDesktop: isDesktopBreakpoint || isTabletBreakpoint || isIPad,
+    isTablet: isTabletBreakpoint && !isDesktopBreakpoint,
+    // ONLY true desktop (lg+) gets sidebars - NOT tablets or iPads
+    isDesktop: isDesktopBreakpoint && !isIPad,
     isIPad,
   };
 }

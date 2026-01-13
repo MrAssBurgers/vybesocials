@@ -70,7 +70,7 @@ const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend
   );
 });
 
-export function DesktopRightSidebar({ compact = false }: { compact?: boolean }) {
+export function DesktopRightSidebar() {
   const { t } = useTranslation();
   const location = useLocation();
   const { profile } = useAuth();
@@ -174,8 +174,8 @@ export function DesktopRightSidebar({ compact = false }: { compact?: boolean }) 
 
   return (
     <aside className={cn(
-      "hidden md:flex fixed right-0 top-0 h-screen flex-col liquid-glass border-l border-border/50 z-40",
-      compact ? "w-[180px] lg:w-[200px]" : "w-[240px] 2xl:w-[280px]"
+      "hidden lg:flex fixed right-0 top-0 h-screen flex-col liquid-glass border-l border-border/50 z-40",
+      "w-[240px] 2xl:w-[280px]"
     )}>
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">

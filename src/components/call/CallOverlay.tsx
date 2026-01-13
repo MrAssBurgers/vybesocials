@@ -42,19 +42,38 @@ export function CallOverlay() {
 
   // Initialize Daily iframe when overlay opens
   useEffect(() => {
-    if (!state.isOpen || !state.roomUrl || !containerRef.current) {
+    console.log('[CALL DEBUG] CallOverlay useEffect triggered', { 
+      isOpen: state.isOpen, 
+      roomUrl: state.roomUrl,
+      hasContainer: !!containerRef.current,
+      hasExistingDaily: !!dailyRef.current,
+      hasJoined: hasJoinedRef.current
+    });
+    
+    if (!state.isOpen) {
+      console.log('[CALL DEBUG] Overlay not open, returning');
+      return;
+    }
+    
+    if (!state.roomUrl) {
+      console.log('[CALL DEBUG] No roomUrl provided, returning');
+      return;
+    }
+    
+    if (!containerRef.current) {
+      console.log('[CALL DEBUG] Container ref not ready, returning');
       return;
     }
 
     // Guard: if iframe already exists, do nothing
     if (dailyRef.current) {
-      console.log('Daily iframe already exists, skipping creation');
+      console.log('[CALL DEBUG] Daily iframe already exists, skipping creation');
       return;
     }
 
     // Guard: if already joined, do nothing
     if (hasJoinedRef.current) {
-      console.log('Already joined room, skipping');
+      console.log('[CALL DEBUG] Already joined room, skipping');
       return;
     }
 
