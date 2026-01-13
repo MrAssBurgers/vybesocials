@@ -86,10 +86,68 @@ export function useCreateAnnouncement() {
         .single();
       
       if (error) throw error;
+      
+      // Create notifications ONLY for users who have announcements enabled
+      // First get all users with announcements enabled (or no preference = default enabled)
+      const { data: usersToNotify } = await supabase
+        .from('profiles')
+        .select('id')
+        .neq('id', profile!.id);
+      
+      if (usersToNotify && usersToNotify.length > 0) {
+        // Get users who have explicitly disabled announcements
+        const { data: disabledPrefs } = await supabase
+          .from('notification_preferences')
+          .select('user_id')
+          .eq('announcements_enabled', false);
+        
+        const disabledUserIds = new Set(disabledPrefs?.map(p => p.user_id) || []);
+        
+        // Filter to only notify users who haven't disabled announcements
+        const notifyUserIds = usersToNotify
+          .map(u => u.id)
+          .filter(id => !disabledUserIds.has(id));
+        
+        if (notifyUserIds.length > 0) {
+          // Create notification records
+          const notifications = notifyUserIds.map(userId => ({
+            user_id: userId,
+            actor_id: profile!.id,
+            type: 'announcement' as const,
+          }));
+          
+          await supabase.from('notifications').insert(notifications);
+        }
+      }
+      
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
+    },
+  });
+}
+
+// Clear announcement notifications when user disables announcements
+export function useClearAnnouncementNotifications() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async () => {
+      if (!profile?.id) return;
+      
+      // Delete all unread announcement notifications for this user
+      await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', profile.id)
+        .eq('type', 'announcement')
+        .eq('read', false);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
     },
   });
 }

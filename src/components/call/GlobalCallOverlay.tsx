@@ -112,7 +112,7 @@ export function GlobalCallOverlay() {
       console.log('[CallOverlay] 📞 joining-meeting event');
     });
 
-    daily.on('joined-meeting', () => {
+    daily.on('joined-meeting', async () => {
       console.log('[CallOverlay] ✅ joined-meeting event');
       clearJoinTimeout();
       
@@ -121,15 +121,34 @@ export function GlobalCallOverlay() {
         return;
       }
 
-      // Enable local media after joining
+      // CRITICAL: Explicitly enable local audio and video after joining
+      // This is required - Daily does not auto-start media
       try {
-        daily.setLocalAudio(true);
+        console.log('[CallOverlay] Enabling local audio...');
+        await daily.setLocalAudio(true);
+        
         if (stateRef.current.call?.callType === 'video') {
-          daily.setLocalVideo(true);
+          console.log('[CallOverlay] Enabling local video (video call)...');
+          // Force camera on for video calls
+          await daily.setLocalVideo(true);
+          
+          // Double-check camera is enabled after a small delay
+          setTimeout(async () => {
+            try {
+              const participants = daily.participants();
+              const local = participants?.local;
+              if (local && !local.video) {
+                console.log('[CallOverlay] Video not enabled, retrying...');
+                await daily.setLocalVideo(true);
+              }
+            } catch (e) {
+              console.error('[CallOverlay] Video retry failed:', e);
+            }
+          }, 500);
         } else {
-          daily.setLocalVideo(false);
+          await daily.setLocalVideo(false);
         }
-        console.log('[CallOverlay] Media enabled');
+        console.log('[CallOverlay] Media enabled successfully');
       } catch (err) {
         console.error('[CallOverlay] Failed to enable media:', err);
       }
