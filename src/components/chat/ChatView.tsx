@@ -220,10 +220,25 @@ export function ChatView() {
     });
   }, [messages, profile?.id, conversationId, markViewed]);
 
-  // Scroll to bottom - use auto instead of smooth for better performance
+  // Scroll to bottom when conversation opens or messages change - reliable method
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [messages?.length]);
+    if (!conversationId) return;
+    
+    // Use a small delay to ensure DOM is rendered
+    const scrollToBottom = () => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+      }
+    };
+    
+    // Immediate scroll
+    scrollToBottom();
+    
+    // Fallback scroll after render completes
+    const timeoutId = setTimeout(scrollToBottom, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [conversationId, messages?.length]);
 
   // Screenshot detection
   useEffect(() => {
