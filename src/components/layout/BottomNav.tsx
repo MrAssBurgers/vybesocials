@@ -1,7 +1,7 @@
 import { Home, Film, PlusCircle, MessageCircle, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
 import { useState, useCallback, useRef, memo } from 'react';
@@ -58,22 +58,8 @@ export function BottomNav() {
   
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
   
   const lastTapTime = useRef(0);
-  const lastScrollY = useRef(0);
-
-  // Hide on scroll down, show on scroll up - with debounce
-  const { scrollY } = useScroll();
-  useMotionValueEvent(scrollY, 'change', (latest) => {
-    const diff = latest - lastScrollY.current;
-    if (diff > 15 && latest > 60) {
-      setIsVisible(false);
-    } else if (diff < -8) {
-      setIsVisible(true);
-    }
-    lastScrollY.current = latest;
-  });
 
   const handleCreateClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -108,10 +94,7 @@ export function BottomNav() {
       <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
 
       <nav 
-        className={cn(
-          "fixed bottom-0 left-0 right-0 z-50 pb-safe transition-transform duration-200 ease-out",
-          isVisible ? "translate-y-0" : "translate-y-full"
-        )}
+        className="fixed bottom-0 left-0 right-0 z-50 pb-safe lg:hidden"
       >
         {/* Compact glass bar */}
         <div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">
