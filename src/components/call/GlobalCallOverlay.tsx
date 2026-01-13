@@ -247,19 +247,26 @@ export function GlobalCallOverlay() {
     };
   }, [state.phase, state.call?.roomUrl, state.call?.roomName, state.call?.id, state.call?.callType, clearJoinTimeout, endCall, setError]);
 
-  // Call duration timer
+  // If the call gets reset remotely while Daily is still joining/joined, force-leave the meeting
+  // (prevents "instant crash" feel where UI disappears but the iframe is still in a meeting state).
   useEffect(() => {
-    if (state.phase !== 'connected') {
-      setCallDuration(0);
-      return;
+    if (state.phase !== 'idle') return;
+    const daily = dailyRef.current;
+    if (!daily) return;
+
+    try {
+      const meetingState = daily.meetingState();
+      if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
+        console.log('[CallOverlay] State reset to idle while in meeting; forcing daily.leave()');
+        clearJoinTimeout();
+        daily.leave();
+      }
+    } catch {
+      // ignore
     }
+  }, [state.phase, clearJoinTimeout]);
 
-    const interval = setInterval(() => {
-      setCallDuration((prev) => prev + 1);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [state.phase]);
+  // Call duration timer
 
   // HANGUP - must always work
   const handleHangup = useCallback(async () => {
@@ -583,18 +590,30 @@ export function GlobalCallOverlay() {
       {/* Incoming call dialog */}
       <AnimatePresence>
         {isRinging && state.call && (
-          <IncomingCallDialog
-            call={state.call}
-            onAccept={handleAccept}
-            onDecline={dismissIncoming}
-          />
+          <motion.div
+            key={`incoming-${state.call.id}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+            style={{
+              background:
+                'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)',
+            }}
+          >
+            <IncomingCallDialog
+              call={state.call}
+              onAccept={handleAccept}
+              onDecline={dismissIncoming}
+            />
+          </motion.div>
         )}
       </AnimatePresence>
     </>
   );
 }
 
-// Inline incoming call dialog
+// Inline incoming call dialog content (animated wrapper lives in GlobalCallOverlay for AnimatePresence compatibility)
 function IncomingCallDialog({
   call,
   onAccept,
@@ -606,6 +625,7 @@ function IncomingCallDialog({
 }) {
   const [timeLeft, setTimeLeft] = useState(30);
   const [isProcessing, setIsProcessing] = useState(false);
+  const processingRef = useRef(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -621,14 +641,16 @@ function IncomingCallDialog({
     return () => clearInterval(interval);
   }, [onDecline]);
 
-  const handleAccept = async () => {
-    if (isProcessing) return;
+  const handleAccept = () => {
+    if (processingRef.current) return;
+    processingRef.current = true;
     setIsProcessing(true);
     onAccept();
   };
 
   const handleDecline = () => {
-    if (isProcessing) return;
+    if (processingRef.current) return;
+    processingRef.current = true;
     setIsProcessing(true);
     callSounds.end();
     onDecline();
@@ -638,42 +660,33 @@ function IncomingCallDialog({
   const caller = call.caller;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
-      style={{
-        background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)'
-      }}
-    >
-      {/* Animated background orbs */}
-      <div className="absolute inset-0 overflow-hidden">
-        <motion.div
-          animate={{ 
-            x: [0, 50, 0],
-            y: [0, 30, 0],
-            scale: [1, 1.2, 1]
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20"
-          style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }}
-        />
-        <motion.div
-          animate={{ 
-            x: [0, -30, 0],
-            y: [0, -50, 0],
-            scale: [1, 1.3, 1]
-          }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20"
-          style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }}
-        />
-      </div>
-      
-      <div className="absolute inset-0 backdrop-blur-3xl" />
-      
-      <motion.div
+       {/* Animated background orbs */}
+       <div className="absolute inset-0 overflow-hidden">
+         <motion.div
+           animate={{
+             x: [0, 50, 0],
+             y: [0, 30, 0],
+             scale: [1, 1.2, 1],
+           }}
+           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+           className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20"
+           style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }}
+         />
+         <motion.div
+           animate={{
+             x: [0, -30, 0],
+             y: [0, -50, 0],
+             scale: [1, 1.3, 1],
+           }}
+           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+           className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20"
+           style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }}
+         />
+       </div>
+
+       <div className="absolute inset-0 backdrop-blur-3xl" />
+
+       <motion.div
         initial={{ scale: 0.8, y: 40 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.8, y: 40 }}
@@ -779,6 +792,6 @@ function IncomingCallDialog({
           <span>Auto-declining in {timeLeft}s</span>
         </div>
       </motion.div>
-    </motion.div>
+    </>
   );
 }
