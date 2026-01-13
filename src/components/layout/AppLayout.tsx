@@ -55,43 +55,30 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
   // Desktop layout with sidebars (lg+ only, NOT tablets or iPads)
   if (isDesktop) {
-    // Adjust margins based on collapsed state - match sidebar widths
-    const leftMargin = leftCollapsed 
-      ? 'lg:ml-[72px]' 
-      : 'lg:ml-[200px] xl:ml-[220px] 2xl:ml-[240px]';
-    
-    const rightMargin = hideRightSidebar 
-      ? '' 
-      : 'lg:mr-[240px] 2xl:mr-[280px]';
-
     return (
-      <div ref={ref} className="min-h-screen w-full overflow-x-hidden relative">
-        {/* Left Sidebar - Fixed position */}
-        <DesktopLeftSidebar 
-          collapsed={leftCollapsed} 
-          onCollapsedChange={setLeftCollapsed}
-        />
+      <div ref={ref} className="h-screen w-full overflow-hidden relative">
+        <div className="flex h-screen w-full">
+          {/* Left Sidebar */}
+          <DesktopLeftSidebar 
+            collapsed={leftCollapsed} 
+            onCollapsedChange={setLeftCollapsed}
+          />
 
-        {/* Main Content Area - Scrollable */}
-        <main 
-          className={cn(
-            "min-h-screen transition-[margin] duration-200 ease-out",
-            leftMargin,
-            rightMargin
-          )}
-        >
-          <div 
-            className={cn(
-              "mx-auto w-full px-2 lg:px-3 py-3",
-              fullWidth ? "" : "max-w-full"
-            )}
-          >
-            {children}
-          </div>
-        </main>
+          {/* Main Content Area - ONLY scrollable area */}
+          <main className="flex-1 min-w-0 h-screen overflow-y-auto overflow-x-hidden">
+            <div 
+              className={cn(
+                "mx-auto w-full px-2 lg:px-3 py-3",
+                fullWidth ? "" : "max-w-full"
+              )}
+            >
+              {children}
+            </div>
+          </main>
 
-        {/* Right Sidebar - Fixed position */}
-        {!hideRightSidebar && <DesktopRightSidebar />}
+          {/* Right Sidebar */}
+          {!hideRightSidebar && <DesktopRightSidebar />}
+        </div>
       </div>
     );
   }
