@@ -4,7 +4,7 @@
  * Simple buttons to start audio/video calls using the global call store.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Phone, Video, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCallStore, CallType } from '@/lib/callStore';
@@ -20,12 +20,18 @@ export function CallButtons({ conversationId, receiverId }: CallButtonsProps) {
   const { state, startCall } = useCallStore();
   const [isStarting, setIsStarting] = useState<CallType | null>(null);
 
-  const handleStartCall = async (callType: CallType) => {
+  // Prevent iOS double-fire (touch -> click) starting two calls.
+  const startGuardRef = useRef(false);
+
+  const handleStartCall = useCallback(async (callType: CallType) => {
+    if (startGuardRef.current) return;
+
     if (state.phase !== 'idle') {
       toast.error('Already in a call');
       return;
     }
 
+    startGuardRef.current = true;
     setIsStarting(callType);
 
     try {
@@ -42,13 +48,14 @@ export function CallButtons({ conversationId, receiverId }: CallButtonsProps) {
       console.error('[CallButtons] Failed to start call:', error);
       toast.error(error.message || 'Failed to start call');
     } finally {
+      startGuardRef.current = false;
       setIsStarting(null);
     }
-  };
+  }, [state.phase, startCall, conversationId, receiverId]);
 
   const isDisabled = state.phase !== 'idle' || isStarting !== null;
 
-  // Handle touch for iOS/iPad
+  // Handle touch for iOS/iPad (some Safari builds don't reliably fire click)
   const handleTouchStart = (callType: CallType) => (e: React.TouchEvent) => {
     e.preventDefault();
     handleStartCall(callType);
