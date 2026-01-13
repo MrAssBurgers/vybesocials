@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
-import { useBreakpoint } from '@/hooks/usePlatform';
 import { useState, useCallback, useRef, memo } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
@@ -56,10 +55,6 @@ const NavItem = memo(({
 export function BottomNav() {
   const location = useLocation();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
-  const { isDesktop } = useBreakpoint();
-  
-  // Never show bottom nav on desktop (>=1024px).
-  if (isDesktop) return null;
 
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);
@@ -99,7 +94,8 @@ export function BottomNav() {
       <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
 
       <nav 
-        className="fixed bottom-0 left-0 right-0 z-50 w-full pb-[env(safe-area-inset-bottom)]"
+        className="fixed bottom-0 left-0 right-0 z-[2147483647] w-full pb-[env(safe-area-inset-bottom)] pointer-events-auto"
+        aria-label="Bottom navigation"
       >
         {/* Compact glass bar */}
         <div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">

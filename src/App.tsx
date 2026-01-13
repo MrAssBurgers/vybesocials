@@ -16,6 +16,7 @@ import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProv
 import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
 import { Skeleton } from "@/components/ui/skeleton";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
+import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
 
 // Lazy load pages for code splitting
 const Landing = lazy(() => import("./pages/Landing"));
@@ -139,6 +140,7 @@ const App = memo(() => {
                           <Route path="*" element={<NotFound />} />
                         </Routes>
                       </Suspense>
+                      <RootBottomNavMount />
                       <PushNotificationPrompt />
                       <GlobalCallOverlay />
                     </BrowserRouter>

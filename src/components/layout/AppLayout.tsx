@@ -1,5 +1,4 @@
 import { ReactNode, forwardRef, memo } from 'react';
-import { BottomNav } from './BottomNav';
 import { MobileHeader } from './MobileHeader';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
@@ -88,14 +87,16 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     <div ref={ref} className="min-h-screen w-full overflow-x-hidden">
       {/* Header - visible on mobile/tablet */}
       {!hideNav && <MobileHeader />}
-      {/* Main content - consistent spacing with safe area */}
-      <main className={cn(
-        hideNav ? "" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14"
-      )}>
+
+      {/* Main content - keep space for fixed bottom nav */}
+      <main
+        className={cn(
+          "pb-[calc(5rem+env(safe-area-inset-bottom))]",
+          hideNav ? "" : "pt-14"
+        )}
+      >
         {children}
       </main>
-      {/* Bottom nav - visible on mobile/tablet */}
-      {!hideNav && <BottomNav />}
     </div>
   );
 }));
