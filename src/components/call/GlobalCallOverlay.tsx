@@ -1,10 +1,8 @@
 /**
  * Global Call Overlay
  * 
- * Mounted ONCE at app root. Uses Daily Call Object (custom UI) for:
- * - Full custom video/audio rendering
- * - No prebuilt Daily UI (no green Join button, no Goodbye screen)
- * - Glassmorphic modern design
+ * Uses Daily Prebuilt iframe for reliable WebRTC, with custom glassmorphic
+ * UI overlaid on top for controls. Daily handles media; we handle UX.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -17,34 +15,26 @@ import { useCallStore, CallData } from '@/lib/callStore';
 import { requestCallMediaPermissions, isAndroid, nextAnimationFrame } from '@/lib/mediaPermissions';
 import { callSounds } from '@/lib/callSounds';
 import { supabase } from '@/integrations/supabase/client';
-import DailyIframe, { DailyCall, DailyParticipant } from '@daily-co/daily-js';
+import DailyIframe, { DailyCall } from '@daily-co/daily-js';
 
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, setPhase, setError, dismissIncoming } = useCallStore();
   
-  // Hidden Daily iframe container (headless frame for media + signaling)
-  const frameContainerRef = useRef<HTMLDivElement>(null);
-
-  // Daily call ref (Daily frame call object)
+  // Daily iframe container and instance
+  const containerRef = useRef<HTMLDivElement>(null);
   const dailyRef = useRef<DailyCall | null>(null);
   const listenersAttached = useRef(false);
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  // Video refs for attaching streams
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const frameCreatedRef = useRef(false);
   
   // Local UI state
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isHangingUp, setIsHangingUp] = useState(false);
-  const [remoteParticipant, setRemoteParticipant] = useState<DailyParticipant | null>(null);
-  const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
-  const [hasLocalVideo, setHasLocalVideo] = useState(false);
 
-  // Track call data for stale closure prevention
+  // Track state for closures
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
@@ -58,50 +48,29 @@ export function GlobalCallOverlay() {
     }
   }, []);
 
-  // Attach video track to element
-  const attachTrack = useCallback((track: MediaStreamTrack, videoEl: HTMLVideoElement) => {
-    try {
-      const stream = new MediaStream([track]);
-      videoEl.srcObject = stream;
-      videoEl.play().catch(console.error);
-    } catch (err) {
-      console.error('[CallOverlay] Failed to attach track:', err);
-    }
-  }, []);
-
-  // Track if component is mounted
-  const isMountedRef = useRef(true);
-  const initializingRef = useRef(false);
-
-  // Setup event listeners on a Daily instance
-  const setupDailyListeners = useCallback((daily: DailyCall) => {
+  // Setup Daily event listeners
+  const setupListeners = useCallback((daily: DailyCall) => {
     if (listenersAttached.current) return;
     listenersAttached.current = true;
 
     daily.on('joining-meeting', () => {
-      console.log('[CallOverlay] 📞 joining-meeting event');
+      console.log('[CallOverlay] 📞 joining-meeting');
     });
 
     daily.on('joined-meeting', () => {
-      console.log('[CallOverlay] ✅ joined-meeting event');
+      console.log('[CallOverlay] ✅ joined-meeting');
       clearJoinTimeout();
       
       if (stateRef.current.phase !== 'joining') {
-        console.log('[CallOverlay] Ignoring joined-meeting (not in joining phase)');
+        console.log('[CallOverlay] Ignoring joined (not in joining phase)');
         return;
       }
 
-      // Enable local media after joining
       try {
         daily.setLocalAudio(true);
-        if (stateRef.current.call?.callType === 'video') {
-          daily.setLocalVideo(true);
-        } else {
-          daily.setLocalVideo(false);
-        }
-        console.log('[CallOverlay] Media enabled');
+        daily.setLocalVideo(stateRef.current.call?.callType === 'video');
       } catch (err) {
-        console.error('[CallOverlay] Failed to enable media:', err);
+        console.error('[CallOverlay] Media enable error:', err);
       }
 
       callSounds.stopAll();
@@ -110,166 +79,53 @@ export function GlobalCallOverlay() {
     });
 
     daily.on('left-meeting', () => {
-      console.log('[CallOverlay] 👋 left-meeting event');
+      console.log('[CallOverlay] 👋 left-meeting');
       clearJoinTimeout();
       isLeavingRef.current = false;
-      setRemoteParticipant(null);
-      setHasRemoteVideo(false);
-      setHasLocalVideo(false);
     });
 
     daily.on('error', (event: any) => {
-      console.error('[CallOverlay] ❌ error event:', event);
+      console.error('[CallOverlay] ❌ error:', event);
       clearJoinTimeout();
-      
       const msg = event?.errorMsg || event?.error?.msg || 'Call error';
       toast.error(msg);
       setError(msg);
       endCall();
     });
+  }, [clearJoinTimeout, setPhase, setError, endCall]);
 
-    // Track participants
-    daily.on('participant-joined', (event: any) => {
-      console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.session_id);
-      if (event?.participant && !event.participant.local) {
-        setRemoteParticipant(event.participant);
-      }
-    });
-
-    daily.on('participant-left', (event: any) => {
-      console.log('[CallOverlay] 👤 participant-left:', event?.participant?.session_id);
-      if (event?.participant && !event.participant.local) {
-        setRemoteParticipant(null);
-        setHasRemoteVideo(false);
-      }
-    });
-
-    daily.on('participant-updated', (event: any) => {
-      if (!event?.participant) return;
-      
-      const p = event.participant;
-      if (p.local) {
-        const hasVideo = p.video && p.tracks?.video?.state === 'playable';
-        setHasLocalVideo(hasVideo);
-        
-        if (hasVideo && p.tracks.video.track && localVideoRef.current) {
-          attachTrack(p.tracks.video.track, localVideoRef.current);
-        }
-      } else {
-        setRemoteParticipant(p);
-        const hasVideo = p.video && p.tracks?.video?.state === 'playable';
-        setHasRemoteVideo(hasVideo);
-        
-        if (hasVideo && p.tracks.video.track && remoteVideoRef.current) {
-          attachTrack(p.tracks.video.track, remoteVideoRef.current);
-        }
-      }
-    });
-
-    daily.on('track-started', (event: any) => {
-      if (!event?.participant || !event?.track) return;
-      
-      const { participant, track } = event;
-      console.log('[CallOverlay] 🎬 track-started:', participant.local ? 'local' : 'remote', track.kind);
-      
-      if (track.kind === 'video') {
-        if (participant.local && localVideoRef.current) {
-          attachTrack(track, localVideoRef.current);
-          setHasLocalVideo(true);
-        } else if (!participant.local && remoteVideoRef.current) {
-          attachTrack(track, remoteVideoRef.current);
-          setHasRemoteVideo(true);
-        }
-      }
-    });
-
-    daily.on('track-stopped', (event: any) => {
-      if (!event?.participant || !event?.track) return;
-      
-      const { participant, track } = event;
-      console.log('[CallOverlay] 🎬 track-stopped:', participant.local ? 'local' : 'remote', track.kind);
-      
-      if (track.kind === 'video') {
-        if (participant.local) {
-          setHasLocalVideo(false);
-          if (localVideoRef.current) localVideoRef.current.srcObject = null;
-        } else {
-          setHasRemoteVideo(false);
-          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-        }
-      }
-    });
-  }, [clearJoinTimeout, setPhase, setError, endCall, attachTrack]);
-
-  // Create Daily call instance on-demand using a hidden frame.
-  // This avoids Daily Prebuilt UI while staying stable in more environments.
-  const getOrCreateDaily = useCallback(async (): Promise<DailyCall | null> => {
-    if (dailyRef.current) return dailyRef.current;
-
-    if (!frameContainerRef.current) {
-      console.error('[CallOverlay] Daily frame container not mounted');
-      return null;
-    }
-
-    if (initializingRef.current) {
-      let attempts = 0;
-      while (initializingRef.current && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        attempts++;
-      }
+  // Create Daily iframe when container is available and we need to join
+  const createDailyFrame = useCallback(() => {
+    if (!containerRef.current || dailyRef.current || frameCreatedRef.current) {
       return dailyRef.current;
     }
 
-    initializingRef.current = true;
+    console.log('[CallOverlay] Creating Daily frame');
+    frameCreatedRef.current = true;
 
     try {
-      console.log('[CallOverlay] Creating hidden Daily frame');
-
-      const daily = DailyIframe.createFrame(frameContainerRef.current, {
+      const daily = DailyIframe.createFrame(containerRef.current, {
         iframeStyle: {
-          position: 'absolute',
-          width: '1px',
-          height: '1px',
-          border: '0',
-          opacity: '0',
-          pointerEvents: 'none',
-          left: '-9999px',
-          top: '-9999px',
+          width: '100%',
+          height: '100%',
+          border: 'none',
+          borderRadius: '0',
         },
         showLeaveButton: false,
         showFullscreenButton: false,
+        showLocalVideo: true,
+        showParticipantsBar: false,
       });
 
       dailyRef.current = daily;
-      setupDailyListeners(daily);
-
-      initializingRef.current = false;
+      setupListeners(daily);
       return daily;
     } catch (err) {
-      console.error('[CallOverlay] Failed to create Daily instance:', err);
-      initializingRef.current = false;
+      console.error('[CallOverlay] Frame creation failed:', err);
+      frameCreatedRef.current = false;
       return null;
     }
-  }, [setupDailyListeners]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    isMountedRef.current = true;
-    
-    return () => {
-      isMountedRef.current = false;
-      // Destroy Daily instance on unmount
-      if (dailyRef.current) {
-        try {
-          dailyRef.current.destroy();
-        } catch (e) {
-          // ignore
-        }
-        dailyRef.current = null;
-        listenersAttached.current = false;
-      }
-    };
-  }, []);
+  }, [setupListeners]);
 
   // Join room when phase becomes 'joining'
   useEffect(() => {
@@ -279,19 +135,7 @@ export function GlobalCallOverlay() {
     let cancelled = false;
 
     const doJoin = async () => {
-      // Get or create Daily instance
-      const daily = await getOrCreateDaily();
-      if (!daily || cancelled) {
-        if (!cancelled) {
-          console.error('[CallOverlay] Failed to get Daily instance');
-          setError('Call system not ready');
-        }
-        return;
-      }
-      
-      console.log('[CallOverlay] Starting join flow for:', state.call?.roomUrl);
-
-      // Request media permissions (required before join)
+      // Request permissions first
       try {
         await requestCallMediaPermissions(state.call!.callType);
         console.log('[CallOverlay] Permissions granted');
@@ -302,17 +146,16 @@ export function GlobalCallOverlay() {
         return;
       }
 
-      // Android safety delay
       if (isAndroid()) {
         await nextAnimationFrame();
       }
 
       if (cancelled) return;
 
-      // Fetch meeting token for private room
+      // Fetch token
       let token: string | undefined;
       try {
-        console.log('[CallOverlay] Fetching meeting token...');
+        console.log('[CallOverlay] Fetching token...');
         const { data: tokenData, error: tokenError } = await supabase.functions.invoke('get-call-token', {
           body: {
             roomName: state.call!.roomName,
@@ -320,30 +163,39 @@ export function GlobalCallOverlay() {
           },
         });
 
-        if (tokenError) {
-          throw new Error(tokenError.message || 'Failed to get meeting token');
-        }
-
-        if (!tokenData?.token) {
-          throw new Error(tokenData?.error || 'No token returned from server');
-        }
+        if (tokenError) throw new Error(tokenError.message);
+        if (!tokenData?.token) throw new Error(tokenData?.error || 'No token');
 
         token = tokenData.token;
         console.log('[CallOverlay] Token received');
       } catch (err: any) {
-        console.error('[CallOverlay] Token fetch failed:', err);
-        toast.error(err.message || 'Failed to authenticate with call server');
+        console.error('[CallOverlay] Token error:', err);
+        toast.error(err.message || 'Authentication failed');
         endCall();
         return;
       }
 
       if (cancelled) return;
 
-      // Leave any previous room first
+      // Create frame if needed
+      let daily = dailyRef.current;
+      if (!daily) {
+        // Wait for container to be available
+        await new Promise(resolve => setTimeout(resolve, 100));
+        daily = createDailyFrame();
+      }
+
+      if (!daily) {
+        console.error('[CallOverlay] No Daily instance');
+        toast.error('Call system not ready');
+        endCall();
+        return;
+      }
+
+      // Leave any previous meeting
       try {
         const meetingState = daily.meetingState();
         if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
-          console.log('[CallOverlay] Leaving previous room');
           await daily.leave();
         }
       } catch {
@@ -352,23 +204,23 @@ export function GlobalCallOverlay() {
 
       if (cancelled) return;
 
-      // Set 15 second timeout for join
+      // Set timeout
       clearJoinTimeout();
       joinTimeoutRef.current = setTimeout(() => {
-        console.error('[CallOverlay] Join timeout - no joined-meeting in 15s');
+        console.error('[CallOverlay] Join timeout');
         toast.error('Call failed to connect');
         endCall();
       }, 15000);
 
-      // Join the room WITH token
+      // Join
       try {
-        console.log('[CallOverlay] Calling daily.join() with token');
+        console.log('[CallOverlay] Joining room');
         await daily.join({ url: state.call!.roomUrl, token });
-        console.log('[CallOverlay] daily.join() returned');
+        console.log('[CallOverlay] Join completed');
       } catch (err: any) {
         console.error('[CallOverlay] Join failed:', err);
         clearJoinTimeout();
-        toast.error('Failed to connect to call');
+        toast.error('Failed to connect');
         endCall();
       }
     };
@@ -379,10 +231,9 @@ export function GlobalCallOverlay() {
       cancelled = true;
       clearJoinTimeout();
     };
-  }, [state.phase, state.call?.roomUrl, state.call?.roomName, state.call?.id, state.call?.callType, clearJoinTimeout, endCall, setError, getOrCreateDaily]);
+  }, [state.phase, state.call?.roomUrl, state.call?.roomName, state.call?.id, state.call?.callType, clearJoinTimeout, endCall, createDailyFrame]);
 
-  // If the call gets reset remotely while Daily is still joining/joined, force-leave the meeting
-  // (prevents "instant crash" feel where UI disappears but the iframe is still in a meeting state).
+  // Force leave if state resets
   useEffect(() => {
     if (state.phase !== 'idle') return;
     const daily = dailyRef.current;
@@ -391,7 +242,7 @@ export function GlobalCallOverlay() {
     try {
       const meetingState = daily.meetingState();
       if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
-        console.log('[CallOverlay] State reset to idle while in meeting; forcing daily.leave()');
+        console.log('[CallOverlay] Forcing leave');
         clearJoinTimeout();
         daily.leave();
       }
@@ -414,32 +265,28 @@ export function GlobalCallOverlay() {
     return () => clearInterval(interval);
   }, [state.phase]);
 
-  // HANGUP - must always work
+  // Hangup
   const handleHangup = useCallback(async () => {
     if (isHangingUp) return;
     setIsHangingUp(true);
-    console.log('[CallOverlay] Hangup pressed');
+    console.log('[CallOverlay] Hangup');
 
     clearJoinTimeout();
     isLeavingRef.current = true;
 
-    // Call daily.leave()
     const daily = dailyRef.current;
     if (daily) {
       try {
         const meetingState = daily.meetingState();
         if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
-          console.log('[CallOverlay] Calling daily.leave()');
           await daily.leave();
         }
       } catch (err) {
-        console.error('[CallOverlay] Error leaving:', err);
+        console.error('[CallOverlay] Leave error:', err);
       }
     }
 
-    // Force cleanup after 500ms max wait
-    await new Promise<void>((resolve) => setTimeout(resolve, 500));
-    
+    await new Promise<void>(resolve => setTimeout(resolve, 300));
     await endCall();
     setIsHangingUp(false);
     isLeavingRef.current = false;
@@ -469,7 +316,6 @@ export function GlobalCallOverlay() {
   const handleAccept = useCallback(async () => {
     if (!state.call) return;
     
-    // Request permissions first
     try {
       await requestCallMediaPermissions(state.call.callType);
     } catch (err: any) {
@@ -487,7 +333,6 @@ export function GlobalCallOverlay() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Get other user
   const otherUser = state.call?.isInitiator ? state.call.receiver : state.call?.caller;
   const isVisible = state.phase !== 'idle';
   const isVideoCall = state.call?.callType === 'video';
@@ -497,14 +342,7 @@ export function GlobalCallOverlay() {
 
   return (
     <>
-      {/* Hidden Daily frame container (kept offscreen). */}
-      <div
-        ref={frameContainerRef}
-        aria-hidden
-        className="fixed -left-[9999px] -top-[9999px] h-px w-px opacity-0 pointer-events-none"
-      />
-
-      {/* Main Call UI (not ringing) */}
+      {/* Main Call UI */}
       <AnimatePresence>
         {isVisible && !isRinging && (
           <motion.div
@@ -512,189 +350,75 @@ export function GlobalCallOverlay() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-[9999]"
+            className="fixed inset-0 z-[9998]"
             style={{
               background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(240 10% 8%) 50%, hsl(280 20% 8%) 100%)'
             }}
           >
-            {/* Ambient gradient background */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <motion.div
-                animate={{ 
-                  scale: [1, 1.2, 1],
-                  rotate: [0, 180, 360]
-                }}
-                transition={{ 
-                  duration: 20, 
-                  repeat: Infinity,
-                  ease: "linear"
-                }}
-                className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] opacity-30"
-                style={{
-                  background: 'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, hsl(var(--accent) / 0.3) 0%, transparent 50%)'
-                }}
-              />
-            </div>
+            {/* Daily iframe container - shows the actual video */}
+            <div
+              ref={containerRef}
+              className="absolute inset-0"
+              style={{ zIndex: 1 }}
+            />
 
-            {/* Video Container */}
-            {isVideoCall && (
-              <>
-                {/* Remote Video - Full Screen */}
-                <div className="absolute inset-0">
-                  {hasRemoteVideo ? (
-                    <video
-                      ref={remoteVideoRef}
-                      autoPlay
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      {/* Remote avatar placeholder */}
+            {/* Custom glassmorphic overlay UI */}
+            <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 2 }}>
+              {/* Header */}
+              <motion.div 
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="absolute top-0 left-0 right-0 pointer-events-auto"
+              >
+                <div className="mx-4 mt-4 p-4 rounded-2xl backdrop-blur-xl bg-black/40 border border-white/10 shadow-2xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
                       <div className="relative">
-                        <motion.div
-                          animate={{ scale: [1, 1.1, 1] }}
-                          transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                        >
-                          <Avatar className="h-40 w-40 ring-4 ring-white/10 shadow-2xl">
-                            <AvatarImage src={otherUser?.avatar_url || undefined} />
-                            <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                              {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                        </motion.div>
-                        {!isConnected && (
-                          <motion.p
-                            animate={{ opacity: [0.5, 1, 0.5] }}
-                            transition={{ repeat: Infinity, duration: 2 }}
-                            className="mt-6 text-white/60 text-lg font-light text-center"
-                          >
-                            Waiting for video...
-                          </motion.p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Local Video - Picture-in-Picture */}
-                {hasLocalVideo && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20"
-                  >
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                    />
-                  </motion.div>
-                )}
-              </>
-            )}
-
-            {/* Audio Call - Show Avatar */}
-            {!isVideoCall && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <motion.div
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                  >
-                    <Avatar className="h-40 w-40 mx-auto ring-4 ring-white/10 shadow-2xl">
-                      <AvatarImage src={otherUser?.avatar_url || undefined} />
-                      <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                        {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </motion.div>
-                  
-                  <h2 className="mt-6 text-2xl font-bold text-white">
-                    {otherUser?.display_name || otherUser?.username}
-                  </h2>
-                  
-                  {isConnecting && (
-                    <motion.p
-                      animate={{ opacity: [0.5, 1, 0.5] }}
-                      transition={{ repeat: Infinity, duration: 2 }}
-                      className="mt-2 text-white/60 text-lg"
-                    >
-                      Connecting...
-                    </motion.p>
-                  )}
-                  
-                  {isConnected && (
-                    <p className="mt-2 text-white/70 text-lg font-mono">
-                      {formatDuration(callDuration)}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Glassmorphic Header */}
-            <motion.div 
-              initial={{ y: -20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.1, duration: 0.4 }}
-              className="absolute top-0 left-0 right-0 pointer-events-auto"
-            >
-              <div className="mx-4 mt-4 p-4 rounded-2xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <Avatar className="h-12 w-12 ring-2 ring-white/20 shadow-lg">
-                        <AvatarImage src={otherUser?.avatar_url || undefined} />
-                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">
-                          {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      {isConnected && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black/50"
-                        />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-white font-semibold text-lg">
-                        {otherUser?.display_name || otherUser?.username}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        {isConnecting && (
-                          <motion.div 
-                            className="flex items-center gap-2 text-white/60"
-                            animate={{ opacity: [0.5, 1, 0.5] }}
-                            transition={{ repeat: Infinity, duration: 1.5 }}
-                          >
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                            </span>
-                            <span className="text-sm">Connecting</span>
-                          </motion.div>
-                        )}
+                        <Avatar className="h-12 w-12 ring-2 ring-white/20 shadow-lg">
+                          <AvatarImage src={otherUser?.avatar_url || undefined} />
+                          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">
+                            {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
                         {isConnected && (
-                          <div className="flex items-center gap-2">
-                            <span className="flex h-2 w-2 rounded-full bg-green-500" />
-                            <span className="text-white/70 text-sm font-mono tracking-wide">
-                              {formatDuration(callDuration)}
-                            </span>
-                          </div>
-                        )}
-                        {state.phase === 'error' && (
-                          <span className="text-red-400 text-sm">{state.error}</span>
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black/50"
+                          />
                         )}
                       </div>
+                      <div>
+                        <p className="text-white font-semibold text-lg">
+                          {otherUser?.display_name || otherUser?.username}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {isConnecting && (
+                            <motion.div 
+                              className="flex items-center gap-2 text-white/60"
+                              animate={{ opacity: [0.5, 1, 0.5] }}
+                              transition={{ repeat: Infinity, duration: 1.5 }}
+                            >
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <span className="text-sm">Connecting...</span>
+                            </motion.div>
+                          )}
+                          {isConnected && (
+                            <div className="flex items-center gap-2">
+                              <span className="flex h-2 w-2 rounded-full bg-green-500" />
+                              <span className="text-white/70 text-sm font-mono">
+                                {formatDuration(callDuration)}
+                              </span>
+                            </div>
+                          )}
+                          {state.phase === 'error' && (
+                            <span className="text-red-400 text-sm">{state.error}</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  
-                  {/* Call type badge */}
-                  <div className="flex items-center gap-2">
+                    
                     <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
                       {isVideoCall ? (
                         <Video className="h-4 w-4 text-white/70" />
@@ -704,127 +428,75 @@ export function GlobalCallOverlay() {
                     </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
 
-            {/* Connecting overlay */}
-            <AnimatePresence>
-              {isConnecting && isVideoCall && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-                >
-                  <div className="text-center">
-                    {/* Animated rings */}
-                    <div className="relative">
-                      <motion.div
-                        animate={{ scale: [1, 2], opacity: [0.5, 0] }}
-                        transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
-                        className="absolute inset-0 rounded-full border-2 border-primary/50"
-                        style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }}
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.8], opacity: [0.4, 0] }}
-                        transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }}
-                        className="absolute inset-0 rounded-full border-2 border-accent/40"
-                        style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }}
-                      />
-                      
-                      <Avatar className="h-32 w-32 mx-auto ring-4 ring-primary/20 shadow-2xl">
-                        <AvatarImage src={otherUser?.avatar_url || undefined} />
-                        <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                          {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                    </div>
-                    
-                    <motion.p
-                      animate={{ opacity: [0.5, 1, 0.5] }}
-                      transition={{ repeat: Infinity, duration: 2 }}
-                      className="mt-6 text-white/60 text-lg font-light"
-                    >
-                      Connecting to {otherUser?.display_name || otherUser?.username}...
-                    </motion.p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Modern Control Bar */}
-            <motion.div
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2, type: "spring", damping: 25 }}
-              className="absolute bottom-0 left-0 right-0 pb-10 pointer-events-auto"
-            >
-              <div className="flex justify-center">
-                <div className="inline-flex items-center gap-3 p-3 rounded-2xl backdrop-blur-xl bg-white/10 border border-white/10 shadow-2xl">
-                  {/* Mute Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleToggleMute}
-                    disabled={!isConnected}
-                    className={cn(
-                      "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
-                      "disabled:opacity-50 disabled:cursor-not-allowed",
-                      isMuted 
-                        ? "bg-white text-black shadow-lg" 
-                        : "bg-white/10 text-white hover:bg-white/20"
-                    )}
-                  >
-                    {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-                  </motion.button>
-
-                  {/* Video Toggle */}
-                  {isVideoCall && (
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleToggleVideo}
+              {/* Control Bar */}
+              <motion.div
+                initial={{ y: 100, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2, type: "spring", damping: 25 }}
+                className="absolute bottom-0 left-0 right-0 pb-10 pointer-events-auto"
+              >
+                <div className="flex justify-center">
+                  <div className="inline-flex items-center gap-3 p-3 rounded-2xl backdrop-blur-xl bg-black/40 border border-white/10 shadow-2xl">
+                    {/* Mute Button */}
+                    <button
+                      onClick={handleToggleMute}
                       disabled={!isConnected}
                       className={cn(
-                        "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
+                        "h-14 w-14 rounded-xl flex items-center justify-center transition-all",
                         "disabled:opacity-50 disabled:cursor-not-allowed",
-                        isVideoOff 
-                          ? "bg-white text-black shadow-lg" 
+                        isMuted 
+                          ? "bg-white text-black" 
                           : "bg-white/10 text-white hover:bg-white/20"
                       )}
                     >
-                      {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
-                    </motion.button>
-                  )}
+                      {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                    </button>
 
-                  {/* Divider */}
-                  <div className="w-px h-10 bg-white/20 mx-1" />
+                    {/* Video Toggle */}
+                    {isVideoCall && (
+                      <button
+                        onClick={handleToggleVideo}
+                        disabled={!isConnected}
+                        className={cn(
+                          "h-14 w-14 rounded-xl flex items-center justify-center transition-all",
+                          "disabled:opacity-50 disabled:cursor-not-allowed",
+                          isVideoOff 
+                            ? "bg-white text-black" 
+                            : "bg-white/10 text-white hover:bg-white/20"
+                        )}
+                      >
+                        {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                      </button>
+                    )}
 
-                  {/* End Call Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleHangup}
-                    disabled={isHangingUp}
-                    className={cn(
-                      "relative h-14 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-300",
-                      "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg",
-                      "hover:from-red-600 hover:to-red-700",
-                      "disabled:opacity-70"
-                    )}
-                  >
-                    {isHangingUp ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <>
-                        <PhoneOff className="h-5 w-5" />
-                        <span className="font-medium">End</span>
-                      </>
-                    )}
-                  </motion.button>
+                    <div className="w-px h-10 bg-white/20 mx-1" />
+
+                    {/* End Call */}
+                    <button
+                      onClick={handleHangup}
+                      disabled={isHangingUp}
+                      className={cn(
+                        "h-14 px-6 rounded-xl flex items-center justify-center gap-2 transition-all",
+                        "bg-gradient-to-r from-red-500 to-red-600 text-white",
+                        "hover:from-red-600 hover:to-red-700",
+                        "disabled:opacity-70"
+                      )}
+                    >
+                      {isHangingUp ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <>
+                          <PhoneOff className="h-5 w-5" />
+                          <span className="font-medium">End</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -839,8 +511,7 @@ export function GlobalCallOverlay() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
             style={{
-              background:
-                'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)',
+              background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)',
             }}
           >
             <IncomingCallDialog
@@ -855,7 +526,7 @@ export function GlobalCallOverlay() {
   );
 }
 
-// Incoming call dialog component
+// Incoming call dialog
 function IncomingCallDialog({
   call,
   onAccept,
@@ -903,7 +574,7 @@ function IncomingCallDialog({
 
   return (
     <>
-      {/* Animated background orbs */}
+      {/* Background orbs */}
       <div className="absolute inset-0 overflow-hidden">
         <motion.div
           animate={{
@@ -936,9 +607,8 @@ function IncomingCallDialog({
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
         className="relative z-10 flex flex-col items-center max-w-sm w-full"
       >
-        {/* Avatar with animated rings */}
+        {/* Avatar */}
         <div className="relative mb-8">
-          {/* Pulsing rings */}
           <motion.div
             animate={{ scale: [1, 1.5], opacity: [0.6, 0] }}
             transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
@@ -964,7 +634,6 @@ function IncomingCallDialog({
             </Avatar>
           </motion.div>
           
-          {/* Call type badge */}
           <motion.div
             initial={{ scale: 0, y: 10 }}
             animate={{ scale: 1, y: 0 }}
@@ -994,16 +663,11 @@ function IncomingCallDialog({
           </motion.p>
         </div>
 
-        {/* Action buttons */}
+        {/* Buttons */}
         <div className="flex items-center justify-center gap-8 w-full mb-8">
-          {/* Decline button */}
           <div className="flex flex-col items-center gap-3">
             <button
               onClick={handleDecline}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                handleDecline();
-              }}
               disabled={isProcessing}
               className="h-16 w-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg flex items-center justify-center hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90"
             >
@@ -1012,14 +676,9 @@ function IncomingCallDialog({
             <span className="text-white/50 text-sm font-medium">Decline</span>
           </div>
 
-          {/* Accept button */}
           <div className="flex flex-col items-center gap-3">
             <button
               onClick={handleAccept}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                handleAccept();
-              }}
               disabled={isProcessing}
               className="h-16 w-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg flex items-center justify-center hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90 animate-pulse"
             >
