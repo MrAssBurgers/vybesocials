@@ -12,6 +12,7 @@ import { useCreateListing, LISTING_CATEGORIES, LISTING_CONDITIONS } from '@/hook
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
 export default function CreateListingPage() {
   const navigate = useNavigate();
@@ -104,6 +105,50 @@ export default function CreateListingPage() {
     setUploading(true);
 
     try {
+      // Content moderation check
+      const combinedText = `${title.trim()} ${description?.trim() || ''}`;
+      
+      try {
+        const headers = await getFunctionAuthHeaders();
+        const modResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/moderate-content`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              content: combinedText,
+              content_type: 'listing',
+              content_id: 'temp-' + Date.now()
+            })
+          }
+        );
+
+        if (modResponse.ok) {
+          const modResult = await modResponse.json();
+          if (!modResult.allowed) {
+            toast.error('Content flagged as inappropriate. Please revise and try again.');
+            setUploading(false);
+            return;
+          }
+        }
+      } catch (modError) {
+        // Continue if moderation fails - don't block legitimate listings
+        console.warn('Content moderation check failed, proceeding:', modError);
+      }
+
+      // Rate limiting check - max 5 listings per hour
+      const { count } = await supabase
+        .from('listings')
+        .select('*', { count: 'exact', head: true })
+        .eq('seller_id', profile.id)
+        .gte('created_at', new Date(Date.now() - 3600000).toISOString());
+
+      if (count && count >= 5) {
+        toast.error('Rate limit: Maximum 5 listings per hour');
+        setUploading(false);
+        return;
+      }
+
       let imageUrls: string[] = [];
       if (images.length > 0) {
         imageUrls = await uploadImages();
