@@ -344,6 +344,34 @@
      Fresher look with higher contrast for mobile
      =========================================== */
 
+  /* Fixed sidebar styles - must use !important to override any parent transforms */
+  .sidebar-fixed-left,
+  .sidebar-fixed-right {
+    position: fixed !important;
+    top: 0 !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--glass) / 0.85),
+      hsl(var(--glass) / 0.6),
+      hsl(var(--glass) / 0.75)
+    );
+    backdrop-filter: blur(40px) saturate(200%) brightness(1.05);
+    -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.05);
+    box-shadow: 
+      0 8px 32px hsl(var(--background) / 0.4),
+      0 2px 8px hsl(var(--background) / 0.25);
+  }
+
+  .sidebar-fixed-left {
+    left: 0 !important;
+  }
+
+  .sidebar-fixed-right {
+    right: 0 !important;
+  }
+
   /* Apple-style Liquid Glass Effect - Enhanced Contrast */
   .liquid-glass {
     position: relative;
