@@ -65,14 +65,14 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
       : 'lg:mr-[240px] 2xl:mr-[280px]';
 
     return (
-      <div ref={ref} className="min-h-screen w-full overflow-x-hidden">
-        {/* Left Sidebar */}
+      <div ref={ref} className="min-h-screen w-full overflow-x-hidden relative">
+        {/* Left Sidebar - Fixed position */}
         <DesktopLeftSidebar 
           collapsed={leftCollapsed} 
           onCollapsedChange={setLeftCollapsed}
         />
 
-        {/* Main Content Area */}
+        {/* Main Content Area - Scrollable */}
         <main 
           className={cn(
             "min-h-screen transition-[margin] duration-200 ease-out",
@@ -90,7 +90,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           </div>
         </main>
 
-        {/* Right Sidebar */}
+        {/* Right Sidebar - Fixed position */}
         {!hideRightSidebar && <DesktopRightSidebar />}
       </div>
     );

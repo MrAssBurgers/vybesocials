@@ -192,11 +192,12 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
       <aside 
         className={cn(
           "hidden lg:flex fixed left-0 top-0 h-screen flex-col liquid-glass border-r border-border/50 z-40",
-          "transition-[width] duration-200 ease-out",
+          "transition-[width] duration-200 ease-out overflow-hidden",
           collapsed 
             ? "w-[72px]" 
             : "w-[200px] xl:w-[220px] 2xl:w-[240px]"
         )}
+        style={{ position: 'fixed' }}
       >
         {/* Brand Row */}
         <div className={cn(
