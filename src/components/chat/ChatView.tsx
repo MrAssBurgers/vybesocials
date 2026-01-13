@@ -41,6 +41,7 @@ import { useChatPresence } from '@/hooks/useChatPresence';
 import { ChatPresenceBar } from './ChatPresenceBar';
 import { SnapReadReceipt } from './SnapReadReceipt';
 import { ReactionPicker, MessageReactions } from './MessageReactions';
+import { CallHistory } from './CallHistory';
 
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
@@ -697,6 +698,11 @@ export function ChatView() {
           contain: 'strict',
         }}
       >
+        {/* Call History - shows recent calls in this conversation */}
+        {conversationId && (
+          <CallHistory conversationId={conversationId} limit={5} />
+        )}
+        
         {/* Messages container */}
         <div className="flex flex-col gap-0 pb-20 sm:pb-24">
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
