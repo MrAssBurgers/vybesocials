@@ -479,6 +479,8 @@ export function GlobalCallOverlay() {
   const isRinging = state.phase === 'ringing';
   const isConnected = state.phase === 'connected';
   const isConnecting = state.phase === 'creating' || state.phase === 'joining';
+  // We're "ringing out" when connected to the room but waiting for the other person
+  const isRingingOut = isConnected && !remoteParticipant && state.call?.isInitiator;
 
   return (
     <>
@@ -549,7 +551,16 @@ export function GlobalCallOverlay() {
                             </AvatarFallback>
                           </Avatar>
                         </motion.div>
-                        {!isConnected && (
+                        {isRingingOut && (
+                          <motion.p
+                            animate={{ opacity: [0.5, 1, 0.5] }}
+                            transition={{ repeat: Infinity, duration: 1.5 }}
+                            className="mt-6 text-white/60 text-lg font-light text-center"
+                          >
+                            Ringing...
+                          </motion.p>
+                        )}
+                        {!isConnected && !isRingingOut && (
                           <motion.p
                             animate={{ opacity: [0.5, 1, 0.5] }}
                             transition={{ repeat: Infinity, duration: 2 }}
@@ -612,7 +623,17 @@ export function GlobalCallOverlay() {
                     </motion.p>
                   )}
                   
-                  {isConnected && (
+                  {isRingingOut && (
+                    <motion.p
+                      animate={{ opacity: [0.5, 1, 0.5] }}
+                      transition={{ repeat: Infinity, duration: 1.5 }}
+                      className="mt-2 text-white/60 text-lg"
+                    >
+                      Ringing...
+                    </motion.p>
+                  )}
+                  
+                  {isConnected && !isRingingOut && (
                     <p className="mt-2 text-white/70 text-lg font-mono">
                       {formatDuration(callDuration)}
                     </p>
@@ -664,7 +685,20 @@ export function GlobalCallOverlay() {
                             <span className="text-sm">Connecting</span>
                           </motion.div>
                         )}
-                        {isConnected && (
+                        {isRingingOut && (
+                          <motion.div 
+                            className="flex items-center gap-2 text-white/60"
+                            animate={{ opacity: [0.5, 1, 0.5] }}
+                            transition={{ repeat: Infinity, duration: 1.5 }}
+                          >
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-500 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" />
+                            </span>
+                            <span className="text-sm">Ringing</span>
+                          </motion.div>
+                        )}
+                        {isConnected && !isRingingOut && (
                           <div className="flex items-center gap-2">
                             <span className="flex h-2 w-2 rounded-full bg-green-500" />
                             <span className="text-white/70 text-sm font-mono tracking-wide">
