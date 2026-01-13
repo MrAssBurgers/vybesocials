@@ -68,20 +68,36 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   );
 });
 
+// Debug flag for dev visibility
+const DEBUG_DM = import.meta.env.DEV;
+
 export function ConversationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const { data: conversations, isLoading } = useConversations();
+  const { data: conversations, isLoading, error: convError } = useConversations();
   // Enable instant realtime updates for conversations
   useRealtimeConversations();
-  const { onlineFriends, onlineCount } = useOnlineFriends();
+  const { onlineFriends, onlineCount, isLoading: onlineLoading } = useOnlineFriends();
   const createConversation = useCreateConversation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
   
+  // Debug logging in dev mode
+  useEffect(() => {
+    if (DEBUG_DM) {
+      console.log('[DM Debug]', {
+        currentUserId: profile?.id,
+        conversationsCount: conversations?.length || 0,
+        onlineCount,
+        onlineFriendsCount: onlineFriends?.length || 0,
+        isLoading,
+        convError: convError?.message,
+      });
+    }
+  }, [profile?.id, conversations, onlineCount, onlineFriends, isLoading, convError]);
 
   // Get user IDs for online status check - memoized
   const otherMemberIds = useMemo(() => {
