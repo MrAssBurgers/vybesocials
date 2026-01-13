@@ -66,19 +66,29 @@ export default function AdminDashboard() {
     },
   });
 
-  // Deactivate announcement
-  const deactivateAnnouncement = useMutation({
+  // Delete announcement (removes it for everyone)
+  const deleteAnnouncement = useMutation({
     mutationFn: async (id: string) => {
+      // First delete any dismissals for this announcement
+      await supabase
+        .from('dismissed_announcements')
+        .delete()
+        .eq('announcement_id', id);
+      
+      // Then delete the announcement itself
       const { error } = await supabase
         .from('announcements')
-        .update({ is_active: false })
+        .delete()
         .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-announcements'] });
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
-      toast.success('Announcement deactivated');
+      toast.success('Announcement deleted for everyone');
+    },
+    onError: () => {
+      toast.error('Failed to delete announcement');
     },
   });
 
@@ -487,12 +497,12 @@ export default function AdminDashboard() {
                               {announcement.is_active ? (
                                 <Button
                                   size="sm"
-                                  variant="outline"
-                                  onClick={() => deactivateAnnouncement.mutate(announcement.id)}
-                                  disabled={deactivateAnnouncement.isPending}
+                                  variant="destructive"
+                                  onClick={() => deleteAnnouncement.mutate(announcement.id)}
+                                  disabled={deleteAnnouncement.isPending}
                                 >
-                                  <XCircle className="h-4 w-4 mr-1" />
-                                  Deactivate
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Delete
                                 </Button>
                               ) : (
                                 <Button
