@@ -28,32 +28,53 @@ function getAudioContext(): AudioContext | null {
   return audioContext;
 }
 
-// Play a single ring tone (for incoming call)
-function playRingTone(ctx: AudioContext, time: number): void {
-  const oscillator1 = ctx.createOscillator();
-  const oscillator2 = ctx.createOscillator();
-  const gainNode = ctx.createGain();
+// Play iconic melody note
+function playMelodyNote(ctx: AudioContext, freq: number, startTime: number, duration: number, volume: number = 0.18): void {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
   
-  oscillator1.connect(gainNode);
-  oscillator2.connect(gainNode);
-  gainNode.connect(ctx.destination);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
   
-  // Classic phone ring - two tones
-  oscillator1.frequency.setValueAtTime(440, time); // A4
-  oscillator2.frequency.setValueAtTime(480, time); // Slightly higher
-  oscillator1.type = 'sine';
-  oscillator2.type = 'sine';
+  osc.frequency.setValueAtTime(freq, startTime);
+  osc.type = 'sine';
   
-  // Ring pattern: 0.5s on, then fade
-  gainNode.gain.setValueAtTime(0, time);
-  gainNode.gain.linearRampToValueAtTime(0.15, time + 0.05);
-  gainNode.gain.setValueAtTime(0.15, time + 0.4);
-  gainNode.gain.linearRampToValueAtTime(0, time + 0.5);
+  // Smooth envelope
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+  gain.gain.setValueAtTime(volume, startTime + duration - 0.05);
+  gain.gain.linearRampToValueAtTime(0, startTime + duration);
   
-  oscillator1.start(time);
-  oscillator2.start(time);
-  oscillator1.stop(time + 0.5);
-  oscillator2.stop(time + 0.5);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+// Play iconic ringtone melody (like iPhone/Samsung signature sound)
+function playRingMelody(ctx: AudioContext, time: number): void {
+  // Iconic ascending triad pattern - memorable and pleasant
+  // E5 -> G5 -> B5 -> E6 (major triad going up)
+  const notes = [
+    { freq: 659.25, delay: 0, duration: 0.12 },     // E5
+    { freq: 783.99, delay: 0.13, duration: 0.12 },  // G5  
+    { freq: 987.77, delay: 0.26, duration: 0.12 },  // B5
+    { freq: 1318.51, delay: 0.39, duration: 0.25 }, // E6 (held longer)
+  ];
+  
+  notes.forEach(note => {
+    playMelodyNote(ctx, note.freq, time + note.delay, note.duration);
+  });
+  
+  // Add subtle harmony layer for richness
+  const harmonyNotes = [
+    { freq: 329.63, delay: 0, duration: 0.12 },     // E4 (octave below)
+    { freq: 392.00, delay: 0.13, duration: 0.12 },  // G4
+    { freq: 493.88, delay: 0.26, duration: 0.12 },  // B4
+    { freq: 659.25, delay: 0.39, duration: 0.25 },  // E5
+  ];
+  
+  harmonyNotes.forEach(note => {
+    playMelodyNote(ctx, note.freq, time + note.delay, note.duration, 0.08);
+  });
 }
 
 // Play ringback tone (for outgoing call - what caller hears)
@@ -132,18 +153,16 @@ export function startRinging(): void {
   const ctx = getAudioContext();
   if (!ctx) return;
   
-  // Play initial ring
-  playRingTone(ctx, ctx.currentTime);
+  // Play initial melody
+  playRingMelody(ctx, ctx.currentTime);
   
-  // Loop every 3 seconds (ring-ring pattern with pause)
+  // Loop every 2.5 seconds (melody + pause)
   ringingInterval = window.setInterval(() => {
     const c = getAudioContext();
     if (c) {
-      playRingTone(c, c.currentTime);
-      // Second ring after 0.6s
-      playRingTone(c, c.currentTime + 0.6);
+      playRingMelody(c, c.currentTime);
     }
-  }, 3000);
+  }, 2500);
 }
 
 // Start ringback loop (for outgoing calls - what caller hears while waiting)
