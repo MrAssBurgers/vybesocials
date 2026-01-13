@@ -16,9 +16,13 @@ import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/useModeration';
+import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { ModBadge } from '@/components/ui/ModBadge';
+import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
+import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
 
 interface ShortCardProps {
   post: {
@@ -48,6 +52,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
+  const { data: authorRole } = useUserRoleById(post.author.id);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -472,6 +477,12 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="liquid-glass">
+            {/* Show author's mod badge in menu header */}
+            {authorRole && (
+              <div className="px-2 py-1.5 flex items-center gap-2 border-b border-border/50 mb-1">
+                <ModBadge role={authorRole} showLabel />
+              </div>
+            )}
             {canDelete && (
               <DropdownMenuItem onClick={handleDelete} className="text-destructive">
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -488,12 +499,14 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         </DropdownMenu>
       </div>
 
-      {/* Bottom info */}
       <div className="absolute left-4 right-20 bottom-4 z-10">
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
           <Link to={`/u/${post.author.username}`} className="font-bold text-lg text-white drop-shadow-lg">
             @{post.author.username}
           </Link>
+          {authorRole && <ModBadge role={authorRole} className="shadow-md" />}
+          {isOwner(post.author.username) && <OwnerBadge />}
+          {isOwnerWife(post.author.id) && <PrincessBadge />}
           <div className="flex items-center gap-1 text-white/80 text-sm">
             <Eye className="h-4 w-4" />
             <span>{formatViewCount(viewCount)}</span>

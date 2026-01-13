@@ -23,7 +23,9 @@ import { CreateGroupDialog } from './CreateGroupDialog';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
+import { ModBadge } from '@/components/ui/ModBadge';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
+import { useUsersRoles } from '@/hooks/useUserRoleById';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
@@ -96,6 +98,7 @@ export function ConversationList() {
   }, [conversations, profile?.id]);
 
   const { data: onlineStatus = {} } = useUsersOnlineStatus(otherMemberIds);
+  const { data: usersRoles = {} } = useUsersRoles(otherMemberIds);
 
   useEffect(() => {
     setRecentUsers(getRecentMessageUsers());
@@ -249,17 +252,19 @@ export function ConversationList() {
               <Pin className="h-3.5 w-3.5" />
               {t('messages.pinned')}
             </p>
-            {pinnedConversations.map((conv) => (
-              <ConversationItem
-                key={conv.id}
-                conversation={conv}
-                onClick={() => handleConversationClick(conv.id)}
-                isOnline={!conv.is_group && conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id 
-                  ? onlineStatus[conv.members.find(m => m.user_id !== profile?.id)?.profile?.id || ''] 
-                  : false}
-                currentUserId={profile?.id}
-              />
-            ))}
+            {pinnedConversations.map((conv) => {
+              const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
+              return (
+                <ConversationItem
+                  key={conv.id}
+                  conversation={conv}
+                  onClick={() => handleConversationClick(conv.id)}
+                  isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
+                  currentUserId={profile?.id}
+                  userRole={otherMemberId ? usersRoles[otherMemberId] : null}
+                />
+              );
+            })}
           </div>
         )}
 
@@ -270,17 +275,19 @@ export function ConversationList() {
                 <MessageCircle className="h-3.5 w-3.5" />
                 All Messages
               </p>
-              {unpinnedConversations.map((conv) => (
-                <ConversationItem
-                  key={conv.id}
-                  conversation={conv}
-                  onClick={() => handleConversationClick(conv.id)}
-                  isOnline={!conv.is_group && conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id 
-                    ? onlineStatus[conv.members.find(m => m.user_id !== profile?.id)?.profile?.id || ''] 
-                    : false}
-                  currentUserId={profile?.id}
-                />
-              ))}
+              {unpinnedConversations.map((conv) => {
+                const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
+                return (
+                  <ConversationItem
+                    key={conv.id}
+                    conversation={conv}
+                    onClick={() => handleConversationClick(conv.id)}
+                    isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
+                    currentUserId={profile?.id}
+                    userRole={otherMemberId ? usersRoles[otherMemberId] : null}
+                  />
+                );
+              })}
             </>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 text-center px-4">
@@ -307,11 +314,13 @@ const ConversationItem = memo(function ConversationItem({
   onClick,
   isOnline,
   currentUserId,
+  userRole,
 }: { 
   conversation: Conversation; 
   onClick: () => void;
   isOnline?: boolean;
   currentUserId?: string;
+  userRole?: 'admin' | 'moderator' | null;
 }) {
   const otherMembers = useMemo(() => 
     conversation.members?.filter((m) => m.user_id !== currentUserId) || [],
@@ -383,6 +392,7 @@ const ConversationItem = memo(function ConversationItem({
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="font-semibold text-base truncate">{displayName}</span>
+            {!conversation.is_group && userRole && <ModBadge role={userRole} />}
             {conversation.is_group && (
               <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full flex-shrink-0">
                 Group
