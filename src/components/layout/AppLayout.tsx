@@ -55,14 +55,14 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
   // Desktop layout with sidebars (lg+ only, NOT tablets or iPads)
   if (isDesktop) {
-    // Adjust margins based on collapsed state
+    // Adjust margins based on collapsed state - match sidebar widths
     const leftMargin = leftCollapsed 
-      ? 'lg:ml-14' 
-      : 'lg:ml-[180px] xl:ml-[200px] 2xl:ml-[220px]';
+      ? 'lg:ml-[72px]' 
+      : 'lg:ml-[200px] xl:ml-[220px] 2xl:ml-[240px]';
     
     const rightMargin = hideRightSidebar 
       ? '' 
-      : 'lg:mr-[200px] xl:mr-[240px] 2xl:mr-[280px]';
+      : 'lg:mr-[240px] 2xl:mr-[280px]';
 
     return (
       <div ref={ref} className="min-h-screen w-full overflow-x-hidden">

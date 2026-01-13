@@ -67,7 +67,8 @@ const NavLinkContent = forwardRef<
         to={item.path}
         onClick={triggerNavFeedback}
         className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative group overflow-hidden backdrop-blur-sm",
+          "flex items-center gap-3 rounded-xl transition-all relative group overflow-hidden backdrop-blur-sm",
+          collapsed ? "px-3 py-3 justify-center" : "px-3 py-2.5",
           isActive
             ? "text-sidebar-foreground bg-gradient-to-r from-primary/15 via-accent/10 to-primary/15 border border-primary/20"
             : "text-muted-foreground hover:bg-foreground/5 hover:text-sidebar-foreground border border-transparent"
@@ -92,7 +93,7 @@ const NavLinkContent = forwardRef<
           </div>
         )}
         
-        <div className="relative z-10">
+        <div className="relative z-10 flex-shrink-0">
           <Icon className="h-5 w-5 transition-transform" />
           <AnimatePresence>
             {item.badge > 0 && (
@@ -107,7 +108,7 @@ const NavLinkContent = forwardRef<
             )}
           </AnimatePresence>
         </div>
-        {!collapsed && <span className="relative z-10 font-medium truncate">{label}</span>}
+        {!collapsed && <span className="relative z-10 font-medium truncate flex-1">{label}</span>}
       </Link>
     </motion.div>
   );
@@ -193,12 +194,15 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           "hidden lg:flex fixed left-0 top-0 h-screen flex-col liquid-glass border-r border-border/50 z-40",
           "transition-[width] duration-200 ease-out",
           collapsed 
-            ? "w-14" 
-            : "w-[180px] xl:w-[200px] 2xl:w-[220px]"
+            ? "w-[72px]" 
+            : "w-[200px] xl:w-[220px] 2xl:w-[240px]"
         )}
       >
         {/* Brand Row */}
-        <div className={cn("flex items-center p-4", collapsed ? "justify-center" : "gap-3")}>
+        <div className={cn(
+          "flex items-center h-16 px-4",
+          collapsed ? "justify-center" : "gap-3"
+        )}>
           <Link to="/home" className="flex items-center gap-2 group">
             <VYBELogo size={collapsed ? "sm" : "md"} showText={!collapsed} />
           </Link>
@@ -237,10 +241,10 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         {collapsed && profile && (
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
-              <Link to={`/u/${profile.username}`} className="mx-auto mb-3">
-                <Avatar className="h-9 w-9 ring-2 ring-primary/20">
+              <Link to={`/u/${profile.username}`} className="flex justify-center mb-3 px-2">
+                <Avatar className="h-10 w-10 ring-2 ring-primary/20">
                   <AvatarImage src={profile.avatar_url || undefined} />
-                  <AvatarFallback className="bg-secondary text-xs">
+                  <AvatarFallback className="bg-secondary text-sm">
                     {profile.username?.[0]?.toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -271,7 +275,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         </nav>
 
         {/* Create Area */}
-        <div className="px-3 py-2">
+        <div className={cn("py-2", collapsed ? "px-2" : "px-3")}>
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <Button 
@@ -280,11 +284,11 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                   "w-full gradient-animated text-primary-foreground font-semibold rounded-xl",
                   "shadow-lg shadow-primary/20 hover:shadow-primary/30",
                   "active:scale-95 transition-transform",
-                  collapsed ? "h-10 px-0" : "h-11"
+                  collapsed ? "h-11 px-0 min-w-[48px]" : "h-11"
                 )}
               >
-                <PlusCircle className={cn("h-5 w-5", collapsed ? "" : "mr-2")} />
-                {!collapsed && t('nav.upload')}
+                <PlusCircle className="h-5 w-5 flex-shrink-0" />
+                {!collapsed && <span className="ml-2">{t('nav.upload')}</span>}
               </Button>
             </TooltipTrigger>
             {collapsed && <TooltipContent side="right">Upload (double-click for Admin)</TooltipContent>}
@@ -345,16 +349,24 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         <Separator className="mx-3 bg-border/50" />
 
         {/* Collapse Control */}
-        <div className="p-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onCollapsedChange(!collapsed)}
-            className={cn("w-full justify-center", collapsed ? "" : "justify-start gap-2")}
-          >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-            {!collapsed && <span className="text-sm">Collapse</span>}
-          </Button>
+        <div className={cn("py-3", collapsed ? "px-2" : "px-3")}>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onCollapsedChange(!collapsed)}
+                className={cn(
+                  "w-full h-10 rounded-xl",
+                  collapsed ? "justify-center px-0 min-w-[48px]" : "justify-start gap-2 px-3"
+                )}
+              >
+                {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+                {!collapsed && <span className="text-sm">Collapse</span>}
+              </Button>
+            </TooltipTrigger>
+            {collapsed && <TooltipContent side="right">Expand sidebar</TooltipContent>}
+          </Tooltip>
         </div>
 
         {/* Footer */}
@@ -369,18 +381,18 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         )}
 
         {/* Logout Button */}
-        <div className="px-3 pb-4">
+        <div className={cn("pb-4", collapsed ? "px-2" : "px-3")}>
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <button
                 onClick={handleSignOut}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground",
+                  "flex items-center gap-3 py-2.5 rounded-xl text-muted-foreground",
                   "hover:bg-destructive/10 hover:text-destructive transition-all w-full",
-                  collapsed ? "justify-center" : ""
+                  collapsed ? "justify-center px-0 min-w-[48px]" : "px-3"
                 )}
               >
-                <LogOut className="h-5 w-5" />
+                <LogOut className="h-5 w-5 flex-shrink-0" />
                 {!collapsed && <span className="font-medium">{t('auth.logout')}</span>}
               </button>
             </TooltipTrigger>
