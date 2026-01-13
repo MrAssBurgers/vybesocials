@@ -714,12 +714,14 @@
       hsl(var(--gradient-start))
     );
     background-size: 300% 300%;
-    animation: gradient-shift var(--gradient-shift-duration, 20s) ease infinite;
+    animation: gradient-shift var(--gradient-shift-duration, 20s)
+      var(--gradient-shift-easing, ease) infinite;
   }
 
   /* Per-element override for slower gradient shift */
   .gradient-animated-slow {
-    --gradient-shift-duration: 60s;
+    --gradient-shift-duration: 120s;
+    --gradient-shift-easing: linear;
   }
 
   /* Static gradient for non-critical elements */
