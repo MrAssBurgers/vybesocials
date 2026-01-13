@@ -624,7 +624,14 @@ export function ChatView() {
         )}
         
         {isGroupChat && otherMember?.id && (
-          <CallButtons conversationId={conversationId!} receiverId={otherMember.id} />
+          <CallButtons 
+            conversationId={conversationId!} 
+            receiverId={otherMember.id}
+            isGroupCall={true}
+            groupName={conversation?.name || 'Group Chat'}
+            groupAvatar={conversation?.avatar_url}
+            participantIds={otherMembers.map(m => m.user_id)}
+          />
         )}
 
 

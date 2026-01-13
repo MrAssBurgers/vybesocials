@@ -497,8 +497,25 @@ export function GlobalCallOverlay() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Get other user
+  // Get other user or group info
   const otherUser = state.call?.isInitiator ? state.call.receiver : state.call?.caller;
+  const isGroupCall = state.call?.isGroupCall;
+  const groupName = state.call?.groupName;
+  const groupAvatar = state.call?.groupAvatar;
+  
+  // Display name: group name for group calls, or user's name for 1:1
+  const displayName = isGroupCall && groupName 
+    ? groupName 
+    : (otherUser?.display_name || otherUser?.username);
+  
+  // Display avatar: group avatar or other user's avatar
+  const displayAvatar = isGroupCall ? groupAvatar : otherUser?.avatar_url;
+  
+  // Get initials for avatar fallback
+  const displayInitial = isGroupCall && groupName 
+    ? groupName.charAt(0) 
+    : (otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0));
+  
   const isVisible = state.phase !== 'idle';
   const isRinging = state.phase === 'ringing';
   const isConnected = state.phase === 'connected';
@@ -576,9 +593,9 @@ export function GlobalCallOverlay() {
                           transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
                         >
                           <Avatar className="h-40 w-40 ring-4 ring-white/10 shadow-2xl">
-                            <AvatarImage src={otherUser?.avatar_url || undefined} />
+                            <AvatarImage src={displayAvatar || undefined} />
                             <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                              {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                              {displayInitial}
                             </AvatarFallback>
                           </Avatar>
                         </motion.div>
@@ -650,15 +667,15 @@ export function GlobalCallOverlay() {
                     transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
                   >
                     <Avatar className="h-40 w-40 mx-auto ring-4 ring-white/10 shadow-2xl">
-                      <AvatarImage src={otherUser?.avatar_url || undefined} />
+                      <AvatarImage src={displayAvatar || undefined} />
                       <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                        {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                        {displayInitial}
                       </AvatarFallback>
                     </Avatar>
                   </motion.div>
                   
                   <h2 className="mt-6 text-2xl font-bold text-white">
-                    {otherUser?.display_name || otherUser?.username}
+                    {displayName}
                   </h2>
                   
                   {isConnecting && (
@@ -702,9 +719,9 @@ export function GlobalCallOverlay() {
                   <div className="flex items-center gap-4">
                     <div className="relative">
                       <Avatar className="h-12 w-12 ring-2 ring-white/20 shadow-lg">
-                        <AvatarImage src={otherUser?.avatar_url || undefined} />
+                        <AvatarImage src={displayAvatar || undefined} />
                         <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">
-                          {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                          {displayInitial}
                         </AvatarFallback>
                       </Avatar>
                       {isConnected && (
@@ -717,7 +734,7 @@ export function GlobalCallOverlay() {
                     </div>
                     <div>
                       <p className="text-white font-semibold text-lg">
-                        {otherUser?.display_name || otherUser?.username}
+                        {displayName}
                       </p>
                       <div className="flex items-center gap-2">
                         {isConnecting && (
@@ -801,9 +818,9 @@ export function GlobalCallOverlay() {
                       />
                       
                       <Avatar className="h-32 w-32 mx-auto ring-4 ring-primary/20 shadow-2xl">
-                        <AvatarImage src={otherUser?.avatar_url || undefined} />
+                        <AvatarImage src={displayAvatar || undefined} />
                         <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                          {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                          {displayInitial}
                         </AvatarFallback>
                       </Avatar>
                     </div>
@@ -813,7 +830,7 @@ export function GlobalCallOverlay() {
                       transition={{ repeat: Infinity, duration: 2 }}
                       className="mt-6 text-white/60 text-lg font-light"
                     >
-                      Connecting to {otherUser?.display_name || otherUser?.username}...
+                      Connecting to {displayName}...
                     </motion.p>
                   </div>
                 </motion.div>
@@ -991,6 +1008,18 @@ function IncomingCallDialog({
   
   const isVideoCall = call.callType === 'video';
   const caller = call.caller;
+  const isGroupCall = call.isGroupCall;
+  const groupName = call.groupName;
+  const groupAvatar = call.groupAvatar;
+  
+  // For incoming calls: show group name if group call, otherwise caller info
+  const incomingDisplayName = isGroupCall && groupName 
+    ? groupName 
+    : (caller?.display_name || caller?.username);
+  const incomingDisplayAvatar = isGroupCall ? groupAvatar : caller?.avatar_url;
+  const incomingDisplayInitial = isGroupCall && groupName 
+    ? groupName.charAt(0) 
+    : (caller?.display_name?.charAt(0) || caller?.username?.charAt(0));
   
   // Preload camera for video calls - shows your face immediately
   const { stream: preloadedStream, isReady: cameraReady } = useCameraPreload(isVideoCall);
@@ -1103,9 +1132,9 @@ function IncomingCallDialog({
             transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
           >
             <Avatar className="h-32 w-32 ring-4 ring-white/10 shadow-2xl">
-              <AvatarImage src={caller?.avatar_url || undefined} />
+              <AvatarImage src={incomingDisplayAvatar || undefined} />
               <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                {caller?.display_name?.charAt(0) || caller?.username?.charAt(0)}
+                {incomingDisplayInitial}
               </AvatarFallback>
             </Avatar>
           </motion.div>
@@ -1120,7 +1149,10 @@ function IncomingCallDialog({
             <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-primary to-accent flex items-center gap-1.5 shadow-lg">
               {isVideoCall ? <Video className="h-4 w-4 text-white" /> : <Phone className="h-4 w-4 text-white" />}
               <span className="text-xs font-semibold text-white">
-                {isVideoCall ? 'Video Call' : 'Audio Call'}
+                {isGroupCall 
+                  ? (isVideoCall ? 'Group FaceTime' : 'Group Call')
+                  : (isVideoCall ? 'FaceTime' : 'Audio Call')
+                }
               </span>
             </div>
           </motion.div>
@@ -1129,14 +1161,17 @@ function IncomingCallDialog({
         {/* Caller info */}
         <div className="text-center mb-10">
           <h2 className="text-3xl font-bold text-white mb-2">
-            {caller?.display_name || caller?.username}
+            {incomingDisplayName}
           </h2>
           <motion.p
             className="text-white/60 text-lg"
             animate={{ opacity: [0.4, 0.8, 0.4] }}
             transition={{ repeat: Infinity, duration: 2 }}
           >
-            is calling you...
+            {isGroupCall 
+              ? `${caller?.display_name || caller?.username} is calling...`
+              : 'is calling you...'
+            }
           </motion.p>
         </div>
 
