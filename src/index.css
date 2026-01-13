@@ -1008,7 +1008,7 @@
     -webkit-backdrop-filter: blur(8px) !important;
   }
   
-  .perf-medium .gradient-animated {
+  .perf-medium .gradient-animated:not(.gradient-animated-slow) {
     animation-duration: 16s !important;
   }
 
