@@ -134,38 +134,6 @@ export function GlobalCallOverlay() {
         console.error('[CallOverlay] Failed to enable media:', err);
       }
 
-      // Check for any existing participants already in the room
-      // This handles the case where the other person joined before us
-      setTimeout(() => {
-        try {
-          const participants = daily.participants();
-          console.log('[CallOverlay] Checking existing participants:', Object.keys(participants));
-          
-          Object.values(participants).forEach((p: any) => {
-            if (!p.local && p.video) {
-              console.log('[CallOverlay] Found existing remote participant with video:', p.session_id);
-              setRemoteParticipant(p);
-              
-              // Try to attach their video
-              const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
-              if (videoTrack && remoteVideoRef.current) {
-                console.log('[CallOverlay] Attaching existing remote video');
-                try {
-                  const stream = new MediaStream([videoTrack]);
-                  remoteVideoRef.current.srcObject = stream;
-                  remoteVideoRef.current.play().catch(console.error);
-                  setHasRemoteVideo(true);
-                } catch (err) {
-                  console.error('[CallOverlay] Failed to attach existing video:', err);
-                }
-              }
-            }
-          });
-        } catch (err) {
-          console.error('[CallOverlay] Error checking participants:', err);
-        }
-      }, 500); // Small delay to ensure tracks are ready
-
       callSounds.stopAll();
       callSounds.connect();
       setPhase('connected');
@@ -441,6 +409,90 @@ export function GlobalCallOverlay() {
     }, 1000);
 
     return () => clearInterval(interval);
+  }, [state.phase]);
+
+  // CRITICAL: Poll for remote participants after connection
+  // This ensures we catch remote video even if events fire before refs are ready
+  useEffect(() => {
+    if (state.phase !== 'connected') return;
+    
+    const daily = dailyRef.current;
+    if (!daily) return;
+
+    let pollCount = 0;
+    const maxPolls = 30; // Poll for up to 15 seconds (30 * 500ms)
+
+    const checkRemoteParticipants = () => {
+      try {
+        const participants = daily.participants();
+        
+        Object.values(participants).forEach((p: any) => {
+          if (!p.local) {
+            console.log(`[CallOverlay] Poll #${pollCount + 1}: Found remote participant`, {
+              session_id: p.session_id,
+              hasVideo: p.video,
+              trackState: p.tracks?.video?.state
+            });
+            
+            setRemoteParticipant(p);
+            
+            // Try to attach video if available and we don't have it yet
+            const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
+            const trackState = p.tracks?.video?.state;
+            const isPlayable = trackState === 'playable' || trackState === 'loading';
+            
+            if (p.video && videoTrack && isPlayable && remoteVideoRef.current) {
+              console.log('[CallOverlay] Poll: Attaching remote video track');
+              try {
+                const stream = new MediaStream([videoTrack]);
+                remoteVideoRef.current.srcObject = stream;
+                remoteVideoRef.current.play().catch(err => {
+                  console.error('[CallOverlay] Poll: Remote video play error:', err);
+                });
+                setHasRemoteVideo(true);
+              } catch (err) {
+                console.error('[CallOverlay] Poll: Failed to attach video:', err);
+              }
+            }
+            
+            // Also check for audio
+            const audioTrack = p.tracks?.audio?.persistentTrack || p.tracks?.audio?.track;
+            const audioState = p.tracks?.audio?.state;
+            const isAudioPlayable = audioState === 'playable' || audioState === 'loading';
+            
+            if (p.audio && audioTrack && isAudioPlayable && remoteAudioRef.current && !remoteAudioRef.current.srcObject) {
+              console.log('[CallOverlay] Poll: Attaching remote audio track');
+              try {
+                const audioStream = new MediaStream([audioTrack]);
+                remoteAudioRef.current.srcObject = audioStream;
+                remoteAudioRef.current.play().catch(console.error);
+              } catch (err) {
+                console.error('[CallOverlay] Poll: Failed to attach audio:', err);
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.error('[CallOverlay] Poll error:', err);
+      }
+      
+      pollCount++;
+    };
+
+    // Immediate check
+    checkRemoteParticipants();
+    
+    // Poll every 500ms
+    const pollInterval = setInterval(() => {
+      if (pollCount >= maxPolls) {
+        clearInterval(pollInterval);
+        console.log('[CallOverlay] Stopped polling after max attempts');
+        return;
+      }
+      checkRemoteParticipants();
+    }, 500);
+
+    return () => clearInterval(pollInterval);
   }, [state.phase]);
 
   // HANGUP - must always work
