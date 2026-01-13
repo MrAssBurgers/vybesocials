@@ -99,8 +99,8 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
-    staleTime: 30000, // Cache for 30 seconds
-    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    gcTime: 1000 * 60 * 15, // Keep in cache for 15 minutes
   });
 
   return query;

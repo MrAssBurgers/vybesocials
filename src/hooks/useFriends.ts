@@ -61,6 +61,7 @@ export function useFriendRequests() {
       };
     },
     enabled: !!profile?.id,
+    staleTime: 1000 * 60 * 2, // Cache for 2 minutes
   });
 }
 
@@ -101,6 +102,7 @@ export function useFriends() {
       return friends;
     },
     enabled: !!profile?.id,
+    staleTime: 1000 * 60 * 2, // Cache for 2 minutes
   });
 }
 
