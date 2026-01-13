@@ -22,11 +22,59 @@ import { callSounds } from '@/lib/callSounds';
 import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall } from '@daily-co/daily-js';
 
+// Module-level singleton to prevent duplicates across React re-renders / Strict Mode
+let globalDailyInstance: DailyCall | null = null;
+let globalDailyCreating = false;
+
 // DOM check to prevent duplicate iframes
 function hasExistingDailyIframe(): boolean {
   if (typeof document === 'undefined') return false;
   const existing = document.querySelector('iframe[allow*="camera"]');
   return !!existing;
+}
+
+// Get or create the singleton Daily instance
+function getOrCreateDailyInstance(container: HTMLDivElement): DailyCall | null {
+  // Already have one
+  if (globalDailyInstance) {
+    console.log('[CallOverlay] Reusing existing Daily instance');
+    return globalDailyInstance;
+  }
+  
+  // Another effect is already creating
+  if (globalDailyCreating) {
+    console.log('[CallOverlay] Daily creation already in progress');
+    return null;
+  }
+  
+  // Check DOM for orphaned iframes
+  if (hasExistingDailyIframe()) {
+    console.warn('[CallOverlay] Orphaned Daily iframe found, skipping creation');
+    return null;
+  }
+  
+  globalDailyCreating = true;
+  
+  try {
+    console.log('[CallOverlay] Creating singleton Daily iframe');
+    const daily = DailyIframe.createFrame(container, {
+      iframeStyle: {
+        width: '100%',
+        height: '100%',
+        border: 'none',
+      },
+      showLeaveButton: false,
+      showFullscreenButton: true,
+    });
+    
+    globalDailyInstance = daily;
+    return daily;
+  } catch (err) {
+    console.error('[CallOverlay] Failed to create Daily iframe:', err);
+    return null;
+  } finally {
+    globalDailyCreating = false;
+  }
 }
 
 export function GlobalCallOverlay() {
@@ -38,6 +86,7 @@ export function GlobalCallOverlay() {
   const listenersAttached = useRef(false);
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initStarted = useRef(false);
   
   // Local UI state
   const [isMuted, setIsMuted] = useState(false);
@@ -59,27 +108,15 @@ export function GlobalCallOverlay() {
     }
   }, []);
 
-  // Create Daily iframe ONCE on mount
+  // Create Daily iframe ONCE on mount using singleton pattern
   useEffect(() => {
     if (!containerRef.current) return;
-    if (dailyRef.current) return;
-    if (hasExistingDailyIframe()) {
-      console.warn('[CallOverlay] Existing Daily iframe detected, skipping creation');
-      return;
-    }
-
-    console.log('[CallOverlay] Creating permanent Daily iframe');
+    if (initStarted.current) return; // Prevent React Strict Mode double-init
+    initStarted.current = true;
     
-    const daily = DailyIframe.createFrame(containerRef.current, {
-      iframeStyle: {
-        width: '100%',
-        height: '100%',
-        border: 'none',
-      },
-      showLeaveButton: false,
-      showFullscreenButton: true,
-    });
-
+    const daily = getOrCreateDailyInstance(containerRef.current);
+    if (!daily) return;
+    
     dailyRef.current = daily;
 
     // Attach event listeners ONCE
