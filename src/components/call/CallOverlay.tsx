@@ -7,35 +7,51 @@ import DailyIframe, { DailyCall } from '@daily-co/daily-js';
 import { toast } from 'sonner';
 
 export function CallOverlay() {
-  const { state, closeCall } = useCallOverlay();
+  const { state, closeCall, cleanupRef } = useCallOverlay();
   const containerRef = useRef<HTMLDivElement>(null);
   const dailyRef = useRef<DailyCall | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const hasJoinedRef = useRef(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Cleanup function to destroy Daily iframe
+  // Cleanup function to destroy Daily iframe - always force destroy
   const cleanup = useCallback(async () => {
+    console.log('[CALL DEBUG] cleanup called, dailyRef:', !!dailyRef.current);
+    
     if (dailyRef.current) {
       try {
+        console.log('[CALL DEBUG] Leaving meeting...');
         await dailyRef.current.leave();
       } catch (e) {
-        // Ignore leave errors
+        console.log('[CALL DEBUG] Leave error (ignored):', e);
       }
       try {
+        console.log('[CALL DEBUG] Destroying iframe...');
         await dailyRef.current.destroy();
       } catch (e) {
-        // Ignore destroy errors
+        console.log('[CALL DEBUG] Destroy error (ignored):', e);
       }
       dailyRef.current = null;
     }
-    hasJoinedRef.current = false;
+    
+    // Always reset all state
     setIsConnected(false);
     setIsJoining(false);
+    setErrorMessage(null);
+    console.log('[CALL DEBUG] Cleanup complete, all refs and state reset');
   }, []);
+
+  // Register cleanup function with context so it can be called from openCall
+  useEffect(() => {
+    cleanupRef.current = cleanup;
+    return () => {
+      cleanupRef.current = null;
+    };
+  }, [cleanup, cleanupRef]);
 
   // Handle hangup
   const handleHangup = useCallback(async () => {
+    console.log('[CALL DEBUG] handleHangup called');
     await cleanup();
     closeCall();
   }, [cleanup, closeCall]);
@@ -46,10 +62,10 @@ export function CallOverlay() {
       isOpen: state.isOpen, 
       roomUrl: state.roomUrl,
       hasContainer: !!containerRef.current,
-      hasExistingDaily: !!dailyRef.current,
-      hasJoined: hasJoinedRef.current
+      hasExistingDaily: !!dailyRef.current
     });
     
+    // Only proceed if overlay is open and we have a roomUrl
     if (!state.isOpen) {
       console.log('[CALL DEBUG] Overlay not open, returning');
       return;
@@ -57,44 +73,51 @@ export function CallOverlay() {
     
     if (!state.roomUrl) {
       console.log('[CALL DEBUG] No roomUrl provided, returning');
+      setErrorMessage('No room URL provided');
       return;
     }
-    
+
+    // Wait for container to be ready
     if (!containerRef.current) {
-      console.log('[CALL DEBUG] Container ref not ready, returning');
+      console.log('[CALL DEBUG] Container ref not ready, will retry on next render');
       return;
     }
 
-    // Guard: if iframe already exists, do nothing
+    // If we already have a Daily instance for THIS room, skip
+    // This prevents re-init on re-renders, but allows new calls
     if (dailyRef.current) {
-      console.log('[CALL DEBUG] Daily iframe already exists, skipping creation');
-      return;
-    }
-
-    // Guard: if already joined, do nothing
-    if (hasJoinedRef.current) {
-      console.log('[CALL DEBUG] Already joined room, skipping');
+      console.log('[CALL DEBUG] Daily instance exists, checking if same room...');
+      // The cleanup should have been called before openCall sets new state
+      // If we still have an instance, it means we're in the same call
       return;
     }
 
     const initDaily = async () => {
+      console.log('[CALL DEBUG] initDaily starting...');
       setIsJoining(true);
+      setErrorMessage(null);
 
       try {
         // Request mic permission BEFORE join
+        console.log('[CALL DEBUG] Requesting media permissions...');
         try {
           await navigator.mediaDevices.getUserMedia({ 
             audio: true,
             video: state.callType === 'video'
           });
-        } catch (permError) {
-          console.error('Media permission denied:', permError);
+          console.log('[CALL DEBUG] Media permissions granted');
+        } catch (permError: any) {
+          const errMsg = `Microphone permission denied: ${permError?.message || permError}`;
+          console.error('[CALL DEBUG]', errMsg);
+          setErrorMessage(errMsg);
           toast.error('Microphone permission is required for calls');
+          await cleanup();
           closeCall();
           return;
         }
 
-        // Create the Daily iframe using DailyIframe.createFrame
+        console.log('[CALL DEBUG] Creating Daily iframe...');
+        // Create the Daily iframe
         const daily = DailyIframe.createFrame(containerRef.current!, {
           iframeStyle: {
             width: '100%',
@@ -107,32 +130,39 @@ export function CallOverlay() {
         });
 
         dailyRef.current = daily;
+        console.log('[CALL DEBUG] Daily iframe created');
 
         // Set up event listeners
         daily.on('joined-meeting', () => {
-          console.log('Successfully joined meeting');
+          console.log('[CALL DEBUG] Successfully joined meeting');
           setIsConnected(true);
           setIsJoining(false);
-          hasJoinedRef.current = true;
+          setErrorMessage(null);
         });
 
         daily.on('left-meeting', () => {
-          console.log('Left meeting');
+          console.log('[CALL DEBUG] Left meeting event');
           handleHangup();
         });
 
         daily.on('error', (event) => {
-          console.error('Daily error:', event);
-          toast.error('Call error occurred');
+          const errMsg = `Daily error: ${JSON.stringify(event)}`;
+          console.error('[CALL DEBUG]', errMsg);
+          setErrorMessage(errMsg);
+          toast.error(`Call error: ${event?.errorMsg || 'Unknown error'}`);
           handleHangup();
         });
 
-        // Join ONLY once using join({ url: roomUrl })
+        // Join the room
+        console.log('[CALL DEBUG] Joining room:', state.roomUrl);
         await daily.join({ url: state.roomUrl });
+        console.log('[CALL DEBUG] Join call completed');
 
-      } catch (error) {
-        console.error('Failed to initialize Daily:', error);
-        toast.error('Failed to start call');
+      } catch (error: any) {
+        const errMsg = `Failed to initialize Daily: ${error?.message || error}`;
+        console.error('[CALL DEBUG]', errMsg);
+        setErrorMessage(errMsg);
+        toast.error(`Failed to start call: ${error?.message || 'Unknown error'}`);
         await cleanup();
         closeCall();
       }
@@ -140,15 +170,17 @@ export function CallOverlay() {
 
     initDaily();
 
-    // Cleanup on unmount or when overlay closes
+    // Cleanup on unmount
     return () => {
-      cleanup();
+      console.log('[CALL DEBUG] CallOverlay effect cleanup (unmount or deps change)');
+      // Don't auto-cleanup here as it may interrupt active calls on re-renders
     };
   }, [state.isOpen, state.roomUrl, state.callType, closeCall, cleanup, handleHangup]);
 
   // Cleanup when overlay closes
   useEffect(() => {
     if (!state.isOpen && dailyRef.current) {
+      console.log('[CALL DEBUG] Overlay closed, cleaning up...');
       cleanup();
     }
   }, [state.isOpen, cleanup]);
@@ -178,7 +210,13 @@ export function CallOverlay() {
                   {state.callType === 'video' ? 'Video Call' : 'Audio Call'}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {isJoining ? 'Connecting...' : isConnected ? 'Connected' : 'Starting...'}
+                  {errorMessage 
+                    ? <span className="text-destructive">{errorMessage}</span>
+                    : isJoining 
+                      ? 'Connecting...' 
+                      : isConnected 
+                        ? 'Connected' 
+                        : 'Starting...'}
                 </p>
               </div>
             </div>
@@ -203,6 +241,16 @@ export function CallOverlay() {
                 <div className="text-center space-y-4">
                   <Loader2 className="w-12 h-12 mx-auto text-primary animate-spin" />
                   <p className="text-sm text-muted-foreground">Connecting to call...</p>
+                </div>
+              </div>
+            )}
+            
+            {/* Error state */}
+            {errorMessage && !isJoining && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+                <div className="text-center space-y-4 p-4">
+                  <p className="text-sm text-destructive font-mono break-all">{errorMessage}</p>
+                  <Button variant="outline" onClick={handleHangup}>Close</Button>
                 </div>
               </div>
             )}
