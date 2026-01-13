@@ -53,35 +53,45 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     return <Navigate to="/" replace />;
   }
 
-  // Desktop layout with sidebars (xl+ only, NOT tablets or iPads)
-  // Proper scroll containment:
-  // - Sidebars are in the non-scrolling grid columns
-  // - Only the center column scrolls
+  // Desktop layout with sidebars (lg+ only, NOT tablets or iPads)
   if (isDesktop) {
+    // Adjust margins based on collapsed state - match sidebar widths
+    const leftMargin = leftCollapsed 
+      ? 'lg:ml-[72px]' 
+      : 'lg:ml-[200px] xl:ml-[220px] 2xl:ml-[240px]';
+    
+    const rightMargin = hideRightSidebar 
+      ? '' 
+      : 'lg:mr-[240px] 2xl:mr-[280px]';
+
     return (
-      <div ref={ref} className="h-dvh w-full overflow-hidden">
-        <div className="grid h-dvh w-full grid-cols-[auto_1fr_auto]">
-          {/* Left Sidebar */}
-          <DesktopLeftSidebar
-            collapsed={leftCollapsed}
-            onCollapsedChange={setLeftCollapsed}
-          />
+      <div ref={ref} className="min-h-screen w-full overflow-x-hidden">
+        {/* Left Sidebar */}
+        <DesktopLeftSidebar 
+          collapsed={leftCollapsed} 
+          onCollapsedChange={setLeftCollapsed}
+        />
 
-          {/* Main Feed (ONLY scrolling region) */}
-          <main className="min-h-0 min-w-0 overflow-y-auto">
-            <div
-              className={cn(
-                "mx-auto w-full px-2 lg:px-3 py-3",
-                fullWidth ? "" : "max-w-full"
-              )}
-            >
-              {children}
-            </div>
-          </main>
+        {/* Main Content Area */}
+        <main 
+          className={cn(
+            "min-h-screen transition-[margin] duration-200 ease-out",
+            leftMargin,
+            rightMargin
+          )}
+        >
+          <div 
+            className={cn(
+              "mx-auto w-full px-2 lg:px-3 py-3",
+              fullWidth ? "" : "max-w-full"
+            )}
+          >
+            {children}
+          </div>
+        </main>
 
-          {/* Right Sidebar */}
-          {!hideRightSidebar ? <DesktopRightSidebar /> : <div aria-hidden="true" />}
-        </div>
+        {/* Right Sidebar */}
+        {!hideRightSidebar && <DesktopRightSidebar />}
       </div>
     );
   }
