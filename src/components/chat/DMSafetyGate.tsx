@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { UserPlus, Clock, Check, Users, MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 interface DMSafetyGateProps {
   targetUserId: string;
@@ -12,12 +14,29 @@ interface DMSafetyGateProps {
 
 /**
  * Wraps DM input to require friendship before messaging.
- * Shows appropriate CTA based on friendship status.
+ * Public accounts can be messaged by anyone.
+ * Private accounts require friendship.
  */
 export function DMSafetyGate({ targetUserId, targetUsername, children }: DMSafetyGateProps) {
-  const { data: friendship, isLoading } = useFriendshipStatus(targetUserId);
+  const { data: friendship, isLoading: friendshipLoading } = useFriendshipStatus(targetUserId);
   const sendRequest = useSendFriendRequest();
   const respondToRequest = useRespondToFriendRequest();
+
+  // Check if target user has a public account
+  const { data: targetProfile, isLoading: profileLoading } = useQuery({
+    queryKey: ['profile-privacy', targetUserId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('is_private')
+        .eq('id', targetUserId)
+        .single();
+      return data;
+    },
+    enabled: !!targetUserId,
+  });
+
+  const isLoading = friendshipLoading || profileLoading;
 
   if (isLoading) {
     return (
@@ -27,8 +46,11 @@ export function DMSafetyGate({ targetUserId, targetUsername, children }: DMSafet
     );
   }
 
-  // Friends can message freely
-  if (friendship?.status === 'friends') {
+  // Public accounts can be messaged by anyone
+  const isPublicAccount = targetProfile?.is_private === false;
+  
+  // Friends can always message, or anyone can message public accounts
+  if (friendship?.status === 'friends' || isPublicAccount) {
     return <>{children}</>;
   }
 
