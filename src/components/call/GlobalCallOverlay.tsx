@@ -4,6 +4,7 @@
  * Mounted ONCE at app root. Contains:
  * - Single Daily Prebuilt iframe (never duplicated)
  * - Incoming call dialog
+ * - Pre-join screen with polished UI
  * - In-call UI with hangup
  * 
  * State is driven by Daily events, not local assumptions.
@@ -21,6 +22,7 @@ import { requestCallMediaPermissions, isAndroid, nextAnimationFrame } from '@/li
 import { callSounds } from '@/lib/callSounds';
 import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall } from '@daily-co/daily-js';
+import { PreJoinScreen } from './PreJoinScreen';
 
 // Module-level singleton to prevent duplicates across React re-renders / Strict Mode / HMR
 let globalDailyInstance: DailyCall | null = null;
@@ -92,6 +94,9 @@ export function GlobalCallOverlay() {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isHangingUp, setIsHangingUp] = useState(false);
+  const [preJoinStatus, setPreJoinStatus] = useState('Checking devices...');
+  const [isPreJoinReady, setIsPreJoinReady] = useState(false);
+  const [showPreJoin, setShowPreJoin] = useState(false);
 
   // Track call data for stale closure prevention
   const stateRef = useRef(state);
@@ -182,6 +187,22 @@ export function GlobalCallOverlay() {
     };
   }, [clearJoinTimeout, setPhase, setError, endCall]);
 
+  // Show pre-join screen when creating a call
+  useEffect(() => {
+    if (state.phase === 'creating' || state.phase === 'joining') {
+      setShowPreJoin(true);
+      setPreJoinStatus('Checking devices...');
+      setIsPreJoinReady(false);
+    } else if (state.phase === 'connected') {
+      setShowPreJoin(false);
+      setIsPreJoinReady(false);
+    } else if (state.phase === 'idle') {
+      setShowPreJoin(false);
+      setIsPreJoinReady(false);
+      setPreJoinStatus('Checking devices...');
+    }
+  }, [state.phase]);
+
   // Join room when phase becomes 'joining'
   useEffect(() => {
     if (state.phase !== 'joining' || !state.call?.roomUrl || !state.call?.roomName) return;
@@ -198,10 +219,14 @@ export function GlobalCallOverlay() {
     const doJoin = async () => {
       console.log('[CallOverlay] Starting join flow for:', state.call?.roomUrl);
 
+      // Update pre-join status
+      setPreJoinStatus('Requesting permissions...');
+
       // Request media permissions (required before join)
       try {
         await requestCallMediaPermissions(state.call!.callType);
         console.log('[CallOverlay] Permissions granted');
+        setPreJoinStatus('Permissions granted');
       } catch (err: any) {
         console.error('[CallOverlay] Permission denied:', err);
         toast.error(err.message || 'Microphone permission required');
@@ -215,6 +240,9 @@ export function GlobalCallOverlay() {
       }
 
       if (cancelled) return;
+
+      // Update status
+      setPreJoinStatus('Authenticating...');
 
       // Fetch meeting token for private room
       let token: string | undefined;
@@ -237,6 +265,8 @@ export function GlobalCallOverlay() {
 
         token = tokenData.token;
         console.log('[CallOverlay] Token received');
+        setPreJoinStatus('Ready to join');
+        setIsPreJoinReady(true);
       } catch (err: any) {
         console.error('[CallOverlay] Token fetch failed:', err);
         toast.error(err.message || 'Failed to authenticate with call server');
@@ -268,6 +298,7 @@ export function GlobalCallOverlay() {
       }, 15000);
 
       // Join the room WITH token
+      setPreJoinStatus('Connecting...');
       try {
         console.log('[CallOverlay] Calling daily.join() with token');
         await daily.join({ url: state.call!.roomUrl, token });
@@ -383,6 +414,9 @@ export function GlobalCallOverlay() {
   const isConnected = state.phase === 'connected';
   const isConnecting = state.phase === 'creating' || state.phase === 'joining';
 
+  // Get current user's info for pre-join
+  const currentUser = state.call?.isInitiator ? state.call.caller : state.call?.receiver;
+
   return (
     <>
       {/* Permanent Daily iframe container - always in DOM */}
@@ -390,14 +424,32 @@ export function GlobalCallOverlay() {
         ref={containerRef}
         className={cn(
           'fixed inset-0 z-[9998] bg-black transition-opacity duration-200',
-          isVisible && !isRinging ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          isConnected ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}
-        style={{ visibility: isVisible && !isRinging ? 'visible' : 'hidden' }}
+        style={{ visibility: isConnected ? 'visible' : 'hidden' }}
       />
 
-      {/* In-call overlay UI */}
+      {/* Pre-join screen (shown during creating/joining) */}
       <AnimatePresence>
-        {isVisible && !isRinging && (
+        {showPreJoin && state.call && (
+          <PreJoinScreen
+            callerName={currentUser?.display_name || currentUser?.username || 'You'}
+            callerAvatar={currentUser?.avatar_url}
+            isVideoCall={isVideoCall}
+            isReady={isPreJoinReady}
+            isJoining={state.phase === 'joining' && !isPreJoinReady}
+            statusText={preJoinStatus}
+            onJoin={() => {
+              // Join is handled automatically by the effect
+            }}
+            onCancel={handleHangup}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* In-call overlay UI (shown when connected) */}
+      <AnimatePresence>
+        {isConnected && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -418,16 +470,7 @@ export function GlobalCallOverlay() {
                     {otherUser?.display_name || otherUser?.username}
                   </p>
                   <p className="text-white/60 text-sm">
-                    {isConnecting && (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Connecting...
-                      </span>
-                    )}
-                    {isConnected && formatDuration(callDuration)}
-                    {state.phase === 'error' && (
-                      <span className="text-red-400">{state.error}</span>
-                    )}
+                    {formatDuration(callDuration)}
                   </p>
                 </div>
               </div>
@@ -442,27 +485,6 @@ export function GlobalCallOverlay() {
               </Button>
             </div>
 
-            {/* Connecting overlay */}
-            {isConnecting && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/60 pointer-events-none">
-                <div className="text-center">
-                  <Avatar className="h-24 w-24 mx-auto mb-4 ring-4 ring-white/10">
-                    <AvatarImage src={otherUser?.avatar_url || undefined} />
-                    <AvatarFallback className="text-3xl bg-primary/30">
-                      {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <motion.div
-                    animate={{ opacity: [0.5, 1, 0.5] }}
-                    transition={{ repeat: Infinity, duration: 1.5 }}
-                    className="text-white/70"
-                  >
-                    Connecting...
-                  </motion.div>
-                </div>
-              </div>
-            )}
-
             {/* Controls */}
             <div className="absolute bottom-0 left-0 right-0 p-5 pb-10 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-auto">
               <div className="flex items-center justify-center gap-4">
@@ -475,7 +497,6 @@ export function GlobalCallOverlay() {
                     isMuted ? "bg-white text-black" : "bg-white/15 text-white"
                   )}
                   onClick={handleToggleMute}
-                  disabled={!isConnected}
                 >
                   {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
                 </Button>
@@ -490,7 +511,6 @@ export function GlobalCallOverlay() {
                       isVideoOff ? "bg-white text-black" : "bg-white/15 text-white"
                     )}
                     onClick={handleToggleVideo}
-                    disabled={!isConnected}
                   >
                     {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
                   </Button>
