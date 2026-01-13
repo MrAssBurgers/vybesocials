@@ -33,15 +33,17 @@ export function StoryMedia({ mediaUrl, mediaType, isPaused = false }: StoryMedia
 
   if (mediaType === 'video') {
     return (
-      <video
-        ref={videoRef}
-        src={signedUrl}
-        className="w-full h-full object-cover"
-        autoPlay
-        muted
-        playsInline
-        loop
-      />
+      <div className="w-full h-full bg-black flex items-center justify-center">
+        <video
+          ref={videoRef}
+          src={signedUrl}
+          className="max-w-full max-h-full w-auto h-auto object-contain"
+          autoPlay
+          muted
+          playsInline
+          loop
+        />
+      </div>
     );
   }
 
