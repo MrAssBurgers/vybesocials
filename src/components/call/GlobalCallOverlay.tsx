@@ -242,51 +242,45 @@ export function GlobalCallOverlay() {
       
       console.log('[CallOverlay] Starting join flow for:', state.call?.roomUrl);
 
-      // Request media permissions (required before join)
-      try {
-        await requestCallMediaPermissions(state.call!.callType);
-        console.log('[CallOverlay] Permissions granted');
-      } catch (err: any) {
-        console.error('[CallOverlay] Permission denied:', err);
-        toast.error(err.message || 'Microphone permission required');
-        endCall();
-        return;
-      }
-
-      // Android safety delay
-      if (isAndroid()) {
-        await nextAnimationFrame();
-      }
-
-      if (cancelled) return;
-
-      // Fetch meeting token for private room
-      let token: string | undefined;
-      try {
-        console.log('[CallOverlay] Fetching meeting token...');
-        const { data: tokenData, error: tokenError } = await supabase.functions.invoke('get-call-token', {
+      // PARALLEL: Request permissions AND fetch token at the same time for speed
+      const [permissionResult, tokenResult] = await Promise.allSettled([
+        requestCallMediaPermissions(state.call!.callType),
+        supabase.functions.invoke('get-call-token', {
           body: {
             roomName: state.call!.roomName,
             callId: state.call!.id,
           },
-        });
+        }),
+      ]);
 
-        if (tokenError) {
-          throw new Error(tokenError.message || 'Failed to get meeting token');
-        }
-
-        if (!tokenData?.token) {
-          throw new Error(tokenData?.error || 'No token returned from server');
-        }
-
-        token = tokenData.token;
-        console.log('[CallOverlay] Token received');
-      } catch (err: any) {
-        console.error('[CallOverlay] Token fetch failed:', err);
-        toast.error(err.message || 'Failed to authenticate with call server');
+      // Check permission result
+      if (permissionResult.status === 'rejected') {
+        console.error('[CallOverlay] Permission denied:', permissionResult.reason);
+        toast.error(permissionResult.reason?.message || 'Microphone permission required');
         endCall();
         return;
       }
+      console.log('[CallOverlay] Permissions granted');
+
+      // Check token result
+      if (tokenResult.status === 'rejected') {
+        console.error('[CallOverlay] Token fetch failed:', tokenResult.reason);
+        toast.error('Failed to authenticate with call server');
+        endCall();
+        return;
+      }
+
+      const { data: tokenData, error: tokenError } = tokenResult.value;
+      if (tokenError || !tokenData?.token) {
+        const msg = tokenError?.message || tokenData?.error || 'No token returned from server';
+        console.error('[CallOverlay] Token error:', msg);
+        toast.error(msg);
+        endCall();
+        return;
+      }
+
+      const token = tokenData.token;
+      console.log('[CallOverlay] Token received');
 
       if (cancelled) return;
 
