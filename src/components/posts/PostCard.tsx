@@ -30,29 +30,48 @@ import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/compone
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 
-// Video player component - shows thumbnail until clicked (like YouTube Shorts)
+// Video player component - maintains the video's native aspect ratio (no cropping)
 function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
 
   // Early return for invalid source
   if (!isValidMediaUrl(src)) {
     return <MediaFallback type="video" caption={caption} />;
   }
 
-  const handleLoadedData = () => {
-    if (videoRef.current) {
-      const duration = videoRef.current.duration;
-      if (duration > 0) {
-        const randomTime = Math.random() * Math.min(duration, 10);
-        videoRef.current.currentTime = randomTime;
-      }
-      setIsLoaded(true);
-      setHasError(false);
+  const ratio = dimensions ? dimensions.width / dimensions.height : 9 / 16;
+  const isTall = ratio < 0.9;
+
+  const handleLoadedMetadata = () => {
+    const el = videoRef.current;
+    if (!el) return;
+    if (el.videoWidth && el.videoHeight) {
+      setDimensions({ width: el.videoWidth, height: el.videoHeight });
     }
+  };
+
+  const handleLoadedData = () => {
+    const el = videoRef.current;
+    if (!el) return;
+
+    // Seek a tiny bit forward for a more interesting thumbnail frame
+    const duration = el.duration;
+    if (duration > 0) {
+      const randomTime = Math.random() * Math.min(duration, 10);
+      try {
+        el.currentTime = randomTime;
+      } catch {
+        // ignore
+      }
+    }
+
+    setIsLoaded(true);
+    setHasError(false);
   };
 
   const handleError = () => {
@@ -62,7 +81,7 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
 
   const handleClick = () => {
     if (!videoRef.current || hasError) return;
-    
+
     if (!isPlaying) {
       videoRef.current.currentTime = 0;
       videoRef.current.play().catch(() => {});
@@ -86,44 +105,53 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   }
 
   return (
-    <div 
-      className="relative w-full h-full cursor-pointer bg-muted" 
-      onClick={handleClick}
-    >
-      {/* Loading skeleton */}
-      {!isLoaded && <MediaSkeleton />}
-      <video
-        ref={videoRef}
-        src={src}
-        className={cn("w-full h-full object-cover transition-opacity", isLoaded ? "opacity-100" : "opacity-0")}
-        loop
-        muted={isMuted}
-        playsInline
-        preload="metadata"
-        onLoadedData={handleLoadedData}
-        onError={handleError}
-      />
-      {/* Play indicator when not playing */}
-      {!isPlaying && isLoaded && !hasError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-          <motion.div
-            whileHover={{ scale: 1.1 }}
+    <div className="w-full flex justify-center bg-muted/30" onClick={handleClick}>
+      <div
+        className={cn(
+          "relative overflow-hidden bg-muted",
+          isTall ? "h-[70vh] w-auto max-w-full" : "w-full"
+        )}
+        style={{ aspectRatio: dimensions ? `${dimensions.width} / ${dimensions.height}` : '9 / 16' }}
+      >
+        {/* Loading skeleton */}
+        {!isLoaded && <MediaSkeleton className="absolute inset-0" />}
+
+        <video
+          ref={videoRef}
+          src={src}
+          className={cn(
+            "absolute inset-0 w-full h-full object-contain transition-opacity",
+            isLoaded ? "opacity-100" : "opacity-0"
+          )}
+          loop
+          muted={isMuted}
+          playsInline
+          preload="metadata"
+          onLoadedMetadata={handleLoadedMetadata}
+          onLoadedData={handleLoadedData}
+          onError={handleError}
+        />
+
+        {/* Play indicator when not playing */}
+        {!isPlaying && isLoaded && !hasError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <Play className="h-16 w-16 text-white/90 fill-white/90" />
+            </motion.div>
+          </div>
+        )}
+
+        {/* Mute/Unmute button when playing */}
+        {isPlaying && !hasError && (
+          <motion.button
             whileTap={{ scale: 0.9 }}
+            onClick={toggleMute}
+            className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white"
           >
-            <Play className="h-16 w-16 text-white/90 fill-white/90" />
-          </motion.div>
-        </div>
-      )}
-      {/* Mute/Unmute button when playing */}
-      {isPlaying && !hasError && (
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={toggleMute}
-          className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white"
-        >
-          {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </motion.button>
-      )}
+            {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </motion.button>
+        )}
+      </div>
     </div>
   );
 }
@@ -442,15 +470,13 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         />
       </div>
 
-      {/* Media - natural aspect ratio, NO black padding */}
+      {/* Media - keep the video's native aspect ratio */}
       <div 
         className="relative w-full cursor-pointer"
         onDoubleClick={handleDoubleTap}
       >
         {post.type === 'video' ? (
-          <div className="aspect-[9/16] max-h-[70vh] bg-muted">
-            <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
-          </div>
+          <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
         ) : (
           <NaturalAspectImage src={signedMediaUrl || ''} caption={post.caption} />
         )}
