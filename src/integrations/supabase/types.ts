@@ -420,6 +420,49 @@ export type Database = {
           },
         ]
       }
+      chat_presence: {
+        Row: {
+          conversation_id: string
+          id: string
+          last_seen_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          id?: string
+          last_seen_at?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          id?: string
+          last_seen_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_presence_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_presence_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_presence_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       close_friends: {
         Row: {
           created_at: string
@@ -1718,6 +1761,7 @@ export type Database = {
       }
       notification_preferences: {
         Row: {
+          announcements_enabled: boolean | null
           comments_enabled: boolean | null
           created_at: string
           dms_enabled: boolean | null
@@ -1734,6 +1778,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          announcements_enabled?: boolean | null
           comments_enabled?: boolean | null
           created_at?: string
           dms_enabled?: boolean | null
@@ -1750,6 +1795,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          announcements_enabled?: boolean | null
           comments_enabled?: boolean | null
           created_at?: string
           dms_enabled?: boolean | null

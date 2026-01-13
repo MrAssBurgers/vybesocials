@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { 
   useMessages, 
-  useTypingIndicator, 
   useScreenshotNotification,
   useMarkMessageViewed,
   useAddReaction,
@@ -38,6 +37,8 @@ import { DMSettingsSheetControlled } from './DMSettingsSheetControlled';
 import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { CallButtons } from '@/components/call/CallButtons';
 import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
+import { useChatPresence } from '@/hooks/useChatPresence';
+import { ChatPresenceIndicator } from './ChatPresenceIndicator';
 
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
@@ -102,7 +103,8 @@ export function ChatView() {
   const unsendForEveryone = useUnsendForEveryone();
   const deleteForMe = useDeleteForMe();
   const editMessage = useEditMessage();
-  const { typingUsers, setTyping } = useTypingIndicator(conversationId);
+  // Use new presence hook for Snapchat-style presence + typing
+  const { presentUsers, typingUsers, setTyping } = useChatPresence(conversationId);
   const { notifyScreenshot } = useScreenshotNotification(conversationId);
   
   const { settings } = useDMSettings(conversationId);
@@ -791,30 +793,6 @@ export function ChatView() {
             </div>
           )}
 
-          {/* Typing indicator - proper z-index */}
-          {typingUsers.length > 0 && (
-            <div className="flex items-start gap-1.5 max-w-[80%] relative z-10 mb-2 pl-0">
-              <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0">
-                <AvatarImage src={otherMember?.avatar_url || undefined} />
-                <AvatarFallback className="text-xs">{otherMember?.username?.charAt(0)}</AvatarFallback>
-              </Avatar>
-              <div className="bg-muted/70 rounded-2xl rounded-tl-sm px-3.5 py-2.5">
-                <div className="flex items-center gap-1.5">
-                  {[0, 1, 2].map((i) => (
-                    <span
-                      key={i}
-                      className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-primary rounded-full"
-                      style={{ 
-                        animation: 'bounce 0.6s infinite',
-                        animationDelay: `${i * 150}ms`,
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
           <div ref={messagesEndRef} className="h-1" />
         </div>
       </div>
@@ -830,7 +808,7 @@ export function ChatView() {
             isRecordingVoice={isRecordingVoice}
             isUploadingMedia={isUploadingMedia}
             replyingTo={replyingTo}
-          isPending={false}
+            isPending={false}
             inputRef={inputRef}
             fileInputRef={fileInputRef}
             handleInputChange={handleInputChange}
@@ -847,6 +825,8 @@ export function ChatView() {
             onOpenMemoryPins={() => setShowMemoryPins(true)}
             onOpenScheduleMessage={() => setShowScheduleMessage(true)}
             onOpenDMSettings={() => setShowDMSettings(true)}
+            presentUsers={presentUsers}
+            typingUserIds={typingUsers}
           />
         </DMSafetyGate>
       ) : (
@@ -875,6 +855,8 @@ export function ChatView() {
           onOpenMemoryPins={() => setShowMemoryPins(true)}
           onOpenScheduleMessage={() => setShowScheduleMessage(true)}
           onOpenDMSettings={() => setShowDMSettings(true)}
+          presentUsers={presentUsers}
+          typingUserIds={typingUsers}
         />
       )}
     </div>
@@ -907,6 +889,8 @@ const MessageInputArea = memo(function MessageInputArea({
   onOpenMemoryPins,
   onOpenScheduleMessage,
   onOpenDMSettings,
+  presentUsers,
+  typingUserIds,
 }: {
   messageText: string;
   viewMode: ViewMode;
@@ -932,9 +916,21 @@ const MessageInputArea = memo(function MessageInputArea({
   onOpenMemoryPins?: () => void;
   onOpenScheduleMessage?: () => void;
   onOpenDMSettings?: () => void;
+  presentUsers?: { user_id: string; username: string; avatar_url: string | null; display_name: string | null; is_typing: boolean }[];
+  typingUserIds?: string[];
 }) {
   return (
-    <div className="flex-shrink-0 px-2 py-2 sm:px-4 sm:py-3 border-t border-border bg-background sticky bottom-0 z-30 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+    <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30">
+      {/* Snapchat-style presence indicator - floats above input */}
+      {presentUsers && presentUsers.length > 0 && (
+        <ChatPresenceIndicator
+          presentUsers={presentUsers}
+          typingUserIds={typingUserIds || []}
+          maxDisplay={3}
+        />
+      )}
+      
+      <div className="px-2 py-2 sm:px-4 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <input
         ref={fileInputRef}
         type="file"
@@ -1065,7 +1061,8 @@ const MessageInputArea = memo(function MessageInputArea({
           </p>
         )}
       </div>
-    );
+    </div>
+  );
 });
 
 // Memoized MessageBubble to prevent unnecessary re-renders

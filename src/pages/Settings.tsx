@@ -2,7 +2,7 @@ import { useState, useEffect, forwardRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles, MessageSquareHeart, Lock, Vibrate, Volume2, Zap, Layers, Contrast } from 'lucide-react';
+import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles, MessageSquareHeart, Lock, Vibrate, Volume2, Zap, Layers, Contrast, Bell } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { useGlassIntensity } from '@/components/ui/glass/GlassIntensityProvider';
@@ -19,6 +19,7 @@ import { getUserFriendlyError } from '@/lib/errorUtils';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { haptics } from '@/lib/haptics';
+import { useNotificationPreferences, useUpdateNotificationPreference } from '@/hooks/useNotificationPreferences';
 
 const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref) {
   const { t, i18n } = useTranslation();
@@ -397,6 +398,9 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
           </div>
         </motion.section>
 
+        {/* Notifications Section */}
+        <NotificationsSection />
+
         {/* Language Section */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
@@ -495,3 +499,42 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
 });
 
 export default SettingsPage;
+
+// Notifications Section Component
+function NotificationsSection() {
+  const { data: prefs, isLoading } = useNotificationPreferences();
+  const updatePref = useUpdateNotificationPreference();
+
+  const handleToggle = (key: 'announcements_enabled', value: boolean) => {
+    haptics.tap();
+    updatePref.mutate({ key, value });
+  };
+
+  if (isLoading || !prefs) return null;
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.13 }}
+      className="liquid-glass-card p-4 sm:p-6 mb-4 sm:mb-6"
+    >
+      <h3 className="font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base">
+        <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+        Notifications
+      </h3>
+
+      <div className="flex items-center justify-between py-3">
+        <div className="min-w-0 flex-1 mr-4">
+          <p className="font-medium text-sm sm:text-base">Announcements</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Receive app announcements and updates</p>
+        </div>
+        <Switch 
+          checked={prefs.announcements_enabled ?? true} 
+          onCheckedChange={(checked) => handleToggle('announcements_enabled', checked)}
+          disabled={updatePref.isPending}
+        />
+      </div>
+    </motion.section>
+  );
+}
