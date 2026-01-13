@@ -684,7 +684,7 @@ export function ChatView() {
       <div 
         className={cn(
           "flex-1 overflow-y-auto overflow-x-hidden min-h-0",
-          "px-3 sm:px-4 py-3 sm:py-4",
+          "px-3 sm:px-5 py-4 sm:py-6",
           "scroll-smooth",
           getWallpaperClass()
         )}
@@ -695,26 +695,27 @@ export function ChatView() {
           contain: 'strict',
         }}
       >
-        {/* Messages container */}
-        <div className="flex flex-col gap-0 pb-20 sm:pb-24">
+        {/* Messages container with increased vertical breathing room */}
+        <div className="flex flex-col gap-0 pb-24 sm:pb-28">
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
-            // Instagram/Snapchat spacing rules:
-            // Same sender consecutive: 4-6px gap (tight grouping)
-            // Different sender: 16-20px gap (clear separation)
-            // After reply preview: 12-14px gap
+            // Instagram/Snapchat spacing rules - ENHANCED for breathability:
+            // Same sender consecutive: 8px gap (tight grouping)
+            // Different sender: 24-28px gap (clear separation)
+            // After reply preview: 16px gap
+            // Media messages: 20-24px gap
             const prevItem = index > 0 ? messageItems[index - 1] : null;
             const senderChanged = prevItem && prevItem.isOwn !== isOwn;
             const hasReply = !!message.reply_to_id;
             
             // Calculate margin based on context - use pt for top margin
-            let spacingClass = 'pt-1.5'; // Default: same sender (6px)
+            let spacingClass = 'pt-2'; // Default: same sender (8px)
             if (senderChanged) {
-              spacingClass = 'pt-4 sm:pt-5'; // Different sender (16-20px)
+              spacingClass = 'pt-6 sm:pt-7'; // Different sender (24-28px)
             } else if (hasReply) {
-              spacingClass = 'pt-3 sm:pt-3.5'; // After reply (12-14px)
+              spacingClass = 'pt-4'; // After reply (16px)
             }
             if (isMediaTransition) {
-              spacingClass = 'pt-4 sm:pt-5'; // Media transition (16-20px)
+              spacingClass = 'pt-5 sm:pt-6'; // Media transition (20-24px)
             }
             
             return (
@@ -723,8 +724,8 @@ export function ChatView() {
                 className={cn(spacingClass, index === 0 && 'pt-0')}
               >
                 {showTimestamp && (
-                  <div className="text-center py-5 sm:py-6">
-                    <span className="text-[10px] sm:text-[11px] text-muted-foreground/50 bg-muted/30 px-3 py-1 rounded-full font-medium">
+                  <div className="text-center py-6 sm:py-8">
+                    <span className="text-[10px] sm:text-[11px] text-muted-foreground/60 bg-muted/40 px-4 py-1.5 rounded-full font-medium tracking-wide">
                       {formatMessageDate(message.created_at)}
                     </span>
                   </div>
@@ -1253,22 +1254,22 @@ const MessageBubble = memo(function MessageBubble({
           </div>
         )}
 
-        {/* Message bubble - Instagram-quality padding and radius */}
+        {/* Message bubble - Instagram-quality padding and radius - ENHANCED */}
         <div
           className={cn(
-            'relative rounded-[20px] break-words select-none',
-            // Padding: 14-16px horizontal, 10-12px vertical
+            'relative rounded-[22px] break-words select-none transition-transform duration-150 active:scale-[0.98]',
+            // Padding: 16-18px horizontal, 12-14px vertical for breathing room
             isEmojiOnly 
-              ? 'px-3 py-2' // Reduced padding for emoji
+              ? 'px-3 py-2.5' // Reduced padding for emoji
               : isMediaMessage
-                ? 'p-1.5 sm:p-2' // Media bubbles: minimal padding
-                : 'px-[14px] py-[10px] sm:px-4 sm:py-3', // Text: 14-16px H, 10-12px V
+                ? 'p-2 sm:p-2.5' // Media bubbles: slightly more padding
+                : 'px-4 py-3 sm:px-[18px] sm:py-3.5', // Text: 16-18px H, 12-14px V
             isOwn 
-              ? `${themeColor.bubble} ${themeColor.text} rounded-br-lg` 
-              : 'bg-muted/70 text-foreground rounded-bl-lg',
+              ? `${themeColor.bubble} ${themeColor.text} rounded-br-md shadow-md` 
+              : 'bg-muted/80 text-foreground rounded-bl-md shadow-sm',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
-            repliedMessage && 'rounded-t-[14px]'
+            repliedMessage && 'rounded-t-[16px]'
           )}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -1276,11 +1277,11 @@ const MessageBubble = memo(function MessageBubble({
           onDoubleClick={onToggleReactions}
         >
           {isMediaMessage && (
-            <div className={message.content ? "mb-2" : ""}>
+            <div className={message.content ? "mb-2.5" : ""}>
               <img
                 src={message.media_url}
                 alt={message.media_type === 'gif' ? "GIF" : "Shared image"}
-                className="rounded-xl max-w-full max-h-52 sm:max-h-64 object-cover"
+                className="rounded-xl max-w-full max-h-60 sm:max-h-72 object-cover shadow-sm"
                 loading="lazy"
               />
             </div>
