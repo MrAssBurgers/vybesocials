@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, Settings, SlidersHorizontal, Minimize2 } from 'lucide-react';
+import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, Settings, SlidersHorizontal } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -22,7 +22,6 @@ import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall, DailyParticipant } from '@daily-co/daily-js';
 import { CallSettingsSheet } from './CallSettingsSheet';
 import { useCameraPreload, stopPreloadedCamera, getPreloadedStream } from '@/hooks/useCameraPreload';
-import { MinimizedCallPill } from './MinimizedCallPill';
 
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, setPhase, setError, dismissIncoming } = useCallStore();
@@ -47,13 +46,9 @@ export function GlobalCallOverlay() {
   const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
   const [hasLocalVideo, setHasLocalVideo] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [currentMicId, setCurrentMicId] = useState<string | undefined>();
   const [currentCameraId, setCurrentCameraId] = useState<string | undefined>();
   const [currentSpeakerId, setCurrentSpeakerId] = useState<string | undefined>();
-  
-  // Track if we've already played the joined sound for the current remote participant
-  const hasPlayedJoinedSoundRef = useRef(false);
   
   // INSTANT CAMERA: Preload camera for video calls - start as soon as call begins
   const isVideoCall = state.call?.callType === 'video';
@@ -197,11 +192,6 @@ export function GlobalCallOverlay() {
       console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.session_id);
       if (event?.participant && !event.participant.local) {
         setRemoteParticipant(event.participant);
-        // Play joined sound when someone joins (only once per participant)
-        if (!hasPlayedJoinedSoundRef.current) {
-          hasPlayedJoinedSoundRef.current = true;
-          callSounds.joined();
-        }
         // Immediately try to attach video if available
         attachRemoteParticipantVideo(event.participant, remoteVideoRef.current);
       }
@@ -394,10 +384,6 @@ export function GlobalCallOverlay() {
     if (state.phase !== 'idle') return;
     const daily = dailyRef.current;
     if (!daily) return;
-
-    // Reset UI state when call ends
-    setIsMinimized(false);
-    hasPlayedJoinedSoundRef.current = false;
 
     try {
       const meetingState = daily.meetingState();
@@ -660,21 +646,9 @@ export function GlobalCallOverlay() {
 
   return (
     <>
-      {/* Minimized Call Pill */}
+      {/* Main Call UI (not ringing) */}
       <AnimatePresence>
-        {isVisible && !isRinging && isMinimized && (
-          <MinimizedCallPill
-            duration={callDuration}
-            isMuted={isMuted}
-            isVideo={isVideoCall}
-            onRestore={() => setIsMinimized(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Main Call UI (not ringing, not minimized) */}
-      <AnimatePresence>
-        {isVisible && !isRinging && !isMinimized && (
+        {isVisible && !isRinging && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1057,21 +1031,6 @@ export function GlobalCallOverlay() {
                       )}
                     </motion.button>
                   )}
-
-                  {/* Minimize Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setIsMinimized(true)}
-                    disabled={!isConnected}
-                    className={cn(
-                      "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
-                      "bg-white/10 text-white hover:bg-white/20 border border-white/10",
-                      "disabled:opacity-50 disabled:cursor-not-allowed"
-                    )}
-                  >
-                    <Minimize2 className="h-5 w-5" />
-                  </motion.button>
 
                   {/* Divider */}
                   <div className="w-px h-10 bg-white/20 mx-1" />

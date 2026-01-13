@@ -175,15 +175,6 @@ function playConnectSound(ctx: AudioContext): void {
   });
 }
 
-// Participant joined sound - soft welcoming chime (for group calls)
-function playJoinSound(ctx: AudioContext): void {
-  const time = ctx.currentTime;
-  
-  // Soft two-note ascending chime
-  playBellTone(ctx, 659.25, time, 0.10, 0.06);       // E5
-  playBellTone(ctx, 783.99, time + 0.08, 0.15, 0.08); // G5
-}
-
 // Call ended sound - soft descending tone
 function playEndSound(ctx: AudioContext): void {
   const time = ctx.currentTime;
@@ -288,21 +279,12 @@ export function stopAllCallSounds(): void {
   stopAllSoundsNow();
 }
 
-// Play participant joined sound
-export function playParticipantJoined(): void {
-  const ctx = getAudioContext();
-  if (ctx) {
-    playJoinSound(ctx);
-  }
-}
-
 // Convenience exports
 export const callSounds = {
   startRinging,
   startRingback,
   connect: playCallConnect,
   end: playCallEnd,
-  joined: playParticipantJoined,
   stopAll: stopAllCallSounds,
   message: playMessageSound,
 };
