@@ -7,6 +7,7 @@ import {
   Volume2, VolumeX, Bookmark, Users, Sparkles, ChevronRight,
   MessageCircle
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -69,7 +70,7 @@ const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend
   );
 });
 
-export function DesktopRightSidebar() {
+export function DesktopRightSidebar({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation();
   const location = useLocation();
   const { profile } = useAuth();
@@ -172,7 +173,10 @@ export function DesktopRightSidebar() {
   const contextCard = getContextCard();
 
   return (
-    <aside className="hidden xl:flex fixed right-0 top-0 h-screen w-[240px] 2xl:w-[280px] flex-col liquid-glass border-l border-border/50 z-40">
+    <aside className={cn(
+      "hidden md:flex fixed right-0 top-0 h-screen flex-col liquid-glass border-l border-border/50 z-40",
+      compact ? "w-[180px] lg:w-[200px]" : "w-[240px] 2xl:w-[280px]"
+    )}>
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">
           {/* Quick Search */}
