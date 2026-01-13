@@ -308,10 +308,21 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useCallStore() {
+// Safe hook that returns null if outside provider (prevents crashes during lazy load)
+export function useCallStore(): CallStoreContextType {
   const context = useContext(CallStoreContext);
   if (!context) {
-    throw new Error('useCallStore must be used within CallStoreProvider');
+    // Return a no-op store for components rendered outside provider
+    // This can happen briefly during Suspense/lazy loading
+    return {
+      state: { phase: 'idle', call: null, error: null },
+      startCall: async () => { console.warn('CallStore not ready'); },
+      acceptCall: () => {},
+      endCall: async () => {},
+      setPhase: () => {},
+      setError: () => {},
+      dismissIncoming: () => {},
+    };
   }
   return context;
 }
