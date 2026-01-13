@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
 /**
- * Update server settings (name, description, visibility)
+ * Update server settings (name, description, visibility, icon)
  */
 export function useUpdateServer() {
   const queryClient = useQueryClient();
@@ -15,12 +15,14 @@ export function useUpdateServer() {
       serverId, 
       name, 
       description, 
-      isPublic 
+      isPublic,
+      iconUrl,
     }: { 
       serverId: string; 
       name?: string; 
       description?: string; 
       isPublic?: boolean;
+      iconUrl?: string;
     }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
@@ -28,6 +30,7 @@ export function useUpdateServer() {
       if (name !== undefined) updates.name = name;
       if (description !== undefined) updates.description = description;
       if (isPublic !== undefined) updates.is_public = isPublic;
+      if (iconUrl !== undefined) updates.icon_url = iconUrl;
 
       const { error } = await supabase
         .from('servers')
@@ -44,6 +47,38 @@ export function useUpdateServer() {
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to update server');
+    },
+  });
+}
+
+/**
+ * Upload server icon
+ */
+export function useUploadServerIcon() {
+  const { profile } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ serverId, file }: { serverId: string; file: File }) => {
+      if (!profile?.id) throw new Error('Not authenticated');
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${serverId}-${Date.now()}.${fileExt}`;
+      const filePath = `server-icons/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('media')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to upload icon');
     },
   });
 }
