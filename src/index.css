@@ -261,11 +261,25 @@
     pointer-events: none;
   }
 
+  /* Performance: Use contain for layout isolation */
+  .perf-contain {
+    contain: layout style paint;
+  }
+  
+  .perf-contain-strict {
+    contain: strict;
+  }
+
   /* GPU-accelerated transforms only - for smooth scrolling */
   .gpu-accelerated {
-    transform: translateZ(0);
-    will-change: transform, opacity;
+    transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
+  }
+
+  /* Content-visibility for off-screen content */
+  .content-lazy {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 500px;
   }
 
   /* Pause ALL non-essential animations during scroll for performance */
@@ -275,8 +289,15 @@
   .is-scrolling .animate-color-shift,
   .is-scrolling .animate-subtle-float,
   .is-scrolling .animate-pulse,
-  .is-scrolling .animate-bounce {
+  .is-scrolling .animate-bounce,
+  .is-scrolling .animate-spin,
+  .is-scrolling [class*="animate-"] {
     animation-play-state: paused !important;
+  }
+
+  /* Reduce motion complexity during scroll */
+  .is-scrolling * {
+    transition-duration: 0ms !important;
   }
 
   /* Reduce motion during scroll for better performance */

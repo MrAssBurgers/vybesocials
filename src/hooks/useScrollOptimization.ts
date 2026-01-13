@@ -1,62 +1,108 @@
 import { useEffect, useRef, useCallback } from 'react';
 
+// Shared state to prevent multiple listeners
+let scrollListenerAttached = false;
+let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+let rafId: number | null = null;
+
 /**
  * Hook to detect scrolling and add/remove 'is-scrolling' class to document
- * This allows CSS to pause animations during scroll for better performance
+ * Uses requestAnimationFrame for smoother performance
  */
 export function useScrollOptimization() {
-  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const isScrollingRef = useRef(false);
-
-  const handleScroll = useCallback(() => {
-    if (!isScrollingRef.current) {
-      isScrollingRef.current = true;
-      document.documentElement.classList.add('is-scrolling');
-    }
-
-    // Clear existing timeout
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-
-    // Set new timeout to remove class after scroll ends
-    scrollTimeoutRef.current = setTimeout(() => {
-      isScrollingRef.current = false;
-      document.documentElement.classList.remove('is-scrolling');
-    }, 150);
-  }, []);
-
   useEffect(() => {
-    // Use passive listener for better scroll performance
+    if (scrollListenerAttached) return;
+    scrollListenerAttached = true;
+
+    let isScrolling = false;
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        rafId = requestAnimationFrame(() => {
+          if (!isScrolling) {
+            isScrolling = true;
+            document.documentElement.classList.add('is-scrolling');
+          }
+
+          if (scrollTimeout) clearTimeout(scrollTimeout);
+          
+          scrollTimeout = setTimeout(() => {
+            isScrolling = false;
+            document.documentElement.classList.remove('is-scrolling');
+          }, 100);
+
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
     
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
+      scrollListenerAttached = false;
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      if (rafId) cancelAnimationFrame(rafId);
       document.documentElement.classList.remove('is-scrolling');
     };
-  }, [handleScroll]);
+  }, []);
 }
 
 /**
  * Hook to add will-change hints for better GPU acceleration
- * Call this on elements that will animate frequently
+ * Uses transform3d for hardware acceleration
  */
 export function useGPUAcceleration(ref: React.RefObject<HTMLElement>) {
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
 
-    element.style.transform = 'translateZ(0)';
-    element.style.willChange = 'transform, opacity';
-    element.style.backfaceVisibility = 'hidden';
+    // Use contain for better performance isolation
+    element.style.contain = 'layout style paint';
+    element.style.transform = 'translate3d(0, 0, 0)';
 
     return () => {
+      element.style.contain = '';
       element.style.transform = '';
-      element.style.willChange = '';
-      element.style.backfaceVisibility = '';
     };
   }, [ref]);
+}
+
+/**
+ * Reduced motion detection
+ */
+export function usePrefersReducedMotion() {
+  const mediaQuery = typeof window !== 'undefined' 
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : null;
+  
+  return mediaQuery?.matches ?? false;
+}
+
+/**
+ * Frame-rate aware animation hook
+ */
+export function useFrameCallback(callback: () => void, enabled = true) {
+  const frameRef = useRef<number>();
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const tick = () => {
+      callbackRef.current();
+      frameRef.current = requestAnimationFrame(tick);
+    };
+
+    frameRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
+      }
+    };
+  }, [enabled]);
 }

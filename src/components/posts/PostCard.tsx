@@ -97,7 +97,7 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
         loop
         muted={isMuted}
         playsInline
-        preload="auto"
+        preload="metadata"
         onLoadedData={handleLoadedData}
         onError={handleError}
       />
@@ -175,8 +175,9 @@ function NaturalAspectImage({ src, caption }: { src: string; caption?: string })
           isLoaded ? "opacity-100" : "opacity-0"
         )}
         style={!isLoaded ? { position: 'absolute', top: 0, left: 0 } : undefined}
-        loading="eager"
+        loading="lazy"
         decoding="async"
+        fetchPriority="low"
         onLoad={handleLoad}
         onError={() => setHasError(true)}
       />
