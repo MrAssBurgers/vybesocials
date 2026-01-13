@@ -28,8 +28,8 @@ function getAudioContext(): AudioContext | null {
   return audioContext;
 }
 
-// Play iconic melody note
-function playMelodyNote(ctx: AudioContext, freq: number, startTime: number, duration: number, volume: number = 0.18): void {
+// Play a clean, crisp notification note (no buzzing)
+function playNotifNote(ctx: AudioContext, freq: number, startTime: number, duration: number, volume: number = 0.22): void {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   
@@ -37,44 +37,33 @@ function playMelodyNote(ctx: AudioContext, freq: number, startTime: number, dura
   gain.connect(ctx.destination);
   
   osc.frequency.setValueAtTime(freq, startTime);
-  osc.type = 'sine';
+  osc.type = 'triangle'; // Clean, soft - no harsh buzzing
   
-  // Smooth envelope
+  // Quick punchy envelope
   gain.gain.setValueAtTime(0, startTime);
-  gain.gain.linearRampToValueAtTime(volume, startTime + 0.02);
-  gain.gain.setValueAtTime(volume, startTime + duration - 0.05);
-  gain.gain.linearRampToValueAtTime(0, startTime + duration);
+  gain.gain.linearRampToValueAtTime(volume, startTime + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
   
   osc.start(startTime);
   osc.stop(startTime + duration);
 }
 
-// Play iconic ringtone melody (like iPhone/Samsung signature sound)
-function playRingMelody(ctx: AudioContext, time: number): void {
-  // Iconic ascending triad pattern - memorable and pleasant
-  // E5 -> G5 -> B5 -> E6 (major triad going up)
-  const notes = [
-    { freq: 659.25, delay: 0, duration: 0.12 },     // E5
-    { freq: 783.99, delay: 0.13, duration: 0.12 },  // G5  
-    { freq: 987.77, delay: 0.26, duration: 0.12 },  // B5
-    { freq: 1318.51, delay: 0.39, duration: 0.25 }, // E6 (held longer)
+// VYBE signature ring - quick, bouncy, iconic (better than Snap!)
+function playVYBERing(ctx: AudioContext, time: number): void {
+  // Catchy bounce pattern: pop-pop-DING!
+  const melody = [
+    { freq: 1046.50, delay: 0, duration: 0.07 },      // C6 - pop
+    { freq: 1318.51, delay: 0.08, duration: 0.07 },   // E6 - pop  
+    { freq: 1567.98, delay: 0.16, duration: 0.07 },   // G6 - pop
+    { freq: 2093.00, delay: 0.27, duration: 0.4 },    // C7 - satisfying bell!
   ];
   
-  notes.forEach(note => {
-    playMelodyNote(ctx, note.freq, time + note.delay, note.duration);
+  melody.forEach(note => {
+    playNotifNote(ctx, note.freq, time + note.delay, note.duration);
   });
   
-  // Add subtle harmony layer for richness
-  const harmonyNotes = [
-    { freq: 329.63, delay: 0, duration: 0.12 },     // E4 (octave below)
-    { freq: 392.00, delay: 0.13, duration: 0.12 },  // G4
-    { freq: 493.88, delay: 0.26, duration: 0.12 },  // B4
-    { freq: 659.25, delay: 0.39, duration: 0.25 },  // E5
-  ];
-  
-  harmonyNotes.forEach(note => {
-    playMelodyNote(ctx, note.freq, time + note.delay, note.duration, 0.08);
-  });
+  // Sparkle on the bell note
+  playNotifNote(ctx, 2637.02, time + 0.29, 0.3, 0.1); // E7 shimmer
 }
 
 // Play ringback tone (for outgoing call - what caller hears)
@@ -148,21 +137,21 @@ function playEndSound(ctx: AudioContext): void {
 
 // Start ringing loop (for incoming calls)
 export function startRinging(): void {
-  stopAllCallSounds(); // Clear any existing
+  stopAllCallSounds();
   
   const ctx = getAudioContext();
   if (!ctx) return;
   
-  // Play initial melody
-  playRingMelody(ctx, ctx.currentTime);
+  // Play initial ring
+  playVYBERing(ctx, ctx.currentTime);
   
-  // Loop every 2.5 seconds (melody + pause)
+  // Loop every 2 seconds
   ringingInterval = window.setInterval(() => {
     const c = getAudioContext();
     if (c) {
-      playRingMelody(c, c.currentTime);
+      playVYBERing(c, c.currentTime);
     }
-  }, 2500);
+  }, 2000);
 }
 
 // Start ringback loop (for outgoing calls - what caller hears while waiting)
