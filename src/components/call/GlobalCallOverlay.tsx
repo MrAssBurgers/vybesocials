@@ -7,11 +7,12 @@
  * - In-call UI with hangup
  * 
  * State is driven by Daily events, not local assumptions.
+ * UI is a polished glass pop-up overlay.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, X } from 'lucide-react';
+import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
@@ -44,12 +45,25 @@ export function GlobalCallOverlay() {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isHangingUp, setIsHangingUp] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track call data for stale closure prevention
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  // Reset UI state when call ends
+  useEffect(() => {
+    if (state.phase === 'idle') {
+      setIsMuted(false);
+      setIsVideoOff(false);
+      setCallDuration(0);
+      setIsHangingUp(false);
+      setShowControls(true);
+    }
+  }, [state.phase]);
 
   // Clear join timeout helper
   const clearJoinTimeout = useCallback(() => {
@@ -58,6 +72,19 @@ export function GlobalCallOverlay() {
       joinTimeoutRef.current = null;
     }
   }, []);
+
+  // Auto-hide controls for video calls
+  const resetControlsTimeout = useCallback(() => {
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    setShowControls(true);
+    if (state.call?.callType === 'video' && state.phase === 'connected') {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false);
+      }, 4000);
+    }
+  }, [state.call?.callType, state.phase]);
 
   // Create Daily iframe ONCE on mount
   useEffect(() => {
@@ -75,9 +102,10 @@ export function GlobalCallOverlay() {
         width: '100%',
         height: '100%',
         border: 'none',
+        borderRadius: '1rem',
       },
       showLeaveButton: false,
-      showFullscreenButton: true,
+      showFullscreenButton: false,
     });
 
     dailyRef.current = daily;
@@ -121,8 +149,6 @@ export function GlobalCallOverlay() {
         console.log('[CallOverlay] 👋 left-meeting event');
         clearJoinTimeout();
         isLeavingRef.current = false;
-        
-        // Don't reset state here - let endCall handle it
       });
 
       daily.on('error', (event: any) => {
@@ -284,8 +310,8 @@ export function GlobalCallOverlay() {
       }
     }
 
-    // Force cleanup after 2s max wait
-    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+    // Force cleanup after short wait
+    await new Promise<void>((resolve) => setTimeout(resolve, 300));
     
     await endCall();
     setIsHangingUp(false);
@@ -300,7 +326,8 @@ export function GlobalCallOverlay() {
     const newMuted = !isMuted;
     daily.setLocalAudio(!newMuted);
     setIsMuted(newMuted);
-  }, [isMuted, state.phase]);
+    resetControlsTimeout();
+  }, [isMuted, state.phase, resetControlsTimeout]);
 
   // Toggle video
   const handleToggleVideo = useCallback(() => {
@@ -310,13 +337,13 @@ export function GlobalCallOverlay() {
     const newVideoOff = !isVideoOff;
     daily.setLocalVideo(!newVideoOff);
     setIsVideoOff(newVideoOff);
-  }, [isVideoOff, state.phase, state.call?.callType]);
+    resetControlsTimeout();
+  }, [isVideoOff, state.phase, state.call?.callType, resetControlsTimeout]);
 
   // Accept incoming call
   const handleAccept = useCallback(async () => {
     if (!state.call) return;
     
-    // Request permissions first
     try {
       await requestCallMediaPermissions(state.call.callType);
     } catch (err: any) {
@@ -344,132 +371,259 @@ export function GlobalCallOverlay() {
 
   return (
     <>
-      {/* Permanent Daily iframe container - always in DOM */}
-      <div
-        ref={containerRef}
-        className={cn(
-          'fixed inset-0 z-[9998] bg-black transition-opacity duration-200',
-          isVisible && !isRinging ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        )}
-        style={{ visibility: isVisible && !isRinging ? 'visible' : 'hidden' }}
-      />
-
-      {/* In-call overlay UI */}
+      {/* Backdrop - locks background interaction when call is active */}
       <AnimatePresence>
         {isVisible && !isRinging && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] pointer-events-none"
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[9997] bg-black/60 backdrop-blur-md"
+            onClick={resetControlsTimeout}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Call Overlay Card */}
+      <AnimatePresence>
+        {isVisible && !isRinging && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="fixed inset-4 z-[9998] flex items-center justify-center pointer-events-none"
+            onClick={resetControlsTimeout}
           >
-            {/* Header */}
-            <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent pointer-events-auto">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10 ring-2 ring-white/20">
-                  <AvatarImage src={otherUser?.avatar_url || undefined} />
-                  <AvatarFallback className="bg-primary/30">
-                    {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-white font-medium">
+            <div 
+              className={cn(
+                "relative w-full pointer-events-auto overflow-hidden",
+                "bg-gradient-to-b from-card/95 to-card/90 backdrop-blur-xl",
+                "border border-border/50 shadow-2xl",
+                "rounded-2xl md:rounded-3xl",
+                // Responsive sizing
+                isVideoCall 
+                  ? "max-w-4xl h-[85vh] max-h-[700px]" 
+                  : "max-w-md h-auto"
+              )}
+              style={{ 
+                paddingBottom: 'env(safe-area-inset-bottom)',
+                marginTop: 'env(safe-area-inset-top)',
+              }}
+            >
+              {/* Video container - only for video calls */}
+              {isVideoCall && (
+                <div
+                  ref={containerRef}
+                  className="absolute inset-0 rounded-2xl md:rounded-3xl overflow-hidden"
+                />
+              )}
+
+              {/* Audio call content */}
+              {!isVideoCall && (
+                <div className="flex flex-col items-center justify-center py-12 px-6">
+                  {/* Avatar with pulse animation when connecting */}
+                  <div className="relative mb-6">
+                    <motion.div
+                      animate={isConnecting ? { scale: [1, 1.05, 1] } : {}}
+                      transition={{ repeat: Infinity, duration: 2 }}
+                    >
+                      <Avatar className="h-28 w-28 ring-4 ring-primary/20 shadow-xl">
+                        <AvatarImage src={otherUser?.avatar_url || undefined} />
+                        <AvatarFallback className="text-4xl bg-gradient-to-br from-primary/80 to-primary/40">
+                          {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </motion.div>
+                    
+                    {/* Status indicator */}
+                    {isConnected && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-green-500 rounded-full px-3 py-1 flex items-center gap-1 shadow-lg"
+                      >
+                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                        <span className="text-xs font-medium text-white">Connected</span>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* User info */}
+                  <h2 className="text-xl font-semibold text-foreground mb-1">
                     {otherUser?.display_name || otherUser?.username}
-                  </p>
-                  <p className="text-white/60 text-sm">
+                  </h2>
+                  
+                  {/* Status text */}
+                  <div className="text-muted-foreground text-sm mb-8">
                     {isConnecting && (
                       <span className="flex items-center gap-2">
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin" />
                         Connecting...
                       </span>
                     )}
-                    {isConnected && formatDuration(callDuration)}
-                    {state.phase === 'error' && (
-                      <span className="text-red-400">{state.error}</span>
+                    {isConnected && (
+                      <span className="flex items-center gap-2">
+                        <Phone className="h-4 w-4" />
+                        {formatDuration(callDuration)}
+                      </span>
                     )}
-                  </p>
+                    {state.phase === 'error' && (
+                      <span className="text-destructive">{state.error}</span>
+                    )}
+                  </div>
+
+                  {/* Hidden container for Daily iframe (audio only) */}
+                  <div ref={containerRef} className="hidden" />
                 </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/10 rounded-full"
-                onClick={handleHangup}
-                disabled={isHangingUp}
+              )}
+
+              {/* Video call connecting overlay */}
+              {isVideoCall && isConnecting && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm rounded-2xl md:rounded-3xl">
+                  <div className="text-center">
+                    <motion.div
+                      animate={{ scale: [1, 1.05, 1] }}
+                      transition={{ repeat: Infinity, duration: 2 }}
+                    >
+                      <Avatar className="h-24 w-24 mx-auto mb-4 ring-4 ring-white/20 shadow-xl">
+                        <AvatarImage src={otherUser?.avatar_url || undefined} />
+                        <AvatarFallback className="text-3xl bg-gradient-to-br from-primary/80 to-primary/40">
+                          {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </motion.div>
+                    <p className="text-white font-medium mb-2">
+                      {otherUser?.display_name || otherUser?.username}
+                    </p>
+                    <motion.p
+                      animate={{ opacity: [0.5, 1, 0.5] }}
+                      transition={{ repeat: Infinity, duration: 1.5 }}
+                      className="text-white/70 flex items-center justify-center gap-2"
+                    >
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Connecting...
+                    </motion.p>
+                  </div>
+                </div>
+              )}
+
+              {/* Controls overlay */}
+              <motion.div
+                initial={false}
+                animate={{ opacity: showControls || !isVideoCall ? 1 : 0 }}
+                transition={{ duration: 0.2 }}
+                className={cn(
+                  "absolute bottom-0 left-0 right-0 p-4 md:p-6",
+                  isVideoCall && "bg-gradient-to-t from-black/80 via-black/40 to-transparent",
+                  !isVideoCall && "relative"
+                )}
+                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
               >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
+                {/* Video call header info */}
+                {isVideoCall && isConnected && showControls && (
+                  <div className="absolute top-0 left-0 right-0 p-4 flex items-center gap-3 -translate-y-full">
+                    <Avatar className="h-10 w-10 ring-2 ring-white/20">
+                      <AvatarImage src={otherUser?.avatar_url || undefined} />
+                      <AvatarFallback className="bg-primary/30 text-white text-sm">
+                        {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-white font-medium text-sm">
+                        {otherUser?.display_name || otherUser?.username}
+                      </p>
+                      <p className="text-white/60 text-xs">{formatDuration(callDuration)}</p>
+                    </div>
+                  </div>
+                )}
 
-            {/* Connecting overlay */}
-            {isConnecting && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/60 pointer-events-none">
-                <div className="text-center">
-                  <Avatar className="h-24 w-24 mx-auto mb-4 ring-4 ring-white/10">
-                    <AvatarImage src={otherUser?.avatar_url || undefined} />
-                    <AvatarFallback className="text-3xl bg-primary/30">
-                      {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <motion.div
-                    animate={{ opacity: [0.5, 1, 0.5] }}
-                    transition={{ repeat: Infinity, duration: 1.5 }}
-                    className="text-white/70"
-                  >
-                    Connecting...
-                  </motion.div>
-                </div>
-              </div>
-            )}
-
-            {/* Controls */}
-            <div className="absolute bottom-0 left-0 right-0 p-5 pb-10 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-auto">
-              <div className="flex items-center justify-center gap-4">
-                {/* Mute */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "h-14 w-14 rounded-full transition-colors",
-                    isMuted ? "bg-white text-black" : "bg-white/15 text-white"
-                  )}
-                  onClick={handleToggleMute}
-                  disabled={!isConnected}
-                >
-                  {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-                </Button>
-
-                {/* Video toggle */}
-                {isVideoCall && (
+                {/* Control buttons */}
+                <div className="flex items-center justify-center gap-4">
+                  {/* Mute */}
                   <Button
                     variant="ghost"
                     size="icon"
                     className={cn(
-                      "h-14 w-14 rounded-full transition-colors",
-                      isVideoOff ? "bg-white text-black" : "bg-white/15 text-white"
+                      "h-14 w-14 rounded-full transition-all duration-200",
+                      isMuted 
+                        ? "bg-white text-black hover:bg-white/90" 
+                        : "bg-white/15 text-white hover:bg-white/25 backdrop-blur-sm",
+                      !isConnected && "opacity-50"
                     )}
-                    onClick={handleToggleVideo}
+                    onClick={handleToggleMute}
                     disabled={!isConnected}
+                    aria-label={isMuted ? "Unmute" : "Mute"}
                   >
-                    {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                    {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
                   </Button>
-                )}
 
-                {/* Hangup */}
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 shadow-lg"
-                  onClick={handleHangup}
-                  disabled={isHangingUp}
-                >
-                  {isHangingUp ? (
-                    <Loader2 className="h-7 w-7 animate-spin" />
-                  ) : (
-                    <PhoneOff className="h-7 w-7" />
+                  {/* Speaker (audio calls only) */}
+                  {!isVideoCall && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "h-14 w-14 rounded-full transition-all duration-200",
+                        "bg-white/15 text-white hover:bg-white/25 backdrop-blur-sm",
+                        !isConnected && "opacity-50"
+                      )}
+                      disabled={!isConnected}
+                      aria-label="Speaker"
+                    >
+                      <Volume2 className="h-6 w-6" />
+                    </Button>
                   )}
-                </Button>
-              </div>
+
+                  {/* Video toggle */}
+                  {isVideoCall && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "h-14 w-14 rounded-full transition-all duration-200",
+                        isVideoOff 
+                          ? "bg-white text-black hover:bg-white/90" 
+                          : "bg-white/15 text-white hover:bg-white/25 backdrop-blur-sm",
+                        !isConnected && "opacity-50"
+                      )}
+                      onClick={handleToggleVideo}
+                      disabled={!isConnected}
+                      aria-label={isVideoOff ? "Turn on camera" : "Turn off camera"}
+                    >
+                      {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                    </Button>
+                  )}
+
+                  {/* End Call - CRITICAL: Always visible and functional */}
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className={cn(
+                      "h-16 w-16 rounded-full shadow-lg transition-all duration-200",
+                      "bg-red-500 hover:bg-red-600 active:scale-95",
+                      isHangingUp && "opacity-80"
+                    )}
+                    onClick={handleHangup}
+                    disabled={isHangingUp}
+                    aria-label="End call"
+                  >
+                    {isHangingUp ? (
+                      <Loader2 className="h-7 w-7 animate-spin text-white" />
+                    ) : (
+                      <PhoneOff className="h-7 w-7 text-white" />
+                    )}
+                  </Button>
+                </div>
+
+                {/* Ending call indicator */}
+                {isHangingUp && (
+                  <p className="text-center text-white/60 text-sm mt-3">
+                    Ending call...
+                  </p>
+                )}
+              </motion.div>
             </div>
           </motion.div>
         )}
@@ -489,7 +643,7 @@ export function GlobalCallOverlay() {
   );
 }
 
-// Inline incoming call dialog
+// Incoming call dialog component
 function IncomingCallDialog({
   call,
   onAccept,
@@ -533,97 +687,115 @@ function IncomingCallDialog({
   const caller = call.caller;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[10000] bg-gradient-to-b from-black/90 via-black/95 to-black flex items-center justify-center p-4"
-    >
-      <div className="absolute inset-0 backdrop-blur-xl" />
-      
+    <>
+      {/* Backdrop */}
       <motion.div
-        initial={{ scale: 0.9, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.9, y: 20 }}
-        className="relative z-10 flex flex-col items-center max-w-sm w-full"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-xl"
+      />
+      
+      {/* Dialog */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
       >
-        {/* Avatar */}
-        <div className="relative mb-8">
-          <motion.div
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ repeat: Infinity, duration: 2 }}
-          >
-            <Avatar className="h-32 w-32 ring-4 ring-primary/30 shadow-2xl">
-              <AvatarImage src={caller?.avatar_url || undefined} />
-              <AvatarFallback className="text-4xl bg-gradient-to-br from-primary to-primary/50">
-                {caller?.display_name?.charAt(0) || caller?.username?.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-          </motion.div>
-          
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary rounded-full px-3 py-1 flex items-center gap-1 shadow-lg"
-          >
-            {isVideoCall ? <Video className="h-4 w-4 text-primary-foreground" /> : <Phone className="h-4 w-4 text-primary-foreground" />}
-            <span className="text-xs font-medium text-primary-foreground">
-              {isVideoCall ? 'Video' : 'Audio'}
-            </span>
-          </motion.div>
-        </div>
-
-        {/* Caller info */}
-        <div className="text-center mb-10">
-          <h2 className="text-2xl font-semibold text-white mb-2">
-            {caller?.display_name || caller?.username}
-          </h2>
-          <motion.p
-            className="text-white/70 text-lg"
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-          >
-            Incoming {isVideoCall ? 'video' : 'audio'} call...
-          </motion.p>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex items-center justify-center gap-10 w-full">
-          <div className="flex flex-col items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg"
-              onClick={handleDecline}
-              disabled={isProcessing}
+        <div 
+          className="relative w-full max-w-sm bg-gradient-to-b from-card/95 to-card/90 backdrop-blur-xl rounded-3xl border border-border/50 shadow-2xl p-8"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 2rem)' }}
+        >
+          {/* Avatar */}
+          <div className="relative mx-auto mb-6 w-fit">
+            <motion.div
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ repeat: Infinity, duration: 2 }}
             >
-              <PhoneOff className="h-7 w-7" />
-            </Button>
-            <span className="text-white/60 text-sm">Decline</span>
+              <Avatar className="h-28 w-28 ring-4 ring-primary/30 shadow-xl">
+                <AvatarImage src={caller?.avatar_url || undefined} />
+                <AvatarFallback className="text-4xl bg-gradient-to-br from-primary to-primary/50">
+                  {caller?.display_name?.charAt(0) || caller?.username?.charAt(0)}
+                </AvatarFallback>
+              </Avatar>
+            </motion.div>
+            
+            {/* Call type badge */}
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary rounded-full px-3 py-1 flex items-center gap-1.5 shadow-lg"
+            >
+              {isVideoCall ? (
+                <Video className="h-4 w-4 text-primary-foreground" />
+              ) : (
+                <Phone className="h-4 w-4 text-primary-foreground" />
+              )}
+              <span className="text-xs font-medium text-primary-foreground">
+                {isVideoCall ? 'Video' : 'Audio'}
+              </span>
+            </motion.div>
           </div>
 
-          <div className="flex flex-col items-center gap-2">
-            <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ repeat: Infinity, duration: 1 }}
+          {/* Caller info */}
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-semibold text-foreground mb-2">
+              {caller?.display_name || caller?.username}
+            </h2>
+            <motion.p
+              className="text-muted-foreground"
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
             >
+              Incoming {isVideoCall ? 'video' : 'audio'} call...
+            </motion.p>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-center gap-8">
+            <div className="flex flex-col items-center gap-2">
               <Button
+                variant="ghost"
                 size="icon"
-                className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-lg"
-                onClick={handleAccept}
+                className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg active:scale-95 transition-transform"
+                onClick={handleDecline}
                 disabled={isProcessing}
               >
-                {isVideoCall ? <Video className="h-7 w-7" /> : <Phone className="h-7 w-7" />}
+                <PhoneOff className="h-7 w-7" />
               </Button>
-            </motion.div>
-            <span className="text-white/60 text-sm">Accept</span>
-          </div>
-        </div>
+              <span className="text-muted-foreground text-sm">Decline</span>
+            </div>
 
-        <p className="mt-8 text-white/40 text-sm">
-          Auto-declining in {timeLeft}s
-        </p>
+            <div className="flex flex-col items-center gap-2">
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 1 }}
+              >
+                <Button
+                  size="icon"
+                  className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-lg active:scale-95 transition-transform"
+                  onClick={handleAccept}
+                  disabled={isProcessing}
+                >
+                  {isVideoCall ? (
+                    <Video className="h-7 w-7" />
+                  ) : (
+                    <Phone className="h-7 w-7" />
+                  )}
+                </Button>
+              </motion.div>
+              <span className="text-muted-foreground text-sm">Accept</span>
+            </div>
+          </div>
+
+          {/* Auto-decline timer */}
+          <p className="mt-6 text-center text-muted-foreground/60 text-sm">
+            Auto-declining in {timeLeft}s
+          </p>
+        </div>
       </motion.div>
-    </motion.div>
+    </>
   );
 }
