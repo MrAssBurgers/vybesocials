@@ -1,8 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, User } from 'lucide-react';
+import { Bell, User, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
 import { useUnreadCount } from '@/hooks/useNotifications';
+import { useUnreadMessagesCount } from '@/hooks/useMessages';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { HeaderSearch } from './HeaderSearch';
@@ -11,9 +12,11 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 export function MobileHeader() {
   const { profile } = useAuth();
   const { data: unreadCount = 0 } = useUnreadCount();
+  const { data: unreadMessagesCount = 0 } = useUnreadMessagesCount();
   const location = useLocation();
 
   const isNotificationsActive = location.pathname === '/notifications';
+  const isMessagesActive = location.pathname.startsWith('/messages');
   const isProfileActive = location.pathname === `/u/${profile?.username}`;
 
   // Hide header on clips page for immersive experience
@@ -36,8 +39,34 @@ export function MobileHeader() {
           {/* Center - Search */}
           <HeaderSearch className="flex-1 mx-2 sm:mx-3" />
 
-          {/* Right side - Notifications & Profile - consistent sizing */}
+          {/* Right side - Messages, Notifications & Profile - consistent sizing */}
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            {/* Messages with unread badge */}
+            <Link
+              to="/messages"
+              className={cn(
+                "relative flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-full transition-colors",
+                isMessagesActive ? "bg-primary/20" : "hover:bg-muted/50"
+              )}
+            >
+              <MessageCircle className={cn(
+                "h-5 w-5 transition-colors",
+                isMessagesActive ? "text-primary" : "text-foreground"
+              )} />
+              <AnimatePresence>
+                {unreadMessagesCount > 0 && (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    className="absolute -top-0.5 -right-0.5 h-5 w-5 sm:h-5.5 sm:w-5.5 bg-destructive rounded-full flex items-center justify-center text-[10px] sm:text-[11px] text-destructive-foreground font-bold shadow-lg ring-2 ring-background"
+                  >
+                    {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </Link>
+
             {/* Notifications - same hitbox as other icons */}
             <Link
               to="/notifications"
