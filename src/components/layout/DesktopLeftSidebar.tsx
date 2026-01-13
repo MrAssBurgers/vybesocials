@@ -189,23 +189,14 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
 
   return (
     <TooltipProvider>
-      <aside 
+      <aside
         className={cn(
-          "hidden lg:flex flex-col border-r border-border/50 z-40",
+          "hidden lg:flex sticky top-0 h-dvh flex-col liquid-glass border-r border-border/50 z-40",
           "transition-[width] duration-200 ease-out",
-          collapsed 
-            ? "w-[72px]" 
+          collapsed
+            ? "w-[72px]"
             : "w-[200px] xl:w-[220px] 2xl:w-[240px]"
         )}
-        style={{
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          height: '100vh',
-          background: 'linear-gradient(135deg, hsl(var(--background) / 0.85) 0%, hsl(var(--background) / 0.75) 100%)',
-          backdropFilter: 'blur(40px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-        }}
       >
         {/* Brand Row */}
         <div className={cn(
@@ -219,7 +210,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
 
         {/* Profile Snapshot */}
         {!collapsed && profile && (
-          <Link 
+          <Link
             to={`/u/${profile.username}`}
             className="mx-3 mb-3 p-3 rounded-xl liquid-glass-subtle hover:bg-sidebar-accent/30 transition-all"
           >
@@ -266,7 +257,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         <Separator className="mx-3 bg-border/50" />
 
         {/* Primary Navigation */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
+        <nav className="flex-1 overflow-hidden px-2 py-3 space-y-1">
           {mainNavItems.map(renderNavItem)}
 
           {/* Moderation Section */}
