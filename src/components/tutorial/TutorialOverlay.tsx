@@ -127,33 +127,110 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     setTooltipPos(pos);
   }, []);
 
-  const updateSpotlight = useCallback(() => {
+  const scrollElementIntoView = useCallback((element: Element): Promise<void> => {
+    return new Promise((resolve) => {
+      const htmlElement = element as HTMLElement;
+      const rect = element.getBoundingClientRect();
+      const viewport = {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      };
+      
+      // Check if element is already fully visible
+      const isFullyVisible = 
+        rect.top >= 0 &&
+        rect.left >= 0 &&
+        rect.bottom <= viewport.height &&
+        rect.right <= viewport.width;
+      
+      if (isFullyVisible) {
+        resolve();
+        return;
+      }
+      
+      // For nav items in bottom nav or sidebar, we need special handling
+      const isInBottomNav = htmlElement.closest('[data-tutorial-container="bottom-nav"]') || 
+                            htmlElement.closest('nav') ||
+                            rect.bottom > viewport.height - 100;
+      const isInSidebar = htmlElement.closest('[data-tutorial-container="sidebar"]') ||
+                          htmlElement.closest('aside');
+      
+      // If it's a bottom nav item, scroll the page to top first to ensure nav is visible
+      if (isInBottomNav && rect.top > viewport.height) {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      }
+      
+      // If it's in a scrollable container, scroll that container
+      const scrollableParent = htmlElement.closest('.overflow-auto, .overflow-y-auto, .overflow-x-auto, [data-radix-scroll-area-viewport]');
+      if (scrollableParent) {
+        const parentRect = scrollableParent.getBoundingClientRect();
+        const elementOffsetTop = rect.top - parentRect.top + scrollableParent.scrollTop;
+        scrollableParent.scrollTo({
+          top: elementOffsetTop - parentRect.height / 2 + rect.height / 2,
+          behavior: 'smooth',
+        });
+      }
+      
+      // Use scrollIntoView with appropriate settings
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: isInBottomNav ? 'end' : isInSidebar ? 'nearest' : 'center',
+        inline: 'nearest',
+      });
+      
+      // Wait for scroll animation to complete
+      setTimeout(resolve, 400);
+    });
+  }, []);
+
+  const updateSpotlight = useCallback(async () => {
     if (!currentStepData) return;
 
     const target = document.querySelector(currentStepData.targetSelector);
     
     if (target) {
-      // Scroll element into view smoothly before highlighting
-      target.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'center',
-      });
+      // Force element into view before highlighting
+      await scrollElementIntoView(target);
       
-      // Wait for scroll to complete before calculating position
-      setTimeout(() => {
-        const rect = target.getBoundingClientRect();
-        const padding = 8;
+      // Double-check visibility after scroll and adjust if needed
+      let rect = target.getBoundingClientRect();
+      const viewport = {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      };
+      
+      // If still not visible, try more aggressive scrolling
+      const isVisible = 
+        rect.top >= -10 &&
+        rect.left >= -10 &&
+        rect.bottom <= viewport.height + 10 &&
+        rect.right <= viewport.width + 10;
+      
+      if (!isVisible) {
+        // For elements still not visible, scroll the main page
+        const htmlElement = target as HTMLElement;
+        const absoluteTop = htmlElement.getBoundingClientRect().top + window.scrollY;
         
-        setSpotlight({
-          top: rect.top - padding,
-          left: rect.left - padding,
-          width: rect.width + padding * 2,
-          height: rect.height + padding * 2,
+        window.scrollTo({
+          top: Math.max(0, absoluteTop - viewport.height / 2),
+          behavior: 'smooth',
         });
-        setElementFound(true);
-        calculateTooltipPosition(rect, currentStepData.position);
-      }, 300);
+        
+        // Wait and recalculate
+        await new Promise(resolve => setTimeout(resolve, 300));
+        rect = target.getBoundingClientRect();
+      }
+      
+      const padding = 8;
+      
+      setSpotlight({
+        top: rect.top - padding,
+        left: rect.left - padding,
+        width: rect.width + padding * 2,
+        height: rect.height + padding * 2,
+      });
+      setElementFound(true);
+      calculateTooltipPosition(rect, currentStepData.position);
     } else {
       // Element not found - show centered tooltip
       setSpotlight(null);
@@ -163,7 +240,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
         left: Math.max(16, window.innerWidth / 2 - 160),
       });
     }
-  }, [currentStepData, calculateTooltipPosition]);
+  }, [currentStepData, calculateTooltipPosition, scrollElementIntoView]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -335,7 +412,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
             {!elementFound && (
               <div className="mb-4 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-2 text-xs text-amber-600">
                 <HelpCircle className="w-4 h-4 flex-shrink-0" />
-                <span>This element may not be visible in the current view.</span>
+                <span>This feature may be available on a different screen or view.</span>
               </div>
             )}
 
