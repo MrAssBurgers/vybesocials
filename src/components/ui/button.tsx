@@ -15,7 +15,7 @@ const buttonVariants = cva(
         secondary: "liquid-glass-button text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent/50 hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        gradient: "bg-gradient-to-r from-[hsl(var(--gradient-start))] via-[hsl(var(--gradient-mid))] to-[hsl(var(--gradient-end))] bg-[length:200%_200%] animate-[gradient-shift_4s_ease_infinite] text-primary-foreground font-semibold hover:shadow-lg hover:shadow-primary/30",
+        gradient: "gradient-animated text-primary-foreground font-semibold hover:shadow-lg hover:shadow-primary/30",
         glass: "liquid-glass text-foreground hover:bg-muted/50 hover:shadow-md",
         neon: "bg-primary text-primary-foreground glow-pink hover:glow-purple transition-shadow liquid-glass-button",
       },
