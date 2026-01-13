@@ -660,7 +660,8 @@ function IncomingCallDialog({
   const caller = call.caller;
 
   return (
-       {/* Animated background orbs */}
+    <>
+      {/* Animated background orbs */}
        <div className="absolute inset-0 overflow-hidden">
          <motion.div
            animate={{
