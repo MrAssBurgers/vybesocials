@@ -42,7 +42,7 @@ import { ChatPresenceBar } from './ChatPresenceBar';
 import { SnapReadReceipt } from './SnapReadReceipt';
 import { ReactionPicker, MessageReactions } from './MessageReactions';
 import { CallHistory } from './CallHistory';
-import { FriendsWatchingIndicator } from '@/components/growth/FriendsWatchingIndicator';
+
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
 import { ReplyPreview } from './ReplyPreview';
@@ -595,17 +595,6 @@ export function ChatView() {
             <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-background">
               {otherMembers.length + 1}
             </div>
-          )}
-          {/* Friends watching indicator for group chats */}
-          {isGroupChat && presentUsers.length > 1 && (
-            <FriendsWatchingIndicator 
-              friends={presentUsers.slice(0, 3).map(u => ({
-                id: u.user_id,
-                username: u.username,
-                avatar_url: u.avatar_url,
-              }))}
-              className="absolute -top-2 -right-2 scale-75"
-            />
           )}
         </button>
         

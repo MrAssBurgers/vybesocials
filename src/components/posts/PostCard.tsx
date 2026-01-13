@@ -29,7 +29,6 @@ import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
-import { FriendsAlsoLiked } from '@/components/growth/FriendsAlsoLiked';
 
 // Video player component - maintains the video's native aspect ratio (no cropping)
 function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
@@ -586,11 +585,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           </motion.button>
         </div>
 
-        {/* Likes + Friends also liked */}
-        <div className="flex items-center justify-between">
-          <p className="font-semibold text-sm">{likeCount.toLocaleString()} likes</p>
-          <FriendsAlsoLiked postId={post.id} />
-        </div>
+        {/* Likes */}
+        <p className="font-semibold text-sm">{likeCount.toLocaleString()} likes</p>
 
         {/* Caption */}
         {post.caption && (
