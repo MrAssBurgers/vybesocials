@@ -9,6 +9,10 @@ import { Home, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { useIsMobile } from '@/hooks/use-mobile';
+
+// Bottom nav height constant for mobile/tablet
+const BOTTOM_NAV_HEIGHT = 80; // px (including safe area padding)
 
 export default function ClipsPage() {
   const { 
@@ -29,6 +33,7 @@ export default function ClipsPage() {
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const holdTimer = useRef<NodeJS.Timeout | null>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isMobile = useIsMobile();
 
   const { isSlowConnection } = useNetworkStatus();
   
@@ -157,7 +162,10 @@ export default function ClipsPage() {
   if (isLoading) {
     return (
       <AppLayout hideNav>
-        <div className="h-dvh flex items-center justify-center bg-black">
+        <div 
+          className="flex items-center justify-center bg-black"
+          style={{ height: isMobile ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh' }}
+        >
           <motion.div 
             className="gradient-animated rounded-full p-4"
             animate={{ scale: [1, 1.1, 1] }}
@@ -173,7 +181,10 @@ export default function ClipsPage() {
   if (!shorts || shorts.length === 0) {
     return (
       <AppLayout hideNav>
-        <div className="h-dvh flex items-center justify-center bg-black px-4">
+        <div 
+          className="flex items-center justify-center bg-black px-4"
+          style={{ height: isMobile ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh' }}
+        >
           <EmptyState
             emoji="🎬"
             title="No clips yet"
@@ -186,12 +197,16 @@ export default function ClipsPage() {
     );
   }
 
+  // Calculate container height - on mobile/tablet leave room for bottom nav
+  const containerHeight = isMobile ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh';
+
   return (
     <AppLayout hideNav>
       <div
         ref={containerRef}
-        className="h-dvh overflow-y-scroll scrollbar-hide bg-black"
+        className="overflow-y-scroll scrollbar-hide bg-black"
         style={{ 
+          height: containerHeight,
           scrollSnapType: 'y mandatory',
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch',
@@ -208,8 +223,9 @@ export default function ClipsPage() {
             <div
               key={short.id}
               ref={(el) => { itemRefs.current[index] = el; }}
-              className="h-dvh w-full flex-shrink-0 flex justify-center"
+              className="w-full flex-shrink-0 flex justify-center"
               style={{ 
+                height: containerHeight,
                 scrollSnapAlign: 'start',
                 scrollSnapStop: 'always',
               }}

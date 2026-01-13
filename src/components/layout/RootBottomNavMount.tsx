@@ -29,6 +29,7 @@ function useViewportBelowDesktop() {
 /**
  * Forces BottomNav to mount at the app root on all viewports < 1024px.
  * Hides nav when inside a DM conversation.
+ * Shows nav on clips page (Instagram Reels style - nav sits below video).
  */
 export const RootBottomNavMount = memo(function RootBottomNavMount() {
   const show = useViewportBelowDesktop();
