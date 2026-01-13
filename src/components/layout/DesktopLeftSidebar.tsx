@@ -191,7 +191,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
     <TooltipProvider>
       <aside
         className={cn(
-          "hidden lg:flex sticky top-0 h-dvh flex-col liquid-glass border-r border-border/50 z-40",
+          "flex sticky top-0 h-dvh flex-col liquid-glass border-r border-border/50 z-40",
           "transition-[width] duration-200 ease-out",
           collapsed
             ? "w-[72px]"
