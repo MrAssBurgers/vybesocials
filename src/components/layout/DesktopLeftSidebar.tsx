@@ -281,7 +281,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               <Button 
                 onClick={handleCreateClick}
                 className={cn(
-                  "w-full gradient-static text-primary-foreground font-semibold rounded-xl hover:brightness-110 transition-all",
+                  "w-full gradient-animated text-primary-foreground font-semibold rounded-xl hover:brightness-110 transition-all",
                   "shadow-lg shadow-primary/20 hover:shadow-primary/30",
                   "active:scale-95 transition-transform",
                   collapsed ? "h-11 px-0 min-w-[48px]" : "h-11"
