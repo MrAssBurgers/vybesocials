@@ -4,8 +4,7 @@
  * Simple buttons to start audio/video calls using the global call store.
  */
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useCallback } from 'react';
 import { Phone, Video, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCallStore, CallType } from '@/lib/callStore';
@@ -49,38 +48,44 @@ export function CallButtons({ conversationId, receiverId }: CallButtonsProps) {
 
   const isDisabled = state.phase !== 'idle' || isStarting !== null;
 
+  // Handle touch for iOS/iPad
+  const handleTouchStart = (callType: CallType) => (e: React.TouchEvent) => {
+    e.preventDefault();
+    handleStartCall(callType);
+  };
+
   return (
     <div className="flex items-center gap-1">
-      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => handleStartCall('audio')}
-          disabled={isDisabled}
-          title="Audio call"
-        >
-          {isStarting === 'audio' ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Phone className="h-5 w-5" />
-          )}
-        </Button>
-      </motion.div>
-      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => handleStartCall('video')}
-          disabled={isDisabled}
-          title="Video call"
-        >
-          {isStarting === 'video' ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Video className="h-5 w-5" />
-          )}
-        </Button>
-      </motion.div>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => handleStartCall('audio')}
+        onTouchEnd={handleTouchStart('audio')}
+        disabled={isDisabled}
+        title="Audio call"
+        className="active:scale-95 transition-transform touch-manipulation"
+      >
+        {isStarting === 'audio' ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <Phone className="h-5 w-5" />
+        )}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => handleStartCall('video')}
+        onTouchEnd={handleTouchStart('video')}
+        disabled={isDisabled}
+        title="Video call"
+        className="active:scale-95 transition-transform touch-manipulation"
+      >
+        {isStarting === 'video' ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <Video className="h-5 w-5" />
+        )}
+      </Button>
     </div>
   );
 }
