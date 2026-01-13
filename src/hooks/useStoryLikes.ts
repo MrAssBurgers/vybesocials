@@ -17,7 +17,7 @@ export interface StoryLike {
 }
 
 export function useStoryLikes(storyId: string | undefined) {
-  const { profile } = useAuth();
+  const { user } = useAuth();
 
   return useQuery({
     queryKey: ['story-likes', storyId],
@@ -35,7 +35,8 @@ export function useStoryLikes(storyId: string | undefined) {
       if (error) throw error;
 
       const likes = (data || []) as unknown as StoryLike[];
-      const hasLiked = profile ? likes.some(l => l.user_id === profile.id) : false;
+      // Compare with auth user ID, not profile ID
+      const hasLiked = user ? likes.some(l => l.user_id === user.id) : false;
 
       return { likes, hasLiked, count: likes.length };
     },
@@ -45,28 +46,29 @@ export function useStoryLikes(storyId: string | undefined) {
 }
 
 export function useLikeStory() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const pendingAction = useRef<'like' | 'unlike' | null>(null);
 
   const executeLike = useCallback(async (storyId: string, action: 'like' | 'unlike') => {
-    if (!profile?.id) throw new Error('Not authenticated');
+    if (!user?.id) throw new Error('Not authenticated');
 
     if (action === 'like') {
+      // Use auth user ID, not profile ID - matches RLS policy
       const { error } = await supabase
         .from('story_likes')
-        .insert({ story_id: storyId, user_id: profile.id });
+        .insert({ story_id: storyId, user_id: user.id });
       if (error && !error.message.includes('duplicate')) throw error;
     } else {
       const { error } = await supabase
         .from('story_likes')
         .delete()
         .eq('story_id', storyId)
-        .eq('user_id', profile.id);
+        .eq('user_id', user.id);
       if (error) throw error;
     }
-  }, [profile?.id]);
+  }, [user?.id]);
 
   return useMutation({
     mutationFn: async ({ storyId, action }: { storyId: string; action: 'like' | 'unlike' }) => {
@@ -109,7 +111,7 @@ export function useLikeStory() {
             likes: [...old.likes, {
               id: `optimistic-${Date.now()}`,
               story_id: storyId,
-              user_id: profile?.id,
+              user_id: user?.id, // Use auth user ID
               created_at: new Date().toISOString(),
             }],
           };
@@ -118,7 +120,7 @@ export function useLikeStory() {
             ...old,
             hasLiked: false,
             count: Math.max(0, old.count - 1),
-            likes: old.likes.filter((l: StoryLike) => l.user_id !== profile?.id),
+            likes: old.likes.filter((l: StoryLike) => l.user_id !== user?.id), // Use auth user ID
           };
         }
       });

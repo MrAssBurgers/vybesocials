@@ -270,8 +270,44 @@ export function useViewStory() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stories'] });
+    onMutate: async (storyId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['stories', profile?.id] });
+
+      // Snapshot previous value
+      const previousStories = queryClient.getQueryData<StoryGroup[]>(['stories', profile?.id]);
+
+      // Optimistically update to mark story as viewed
+      queryClient.setQueryData<StoryGroup[]>(['stories', profile?.id], (old) => {
+        if (!old) return old;
+
+        return old.map(group => {
+          const updatedStories = group.stories.map(story => 
+            story.id === storyId ? { ...story, has_viewed: true } : story
+          );
+          
+          // Recalculate hasUnviewed for the group
+          const hasUnviewed = updatedStories.some(s => !s.has_viewed);
+          
+          return {
+            ...group,
+            stories: updatedStories,
+            hasUnviewed,
+          };
+        });
+      });
+
+      return { previousStories };
+    },
+    onError: (err, storyId, context) => {
+      // Rollback on error
+      if (context?.previousStories) {
+        queryClient.setQueryData(['stories', profile?.id], context.previousStories);
+      }
+    },
+    onSettled: () => {
+      // Don't refetch immediately - allow UI to show viewed state
+      // Refetch on next interval
     },
   });
 }
