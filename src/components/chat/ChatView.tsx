@@ -38,7 +38,9 @@ import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { CallButtons } from '@/components/call/CallButtons';
 import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 import { useChatPresence } from '@/hooks/useChatPresence';
-import { ChatPresenceIndicator } from './ChatPresenceIndicator';
+import { ChatPresenceBar } from './ChatPresenceBar';
+import { SnapReadReceipt } from './SnapReadReceipt';
+import { ReactionPicker, MessageReactions } from './MessageReactions';
 
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
@@ -924,7 +926,7 @@ const MessageInputArea = memo(function MessageInputArea({
     <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30">
       {/* Snapchat-style presence indicator - floats above input */}
       {presentUsers && presentUsers.length > 0 && (
-        <ChatPresenceIndicator
+        <ChatPresenceBar
           presentUsers={presentUsers}
           typingUserIds={typingUserIds || []}
           maxDisplay={3}
@@ -1320,69 +1322,50 @@ const MessageBubble = memo(function MessageBubble({
 
         {/* Reactions bar - floats below message */}
         {uniqueReactions.length > 0 && (
-          <div className="flex items-center gap-0.5 mt-1 bg-background/95 border border-border/40 rounded-full px-1.5 py-0.5 shadow-sm self-start">
-            {uniqueReactions.slice(0, 3).map(([emoji, count]) => (
-              <span key={emoji} className="text-xs flex items-center">
-                {emoji}
-                {count > 1 && <span className="text-[9px] ml-0.5 text-muted-foreground">{count}</span>}
-              </span>
-            ))}
-            {uniqueReactions.length > 3 && (
-              <span className="text-[9px] text-muted-foreground ml-0.5">+{uniqueReactions.length - 3}</span>
-            )}
-          </div>
+          <MessageReactions
+            reactions={message.reactions || []}
+            onReact={(emoji) => handleReaction(emoji)}
+            userReaction={userReaction}
+            isOwn={isOwn}
+          />
         )}
 
-        {/* Timestamp and read receipts - 6-8px below bubble */}
+        {/* Timestamp and Snap-style read receipts */}
         <div className={cn(
-          "flex items-center gap-1.5 mt-2",
+          "flex items-center gap-1.5 mt-1.5",
           isOwn ? "justify-end" : "justify-start"
         )}>
           <span className="text-[10px] text-muted-foreground/50 font-light">
             {format(new Date(message.created_at), 'HH:mm')}
           </span>
           {isOwn && (
-            <>
-              {hasBeenViewed ? (
-                <div className="flex items-center gap-0.5">
-                  <Eye className="h-3 w-3 text-primary/60" />
-                  {message.views && message.views.length > 0 && (
-                    <span className="text-[9px] font-medium text-primary/60">
-                      {message.views.length}
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <Check className="h-2.5 w-2.5 text-muted-foreground/40" />
-              )}
-            </>
+            <SnapReadReceipt
+              status={hasBeenViewed ? 'read' : 'delivered'}
+              views={message.views?.map(v => ({
+                user_id: v.user_id,
+                viewed_at: v.viewed_at,
+                profile: undefined // Will be fetched by component
+              }))}
+              isGroupChat={isGroupChat}
+            />
           )}
         </div>
         
-        {hasBeenViewed && message.views && isGroupChat && isOwn && (
+        {hasBeenViewed && message.views && isGroupChat && isOwn && message.views.length > 1 && (
           <ReadReceipts 
             views={message.views} 
             isGroupChat={isGroupChat}
           />
         )}
 
-        {/* Quick reactions popup */}
-        {showReactions && (
-          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-background border border-border rounded-full px-2 py-1 shadow-lg flex gap-1 z-20 animate-in fade-in zoom-in-95 duration-150">
-            {QUICK_REACTIONS.map((emoji) => (
-              <button
-                key={emoji}
-                onClick={() => handleReaction(emoji)}
-                className={cn(
-                  "p-1 hover:scale-125 transition-transform text-base sm:text-lg",
-                  userReaction === emoji && "bg-primary/20 rounded-full"
-                )}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Reaction picker popup */}
+        <ReactionPicker
+          isOpen={showReactions}
+          onClose={onToggleReactions}
+          onReact={handleReaction}
+          userReaction={userReaction}
+          position="top"
+        />
 
         {/* Context menu for long-press */}
         {showContextMenu && (

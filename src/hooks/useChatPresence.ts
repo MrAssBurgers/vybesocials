@@ -17,6 +17,8 @@ export function useChatPresence(conversationId: string | undefined) {
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   const conversationIdRef = useRef(conversationId);
   const profileIdRef = useRef(profile?.id);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef = useRef(false);
   
   // Keep refs updated
   useEffect(() => {
@@ -24,11 +26,21 @@ export function useChatPresence(conversationId: string | undefined) {
     profileIdRef.current = profile?.id;
   }, [conversationId, profile?.id]);
 
-  // Stable setTyping function
+  // Debounced setTyping function - prevents flicker
   const setTyping = useCallback(async (isTyping: boolean) => {
     const cid = conversationIdRef.current;
     const pid = profileIdRef.current;
     if (!cid || !pid) return;
+
+    // Debounce: don't send if state hasn't actually changed
+    if (isTypingRef.current === isTyping) return;
+    isTypingRef.current = isTyping;
+
+    // Clear any pending timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
 
     try {
       if (isTyping) {
@@ -42,6 +54,17 @@ export function useChatPresence(conversationId: string | undefined) {
             },
             { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
           );
+        
+        // Auto-clear typing after 4 seconds of inactivity
+        typingTimeoutRef.current = setTimeout(() => {
+          isTypingRef.current = false;
+          supabase
+            .from('typing_indicators')
+            .delete()
+            .eq('conversation_id', cid)
+            .eq('user_id', pid)
+            .then(() => {});
+        }, 4000);
       } else {
         await supabase
           .from('typing_indicators')
@@ -195,6 +218,10 @@ export function useChatPresence(conversationId: string | undefined) {
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current);
         heartbeatRef.current = null;
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
       }
       leavePresence();
       supabase.removeChannel(presenceChannel);
