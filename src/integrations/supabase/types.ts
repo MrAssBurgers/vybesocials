@@ -2135,6 +2135,8 @@ export type Database = {
           phone_verified: boolean | null
           sensitivity_preference: string | null
           timezone: string | null
+          tutorial_completed: boolean | null
+          tutorial_skipped: boolean | null
           user_id: string
           username: string
         }
@@ -2158,6 +2160,8 @@ export type Database = {
           phone_verified?: boolean | null
           sensitivity_preference?: string | null
           timezone?: string | null
+          tutorial_completed?: boolean | null
+          tutorial_skipped?: boolean | null
           user_id: string
           username: string
         }
@@ -2181,6 +2185,8 @@ export type Database = {
           phone_verified?: boolean | null
           sensitivity_preference?: string | null
           timezone?: string | null
+          tutorial_completed?: boolean | null
+          tutorial_skipped?: boolean | null
           user_id?: string
           username?: string
         }
