@@ -1,8 +1,11 @@
 /**
  * Global Call Overlay
  * 
- * Simplified approach: when you click "Join", you immediately enter
- * a waiting room and wait up to 30 seconds for the other person.
+ * Flow:
+ * 1. Pre-join screen to set up mic/camera
+ * 2. User clicks "Join Call"
+ * 3. Enters waiting room (30s) while waiting for other person
+ * 4. Connected when other person joins
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -17,6 +20,7 @@ import { requestCallMediaPermissions, isAndroid, nextAnimationFrame } from '@/li
 import { callSounds } from '@/lib/callSounds';
 import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall } from '@daily-co/daily-js';
+import { PreJoinScreen } from './PreJoinScreen';
 
 // Module-level state
 let globalDailyInstance: DailyCall | null = null;
@@ -81,18 +85,23 @@ export function GlobalCallOverlay() {
   const dailyRef = useRef<DailyCall | null>(null);
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const waitingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const joinStartedRef = useRef<string | null>(null);
+  const tokenRef = useRef<string | null>(null);
   
   // UI state
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isHangingUp, setIsHangingUp] = useState(false);
-  const [isJoining, setIsJoining] = useState(false);
   const [waitingCountdown, setWaitingCountdown] = useState(30);
   const [isInWaitingRoom, setIsInWaitingRoom] = useState(false);
   const [hasOtherParticipant, setHasOtherParticipant] = useState(false);
+  
+  // Pre-join state
+  const [showPreJoin, setShowPreJoin] = useState(false);
+  const [preJoinStatus, setPreJoinStatus] = useState('Checking devices...');
+  const [isPreJoinReady, setIsPreJoinReady] = useState(false);
+  const [isJoiningFromPreJoin, setIsJoiningFromPreJoin] = useState(false);
 
   const stateRef = useRef(state);
   useEffect(() => {
@@ -103,13 +112,6 @@ export function GlobalCallOverlay() {
     if (joinTimeoutRef.current) {
       clearTimeout(joinTimeoutRef.current);
       joinTimeoutRef.current = null;
-    }
-  }, []);
-
-  const clearWaitingTimeout = useCallback(() => {
-    if (waitingTimeoutRef.current) {
-      clearTimeout(waitingTimeoutRef.current);
-      waitingTimeoutRef.current = null;
     }
   }, []);
 
@@ -125,7 +127,8 @@ export function GlobalCallOverlay() {
     daily.on('joined-meeting', () => {
       console.log('[CallOverlay] ✅ joined-meeting event');
       clearJoinTimeout();
-      setIsJoining(false);
+      setShowPreJoin(false);
+      setIsJoiningFromPreJoin(false);
       setIsInWaitingRoom(true);
       
       // Enable media after joining
@@ -158,7 +161,6 @@ export function GlobalCallOverlay() {
     daily.on('participant-joined', (event: any) => {
       console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.user_id);
       setHasOtherParticipant(true);
-      clearWaitingTimeout();
       callSounds.stopAll();
       callSounds.connect();
       setPhase('connected');
@@ -178,21 +180,19 @@ export function GlobalCallOverlay() {
     daily.on('left-meeting', () => {
       console.log('[CallOverlay] 👋 left-meeting event');
       clearJoinTimeout();
-      clearWaitingTimeout();
       isLeavingRef.current = false;
     });
 
     daily.on('error', (event: any) => {
       console.error('[CallOverlay] ❌ error event:', event);
       clearJoinTimeout();
-      clearWaitingTimeout();
       
       const msg = event?.errorMsg || event?.error?.msg || 'Call error';
       toast.error(msg);
       setError(msg);
       endCall();
     });
-  }, [clearJoinTimeout, clearWaitingTimeout, setPhase, setError, endCall]);
+  }, [clearJoinTimeout, setPhase, setError, endCall]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -201,21 +201,115 @@ export function GlobalCallOverlay() {
     };
   }, []);
 
-  // Reset state when phase changes
+  // Show pre-join screen & prepare when phase becomes 'joining'
   useEffect(() => {
-    if (state.phase === 'idle') {
-      setIsJoining(false);
+    if (state.phase === 'joining' && state.call?.roomUrl && state.call?.roomName) {
+      setShowPreJoin(true);
+      setPreJoinStatus('Checking devices...');
+      setIsPreJoinReady(false);
+      setIsJoiningFromPreJoin(false);
+      tokenRef.current = null;
+      joinStartedRef.current = null;
+      
+      // Prepare: get permissions and token
+      let cancelled = false;
+      (async () => {
+        try {
+          setPreJoinStatus('Requesting permissions...');
+          await requestCallMediaPermissions(state.call!.callType);
+          if (cancelled) return;
+
+          setPreJoinStatus('Authenticating...');
+          const { data: tokenData, error: tokenError } = await supabase.functions.invoke('get-call-token', {
+            body: {
+              roomName: state.call!.roomName,
+              callId: state.call!.id,
+            },
+          });
+
+          if (cancelled) return;
+
+          if (tokenError || !tokenData?.token) {
+            throw new Error(tokenError?.message || tokenData?.error || 'Failed to get meeting token');
+          }
+
+          tokenRef.current = tokenData.token;
+          setPreJoinStatus('Ready');
+          setIsPreJoinReady(true);
+        } catch (err: any) {
+          console.error('[CallOverlay] Prepare failed:', err);
+          toast.error(err.message || 'Failed to prepare call');
+          endCall();
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    } else if (state.phase === 'idle') {
+      setShowPreJoin(false);
+      setIsPreJoinReady(false);
+      setIsJoiningFromPreJoin(false);
       setIsInWaitingRoom(false);
       setHasOtherParticipant(false);
       setWaitingCountdown(30);
       joinStartedRef.current = null;
+      tokenRef.current = null;
       clearJoinTimeout();
-      clearWaitingTimeout();
     } else if (state.phase === 'connected') {
-      setIsJoining(false);
+      setShowPreJoin(false);
+      setIsJoiningFromPreJoin(false);
       setIsInWaitingRoom(false);
     }
-  }, [state.phase, clearJoinTimeout, clearWaitingTimeout]);
+  }, [state.phase, state.call?.roomUrl, state.call?.roomName, state.call?.id, state.call?.callType, clearJoinTimeout, endCall]);
+
+  // Handle user clicking "Join Call" on pre-join screen
+  const handleJoinFromPreJoin = useCallback(async () => {
+    if (!state.call?.roomUrl || !tokenRef.current || !containerRef.current) return;
+    if (isLeavingRef.current) return;
+    
+    const callId = state.call.id;
+    if (joinStartedRef.current === callId) return;
+    joinStartedRef.current = callId;
+    
+    setIsJoiningFromPreJoin(true);
+    setPreJoinStatus('Connecting...');
+
+    try {
+      // Android safety delay
+      if (isAndroid()) {
+        await nextAnimationFrame();
+      }
+
+      // Create Daily instance
+      const daily = createFreshDailyInstance(containerRef.current!, state.call!.roomUrl);
+      if (!daily) {
+        throw new Error('Failed to initialize call');
+      }
+
+      dailyRef.current = daily;
+      attachDailyListeners(daily);
+
+      // Set 25 second join timeout
+      clearJoinTimeout();
+      joinTimeoutRef.current = setTimeout(() => {
+        console.error('[CallOverlay] Join timeout - no joined-meeting in 25s');
+        toast.error('Call failed to connect');
+        endCall();
+      }, 25000);
+
+      console.log('[CallOverlay] Calling daily.join()');
+      await daily.join({ url: state.call!.roomUrl, token: tokenRef.current! });
+      console.log('[CallOverlay] daily.join() returned');
+
+    } catch (err: any) {
+      console.error('[CallOverlay] Join failed:', err);
+      clearJoinTimeout();
+      toast.error(err.message || 'Failed to connect to call');
+      setIsJoiningFromPreJoin(false);
+      endCall();
+    }
+  }, [state.call?.id, state.call?.roomUrl, clearJoinTimeout, endCall, attachDailyListeners]);
 
   // Waiting room countdown
   useEffect(() => {
@@ -238,82 +332,6 @@ export function GlobalCallOverlay() {
     return () => clearInterval(interval);
   }, [isInWaitingRoom, endCall]);
 
-  // Join call immediately when phase becomes 'joining'
-  useEffect(() => {
-    if (state.phase !== 'joining' || !state.call?.roomUrl || !state.call?.roomName) return;
-    if (!containerRef.current) return;
-    if (isLeavingRef.current) return;
-
-    const callId = state.call.id;
-    if (joinStartedRef.current === callId) return;
-    joinStartedRef.current = callId;
-
-    let cancelled = false;
-    setIsJoining(true);
-
-    (async () => {
-      try {
-        // Request permissions
-        await requestCallMediaPermissions(state.call!.callType);
-        if (cancelled) return;
-
-        // Get token
-        const { data: tokenData, error: tokenError } = await supabase.functions.invoke('get-call-token', {
-          body: {
-            roomName: state.call!.roomName,
-            callId,
-          },
-        });
-
-        if (cancelled) return;
-
-        if (tokenError || !tokenData?.token) {
-          throw new Error(tokenError?.message || tokenData?.error || 'Failed to get meeting token');
-        }
-
-        // Android safety delay
-        if (isAndroid()) {
-          await nextAnimationFrame();
-        }
-
-        if (cancelled) return;
-
-        // Create Daily instance
-        const daily = createFreshDailyInstance(containerRef.current!, state.call!.roomUrl);
-        if (!daily) {
-          throw new Error('Failed to initialize call');
-        }
-
-        dailyRef.current = daily;
-        attachDailyListeners(daily);
-
-        // Set 25 second join timeout
-        clearJoinTimeout();
-        joinTimeoutRef.current = setTimeout(() => {
-          console.error('[CallOverlay] Join timeout - no joined-meeting in 25s');
-          toast.error('Call failed to connect');
-          endCall();
-        }, 25000);
-
-        console.log('[CallOverlay] Calling daily.join()');
-        await daily.join({ url: state.call!.roomUrl, token: tokenData.token });
-        console.log('[CallOverlay] daily.join() returned');
-
-      } catch (err: any) {
-        console.error('[CallOverlay] Join failed:', err);
-        clearJoinTimeout();
-        toast.error(err.message || 'Failed to connect to call');
-        setIsJoining(false);
-        endCall();
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      clearJoinTimeout();
-    };
-  }, [state.phase, state.call?.id, state.call?.roomUrl, state.call?.roomName, state.call?.callType, clearJoinTimeout, endCall, setError, attachDailyListeners]);
-
   // Call duration timer
   useEffect(() => {
     if (state.phase !== 'connected') {
@@ -334,7 +352,6 @@ export function GlobalCallOverlay() {
     console.log('[CallOverlay] Hangup pressed');
 
     clearJoinTimeout();
-    clearWaitingTimeout();
     isLeavingRef.current = true;
 
     const daily = dailyRef.current;
@@ -355,7 +372,7 @@ export function GlobalCallOverlay() {
     await endCall();
     setIsHangingUp(false);
     isLeavingRef.current = false;
-  }, [isHangingUp, clearJoinTimeout, clearWaitingTimeout, endCall]);
+  }, [isHangingUp, clearJoinTimeout, endCall]);
 
   const handleToggleMute = useCallback(() => {
     const daily = dailyRef.current;
@@ -395,7 +412,7 @@ export function GlobalCallOverlay() {
   };
 
   const otherUser = state.call?.isInitiator ? state.call.receiver : state.call?.caller;
-  const isVisible = state.phase !== 'idle';
+  const currentUser = state.call?.isInitiator ? state.call.caller : state.call?.receiver;
   const isVideoCall = state.call?.callType === 'video';
   const isRinging = state.phase === 'ringing';
   const isConnected = state.phase === 'connected';
@@ -409,26 +426,24 @@ export function GlobalCallOverlay() {
         ref={containerRef}
         className={cn(
           'fixed inset-0 z-[9998] bg-black transition-opacity duration-200',
-          (showCallUI || isConnecting) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          (showCallUI || isJoiningFromPreJoin) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}
-        style={{ visibility: (showCallUI || isConnecting) ? 'visible' : 'hidden' }}
+        style={{ visibility: (showCallUI || isJoiningFromPreJoin) ? 'visible' : 'hidden' }}
       />
 
-      {/* Joining overlay */}
+      {/* Pre-join screen */}
       <AnimatePresence>
-        {isJoining && !isInWaitingRoom && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-black/90 flex flex-col items-center justify-center gap-6"
-          >
-            <Loader2 className="h-12 w-12 text-primary animate-spin" />
-            <p className="text-white text-lg">Joining call...</p>
-            <Button variant="outline" onClick={handleHangup} disabled={isHangingUp}>
-              Cancel
-            </Button>
-          </motion.div>
+        {showPreJoin && state.call && (
+          <PreJoinScreen
+            callerName={currentUser?.display_name || currentUser?.username || 'You'}
+            callerAvatar={currentUser?.avatar_url}
+            isVideoCall={isVideoCall}
+            isReady={isPreJoinReady}
+            isJoining={isJoiningFromPreJoin}
+            statusText={preJoinStatus}
+            onJoin={handleJoinFromPreJoin}
+            onCancel={handleHangup}
+          />
         )}
       </AnimatePresence>
 
