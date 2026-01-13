@@ -13,6 +13,12 @@ import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanne
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
+import { 
+  ActiveFriendsBar, 
+  FriendsReactedClips, 
+  EngagementStreaks,
+  SoftEngagementPrompt 
+} from '@/components/growth';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
@@ -201,8 +207,22 @@ export default function HomePage() {
         {/* Announcements Banner */}
         <AnnouncementBanner />
 
+        {/* Active friends bar - shows who's online now */}
+        <div className="px-4">
+          <ActiveFriendsBar />
+        </div>
+
         {/* Stories Bar */}
         <StoriesBar />
+
+        {/* Friends reacted clips - surface funny content */}
+        <FriendsReactedClips className="mb-4" />
+
+        {/* Engagement streaks + soft prompts */}
+        <div className="flex items-center justify-between px-4 mb-4">
+          <EngagementStreaks />
+          <SoftEngagementPrompt />
+        </div>
         
         <div className="px-4 pb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
