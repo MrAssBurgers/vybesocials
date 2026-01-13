@@ -158,7 +158,7 @@ export function PreJoinScreen({
                 "bg-muted/50 border border-border/30"
               )}>
                 {/* Camera Preview or Avatar */}
-                {isVideoCall && !isCameraOff && localVideoStream ? (
+                {isVideoCall && !effectiveCameraOff && localVideoStream ? (
                   <>
                     <video
                       ref={videoRef}
@@ -178,7 +178,7 @@ export function PreJoinScreen({
                         {callerName?.charAt(0)?.toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    {(isCameraOff || !isVideoCall) && (
+                    {(effectiveCameraOff || !isVideoCall) && (
                       <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                         <VideoOff className="h-3 w-3" />
                         Camera off
@@ -220,15 +220,15 @@ export function PreJoinScreen({
                 onClick={handleToggleMic}
                 className={cn(
                   "relative flex items-center justify-center h-12 w-12 rounded-full transition-all duration-200",
-                  isMuted 
+                  effectiveMuted 
                     ? "bg-destructive/20 text-destructive hover:bg-destructive/30" 
                     : "bg-muted hover:bg-muted-foreground/20 text-foreground"
                 )}
               >
-                {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                {effectiveMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
                 
                 {/* Mic activity indicator */}
-                {!isMuted && (
+                {!effectiveMuted && (
                   <motion.div
                     className="absolute inset-0 rounded-full border-2 border-primary/50 pointer-events-none"
                     animate={{ scale: 1 + micActivity * 0.15, opacity: micActivity }}
@@ -243,12 +243,12 @@ export function PreJoinScreen({
                   onClick={handleToggleCamera}
                   className={cn(
                     "flex items-center justify-center h-12 w-12 rounded-full transition-all duration-200",
-                    isCameraOff 
+                    effectiveCameraOff 
                       ? "bg-destructive/20 text-destructive hover:bg-destructive/30" 
                       : "bg-muted hover:bg-muted-foreground/20 text-foreground"
                   )}
                 >
-                  {isCameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
+                  {effectiveCameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
                 </button>
               )}
 
