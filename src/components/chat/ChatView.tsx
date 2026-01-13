@@ -35,7 +35,7 @@ import { MemoryPinsSheet } from './MemoryPinsSheet';
 import { ScheduleMessageSheet } from './ScheduleMessageSheet';
 import { DMSettingsSheetControlled } from './DMSettingsSheetControlled';
 import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
-import { DailyCallButtons } from './DailyCallButtons';
+import { CallButtons } from '@/components/call';
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
 import { ReplyPreview } from './ReplyPreview';
@@ -662,10 +662,11 @@ export function ChatView() {
         </div>
         
         {!isGroupChat && otherMember?.id && (
-          <DailyCallButtons
-            conversationId={conversationId!}
-            receiverId={otherMember.id}
-          />
+          <CallButtons conversationId={conversationId!} />
+        )}
+        
+        {isGroupChat && (
+          <CallButtons conversationId={conversationId!} />
         )}
         
         {/* DM Feature Sheets - triggered from Toybox */}
