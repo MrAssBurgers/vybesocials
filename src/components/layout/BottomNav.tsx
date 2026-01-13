@@ -4,11 +4,54 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
-import { useState, useCallback, useRef, memo } from 'react';
+import { useState, useCallback, useRef, memo, useEffect } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { CreateMenu } from '@/components/hub/CreateMenu';
 import { VYBEHub } from '@/components/hub/VYBEHub';
+
+// Hook to detect scroll direction
+function useScrollDirection() {
+  const [isVisible, setIsVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  const ticking = useRef(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!ticking.current) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY;
+          const scrollDiff = currentScrollY - lastScrollY.current;
+          
+          // Only trigger hide/show after a threshold to avoid jitter
+          if (Math.abs(scrollDiff) > 10) {
+            if (scrollDiff > 0 && currentScrollY > 50) {
+              // Scrolling down - hide
+              setIsVisible(false);
+            } else {
+              // Scrolling up - show
+              setIsVisible(true);
+            }
+          }
+          
+          // Always show at top of page
+          if (currentScrollY < 50) {
+            setIsVisible(true);
+          }
+          
+          lastScrollY.current = currentScrollY;
+          ticking.current = false;
+        });
+        ticking.current = true;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  return isVisible;
+}
 
 // Memoized nav item for better performance
 const NavItem = memo(({ 
@@ -55,6 +98,7 @@ const NavItem = memo(({
 export function BottomNav() {
   const location = useLocation();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
+  const isVisible = useScrollDirection();
 
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);
@@ -93,9 +137,19 @@ export function BottomNav() {
       <CreateMenu isOpen={isCreateMenuOpen} onClose={() => setIsCreateMenuOpen(false)} />
       <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
 
-      <nav 
+      <motion.nav 
         className="fixed bottom-0 left-0 right-0 z-[2147483647] w-full pb-[env(safe-area-inset-bottom)] pointer-events-auto"
         aria-label="Bottom navigation"
+        initial={false}
+        animate={{
+          y: isVisible ? 0 : 100,
+          opacity: isVisible ? 1 : 0,
+        }}
+        transition={{
+          type: 'spring',
+          stiffness: 400,
+          damping: 30,
+        }}
       >
         {/* Compact glass bar */}
         <div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">
@@ -130,7 +184,7 @@ export function BottomNav() {
             })}
           </div>
         </div>
-      </nav>
+      </motion.nav>
     </>
   );
 }
