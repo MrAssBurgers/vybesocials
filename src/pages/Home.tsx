@@ -135,7 +135,7 @@ export default function HomePage() {
 
   // Set up observer once and update target when it changes
   useEffect(() => {
-    observerRef.current = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
           const state = fetchStateRef.current;
@@ -149,8 +149,16 @@ export default function HomePage() {
       { rootMargin: '400px', threshold: 0 }
     );
 
+    observerRef.current = observer;
+
+    // If the sentinel node already mounted before this effect ran, start observing it now.
+    if (loadMoreNodeRef.current) {
+      observer.observe(loadMoreNodeRef.current);
+    }
+
     return () => {
-      observerRef.current?.disconnect();
+      observer.disconnect();
+      observerRef.current = null;
     };
   }, [fetchNextForYou, fetchNextFollowing]);
 
