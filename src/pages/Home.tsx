@@ -109,23 +109,64 @@ export default function HomePage() {
     onRefresh: handleRefresh,
   });
 
-  // Infinite scroll observer
+  // Infinite scroll observer - use refs for current values to avoid recreating callback
   const observerRef = useRef<IntersectionObserver | null>(null);
-  const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
-    if (observerRef.current) observerRef.current.disconnect();
-    
-    observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) {
-        if (activeTab === 'foryou' && hasNextForYou && !isFetchingNextForYou) {
-          fetchNextForYou();
-        } else if (activeTab === 'following' && hasNextFollowing && !isFetchingNextFollowing) {
-          fetchNextFollowing();
+  const loadMoreNodeRef = useRef<HTMLDivElement | null>(null);
+  
+  // Store current fetch state in refs to avoid stale closures
+  const fetchStateRef = useRef({
+    activeTab,
+    hasNextForYou,
+    hasNextFollowing,
+    isFetchingNextForYou,
+    isFetchingNextFollowing,
+  });
+  
+  // Update refs when values change
+  useEffect(() => {
+    fetchStateRef.current = {
+      activeTab,
+      hasNextForYou,
+      hasNextFollowing,
+      isFetchingNextForYou,
+      isFetchingNextFollowing,
+    };
+  }, [activeTab, hasNextForYou, hasNextFollowing, isFetchingNextForYou, isFetchingNextFollowing]);
+
+  // Set up observer once and update target when it changes
+  useEffect(() => {
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          const state = fetchStateRef.current;
+          if (state.activeTab === 'foryou' && state.hasNextForYou && !state.isFetchingNextForYou) {
+            fetchNextForYou();
+          } else if (state.activeTab === 'following' && state.hasNextFollowing && !state.isFetchingNextFollowing) {
+            fetchNextFollowing();
+          }
         }
-      }
-    }, { rootMargin: '200px' });
+      },
+      { rootMargin: '400px', threshold: 0 }
+    );
+
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, [fetchNextForYou, fetchNextFollowing]);
+
+  const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
+    // Disconnect from previous node
+    if (loadMoreNodeRef.current && observerRef.current) {
+      observerRef.current.unobserve(loadMoreNodeRef.current);
+    }
     
-    if (node) observerRef.current.observe(node);
-  }, [activeTab, hasNextForYou, hasNextFollowing, isFetchingNextForYou, isFetchingNextFollowing, fetchNextForYou, fetchNextFollowing]);
+    loadMoreNodeRef.current = node;
+    
+    // Observe new node
+    if (node && observerRef.current) {
+      observerRef.current.observe(node);
+    }
+  }, []);
 
   // Redirect new Google users who don't have a profile/username yet
   useEffect(() => {
