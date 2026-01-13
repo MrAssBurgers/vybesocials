@@ -741,43 +741,36 @@ function IncomingCallDialog({
         {/* Action buttons */}
         <div className="flex items-center justify-center gap-8 w-full mb-8">
           {/* Decline button */}
-          <motion.div 
-            className="flex flex-col items-center gap-3"
-            whileHover={{ scale: 1.05 }}
-          >
-            <motion.button
-              whileTap={{ scale: 0.9 }}
+          <div className="flex flex-col items-center gap-3">
+            <button
               onClick={handleDecline}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                handleDecline();
+              }}
               disabled={isProcessing}
-              className="h-16 w-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg flex items-center justify-center hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 touch-manipulation"
+              className="h-16 w-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg flex items-center justify-center hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90"
             >
               <PhoneOff className="h-7 w-7" />
-            </motion.button>
+            </button>
             <span className="text-white/50 text-sm font-medium">Decline</span>
-          </motion.div>
+          </div>
 
           {/* Accept button */}
-          <motion.div 
-            className="flex flex-col items-center gap-3"
-            whileHover={{ scale: 1.05 }}
-          >
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              animate={{ 
-                boxShadow: [
-                  '0 0 0 0 rgba(34, 197, 94, 0.4)',
-                  '0 0 0 20px rgba(34, 197, 94, 0)',
-                ]
-              }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
+          <div className="flex flex-col items-center gap-3">
+            <button
               onClick={handleAccept}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                handleAccept();
+              }}
               disabled={isProcessing}
-              className="h-16 w-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg flex items-center justify-center hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 touch-manipulation"
+              className="h-16 w-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg flex items-center justify-center hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90 animate-pulse"
             >
               {isVideoCall ? <Video className="h-7 w-7" /> : <Phone className="h-7 w-7" />}
-            </motion.button>
+            </button>
             <span className="text-white/50 text-sm font-medium">Accept</span>
-          </motion.div>
+          </div>
         </div>
 
         {/* Timer */}
