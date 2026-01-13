@@ -153,6 +153,15 @@ export function GlobalCallOverlay() {
         console.error('[CallOverlay] Failed to enable media:', err);
       }
 
+      // CRITICAL: Force-unmute remote audio element after joining (browser autoplay policy workaround)
+      setTimeout(() => {
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.muted = false;
+          remoteAudioRef.current.volume = 1;
+          console.log('[CallOverlay] Force-unmuted remote audio element');
+        }
+      }, 100);
+
       callSounds.stopAll();
       callSounds.connect();
       setPhase('connected');
@@ -262,18 +271,45 @@ export function GlobalCallOverlay() {
           attachTrack(track, remoteVideoRef.current);
           setHasRemoteVideo(true);
         }
-      } else if (track.kind === 'audio' && !participant.local && remoteAudioRef.current) {
-        // Attach remote audio track to audio element
+      } else if (track.kind === 'audio' && !participant.local) {
+        // Attach remote audio track to audio element - CRITICAL for hearing remote user
         console.log('[CallOverlay] 🔊 Attaching remote audio track');
-        try {
-          const stream = new MediaStream([track]);
-          remoteAudioRef.current.srcObject = stream;
-          remoteAudioRef.current.play().catch(err => {
-            console.error('[CallOverlay] Failed to play remote audio:', err);
-          });
-        } catch (err) {
-          console.error('[CallOverlay] Failed to attach audio track:', err);
-        }
+        
+        // Wait for audio ref to be available (may fire before component fully mounted)
+        const attachAudio = () => {
+          const audioEl = remoteAudioRef.current;
+          if (!audioEl) {
+            console.log('[CallOverlay] Audio ref not ready, retrying...');
+            setTimeout(attachAudio, 100);
+            return;
+          }
+          
+          try {
+            const stream = new MediaStream([track]);
+            audioEl.srcObject = stream;
+            audioEl.muted = false;
+            audioEl.volume = 1;
+            
+            // Force play with retry logic
+            const playWithRetry = async (attempts = 3) => {
+              try {
+                await audioEl.play();
+                console.log('[CallOverlay] ✅ Remote audio playing successfully');
+              } catch (err: any) {
+                console.warn('[CallOverlay] Audio play failed, attempt remaining:', attempts - 1, err);
+                if (attempts > 1) {
+                  setTimeout(() => playWithRetry(attempts - 1), 200);
+                }
+              }
+            };
+            
+            playWithRetry();
+          } catch (err) {
+            console.error('[CallOverlay] Failed to attach audio track:', err);
+          }
+        };
+        
+        attachAudio();
       }
     });
 
@@ -474,17 +510,22 @@ export function GlobalCallOverlay() {
               }
             }
             
-            // Also check for audio
+            // Also check for audio - CRITICAL: ensure audio is always attached and playing
             const audioTrack = p.tracks?.audio?.persistentTrack || p.tracks?.audio?.track;
             const audioState = p.tracks?.audio?.state;
             const isAudioPlayable = audioState === 'playable' || audioState === 'loading';
             
-            if (p.audio && audioTrack && isAudioPlayable && remoteAudioRef.current && !remoteAudioRef.current.srcObject) {
-              console.log('[CallOverlay] Poll: Attaching remote audio track');
+            if (p.audio && audioTrack && isAudioPlayable && remoteAudioRef.current) {
+              // Always try to attach audio, even if already attached (ensures it's playing)
+              console.log('[CallOverlay] Poll: Attaching/refreshing remote audio track');
               try {
                 const audioStream = new MediaStream([audioTrack]);
                 remoteAudioRef.current.srcObject = audioStream;
-                remoteAudioRef.current.play().catch(console.error);
+                remoteAudioRef.current.muted = false;
+                remoteAudioRef.current.volume = 1;
+                remoteAudioRef.current.play().catch(err => {
+                  console.warn('[CallOverlay] Poll: Audio play error:', err);
+                });
               } catch (err) {
                 console.error('[CallOverlay] Poll: Failed to attach audio:', err);
               }
@@ -697,12 +738,14 @@ export function GlobalCallOverlay() {
               />
             </div>
 
-            {/* Hidden audio element for remote audio playback */}
+            {/* Hidden audio element for remote audio playback - CRITICAL for hearing remote user */}
             <audio
               ref={remoteAudioRef}
               autoPlay
               playsInline
+              muted={false}
               className="hidden"
+              style={{ display: 'none' }}
             />
 
             {/* Video Container */}
