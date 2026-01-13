@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConversations, useCreateConversation, Conversation } from '@/hooks/useMessages';
+import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useOnlineFriends } from '@/hooks/useOnlineFriends';
 import { useAuth } from '@/lib/auth';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
@@ -70,6 +71,8 @@ export function ConversationList() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const { data: conversations, isLoading } = useConversations();
+  // Enable instant realtime updates for conversations
+  useRealtimeConversations();
   const { onlineFriends, onlineCount } = useOnlineFriends();
   const createConversation = useCreateConversation();
   const [searchQuery, setSearchQuery] = useState('');

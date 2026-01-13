@@ -12,7 +12,8 @@ import {
   Message,
   useConversations
 } from '@/hooks/useMessages';
-import { useOptimisticMessages, OptimisticMessage } from '@/hooks/useOptimisticMessages';
+import { useInstantSend } from '@/hooks/useInstantSend';
+import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { useUnsendForEveryone, useDeleteForMe, useEditMessage } from '@/hooks/useMessageActions';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
@@ -93,7 +94,9 @@ export function ChatView() {
   
   const { data: conversations } = useConversations();
   const { data: messages, isLoading } = useMessages(conversationId);
-  const { optimisticMessages, send, retry, dismiss, isPending } = useOptimisticMessages(conversationId);
+  const { sendText, sendMedia, retry: retryMessage, removeMessage } = useInstantSend(conversationId);
+  // Enable realtime sync for this conversation
+  useRealtimeMessages(conversationId);
   const markViewed = useMarkMessageViewed();
   const addReaction = useAddReaction();
   const unsendForEveryone = useUnsendForEveryone();
@@ -218,7 +221,7 @@ export function ChatView() {
   // Scroll to bottom - use auto instead of smooth for better performance
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [messages?.length, optimisticMessages.length]);
+  }, [messages?.length]);
 
   // Screenshot detection
   useEffect(() => {
@@ -258,41 +261,12 @@ export function ChatView() {
     setMessageText('');
     setTyping(false);
 
-    sendWithReply(text, viewMode, replyingTo?.id);
+    // Use instant send for immediate optimistic UI
+    sendText(text, viewMode, replyingTo?.id);
     setReplyingTo(null);
-  }, [messageText, conversationId, viewMode, replyingTo, setTyping]);
+  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText]);
 
-  const sendWithReply = useCallback(async (content: string, viewMode: ViewMode, replyToId?: string) => {
-    if (!profile?.id || !conversationId) return;
-    
-    const expiresAt = viewMode === '24h' 
-      ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-      : null;
-
-    const { error } = await supabase
-      .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        sender_id: profile.id,
-        content,
-        view_mode: viewMode,
-        expires_at: expiresAt,
-        reply_to_id: replyToId,
-      });
-
-    if (error) {
-      console.error('Failed to send message:', error);
-      return;
-    }
-
-    await supabase
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', conversationId);
-
-    queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-    queryClient.invalidateQueries({ queryKey: ['conversations'] });
-  }, [profile?.id, conversationId, queryClient]);
+  // sendWithReply is now handled by useInstantSend's sendText
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -309,38 +283,18 @@ export function ChatView() {
     }
   }, [addReaction]);
 
-  // Send media message helper
+  // Send media message helper - uses instant send for optimistic UI
   const sendMediaMessage = useCallback(async (mediaUrl: string, mediaType: string) => {
     if (!conversationId || !profile?.id) return;
 
-    const expiresAt = viewMode === '24h' 
-      ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-      : null;
-
-    const { error } = await supabase
-      .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        sender_id: profile.id,
-        media_url: mediaUrl,
-        media_type: mediaType,
-        view_mode: viewMode,
-        expires_at: expiresAt,
-        reply_to_id: replyingTo?.id,
-      });
-
-    if (error) throw error;
-
-    setReplyingTo(null);
-
-    await supabase
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', conversationId);
-
-    queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-    queryClient.invalidateQueries({ queryKey: ['conversations'] });
-  }, [conversationId, profile?.id, viewMode, replyingTo?.id, queryClient]);
+    try {
+      await sendMedia(mediaUrl, mediaType, viewMode, replyingTo?.id);
+      setReplyingTo(null);
+    } catch (error) {
+      console.error('Failed to send media:', error);
+      throw error;
+    }
+  }, [conversationId, profile?.id, viewMode, replyingTo?.id, sendMedia]);
 
   // Compress image before upload for better mobile performance
   const compressImage = useCallback(async (file: File): Promise<Blob> => {
@@ -796,14 +750,7 @@ export function ChatView() {
             );
           })}
 
-          {optimisticMessages.map((optMsg) => (
-            <OptimisticMessageBubble
-              key={optMsg.tempId}
-              message={optMsg}
-              onRetry={() => retry(optMsg.tempId)}
-              onDismiss={() => dismiss(optMsg.tempId)}
-            />
-          ))}
+          {/* Messages now use instant optimistic updates embedded in the messages array */}
 
           {/* Pending image upload preview */}
           {pendingImage && (
@@ -876,7 +823,7 @@ export function ChatView() {
             isRecordingVoice={isRecordingVoice}
             isUploadingMedia={isUploadingMedia}
             replyingTo={replyingTo}
-            isPending={isPending}
+          isPending={false}
             inputRef={inputRef}
             fileInputRef={fileInputRef}
             handleInputChange={handleInputChange}
@@ -904,7 +851,7 @@ export function ChatView() {
           isRecordingVoice={isRecordingVoice}
           isUploadingMedia={isUploadingMedia}
           replyingTo={replyingTo}
-          isPending={isPending}
+          isPending={false}
           inputRef={inputRef}
           fileInputRef={fileInputRef}
           handleInputChange={handleInputChange}
@@ -1502,64 +1449,5 @@ function formatMessageDate(dateStr: string): string {
   return format(date, 'MMM d, HH:mm');
 }
 
-const OptimisticMessageBubble = memo(function OptimisticMessageBubble({
-  message,
-  onRetry,
-  onDismiss,
-}: {
-  message: OptimisticMessage;
-  onRetry: () => void;
-  onDismiss: () => void;
-}) {
-  const isFailed = message.status === 'failed';
-  const isSending = message.status === 'sending';
-
-  return (
-    <div className="flex w-full justify-end pt-1.5">
-      <div className="max-w-[85%] sm:max-w-[75%] flex flex-col items-end">
-        <div
-          className={cn(
-            'relative rounded-[20px] px-[14px] py-[10px] sm:px-4 sm:py-3 break-words rounded-br-lg',
-            isFailed
-              ? 'bg-destructive/20 text-destructive border border-destructive/30'
-              : 'bg-primary/70 text-primary-foreground',
-            isSending && 'opacity-70'
-          )}
-        >
-          <p className="text-[14px] sm:text-[15px] whitespace-pre-wrap leading-[1.4]">{message.content}</p>
-        </div>
-
-        <div className="flex items-center gap-1.5 mt-2">
-          {isSending && (
-            <div className="flex items-center gap-1 text-muted-foreground/50">
-              <Loader2 className="h-2.5 w-2.5 animate-spin" />
-              <span className="text-[10px]">Sending...</span>
-            </div>
-          )}
-
-          {isFailed && (
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-destructive">Failed</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5"
-                onClick={onRetry}
-              >
-                <RefreshCw className="h-3 w-3 text-destructive" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5"
-                onClick={onDismiss}
-              >
-                <X className="h-3 w-3 text-muted-foreground" />
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-});
+// Optimistic messages are now embedded directly in the messages cache
+// The OptimisticMessageBubble component is no longer needed
