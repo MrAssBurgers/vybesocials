@@ -269,18 +269,17 @@ export function useBreakpoint() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Desktop = sidebars, Tablet/iPad/Mobile = bottom nav
-  // NOTE: We treat "lg" (1024–1279px) as tablet to cover iPad/tablet landscape sizes.
+  // Desktop = sidebars (xl+ and no touch), Tablet/iPad/Mobile = bottom nav
   const isMobileBreakpoint = breakpoint === 'xs' || breakpoint === 'sm';
   const isDesktopBreakpoint = breakpoint === 'xl' || breakpoint === '2xl';
-  const isTabletBreakpoint = breakpoint === 'md' || breakpoint === 'lg' || isIPad;
+  const isTabletBreakpoint = breakpoint === 'md' || breakpoint === 'lg';
 
   return {
     breakpoint,
     isMobile: isMobileBreakpoint && !isIPad,
     // iPad should ALWAYS be treated as tablet regardless of width
     isTablet: isIPad || (isTabletBreakpoint && !isDesktopBreakpoint),
-    // ONLY true desktop (xl+) gets sidebars - NOT tablets or iPads
+    // ONLY true desktop (xl+ 1280px) gets sidebars - NOT tablets or iPads
     isDesktop: isDesktopBreakpoint && !isIPad,
     isIPad,
   };

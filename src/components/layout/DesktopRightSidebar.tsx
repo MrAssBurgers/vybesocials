@@ -175,7 +175,7 @@ export function DesktopRightSidebar() {
   return (
     <aside
       className={cn(
-        "hidden lg:flex sticky top-0 h-dvh flex-col liquid-glass border-l border-border/50 z-40 overflow-hidden",
+        "flex sticky top-0 h-dvh flex-col liquid-glass border-l border-border/50 z-40 overflow-hidden",
         "w-[240px] 2xl:w-[280px]"
       )}
     >
