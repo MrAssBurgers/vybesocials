@@ -237,7 +237,7 @@ export function useMessages(conversationId: string | undefined) {
         .select(`
           *,
           sender:profiles!sender_id(id, username, avatar_url, display_name),
-          views:message_views(user_id, viewed_at),
+          views:message_views(user_id, viewed_at, profile:profiles!user_id(id, username, avatar_url, display_name)),
           reactions:message_reactions(user_id, emoji)
         `)
         .eq('conversation_id', conversationId)
