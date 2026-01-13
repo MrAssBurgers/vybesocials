@@ -15,9 +15,35 @@ export function CallOverlay() {
   const dailyRef = useRef<DailyCall | null>(null);
   const listenersAttachedRef = useRef(false);
 
-  const [isJoiningUi, setIsJoiningUi] = useState(false);
-  const [isConnectedUi, setIsConnectedUi] = useState(false);
+  // Call states driven ONLY by Daily events
+  const [callState, setCallState] = useState<'idle' | 'joining' | 'connected' | 'ended'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Use browser-safe timer typing
+  const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Avoid stale closures in permanent Daily event listeners
+  const callTypeRef = useRef<typeof state.callType>(state.callType);
+  const callStateRef = useRef(callState);
+  const joinAttemptIdRef = useRef(0);
+  const shouldCloseOnLeftMeetingRef = useRef(false);
+  const waitForLeftMeetingResolveRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    callTypeRef.current = state.callType;
+  }, [state.callType]);
+
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
+
+  useEffect(() => {
+    // Reset per-overlay session flags
+    if (!state.isOpen) {
+      shouldCloseOnLeftMeetingRef.current = false;
+      waitForLeftMeetingResolveRef.current = null;
+    }
+  }, [state.isOpen]);
 
   // 1) CREATE DAILY IFRAME ONCE (on app load / first mount of host element)
   //    - never create inside openCall or state-driven effects
@@ -46,37 +72,89 @@ export function CallOverlay() {
     if (!listenersAttachedRef.current) {
       listenersAttachedRef.current = true;
 
-      daily.on('joined-meeting', () => {
-        console.log('[CALL DEBUG] joined-meeting');
-        setIsConnectedUi(true);
-        setIsJoiningUi(false);
+      // MANDATORY EVENT-DRIVEN FLOW: State changes ONLY from Daily events
+      daily.on('joined-meeting', async () => {
+        console.log('[CALL DEBUG] ✅ joined-meeting event fired');
+
+        // Ignore late events if we are no longer trying to join
+        if (callStateRef.current !== 'joining') {
+          console.log('[CALL DEBUG] joined-meeting ignored (not in joining state)');
+          return;
+        }
+
+        // Clear join timeout (success)
+        if (joinTimeoutRef.current) {
+          clearTimeout(joinTimeoutRef.current);
+          joinTimeoutRef.current = null;
+        }
+
+        // Mark call as connected ONLY when joined-meeting fires
+        setCallState('connected');
         setErrorMessage(null);
+
+        // AUDIO / VIDEO ENABLE: Ensure media is live after join
+        try {
+          console.log('[CALL DEBUG] Enabling local audio/video');
+
+          // Enable audio for all calls
+          daily.setLocalAudio(true);
+
+          // Enable video for video calls
+          if (callTypeRef.current === 'video') {
+            daily.setLocalVideo(true);
+          } else {
+            daily.setLocalVideo(false);
+          }
+
+          console.log('[CALL DEBUG] Media enabled successfully');
+        } catch (mediaError) {
+          console.error('[CALL DEBUG] Failed to enable media:', mediaError);
+          toast.error('Failed to enable media');
+        }
       });
 
       daily.on('left-meeting', () => {
-        console.log('[CALL DEBUG] left-meeting');
-        setIsConnectedUi(false);
-        setIsJoiningUi(false);
+        console.log('[CALL DEBUG] ✅ left-meeting event fired');
+
+        // Clear any pending timeout
+        if (joinTimeoutRef.current) {
+          clearTimeout(joinTimeoutRef.current);
+          joinTimeoutRef.current = null;
+        }
+
+        // Resolve any waiter (hangup flow)
+        if (waitForLeftMeetingResolveRef.current) {
+          waitForLeftMeetingResolveRef.current();
+          waitForLeftMeetingResolveRef.current = null;
+        }
+
+        // Reset call state
+        setCallState('ended');
         setErrorMessage(null);
-        // Hide overlay UI if it is still visible
+
+        // CLEANUP GUARANTEE: Hide overlay and allow future calls immediately
         closeCall();
+        shouldCloseOnLeftMeetingRef.current = false;
       });
 
       daily.on('error', (event: any) => {
         const reason = event?.errorMsg || event?.error?.msg || 'Unknown Daily error';
-        console.error('[CALL DEBUG] daily error', event);
+        console.error('[CALL DEBUG] ❌ daily error event:', event);
+        
         setErrorMessage(String(reason));
         toast.error(`Call error: ${String(reason)}`);
-        // Failure recovery: leave + hide, allow retry on same iframe
+        
+        // FAILURE RECOVERY: leave + reset state + hide overlay
         void (async () => {
           await leaveRoom();
+          setCallState('ended');
           closeCall();
         })();
       });
     }
   }, [closeCall]);
 
-  // Join whenever we open a call (using the SAME iframe)
+  // JOIN FIX: Proper flow with timeout failsafe
   useEffect(() => {
     if (!state.isOpen) return;
     if (!state.roomUrl) {
@@ -89,11 +167,10 @@ export function CallOverlay() {
     let cancelled = false;
 
     const run = async () => {
-      console.log('[CALL DEBUG] openCall flow (single iframe) join()', { roomUrl: state.roomUrl });
+      console.log('[CALL DEBUG] 🚀 Starting call join flow', { roomUrl: state.roomUrl });
 
-      // UI reset before starting new call (no iframe recreation)
-      setIsJoiningUi(true);
-      setIsConnectedUi(false);
+      // Set state to joining (show "Connecting...")
+      setCallState('joining');
       setErrorMessage(null);
 
       try {
@@ -106,33 +183,54 @@ export function CallOverlay() {
             audio: true,
             video: state.callType === 'video',
           });
+          console.log('[CALL DEBUG] ✅ Media permissions granted');
         } catch (permError: any) {
           const msg = state.callType === 'video'
             ? 'Microphone and camera permission required'
             : 'Microphone permission required';
-          console.error('[CALL DEBUG] Media permission denied:', permError);
+          console.error('[CALL DEBUG] ❌ Media permission denied:', permError);
           setErrorMessage(permError?.message ? `${msg}: ${permError.message}` : msg);
           toast.error(msg);
+          setCallState('ended');
           await leaveRoom();
           closeCall();
           return;
         }
 
-        // Join on the existing iframe
+        // FAILSAFE: If "joined-meeting" does not fire within 15 seconds
+        joinTimeoutRef.current = setTimeout(() => {
+          console.error('[CALL DEBUG] ⏱️ Join timeout - no joined-meeting event within 15s');
+          toast.error('Call failed to connect');
+          setErrorMessage('Call failed to connect');
+          setCallState('ended');
+          void (async () => {
+            await leaveRoom();
+            closeCall();
+          })();
+        }, 15000);
+
+        // Join on the existing iframe (state changes to 'connected' via 'joined-meeting' event)
+        console.log('[CALL DEBUG] 📞 Calling joinRoom()...');
         await joinRoom(state.roomUrl);
+        console.log('[CALL DEBUG] ✅ joinRoom() completed (waiting for joined-meeting event)');
 
         if (cancelled) return;
       } catch (e: any) {
         const reason = e?.message || String(e);
-        console.error('[CALL DEBUG] join failed:', e);
+        console.error('[CALL DEBUG] ❌ join failed:', e);
         setErrorMessage(reason);
         toast.error(`Failed to start call: ${reason}`);
 
-        // FAILURE RECOVERY: leave + hide, allow retry immediately on same iframe
+        // Clear timeout
+        if (joinTimeoutRef.current) {
+          clearTimeout(joinTimeoutRef.current);
+          joinTimeoutRef.current = null;
+        }
+
+        // FAILURE RECOVERY: leave + reset state + hide overlay
+        setCallState('ended');
         await leaveRoom();
         closeCall();
-      } finally {
-        if (!cancelled) setIsJoiningUi(false);
       }
     };
 
@@ -140,17 +238,52 @@ export function CallOverlay() {
 
     return () => {
       cancelled = true;
+      // Clear timeout on unmount
+      if (joinTimeoutRef.current) {
+        clearTimeout(joinTimeoutRef.current);
+        joinTimeoutRef.current = null;
+      }
     };
   }, [state.isOpen, state.roomUrl, state.callType, closeCall]);
 
+  // HANGUP BUTTON (CRITICAL)
+  // 1) Call daily.leave()
+  // 2) Wait for "left-meeting"
+  // 3) THEN hide overlay (left-meeting handler closes it)
   const handleHangup = useCallback(async () => {
-    console.log('[CALL DEBUG] Hangup clicked');
-    // ENDING A CALL: leave() + hide (do NOT destroy iframe)
+    console.log('[CALL DEBUG] 🔴 Hangup button clicked');
+
+    // Clear any pending join timeout
+    if (joinTimeoutRef.current) {
+      clearTimeout(joinTimeoutRef.current);
+      joinTimeoutRef.current = null;
+    }
+
+    shouldCloseOnLeftMeetingRef.current = true;
+
+    const leftMeetingPromise = new Promise<void>((resolve) => {
+      waitForLeftMeetingResolveRef.current = resolve;
+    });
+
+    // Trigger leave on the existing iframe
     await leaveRoom();
-    setIsConnectedUi(false);
-    setIsJoiningUi(false);
-    setErrorMessage(null);
-    closeCall();
+
+    // Wait for left-meeting, but don't hang forever
+    const timeoutMs = 2000;
+    await Promise.race([
+      leftMeetingPromise,
+      new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
+
+    // If left-meeting didn't arrive, force cleanup (rare)
+    if (callStateRef.current !== 'ended') {
+      console.log('[CALL DEBUG] ⚠️ left-meeting not observed; forcing overlay close');
+      setCallState('ended');
+      setErrorMessage(null);
+      closeCall();
+      shouldCloseOnLeftMeetingRef.current = false;
+      waitForLeftMeetingResolveRef.current = null;
+    }
   }, [closeCall]);
 
   const isVisible = state.isOpen;
@@ -187,9 +320,9 @@ export function CallOverlay() {
             <p className="text-xs text-muted-foreground">
               {errorMessage
                 ? <span className="text-destructive">{errorMessage}</span>
-                : isJoiningUi
+                : callState === 'joining'
                   ? 'Connecting...'
-                  : isConnectedUi
+                  : callState === 'connected'
                     ? 'Connected'
                     : 'Starting...'}
             </p>
@@ -207,7 +340,7 @@ export function CallOverlay() {
 
       {/* Permanent Daily iframe host (ALWAYS exists) */}
       <div ref={setHostEl} className="flex-1 relative bg-black">
-        {isJoiningUi && (
+        {callState === 'joining' && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
             <div className="text-center space-y-4">
               <Loader2 className="w-12 h-12 mx-auto text-primary animate-spin" />
