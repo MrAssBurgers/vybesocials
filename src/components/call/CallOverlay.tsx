@@ -25,9 +25,14 @@ export function CallOverlay() {
   // Avoid stale closures in permanent Daily event listeners
   const callTypeRef = useRef<typeof state.callType>(state.callType);
   const callStateRef = useRef(callState);
-  const joinAttemptIdRef = useRef(0);
+  const isOpenRef = useRef(state.isOpen);
   const shouldCloseOnLeftMeetingRef = useRef(false);
   const waitForLeftMeetingResolveRef = useRef<(() => void) | null>(null);
+
+  const setCallStateSafe = useCallback((next: 'idle' | 'joining' | 'connected' | 'ended') => {
+    callStateRef.current = next;
+    setCallState(next);
+  }, []);
 
   useEffect(() => {
     callTypeRef.current = state.callType;
@@ -38,6 +43,8 @@ export function CallOverlay() {
   }, [callState]);
 
   useEffect(() => {
+    isOpenRef.current = state.isOpen;
+
     // Reset per-overlay session flags
     if (!state.isOpen) {
       shouldCloseOnLeftMeetingRef.current = false;
@@ -72,9 +79,17 @@ export function CallOverlay() {
     if (!listenersAttachedRef.current) {
       listenersAttachedRef.current = true;
 
+      // DEBUG VISIBILITY: log lifecycle events
+      daily.on('joining-meeting', () => {
+        console.log('[CALL DEBUG] ⏳ joining-meeting event fired');
+      });
+
       // MANDATORY EVENT-DRIVEN FLOW: State changes ONLY from Daily events
       daily.on('joined-meeting', async () => {
         console.log('[CALL DEBUG] ✅ joined-meeting event fired');
+
+        // Ignore events if overlay isn't open
+        if (!isOpenRef.current) return;
 
         // Ignore late events if we are no longer trying to join
         if (callStateRef.current !== 'joining') {
@@ -89,7 +104,7 @@ export function CallOverlay() {
         }
 
         // Mark call as connected ONLY when joined-meeting fires
-        setCallState('connected');
+        setCallStateSafe('connected');
         setErrorMessage(null);
 
         // AUDIO / VIDEO ENABLE: Ensure media is live after join
@@ -116,6 +131,9 @@ export function CallOverlay() {
       daily.on('left-meeting', () => {
         console.log('[CALL DEBUG] ✅ left-meeting event fired');
 
+        // Ignore events if overlay isn't open (prevents unwanted UI changes)
+        if (!isOpenRef.current) return;
+
         // Clear any pending timeout
         if (joinTimeoutRef.current) {
           clearTimeout(joinTimeoutRef.current);
@@ -129,7 +147,7 @@ export function CallOverlay() {
         }
 
         // Reset call state
-        setCallState('ended');
+        setCallStateSafe('ended');
         setErrorMessage(null);
 
         // CLEANUP GUARANTEE: Hide overlay and allow future calls immediately
@@ -139,20 +157,23 @@ export function CallOverlay() {
 
       daily.on('error', (event: any) => {
         const reason = event?.errorMsg || event?.error?.msg || 'Unknown Daily error';
-        console.error('[CALL DEBUG] ❌ daily error event:', event);
-        
+        console.error('[CALL DEBUG] ❌ error event:', event);
+
+        // Ignore events if overlay isn't open
+        if (!isOpenRef.current) return;
+
         setErrorMessage(String(reason));
         toast.error(`Call error: ${String(reason)}`);
-        
+
         // FAILURE RECOVERY: leave + reset state + hide overlay
         void (async () => {
           await leaveRoom();
-          setCallState('ended');
+          setCallStateSafe('ended');
           closeCall();
         })();
       });
     }
-  }, [closeCall]);
+  }, [closeCall, setCallStateSafe]);
 
   // JOIN FIX: Proper flow with timeout failsafe
   useEffect(() => {
