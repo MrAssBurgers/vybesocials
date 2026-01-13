@@ -348,129 +348,234 @@ export function GlobalCallOverlay() {
       <div
         ref={containerRef}
         className={cn(
-          'fixed inset-0 z-[9998] bg-black transition-opacity duration-200',
+          'fixed inset-0 z-[9998] transition-all duration-500',
           isVisible && !isRinging ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}
-        style={{ visibility: isVisible && !isRinging ? 'visible' : 'hidden' }}
+        style={{ 
+          visibility: isVisible && !isRinging ? 'visible' : 'hidden',
+          background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(240 10% 8%) 50%, hsl(280 20% 8%) 100%)'
+        }}
       />
 
-      {/* In-call overlay UI */}
+      {/* Modern In-call overlay UI */}
       <AnimatePresence>
         {isVisible && !isRinging && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
             className="fixed inset-0 z-[9999] pointer-events-none"
           >
-            {/* Header */}
-            <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent pointer-events-auto">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10 ring-2 ring-white/20">
-                  <AvatarImage src={otherUser?.avatar_url || undefined} />
-                  <AvatarFallback className="bg-primary/30">
-                    {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-white font-medium">
-                    {otherUser?.display_name || otherUser?.username}
-                  </p>
-                  <p className="text-white/60 text-sm">
-                    {isConnecting && (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Connecting...
-                      </span>
-                    )}
-                    {isConnected && formatDuration(callDuration)}
-                    {state.phase === 'error' && (
-                      <span className="text-red-400">{state.error}</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/10 rounded-full"
-                onClick={handleHangup}
-                disabled={isHangingUp}
-              >
-                <X className="h-5 w-5" />
-              </Button>
+            {/* Ambient gradient background */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <motion.div
+                animate={{ 
+                  scale: [1, 1.2, 1],
+                  rotate: [0, 180, 360]
+                }}
+                transition={{ 
+                  duration: 20, 
+                  repeat: Infinity,
+                  ease: "linear"
+                }}
+                className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] opacity-30"
+                style={{
+                  background: 'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, hsl(var(--accent) / 0.3) 0%, transparent 50%)'
+                }}
+              />
             </div>
 
-            {/* Connecting overlay */}
-            {isConnecting && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/60 pointer-events-none">
-                <div className="text-center">
-                  <Avatar className="h-24 w-24 mx-auto mb-4 ring-4 ring-white/10">
-                    <AvatarImage src={otherUser?.avatar_url || undefined} />
-                    <AvatarFallback className="text-3xl bg-primary/30">
-                      {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <motion.div
-                    animate={{ opacity: [0.5, 1, 0.5] }}
-                    transition={{ repeat: Infinity, duration: 1.5 }}
-                    className="text-white/70"
-                  >
-                    Connecting...
-                  </motion.div>
+            {/* Glassmorphic Header */}
+            <motion.div 
+              initial={{ y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.1, duration: 0.4 }}
+              className="absolute top-0 left-0 right-0 pointer-events-auto"
+            >
+              <div className="mx-4 mt-4 p-4 rounded-2xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <Avatar className="h-12 w-12 ring-2 ring-white/20 shadow-lg">
+                        <AvatarImage src={otherUser?.avatar_url || undefined} />
+                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">
+                          {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isConnected && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black/50"
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-white font-semibold text-lg">
+                        {otherUser?.display_name || otherUser?.username}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        {isConnecting && (
+                          <motion.div 
+                            className="flex items-center gap-2 text-white/60"
+                            animate={{ opacity: [0.5, 1, 0.5] }}
+                            transition={{ repeat: Infinity, duration: 1.5 }}
+                          >
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                            </span>
+                            <span className="text-sm">Connecting</span>
+                          </motion.div>
+                        )}
+                        {isConnected && (
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-2 w-2 rounded-full bg-green-500" />
+                            <span className="text-white/70 text-sm font-mono tracking-wide">
+                              {formatDuration(callDuration)}
+                            </span>
+                          </div>
+                        )}
+                        {state.phase === 'error' && (
+                          <span className="text-red-400 text-sm">{state.error}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Call type badge */}
+                  <div className="flex items-center gap-2">
+                    <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
+                      {isVideoCall ? (
+                        <Video className="h-4 w-4 text-white/70" />
+                      ) : (
+                        <Phone className="h-4 w-4 text-white/70" />
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
+            </motion.div>
 
-            {/* Controls */}
-            <div className="absolute bottom-0 left-0 right-0 p-5 pb-10 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-auto">
-              <div className="flex items-center justify-center gap-4">
-                {/* Mute */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "h-14 w-14 rounded-full transition-colors",
-                    isMuted ? "bg-white text-black" : "bg-white/15 text-white"
-                  )}
-                  onClick={handleToggleMute}
-                  disabled={!isConnected}
+            {/* Connecting overlay - modern design */}
+            <AnimatePresence>
+              {isConnecting && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
                 >
-                  {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-                </Button>
+                  <div className="text-center">
+                    {/* Animated rings */}
+                    <div className="relative">
+                      <motion.div
+                        animate={{ scale: [1, 2], opacity: [0.5, 0] }}
+                        transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
+                        className="absolute inset-0 rounded-full border-2 border-primary/50"
+                        style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }}
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 1.8], opacity: [0.4, 0] }}
+                        transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }}
+                        className="absolute inset-0 rounded-full border-2 border-accent/40"
+                        style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }}
+                      />
+                      
+                      <Avatar className="h-32 w-32 mx-auto ring-4 ring-primary/20 shadow-2xl">
+                        <AvatarImage src={otherUser?.avatar_url || undefined} />
+                        <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
+                          {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+                    
+                    <motion.p
+                      animate={{ opacity: [0.5, 1, 0.5] }}
+                      transition={{ repeat: Infinity, duration: 2 }}
+                      className="mt-6 text-white/60 text-lg font-light"
+                    >
+                      Connecting to {otherUser?.display_name || otherUser?.username}...
+                    </motion.p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-                {/* Video toggle */}
-                {isVideoCall && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "h-14 w-14 rounded-full transition-colors",
-                      isVideoOff ? "bg-white text-black" : "bg-white/15 text-white"
-                    )}
-                    onClick={handleToggleVideo}
+            {/* Modern Control Bar */}
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.2, type: "spring", damping: 25 }}
+              className="absolute bottom-0 left-0 right-0 pb-10 pointer-events-auto"
+            >
+              <div className="flex justify-center">
+                <div className="inline-flex items-center gap-3 p-3 rounded-2xl backdrop-blur-xl bg-white/10 border border-white/10 shadow-2xl">
+                  {/* Mute Button */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleToggleMute}
                     disabled={!isConnected}
+                    className={cn(
+                      "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
+                      "disabled:opacity-50 disabled:cursor-not-allowed",
+                      isMuted 
+                        ? "bg-white text-black shadow-lg" 
+                        : "bg-white/10 text-white hover:bg-white/20"
+                    )}
                   >
-                    {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
-                  </Button>
-                )}
+                    {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                  </motion.button>
 
-                {/* Hangup */}
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 shadow-lg"
-                  onClick={handleHangup}
-                  disabled={isHangingUp}
-                >
-                  {isHangingUp ? (
-                    <Loader2 className="h-7 w-7 animate-spin" />
-                  ) : (
-                    <PhoneOff className="h-7 w-7" />
+                  {/* Video Toggle */}
+                  {isVideoCall && (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleToggleVideo}
+                      disabled={!isConnected}
+                      className={cn(
+                        "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
+                        "disabled:opacity-50 disabled:cursor-not-allowed",
+                        isVideoOff 
+                          ? "bg-white text-black shadow-lg" 
+                          : "bg-white/10 text-white hover:bg-white/20"
+                      )}
+                    >
+                      {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                    </motion.button>
                   )}
-                </Button>
+
+                  {/* Divider */}
+                  <div className="w-px h-10 bg-white/20 mx-1" />
+
+                  {/* End Call Button */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleHangup}
+                    disabled={isHangingUp}
+                    className={cn(
+                      "relative h-14 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-300",
+                      "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg",
+                      "hover:from-red-600 hover:to-red-700",
+                      "disabled:opacity-70"
+                    )}
+                  >
+                    {isHangingUp ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <>
+                        <PhoneOff className="h-5 w-5" />
+                        <span className="font-medium">End</span>
+                      </>
+                    )}
+                  </motion.button>
+                </div>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -537,92 +642,149 @@ function IncomingCallDialog({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[10000] bg-gradient-to-b from-black/90 via-black/95 to-black flex items-center justify-center p-4"
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+      style={{
+        background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)'
+      }}
     >
-      <div className="absolute inset-0 backdrop-blur-xl" />
+      {/* Animated background orbs */}
+      <div className="absolute inset-0 overflow-hidden">
+        <motion.div
+          animate={{ 
+            x: [0, 50, 0],
+            y: [0, 30, 0],
+            scale: [1, 1.2, 1]
+          }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20"
+          style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }}
+        />
+        <motion.div
+          animate={{ 
+            x: [0, -30, 0],
+            y: [0, -50, 0],
+            scale: [1, 1.3, 1]
+          }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20"
+          style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }}
+        />
+      </div>
+      
+      <div className="absolute inset-0 backdrop-blur-3xl" />
       
       <motion.div
-        initial={{ scale: 0.9, y: 20 }}
+        initial={{ scale: 0.8, y: 40 }}
         animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.9, y: 20 }}
+        exit={{ scale: 0.8, y: 40 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
         className="relative z-10 flex flex-col items-center max-w-sm w-full"
       >
-        {/* Avatar */}
+        {/* Avatar with animated rings */}
         <div className="relative mb-8">
+          {/* Pulsing rings */}
           <motion.div
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ repeat: Infinity, duration: 2 }}
+            animate={{ scale: [1, 1.5], opacity: [0.6, 0] }}
+            transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
+            className="absolute inset-0 rounded-full border-2 border-primary/50"
+            style={{ width: 144, height: 144, margin: '-8px' }}
+          />
+          <motion.div
+            animate={{ scale: [1, 1.4], opacity: [0.4, 0] }}
+            transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }}
+            className="absolute inset-0 rounded-full border-2 border-accent/40"
+            style={{ width: 144, height: 144, margin: '-8px' }}
+          />
+          
+          <motion.div
+            animate={{ scale: [1, 1.02, 1] }}
+            transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
           >
-            <Avatar className="h-32 w-32 ring-4 ring-primary/30 shadow-2xl">
+            <Avatar className="h-32 w-32 ring-4 ring-white/10 shadow-2xl">
               <AvatarImage src={caller?.avatar_url || undefined} />
-              <AvatarFallback className="text-4xl bg-gradient-to-br from-primary to-primary/50">
+              <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
                 {caller?.display_name?.charAt(0) || caller?.username?.charAt(0)}
               </AvatarFallback>
             </Avatar>
           </motion.div>
           
+          {/* Call type badge */}
           <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary rounded-full px-3 py-1 flex items-center gap-1 shadow-lg"
+            initial={{ scale: 0, y: 10 }}
+            animate={{ scale: 1, y: 0 }}
+            transition={{ delay: 0.2, type: "spring" }}
+            className="absolute -bottom-3 left-1/2 -translate-x-1/2"
           >
-            {isVideoCall ? <Video className="h-4 w-4 text-primary-foreground" /> : <Phone className="h-4 w-4 text-primary-foreground" />}
-            <span className="text-xs font-medium text-primary-foreground">
-              {isVideoCall ? 'Video' : 'Audio'}
-            </span>
+            <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-primary to-accent flex items-center gap-1.5 shadow-lg">
+              {isVideoCall ? <Video className="h-4 w-4 text-white" /> : <Phone className="h-4 w-4 text-white" />}
+              <span className="text-xs font-semibold text-white">
+                {isVideoCall ? 'Video Call' : 'Audio Call'}
+              </span>
+            </div>
           </motion.div>
         </div>
 
         {/* Caller info */}
         <div className="text-center mb-10">
-          <h2 className="text-2xl font-semibold text-white mb-2">
+          <h2 className="text-3xl font-bold text-white mb-2">
             {caller?.display_name || caller?.username}
           </h2>
           <motion.p
-            className="text-white/70 text-lg"
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
+            className="text-white/60 text-lg"
+            animate={{ opacity: [0.4, 0.8, 0.4] }}
+            transition={{ repeat: Infinity, duration: 2 }}
           >
-            Incoming {isVideoCall ? 'video' : 'audio'} call...
+            is calling you...
           </motion.p>
         </div>
 
-        {/* Buttons */}
-        <div className="flex items-center justify-center gap-10 w-full">
-          <div className="flex flex-col items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg"
+        {/* Action buttons */}
+        <div className="flex items-center justify-center gap-8 w-full mb-8">
+          {/* Decline button */}
+          <motion.div 
+            className="flex flex-col items-center gap-3"
+            whileHover={{ scale: 1.05 }}
+          >
+            <motion.button
+              whileTap={{ scale: 0.9 }}
               onClick={handleDecline}
               disabled={isProcessing}
+              className="h-16 w-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg flex items-center justify-center hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 touch-manipulation"
             >
               <PhoneOff className="h-7 w-7" />
-            </Button>
-            <span className="text-white/60 text-sm">Decline</span>
-          </div>
+            </motion.button>
+            <span className="text-white/50 text-sm font-medium">Decline</span>
+          </motion.div>
 
-          <div className="flex flex-col items-center gap-2">
-            <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ repeat: Infinity, duration: 1 }}
+          {/* Accept button */}
+          <motion.div 
+            className="flex flex-col items-center gap-3"
+            whileHover={{ scale: 1.05 }}
+          >
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              animate={{ 
+                boxShadow: [
+                  '0 0 0 0 rgba(34, 197, 94, 0.4)',
+                  '0 0 0 20px rgba(34, 197, 94, 0)',
+                ]
+              }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+              onClick={handleAccept}
+              disabled={isProcessing}
+              className="h-16 w-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg flex items-center justify-center hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 touch-manipulation"
             >
-              <Button
-                size="icon"
-                className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-lg"
-                onClick={handleAccept}
-                disabled={isProcessing}
-              >
-                {isVideoCall ? <Video className="h-7 w-7" /> : <Phone className="h-7 w-7" />}
-              </Button>
-            </motion.div>
-            <span className="text-white/60 text-sm">Accept</span>
-          </div>
+              {isVideoCall ? <Video className="h-7 w-7" /> : <Phone className="h-7 w-7" />}
+            </motion.button>
+            <span className="text-white/50 text-sm font-medium">Accept</span>
+          </motion.div>
         </div>
 
-        <p className="mt-8 text-white/40 text-sm">
-          Auto-declining in {timeLeft}s
-        </p>
+        {/* Timer */}
+        <div className="flex items-center gap-2 text-white/30 text-sm">
+          <div className="w-1.5 h-1.5 rounded-full bg-white/30 animate-pulse" />
+          <span>Auto-declining in {timeLeft}s</span>
+        </div>
       </motion.div>
     </motion.div>
   );
