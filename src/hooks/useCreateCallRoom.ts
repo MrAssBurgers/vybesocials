@@ -23,11 +23,8 @@ export function useCreateCallRoom() {
       return;
     }
     
-    // Guard: if overlay is already open, do nothing
-    if (state.isOpen) {
-      console.log('[CALL DEBUG] CallOverlay already open, ignoring');
-      return;
-    }
+    // No guard for state.isOpen - openCall will handle cleanup
+    console.log('[CALL DEBUG] Proceeding with call creation...');
     
     setIsLoading(true);
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 
 interface CallOverlayState {
   isOpen: boolean;
@@ -17,6 +17,8 @@ interface CallOverlayContextType {
     conversationId: string;
   }) => void;
   closeCall: () => void;
+  forceCleanup: () => void;
+  cleanupRef: React.MutableRefObject<(() => Promise<void>) | null>;
 }
 
 const initialState: CallOverlayState = {
@@ -31,8 +33,17 @@ const CallOverlayContext = createContext<CallOverlayContextType | null>(null);
 
 export function CallOverlayProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CallOverlayState>(initialState);
+  // Ref to hold cleanup function from CallOverlay
+  const cleanupRef = useRef<(() => Promise<void>) | null>(null);
 
-  const openCall = useCallback((params: {
+  const forceCleanup = useCallback(async () => {
+    console.log('[CALL DEBUG] forceCleanup called');
+    if (cleanupRef.current) {
+      await cleanupRef.current();
+    }
+  }, []);
+
+  const openCall = useCallback(async (params: {
     roomUrl: string;
     roomName: string;
     callType: 'audio' | 'video';
@@ -40,21 +51,26 @@ export function CallOverlayProvider({ children }: { children: ReactNode }) {
   }) => {
     console.log('[CALL DEBUG] CallOverlayProvider.openCall called with:', params);
     
-    // Guard: don't open if already open
-    setState(prev => {
-      if (prev.isOpen) {
-        console.log('[CALL DEBUG] CallOverlay already open, ignoring openCall');
-        return prev;
-      }
-      
-      console.log('[CALL DEBUG] Setting CallOverlay state to open');
-      return {
-        isOpen: true,
-        roomUrl: params.roomUrl,
-        roomName: params.roomName,
-        callType: params.callType,
-        conversationId: params.conversationId,
-      };
+    // Validate roomUrl exists
+    if (!params.roomUrl) {
+      console.error('[CALL DEBUG] openCall failed: roomUrl is required');
+      return;
+    }
+    
+    // ALWAYS force cleanup any existing call first
+    console.log('[CALL DEBUG] Force cleanup before opening new call');
+    if (cleanupRef.current) {
+      await cleanupRef.current();
+    }
+    
+    // Reset and open with new params
+    console.log('[CALL DEBUG] Setting CallOverlay state to open');
+    setState({
+      isOpen: true,
+      roomUrl: params.roomUrl,
+      roomName: params.roomName,
+      callType: params.callType,
+      conversationId: params.conversationId,
     });
   }, []);
 
@@ -64,7 +80,7 @@ export function CallOverlayProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <CallOverlayContext.Provider value={{ state, openCall, closeCall }}>
+    <CallOverlayContext.Provider value={{ state, openCall, closeCall, forceCleanup, cleanupRef }}>
       {children}
     </CallOverlayContext.Provider>
   );
