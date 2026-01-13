@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
 import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
 import { TutorialProvider } from "@/components/tutorial/TutorialProvider";
+import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 
 // Lazy load pages for code splitting
 const Landing = lazy(() => import("./pages/Landing"));
@@ -87,6 +88,9 @@ function ScrollRestoration() {
 
 const App = memo(() => {
   const [showSplash, setShowSplash] = useState(true);
+  
+  // Auto-update checker - refreshes when new version is deployed
+  useAutoUpdate();
 
   useEffect(() => {
     // Faster splash - 800ms
