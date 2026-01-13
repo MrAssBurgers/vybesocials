@@ -1,18 +1,15 @@
 /**
  * Global Call Overlay
  * 
- * Mounted ONCE at app root. Contains:
- * - Single Daily Prebuilt iframe (never duplicated)
- * - Incoming call dialog
- * - In-call UI with hangup
- * 
- * State is driven by Daily events, not local assumptions.
+ * Mounted ONCE at app root. Uses Daily Call Object (custom UI) for:
+ * - Full custom video/audio rendering
+ * - No prebuilt Daily UI (no green Join button, no Goodbye screen)
+ * - Glassmorphic modern design
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -20,30 +17,29 @@ import { useCallStore, CallData } from '@/lib/callStore';
 import { requestCallMediaPermissions, isAndroid, nextAnimationFrame } from '@/lib/mediaPermissions';
 import { callSounds } from '@/lib/callSounds';
 import { supabase } from '@/integrations/supabase/client';
-import DailyIframe, { DailyCall } from '@daily-co/daily-js';
-
-// DOM check to prevent duplicate iframes
-function hasExistingDailyIframe(): boolean {
-  if (typeof document === 'undefined') return false;
-  const existing = document.querySelector('iframe[allow*="camera"]');
-  return !!existing;
-}
+import DailyIframe, { DailyCall, DailyParticipant } from '@daily-co/daily-js';
 
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, setPhase, setError, dismissIncoming } = useCallStore();
   
-  // Refs for persistent iframe
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Daily call object ref
   const dailyRef = useRef<DailyCall | null>(null);
   const listenersAttached = useRef(false);
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Video refs for attaching streams
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
   
   // Local UI state
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isHangingUp, setIsHangingUp] = useState(false);
+  const [remoteParticipant, setRemoteParticipant] = useState<DailyParticipant | null>(null);
+  const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
+  const [hasLocalVideo, setHasLocalVideo] = useState(false);
 
   // Track call data for stale closure prevention
   const stateRef = useRef(state);
@@ -59,25 +55,25 @@ export function GlobalCallOverlay() {
     }
   }, []);
 
-  // Create Daily iframe ONCE on mount
-  useEffect(() => {
-    if (!containerRef.current) return;
-    if (dailyRef.current) return;
-    if (hasExistingDailyIframe()) {
-      console.warn('[CallOverlay] Existing Daily iframe detected, skipping creation');
-      return;
+  // Attach video track to element
+  const attachTrack = useCallback((track: MediaStreamTrack, videoEl: HTMLVideoElement) => {
+    try {
+      const stream = new MediaStream([track]);
+      videoEl.srcObject = stream;
+      videoEl.play().catch(console.error);
+    } catch (err) {
+      console.error('[CallOverlay] Failed to attach track:', err);
     }
+  }, []);
 
-    console.log('[CallOverlay] Creating permanent Daily iframe');
+  // Create Daily call object ONCE on mount
+  useEffect(() => {
+    if (dailyRef.current) return;
+
+    console.log('[CallOverlay] Creating Daily Call Object');
     
-    const daily = DailyIframe.createFrame(containerRef.current, {
-      iframeStyle: {
-        width: '100%',
-        height: '100%',
-        border: 'none',
-      },
-      showLeaveButton: false,
-      showFullscreenButton: true,
+    const daily = DailyIframe.createCallObject({
+      subscribeToTracksAutomatically: true,
     });
 
     dailyRef.current = daily;
@@ -99,7 +95,7 @@ export function GlobalCallOverlay() {
           return;
         }
 
-        // CRITICAL: Enable media after joining
+        // Enable local media after joining
         try {
           daily.setLocalAudio(true);
           if (stateRef.current.call?.callType === 'video') {
@@ -121,8 +117,9 @@ export function GlobalCallOverlay() {
         console.log('[CallOverlay] 👋 left-meeting event');
         clearJoinTimeout();
         isLeavingRef.current = false;
-        
-        // Don't reset state here - let endCall handle it
+        setRemoteParticipant(null);
+        setHasRemoteVideo(false);
+        setHasLocalVideo(false);
       });
 
       daily.on('error', (event: any) => {
@@ -134,12 +131,87 @@ export function GlobalCallOverlay() {
         setError(msg);
         endCall();
       });
+
+      // Track participants
+      daily.on('participant-joined', (event: any) => {
+        console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.session_id);
+        if (event?.participant && !event.participant.local) {
+          setRemoteParticipant(event.participant);
+        }
+      });
+
+      daily.on('participant-left', (event: any) => {
+        console.log('[CallOverlay] 👤 participant-left:', event?.participant?.session_id);
+        if (event?.participant && !event.participant.local) {
+          setRemoteParticipant(null);
+          setHasRemoteVideo(false);
+        }
+      });
+
+      daily.on('participant-updated', (event: any) => {
+        if (!event?.participant) return;
+        
+        const p = event.participant;
+        if (p.local) {
+          // Update local video state
+          const hasVideo = p.video && p.tracks?.video?.state === 'playable';
+          setHasLocalVideo(hasVideo);
+          
+          if (hasVideo && p.tracks.video.track && localVideoRef.current) {
+            attachTrack(p.tracks.video.track, localVideoRef.current);
+          }
+        } else {
+          // Update remote participant
+          setRemoteParticipant(p);
+          const hasVideo = p.video && p.tracks?.video?.state === 'playable';
+          setHasRemoteVideo(hasVideo);
+          
+          if (hasVideo && p.tracks.video.track && remoteVideoRef.current) {
+            attachTrack(p.tracks.video.track, remoteVideoRef.current);
+          }
+        }
+      });
+
+      // Track started - attach video
+      daily.on('track-started', (event: any) => {
+        if (!event?.participant || !event?.track) return;
+        
+        const { participant, track } = event;
+        console.log('[CallOverlay] 🎬 track-started:', participant.local ? 'local' : 'remote', track.kind);
+        
+        if (track.kind === 'video') {
+          if (participant.local && localVideoRef.current) {
+            attachTrack(track, localVideoRef.current);
+            setHasLocalVideo(true);
+          } else if (!participant.local && remoteVideoRef.current) {
+            attachTrack(track, remoteVideoRef.current);
+            setHasRemoteVideo(true);
+          }
+        }
+      });
+
+      daily.on('track-stopped', (event: any) => {
+        if (!event?.participant || !event?.track) return;
+        
+        const { participant, track } = event;
+        console.log('[CallOverlay] 🎬 track-stopped:', participant.local ? 'local' : 'remote', track.kind);
+        
+        if (track.kind === 'video') {
+          if (participant.local) {
+            setHasLocalVideo(false);
+            if (localVideoRef.current) localVideoRef.current.srcObject = null;
+          } else {
+            setHasRemoteVideo(false);
+            if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+          }
+        }
+      });
     }
 
     return () => {
-      // Don't destroy on unmount - keep iframe permanent
+      // Don't destroy on unmount - keep call object persistent
     };
-  }, [clearJoinTimeout, setPhase, setError, endCall]);
+  }, [clearJoinTimeout, setPhase, setError, endCall, attachTrack]);
 
   // Join room when phase becomes 'joining'
   useEffect(() => {
@@ -267,6 +339,18 @@ export function GlobalCallOverlay() {
   }, [state.phase, clearJoinTimeout]);
 
   // Call duration timer
+  useEffect(() => {
+    if (state.phase !== 'connected') {
+      setCallDuration(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setCallDuration(prev => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [state.phase]);
 
   // HANGUP - must always work
   const handleHangup = useCallback(async () => {
@@ -291,7 +375,7 @@ export function GlobalCallOverlay() {
       }
     }
 
-    // Force cleanup after 2s max wait
+    // Force cleanup after 500ms max wait
     await new Promise<void>((resolve) => setTimeout(resolve, 500));
     
     await endCall();
@@ -351,20 +435,7 @@ export function GlobalCallOverlay() {
 
   return (
     <>
-      {/* Permanent Daily iframe container - always in DOM */}
-      <div
-        ref={containerRef}
-        className={cn(
-          'fixed inset-0 z-[9998] transition-all duration-500',
-          isVisible && !isRinging ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        )}
-        style={{ 
-          visibility: isVisible && !isRinging ? 'visible' : 'hidden',
-          background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(240 10% 8%) 50%, hsl(280 20% 8%) 100%)'
-        }}
-      />
-
-      {/* Modern In-call overlay UI */}
+      {/* Main Call UI (not ringing) */}
       <AnimatePresence>
         {isVisible && !isRinging && (
           <motion.div
@@ -372,7 +443,10 @@ export function GlobalCallOverlay() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-[9999] pointer-events-none"
+            className="fixed inset-0 z-[9999]"
+            style={{
+              background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(240 10% 8%) 50%, hsl(280 20% 8%) 100%)'
+            }}
           >
             {/* Ambient gradient background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -392,6 +466,105 @@ export function GlobalCallOverlay() {
                 }}
               />
             </div>
+
+            {/* Video Container */}
+            {isVideoCall && (
+              <>
+                {/* Remote Video - Full Screen */}
+                <div className="absolute inset-0">
+                  {hasRemoteVideo ? (
+                    <video
+                      ref={remoteVideoRef}
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      {/* Remote avatar placeholder */}
+                      <div className="relative">
+                        <motion.div
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                        >
+                          <Avatar className="h-40 w-40 ring-4 ring-white/10 shadow-2xl">
+                            <AvatarImage src={otherUser?.avatar_url || undefined} />
+                            <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
+                              {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                        </motion.div>
+                        {!isConnected && (
+                          <motion.p
+                            animate={{ opacity: [0.5, 1, 0.5] }}
+                            transition={{ repeat: Infinity, duration: 2 }}
+                            className="mt-6 text-white/60 text-lg font-light text-center"
+                          >
+                            Waiting for video...
+                          </motion.p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Local Video - Picture-in-Picture */}
+                {hasLocalVideo && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20"
+                  >
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                  </motion.div>
+                )}
+              </>
+            )}
+
+            {/* Audio Call - Show Avatar */}
+            {!isVideoCall && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <motion.div
+                    animate={{ scale: [1, 1.05, 1] }}
+                    transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                  >
+                    <Avatar className="h-40 w-40 mx-auto ring-4 ring-white/10 shadow-2xl">
+                      <AvatarImage src={otherUser?.avatar_url || undefined} />
+                      <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
+                        {otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </motion.div>
+                  
+                  <h2 className="mt-6 text-2xl font-bold text-white">
+                    {otherUser?.display_name || otherUser?.username}
+                  </h2>
+                  
+                  {isConnecting && (
+                    <motion.p
+                      animate={{ opacity: [0.5, 1, 0.5] }}
+                      transition={{ repeat: Infinity, duration: 2 }}
+                      className="mt-2 text-white/60 text-lg"
+                    >
+                      Connecting...
+                    </motion.p>
+                  )}
+                  
+                  {isConnected && (
+                    <p className="mt-2 text-white/70 text-lg font-mono">
+                      {formatDuration(callDuration)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Glassmorphic Header */}
             <motion.div 
@@ -465,14 +638,14 @@ export function GlobalCallOverlay() {
               </div>
             </motion.div>
 
-            {/* Connecting overlay - modern design */}
+            {/* Connecting overlay */}
             <AnimatePresence>
-              {isConnecting && (
+              {isConnecting && isVideoCall && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                  className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm"
                 >
                   <div className="text-center">
                     {/* Animated rings */}
@@ -613,7 +786,7 @@ export function GlobalCallOverlay() {
   );
 }
 
-// Inline incoming call dialog content (animated wrapper lives in GlobalCallOverlay for AnimatePresence compatibility)
+// Incoming call dialog component
 function IncomingCallDialog({
   call,
   onAccept,
@@ -662,32 +835,32 @@ function IncomingCallDialog({
   return (
     <>
       {/* Animated background orbs */}
-       <div className="absolute inset-0 overflow-hidden">
-         <motion.div
-           animate={{
-             x: [0, 50, 0],
-             y: [0, 30, 0],
-             scale: [1, 1.2, 1],
-           }}
-           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-           className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20"
-           style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }}
-         />
-         <motion.div
-           animate={{
-             x: [0, -30, 0],
-             y: [0, -50, 0],
-             scale: [1, 1.3, 1],
-           }}
-           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-           className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20"
-           style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }}
-         />
-       </div>
+      <div className="absolute inset-0 overflow-hidden">
+        <motion.div
+          animate={{
+            x: [0, 50, 0],
+            y: [0, 30, 0],
+            scale: [1, 1.2, 1],
+          }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20"
+          style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }}
+        />
+        <motion.div
+          animate={{
+            x: [0, -30, 0],
+            y: [0, -50, 0],
+            scale: [1, 1.3, 1],
+          }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20"
+          style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }}
+        />
+      </div>
 
-       <div className="absolute inset-0 backdrop-blur-3xl" />
+      <div className="absolute inset-0 backdrop-blur-3xl" />
 
-       <motion.div
+      <motion.div
         initial={{ scale: 0.8, y: 40 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.8, y: 40 }}
