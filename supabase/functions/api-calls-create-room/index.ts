@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
     // Room expires after specified minutes (default 60)
     const expireTime = Math.floor(Date.now() / 1000) + expiryMinutes * 60;
 
-    // Create Daily room via API
+    // Create Daily room via API (public - no token required)
     const dailyResponse = await fetch("https://api.daily.co/v1/rooms", {
       method: "POST",
       headers: {
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         name: roomName,
-        privacy: "private",
+        privacy: "public",
         properties: {
           exp: expireTime,
           start_audio_off: false,
