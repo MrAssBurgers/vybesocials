@@ -173,11 +173,14 @@ export function DesktopRightSidebar() {
   const contextCard = getContextCard();
 
   return (
-    <aside className={cn(
-      "hidden lg:flex fixed right-0 top-0 h-screen flex-col liquid-glass border-l border-border/50 z-40",
-      "w-[240px] 2xl:w-[280px]"
-    )}>
-      <ScrollArea className="flex-1">
+    <aside 
+      className={cn(
+        "hidden lg:flex fixed right-0 top-0 h-screen flex-col liquid-glass border-l border-border/50 z-40",
+        "w-[240px] 2xl:w-[280px] overflow-hidden"
+      )}
+      style={{ position: 'fixed' }}
+    >
+      <ScrollArea className="flex-1 h-full">
         <div className="p-3 space-y-3">
           {/* Quick Search */}
           <div className="relative">
