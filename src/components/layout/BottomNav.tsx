@@ -1,9 +1,10 @@
 import { Home, Film, PlusCircle, MessageCircle, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
+import { useBreakpoint } from '@/hooks/usePlatform';
 import { useState, useCallback, useRef, memo } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
@@ -55,7 +56,11 @@ const NavItem = memo(({
 export function BottomNav() {
   const location = useLocation();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
+  const { isDesktop } = useBreakpoint();
   
+  // Never show bottom nav on desktop (>=1024px).
+  if (isDesktop) return null;
+
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);
   
@@ -94,7 +99,7 @@ export function BottomNav() {
       <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
 
       <nav 
-        className="fixed bottom-0 left-0 right-0 z-50 pb-safe lg:hidden"
+        className="fixed bottom-0 left-0 right-0 z-50 w-full pb-[env(safe-area-inset-bottom)]"
       >
         {/* Compact glass bar */}
         <div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">
