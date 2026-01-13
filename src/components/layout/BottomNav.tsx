@@ -194,20 +194,16 @@ export function BottomNav() {
               if (item.isCreate) {
                 return (
                   <div key={item.path} className="relative flex items-center justify-center">
-                    <button
-                      className="relative flex items-center justify-center min-h-[48px] min-w-[48px] active:scale-90 transition-transform duration-150"
+                    <motion.button
+                      className="relative flex items-center justify-center min-h-[48px] min-w-[48px]"
                       onClick={handleCreateClick}
+                      whileTap={{ scale: 0.9 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 25 }}
                     >
-                      <div 
-                        className="rounded-xl p-3"
-                        style={{ 
-                          background: 'linear-gradient(135deg, hsl(330 100% 60%), hsl(280 100% 60%))',
-                          boxShadow: '0 4px 12px hsla(330, 100%, 60%, 0.35)'
-                        }}
-                      >
-                        <PlusCircle className="h-[22px] w-[22px] text-white" />
+                      <div className="gradient-animated rounded-xl p-3 shadow-lg shadow-primary/30">
+                        <PlusCircle className="h-[22px] w-[22px] text-primary-foreground" />
                       </div>
-                    </button>
+                    </motion.button>
                   </div>
                 );
               }
