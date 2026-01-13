@@ -63,7 +63,7 @@ export function useUnreadMessagesCount() {
     queryFn: async () => {
       if (!profile?.id) return 0;
 
-      // Single optimized query using a join instead of N+1 queries
+      // Get conversations the user is part of
       const { data: memberships } = await supabase
         .from('conversation_members')
         .select('conversation_id, last_read_at')
@@ -71,26 +71,25 @@ export function useUnreadMessagesCount() {
 
       if (!memberships?.length) return 0;
 
-      // Batch all conversation IDs and do a single count query
-      const convIds = memberships.map(m => m.conversation_id);
-      const oldestLastRead = memberships.reduce((oldest, m) => {
-        const lastRead = m.last_read_at || '1970-01-01';
-        return lastRead < oldest ? lastRead : oldest;
-      }, new Date().toISOString());
+      let totalUnread = 0;
+      for (const membership of memberships) {
+        const lastReadAt = membership.last_read_at || '1970-01-01';
+        const { count } = await supabase
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('conversation_id', membership.conversation_id)
+          .neq('sender_id', profile.id)
+          .gt('created_at', lastReadAt)
+          .eq('is_deleted', false);
 
-      const { count } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .in('conversation_id', convIds)
-        .neq('sender_id', profile.id)
-        .gt('created_at', oldestLastRead)
-        .eq('is_deleted', false);
+        totalUnread += count || 0;
+      }
 
-      return count || 0;
+      return totalUnread;
     },
     enabled: !!profile?.id,
-    staleTime: 30000, // 30 seconds cache
-    refetchInterval: 30000, // Check every 30s instead of 15s
+    staleTime: 5000,
+    refetchInterval: 15000,
   });
 }
 
@@ -172,8 +171,7 @@ export function useConversations() {
       return result as Conversation[];
     },
     enabled: !!profile?.id,
-    staleTime: 30000, // Cache for 30 seconds
-    gcTime: 1000 * 60 * 10, // Keep in cache for 10 minutes
+    staleTime: 10000, // Cache for 10 seconds
     refetchOnWindowFocus: false,
   });
 
@@ -263,8 +261,7 @@ export function useMessages(conversationId: string | undefined) {
       return filtered as Message[];
     },
     enabled: !!conversationId && !!profile?.id,
-    staleTime: 30000, // 30 second cache
-    gcTime: 1000 * 60 * 5, // Keep in cache for 5 minutes
+    staleTime: 5000,
     refetchOnWindowFocus: false,
   });
 

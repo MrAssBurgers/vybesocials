@@ -53,17 +53,16 @@ const Community = lazy(() => import("./pages/Community"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 10, // 10 minutes - aggressive caching
-      gcTime: 1000 * 60 * 60, // 1 hour cache retention
+      staleTime: 1000 * 60 * 5, // 5 minutes - reduce refetches
+      gcTime: 1000 * 60 * 30, // 30 minutes cache
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
-      retry: 0, // No retries for faster failure
-      networkMode: 'offlineFirst', // Use cache first
+      retry: 1, // Only retry once
+      retryDelay: 1000,
     },
     mutations: {
-      retry: 0,
-      networkMode: 'offlineFirst',
+      retry: 0, // Don't retry mutations
     },
   },
 });
@@ -102,10 +101,10 @@ const App = memo(() => {
   useAutoUpdate();
 
   useEffect(() => {
-    // Ultra-fast splash - 400ms
+    // Faster splash - 800ms
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 400);
+    }, 800);
 
     return () => clearTimeout(timer);
   }, []);

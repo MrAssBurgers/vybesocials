@@ -2,21 +2,21 @@
 // Provides consistent easing, duration, and spring configs
 
 export const MOTION_CONFIG = {
-  // Spring configs for different use cases - optimized for speed
+  // Spring configs for different use cases
   spring: {
-    snappy: { type: 'spring', stiffness: 600, damping: 35 } as const,
-    gentle: { type: 'spring', stiffness: 400, damping: 30 } as const,
-    bouncy: { type: 'spring', stiffness: 500, damping: 18 } as const,
-    slow: { type: 'spring', stiffness: 300, damping: 25 } as const,
+    snappy: { type: 'spring', stiffness: 500, damping: 30 } as const,
+    gentle: { type: 'spring', stiffness: 300, damping: 25 } as const,
+    bouncy: { type: 'spring', stiffness: 400, damping: 15 } as const,
+    slow: { type: 'spring', stiffness: 200, damping: 20 } as const,
   },
   
-  // Duration presets (in seconds) - faster across the board
+  // Duration presets (in seconds)
   duration: {
-    instant: 0.05,
-    fast: 0.1,
-    normal: 0.15,
-    slow: 0.25,
-    glacial: 0.4,
+    instant: 0.1,
+    fast: 0.15,
+    normal: 0.25,
+    slow: 0.4,
+    glacial: 0.6,
   },
   
   // Easing presets
@@ -136,9 +136,9 @@ export const GESTURE_CONFIG = {
   pullThreshold: 80,
 };
 
-// Animation budget tracking - increased limit for smoother UX
+// Animation budget tracking
 let animatedElementsCount = 0;
-const MAX_ANIMATED_ELEMENTS = 5;
+const MAX_ANIMATED_ELEMENTS = 2;
 
 export function registerAnimatedElement(): boolean {
   if (animatedElementsCount >= MAX_ANIMATED_ELEMENTS) {

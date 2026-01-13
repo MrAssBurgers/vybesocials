@@ -76,8 +76,8 @@ export function usePresence() {
     // Set online immediately
     updatePresence();
 
-    // Update presence every 60 seconds instead of 30
-    intervalRef.current = setInterval(updatePresence, 60000);
+    // Update presence every 30 seconds
+    intervalRef.current = setInterval(updatePresence, 30000);
 
     // Handle visibility change
     const handleVisibilityChange = () => {
@@ -157,8 +157,8 @@ export function useUserOnlineStatus(userId: string | undefined) {
       return data;
     },
     enabled: !!userId,
-    staleTime: 30000, // 30 second cache
-    refetchInterval: 60000, // Check every 60s instead of 30s
+    staleTime: 10000,
+    refetchInterval: 30000,
   });
 
   // Subscribe to realtime updates
@@ -238,7 +238,7 @@ export function useUsersOnlineStatus(userIds: string[]) {
       return statusMap;
     },
     enabled: userIds.length > 0,
-    staleTime: 30000, // 30 second cache
-    refetchInterval: 45000, // Check every 45s instead of 15s
+    staleTime: 10000,
+    refetchInterval: 15000, // Check more frequently
   });
 }

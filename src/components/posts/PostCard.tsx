@@ -126,7 +126,7 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
           loop
           muted={isMuted}
           playsInline
-          preload="none"
+          preload="metadata"
           onLoadedMetadata={handleLoadedMetadata}
           onLoadedData={handleLoadedData}
           onError={handleError}
@@ -207,7 +207,7 @@ function NaturalAspectImage({ src, caption }: { src: string; caption?: string })
         style={!isLoaded ? { position: 'absolute', top: 0, left: 0 } : undefined}
         loading="lazy"
         decoding="async"
-        fetchPriority="auto"
+        fetchPriority="low"
         onLoad={handleLoad}
         onError={() => setHasError(true)}
       />
@@ -486,9 +486,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           {showHeart && (
             <motion.div 
               initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: [0, 1.15, 1], opacity: 1 }}
-              exit={{ scale: 1.2, opacity: 0 }}
-              transition={{ duration: 0.3, type: 'spring', stiffness: 500 }}
+              animate={{ scale: [0, 1.2, 1], opacity: 1 }}
+              exit={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 0.5, type: 'spring', stiffness: 300 }}
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
             >
               <Heart className="h-24 w-24 text-red-500 fill-red-500 drop-shadow-lg" />
@@ -512,9 +512,10 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 <motion.div
                   className="flex items-center justify-center"
                   animate={isLiked ? { 
-                    scale: [1, 1.2, 0.95, 1],
+                    scale: [1, 1.3, 0.9, 1.1, 1],
+                    rotate: [0, -10, 10, -5, 0]
                   } : {}}
-                  transition={{ duration: 0.25, type: 'spring', stiffness: 500 }}
+                  transition={{ duration: 0.5, type: 'spring', stiffness: 400 }}
                 >
                   <Heart
                     className={cn(
