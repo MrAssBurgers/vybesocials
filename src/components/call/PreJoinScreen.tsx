@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Mic, MicOff, Video, VideoOff, Phone, PhoneOff,
-  Settings, Sparkles, ChevronDown, ChevronUp, Loader2, Check
+  Settings, ChevronDown, ChevronUp, Loader2, Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -234,12 +234,6 @@ export function PreJoinScreen({
                 </button>
               )}
 
-              {/* Effects (decorative) */}
-              <button
-                className="flex items-center justify-center h-12 w-12 rounded-full bg-muted hover:bg-muted-foreground/20 text-muted-foreground hover:text-foreground transition-all duration-200"
-              >
-                <Sparkles className="h-5 w-5" />
-              </button>
 
               {/* Settings Toggle */}
               <button
