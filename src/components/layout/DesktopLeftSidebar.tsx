@@ -191,11 +191,11 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
     <TooltipProvider>
       <aside 
         className={cn(
-          "hidden lg:flex flex-col fixed left-0 top-0 h-screen shrink-0 liquid-glass border-r border-border/40 z-40",
+          "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 liquid-glass border-r border-border/50 z-40",
           "transition-[width] duration-200 ease-out overflow-hidden",
           collapsed 
-            ? "w-[76px]" 
-            : "w-[220px] xl:w-[240px] 2xl:w-[260px]"
+            ? "w-[72px]" 
+            : "w-[200px] xl:w-[220px] 2xl:w-[240px]"
         )}
       >
         {/* Brand Row */}
@@ -279,25 +279,16 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <Button 
-                variant="ghost"
                 onClick={handleCreateClick}
                 className={cn(
-                  "w-full relative overflow-hidden bg-transparent hover:bg-transparent text-primary-foreground hover:text-primary-foreground font-semibold rounded-xl hover:brightness-110",
+                  "w-full gradient-animated text-primary-foreground font-semibold rounded-xl",
                   "shadow-lg shadow-primary/20 hover:shadow-primary/30",
                   "active:scale-95 transition-transform",
                   collapsed ? "h-11 px-0 min-w-[48px]" : "h-11"
                 )}
               >
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 gradient-animated gradient-animated-slow opacity-90"
-                />
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 bg-foreground/10 backdrop-blur-[1px]"
-                />
-                <PlusCircle className="relative z-10 h-5 w-5 flex-shrink-0" />
-                {!collapsed && <span className="relative z-10 ml-2">{t('nav.upload')}</span>}
+                <PlusCircle className="h-5 w-5 flex-shrink-0" />
+                {!collapsed && <span className="ml-2">{t('nav.upload')}</span>}
               </Button>
             </TooltipTrigger>
             {collapsed && <TooltipContent side="right">Upload (double-click for Admin)</TooltipContent>}
