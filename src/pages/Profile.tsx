@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, Eye } from 'lucide-react';
+import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, Eye, MoreHorizontal } from 'lucide-react';
 import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/useProfile';
 import { usePosts } from '@/hooks/usePosts';
 import { useSavedPosts } from '@/hooks/useSavedPosts';
@@ -18,6 +18,10 @@ import { ClipsGrid } from '@/components/posts/ClipsGrid';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useCreateConversation } from '@/hooks/useMessages';
+import { ModBadge } from '@/components/ui/ModBadge';
+import { useUserRoleById } from '@/hooks/useUserRoleById';
+import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -30,6 +34,10 @@ export default function ProfilePage() {
   const updateAvatar = useUpdateAvatar();
   const createConversation = useCreateConversation();
   const [activeTab, setActiveTab] = useState('posts');
+  const { data: profileRole } = useUserRoleById(profile?.id);
+  const isModOrAdmin = useIsModOrAdmin();
+  const [warnDialogOpen, setWarnDialogOpen] = useState(false);
+  const [banDialogOpen, setBanDialogOpen] = useState(false);
 
   const isOwnProfile = currentProfile?.username === username;
 
@@ -161,6 +169,7 @@ export default function ProfilePage() {
                   @{profile.username}
                   {isOwner(profile.username) && <OwnerBadge />}
                   {isOwnerWife(profile.id) && <PrincessBadge />}
+                  {profileRole && <ModBadge role={profileRole} />}
                 </h1>
               </div>
               {isOwnProfile ? (
@@ -195,6 +204,30 @@ export default function ProfilePage() {
                       <MessageCircle className="h-4 w-4" />
                     </Button>
                   </motion.div>
+                  
+                  {/* Moderation Menu - only visible to mods/admins */}
+                  {isModOrAdmin && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="liquid-glass">
+                        <DropdownMenuLabel className="flex items-center gap-2">
+                          @{profile.username}
+                          {profileRole && <ModBadge role={profileRole} showLabel />}
+                        </DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <ModeratorMenuItems
+                          userId={profile.id}
+                          username={profile.username}
+                          onWarnClick={() => setWarnDialogOpen(true)}
+                          onBanClick={() => setBanDialogOpen(true)}
+                        />
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
               )}
             </div>
@@ -320,6 +353,18 @@ export default function ProfilePage() {
             </TabsContent>
           )}
         </Tabs>
+        
+        {/* Moderation Dialogs */}
+        {profile && (
+          <ModeratorDialogs
+            userId={profile.id}
+            username={profile.username}
+            warnDialogOpen={warnDialogOpen}
+            setWarnDialogOpen={setWarnDialogOpen}
+            banDialogOpen={banDialogOpen}
+            setBanDialogOpen={setBanDialogOpen}
+          />
+        )}
       </div>
     </AppLayout>
   );
