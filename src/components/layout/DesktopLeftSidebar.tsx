@@ -279,16 +279,25 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <Button 
+                variant="ghost"
                 onClick={handleCreateClick}
                 className={cn(
-                  "w-full gradient-animated gradient-animated-slow text-primary-foreground font-semibold rounded-xl hover:brightness-110 transition-all",
+                  "w-full relative overflow-hidden bg-transparent hover:bg-transparent text-primary-foreground hover:text-primary-foreground font-semibold rounded-xl hover:brightness-110",
                   "shadow-lg shadow-primary/20 hover:shadow-primary/30",
                   "active:scale-95 transition-transform",
                   collapsed ? "h-11 px-0 min-w-[48px]" : "h-11"
                 )}
               >
-                <PlusCircle className="h-5 w-5 flex-shrink-0" />
-                {!collapsed && <span className="ml-2">{t('nav.upload')}</span>}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 gradient-animated gradient-animated-slow opacity-90"
+                />
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 bg-foreground/10 backdrop-blur-[1px]"
+                />
+                <PlusCircle className="relative z-10 h-5 w-5 flex-shrink-0" />
+                {!collapsed && <span className="relative z-10 ml-2">{t('nav.upload')}</span>}
               </Button>
             </TooltipTrigger>
             {collapsed && <TooltipContent side="right">Upload (double-click for Admin)</TooltipContent>}
