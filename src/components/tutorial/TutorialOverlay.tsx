@@ -133,17 +133,27 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     const target = document.querySelector(currentStepData.targetSelector);
     
     if (target) {
-      const rect = target.getBoundingClientRect();
-      const padding = 8;
-      
-      setSpotlight({
-        top: rect.top - padding,
-        left: rect.left - padding,
-        width: rect.width + padding * 2,
-        height: rect.height + padding * 2,
+      // Scroll element into view smoothly before highlighting
+      target.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'center',
       });
-      setElementFound(true);
-      calculateTooltipPosition(rect, currentStepData.position);
+      
+      // Wait for scroll to complete before calculating position
+      setTimeout(() => {
+        const rect = target.getBoundingClientRect();
+        const padding = 8;
+        
+        setSpotlight({
+          top: rect.top - padding,
+          left: rect.left - padding,
+          width: rect.width + padding * 2,
+          height: rect.height + padding * 2,
+        });
+        setElementFound(true);
+        calculateTooltipPosition(rect, currentStepData.position);
+      }, 300);
     } else {
       // Element not found - show centered tooltip
       setSpotlight(null);
