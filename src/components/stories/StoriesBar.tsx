@@ -36,7 +36,7 @@ export function StoriesBar() {
 
   return (
     <>
-      <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide">
+      <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide" data-tutorial="stories">
         {/* Add Story Button / Own Story */}
         <StoryAvatar
           avatarUrl={profile?.avatar_url}

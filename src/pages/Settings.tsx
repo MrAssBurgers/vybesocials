@@ -440,7 +440,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
           </div>
         </motion.section>
 
-        {/* Feedback Section */}
+        {/* Help & Tutorial Section */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -449,17 +449,31 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
         >
           <h3 className="font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base">
             <MessageSquareHeart className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-            Feedback
+            Help & Feedback
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Help us improve! Share your ideas, report bugs, or vote on features.
+            Learn how to use VYBE or share your feedback.
           </p>
-          <Link to="/feedback">
-            <Button variant="outline" className="w-full justify-between">
-              <span>Open Feedback Hub</span>
-              <ChevronRight className="h-4 w-4" />
+          <div className="space-y-2">
+            <Button 
+              variant="outline" 
+              className="w-full justify-between"
+              onClick={() => {
+                // Access tutorial context
+                const event = new CustomEvent('open-tutorial');
+                window.dispatchEvent(event);
+              }}
+            >
+              <span>View Tutorial</span>
+              <Sparkles className="h-4 w-4" />
             </Button>
-          </Link>
+            <Link to="/feedback">
+              <Button variant="outline" className="w-full justify-between">
+                <span>Open Feedback Hub</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
         </motion.section>
 
         {/* Account Actions */}
