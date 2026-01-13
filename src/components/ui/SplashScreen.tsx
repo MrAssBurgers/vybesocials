@@ -12,7 +12,7 @@ export function SplashScreen({ isVisible }: SplashScreenProps) {
         <motion.div
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-background"
         >
           {/* Subtle gradient background */}
@@ -20,12 +20,12 @@ export function SplashScreen({ isVisible }: SplashScreenProps) {
           
           {/* Animated logo */}
           <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 1.1, opacity: 0 }}
+            exit={{ scale: 1.02, opacity: 0 }}
             transition={{ 
-              duration: 0.5, 
-              ease: [0.34, 1.56, 0.64, 1] // bounce easing
+              duration: 0.2, 
+              ease: 'easeOut'
             }}
             className="relative"
           >

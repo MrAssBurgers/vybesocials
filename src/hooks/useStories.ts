@@ -132,7 +132,8 @@ export function useStories() {
       return groups;
     },
     enabled: !!profile?.id,
-    refetchInterval: 30000, // Refetch every 30s to update expiry
+    staleTime: 1000 * 60 * 2, // Cache for 2 minutes
+    refetchInterval: 60000, // Refetch every 60s instead of 30s
   });
 }
 
