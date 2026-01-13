@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { haptics } from '@/lib/haptics';
 import { useNotificationPreferences, useUpdateNotificationPreference } from '@/hooks/useNotificationPreferences';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { useQueryClient } from '@tanstack/react-query';
 
 const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref) {
   const { t, i18n } = useTranslation();
@@ -506,12 +507,28 @@ export default SettingsPage;
 
 // Notifications Section Component
 function NotificationsSection() {
+  const { profile } = useAuth();
   const { data: prefs, isLoading } = useNotificationPreferences();
   const updatePref = useUpdateNotificationPreference();
+  const queryClient = useQueryClient();
 
-  const handleToggle = (key: 'announcements_enabled', value: boolean) => {
+  const handleToggle = async (key: 'announcements_enabled', value: boolean) => {
     haptics.tap();
     updatePref.mutate({ key, value });
+    
+    // When disabling announcements, immediately clear existing announcement notifications
+    if (!value && key === 'announcements_enabled' && profile?.id) {
+      await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', profile.id)
+        .eq('type', 'announcement')
+        .eq('read', false);
+      
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
+      toast.success('Announcement notifications cleared');
+    }
   };
 
   if (isLoading || !prefs) return null;

@@ -18,7 +18,7 @@ interface ChatPresenceIndicatorProps {
   maxDisplay?: number;
 }
 
-// Individual avatar with typing indicator
+// Individual avatar with typing indicator - Snapchat style
 const PresenceAvatar = memo(function PresenceAvatar({
   user,
   isTyping,
@@ -32,63 +32,75 @@ const PresenceAvatar = memo(function PresenceAvatar({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.5, y: 10 }}
+      initial={{ opacity: 0, scale: 0, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.5, y: 10 }}
+      exit={{ opacity: 0, scale: 0, y: 20 }}
       transition={{ 
         type: 'spring', 
-        stiffness: 400, 
-        damping: 25,
+        stiffness: 500, 
+        damping: 30,
         delay: index * 0.05 
       }}
       className="relative"
     >
-      {/* Soft glow effect */}
-      <div className={cn(
-        "absolute inset-0 rounded-full blur-md transition-opacity duration-300",
-        isTyping 
-          ? "bg-primary/40 animate-pulse" 
-          : "bg-primary/20"
-      )} />
+      {/* Pulsing ring when typing */}
+      <AnimatePresence>
+        {isTyping && (
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: [1, 1.15, 1], opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            transition={{ 
+              scale: { duration: 1.2, repeat: Infinity, ease: 'easeInOut' },
+            }}
+            className="absolute -inset-1 rounded-full bg-primary/30 blur-sm"
+          />
+        )}
+      </AnimatePresence>
       
       {/* Avatar */}
       <Avatar className={cn(
-        "relative h-8 w-8 ring-2 ring-background shadow-lg transition-all duration-300",
-        isTyping && "ring-primary/50"
+        "relative h-9 w-9 ring-2 shadow-xl transition-all duration-200",
+        isTyping 
+          ? "ring-primary ring-offset-2 ring-offset-background" 
+          : "ring-background/80"
       )}>
         <AvatarImage src={signedUrl || undefined} className="object-cover" />
-        <AvatarFallback className="text-xs bg-muted">
+        <AvatarFallback className="text-xs font-semibold bg-gradient-to-br from-primary/20 to-primary/40">
           {user.username?.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
 
-      {/* Typing bubble overlay */}
+      {/* Typing bubble - positioned above avatar like Snapchat */}
       <AnimatePresence>
         {isTyping && (
           <motion.div
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0 }}
-            className="absolute -top-3 -right-1 bg-muted/90 backdrop-blur-sm rounded-full px-1.5 py-0.5 shadow-lg border border-border/50"
+            initial={{ opacity: 0, scale: 0, y: 5 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0, y: 5 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+            className="absolute -top-5 left-1/2 -translate-x-1/2"
           >
-            <div className="flex items-center gap-0.5">
+            <div className="bg-muted/95 backdrop-blur-md rounded-full px-2 py-1 shadow-lg border border-border/30 flex items-center gap-[3px]">
               {[0, 1, 2].map((i) => (
                 <motion.span
                   key={i}
-                  className="w-1 h-1 bg-primary rounded-full"
+                  className="w-[5px] h-[5px] bg-primary rounded-full"
                   animate={{
-                    y: [0, -3, 0],
-                    opacity: [0.5, 1, 0.5],
+                    y: [0, -4, 0],
+                    opacity: [0.4, 1, 0.4],
                   }}
                   transition={{
-                    duration: 0.6,
+                    duration: 0.5,
                     repeat: Infinity,
-                    delay: i * 0.15,
+                    delay: i * 0.12,
                     ease: 'easeInOut',
                   }}
                 />
               ))}
             </div>
+            {/* Small tail pointing down */}
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-muted/95 rotate-45 border-r border-b border-border/30" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -108,10 +120,10 @@ export const ChatPresenceIndicator = memo(function ChatPresenceIndicator({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
-      className="flex items-center gap-1.5 px-3 py-2"
+      exit={{ opacity: 0, y: 10 }}
+      className="flex items-end justify-start gap-2 px-4 py-3 pb-1"
     >
       <AnimatePresence mode="popLayout">
         {displayUsers.map((user, index) => (
@@ -129,7 +141,7 @@ export const ChatPresenceIndicator = memo(function ChatPresenceIndicator({
         <motion.div
           initial={{ opacity: 0, scale: 0.5 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="h-8 w-8 rounded-full bg-muted/80 backdrop-blur-sm flex items-center justify-center text-xs font-semibold text-muted-foreground border border-border/50 shadow-lg"
+          className="h-9 w-9 rounded-full bg-muted/90 backdrop-blur-md flex items-center justify-center text-xs font-bold text-muted-foreground border border-border/30 shadow-lg"
         >
           +{remainingCount}
         </motion.div>
