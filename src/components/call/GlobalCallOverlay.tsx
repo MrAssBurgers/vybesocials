@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { useCallStore, CallData } from '@/lib/callStore';
 import { requestCallMediaPermissions, isAndroid, nextAnimationFrame } from '@/lib/mediaPermissions';
 import { callSounds } from '@/lib/callSounds';
+import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall } from '@daily-co/daily-js';
 
 // DOM check to prevent duplicate iframes
@@ -142,7 +143,7 @@ export function GlobalCallOverlay() {
 
   // Join room when phase becomes 'joining'
   useEffect(() => {
-    if (state.phase !== 'joining' || !state.call?.roomUrl) return;
+    if (state.phase !== 'joining' || !state.call?.roomUrl || !state.call?.roomName) return;
     if (!dailyRef.current) {
       console.error('[CallOverlay] No Daily instance for join');
       setError('Call system not ready');
@@ -174,6 +175,36 @@ export function GlobalCallOverlay() {
 
       if (cancelled) return;
 
+      // Fetch meeting token for private room
+      let token: string | undefined;
+      try {
+        console.log('[CallOverlay] Fetching meeting token...');
+        const { data: tokenData, error: tokenError } = await supabase.functions.invoke('get-call-token', {
+          body: {
+            roomName: state.call!.roomName,
+            callId: state.call!.id,
+          },
+        });
+
+        if (tokenError) {
+          throw new Error(tokenError.message || 'Failed to get meeting token');
+        }
+
+        if (!tokenData?.token) {
+          throw new Error(tokenData?.error || 'No token returned from server');
+        }
+
+        token = tokenData.token;
+        console.log('[CallOverlay] Token received');
+      } catch (err: any) {
+        console.error('[CallOverlay] Token fetch failed:', err);
+        toast.error(err.message || 'Failed to authenticate with call server');
+        endCall();
+        return;
+      }
+
+      if (cancelled) return;
+
       // Leave any previous room first
       try {
         const meetingState = daily.meetingState();
@@ -195,10 +226,10 @@ export function GlobalCallOverlay() {
         endCall();
       }, 15000);
 
-      // Join the room
+      // Join the room WITH token
       try {
-        console.log('[CallOverlay] Calling daily.join()');
-        await daily.join({ url: state.call!.roomUrl });
+        console.log('[CallOverlay] Calling daily.join() with token');
+        await daily.join({ url: state.call!.roomUrl, token });
         console.log('[CallOverlay] daily.join() returned');
       } catch (err: any) {
         console.error('[CallOverlay] Join failed:', err);
@@ -214,7 +245,7 @@ export function GlobalCallOverlay() {
       cancelled = true;
       clearJoinTimeout();
     };
-  }, [state.phase, state.call?.roomUrl, state.call?.callType, clearJoinTimeout, endCall, setError]);
+  }, [state.phase, state.call?.roomUrl, state.call?.roomName, state.call?.id, state.call?.callType, clearJoinTimeout, endCall, setError]);
 
   // Call duration timer
   useEffect(() => {
