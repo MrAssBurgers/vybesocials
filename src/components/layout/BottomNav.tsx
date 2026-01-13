@@ -78,7 +78,7 @@ function useScrollDirection() {
   return isVisible;
 }
 
-// Memoized nav item for better performance
+// Memoized nav item for better performance with enhanced touch targets
 const NavItem = memo(({ 
   path, 
   icon: Icon, 
@@ -92,29 +92,38 @@ const NavItem = memo(({
 }) => (
   <Link
     to={path}
-    className="relative flex items-center justify-center min-h-[44px] min-w-[44px]"
+    className="relative flex items-center justify-center min-h-[48px] min-w-[48px] active:scale-95 transition-transform duration-150"
     onClick={triggerNavFeedback}
   >
-    <div className="relative p-2">
+    <div className="relative p-2.5">
       {isActive && (
         <motion.div
           layoutId="bottomNavPill"
-          className="absolute inset-0 rounded-xl bg-primary/15"
+          className="absolute inset-0 rounded-xl bg-primary/15 shadow-inner"
           transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.8 }}
         />
       )}
       
-      <Icon
-        className={cn(
-          "h-5 w-5 relative z-10",
-          isActive ? "text-primary" : "text-muted-foreground"
-        )}
-      />
+      <motion.div
+        whileTap={{ scale: 0.9 }}
+        transition={{ type: 'spring', stiffness: 600, damping: 25 }}
+      >
+        <Icon
+          className={cn(
+            "h-[22px] w-[22px] relative z-10 transition-colors duration-200",
+            isActive ? "text-primary" : "text-muted-foreground"
+          )}
+        />
+      </motion.div>
       
       {badge > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold shadow-md z-20">
+        <motion.span 
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="absolute -top-0.5 -right-0.5 h-[18px] min-w-[18px] px-1 bg-destructive rounded-full flex items-center justify-center text-[10px] text-destructive-foreground font-bold shadow-lg z-20"
+        >
           {badge > 9 ? '9+' : badge}
-        </span>
+        </motion.span>
       )}
     </div>
   </Link>
@@ -176,23 +185,25 @@ export function BottomNav() {
           damping: 30,
         }}
       >
-        {/* Compact glass bar */}
-        <div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">
-          <div className="grid grid-cols-5 h-14 px-1 relative z-10">
+        {/* Enhanced glass bar with more padding */}
+        <div className="mx-3 mb-3 rounded-2xl liquid-glass border border-foreground/10 shadow-xl shadow-black/25">
+          <div className="grid grid-cols-5 h-16 px-2 relative z-10">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
 
               if (item.isCreate) {
                 return (
                   <div key={item.path} className="relative flex items-center justify-center">
-                    <button
-                      className="relative flex items-center justify-center min-h-[44px] min-w-[44px]"
+                    <motion.button
+                      className="relative flex items-center justify-center min-h-[48px] min-w-[48px]"
                       onClick={handleCreateClick}
+                      whileTap={{ scale: 0.9 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 25 }}
                     >
-                      <div className="gradient-animated rounded-xl p-2.5 shadow-lg shadow-primary/30 active:scale-90 transition-transform">
-                        <PlusCircle className="h-5 w-5 text-primary-foreground" />
+                      <div className="gradient-animated rounded-xl p-3 shadow-lg shadow-primary/30">
+                        <PlusCircle className="h-[22px] w-[22px] text-primary-foreground" />
                       </div>
-                    </button>
+                    </motion.button>
                   </div>
                 );
               }

@@ -54,19 +54,24 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
   // Desktop layout with sidebars (lg+ only, NOT tablets or iPads)
   if (isDesktop) {
+    const leftWidth = leftCollapsed ? 76 : 220;
+    const rightWidth = hideRightSidebar ? 0 : 320;
+    
     return (
       <div ref={ref} className="h-screen w-full overflow-hidden relative">
         <div className="flex h-screen w-full">
-          {/* Left Sidebar */}
+          {/* Left Sidebar - fixed */}
           <DesktopLeftSidebar 
             collapsed={leftCollapsed} 
             onCollapsedChange={setLeftCollapsed}
           />
 
-          {/* Main Content Area - ONLY scrollable area */}
+          {/* Main Content Area - ONLY scrollable area, offset for fixed sidebars */}
           <main 
             className="flex-1 min-w-0 h-screen overflow-y-auto overflow-x-hidden"
             style={{
+              marginLeft: leftWidth,
+              marginRight: rightWidth,
               overscrollBehavior: 'contain',
               WebkitOverflowScrolling: 'touch',
               contain: 'layout style',
@@ -74,7 +79,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           >
             <div 
               className={cn(
-                "mx-auto w-full px-2 lg:px-3 py-3",
+                "mx-auto w-full px-4 lg:px-6 py-4",
                 fullWidth ? "" : "max-w-full"
               )}
             >
@@ -82,7 +87,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             </div>
           </main>
 
-          {/* Right Sidebar */}
+          {/* Right Sidebar - fixed */}
           {!hideRightSidebar && <DesktopRightSidebar />}
         </div>
       </div>
@@ -102,10 +107,10 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
       {/* Header - visible on mobile/tablet */}
       {!hideNav && <MobileHeader />}
 
-      {/* Main content - keep space for fixed bottom nav */}
+      {/* Main content - keep space for fixed bottom nav with improved spacing */}
       <main
         className={cn(
-          "pb-[calc(5rem+env(safe-area-inset-bottom))]",
+          "pb-[calc(5.5rem+env(safe-area-inset-bottom))] px-3 sm:px-4",
           hideNav ? "" : "pt-14"
         )}
       >
