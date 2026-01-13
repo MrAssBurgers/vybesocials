@@ -133,6 +133,29 @@ export function BottomNav() {
   
   const lastTapTime = useRef(0);
 
+  // Tutorial event listeners for controlling menus
+  useEffect(() => {
+    const handleOpenCreateMenu = () => setIsCreateMenuOpen(true);
+    const handleOpenVYBEHub = () => {
+      setIsCreateMenuOpen(false);
+      setIsHubOpen(true);
+    };
+    const handleCloseMenus = () => {
+      setIsCreateMenuOpen(false);
+      setIsHubOpen(false);
+    };
+
+    window.addEventListener('tutorial-open-create-menu', handleOpenCreateMenu);
+    window.addEventListener('tutorial-open-vybe-hub', handleOpenVYBEHub);
+    window.addEventListener('tutorial-close-menus', handleCloseMenus);
+
+    return () => {
+      window.removeEventListener('tutorial-open-create-menu', handleOpenCreateMenu);
+      window.removeEventListener('tutorial-open-vybe-hub', handleOpenVYBEHub);
+      window.removeEventListener('tutorial-close-menus', handleCloseMenus);
+    };
+  }, []);
+
   const handleCreateClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const now = Date.now();

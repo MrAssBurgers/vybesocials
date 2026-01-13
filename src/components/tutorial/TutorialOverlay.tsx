@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, memo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Sparkles, HelpCircle } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Sparkles, HelpCircle, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
@@ -32,6 +33,18 @@ interface TutorialOverlayProps {
   onSkip: () => void;
 }
 
+// Global state for menu control
+let createMenuController: { open: () => void; close: () => void } | null = null;
+let vybeHubController: { open: () => void; close: () => void } | null = null;
+
+export function registerCreateMenuController(controller: { open: () => void; close: () => void } | null) {
+  createMenuController = controller;
+}
+
+export function registerVYBEHubController(controller: { open: () => void; close: () => void } | null) {
+  vybeHubController = controller;
+}
+
 export const TutorialOverlay = memo(function TutorialOverlay({
   isOpen,
   currentStep,
@@ -42,18 +55,86 @@ export const TutorialOverlay = memo(function TutorialOverlay({
   onPrev,
   onSkip,
 }: TutorialOverlayProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [spotlight, setSpotlight] = useState<SpotlightPosition | null>(null);
   const [tooltipPos, setTooltipPos] = useState<TooltipPosition>({});
   const [elementFound, setElementFound] = useState(true);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [menuState, setMenuState] = useState<'none' | 'createMenu' | 'vybeHub'>('none');
 
   const currentStepData = steps[currentStep];
+
+  // Close all menus
+  const closeAllMenus = useCallback(() => {
+    createMenuController?.close();
+    vybeHubController?.close();
+    // Also dispatch custom events to close menus
+    window.dispatchEvent(new CustomEvent('tutorial-close-menus'));
+    setMenuState('none');
+  }, []);
+
+  // Open create menu
+  const openCreateMenu = useCallback(() => {
+    closeAllMenus();
+    setTimeout(() => {
+      // Simulate click on create button
+      const createBtn = document.querySelector('[data-tutorial="create-nav"]')?.closest('button');
+      if (createBtn) {
+        (createBtn as HTMLButtonElement).click();
+      } else {
+        // Fallback: dispatch custom event
+        window.dispatchEvent(new CustomEvent('tutorial-open-create-menu'));
+      }
+      setMenuState('createMenu');
+    }, 100);
+  }, [closeAllMenus]);
+
+  // Open VYBE Hub
+  const openVYBEHub = useCallback(() => {
+    closeAllMenus();
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('tutorial-open-vybe-hub'));
+      setMenuState('vybeHub');
+    }, 100);
+  }, [closeAllMenus]);
+
+  // Handle step actions (navigation, menu opening)
+  const executeStepAction = useCallback(async () => {
+    if (!currentStepData) return;
+
+    // Handle route navigation
+    if (currentStepData.requiresRoute && location.pathname !== currentStepData.requiresRoute) {
+      setIsNavigating(true);
+      closeAllMenus();
+      navigate(currentStepData.requiresRoute);
+      // Wait for navigation to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIsNavigating(false);
+    }
+
+    // Handle menu actions
+    if (currentStepData.action) {
+      switch (currentStepData.action) {
+        case 'openCreateMenu':
+          openCreateMenu();
+          break;
+        case 'openVYBEHub':
+          openVYBEHub();
+          break;
+        case 'closeMenus':
+          closeAllMenus();
+          break;
+      }
+    }
+  }, [currentStepData, location.pathname, navigate, closeAllMenus, openCreateMenu, openVYBEHub]);
 
   const calculateTooltipPosition = useCallback((
     rect: DOMRect, 
     preferredPosition: TutorialStep['position']
   ) => {
     const tooltipWidth = Math.min(320, window.innerWidth - 32);
-    const tooltipHeight = 200;
+    const tooltipHeight = 220;
     const gap = 16;
     const viewport = {
       width: window.innerWidth,
@@ -149,15 +230,15 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       }
       
       // For nav items in bottom nav or sidebar, we need special handling
-      const isInBottomNav = htmlElement.closest('[data-tutorial-container="bottom-nav"]') || 
-                            htmlElement.closest('nav') ||
+      const isInBottomNav = htmlElement.closest('[data-tutorial-bottomnav]') || 
+                            htmlElement.closest('nav[aria-label="Bottom navigation"]') ||
                             rect.bottom > viewport.height - 100;
-      const isInSidebar = htmlElement.closest('[data-tutorial-container="sidebar"]') ||
+      const isInSidebar = htmlElement.closest('[data-tutorial-sidebar]') ||
                           htmlElement.closest('aside');
       
-      // If it's a bottom nav item, scroll the page to top first to ensure nav is visible
+      // If it's a bottom nav item that's off screen, scroll page to bottom
       if (isInBottomNav && rect.top > viewport.height) {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
       
       // If it's in a scrollable container, scroll that container
@@ -184,7 +265,12 @@ export const TutorialOverlay = memo(function TutorialOverlay({
   }, []);
 
   const updateSpotlight = useCallback(async () => {
-    if (!currentStepData) return;
+    if (!currentStepData || isNavigating) return;
+
+    // Wait a bit for menus to open
+    if (currentStepData.action === 'openCreateMenu' || currentStepData.action === 'openVYBEHub') {
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
 
     const target = document.querySelector(currentStepData.targetSelector);
     
@@ -207,12 +293,9 @@ export const TutorialOverlay = memo(function TutorialOverlay({
         rect.right <= viewport.width + 10;
       
       if (!isVisible) {
-        // For elements still not visible, scroll the main page
-        const htmlElement = target as HTMLElement;
-        const absoluteTop = htmlElement.getBoundingClientRect().top + window.scrollY;
-        
+        // For elements still not visible, scroll the main page to top
         window.scrollTo({
-          top: Math.max(0, absoluteTop - viewport.height / 2),
+          top: 0,
           behavior: 'smooth',
         });
         
@@ -240,22 +323,33 @@ export const TutorialOverlay = memo(function TutorialOverlay({
         left: Math.max(16, window.innerWidth / 2 - 160),
       });
     }
-  }, [currentStepData, calculateTooltipPosition, scrollElementIntoView]);
+  }, [currentStepData, calculateTooltipPosition, scrollElementIntoView, isNavigating]);
 
+  // Execute step action when step changes
+  useEffect(() => {
+    if (!isOpen || !currentStepData) return;
+    
+    executeStepAction();
+  }, [isOpen, currentStep, executeStepAction]);
+
+  // Update spotlight after action is executed
   useEffect(() => {
     if (!isOpen) return;
 
-    // Initial update with slight delay to let DOM settle
-    const initialTimeout = setTimeout(updateSpotlight, 100);
+    // Initial update with delay to let DOM and menus settle
+    const delay = currentStepData?.action ? 500 : 150;
+    const initialTimeout = setTimeout(updateSpotlight, delay);
 
     // Update on window changes
-    const handleChange = () => updateSpotlight();
+    const handleChange = () => {
+      setTimeout(updateSpotlight, 50);
+    };
     window.addEventListener('resize', handleChange);
     window.addEventListener('scroll', handleChange, true);
 
     // Observe for DOM changes (elements appearing/disappearing)
     const observer = new MutationObserver(() => {
-      setTimeout(updateSpotlight, 50);
+      setTimeout(updateSpotlight, 100);
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
@@ -265,7 +359,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       window.removeEventListener('scroll', handleChange, true);
       observer.disconnect();
     };
-  }, [isOpen, currentStep, updateSpotlight]);
+  }, [isOpen, currentStep, updateSpotlight, currentStepData?.action]);
 
   const handleNext = () => {
     haptics.tap();
@@ -274,11 +368,16 @@ export const TutorialOverlay = memo(function TutorialOverlay({
 
   const handlePrev = () => {
     haptics.tap();
+    // Close menus when going back
+    if (menuState !== 'none') {
+      closeAllMenus();
+    }
     onPrev();
   };
 
   const handleSkip = () => {
     haptics.tap();
+    closeAllMenus();
     onSkip();
   };
 
@@ -353,108 +452,127 @@ export const TutorialOverlay = memo(function TutorialOverlay({
           <span className="hidden sm:inline">Skip Tutorial</span>
         </motion.button>
 
+        {/* Navigation indicator */}
+        {isNavigating && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="fixed inset-0 z-[10001] flex items-center justify-center"
+          >
+            <div className="liquid-glass p-6 rounded-2xl flex items-center gap-3">
+              <Navigation className="w-5 h-5 text-primary animate-pulse" />
+              <span className="text-sm font-medium">Navigating...</span>
+            </div>
+          </motion.div>
+        )}
+
         {/* Tooltip */}
-        <motion.div
-          key={currentStep}
-          initial={{ opacity: 0, y: 15, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -15, scale: 0.95 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="absolute z-[10000] w-[calc(100%-32px)] max-w-[340px] pointer-events-auto"
-          style={{
-            top: tooltipPos.top,
-            left: tooltipPos.left,
-            right: tooltipPos.right,
-            bottom: tooltipPos.bottom,
-          }}
-        >
-          <div className="liquid-glass-card p-5 rounded-2xl shadow-2xl border-2 border-primary/40 bg-background/98 backdrop-blur-xl">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-primary" />
+        {!isNavigating && (
+          <motion.div
+            key={currentStep}
+            initial={{ opacity: 0, y: 15, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -15, scale: 0.95 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="absolute z-[10000] w-[calc(100%-32px)] max-w-[340px] pointer-events-auto"
+            style={{
+              top: tooltipPos.top,
+              left: tooltipPos.left,
+              right: tooltipPos.right,
+              bottom: tooltipPos.bottom,
+            }}
+          >
+            <div className="liquid-glass-card p-5 rounded-2xl shadow-2xl border-2 border-primary/40 bg-background/98 backdrop-blur-xl">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                  </div>
+                  <span className="text-xs font-semibold text-muted-foreground tracking-wide">
+                    Step {currentStep + 1} of {totalSteps}
+                  </span>
                 </div>
-                <span className="text-xs font-semibold text-muted-foreground tracking-wide">
-                  Step {currentStep + 1} of {totalSteps}
-                </span>
+                
+                {/* Step dots */}
+                <div className="flex gap-1.5 flex-wrap max-w-[100px] justify-end">
+                  {steps.slice(0, 10).map((_, idx) => (
+                    <motion.div
+                      key={idx}
+                      className={cn(
+                        'w-2 h-2 rounded-full transition-all duration-300',
+                        idx === currentStep 
+                          ? 'bg-primary scale-125' 
+                          : idx < currentStep 
+                            ? 'bg-primary/60' 
+                            : 'bg-muted-foreground/30'
+                      )}
+                      animate={idx === currentStep ? { scale: [1, 1.2, 1] } : {}}
+                      transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
+                    />
+                  ))}
+                  {steps.length > 10 && (
+                    <span className="text-[10px] text-muted-foreground">+{steps.length - 10}</span>
+                  )}
+                </div>
               </div>
-              
-              {/* Step dots */}
-              <div className="flex gap-1.5">
-                {steps.map((_, idx) => (
-                  <motion.div
-                    key={idx}
-                    className={cn(
-                      'w-2 h-2 rounded-full transition-all duration-300',
-                      idx === currentStep 
-                        ? 'bg-primary scale-125' 
-                        : idx < currentStep 
-                          ? 'bg-primary/60' 
-                          : 'bg-muted-foreground/30'
-                    )}
-                    animate={idx === currentStep ? { scale: [1, 1.2, 1] } : {}}
-                    transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
-                  />
-                ))}
+
+              {/* Content */}
+              <h3 className="text-lg font-bold mb-2 text-foreground">
+                {currentStepData?.title}
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                {currentStepData?.description}
+              </p>
+
+              {/* Element not found warning */}
+              {!elementFound && (
+                <div className="mb-4 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-2 text-xs text-amber-600">
+                  <HelpCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>This feature may be available on a different screen or view.</span>
+                </div>
+              )}
+
+              {/* Layout indicator */}
+              <div className="mb-4 px-3 py-2 bg-primary/10 rounded-full inline-flex items-center gap-2 text-xs font-medium text-primary">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                {getLayoutLabel(layoutMode)} Guide
+              </div>
+
+              {/* Navigation */}
+              <div className="flex items-center justify-between gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrev}
+                  disabled={currentStep === 0}
+                  className="flex items-center gap-1 h-11 px-4"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Back
+                </Button>
+
+                <Button
+                  size="sm"
+                  onClick={handleNext}
+                  className="flex items-center gap-1 gradient-animated h-11 px-6 font-semibold"
+                >
+                  {currentStep === totalSteps - 1 ? (
+                    <>
+                      Get Started
+                      <Sparkles className="w-4 h-4" />
+                    </>
+                  ) : (
+                    <>
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
-
-            {/* Content */}
-            <h3 className="text-lg font-bold mb-2 text-foreground">
-              {currentStepData?.title}
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-              {currentStepData?.description}
-            </p>
-
-            {/* Element not found warning */}
-            {!elementFound && (
-              <div className="mb-4 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-2 text-xs text-amber-600">
-                <HelpCircle className="w-4 h-4 flex-shrink-0" />
-                <span>This feature may be available on a different screen or view.</span>
-              </div>
-            )}
-
-            {/* Layout indicator */}
-            <div className="mb-4 px-3 py-2 bg-primary/10 rounded-full inline-flex items-center gap-2 text-xs font-medium text-primary">
-              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              {getLayoutLabel(layoutMode)} Guide
-            </div>
-
-            {/* Navigation */}
-            <div className="flex items-center justify-between gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrev}
-                disabled={currentStep === 0}
-                className="flex items-center gap-1 h-11 px-4"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Back
-              </Button>
-
-              <Button
-                size="sm"
-                onClick={handleNext}
-                className="flex items-center gap-1 gradient-animated h-11 px-6 font-semibold"
-              >
-                {currentStep === totalSteps - 1 ? (
-                  <>
-                    Get Started
-                    <Sparkles className="w-4 h-4" />
-                  </>
-                ) : (
-                  <>
-                    Next
-                    <ChevronRight className="w-4 h-4" />
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
       </motion.div>
     </AnimatePresence>
   );
