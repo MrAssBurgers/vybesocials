@@ -29,7 +29,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   hideNav = false 
 }, ref) {
   const { user, loading } = useAuth();
-  const { isDesktop } = useBreakpoint();
+  const { isDesktop, isTablet, isIPad } = useBreakpoint();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   
   // Track online presence
@@ -53,11 +53,23 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     return <Navigate to="/" replace />;
   }
 
-  // Desktop layout with sidebars - tighter spacing
+  // Desktop/Tablet layout with sidebars
   if (isDesktop) {
-    // Tighter margins - sidebars closer to content
-    const leftMargin = leftCollapsed ? 'lg:ml-14' : 'lg:ml-[180px] xl:ml-[200px] 2xl:ml-[220px]';
-    const rightMargin = hideRightSidebar ? '' : 'xl:mr-[240px] 2xl:mr-[280px]';
+    // Tablet (including iPad) gets smaller sidebars
+    const isTabletLayout = isTablet || isIPad;
+    
+    // Adjust margins based on device - tighter for tablets
+    const leftMargin = leftCollapsed 
+      ? 'md:ml-14' 
+      : isTabletLayout 
+        ? 'md:ml-[140px] lg:ml-[160px]' 
+        : 'lg:ml-[180px] xl:ml-[200px] 2xl:ml-[220px]';
+    
+    const rightMargin = hideRightSidebar 
+      ? '' 
+      : isTabletLayout
+        ? 'md:mr-[180px] lg:mr-[200px]'
+        : 'xl:mr-[240px] 2xl:mr-[280px]';
 
     return (
       <div ref={ref} className="min-h-screen w-full overflow-x-hidden">
@@ -65,6 +77,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
         <DesktopLeftSidebar 
           collapsed={leftCollapsed} 
           onCollapsedChange={setLeftCollapsed}
+          compact={isTabletLayout}
         />
 
         {/* Main Content Area - minimal gaps */}
@@ -86,8 +99,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           </div>
         </main>
 
-        {/* Right Sidebar */}
-        {!hideRightSidebar && <DesktopRightSidebar />}
+        {/* Right Sidebar - hide on small tablets */}
+        {!hideRightSidebar && <DesktopRightSidebar compact={isTabletLayout} />}
       </div>
     );
   }

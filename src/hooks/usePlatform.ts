@@ -239,6 +239,7 @@ export function usePlatform(): PlatformInfo {
 // Utility hook for responsive breakpoints
 export function useBreakpoint() {
   const [breakpoint, setBreakpoint] = useState<'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'>('md');
+  const [isIPad, setIsIPad] = useState(false);
 
   useEffect(() => {
     const getBreakpoint = () => {
@@ -251,18 +252,36 @@ export function useBreakpoint() {
       return '2xl';
     };
 
+    // Detect iPad (iPads report as Macintosh with touch)
+    const detectIPad = () => {
+      const ua = navigator.userAgent.toLowerCase();
+      return (
+        /ipad/.test(ua) ||
+        (/macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+      );
+    };
+
     setBreakpoint(getBreakpoint());
+    setIsIPad(detectIPad());
 
     const handleResize = () => setBreakpoint(getBreakpoint());
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // iPad in portrait/landscape should get tablet treatment
+  // Tablet gets desktop-like layout with sidebars
+  const isMobileBreakpoint = breakpoint === 'xs' || breakpoint === 'sm';
+  const isTabletBreakpoint = breakpoint === 'md';
+  const isDesktopBreakpoint = breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl';
+
   return {
     breakpoint,
-    isMobile: breakpoint === 'xs' || breakpoint === 'sm',
-    isTablet: breakpoint === 'md',
-    isDesktop: breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl',
+    isMobile: isMobileBreakpoint && !isIPad,
+    isTablet: isTabletBreakpoint || (isIPad && isMobileBreakpoint),
+    // Tablets and iPads should get desktop-style layout with sidebars
+    isDesktop: isDesktopBreakpoint || isTabletBreakpoint || isIPad,
+    isIPad,
   };
 }
 

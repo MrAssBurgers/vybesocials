@@ -34,6 +34,7 @@ interface NavItemData {
 interface DesktopLeftSidebarProps {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
+  compact?: boolean;
 }
 
 // NavLink component with forwardRef - liquid glass styling
@@ -113,7 +114,7 @@ const NavLinkContent = forwardRef<
 });
 NavLinkContent.displayName = 'NavLinkContent';
 
-export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeftSidebarProps) {
+export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = false }: DesktopLeftSidebarProps) {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -189,9 +190,13 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange }: DesktopLeft
     <TooltipProvider>
       <aside 
         className={cn(
-          "hidden lg:flex fixed left-0 top-0 h-screen flex-col liquid-glass border-r border-border/50 z-40",
+          "hidden md:flex fixed left-0 top-0 h-screen flex-col liquid-glass border-r border-border/50 z-40",
           "transition-[width] duration-200 ease-out",
-          collapsed ? "w-14" : "w-[180px] xl:w-[200px] 2xl:w-[220px]"
+          collapsed 
+            ? "w-14" 
+            : compact 
+              ? "w-[140px] lg:w-[160px]" 
+              : "w-[180px] xl:w-[200px] 2xl:w-[220px]"
         )}
       >
         {/* Brand Row */}
