@@ -5,11 +5,12 @@
  * - Full custom video/audio rendering
  * - No prebuilt Daily UI (no green Join button, no Goodbye screen)
  * - Glassmorphic modern design
+ * - Call settings with mic/camera controls
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2 } from 'lucide-react';
+import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, Settings, SlidersHorizontal } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,7 @@ import { requestCallMediaPermissions, isAndroid, nextAnimationFrame } from '@/li
 import { callSounds } from '@/lib/callSounds';
 import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall, DailyParticipant } from '@daily-co/daily-js';
+import { CallSettingsSheet } from './CallSettingsSheet';
 
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, setPhase, setError, dismissIncoming } = useCallStore();
@@ -40,6 +42,10 @@ export function GlobalCallOverlay() {
   const [remoteParticipant, setRemoteParticipant] = useState<DailyParticipant | null>(null);
   const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
   const [hasLocalVideo, setHasLocalVideo] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [currentMicId, setCurrentMicId] = useState<string | undefined>();
+  const [currentCameraId, setCurrentCameraId] = useState<string | undefined>();
+  const [currentSpeakerId, setCurrentSpeakerId] = useState<string | undefined>();
 
   // Track call data for stale closure prevention
   const stateRef = useRef(state);
@@ -394,6 +400,46 @@ export function GlobalCallOverlay() {
     setIsVideoOff(newVideoOff);
   }, [isVideoOff, state.phase, state.call?.callType]);
 
+  // Handle device changes from settings
+  const handleMicChange = useCallback((deviceId: string) => {
+    const daily = dailyRef.current;
+    if (!daily) return;
+    
+    daily.setInputDevicesAsync({ audioDeviceId: deviceId }).then(() => {
+      setCurrentMicId(deviceId);
+      toast.success('Microphone changed');
+    }).catch((err) => {
+      console.error('Failed to change mic:', err);
+      toast.error('Failed to change microphone');
+    });
+  }, []);
+
+  const handleCameraChange = useCallback((deviceId: string) => {
+    const daily = dailyRef.current;
+    if (!daily) return;
+    
+    daily.setInputDevicesAsync({ videoDeviceId: deviceId }).then(() => {
+      setCurrentCameraId(deviceId);
+      toast.success('Camera changed');
+    }).catch((err) => {
+      console.error('Failed to change camera:', err);
+      toast.error('Failed to change camera');
+    });
+  }, []);
+
+  const handleSpeakerChange = useCallback((deviceId: string) => {
+    const daily = dailyRef.current;
+    if (!daily) return;
+    
+    daily.setOutputDeviceAsync({ outputDeviceId: deviceId }).then(() => {
+      setCurrentSpeakerId(deviceId);
+      toast.success('Speaker changed');
+    }).catch((err) => {
+      console.error('Failed to change speaker:', err);
+      toast.error('Failed to change speaker');
+    });
+  }, []);
+
   // Accept incoming call
   const handleAccept = useCallback(async () => {
     if (!state.call) return;
@@ -683,6 +729,24 @@ export function GlobalCallOverlay() {
             >
               <div className="flex justify-center">
                 <div className="inline-flex items-center gap-3 p-3 rounded-2xl backdrop-blur-xl bg-white/10 border border-white/10 shadow-2xl">
+                  {/* Settings Button */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSettingsOpen(true)}
+                    disabled={!isConnected}
+                    className={cn(
+                      "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
+                      "bg-white/10 text-white hover:bg-white/20 border border-white/10",
+                      "disabled:opacity-50 disabled:cursor-not-allowed"
+                    )}
+                  >
+                    <SlidersHorizontal className="h-5 w-5" />
+                  </motion.button>
+
+                  {/* Divider */}
+                  <div className="w-px h-10 bg-white/20 mx-1" />
+
                   {/* Mute Button */}
                   <motion.button
                     whileHover={{ scale: 1.05 }}
@@ -693,11 +757,20 @@ export function GlobalCallOverlay() {
                       "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
                       "disabled:opacity-50 disabled:cursor-not-allowed",
                       isMuted 
-                        ? "bg-white text-black shadow-lg" 
+                        ? "bg-white text-black shadow-lg ring-2 ring-primary/50" 
                         : "bg-white/10 text-white hover:bg-white/20"
                     )}
                   >
                     {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                    {/* Active indicator glow */}
+                    {!isMuted && isConnected && (
+                      <motion.div
+                        className="absolute inset-0 rounded-xl pointer-events-none"
+                        style={{ boxShadow: '0 0 15px hsl(var(--primary) / 0.3)' }}
+                        animate={{ opacity: [0.3, 0.6, 0.3] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      />
+                    )}
                   </motion.button>
 
                   {/* Video Toggle */}
@@ -711,11 +784,20 @@ export function GlobalCallOverlay() {
                         "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
                         "disabled:opacity-50 disabled:cursor-not-allowed",
                         isVideoOff 
-                          ? "bg-white text-black shadow-lg" 
+                          ? "bg-white text-black shadow-lg ring-2 ring-accent/50" 
                           : "bg-white/10 text-white hover:bg-white/20"
                       )}
                     >
                       {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                      {/* Active indicator glow for video */}
+                      {!isVideoOff && isConnected && (
+                        <motion.div
+                          className="absolute inset-0 rounded-xl pointer-events-none"
+                          style={{ boxShadow: '0 0 15px hsl(var(--accent) / 0.3)' }}
+                          animate={{ opacity: [0.3, 0.6, 0.3] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        />
+                      )}
                     </motion.button>
                   )}
 
@@ -773,6 +855,21 @@ export function GlobalCallOverlay() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Call Settings Sheet */}
+      <CallSettingsSheet
+        isOpen={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        onMicChange={handleMicChange}
+        onCameraChange={handleCameraChange}
+        onSpeakerChange={handleSpeakerChange}
+        currentMic={currentMicId}
+        currentCamera={currentCameraId}
+        currentSpeaker={currentSpeakerId}
+        isVideoCall={isVideoCall}
+        isMuted={isMuted}
+        isVideoOff={isVideoOff}
+      />
     </>
   );
 }
