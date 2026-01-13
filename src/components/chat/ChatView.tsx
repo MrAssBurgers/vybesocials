@@ -36,7 +36,7 @@ import { ScheduleMessageSheet } from './ScheduleMessageSheet';
 import { DMSettingsSheetControlled } from './DMSettingsSheetControlled';
 import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { CallButtons } from '@/components/call/CallButtons';
-import { DebugCallButton } from './DebugCallButton';
+
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
 import { ReplyPreview } from './ReplyPreview';
@@ -670,9 +670,7 @@ export function ChatView() {
           <CallButtons conversationId={conversationId!} />
         )}
 
-        {/* TEMP DEBUG BUTTON - REMOVE AFTER TESTING */}
-        <DebugCallButton />
-        
+
         {/* DM Feature Sheets - triggered from Toybox */}
         <VanishThreadsSheet conversationId={conversationId!} open={showVanishThreads} onOpenChange={setShowVanishThreads} />
         <MemoryPinsSheet conversationId={conversationId!} messages={messages || []} open={showMemoryPins} onOpenChange={setShowMemoryPins} />
