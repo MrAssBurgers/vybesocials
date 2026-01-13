@@ -270,15 +270,17 @@ export function useBreakpoint() {
   }, []);
 
   // Desktop = sidebars, Tablet/iPad/Mobile = bottom nav
+  // NOTE: We treat "lg" (1024–1279px) as tablet to cover iPad/tablet landscape sizes.
   const isMobileBreakpoint = breakpoint === 'xs' || breakpoint === 'sm';
-  const isTabletBreakpoint = breakpoint === 'md' || isIPad;
-  const isDesktopBreakpoint = breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl';
+  const isDesktopBreakpoint = breakpoint === 'xl' || breakpoint === '2xl';
+  const isTabletBreakpoint = breakpoint === 'md' || breakpoint === 'lg' || isIPad;
 
   return {
     breakpoint,
     isMobile: isMobileBreakpoint && !isIPad,
-    isTablet: isTabletBreakpoint && !isDesktopBreakpoint,
-    // ONLY true desktop (lg+) gets sidebars - NOT tablets or iPads
+    // iPad should ALWAYS be treated as tablet regardless of width
+    isTablet: isIPad || (isTabletBreakpoint && !isDesktopBreakpoint),
+    // ONLY true desktop (xl+) gets sidebars - NOT tablets or iPads
     isDesktop: isDesktopBreakpoint && !isIPad,
     isIPad,
   };
