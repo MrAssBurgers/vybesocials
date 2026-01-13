@@ -35,7 +35,7 @@ import { MemoryPinsSheet } from './MemoryPinsSheet';
 import { ScheduleMessageSheet } from './ScheduleMessageSheet';
 import { DMSettingsSheetControlled } from './DMSettingsSheetControlled';
 import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
-import { CallButtons } from '@/components/call';
+import { CallButtons } from '@/components/call/CallButtons';
 import { DebugCallButton } from './DebugCallButton';
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
