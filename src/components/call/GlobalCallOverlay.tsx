@@ -38,10 +38,18 @@ function hasExistingDailyIframe(): boolean {
 
 // Get or create the singleton Daily instance
 function getOrCreateDailyInstance(container: HTMLDivElement): DailyCall | null {
-  // Already have one
+  // Already have one - verify it's still valid
   if (globalDailyInstance) {
-    console.log('[CallOverlay] Reusing existing Daily instance');
-    return globalDailyInstance;
+    try {
+      // Check if instance is still usable
+      const state = globalDailyInstance.meetingState();
+      console.log('[CallOverlay] Reusing existing Daily instance, state:', state);
+      return globalDailyInstance;
+    } catch (err) {
+      console.warn('[CallOverlay] Existing Daily instance is invalid, will create new one');
+      globalDailyInstance = null;
+      globalListenersAttached = false;
+    }
   }
   
   // Another effect is already creating
@@ -50,10 +58,13 @@ function getOrCreateDailyInstance(container: HTMLDivElement): DailyCall | null {
     return null;
   }
   
-  // Check DOM for orphaned iframes
+  // Check DOM for orphaned iframes and remove them
   if (hasExistingDailyIframe()) {
-    console.warn('[CallOverlay] Orphaned Daily iframe found, skipping creation');
-    return null;
+    console.warn('[CallOverlay] Orphaned Daily iframe found, removing...');
+    const existing = document.querySelector('iframe[allow*="camera"]');
+    if (existing) {
+      existing.remove();
+    }
   }
   
   globalDailyCreating = true;
@@ -68,9 +79,13 @@ function getOrCreateDailyInstance(container: HTMLDivElement): DailyCall | null {
       },
       showLeaveButton: false,
       showFullscreenButton: true,
+      // Start with audio/video off - we enable after join
+      startAudioOff: true,
+      startVideoOff: true,
     });
     
     globalDailyInstance = daily;
+    globalListenersAttached = false; // Reset so we attach fresh listeners
     return daily;
   } catch (err) {
     console.error('[CallOverlay] Failed to create Daily iframe:', err);
@@ -116,21 +131,33 @@ export function GlobalCallOverlay() {
   useEffect(() => {
     if (!containerRef.current) return;
     
-    // If global instance exists, just sync the ref
+    let daily: DailyCall | null = null;
+    
+    // If global instance exists, verify and sync
     if (globalDailyInstance) {
-      dailyRef.current = globalDailyInstance;
-      console.log('[CallOverlay] Synced to existing global Daily instance');
-      return;
+      try {
+        globalDailyInstance.meetingState(); // verify it's valid
+        dailyRef.current = globalDailyInstance;
+        daily = globalDailyInstance;
+        console.log('[CallOverlay] Synced to existing global Daily instance');
+      } catch {
+        console.warn('[CallOverlay] Existing instance invalid, recreating');
+        globalDailyInstance = null;
+        globalListenersAttached = false;
+      }
     }
     
-    const daily = getOrCreateDailyInstance(containerRef.current);
-    if (!daily) return;
-    
-    dailyRef.current = daily;
+    // Create new instance if needed
+    if (!daily) {
+      daily = getOrCreateDailyInstance(containerRef.current);
+      if (!daily) return;
+      dailyRef.current = daily;
+    }
 
-    // Attach event listeners ONCE (using module-level flag)
-    if (!globalListenersAttached) {
+    // Attach event listeners (using module-level flag to prevent duplicates)
+    if (!globalListenersAttached && daily) {
       globalListenersAttached = true;
+      console.log('[CallOverlay] Attaching Daily event listeners');
 
       daily.on('joining-meeting', () => {
         console.log('[CallOverlay] 📞 joining-meeting event');
@@ -147,11 +174,13 @@ export function GlobalCallOverlay() {
 
         // CRITICAL: Enable media after joining
         try {
-          daily.setLocalAudio(true);
-          if (stateRef.current.call?.callType === 'video') {
-            daily.setLocalVideo(true);
-          } else {
-            daily.setLocalVideo(false);
+          if (dailyRef.current) {
+            dailyRef.current.setLocalAudio(true);
+            if (stateRef.current.call?.callType === 'video') {
+              dailyRef.current.setLocalVideo(true);
+            } else {
+              dailyRef.current.setLocalVideo(false);
+            }
           }
           console.log('[CallOverlay] Media enabled');
         } catch (err) {
@@ -167,8 +196,6 @@ export function GlobalCallOverlay() {
         console.log('[CallOverlay] 👋 left-meeting event');
         clearJoinTimeout();
         isLeavingRef.current = false;
-        
-        // Don't reset state here - let endCall handle it
       });
 
       daily.on('error', (event: any) => {
