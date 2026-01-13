@@ -30,9 +30,10 @@ export function GlobalCallOverlay() {
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Video refs for attaching streams
+  // Video/Audio refs for attaching streams
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   
   // Local UI state
   const [isMuted, setIsMuted] = useState(false);
@@ -175,7 +176,7 @@ export function GlobalCallOverlay() {
       }
     });
 
-    // Track started - attach video
+    // Track started - attach video AND audio
     daily.on('track-started', (event: any) => {
       if (!event?.participant || !event?.track) return;
       
@@ -189,6 +190,18 @@ export function GlobalCallOverlay() {
         } else if (!participant.local && remoteVideoRef.current) {
           attachTrack(track, remoteVideoRef.current);
           setHasRemoteVideo(true);
+        }
+      } else if (track.kind === 'audio' && !participant.local && remoteAudioRef.current) {
+        // Attach remote audio track to audio element
+        console.log('[CallOverlay] 🔊 Attaching remote audio track');
+        try {
+          const stream = new MediaStream([track]);
+          remoteAudioRef.current.srcObject = stream;
+          remoteAudioRef.current.play().catch(err => {
+            console.error('[CallOverlay] Failed to play remote audio:', err);
+          });
+        } catch (err) {
+          console.error('[CallOverlay] Failed to attach audio track:', err);
         }
       }
     });
@@ -207,6 +220,9 @@ export function GlobalCallOverlay() {
           setHasRemoteVideo(false);
           if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
         }
+      } else if (track.kind === 'audio' && !participant.local && remoteAudioRef.current) {
+        console.log('[CallOverlay] 🔇 Remote audio track stopped');
+        remoteAudioRef.current.srcObject = null;
       }
     });
 
@@ -503,6 +519,14 @@ export function GlobalCallOverlay() {
                 }}
               />
             </div>
+
+            {/* Hidden audio element for remote audio playback */}
+            <audio
+              ref={remoteAudioRef}
+              autoPlay
+              playsInline
+              className="hidden"
+            />
 
             {/* Video Container */}
             {isVideoCall && (
