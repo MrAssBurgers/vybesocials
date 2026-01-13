@@ -25,21 +25,25 @@ import DailyIframe, { DailyCall } from '@daily-co/daily-js';
 
 // Module-level singleton to prevent duplicate Daily instances
 let globalDailyInstance: DailyCall | null = null;
-let globalDailyContainer: HTMLDivElement | null = null;
+let listenersAttachedGlobal = false;
 
 function getOrCreateDailyInstance(container: HTMLDivElement): DailyCall {
-  // If we already have an instance, return it
+  // First, check if Daily.js already has an instance (survives HMR)
+  const existingInstance = DailyIframe.getCallInstance();
+  if (existingInstance) {
+    console.log('[CallOverlay] Using existing Daily.js instance');
+    globalDailyInstance = existingInstance;
+    return existingInstance;
+  }
+
+  // If we already have a module-level instance, return it
   if (globalDailyInstance) {
-    // Re-attach to new container if needed
-    if (globalDailyContainer !== container && container) {
-      globalDailyContainer = container;
-    }
+    console.log('[CallOverlay] Using module-level singleton');
     return globalDailyInstance;
   }
 
-  console.log('[CallOverlay] Creating singleton Daily instance');
+  console.log('[CallOverlay] Creating new Daily instance');
   
-  globalDailyContainer = container;
   globalDailyInstance = DailyIframe.createFrame(container, {
     iframeStyle: {
       width: '100%',
@@ -60,7 +64,7 @@ export function GlobalCallOverlay() {
   // Refs for persistent iframe
   const containerRef = useRef<HTMLDivElement>(null);
   const dailyRef = useRef<DailyCall | null>(null);
-  const listenersAttached = useRef(false);
+  // listenersAttached moved to module-level (listenersAttachedGlobal)
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -120,9 +124,9 @@ export function GlobalCallOverlay() {
     const daily = getOrCreateDailyInstance(containerRef.current);
     dailyRef.current = daily;
 
-    // Attach event listeners ONCE
-    if (!listenersAttached.current) {
-      listenersAttached.current = true;
+    // Attach event listeners ONCE (using module-level flag to survive HMR)
+    if (!listenersAttachedGlobal) {
+      listenersAttachedGlobal = true;
 
       daily.on('joining-meeting', () => {
         console.log('[CallOverlay] 📞 joining-meeting event');
