@@ -45,8 +45,7 @@
       #root { min-height: 100vh; background: #0a0a0b; }
       /* Prevent layout shift */
       img, video { max-width: 100%; height: auto; }
-      /* GPU acceleration for root */
-      #root { transform: translateZ(0); }
+      /* NOTE: Avoid transforms on #root — they break position:fixed (e.g., bottom nav) on some browsers */
     </style>
   </head>
   <body>
