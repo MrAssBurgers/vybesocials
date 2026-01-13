@@ -23,11 +23,35 @@ import { callSounds } from '@/lib/callSounds';
 import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall } from '@daily-co/daily-js';
 
-// DOM check to prevent duplicate iframes
-function hasExistingDailyIframe(): boolean {
-  if (typeof document === 'undefined') return false;
-  const existing = document.querySelector('iframe[allow*="camera"]');
-  return !!existing;
+// Module-level singleton to prevent duplicate Daily instances
+let globalDailyInstance: DailyCall | null = null;
+let globalDailyContainer: HTMLDivElement | null = null;
+
+function getOrCreateDailyInstance(container: HTMLDivElement): DailyCall {
+  // If we already have an instance, return it
+  if (globalDailyInstance) {
+    // Re-attach to new container if needed
+    if (globalDailyContainer !== container && container) {
+      globalDailyContainer = container;
+    }
+    return globalDailyInstance;
+  }
+
+  console.log('[CallOverlay] Creating singleton Daily instance');
+  
+  globalDailyContainer = container;
+  globalDailyInstance = DailyIframe.createFrame(container, {
+    iframeStyle: {
+      width: '100%',
+      height: '100%',
+      border: 'none',
+      borderRadius: '1rem',
+    },
+    showLeaveButton: false,
+    showFullscreenButton: false,
+  });
+
+  return globalDailyInstance;
 }
 
 export function GlobalCallOverlay() {
@@ -86,28 +110,14 @@ export function GlobalCallOverlay() {
     }
   }, [state.call?.callType, state.phase]);
 
-  // Create Daily iframe ONCE on mount
+  // Create Daily iframe ONCE using singleton pattern
   useEffect(() => {
     if (!containerRef.current) return;
     if (dailyRef.current) return;
-    if (hasExistingDailyIframe()) {
-      console.warn('[CallOverlay] Existing Daily iframe detected, skipping creation');
-      return;
-    }
 
-    console.log('[CallOverlay] Creating permanent Daily iframe');
+    console.log('[CallOverlay] Initializing Daily instance');
     
-    const daily = DailyIframe.createFrame(containerRef.current, {
-      iframeStyle: {
-        width: '100%',
-        height: '100%',
-        border: 'none',
-        borderRadius: '1rem',
-      },
-      showLeaveButton: false,
-      showFullscreenButton: false,
-    });
-
+    const daily = getOrCreateDailyInstance(containerRef.current);
     dailyRef.current = daily;
 
     // Attach event listeners ONCE
