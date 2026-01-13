@@ -2,6 +2,7 @@
  * Call Buttons for Chat Header
  * 
  * Simple buttons to start audio/video calls using the global call store.
+ * Pre-warms camera on hover for instant FaceTime-like video startup.
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useCallStore, CallType } from '@/lib/callStore';
 import { toast } from 'sonner';
 import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
+import { preloadCameraStream } from '@/hooks/useCameraPreload';
 
 interface CallButtonsProps {
   conversationId: string;
@@ -23,6 +25,12 @@ export function CallButtons({ conversationId, receiverId }: CallButtonsProps) {
   // Prevent iOS double-fire (touch -> click) starting two calls.
   const startGuardRef = useRef(false);
 
+  // Pre-warm camera on hover/focus for instant video
+  const handleVideoButtonHover = useCallback(() => {
+    // Start preloading camera in background
+    preloadCameraStream();
+  }, []);
+
   const handleStartCall = useCallback(async (callType: CallType) => {
     if (startGuardRef.current) return;
 
@@ -35,7 +43,8 @@ export function CallButtons({ conversationId, receiverId }: CallButtonsProps) {
     setIsStarting(callType);
 
     try {
-      // Request permissions first
+      // For video calls, camera may already be preloaded from hover
+      // Request permissions (will be fast if already granted)
       await requestCallMediaPermissions(callType);
 
       // Start the call
@@ -83,6 +92,8 @@ export function CallButtons({ conversationId, receiverId }: CallButtonsProps) {
         size="icon"
         onClick={() => handleStartCall('video')}
         onTouchEnd={handleTouchStart('video')}
+        onMouseEnter={handleVideoButtonHover}
+        onFocus={handleVideoButtonHover}
         disabled={isDisabled}
         title="Video call"
         className="active:scale-95 transition-transform touch-manipulation"
