@@ -24,7 +24,7 @@ export function GlobalCallOverlay() {
   
   // Daily call object ref
   const dailyRef = useRef<DailyCall | null>(null);
-  const listenersAttached = useRef(false);
+  
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -66,9 +66,9 @@ export function GlobalCallOverlay() {
     }
   }, []);
 
-  // Create Daily call object ONCE on mount
-  useEffect(() => {
-    if (dailyRef.current) return;
+  // Create Daily call object lazily when needed
+  const getOrCreateDaily = useCallback((): DailyCall => {
+    if (dailyRef.current) return dailyRef.current;
 
     console.log('[CallOverlay] Creating Daily Call Object');
     
@@ -79,154 +79,145 @@ export function GlobalCallOverlay() {
     dailyRef.current = daily;
 
     // Attach event listeners ONCE
-    if (!listenersAttached.current) {
-      listenersAttached.current = true;
+    daily.on('joining-meeting', () => {
+      console.log('[CallOverlay] 📞 joining-meeting event');
+    });
 
-      daily.on('joining-meeting', () => {
-        console.log('[CallOverlay] 📞 joining-meeting event');
-      });
+    daily.on('joined-meeting', () => {
+      console.log('[CallOverlay] ✅ joined-meeting event');
+      clearJoinTimeout();
+      
+      if (stateRef.current.phase !== 'joining') {
+        console.log('[CallOverlay] Ignoring joined-meeting (not in joining phase)');
+        return;
+      }
 
-      daily.on('joined-meeting', () => {
-        console.log('[CallOverlay] ✅ joined-meeting event');
-        clearJoinTimeout();
-        
-        if (stateRef.current.phase !== 'joining') {
-          console.log('[CallOverlay] Ignoring joined-meeting (not in joining phase)');
-          return;
+      // Enable local media after joining
+      try {
+        daily.setLocalAudio(true);
+        if (stateRef.current.call?.callType === 'video') {
+          daily.setLocalVideo(true);
+        } else {
+          daily.setLocalVideo(false);
         }
+        console.log('[CallOverlay] Media enabled');
+      } catch (err) {
+        console.error('[CallOverlay] Failed to enable media:', err);
+      }
 
-        // Enable local media after joining
-        try {
-          daily.setLocalAudio(true);
-          if (stateRef.current.call?.callType === 'video') {
-            daily.setLocalVideo(true);
-          } else {
-            daily.setLocalVideo(false);
-          }
-          console.log('[CallOverlay] Media enabled');
-        } catch (err) {
-          console.error('[CallOverlay] Failed to enable media:', err);
-        }
+      callSounds.stopAll();
+      callSounds.connect();
+      setPhase('connected');
+    });
 
-        callSounds.stopAll();
-        callSounds.connect();
-        setPhase('connected');
-      });
+    daily.on('left-meeting', () => {
+      console.log('[CallOverlay] 👋 left-meeting event');
+      clearJoinTimeout();
+      isLeavingRef.current = false;
+      setRemoteParticipant(null);
+      setHasRemoteVideo(false);
+      setHasLocalVideo(false);
+    });
 
-      daily.on('left-meeting', () => {
-        console.log('[CallOverlay] 👋 left-meeting event');
-        clearJoinTimeout();
-        isLeavingRef.current = false;
+    daily.on('error', (event: any) => {
+      console.error('[CallOverlay] ❌ error event:', event);
+      clearJoinTimeout();
+      
+      const msg = event?.errorMsg || event?.error?.msg || 'Call error';
+      toast.error(msg);
+      setError(msg);
+      endCall();
+    });
+
+    // Track participants
+    daily.on('participant-joined', (event: any) => {
+      console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.session_id);
+      if (event?.participant && !event.participant.local) {
+        setRemoteParticipant(event.participant);
+      }
+    });
+
+    daily.on('participant-left', (event: any) => {
+      console.log('[CallOverlay] 👤 participant-left:', event?.participant?.session_id);
+      if (event?.participant && !event.participant.local) {
         setRemoteParticipant(null);
         setHasRemoteVideo(false);
-        setHasLocalVideo(false);
-      });
+      }
+    });
 
-      daily.on('error', (event: any) => {
-        console.error('[CallOverlay] ❌ error event:', event);
-        clearJoinTimeout();
+    daily.on('participant-updated', (event: any) => {
+      if (!event?.participant) return;
+      
+      const p = event.participant;
+      if (p.local) {
+        // Update local video state
+        const hasVideo = p.video && p.tracks?.video?.state === 'playable';
+        setHasLocalVideo(hasVideo);
         
-        const msg = event?.errorMsg || event?.error?.msg || 'Call error';
-        toast.error(msg);
-        setError(msg);
-        endCall();
-      });
-
-      // Track participants
-      daily.on('participant-joined', (event: any) => {
-        console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.session_id);
-        if (event?.participant && !event.participant.local) {
-          setRemoteParticipant(event.participant);
+        if (hasVideo && p.tracks.video.track && localVideoRef.current) {
+          attachTrack(p.tracks.video.track, localVideoRef.current);
         }
-      });
-
-      daily.on('participant-left', (event: any) => {
-        console.log('[CallOverlay] 👤 participant-left:', event?.participant?.session_id);
-        if (event?.participant && !event.participant.local) {
-          setRemoteParticipant(null);
-          setHasRemoteVideo(false);
-        }
-      });
-
-      daily.on('participant-updated', (event: any) => {
-        if (!event?.participant) return;
+      } else {
+        // Update remote participant
+        setRemoteParticipant(p);
+        const hasVideo = p.video && p.tracks?.video?.state === 'playable';
+        setHasRemoteVideo(hasVideo);
         
-        const p = event.participant;
-        if (p.local) {
-          // Update local video state
-          const hasVideo = p.video && p.tracks?.video?.state === 'playable';
-          setHasLocalVideo(hasVideo);
-          
-          if (hasVideo && p.tracks.video.track && localVideoRef.current) {
-            attachTrack(p.tracks.video.track, localVideoRef.current);
-          }
+        if (hasVideo && p.tracks.video.track && remoteVideoRef.current) {
+          attachTrack(p.tracks.video.track, remoteVideoRef.current);
+        }
+      }
+    });
+
+    // Track started - attach video
+    daily.on('track-started', (event: any) => {
+      if (!event?.participant || !event?.track) return;
+      
+      const { participant, track } = event;
+      console.log('[CallOverlay] 🎬 track-started:', participant.local ? 'local' : 'remote', track.kind);
+      
+      if (track.kind === 'video') {
+        if (participant.local && localVideoRef.current) {
+          attachTrack(track, localVideoRef.current);
+          setHasLocalVideo(true);
+        } else if (!participant.local && remoteVideoRef.current) {
+          attachTrack(track, remoteVideoRef.current);
+          setHasRemoteVideo(true);
+        }
+      }
+    });
+
+    daily.on('track-stopped', (event: any) => {
+      if (!event?.participant || !event?.track) return;
+      
+      const { participant, track } = event;
+      console.log('[CallOverlay] 🎬 track-stopped:', participant.local ? 'local' : 'remote', track.kind);
+      
+      if (track.kind === 'video') {
+        if (participant.local) {
+          setHasLocalVideo(false);
+          if (localVideoRef.current) localVideoRef.current.srcObject = null;
         } else {
-          // Update remote participant
-          setRemoteParticipant(p);
-          const hasVideo = p.video && p.tracks?.video?.state === 'playable';
-          setHasRemoteVideo(hasVideo);
-          
-          if (hasVideo && p.tracks.video.track && remoteVideoRef.current) {
-            attachTrack(p.tracks.video.track, remoteVideoRef.current);
-          }
+          setHasRemoteVideo(false);
+          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
         }
-      });
+      }
+    });
 
-      // Track started - attach video
-      daily.on('track-started', (event: any) => {
-        if (!event?.participant || !event?.track) return;
-        
-        const { participant, track } = event;
-        console.log('[CallOverlay] 🎬 track-started:', participant.local ? 'local' : 'remote', track.kind);
-        
-        if (track.kind === 'video') {
-          if (participant.local && localVideoRef.current) {
-            attachTrack(track, localVideoRef.current);
-            setHasLocalVideo(true);
-          } else if (!participant.local && remoteVideoRef.current) {
-            attachTrack(track, remoteVideoRef.current);
-            setHasRemoteVideo(true);
-          }
-        }
-      });
-
-      daily.on('track-stopped', (event: any) => {
-        if (!event?.participant || !event?.track) return;
-        
-        const { participant, track } = event;
-        console.log('[CallOverlay] 🎬 track-stopped:', participant.local ? 'local' : 'remote', track.kind);
-        
-        if (track.kind === 'video') {
-          if (participant.local) {
-            setHasLocalVideo(false);
-            if (localVideoRef.current) localVideoRef.current.srcObject = null;
-          } else {
-            setHasRemoteVideo(false);
-            if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-          }
-        }
-      });
-    }
-
-    return () => {
-      // Don't destroy on unmount - keep call object persistent
-    };
+    return daily;
   }, [clearJoinTimeout, setPhase, setError, endCall, attachTrack]);
 
   // Join room when phase becomes 'joining'
   useEffect(() => {
     if (state.phase !== 'joining' || !state.call?.roomUrl || !state.call?.roomName) return;
-    if (!dailyRef.current) {
-      console.error('[CallOverlay] No Daily instance for join');
-      setError('Call system not ready');
-      return;
-    }
     if (isLeavingRef.current) return;
 
-    const daily = dailyRef.current;
     let cancelled = false;
 
     const doJoin = async () => {
+      // Create Daily call object lazily (only when actually joining)
+      const daily = getOrCreateDaily();
+      
       console.log('[CallOverlay] Starting join flow for:', state.call?.roomUrl);
 
       // Request media permissions (required before join)
@@ -317,7 +308,7 @@ export function GlobalCallOverlay() {
       cancelled = true;
       clearJoinTimeout();
     };
-  }, [state.phase, state.call?.roomUrl, state.call?.roomName, state.call?.id, state.call?.callType, clearJoinTimeout, endCall, setError]);
+  }, [state.phase, state.call?.roomUrl, state.call?.roomName, state.call?.id, state.call?.callType, clearJoinTimeout, endCall, setError, getOrCreateDaily]);
 
   // If the call gets reset remotely while Daily is still joining/joined, force-leave the meeting
   // (prevents "instant crash" feel where UI disappears but the iframe is still in a meeting state).
