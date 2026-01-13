@@ -49,12 +49,30 @@ function destroyDailyInstance() {
   cleanupOrphanedIframes();
 }
 
-function createFreshDailyInstance(container: HTMLDivElement, roomUrl: string): DailyCall | null {
+function createFreshDailyInstance(
+  container: HTMLDivElement,
+  roomUrl: string,
+  opts?: { startAudioOff?: boolean; startVideoOff?: boolean }
+): DailyCall | null {
   destroyDailyInstance();
 
   try {
-    console.log('[CallOverlay] Creating fresh Daily instance');
+    const rect = container.getBoundingClientRect();
+    const computed = typeof window !== 'undefined' ? window.getComputedStyle(container) : null;
+    console.log('[CallOverlay] Creating fresh Daily instance', {
+      roomUrl,
+      container: {
+        w: Math.round(rect.width),
+        h: Math.round(rect.height),
+        visibility: computed?.visibility,
+        display: computed?.display,
+        opacity: computed?.opacity,
+      },
+      opts,
+    });
+
     const daily = DailyIframe.createFrame(container, {
+      // Important: ensure the iframe is loaded with the SAME URL we will join
       url: roomUrl,
       iframeStyle: {
         width: '100%',
@@ -63,8 +81,8 @@ function createFreshDailyInstance(container: HTMLDivElement, roomUrl: string): D
       },
       showLeaveButton: false,
       showFullscreenButton: true,
-      startAudioOff: true,
-      startVideoOff: true,
+      startAudioOff: opts?.startAudioOff ?? true,
+      startVideoOff: opts?.startVideoOff ?? true,
     });
 
     globalDailyInstance = daily;
@@ -80,15 +98,15 @@ function createFreshDailyInstance(container: HTMLDivElement, roomUrl: string): D
 
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, setPhase, setError, dismissIncoming } = useCallStore();
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
   const dailyRef = useRef<DailyCall | null>(null);
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const joinStartedRef = useRef<string | null>(null);
   const tokenRef = useRef<string | null>(null);
-  
-  // UI state
+
+  // UI state (in-call / waiting room)
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
@@ -96,12 +114,24 @@ export function GlobalCallOverlay() {
   const [waitingCountdown, setWaitingCountdown] = useState(30);
   const [isInWaitingRoom, setIsInWaitingRoom] = useState(false);
   const [hasOtherParticipant, setHasOtherParticipant] = useState(false);
-  
+
   // Pre-join state
   const [showPreJoin, setShowPreJoin] = useState(false);
   const [preJoinStatus, setPreJoinStatus] = useState('Checking devices...');
   const [isPreJoinReady, setIsPreJoinReady] = useState(false);
   const [isJoiningFromPreJoin, setIsJoiningFromPreJoin] = useState(false);
+  const [preJoinMicMuted, setPreJoinMicMuted] = useState(false);
+  const [preJoinCameraOff, setPreJoinCameraOff] = useState(false);
+
+  // Keep latest pre-join settings for Daily event handlers (avoid stale closures)
+  const preJoinMicMutedRef = useRef(false);
+  const preJoinCameraOffRef = useRef(false);
+  useEffect(() => {
+    preJoinMicMutedRef.current = preJoinMicMuted;
+  }, [preJoinMicMuted]);
+  useEffect(() => {
+    preJoinCameraOffRef.current = preJoinCameraOff;
+  }, [preJoinCameraOff]);
 
   const stateRef = useRef(state);
   useEffect(() => {
@@ -115,84 +145,90 @@ export function GlobalCallOverlay() {
     }
   }, []);
 
-  const attachDailyListeners = useCallback((daily: DailyCall) => {
-    if (globalListenersAttached) return;
-    globalListenersAttached = true;
-    console.log('[CallOverlay] Attaching Daily event listeners');
+  const attachDailyListeners = useCallback(
+    (daily: DailyCall) => {
+      if (globalListenersAttached) return;
+      globalListenersAttached = true;
+      console.log('[CallOverlay] Attaching Daily event listeners');
 
-    daily.on('joining-meeting', () => {
-      console.log('[CallOverlay] 📞 joining-meeting event');
-    });
+      daily.on('joining-meeting', () => {
+        console.log('[CallOverlay] 📞 joining-meeting event');
+      });
 
-    daily.on('joined-meeting', () => {
-      console.log('[CallOverlay] ✅ joined-meeting event');
-      clearJoinTimeout();
-      setShowPreJoin(false);
-      setIsJoiningFromPreJoin(false);
-      setIsInWaitingRoom(true);
-      
-      // Enable media after joining
-      try {
-        if (dailyRef.current) {
-          dailyRef.current.setLocalAudio(true);
-          if (stateRef.current.call?.callType === 'video') {
-            dailyRef.current.setLocalVideo(true);
+      daily.on('joined-meeting', () => {
+        console.log('[CallOverlay] ✅ joined-meeting event');
+        clearJoinTimeout();
+        setShowPreJoin(false);
+        setIsJoiningFromPreJoin(false);
+        setIsInWaitingRoom(true);
+
+        // Apply the settings chosen on the pre-join screen
+        const shouldEnableAudio = !preJoinMicMutedRef.current;
+        const shouldEnableVideo = stateRef.current.call?.callType === 'video' ? !preJoinCameraOffRef.current : false;
+        setIsMuted(preJoinMicMutedRef.current);
+        setIsVideoOff(stateRef.current.call?.callType === 'video' ? preJoinCameraOffRef.current : true);
+
+        try {
+          if (dailyRef.current) {
+            dailyRef.current.setLocalAudio(shouldEnableAudio);
+            dailyRef.current.setLocalVideo(shouldEnableVideo);
           }
+          console.log('[CallOverlay] Media enabled', { shouldEnableAudio, shouldEnableVideo });
+        } catch (err) {
+          console.error('[CallOverlay] Failed to enable media:', err);
         }
-        console.log('[CallOverlay] Media enabled');
-      } catch (err) {
-        console.error('[CallOverlay] Failed to enable media:', err);
-      }
 
-      // Check current participants
-      const participants = daily.participants();
-      const otherCount = Object.keys(participants).filter(k => k !== 'local').length;
-      console.log('[CallOverlay] Other participants:', otherCount);
-      
-      if (otherCount > 0) {
+        // Check current participants
+        const participants = daily.participants();
+        const otherCount = Object.keys(participants).filter((k) => k !== 'local').length;
+        console.log('[CallOverlay] Other participants:', otherCount);
+
+        if (otherCount > 0) {
+          setHasOtherParticipant(true);
+          callSounds.stopAll();
+          callSounds.connect();
+          setPhase('connected');
+          setIsInWaitingRoom(false);
+        }
+      });
+
+      daily.on('participant-joined', (event: any) => {
+        console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.user_id);
         setHasOtherParticipant(true);
         callSounds.stopAll();
         callSounds.connect();
         setPhase('connected');
         setIsInWaitingRoom(false);
-      }
-    });
+      });
 
-    daily.on('participant-joined', (event: any) => {
-      console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.user_id);
-      setHasOtherParticipant(true);
-      callSounds.stopAll();
-      callSounds.connect();
-      setPhase('connected');
-      setIsInWaitingRoom(false);
-    });
+      daily.on('participant-left', (event: any) => {
+        console.log('[CallOverlay] 👤 participant-left:', event?.participant?.user_id);
+        const participants = daily.participants();
+        const otherCount = Object.keys(participants).filter((k) => k !== 'local').length;
+        if (otherCount === 0) {
+          setHasOtherParticipant(false);
+          toast.info('Other participant left');
+        }
+      });
 
-    daily.on('participant-left', (event: any) => {
-      console.log('[CallOverlay] 👤 participant-left:', event?.participant?.user_id);
-      const participants = daily.participants();
-      const otherCount = Object.keys(participants).filter(k => k !== 'local').length;
-      if (otherCount === 0) {
-        setHasOtherParticipant(false);
-        toast.info('Other participant left');
-      }
-    });
+      daily.on('left-meeting', () => {
+        console.log('[CallOverlay] 👋 left-meeting event');
+        clearJoinTimeout();
+        isLeavingRef.current = false;
+      });
 
-    daily.on('left-meeting', () => {
-      console.log('[CallOverlay] 👋 left-meeting event');
-      clearJoinTimeout();
-      isLeavingRef.current = false;
-    });
+      daily.on('error', (event: any) => {
+        console.error('[CallOverlay] ❌ error event:', event);
+        clearJoinTimeout();
 
-    daily.on('error', (event: any) => {
-      console.error('[CallOverlay] ❌ error event:', event);
-      clearJoinTimeout();
-      
-      const msg = event?.errorMsg || event?.error?.msg || 'Call error';
-      toast.error(msg);
-      setError(msg);
-      endCall();
-    });
-  }, [clearJoinTimeout, setPhase, setError, endCall]);
+        const msg = event?.errorMsg || event?.error?.msg || 'Call error';
+        toast.error(msg);
+        setError(msg);
+        endCall();
+      });
+    },
+    [clearJoinTimeout, setPhase, setError, endCall]
+  );
 
   // Cleanup on unmount
   useEffect(() => {
@@ -210,7 +246,13 @@ export function GlobalCallOverlay() {
       setIsJoiningFromPreJoin(false);
       tokenRef.current = null;
       joinStartedRef.current = null;
-      
+
+      // Reset pre-join selections for this call
+      setPreJoinMicMuted(false);
+      setPreJoinCameraOff(state.call.callType !== 'video');
+      setIsMuted(false);
+      setIsVideoOff(state.call.callType !== 'video');
+
       // Prepare: get permissions and token
       let cancelled = false;
       (async () => {
@@ -267,11 +309,17 @@ export function GlobalCallOverlay() {
   const handleJoinFromPreJoin = useCallback(async () => {
     if (!state.call?.roomUrl || !tokenRef.current || !containerRef.current) return;
     if (isLeavingRef.current) return;
-    
+
     const callId = state.call.id;
     if (joinStartedRef.current === callId) return;
     joinStartedRef.current = callId;
-    
+
+    // Apply pre-join selections to the in-call controls
+    const startAudioOff = preJoinMicMutedRef.current;
+    const startVideoOff = state.call.callType === 'video' ? preJoinCameraOffRef.current : true;
+    setIsMuted(startAudioOff);
+    setIsVideoOff(startVideoOff);
+
     setIsJoiningFromPreJoin(true);
     setPreJoinStatus('Connecting...');
 
@@ -281,8 +329,18 @@ export function GlobalCallOverlay() {
         await nextAnimationFrame();
       }
 
+      console.log('[CallOverlay] Starting join', {
+        callId,
+        startAudioOff,
+        startVideoOff,
+        roomUrl: state.call.roomUrl,
+      });
+
       // Create Daily instance
-      const daily = createFreshDailyInstance(containerRef.current!, state.call!.roomUrl);
+      const daily = createFreshDailyInstance(containerRef.current!, state.call!.roomUrl, {
+        startAudioOff,
+        startVideoOff,
+      });
       if (!daily) {
         throw new Error('Failed to initialize call');
       }
@@ -301,7 +359,6 @@ export function GlobalCallOverlay() {
       console.log('[CallOverlay] Calling daily.join()');
       await daily.join({ url: state.call!.roomUrl, token: tokenRef.current! });
       console.log('[CallOverlay] daily.join() returned');
-
     } catch (err: any) {
       console.error('[CallOverlay] Join failed:', err);
       clearJoinTimeout();
@@ -309,7 +366,7 @@ export function GlobalCallOverlay() {
       setIsJoiningFromPreJoin(false);
       endCall();
     }
-  }, [state.call?.id, state.call?.roomUrl, clearJoinTimeout, endCall, attachDailyListeners]);
+  }, [state.call?.id, state.call?.roomUrl, state.call?.callType, clearJoinTimeout, endCall, attachDailyListeners]);
 
   // Waiting room countdown
   useEffect(() => {
@@ -319,7 +376,7 @@ export function GlobalCallOverlay() {
     }
 
     const interval = setInterval(() => {
-      setWaitingCountdown(prev => {
+      setWaitingCountdown((prev) => {
         if (prev <= 1) {
           toast.info('No one joined - ending call');
           endCall();
@@ -340,7 +397,7 @@ export function GlobalCallOverlay() {
     }
 
     const interval = setInterval(() => {
-      setCallDuration(prev => prev + 1);
+      setCallDuration((prev) => prev + 1);
     }, 1000);
 
     return () => clearInterval(interval);
@@ -367,8 +424,8 @@ export function GlobalCallOverlay() {
       }
     }
 
-    await new Promise<void>(resolve => setTimeout(resolve, 500));
-    
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+
     await endCall();
     setIsHangingUp(false);
     isLeavingRef.current = false;
@@ -377,7 +434,7 @@ export function GlobalCallOverlay() {
   const handleToggleMute = useCallback(() => {
     const daily = dailyRef.current;
     if (!daily) return;
-    
+
     const newMuted = !isMuted;
     daily.setLocalAudio(!newMuted);
     setIsMuted(newMuted);
@@ -386,7 +443,7 @@ export function GlobalCallOverlay() {
   const handleToggleVideo = useCallback(() => {
     const daily = dailyRef.current;
     if (!daily || state.call?.callType !== 'video') return;
-    
+
     const newVideoOff = !isVideoOff;
     daily.setLocalVideo(!newVideoOff);
     setIsVideoOff(newVideoOff);
@@ -394,7 +451,7 @@ export function GlobalCallOverlay() {
 
   const handleAccept = useCallback(async () => {
     if (!state.call) return;
-    
+
     try {
       await requestCallMediaPermissions(state.call.callType);
     } catch (err: any) {
@@ -418,6 +475,7 @@ export function GlobalCallOverlay() {
   const isConnected = state.phase === 'connected';
   const isConnecting = state.phase === 'creating' || state.phase === 'joining';
   const showCallUI = isConnected || isInWaitingRoom;
+  const keepDailyVisible = showCallUI || showPreJoin || isJoiningFromPreJoin || isConnecting;
 
   return (
     <>
@@ -426,9 +484,10 @@ export function GlobalCallOverlay() {
         ref={containerRef}
         className={cn(
           'fixed inset-0 z-[9998] bg-black transition-opacity duration-200',
-          (showCallUI || isJoiningFromPreJoin) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          showCallUI || isJoiningFromPreJoin ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}
-        style={{ visibility: (showCallUI || isJoiningFromPreJoin) ? 'visible' : 'hidden' }}
+        // CRITICAL: keep measurable/visible while joining; Daily can fail if created inside a hidden container
+        style={{ visibility: keepDailyVisible ? 'visible' : 'hidden' }}
       />
 
       {/* Pre-join screen */}
@@ -441,6 +500,10 @@ export function GlobalCallOverlay() {
             isReady={isPreJoinReady}
             isJoining={isJoiningFromPreJoin}
             statusText={preJoinStatus}
+            micMuted={preJoinMicMuted}
+            cameraOff={preJoinCameraOff}
+            onMicToggle={setPreJoinMicMuted}
+            onCameraToggle={setPreJoinCameraOff}
             onJoin={handleJoinFromPreJoin}
             onCancel={handleHangup}
           />

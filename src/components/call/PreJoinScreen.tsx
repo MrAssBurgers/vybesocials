@@ -26,6 +26,12 @@ interface PreJoinScreenProps {
   onJoin: () => void;
   onCancel: () => void;
   localVideoStream?: MediaStream | null;
+
+  /** Optional controlled toggles (so the overlay can apply settings on join) */
+  micMuted?: boolean;
+  cameraOff?: boolean;
+  onMicToggle?: (nextMuted: boolean) => void;
+  onCameraToggle?: (nextOff: boolean) => void;
 }
 
 export function PreJoinScreen({
@@ -38,9 +44,17 @@ export function PreJoinScreen({
   onJoin,
   onCancel,
   localVideoStream,
+  micMuted,
+  cameraOff,
+  onMicToggle,
+  onCameraToggle,
 }: PreJoinScreenProps) {
-  const [isMuted, setIsMuted] = useState(false);
-  const [isCameraOff, setIsCameraOff] = useState(!isVideoCall);
+  const [internalMuted, setInternalMuted] = useState(false);
+  const [internalCameraOff, setInternalCameraOff] = useState(!isVideoCall);
+
+  const effectiveMuted = micMuted ?? internalMuted;
+  const effectiveCameraOff = cameraOff ?? internalCameraOff;
+
   const [showSettings, setShowSettings] = useState(false);
   const [micActivity, setMicActivity] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -49,14 +63,14 @@ export function PreJoinScreen({
 
   // Set up video preview
   useEffect(() => {
-    if (videoRef.current && localVideoStream && !isCameraOff) {
+    if (videoRef.current && localVideoStream && !effectiveCameraOff) {
       videoRef.current.srcObject = localVideoStream;
     }
-  }, [localVideoStream, isCameraOff]);
+  }, [localVideoStream, effectiveCameraOff]);
 
   // Mock mic activity animation (visual only)
   useEffect(() => {
-    if (isMuted) {
+    if (effectiveMuted) {
       setMicActivity(0);
       return;
     }
@@ -76,15 +90,19 @@ export function PreJoinScreen({
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isMuted]);
+  }, [effectiveMuted]);
 
   const handleToggleMic = useCallback(() => {
-    setIsMuted(prev => !prev);
-  }, []);
+    const next = !effectiveMuted;
+    if (onMicToggle) onMicToggle(next);
+    else setInternalMuted(next);
+  }, [effectiveMuted, onMicToggle]);
 
   const handleToggleCamera = useCallback(() => {
-    setIsCameraOff(prev => !prev);
-  }, []);
+    const next = !effectiveCameraOff;
+    if (onCameraToggle) onCameraToggle(next);
+    else setInternalCameraOff(next);
+  }, [effectiveCameraOff, onCameraToggle]);
 
   return (
     <motion.div
