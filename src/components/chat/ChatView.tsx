@@ -684,7 +684,7 @@ export function ChatView() {
       <div 
         className={cn(
           "flex-1 overflow-y-auto overflow-x-hidden min-h-0",
-          "px-3 sm:px-5 py-4 sm:py-6",
+          "px-4 sm:px-6 py-5 sm:py-7",
           "scroll-smooth",
           getWallpaperClass()
         )}
@@ -696,26 +696,26 @@ export function ChatView() {
         }}
       >
         {/* Messages container with increased vertical breathing room */}
-        <div className="flex flex-col gap-0 pb-24 sm:pb-28">
+        <div className="flex flex-col gap-0 pb-28 sm:pb-32">
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
             // Instagram/Snapchat spacing rules - ENHANCED for breathability:
-            // Same sender consecutive: 8px gap (tight grouping)
-            // Different sender: 24-28px gap (clear separation)
-            // After reply preview: 16px gap
-            // Media messages: 20-24px gap
+            // Same sender consecutive: 10px gap (tight grouping)
+            // Different sender: 28-32px gap (clear separation)
+            // After reply preview: 18px gap
+            // Media messages: 24-28px gap
             const prevItem = index > 0 ? messageItems[index - 1] : null;
             const senderChanged = prevItem && prevItem.isOwn !== isOwn;
             const hasReply = !!message.reply_to_id;
             
             // Calculate margin based on context - use pt for top margin
-            let spacingClass = 'pt-2'; // Default: same sender (8px)
+            let spacingClass = 'pt-2.5'; // Default: same sender (10px)
             if (senderChanged) {
-              spacingClass = 'pt-6 sm:pt-7'; // Different sender (24-28px)
+              spacingClass = 'pt-7 sm:pt-8'; // Different sender (28-32px)
             } else if (hasReply) {
-              spacingClass = 'pt-4'; // After reply (16px)
+              spacingClass = 'pt-4 sm:pt-5'; // After reply (16-20px)
             }
             if (isMediaTransition) {
-              spacingClass = 'pt-5 sm:pt-6'; // Media transition (20-24px)
+              spacingClass = 'pt-6 sm:pt-7'; // Media transition (24-28px)
             }
             
             return (
@@ -724,8 +724,8 @@ export function ChatView() {
                 className={cn(spacingClass, index === 0 && 'pt-0')}
               >
                 {showTimestamp && (
-                  <div className="text-center py-6 sm:py-8">
-                    <span className="text-[10px] sm:text-[11px] text-muted-foreground/60 bg-muted/40 px-4 py-1.5 rounded-full font-medium tracking-wide">
+                  <div className="text-center py-7 sm:py-9">
+                    <span className="text-[10px] sm:text-[11px] text-muted-foreground/50 bg-muted/30 px-4 py-1.5 rounded-full font-medium tracking-wide uppercase">
                       {formatMessageDate(message.created_at)}
                     </span>
                   </div>
@@ -1254,22 +1254,22 @@ const MessageBubble = memo(function MessageBubble({
           </div>
         )}
 
-        {/* Message bubble - Instagram-quality padding and radius - ENHANCED */}
+        {/* Message bubble - Instagram-quality padding and radius - PREMIUM */}
         <div
           className={cn(
-            'relative rounded-[22px] break-words select-none transition-transform duration-150 active:scale-[0.98]',
-            // Padding: 16-18px horizontal, 12-14px vertical for breathing room
+            'relative rounded-[24px] break-words select-none transition-all duration-150 active:scale-[0.98]',
+            // Padding: 18-20px horizontal, 14-16px vertical for breathing room
             isEmojiOnly 
-              ? 'px-3 py-2.5' // Reduced padding for emoji
+              ? 'px-3.5 py-3' // Reduced padding for emoji
               : isMediaMessage
-                ? 'p-2 sm:p-2.5' // Media bubbles: slightly more padding
-                : 'px-4 py-3 sm:px-[18px] sm:py-3.5', // Text: 16-18px H, 12-14px V
+                ? 'p-2.5 sm:p-3' // Media bubbles: comfortable padding
+                : 'px-[18px] py-3.5 sm:px-5 sm:py-4', // Text: 18-20px H, 14-16px V
             isOwn 
-              ? `${themeColor.bubble} ${themeColor.text} rounded-br-md shadow-md` 
-              : 'bg-muted/80 text-foreground rounded-bl-md shadow-sm',
+              ? `${themeColor.bubble} ${themeColor.text} rounded-br-lg shadow-md shadow-primary/10` 
+              : 'bg-muted/70 text-foreground rounded-bl-lg shadow-sm',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
-            repliedMessage && 'rounded-t-[16px]'
+            repliedMessage && 'rounded-t-[18px]'
           )}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -1277,11 +1277,11 @@ const MessageBubble = memo(function MessageBubble({
           onDoubleClick={onToggleReactions}
         >
           {isMediaMessage && (
-            <div className={message.content ? "mb-2.5" : ""}>
+            <div className={message.content ? "mb-3" : ""}>
               <img
                 src={message.media_url}
                 alt={message.media_type === 'gif' ? "GIF" : "Shared image"}
-                className="rounded-xl max-w-full max-h-60 sm:max-h-72 object-cover shadow-sm"
+                className="rounded-2xl max-w-full min-w-[120px] max-h-64 sm:max-h-80 object-cover shadow-sm"
                 loading="lazy"
               />
             </div>
@@ -1295,13 +1295,13 @@ const MessageBubble = memo(function MessageBubble({
           )}
 
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (
-            <p className="text-[13px] sm:text-sm italic opacity-75 leading-[1.4]">Message viewed</p>
+            <p className="text-sm sm:text-[15px] italic opacity-75 leading-relaxed">Message viewed</p>
           ) : message.content ? (
             <p className={cn(
-              "whitespace-pre-wrap leading-[1.4]",
+              "whitespace-pre-wrap leading-relaxed",
               isEmojiOnly 
-                ? "text-2xl sm:text-3xl" // Larger font for emoji-only
-                : "text-[14px] sm:text-[15px]" // Readable size
+                ? "text-3xl sm:text-4xl" // Larger font for emoji-only
+                : "text-[15px] sm:text-base" // Readable size: 15-16px
             )}>{message.content}</p>
           ) : null}
 

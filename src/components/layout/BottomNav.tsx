@@ -200,7 +200,7 @@ export function BottomNav() {
                       whileTap={{ scale: 0.9 }}
                       transition={{ type: 'spring', stiffness: 500, damping: 25 }}
                     >
-                      <div className="gradient-animated rounded-xl p-3 shadow-lg shadow-primary/30">
+                      <div className="gradient-static rounded-xl p-3 shadow-lg shadow-primary/30 transition-transform">
                         <PlusCircle className="h-[22px] w-[22px] text-primary-foreground" />
                       </div>
                     </motion.button>
