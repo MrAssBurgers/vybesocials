@@ -66,26 +66,31 @@ function playVYBERing(ctx: AudioContext, time: number): void {
   playNotifNote(ctx, 2637.02, time + 0.29, 0.3, 0.1); // E7 shimmer
 }
 
-// Play ringback tone (for outgoing call - what caller hears)
-function playRingbackTone(ctx: AudioContext, time: number): void {
-  const oscillator = ctx.createOscillator();
-  const gainNode = ctx.createGain();
+// Outgoing call sound - smooth pulsing tone (caller hears while waiting)
+function playOutgoingPulse(ctx: AudioContext, time: number): void {
+  // Gentle pulse: G5 -> B5 (pleasant waiting tone)
+  const notes = [
+    { freq: 783.99, delay: 0, duration: 0.3 },   // G5
+    { freq: 987.77, delay: 0.35, duration: 0.3 }, // B5
+  ];
   
-  oscillator.connect(gainNode);
-  gainNode.connect(ctx.destination);
-  
-  // Standard ringback - single tone
-  oscillator.frequency.setValueAtTime(440, time);
-  oscillator.type = 'sine';
-  
-  // Pattern: 2s on, 4s off (we'll handle the off in the interval)
-  gainNode.gain.setValueAtTime(0, time);
-  gainNode.gain.linearRampToValueAtTime(0.08, time + 0.05);
-  gainNode.gain.setValueAtTime(0.08, time + 1.8);
-  gainNode.gain.linearRampToValueAtTime(0, time + 2);
-  
-  oscillator.start(time);
-  oscillator.stop(time + 2);
+  notes.forEach(note => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.frequency.setValueAtTime(note.freq, time + note.delay);
+    osc.type = 'sine';
+    
+    gain.gain.setValueAtTime(0, time + note.delay);
+    gain.gain.linearRampToValueAtTime(0.1, time + note.delay + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + note.delay + note.duration);
+    
+    osc.start(time + note.delay);
+    osc.stop(time + note.delay + note.duration);
+  });
 }
 
 // Play connect sound (call answered)
@@ -161,16 +166,16 @@ export function startRingback(): void {
   const ctx = getAudioContext();
   if (!ctx) return;
   
-  // Play initial ringback
-  playRingbackTone(ctx, ctx.currentTime);
+  // Play initial pulse
+  playOutgoingPulse(ctx, ctx.currentTime);
   
-  // Loop every 6 seconds (2s ring, 4s silence)
+  // Loop every 1.5 seconds
   ringbackInterval = window.setInterval(() => {
     const c = getAudioContext();
     if (c) {
-      playRingbackTone(c, c.currentTime);
+      playOutgoingPulse(c, c.currentTime);
     }
-  }, 6000);
+  }, 1500);
 }
 
 // Play connect sound

@@ -58,6 +58,39 @@ const initialState: CallStoreState = {
   error: null,
 };
 
+// Show browser notification for incoming call
+function showCallNotification(caller: CallUser, callType: CallType) {
+  // Request permission if needed
+  if (!('Notification' in window)) return;
+  
+  if (Notification.permission === 'default') {
+    Notification.requestPermission();
+    return;
+  }
+  
+  if (Notification.permission !== 'granted') return;
+  
+  const callerName = caller.display_name || caller.username || 'Someone';
+  const callTypeLabel = callType === 'video' ? '📹 Video' : '📞 Audio';
+  
+  const notification = new Notification(`VYBE - Incoming ${callTypeLabel} Call`, {
+    body: `${callerName} is calling you`,
+    icon: caller.avatar_url || '/favicon.ico',
+    tag: 'vybe-incoming-call',
+    requireInteraction: true,
+    silent: false, // Let browser play default sound too
+  });
+  
+  // Focus window when notification clicked
+  notification.onclick = () => {
+    window.focus();
+    notification.close();
+  };
+  
+  // Auto-close after 30 seconds
+  setTimeout(() => notification.close(), 30000);
+}
+
 const CallStoreContext = createContext<CallStoreContextType | null>(null);
 
 export function CallStoreProvider({ children }: { children: ReactNode }) {
@@ -111,6 +144,9 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
             setIncomingCall(callData);
             callSounds.startRinging();
+            
+            // Show browser notification with VYBE branding
+            showCallNotification(data.caller as CallUser, data.call_type as CallType);
           }
         }
       )
