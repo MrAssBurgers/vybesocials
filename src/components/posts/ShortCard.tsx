@@ -352,7 +352,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
 
       {/* Right side actions */}
-      <div className="absolute right-3 bottom-28 flex flex-col items-center gap-5 z-10">
+      <div className="absolute right-3 bottom-20 flex flex-col items-center gap-5 z-10">
         {/* Author avatar */}
         <Link to={`/u/${post.author.username}`} className="relative">
           <motion.div whileTap={{ scale: 0.9 }} className="story-ring">
@@ -489,7 +489,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       </div>
 
       {/* Bottom info */}
-      <div className="absolute left-4 right-20 bottom-6 z-10">
+      <div className="absolute left-4 right-20 bottom-4 z-10">
         <div className="flex items-center gap-2 mb-2">
           <Link to={`/u/${post.author.username}`} className="font-bold text-lg text-white drop-shadow-lg">
             @{post.author.username}
