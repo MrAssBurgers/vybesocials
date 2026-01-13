@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 
 interface CallOverlayState {
   isOpen: boolean;
@@ -17,8 +17,6 @@ interface CallOverlayContextType {
     conversationId: string;
   }) => void;
   closeCall: () => void;
-  forceCleanup: () => void;
-  cleanupRef: React.MutableRefObject<(() => Promise<void>) | null>;
 }
 
 const initialState: CallOverlayState = {
@@ -33,38 +31,22 @@ const CallOverlayContext = createContext<CallOverlayContextType | null>(null);
 
 export function CallOverlayProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CallOverlayState>(initialState);
-  // Ref to hold cleanup function from CallOverlay
-  const cleanupRef = useRef<(() => Promise<void>) | null>(null);
 
-  const forceCleanup = useCallback(async () => {
-    console.log('[CALL DEBUG] forceCleanup called');
-    if (cleanupRef.current) {
-      await cleanupRef.current();
-    }
-  }, []);
-
-  const openCall = useCallback(async (params: {
+  const openCall = useCallback((params: {
     roomUrl: string;
     roomName: string;
     callType: 'audio' | 'video';
     conversationId: string;
   }) => {
     console.log('[CALL DEBUG] CallOverlayProvider.openCall called with:', params);
-    
-    // Validate roomUrl exists
+
+    // Only validate roomUrl exists (do NOT block on existing call state)
     if (!params.roomUrl) {
-      console.error('[CALL DEBUG] openCall failed: roomUrl is required');
+      console.error('[CALL DEBUG] openCall aborted: roomUrl is required');
       return;
     }
-    
-    // ALWAYS force cleanup any existing call first
-    console.log('[CALL DEBUG] Force cleanup before opening new call');
-    if (cleanupRef.current) {
-      await cleanupRef.current();
-    }
-    
-    // Reset and open with new params
-    console.log('[CALL DEBUG] Setting CallOverlay state to open');
+
+    // Always open (no early-return guards)
     setState({
       isOpen: true,
       roomUrl: params.roomUrl,
@@ -80,7 +62,7 @@ export function CallOverlayProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <CallOverlayContext.Provider value={{ state, openCall, closeCall, forceCleanup, cleanupRef }}>
+    <CallOverlayContext.Provider value={{ state, openCall, closeCall }}>
       {children}
     </CallOverlayContext.Provider>
   );

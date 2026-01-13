@@ -1,275 +1,234 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
-import { useCallOverlay } from './CallOverlayContext';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallOverlay } from '@/components/call/CallOverlayContext';
 import { X, Phone, Video, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { motion, AnimatePresence } from 'framer-motion';
-import DailyIframe, { DailyCall } from '@daily-co/daily-js';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { ensureDailyFrame, joinRoom, leaveRoom } from '@/lib/dailySingleton';
+import type { DailyCall } from '@daily-co/daily-js';
 
 export function CallOverlay() {
-  const { state, closeCall, cleanupRef } = useCallOverlay();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const { state, closeCall } = useCallOverlay();
+
+  // Permanent iframe host (always mounted)
+  const hostElRef = useRef<HTMLDivElement | null>(null);
   const dailyRef = useRef<DailyCall | null>(null);
-  const [isJoining, setIsJoining] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+  const listenersAttachedRef = useRef(false);
+
+  const [isJoiningUi, setIsJoiningUi] = useState(false);
+  const [isConnectedUi, setIsConnectedUi] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Cleanup function to destroy Daily iframe - always force destroy
-  const cleanup = useCallback(async () => {
-    console.log('[CALL DEBUG] cleanup called, dailyRef:', !!dailyRef.current);
-    
-    if (dailyRef.current) {
-      try {
-        console.log('[CALL DEBUG] Leaving meeting...');
-        await dailyRef.current.leave();
-      } catch (e) {
-        console.log('[CALL DEBUG] Leave error (ignored):', e);
-      }
-      try {
-        console.log('[CALL DEBUG] Destroying iframe...');
-        await dailyRef.current.destroy();
-      } catch (e) {
-        console.log('[CALL DEBUG] Destroy error (ignored):', e);
-      }
-      dailyRef.current = null;
-    }
-    
-    // Always reset all state
-    setIsConnected(false);
-    setIsJoining(false);
-    setErrorMessage(null);
-    console.log('[CALL DEBUG] Cleanup complete, all refs and state reset');
-  }, []);
+  // 1) CREATE DAILY IFRAME ONCE (on app load / first mount of host element)
+  //    - never create inside openCall or state-driven effects
+  // 2) NEVER CONDITIONALLY MOUNT THE IFRAME (host div always rendered)
+  const setHostEl = useCallback((el: HTMLDivElement | null) => {
+    hostElRef.current = el;
 
-  // Register cleanup function with context so it can be called from openCall
-  useEffect(() => {
-    cleanupRef.current = cleanup;
-    return () => {
-      cleanupRef.current = null;
-    };
-  }, [cleanup, cleanupRef]);
+    if (!el) return;
+    if (dailyRef.current) return;
 
-  // Handle hangup
-  const handleHangup = useCallback(async () => {
-    console.log('[CALL DEBUG] handleHangup called');
-    await cleanup();
-    closeCall();
-  }, [cleanup, closeCall]);
+    console.log('[CALL DEBUG] Mounting permanent Daily iframe (one-time)');
 
-  // Initialize Daily iframe when overlay opens
-  useEffect(() => {
-    console.log('[CALL DEBUG] CallOverlay useEffect triggered', { 
-      isOpen: state.isOpen, 
-      roomUrl: state.roomUrl,
-      hasContainer: !!containerRef.current,
-      hasExistingDaily: !!dailyRef.current
+    const daily = ensureDailyFrame(el, {
+      iframeStyle: {
+        width: '100%',
+        height: '100%',
+        border: 'none',
+        borderRadius: '0',
+      },
+      showLeaveButton: false,
+      showFullscreenButton: true,
     });
-    
-    // Only proceed if overlay is open and we have a roomUrl
-    if (!state.isOpen) {
-      console.log('[CALL DEBUG] Overlay not open, returning');
-      return;
+
+    dailyRef.current = daily;
+
+    if (!listenersAttachedRef.current) {
+      listenersAttachedRef.current = true;
+
+      daily.on('joined-meeting', () => {
+        console.log('[CALL DEBUG] joined-meeting');
+        setIsConnectedUi(true);
+        setIsJoiningUi(false);
+        setErrorMessage(null);
+      });
+
+      daily.on('left-meeting', () => {
+        console.log('[CALL DEBUG] left-meeting');
+        setIsConnectedUi(false);
+        setIsJoiningUi(false);
+        setErrorMessage(null);
+        // Hide overlay UI if it is still visible
+        closeCall();
+      });
+
+      daily.on('error', (event: any) => {
+        const reason = event?.errorMsg || event?.error?.msg || 'Unknown Daily error';
+        console.error('[CALL DEBUG] daily error', event);
+        setErrorMessage(String(reason));
+        toast.error(`Call error: ${String(reason)}`);
+        // Failure recovery: leave + hide, allow retry on same iframe
+        void (async () => {
+          await leaveRoom();
+          closeCall();
+        })();
+      });
     }
-    
+  }, [closeCall]);
+
+  // Join whenever we open a call (using the SAME iframe)
+  useEffect(() => {
+    if (!state.isOpen) return;
     if (!state.roomUrl) {
-      console.log('[CALL DEBUG] No roomUrl provided, returning');
-      setErrorMessage('No room URL provided');
+      setErrorMessage('Missing roomUrl');
+      toast.error('Call failed: missing roomUrl');
+      closeCall();
       return;
     }
 
-    // Wait for container to be ready
-    if (!containerRef.current) {
-      console.log('[CALL DEBUG] Container ref not ready, will retry on next render');
-      return;
-    }
+    let cancelled = false;
 
-    // If we already have a Daily instance for THIS room, skip
-    // This prevents re-init on re-renders, but allows new calls
-    if (dailyRef.current) {
-      console.log('[CALL DEBUG] Daily instance exists, checking if same room...');
-      // The cleanup should have been called before openCall sets new state
-      // If we still have an instance, it means we're in the same call
-      return;
-    }
+    const run = async () => {
+      console.log('[CALL DEBUG] openCall flow (single iframe) join()', { roomUrl: state.roomUrl });
 
-    const initDaily = async () => {
-      console.log('[CALL DEBUG] initDaily starting...');
-      setIsJoining(true);
+      // UI reset before starting new call (no iframe recreation)
+      setIsJoiningUi(true);
+      setIsConnectedUi(false);
       setErrorMessage(null);
 
       try {
-        // Request mic permission BEFORE join
-        console.log('[CALL DEBUG] Requesting media permissions...');
+        // Always leave any previous room first (same iframe)
+        await leaveRoom();
+
+        // Request media permissions once per call attempt (still required by browser)
         try {
-          await navigator.mediaDevices.getUserMedia({ 
+          await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: state.callType === 'video'
+            video: state.callType === 'video',
           });
-          console.log('[CALL DEBUG] Media permissions granted');
         } catch (permError: any) {
-          const errMsg = `Microphone permission denied: ${permError?.message || permError}`;
-          console.error('[CALL DEBUG]', errMsg);
-          setErrorMessage(errMsg);
-          toast.error('Microphone permission is required for calls');
-          await cleanup();
+          const msg = state.callType === 'video'
+            ? 'Microphone and camera permission required'
+            : 'Microphone permission required';
+          console.error('[CALL DEBUG] Media permission denied:', permError);
+          setErrorMessage(permError?.message ? `${msg}: ${permError.message}` : msg);
+          toast.error(msg);
+          await leaveRoom();
           closeCall();
           return;
         }
 
-        console.log('[CALL DEBUG] Creating Daily iframe...');
-        // Create the Daily iframe
-        const daily = DailyIframe.createFrame(containerRef.current!, {
-          iframeStyle: {
-            width: '100%',
-            height: '100%',
-            border: 'none',
-            borderRadius: '0',
-          },
-          showLeaveButton: false,
-          showFullscreenButton: true,
-        });
+        // Join on the existing iframe
+        await joinRoom(state.roomUrl);
 
-        dailyRef.current = daily;
-        console.log('[CALL DEBUG] Daily iframe created');
+        if (cancelled) return;
+      } catch (e: any) {
+        const reason = e?.message || String(e);
+        console.error('[CALL DEBUG] join failed:', e);
+        setErrorMessage(reason);
+        toast.error(`Failed to start call: ${reason}`);
 
-        // Set up event listeners
-        daily.on('joined-meeting', () => {
-          console.log('[CALL DEBUG] Successfully joined meeting');
-          setIsConnected(true);
-          setIsJoining(false);
-          setErrorMessage(null);
-        });
-
-        daily.on('left-meeting', () => {
-          console.log('[CALL DEBUG] Left meeting event');
-          handleHangup();
-        });
-
-        daily.on('error', (event) => {
-          const errMsg = `Daily error: ${JSON.stringify(event)}`;
-          console.error('[CALL DEBUG]', errMsg);
-          setErrorMessage(errMsg);
-          toast.error(`Call error: ${event?.errorMsg || 'Unknown error'}`);
-          handleHangup();
-        });
-
-        // Join the room
-        console.log('[CALL DEBUG] Joining room:', state.roomUrl);
-        await daily.join({ url: state.roomUrl });
-        console.log('[CALL DEBUG] Join call completed');
-
-      } catch (error: any) {
-        const errMsg = `Failed to initialize Daily: ${error?.message || error}`;
-        console.error('[CALL DEBUG]', errMsg);
-        setErrorMessage(errMsg);
-        toast.error(`Failed to start call: ${error?.message || 'Unknown error'}`);
-        await cleanup();
+        // FAILURE RECOVERY: leave + hide, allow retry immediately on same iframe
+        await leaveRoom();
         closeCall();
+      } finally {
+        if (!cancelled) setIsJoiningUi(false);
       }
     };
 
-    initDaily();
+    run();
 
-    // Cleanup on unmount
     return () => {
-      console.log('[CALL DEBUG] CallOverlay effect cleanup (unmount or deps change)');
-      // Don't auto-cleanup here as it may interrupt active calls on re-renders
+      cancelled = true;
     };
-  }, [state.isOpen, state.roomUrl, state.callType, closeCall, cleanup, handleHangup]);
+  }, [state.isOpen, state.roomUrl, state.callType, closeCall]);
 
-  // Cleanup when overlay closes
-  useEffect(() => {
-    if (!state.isOpen && dailyRef.current) {
-      console.log('[CALL DEBUG] Overlay closed, cleaning up...');
-      cleanup();
-    }
-  }, [state.isOpen, cleanup]);
+  const handleHangup = useCallback(async () => {
+    console.log('[CALL DEBUG] Hangup clicked');
+    // ENDING A CALL: leave() + hide (do NOT destroy iframe)
+    await leaveRoom();
+    setIsConnectedUi(false);
+    setIsJoiningUi(false);
+    setErrorMessage(null);
+    closeCall();
+  }, [closeCall]);
+
+  const isVisible = state.isOpen;
 
   return (
-    <AnimatePresence>
-      {state.isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[9999] bg-background flex flex-col"
+    <motion.div
+      initial={false}
+      animate={{ opacity: isVisible ? 1 : 0 }}
+      transition={{ duration: 0.2 }}
+      aria-hidden={!isVisible}
+      className={
+        "fixed inset-0 z-[9999] bg-background flex flex-col " +
+        (isVisible ? "pointer-events-auto" : "pointer-events-none")
+      }
+      style={{
+        // Keep it in the DOM always; hide via CSS only
+        visibility: isVisible ? 'visible' : 'hidden',
+      }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-3 border-b border-border/50 bg-background/80 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-full bg-primary/10">
+            {state.callType === 'video' ? (
+              <Video className="w-4 h-4 text-primary" />
+            ) : (
+              <Phone className="w-4 h-4 text-primary" />
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              {state.callType === 'video' ? 'Video Call' : 'Audio Call'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {errorMessage
+                ? <span className="text-destructive">{errorMessage}</span>
+                : isJoiningUi
+                  ? 'Connecting...'
+                  : isConnectedUi
+                    ? 'Connected'
+                    : 'Starting...'}
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleHangup}
+          className="rounded-full hover:bg-destructive/10 hover:text-destructive"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between p-3 border-b border-border/50 bg-background/80 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-primary/10">
-                {state.callType === 'video' ? (
-                  <Video className="w-4 h-4 text-primary" />
-                ) : (
-                  <Phone className="w-4 h-4 text-primary" />
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  {state.callType === 'video' ? 'Video Call' : 'Audio Call'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {errorMessage 
-                    ? <span className="text-destructive">{errorMessage}</span>
-                    : isJoining 
-                      ? 'Connecting...' 
-                      : isConnected 
-                        ? 'Connected' 
-                        : 'Starting...'}
-                </p>
-              </div>
+          <X className="w-5 h-5" />
+        </Button>
+      </div>
+
+      {/* Permanent Daily iframe host (ALWAYS exists) */}
+      <div ref={setHostEl} className="flex-1 relative bg-black">
+        {isJoiningUi && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+            <div className="text-center space-y-4">
+              <Loader2 className="w-12 h-12 mx-auto text-primary animate-spin" />
+              <p className="text-sm text-muted-foreground">Connecting to call...</p>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleHangup}
-              className="rounded-full hover:bg-destructive/10 hover:text-destructive"
-            >
-              <X className="w-5 h-5" />
-            </Button>
           </div>
+        )}
+      </div>
 
-          {/* Daily iframe container */}
-          <div 
-            ref={containerRef} 
-            className="flex-1 relative bg-black"
-          >
-            {/* Loading state shown until iframe loads */}
-            {isJoining && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-                <div className="text-center space-y-4">
-                  <Loader2 className="w-12 h-12 mx-auto text-primary animate-spin" />
-                  <p className="text-sm text-muted-foreground">Connecting to call...</p>
-                </div>
-              </div>
-            )}
-            
-            {/* Error state */}
-            {errorMessage && !isJoining && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-                <div className="text-center space-y-4 p-4">
-                  <p className="text-sm text-destructive font-mono break-all">{errorMessage}</p>
-                  <Button variant="outline" onClick={handleHangup}>Close</Button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Footer controls */}
-          <div className="p-4 flex justify-center bg-background/80 backdrop-blur-sm border-t border-border/50">
-            <Button
-              variant="destructive"
-              size="lg"
-              onClick={handleHangup}
-              className="rounded-full px-8"
-            >
-              <Phone className="w-5 h-5 mr-2 rotate-[135deg]" />
-              End Call
-            </Button>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+      {/* Footer controls */}
+      <div className="p-4 flex justify-center bg-background/80 backdrop-blur-sm border-t border-border/50">
+        <Button
+          variant="destructive"
+          size="lg"
+          onClick={handleHangup}
+          className="rounded-full px-8"
+        >
+          <Phone className="w-5 h-5 mr-2 rotate-[135deg]" />
+          End Call
+        </Button>
+      </div>
+    </motion.div>
   );
 }
