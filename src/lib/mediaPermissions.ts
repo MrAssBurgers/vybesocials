@@ -1,39 +1,5 @@
 export type CallMediaType = 'audio' | 'video';
 
-const PERMISSION_STORAGE_KEY = 'vybe_call_permissions';
-
-interface PermissionState {
-  audio: boolean;
-  video: boolean;
-  timestamp: number;
-}
-
-function getStoredPermissions(): PermissionState | null {
-  try {
-    const stored = localStorage.getItem(PERMISSION_STORAGE_KEY);
-    if (!stored) return null;
-    const state = JSON.parse(stored) as PermissionState;
-    // Permissions stored for max 30 days
-    const maxAge = 30 * 24 * 60 * 60 * 1000;
-    if (Date.now() - state.timestamp > maxAge) {
-      localStorage.removeItem(PERMISSION_STORAGE_KEY);
-      return null;
-    }
-    return state;
-  } catch {
-    return null;
-  }
-}
-
-function storePermissions(audio: boolean, video: boolean): void {
-  try {
-    const state: PermissionState = { audio, video, timestamp: Date.now() };
-    localStorage.setItem(PERMISSION_STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // ignore
-  }
-}
-
 function assertMediaSupported() {
   if (typeof navigator === 'undefined') throw new Error('Media devices not supported');
   if (!navigator.mediaDevices?.getUserMedia) throw new Error('Media devices not supported');
@@ -50,58 +16,22 @@ function stopTracks(stream: MediaStream) {
 }
 
 /**
- * Check if we already have permission via the Permissions API (if available)
- */
-async function checkExistingPermission(kind: 'microphone' | 'camera'): Promise<boolean> {
-  try {
-    if (!navigator.permissions?.query) return false;
-    const result = await navigator.permissions.query({ name: kind as PermissionName });
-    return result.state === 'granted';
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Requests the minimal permissions required for the call type.
  * - audio: microphone
  * - video: microphone + camera
- * 
- * Skips the prompt if permissions were already granted previously.
  */
 export async function requestCallMediaPermissions(callType: CallMediaType): Promise<void> {
   assertMediaSupported();
 
   console.log('[mediaPermissions] Requesting permissions for:', callType);
 
-  // Check stored permissions first
-  const stored = getStoredPermissions();
-  const hasStoredAudio = stored?.audio === true;
-  const hasStoredVideo = stored?.video === true;
-
-  // Also check via Permissions API
-  const hasApiAudio = await checkExistingPermission('microphone');
-  const hasApiVideo = callType === 'video' ? await checkExistingPermission('camera') : true;
-
-  console.log('[mediaPermissions] Stored permissions:', { hasStoredAudio, hasStoredVideo });
-  console.log('[mediaPermissions] API permissions:', { hasApiAudio, hasApiVideo });
-
-  // If already have permissions, skip prompting
-  if ((hasStoredAudio || hasApiAudio) && (callType !== 'video' || hasStoredVideo || hasApiVideo)) {
-    console.log('[mediaPermissions] Permissions already granted, skipping prompt');
-    return;
-  }
-
-  let audioGranted = false;
-  let videoGranted = false;
-
   try {
     const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     console.log('[mediaPermissions] Microphone access granted');
     stopTracks(micStream);
-    audioGranted = true;
   } catch (err: any) {
     console.error('[mediaPermissions] Microphone access denied:', err);
+    // Mic is always required for calls in this app
     throw new Error(callType === 'video' ? 'Microphone/Camera permission required' : 'Microphone permission required');
   }
 
@@ -110,14 +40,11 @@ export async function requestCallMediaPermissions(callType: CallMediaType): Prom
       const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
       console.log('[mediaPermissions] Camera access granted');
       stopTracks(camStream);
-      videoGranted = true;
     } catch (err: any) {
       console.warn('[mediaPermissions] Camera access denied, continuing with audio only:', err);
+      // Don't throw for camera - allow audio-only fallback
     }
   }
-
-  // Store granted permissions
-  storePermissions(audioGranted, videoGranted || hasStoredVideo || hasApiVideo);
 }
 
 /**
