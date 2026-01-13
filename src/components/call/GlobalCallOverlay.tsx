@@ -54,13 +54,15 @@ function destroyDailyInstance() {
 }
 
 // Create a FRESH Daily instance - always destroys old one first
-function createFreshDailyInstance(container: HTMLDivElement): DailyCall | null {
+function createFreshDailyInstance(container: HTMLDivElement, roomUrl: string): DailyCall | null {
   // Always start clean
   destroyDailyInstance();
-  
+
   try {
     console.log('[CallOverlay] Creating fresh Daily instance');
     const daily = DailyIframe.createFrame(container, {
+      // Important: ensure the iframe is loaded with the SAME URL we will join
+      url: roomUrl,
       iframeStyle: {
         width: '100%',
         height: '100%',
@@ -71,7 +73,7 @@ function createFreshDailyInstance(container: HTMLDivElement): DailyCall | null {
       startAudioOff: true,
       startVideoOff: true,
     });
-    
+
     globalDailyInstance = daily;
     globalListenersAttached = false;
     console.log('[CallOverlay] Daily instance created successfully');
@@ -100,6 +102,12 @@ export function GlobalCallOverlay() {
   const [preJoinStatus, setPreJoinStatus] = useState('Checking devices...');
   const [isPreJoinReady, setIsPreJoinReady] = useState(false);
   const [showPreJoin, setShowPreJoin] = useState(false);
+  const [joinRequested, setJoinRequested] = useState(false);
+
+  // Join preparation state (refs to avoid reruns)
+  const preparedCallIdRef = useRef<string | null>(null);
+  const joinStartedCallIdRef = useRef<string | null>(null);
+  const joinTokenRef = useRef<string | null>(null);
 
   // Track call data for stale closure prevention
   const stateRef = useRef(state);
@@ -214,7 +222,7 @@ export function GlobalCallOverlay() {
       setPreJoinStatus('Initializing...');
 
       // Create fresh Daily instance for this call
-      const daily = createFreshDailyInstance(containerRef.current!);
+      const daily = createFreshDailyInstance(containerRef.current!, state.call!.roomUrl);
       if (!daily) {
         console.error('[CallOverlay] Failed to create Daily instance');
         setError('Failed to initialize call');
@@ -222,7 +230,7 @@ export function GlobalCallOverlay() {
         return;
       }
       dailyRef.current = daily;
-      
+
       // Attach event listeners
       attachDailyListeners(daily);
 
@@ -420,9 +428,10 @@ export function GlobalCallOverlay() {
         ref={containerRef}
         className={cn(
           'fixed inset-0 z-[9998] bg-black transition-opacity duration-200',
-          isConnected ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          (isConnected || isConnecting) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}
-        style={{ visibility: isConnected ? 'visible' : 'hidden' }}
+        // Keep it in the render tree (and measurable) while connecting; Daily can crash if iframe is created inside a hidden container.
+        style={{ visibility: (isConnected || isConnecting) ? 'visible' : 'hidden' }}
       />
 
       {/* Pre-join screen (shown during creating/joining) */}
