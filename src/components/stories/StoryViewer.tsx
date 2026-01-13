@@ -52,7 +52,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
     if (currentStory && !currentStory.has_viewed && !isOwnStory) {
       viewStory.mutate(currentStory.id);
     }
-  }, [currentStory?.id, isOwnStory]);
+  }, [currentStory?.id, currentStory?.has_viewed, isOwnStory, viewStory]);
 
   // Progress timer
   useEffect(() => {
