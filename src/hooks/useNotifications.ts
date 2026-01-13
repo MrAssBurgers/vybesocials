@@ -32,7 +32,7 @@ function showNativeNotification(title: string, body: string, url?: string) {
   };
 }
 
-export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention';
+export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call';
 
 interface Notification {
   id: string;
@@ -126,6 +126,7 @@ export function useNotifications() {
             friend_declined: 'declined your friend request',
             message: 'sent you a message',
             mention: 'mentioned you',
+            missed_call: 'tried to call you',
           };
 
           const message = `${actor?.username || 'Someone'} ${messages[type] || 'interacted with you'}`;
