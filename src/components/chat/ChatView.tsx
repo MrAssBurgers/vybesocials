@@ -36,6 +36,7 @@ import { ScheduleMessageSheet } from './ScheduleMessageSheet';
 import { DMSettingsSheetControlled } from './DMSettingsSheetControlled';
 import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { CallButtons } from '@/components/call/CallButtons';
+import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
@@ -58,7 +59,8 @@ import {
   Trash2,
   Edit3,
   MoreHorizontal,
-  Users
+  Users,
+  Settings
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -119,6 +121,7 @@ export function ChatView() {
   const [showScheduleMessage, setShowScheduleMessage] = useState(false);
   const [showDMSettings, setShowDMSettings] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
+  const [showMediaSettings, setShowMediaSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -688,6 +691,13 @@ export function ChatView() {
             creatorId={conversation?.members?.find(m => m.role === 'owner')?.user_id}
           />
         )}
+
+        {/* Pre-call Media Settings */}
+        <CallSettingsSheet
+          isOpen={showMediaSettings}
+          onOpenChange={setShowMediaSettings}
+          isVideoCall={true}
+        />
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -697,6 +707,10 @@ export function ChatView() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="z-50 bg-popover">
             <DropdownMenuItem onClick={handleAvatarClick}>{t('messages.viewProfile')}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowMediaSettings(true)}>
+              <Settings className="h-4 w-4 mr-2" />
+              Media Settings
+            </DropdownMenuItem>
             <DropdownMenuItem>{t('messages.muteNotifications')}</DropdownMenuItem>
             <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
           </DropdownMenuContent>
