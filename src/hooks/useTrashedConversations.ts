@@ -93,13 +93,35 @@ export function useTrashConversation() {
         );
 
       if (error) throw error;
+      return conversationId;
+    },
+    onMutate: async (conversationId: string) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['trashed-conversation-ids'] });
+      
+      // Snapshot previous value
+      const previousIds = queryClient.getQueryData<Set<string>>(['trashed-conversation-ids', profile?.id]);
+      
+      // Optimistically add to trashed IDs
+      queryClient.setQueryData<Set<string>>(['trashed-conversation-ids', profile?.id], (old) => {
+        const newSet = new Set(old || []);
+        newSet.add(conversationId);
+        return newSet;
+      });
+      
+      return { previousIds };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       queryClient.invalidateQueries({ queryKey: ['trashed-conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['trashed-conversation-ids'] });
       toast.success('Chat moved to trash');
     },
-    onError: (error: any) => {
+    onError: (error: any, conversationId, context) => {
+      // Rollback on error
+      if (context?.previousIds) {
+        queryClient.setQueryData(['trashed-conversation-ids', profile?.id], context.previousIds);
+      }
       console.error('Failed to trash conversation:', error);
       toast.error('Failed to delete chat');
     },
@@ -122,13 +144,35 @@ export function useRestoreConversation() {
         .eq('conversation_id', conversationId);
 
       if (error) throw error;
+      return conversationId;
+    },
+    onMutate: async (conversationId: string) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['trashed-conversation-ids'] });
+      
+      // Snapshot previous value
+      const previousIds = queryClient.getQueryData<Set<string>>(['trashed-conversation-ids', profile?.id]);
+      
+      // Optimistically remove from trashed IDs
+      queryClient.setQueryData<Set<string>>(['trashed-conversation-ids', profile?.id], (old) => {
+        const newSet = new Set(old || []);
+        newSet.delete(conversationId);
+        return newSet;
+      });
+      
+      return { previousIds };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       queryClient.invalidateQueries({ queryKey: ['trashed-conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['trashed-conversation-ids'] });
       toast.success('Chat restored');
     },
-    onError: (error: any) => {
+    onError: (error: any, conversationId, context) => {
+      // Rollback on error
+      if (context?.previousIds) {
+        queryClient.setQueryData(['trashed-conversation-ids', profile?.id], context.previousIds);
+      }
       console.error('Failed to restore conversation:', error);
       toast.error('Failed to restore chat');
     },
