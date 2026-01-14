@@ -17,49 +17,27 @@ export function useUnsendForEveryone() {
     mutationFn: async (messageId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // Get the message to verify ownership and get conversation_id
-      const { data: message, error: fetchError } = await supabase
-        .from('messages')
-        .select('sender_id, conversation_id')
-        .eq('id', messageId)
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-      if (!message) throw new Error('Message not found');
-      
-      if (message.sender_id !== profile.id) {
-        throw new Error('You can only unsend your own messages');
-      }
-
-      // Perform the actual database update in mutationFn (not onSuccess)
-      const { error } = await supabase
-        .from('messages')
-        .update({ 
-          is_deleted: true,
-          deleted_at: new Date().toISOString(),
-          content: null,
-          media_url: null,
-        })
-        .eq('id', messageId)
-        .eq('sender_id', profile.id); // Ensure ownership
+      const { data, error } = await supabase.functions.invoke('unsend-message', {
+        body: { messageId },
+      });
 
       if (error) throw error;
 
-      return { messageId, conversationId: message.conversation_id };
+      const conversationId = (data as any)?.conversationId as string | undefined;
+      if (!conversationId) throw new Error('Failed to unsend message');
+
+      return { messageId, conversationId };
     },
     onMutate: async (messageId) => {
-      // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['messages'] });
       return { messageId };
     },
     onSuccess: ({ messageId, conversationId }) => {
-      // Remove from cache after successful DB update
       queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
         if (!old) return old;
-        return old.filter(m => m.id !== messageId);
+        return old.filter((m) => m.id !== messageId);
       });
 
-      // Update conversation list
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       toast.success('Message unsent');
     },
