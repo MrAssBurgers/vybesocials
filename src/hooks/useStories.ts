@@ -46,31 +46,35 @@ export function useStories() {
     queryFn: async () => {
       if (!profile?.id) return [];
 
-      // Get user's friends (people they follow who follow them back)
-      const { data: following } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', profile.id);
+      // Get friends using friend_requests table (accepted requests)
+      const { data: asSender } = await supabase
+        .from('friend_requests')
+        .select('receiver_id')
+        .eq('sender_id', profile.id)
+        .eq('status', 'accepted');
 
-      const followingIds = following?.map(f => f.following_id) || [];
+      const { data: asReceiver } = await supabase
+        .from('friend_requests')
+        .select('sender_id')
+        .eq('receiver_id', profile.id)
+        .eq('status', 'accepted');
 
-      const { data: followers } = await supabase
-        .from('follows')
-        .select('follower_id')
-        .eq('following_id', profile.id);
+      // Combine friend IDs
+      const friendIds = new Set<string>([
+        ...(asSender?.map(r => r.receiver_id) || []),
+        ...(asReceiver?.map(r => r.sender_id) || []),
+      ]);
 
-      const followerIds = followers?.map(f => f.follower_id) || [];
+      // Get non-expired stories - ONLY from friends and self
+      const allowedIds = [profile.id, ...Array.from(friendIds)];
       
-      // Friends are mutual follows
-      const friendIds = new Set(followingIds.filter(id => followerIds.includes(id)));
-
-      // Get non-expired stories
       const { data, error } = await supabase
         .from('stories')
         .select(`
           *,
           author:profiles!author_id(id, username, avatar_url, display_name)
         `)
+        .in('author_id', allowedIds)
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 
@@ -108,21 +112,14 @@ export function useStories() {
         }
       }
 
-      // Sort: own stories first, then friends with unviewed, then friends viewed, then others
+      // Sort: own stories first, then friends with unviewed, then viewed
       const groups = Array.from(groupedMap.values());
       groups.sort((a, b) => {
         // Own stories first
         if (a.user.id === profile.id) return -1;
         if (b.user.id === profile.id) return 1;
         
-        // Friends before non-friends
-        const aIsFriend = friendIds.has(a.user.id);
-        const bIsFriend = friendIds.has(b.user.id);
-        
-        if (aIsFriend && !bIsFriend) return -1;
-        if (!aIsFriend && bIsFriend) return 1;
-        
-        // Within same category, unviewed before viewed
+        // Within friends, unviewed before viewed
         if (a.hasUnviewed && !b.hasUnviewed) return -1;
         if (!a.hasUnviewed && b.hasUnviewed) return 1;
         
