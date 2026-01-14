@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, DragEvent } from 'react';
+import { useState, useCallback, useRef, useEffect, DragEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Camera } from '@/components/camera/Camera';
 import { ContentSafetyScanner } from '@/components/safety/ContentSafetyScanner';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { useCreatePost } from '@/hooks/usePosts';
+import { useContentSafety } from '@/hooks/useContentSafety';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon } from 'lucide-react';
@@ -26,6 +27,7 @@ export default function UploadPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const createPost = useCreatePost();
+  const contentSafety = useContentSafety();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [contentType, setContentType] = useState<'post' | 'short' | 'video'>('post');
@@ -38,8 +40,18 @@ export default function UploadPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [showSafetyScanner, setShowSafetyScanner] = useState(false);
-  const [safetyFile, setSafetyFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Run safety scan when file is selected
+  useEffect(() => {
+    if (file && showSafetyScanner) {
+      if (file.type.startsWith('video/')) {
+        contentSafety.scanVideo(file);
+      } else {
+        contentSafety.scanImage(file);
+      }
+    }
+  }, [file, showSafetyScanner]);
 
   const handleFileSelect = useCallback((selectedFile: File) => {
     const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
@@ -59,9 +71,9 @@ export default function UploadPage() {
     } else {
       setContentType('post');
     }
-    setSafetyFile(selectedFile);
+    contentSafety.reset();
     setShowSafetyScanner(true);
-  }, []);
+  }, [contentSafety]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -89,8 +101,15 @@ export default function UploadPage() {
   }, [handleFileSelect]);
 
   const handleSafetyContinue = () => setShowSafetyScanner(false);
-  const handleSafetyCancel = () => { setShowSafetyScanner(false); clearFile(); };
-  const handleSafetyAppeal = () => { toast.info('Appeal submitted for review'); setShowSafetyScanner(false); };
+  const handleSafetyCancel = () => { 
+    setShowSafetyScanner(false); 
+    clearFile(); 
+    contentSafety.reset();
+  };
+  const handleSafetyAppeal = () => { 
+    contentSafety.submitAppeal(file?.type.startsWith('video/') ? 'video' : 'image', 'User appealed content decision');
+    setShowSafetyScanner(false); 
+  };
 
   const handleAddTag = (tag: string) => {
     const cleanTag = tag.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
@@ -112,7 +131,7 @@ export default function UploadPage() {
     setUploadProgress(0);
     try {
       const progressInterval = setInterval(() => setUploadProgress(prev => Math.min(prev + 10, 90)), 200);
-      await createPost.mutateAsync({ file, caption, type: contentType, tags });
+      await createPost.mutateAsync({ mediaFile: file, caption, type: contentType, tags });
       clearInterval(progressInterval);
       setUploadProgress(100);
       toast.success('Posted successfully!');
@@ -133,22 +152,22 @@ export default function UploadPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleCameraCapture = (mediaUrl: string, mediaFile: File) => {
-    setPreview(mediaUrl);
-    setFile(mediaFile);
-    setShowCamera(false);
-    if (mediaFile.type.startsWith('video/')) setContentType('short');
-    else setContentType('post');
-    setSafetyFile(mediaFile);
-    setShowSafetyScanner(true);
-  };
-
-  if (showCamera) return <Camera onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />;
+  if (showCamera) return <Camera onClose={() => setShowCamera(false)} />;
 
   return (
     <AppLayout>
-      {showSafetyScanner && safetyFile && (
-        <ContentSafetyScanner file={safetyFile} onContinue={handleSafetyContinue} onCancel={handleSafetyCancel} onAppeal={handleSafetyAppeal} />
+      {showSafetyScanner && file && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <ContentSafetyScanner 
+            isScanning={contentSafety.isScanning}
+            result={contentSafety.result}
+            message={contentSafety.message}
+            scanDetails={contentSafety.scanDetails}
+            onContinue={handleSafetyContinue} 
+            onCancel={handleSafetyCancel} 
+            onAppeal={handleSafetyAppeal} 
+          />
+        </div>
       )}
       <div className="max-w-2xl mx-auto p-4 pb-24 space-y-6">
         <h1 className="text-2xl font-bold">Create Post</h1>
@@ -191,7 +210,7 @@ export default function UploadPage() {
           <label className="text-sm font-medium text-muted-foreground">Caption</label>
           <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write a caption..." className="min-h-24 resize-none" maxLength={2200} />
           <div className="flex items-center justify-between">
-            <AICaptionGenerator mediaUrl={preview || undefined} onCaptionGenerated={setCaption} />
+            <AICaptionGenerator tags={tags} contentType={contentType} onSelectCaption={setCaption} />
             <span className="text-xs text-muted-foreground">{caption.length}/2200</span>
           </div>
         </div>
