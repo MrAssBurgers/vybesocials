@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Palette, Sparkles, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon, Share2 } from 'lucide-react';
+import { Palette, Sparkles, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon, Share2, Zap, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Dialog,
@@ -34,6 +35,20 @@ const PRESET_INFO: Record<string, { name: string; description: string; icon: str
   minimal: { name: 'Minimal', description: 'Clean black & white', icon: '⬛' },
 };
 
+const ANIMATION_SPEEDS = [
+  { value: 'slow', label: 'Slow', description: 'Relaxed, gentle animations' },
+  { value: 'normal', label: 'Normal', description: 'Balanced feel' },
+  { value: 'fast', label: 'Fast', description: 'Snappy, quick transitions' },
+  { value: 'instant', label: 'Instant', description: 'No delay, immediate' },
+] as const;
+
+const ANIMATION_STYLES = [
+  { value: 'smooth', label: 'Smooth', description: 'Natural easing' },
+  { value: 'bouncy', label: 'Bouncy', description: 'Playful spring effect' },
+  { value: 'snappy', label: 'Snappy', description: 'Sharp, crisp motion' },
+  { value: 'none', label: 'None', description: 'Disable animations' },
+] as const;
+
 export function DesignYourVybe() {
   const { data: userTheme, isLoading: isLoadingTheme } = useUserTheme();
   const saveTheme = useSaveTheme();
@@ -49,14 +64,22 @@ export function DesignYourVybe() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareDescription, setShareDescription] = useState('');
+  
+  // Animation settings
+  const [animationSpeed, setAnimationSpeed] = useState<'slow' | 'normal' | 'fast' | 'instant'>('normal');
+  const [animationStyle, setAnimationStyle] = useState<'smooth' | 'bouncy' | 'snappy' | 'none'>('smooth');
 
   // Load user's current theme/preset on mount
   useEffect(() => {
     if (userTheme) {
       setSelectedPreset(userTheme.base_preset || 'classic');
       if (userTheme.theme_tokens && userTheme.is_active) {
-        setPreviewTheme(userTheme.theme_tokens as unknown as ThemeTokens);
+        const tokens = userTheme.theme_tokens as unknown as ThemeTokens;
+        setPreviewTheme(tokens);
         setGeneratedName(userTheme.theme_name || '');
+        // Load saved animation settings
+        setAnimationSpeed(tokens.animationSpeed || 'normal');
+        setAnimationStyle(tokens.animationStyle || 'smooth');
       }
     }
   }, [userTheme]);
@@ -66,13 +89,36 @@ export function DesignYourVybe() {
       setSelectedPreset(presetKey);
       const preset = THEME_PRESETS[presetKey];
       if (preset) {
-        setPreviewTheme(preset);
+        const themeWithAnimations = { 
+          ...preset, 
+          animationSpeed, 
+          animationStyle 
+        };
+        setPreviewTheme(themeWithAnimations);
         setGeneratedName(PRESET_INFO[presetKey]?.name || presetKey);
-        applyThemeTokens(preset);
+        applyThemeTokens(themeWithAnimations);
         setShowConfirmation(true);
       }
     } catch (error) {
       console.error('Error selecting preset:', error);
+    }
+  };
+
+  // Apply animation changes live
+  const handleAnimationChange = (speed: typeof animationSpeed, style: typeof animationStyle) => {
+    setAnimationSpeed(speed);
+    setAnimationStyle(style);
+    
+    const currentTheme = previewTheme || THEME_PRESETS[selectedPreset];
+    if (currentTheme) {
+      const updatedTheme = {
+        ...currentTheme,
+        animationSpeed: speed,
+        animationStyle: style,
+      };
+      setPreviewTheme(updatedTheme);
+      applyThemeTokens(updatedTheme);
+      setShowConfirmation(true);
     }
   };
 
@@ -102,8 +148,14 @@ export function DesignYourVybe() {
   const handleKeepTheme = async () => {
     if (!previewTheme) return;
     
+    const themeWithAnimations = {
+      ...previewTheme,
+      animationSpeed,
+      animationStyle,
+    };
+    
     await saveTheme.mutateAsync({
-      themeTokens: previewTheme,
+      themeTokens: themeWithAnimations,
       themeName: generatedName,
       basePreset: selectedPreset,
     });
@@ -123,6 +175,8 @@ export function DesignYourVybe() {
     setSelectedPreset('classic');
     setShowConfirmation(false);
     setPrompt('');
+    setAnimationSpeed('normal');
+    setAnimationStyle('smooth');
   };
 
   return (
@@ -246,6 +300,89 @@ export function DesignYourVybe() {
                   </motion.button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Animation Settings */}
+          <div className="space-y-4 pt-4 border-t border-border">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Animation Settings</span>
+            </div>
+            
+            {/* Animation Speed */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Timer className="h-3 w-3" />
+                Speed
+              </Label>
+              <div className="grid grid-cols-4 gap-2">
+                {ANIMATION_SPEEDS.map((speed) => (
+                  <motion.button
+                    key={speed.value}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleAnimationChange(speed.value, animationStyle)}
+                    className={cn(
+                      "p-2 rounded-lg border text-center transition-all",
+                      animationSpeed === speed.value
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <p className="text-xs font-medium">{speed.label}</p>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* Animation Style */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3" />
+                Style
+              </Label>
+              <div className="grid grid-cols-4 gap-2">
+                {ANIMATION_STYLES.map((style) => (
+                  <motion.button
+                    key={style.value}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleAnimationChange(animationSpeed, style.value)}
+                    className={cn(
+                      "p-2 rounded-lg border text-center transition-all",
+                      animationStyle === style.value
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <p className="text-xs font-medium">{style.label}</p>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* Animation Preview */}
+            <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
+              <p className="text-xs text-muted-foreground mb-2">Preview</p>
+              <div className="flex items-center gap-3">
+                <motion.div
+                  key={`${animationSpeed}-${animationStyle}`}
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{
+                    duration: animationSpeed === 'instant' ? 0.05 : animationSpeed === 'fast' ? 0.15 : animationSpeed === 'slow' ? 0.5 : 0.3,
+                    ease: animationStyle === 'bouncy' ? [0.34, 1.56, 0.64, 1] : animationStyle === 'snappy' ? [0.22, 1, 0.36, 1] : [0.4, 0, 0.2, 1],
+                  }}
+                  className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-medium capitalize">{animationSpeed} + {animationStyle}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {ANIMATION_SPEEDS.find(s => s.value === animationSpeed)?.description}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
