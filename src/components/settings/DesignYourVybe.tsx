@@ -1,9 +1,18 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Palette, Sparkles, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon } from 'lucide-react';
+import { Palette, Sparkles, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { 
   useUserTheme, 
   useSaveTheme, 
@@ -13,6 +22,7 @@ import {
   THEME_PRESETS,
   ThemeTokens,
 } from '@/hooks/useCustomTheme';
+import { useShareTheme } from '@/hooks/useSharedThemes';
 import { cn } from '@/lib/utils';
 
 const PRESET_INFO: Record<string, { name: string; description: string; icon: string }> = {
@@ -29,6 +39,7 @@ export function DesignYourVybe() {
   const saveTheme = useSaveTheme();
   const resetTheme = useResetTheme();
   const generateTheme = useGenerateTheme();
+  const shareTheme = useShareTheme();
 
   const [prompt, setPrompt] = useState('');
   const [selectedPreset, setSelectedPreset] = useState<string>('classic');
@@ -36,6 +47,8 @@ export function DesignYourVybe() {
   const [generatedName, setGeneratedName] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareDescription, setShareDescription] = useState('');
 
   // Load user's current theme/preset on mount
   useEffect(() => {
@@ -278,6 +291,68 @@ export function DesignYourVybe() {
                     Try Again
                   </Button>
                 </div>
+
+                {/* Share Theme Option */}
+                <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" className="w-full">
+                      <Share2 className="h-4 w-4 mr-2" />
+                      Share with Community
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Share Your Theme</DialogTitle>
+                      <DialogDescription>
+                        Share "{generatedName}" with the VYBE community
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-16 h-16 rounded-xl"
+                          style={{ 
+                            background: `linear-gradient(135deg, hsl(${previewTheme.colorPrimary}), hsl(${previewTheme.colorAccent}))` 
+                          }}
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold">{generatedName}</p>
+                          <p className="text-xs text-muted-foreground">{previewTheme.mode} mode</p>
+                        </div>
+                      </div>
+                      <Input
+                        placeholder="Add a description (optional)"
+                        value={shareDescription}
+                        onChange={(e) => setShareDescription(e.target.value)}
+                      />
+                      <Button 
+                        className="w-full"
+                        onClick={async () => {
+                          await shareTheme.mutateAsync({
+                            themeName: generatedName,
+                            themeTokens: previewTheme,
+                            description: shareDescription || undefined,
+                          });
+                          setShareDialogOpen(false);
+                          setShareDescription('');
+                        }}
+                        disabled={shareTheme.isPending}
+                      >
+                        {shareTheme.isPending ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Sharing...
+                          </>
+                        ) : (
+                          <>
+                            <Share2 className="h-4 w-4 mr-2" />
+                            Share Theme
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </motion.div>
             )}
           </AnimatePresence>
