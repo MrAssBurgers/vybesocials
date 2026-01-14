@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Home, Film, Compass, MessageCircle, ShoppingBag, Calendar, Bell, Settings, 
+  Home, Compass, MessageCircle, ShoppingBag, Calendar, Bell, Settings, 
   LogOut, PlusCircle, Shield, ChevronLeft, ChevronRight, Users, LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -136,7 +136,6 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
 
   const mainNavItems: NavItemData[] = [
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0, tutorialId: 'sidebar-home' },
-    { icon: Film, labelKey: 'nav.clips', path: '/clips', badge: 0, tutorialId: 'sidebar-clips' },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0, tutorialId: 'sidebar-explore' },
     { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages, tutorialId: 'sidebar-messages' },
     { icon: Users, label: 'Community', path: '/community', badge: 0, tutorialId: 'sidebar-community' },

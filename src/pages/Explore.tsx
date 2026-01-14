@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Search, 
@@ -10,20 +10,27 @@ import {
   Clapperboard,
   Gamepad2,
   Music,
-  Sparkles
+  Sparkles,
+  X,
+  Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePosts } from '@/hooks/usePosts';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ExploreClipsSection } from '@/components/explore/ExploreClipsSection';
 import { ExploreVideosGrid } from '@/components/explore/ExploreVideosGrid';
 import { useSmartPreload } from '@/hooks/useSmartPreload';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { ShortCard } from '@/components/posts/ShortCard';
+import { MobileShortCard } from '@/components/posts/MobileShortCard';
+import { useIsMobileOrTablet } from '@/hooks/use-mobile';
+import { useVideoPreload } from '@/hooks/useVideoPreload';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { useSignedUrl } from '@/hooks/useSignedUrl';
 
 const popularTags = ['meme', 'fails', 'pets', 'gaming', 'comedy', 'sports', 'music', 'food', 'tech', 'beauty'];
 
@@ -35,12 +42,437 @@ const categories = [
   { id: 'music', label: 'Music', icon: Music },
 ];
 
+interface ClipPost {
+  id: string;
+  media_url: string;
+  thumbnail_url?: string | null;
+  caption: string;
+  tags: string[];
+  type: string;
+  created_at: string;
+  author: {
+    id: string;
+    username: string;
+    avatar_url: string | null;
+  };
+  like_count: number;
+  comment_count: number;
+  is_liked: boolean;
+  is_bookmarked: boolean;
+  view_count?: number;
+}
+
+// Fullscreen TikTok-style clips viewer
+const BOTTOM_NAV_HEIGHT = 80;
+
+function FullscreenClipsViewer({
+  clips,
+  startIndex,
+  onClose,
+  onSwitchToVideos,
+}: {
+  clips: ClipPost[];
+  startIndex: number;
+  onClose: () => void;
+  onSwitchToVideos: () => void;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(startIndex);
+  const [globalMuted, setGlobalMuted] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  
+  const { isMobileOrTablet } = useIsMobileOrTablet();
+  const { isSlowConnection } = useNetworkStatus();
+  
+  // Smart preload videos around current position
+  const videoUrls = useMemo(() => clips.map(c => c.media_url), [clips]);
+  useVideoPreload(videoUrls, { 
+    currentIndex, 
+    preloadDepth: isSlowConnection ? 1 : 2,
+    enabled: !isSlowConnection 
+  });
+
+  // Lock body scroll when viewer is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
+
+  // Scroll to starting clip on mount
+  useEffect(() => {
+    const target = itemRefs.current[startIndex];
+    if (target) {
+      target.scrollIntoView({ behavior: 'instant', block: 'start' });
+    }
+  }, [startIndex]);
+
+  // IntersectionObserver to track current clip
+  useEffect(() => {
+    if (!clips?.length) return;
+
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+            const index = itemRefs.current.findIndex((ref) => ref === entry.target);
+            if (index !== -1 && index !== currentIndex) {
+              setCurrentIndex(index);
+            }
+          }
+        });
+      },
+      {
+        root: containerRef.current,
+        threshold: 0.6,
+      }
+    );
+
+    itemRefs.current.forEach((ref) => {
+      if (ref) observerRef.current?.observe(ref);
+    });
+
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, [clips?.length, currentIndex]);
+
+  // Keyboard navigation (desktop)
+  useEffect(() => {
+    if (isMobileOrTablet) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault();
+        scrollToIndex(currentIndex + 1);
+      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault();
+        scrollToIndex(currentIndex - 1);
+      } else if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, clips?.length, isMobileOrTablet, onClose]);
+
+  const scrollToIndex = useCallback((index: number) => {
+    if (index < 0 || index >= clips.length) return;
+    const target = itemRefs.current[index];
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [clips.length]);
+
+  const handleToggleMute = useCallback(() => {
+    setGlobalMuted(prev => !prev);
+  }, []);
+
+  const containerHeight = isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh';
+  const CardComponent = isMobileOrTablet ? MobileShortCard : ShortCard;
+
+  if (clips.length === 0) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+        <div className="text-center text-white">
+          <Play className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-xl font-semibold mb-2">No clips yet</h3>
+          <p className="text-muted-foreground mb-6">Be the first to share a clip!</p>
+          <Button onClick={onSwitchToVideos} variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+            <Film className="h-4 w-4 mr-2" />
+            Browse Videos Instead
+          </Button>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60"
+          onClick={onClose}
+        >
+          <X className="w-5 h-5" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black">
+      <div
+        ref={containerRef}
+        className="overflow-y-scroll scrollbar-hide bg-black"
+        style={{ 
+          height: containerHeight,
+          scrollSnapType: 'y mandatory',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          scrollSnapStop: 'always',
+        }}
+      >
+        <div className="flex flex-col w-full">
+          {clips.map((clip, index) => (
+            <div
+              key={clip.id}
+              ref={(el) => { itemRefs.current[index] = el; }}
+              className="w-full flex-shrink-0 flex justify-center"
+              style={{ 
+                height: containerHeight,
+                scrollSnapAlign: 'start',
+                scrollSnapStop: 'always',
+              }}
+            >
+              <div className="relative h-full w-full max-w-[500px]">
+                <CardComponent 
+                  post={clip} 
+                  isActive={index === currentIndex}
+                  globalMuted={globalMuted}
+                  onToggleMute={handleToggleMute}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Close button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60"
+          onClick={onClose}
+        >
+          <X className="w-5 h-5" />
+        </Button>
+
+        {/* Switch to Videos button */}
+        <motion.button
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          onClick={onSwitchToVideos}
+          className={cn(
+            "fixed z-30 left-1/2 -translate-x-1/2",
+            "flex items-center gap-2 px-5 py-3 rounded-full",
+            "bg-white/10 backdrop-blur-xl border border-white/20",
+            "text-white font-medium text-sm",
+            "hover:bg-white/20 transition-all shadow-xl",
+            isMobileOrTablet ? "bottom-24" : "bottom-8"
+          )}
+        >
+          <Film className="h-4 w-4" />
+          Switch to Videos
+        </motion.button>
+
+        {/* Progress indicator (desktop only) */}
+        {!isMobileOrTablet && (
+          <div className="fixed right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 pointer-events-none">
+            {clips.slice(Math.max(0, currentIndex - 3), currentIndex + 4).map((_, idx) => {
+              const actualIdx = Math.max(0, currentIndex - 3) + idx;
+              return (
+                <div
+                  key={actualIdx}
+                  className="w-1 rounded-full bg-white transition-all duration-200"
+                  style={{
+                    height: actualIdx === currentIndex ? 20 : 6,
+                    opacity: actualIdx === currentIndex ? 1 : 0.3,
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {/* Swipe hint on first clip (mobile) */}
+        {currentIndex === startIndex && isMobileOrTablet && (
+          <motion.div 
+            className="fixed bottom-36 left-1/2 -translate-x-1/2 pointer-events-none z-20"
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 0 }}
+            transition={{ delay: 2, duration: 1 }}
+          >
+            <div className="text-white/70 text-sm flex flex-col items-center animate-pulse">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              </svg>
+              <span className="font-medium">Swipe up</span>
+            </div>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Videos Gallery View
+function VideosGalleryView({
+  videos,
+  isLoading,
+  onSwitchToClips,
+  searchQuery,
+  setSearchQuery,
+  handleSearch,
+  activeCategory,
+  handleCategoryChange,
+  selectedTag,
+  handleTagClick,
+}: {
+  videos: ClipPost[];
+  isLoading: boolean;
+  onSwitchToClips: () => void;
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+  handleSearch: (e: React.FormEvent) => void;
+  activeCategory: string;
+  handleCategoryChange: (cat: string) => void;
+  selectedTag: string | null;
+  handleTagClick: (tag: string) => void;
+}) {
+  const { isMobileOrTablet } = useIsMobileOrTablet();
+
+  return (
+    <AppLayout>
+      <div className="max-w-7xl mx-auto px-4 py-4 sm:py-6 space-y-5">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-neon-cyan via-neon-purple to-neon-pink flex items-center justify-center shadow-lg shadow-primary/30">
+              <Film className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-neon-cyan via-neon-purple to-neon-pink bg-clip-text text-transparent">
+                Videos
+              </h1>
+              <p className="text-sm text-muted-foreground">Browse video content</p>
+            </div>
+          </div>
+          
+          <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
+            <Film className="h-4 w-4 text-neon-cyan" />
+            {videos.length} videos
+          </div>
+        </div>
+
+        {/* Search */}
+        <form onSubmit={handleSearch}>
+          <div className="relative max-w-2xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              placeholder="Search videos, creators..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-12 h-12 rounded-2xl bg-card/80 backdrop-blur-sm border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground"
+            />
+          </div>
+        </form>
+
+        {/* Category chips */}
+        <ScrollArea className="w-full">
+          <div className="flex gap-2 pb-2">
+            {categories.map((cat) => {
+              const isActive = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => handleCategoryChange(cat.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all shrink-0 border",
+                    isActive
+                      ? "bg-gradient-to-r from-neon-cyan to-neon-purple text-white border-transparent shadow-lg shadow-neon-cyan/30"
+                      : "bg-card/60 hover:bg-card border-border/50 text-foreground hover:border-primary/50"
+                  )}
+                >
+                  <cat.icon className="h-4 w-4" />
+                  {cat.label}
+                </button>
+              );
+            })}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+
+        {/* Trending Tags */}
+        <ScrollArea className="w-full">
+          <div className="flex gap-2 pb-2">
+            {popularTags.map((tag) => (
+              <Badge
+                key={tag}
+                variant={selectedTag === tag ? 'default' : 'outline'}
+                className={cn(
+                  "cursor-pointer transition-all px-3 py-1.5 text-sm whitespace-nowrap shrink-0 rounded-full",
+                  selectedTag === tag 
+                    ? "bg-gradient-to-r from-neon-cyan to-neon-purple text-white border-transparent shadow-md shadow-neon-cyan/20" 
+                    : "bg-card/40 hover:bg-card border-border/50 hover:border-neon-cyan/50 text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => handleTagClick(tag)}
+              >
+                #{tag}
+              </Badge>
+            ))}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+
+        {/* Results header */}
+        <AnimatePresence>
+          {(selectedTag || searchQuery) && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-4 rounded-xl bg-card/50 border border-border/50">
+                <h2 className="text-lg font-semibold text-foreground">
+                  {selectedTag ? (
+                    <span className="text-neon-cyan">#{selectedTag}</span>
+                  ) : (
+                    <>Results for "<span className="text-primary">{searchQuery}</span>"</>
+                  )}
+                </h2>
+                <span className="text-sm text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
+                  {videos.length} videos
+                </span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Videos Grid */}
+        <ExploreVideosGrid videos={videos} isLoading={isLoading} />
+
+        {/* Switch to Clips button */}
+        <motion.button
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          onClick={onSwitchToClips}
+          className={cn(
+            "fixed z-30 left-1/2 -translate-x-1/2",
+            "flex items-center gap-2 px-5 py-3 rounded-full",
+            "bg-gradient-to-r from-neon-pink to-neon-purple",
+            "text-white font-medium text-sm",
+            "hover:shadow-lg hover:shadow-neon-pink/30 transition-all shadow-xl",
+            isMobileOrTablet ? "bottom-24" : "bottom-8"
+          )}
+        >
+          <Clapperboard className="h-4 w-4" />
+          Switch to Clips
+        </motion.button>
+      </div>
+    </AppLayout>
+  );
+}
+
 export default function ExplorePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [activeCategory, setActiveCategory] = useState(searchParams.get('cat') || 'all');
-  const [contentType, setContentType] = useState<'clips' | 'videos'>(
-    (searchParams.get('type') as 'clips' | 'videos') || 'videos'
+  const [viewMode, setViewMode] = useState<'clips' | 'videos'>(
+    (searchParams.get('view') as 'clips' | 'videos') || 'clips'
   );
   const selectedTag = searchParams.get('tag');
   const { data: posts, isLoading } = usePosts();
@@ -57,8 +489,8 @@ export default function ExplorePage() {
     };
   }, [posts]);
 
-  // Get current content based on type
-  const currentContent = contentType === 'clips' ? clips : videos;
+  // Get current content based on view mode
+  const currentContent = viewMode === 'clips' ? clips : videos;
 
   // Preload images for visible posts
   const mediaUrls = useMemo(() => 
@@ -138,169 +570,50 @@ export default function ExplorePage() {
     setSearchParams(params);
   }, [searchParams, setSearchParams]);
 
-  const handleContentTypeChange = useCallback((type: string) => {
-    setContentType(type as 'clips' | 'videos');
+  const handleSwitchToVideos = useCallback(() => {
+    setViewMode('videos');
     const params = new URLSearchParams(searchParams);
-    params.set('type', type);
+    params.set('view', 'videos');
     setSearchParams(params);
   }, [searchParams, setSearchParams]);
 
+  const handleSwitchToClips = useCallback(() => {
+    setViewMode('clips');
+    const params = new URLSearchParams(searchParams);
+    params.set('view', 'clips');
+    setSearchParams(params);
+  }, [searchParams, setSearchParams]);
+
+  const handleCloseClips = useCallback(() => {
+    // Close just returns to videos
+    handleSwitchToVideos();
+  }, [handleSwitchToVideos]);
+
+  // Clips view - fullscreen TikTok-style auto-play
+  if (viewMode === 'clips') {
+    return (
+      <FullscreenClipsViewer
+        clips={filteredContent}
+        startIndex={0}
+        onClose={handleCloseClips}
+        onSwitchToVideos={handleSwitchToVideos}
+      />
+    );
+  }
+
+  // Videos view - gallery with search/filters
   return (
-    <AppLayout>
-      <div className="max-w-7xl mx-auto px-4 py-4 sm:py-6 space-y-5">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-neon-pink via-neon-purple to-neon-cyan flex items-center justify-center shadow-lg shadow-primary/30">
-              <Sparkles className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-neon-pink via-neon-purple to-neon-cyan bg-clip-text text-transparent">
-                Explore
-              </h1>
-              <p className="text-sm text-muted-foreground">Discover amazing content</p>
-            </div>
-          </div>
-          
-          {/* Content type counts */}
-          <div className="hidden sm:flex items-center gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <Clapperboard className="h-4 w-4 text-neon-pink" />
-              {clips.length} clips
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Film className="h-4 w-4 text-neon-cyan" />
-              {videos.length} videos
-            </span>
-          </div>
-        </div>
-
-        {/* Search */}
-        <form onSubmit={handleSearch}>
-          <div className="relative max-w-2xl">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
-              placeholder="Search clips, videos, creators..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-12 h-12 rounded-2xl bg-card/80 backdrop-blur-sm border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground"
-            />
-          </div>
-        </form>
-
-        {/* Content Type Tabs */}
-        <Tabs value={contentType} onValueChange={handleContentTypeChange} className="w-full">
-          <TabsList className="w-full max-w-md bg-card/60 backdrop-blur-sm border border-border/50 p-1 rounded-2xl">
-            <TabsTrigger 
-              value="clips" 
-              className={cn(
-                "flex-1 gap-2 rounded-xl transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-neon-pink data-[state=active]:to-neon-purple data-[state=active]:text-white data-[state=active]:shadow-lg"
-              )}
-            >
-              <Clapperboard className="h-4 w-4" />
-              Clips
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs bg-white/20 text-inherit">
-                {clips.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger 
-              value="videos"
-              className={cn(
-                "flex-1 gap-2 rounded-xl transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-neon-cyan data-[state=active]:to-neon-purple data-[state=active]:text-white data-[state=active]:shadow-lg"
-              )}
-            >
-              <Film className="h-4 w-4" />
-              Videos
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs bg-white/20 text-inherit">
-                {videos.length}
-              </Badge>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Category chips */}
-          <div className="mt-4">
-            <ScrollArea className="w-full">
-              <div className="flex gap-2 pb-2">
-                {categories.map((cat) => {
-                  const isActive = activeCategory === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => handleCategoryChange(cat.id)}
-                      className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all shrink-0 border",
-                        isActive
-                          ? "bg-gradient-to-r from-neon-pink to-neon-purple text-white border-transparent shadow-lg shadow-neon-pink/30"
-                          : "bg-card/60 hover:bg-card border-border/50 text-foreground hover:border-primary/50"
-                      )}
-                    >
-                      <cat.icon className="h-4 w-4" />
-                      {cat.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-          </div>
-
-          {/* Trending Tags */}
-          <ScrollArea className="w-full mt-3">
-            <div className="flex gap-2 pb-2">
-              {popularTags.map((tag) => (
-                <Badge
-                  key={tag}
-                  variant={selectedTag === tag ? 'default' : 'outline'}
-                  className={cn(
-                    "cursor-pointer transition-all px-3 py-1.5 text-sm whitespace-nowrap shrink-0 rounded-full",
-                    selectedTag === tag 
-                      ? "bg-gradient-to-r from-neon-cyan to-neon-purple text-white border-transparent shadow-md shadow-neon-cyan/20" 
-                      : "bg-card/40 hover:bg-card border-border/50 hover:border-neon-cyan/50 text-muted-foreground hover:text-foreground"
-                  )}
-                  onClick={() => handleTagClick(tag)}
-                >
-                  #{tag}
-                </Badge>
-              ))}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-
-          {/* Results header */}
-          <AnimatePresence>
-            {(selectedTag || searchQuery) && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="flex items-center justify-between p-4 rounded-xl bg-card/50 border border-border/50 mt-3">
-                  <h2 className="text-lg font-semibold text-foreground">
-                    {selectedTag ? (
-                      <span className="text-neon-cyan">#{selectedTag}</span>
-                    ) : (
-                      <>Results for "<span className="text-primary">{searchQuery}</span>"</>
-                    )}
-                  </h2>
-                  <span className="text-sm text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
-                    {filteredContent.length} {contentType}
-                  </span>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Content */}
-          <TabsContent value="clips" className="mt-5 focus-visible:outline-none">
-            <ExploreClipsSection clips={filteredContent} />
-          </TabsContent>
-
-          <TabsContent value="videos" className="mt-5 focus-visible:outline-none">
-            <ExploreVideosGrid videos={filteredContent} isLoading={isLoading} />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </AppLayout>
+    <VideosGalleryView
+      videos={filteredContent}
+      isLoading={isLoading}
+      onSwitchToClips={handleSwitchToClips}
+      searchQuery={searchQuery}
+      setSearchQuery={setSearchQuery}
+      handleSearch={handleSearch}
+      activeCategory={activeCategory}
+      handleCategoryChange={handleCategoryChange}
+      selectedTag={selectedTag}
+      handleTagClick={handleTagClick}
+    />
   );
 }
