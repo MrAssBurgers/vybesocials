@@ -50,10 +50,17 @@ export function ProfileSection() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="liquid-glass-card overflow-hidden rounded-xl"
+        className="liquid-glass-card overflow-hidden rounded-xl isolate relative"
       >
-        {/* Header with gradient - contained within card bounds */}
-        <div className="h-20 bg-gradient-to-r from-primary/30 via-primary/20 to-accent/30 rounded-t-xl" />
+        {/* Header with gradient - fully contained with clip-path */}
+        <div 
+          className="h-20 bg-gradient-to-r from-primary/30 via-primary/20 to-accent/30" 
+          style={{ 
+            borderTopLeftRadius: 'inherit', 
+            borderTopRightRadius: 'inherit',
+            clipPath: 'inset(0 round var(--radius, 0.75rem) var(--radius, 0.75rem) 0 0)'
+          }} 
+        />
         
         {/* Profile content */}
         <div className="px-4 sm:px-6 pb-6 -mt-10">
