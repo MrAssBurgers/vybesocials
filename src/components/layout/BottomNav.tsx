@@ -189,7 +189,12 @@ export function BottomNav() {
       <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
 
       <motion.nav 
-        className="fixed bottom-0 left-0 right-0 z-[2147483647] w-full pb-[env(safe-area-inset-bottom)] pointer-events-auto"
+        className="fixed bottom-0 left-0 right-0 z-[2147483647] w-full pointer-events-auto"
+        style={{
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          paddingLeft: 'env(safe-area-inset-left, 0px)',
+          paddingRight: 'env(safe-area-inset-right, 0px)',
+        }}
         aria-label="Bottom navigation"
         data-tutorial-bottomnav
         initial={false}

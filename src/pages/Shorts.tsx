@@ -5,13 +5,13 @@ import { ShortCard } from '@/components/posts/ShortCard';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useInView } from 'react-intersection-observer';
-import { Home, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 
-// Bottom nav height constant for mobile/tablet
+// Bottom nav height - accounts for safe area on all devices
 const BOTTOM_NAV_HEIGHT = 80; // px (including safe area padding)
 
 export default function ClipsPage() {
@@ -33,7 +33,8 @@ export default function ClipsPage() {
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const holdTimer = useRef<NodeJS.Timeout | null>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isMobile = useIsMobile();
+  // Use isMobileOrTablet to properly detect iPads in any orientation
+  const { isMobileOrTablet } = useIsMobileOrTablet();
 
   const { isSlowConnection } = useNetworkStatus();
   
@@ -164,7 +165,7 @@ export default function ClipsPage() {
       <AppLayout hideNav>
         <div 
           className="flex items-center justify-center bg-black"
-          style={{ height: isMobile ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh' }}
+          style={{ height: isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh' }}
         >
           <motion.div 
             className="gradient-animated rounded-full p-4"
@@ -183,7 +184,7 @@ export default function ClipsPage() {
       <AppLayout hideNav>
         <div 
           className="flex items-center justify-center bg-black px-4"
-          style={{ height: isMobile ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh' }}
+          style={{ height: isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh' }}
         >
           <EmptyState
             emoji="🎬"
@@ -198,7 +199,7 @@ export default function ClipsPage() {
   }
 
   // Calculate container height - on mobile/tablet leave room for bottom nav
-  const containerHeight = isMobile ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh';
+  const containerHeight = isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh';
 
   return (
     <AppLayout hideNav>
