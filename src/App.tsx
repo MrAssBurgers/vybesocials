@@ -49,6 +49,7 @@ const Events = lazy(() => import("./pages/Events"));
 const CreateEvent = lazy(() => import("./pages/CreateEvent"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const Community = lazy(() => import("./pages/Community"));
+const Spaces = lazy(() => import("./pages/Spaces"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -153,6 +154,7 @@ const App = memo(() => {
                               <Route path="/events/new" element={<CreateEvent />} />
                               <Route path="/admin" element={<AdminDashboard />} />
                               <Route path="/community" element={<Community />} />
+                              <Route path="/spaces" element={<Spaces />} />
                               <Route path="*" element={<NotFound />} />
                             </Routes>
                           </Suspense>
