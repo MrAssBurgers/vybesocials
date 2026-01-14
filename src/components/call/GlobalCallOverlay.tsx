@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, Settings, SlidersHorizontal } from 'lucide-react';
+import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Play } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -50,6 +50,11 @@ export function GlobalCallOverlay() {
   const [currentCameraId, setCurrentCameraId] = useState<string | undefined>();
   const [currentSpeakerId, setCurrentSpeakerId] = useState<string | undefined>();
   
+  // iOS/iPad autoplay handling - need user tap to start video
+  const [needsUserInteraction, setNeedsUserInteraction] = useState(false);
+  const [isRetryingVideo, setIsRetryingVideo] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  
   // INSTANT CAMERA: Preload camera for video calls - start as soon as call begins
   const isVideoCall = state.call?.callType === 'video';
   const isActiveCall = state.phase !== 'idle';
@@ -83,6 +88,127 @@ export function GlobalCallOverlay() {
       joinTimeoutRef.current = null;
     }
   }, []);
+
+  // Detect iOS/iPad for autoplay handling
+  const isIOSorIPad = useCallback(() => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    return /iPad|iPhone|iPod/.test(ua) || 
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }, []);
+
+  // Force enable video tracks - NON-NEGOTIABLE for video calls
+  const forceEnableVideoTracks = useCallback(async (daily: DailyCall) => {
+    if (!daily) return;
+    
+    const callType = stateRef.current.call?.callType;
+    console.log('[CallOverlay] forceEnableVideoTracks called, callType:', callType);
+    
+    try {
+      // Always enable audio first
+      await daily.setLocalAudio(true);
+      console.log('[CallOverlay] Audio enabled');
+      
+      if (callType === 'video') {
+        // Force camera on
+        console.log('[CallOverlay] Forcing camera on...');
+        await daily.setLocalVideo(true);
+        
+        // Verify it actually enabled - retry if not
+        setTimeout(async () => {
+          try {
+            const participants = daily.participants();
+            const local = participants?.local;
+            const videoTrack = local?.tracks?.video;
+            
+            console.log('[CallOverlay] Video track state after enable:', {
+              hasVideo: local?.video,
+              trackState: videoTrack?.state,
+              hasTrack: !!videoTrack?.persistentTrack || !!videoTrack?.track
+            });
+            
+            if (!local?.video || videoTrack?.state === 'off') {
+              console.log('[CallOverlay] Video not enabled, retrying...');
+              await daily.setLocalVideo(true);
+              
+              // Check again after second attempt
+              setTimeout(async () => {
+                const p2 = daily.participants()?.local;
+                if (!p2?.video) {
+                  console.error('[CallOverlay] Camera failed to enable after retries');
+                  setCameraError('Camera could not be enabled. Check permissions.');
+                }
+              }, 500);
+            }
+          } catch (e) {
+            console.error('[CallOverlay] Video verification failed:', e);
+          }
+        }, 300);
+      } else {
+        await daily.setLocalVideo(false);
+      }
+    } catch (err: any) {
+      console.error('[CallOverlay] forceEnableVideoTracks error:', err);
+      setCameraError(err.message || 'Failed to enable camera');
+    }
+  }, []);
+
+  // Retry video - user-triggered
+  const handleRetryVideo = useCallback(async () => {
+    const daily = dailyRef.current;
+    if (!daily) return;
+    
+    setIsRetryingVideo(true);
+    setCameraError(null);
+    
+    try {
+      console.log('[CallOverlay] User-triggered video retry');
+      await daily.setLocalVideo(false);
+      await new Promise(r => setTimeout(r, 200));
+      await daily.setLocalVideo(true);
+      
+      // Check result
+      setTimeout(() => {
+        const local = daily.participants()?.local;
+        if (local?.video) {
+          console.log('[CallOverlay] Video retry succeeded');
+          setIsVideoOff(false);
+        } else {
+          setCameraError('Camera still not working. Check browser permissions.');
+        }
+        setIsRetryingVideo(false);
+      }, 500);
+    } catch (err: any) {
+      console.error('[CallOverlay] Video retry failed:', err);
+      setCameraError(err.message || 'Retry failed');
+      setIsRetryingVideo(false);
+    }
+  }, []);
+
+  // iOS tap-to-start handler
+  const handleTapToStart = useCallback(async () => {
+    const daily = dailyRef.current;
+    if (!daily) return;
+    
+    console.log('[CallOverlay] iOS tap-to-start triggered');
+    setNeedsUserInteraction(false);
+    
+    try {
+      // Re-enable video after user interaction
+      await forceEnableVideoTracks(daily);
+      
+      // Try to play remote video
+      if (remoteVideoRef.current) {
+        await remoteVideoRef.current.play().catch(() => {});
+      }
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.muted = false;
+        await remoteAudioRef.current.play().catch(() => {});
+      }
+    } catch (err) {
+      console.error('[CallOverlay] Tap-to-start error:', err);
+    }
+  }, [forceEnableVideoTracks]);
 
   // Attach video track to element
   const attachTrack = useCallback((track: MediaStreamTrack, videoEl: HTMLVideoElement) => {
@@ -121,37 +247,8 @@ export function GlobalCallOverlay() {
         return;
       }
 
-      // CRITICAL: Explicitly enable local audio and video after joining
-      // This is required - Daily does not auto-start media
-      try {
-        console.log('[CallOverlay] Enabling local audio...');
-        await daily.setLocalAudio(true);
-        
-        if (stateRef.current.call?.callType === 'video') {
-          console.log('[CallOverlay] Enabling local video (video call)...');
-          // Force camera on for video calls
-          await daily.setLocalVideo(true);
-          
-          // Double-check camera is enabled after a small delay
-          setTimeout(async () => {
-            try {
-              const participants = daily.participants();
-              const local = participants?.local;
-              if (local && !local.video) {
-                console.log('[CallOverlay] Video not enabled, retrying...');
-                await daily.setLocalVideo(true);
-              }
-            } catch (e) {
-              console.error('[CallOverlay] Video retry failed:', e);
-            }
-          }, 500);
-        } else {
-          await daily.setLocalVideo(false);
-        }
-        console.log('[CallOverlay] Media enabled successfully');
-      } catch (err) {
-        console.error('[CallOverlay] Failed to enable media:', err);
-      }
+      // CRITICAL: Force enable all media tracks immediately after joining
+      await forceEnableVideoTracks(daily);
 
       // CRITICAL: Force-unmute remote audio element after joining (browser autoplay policy workaround)
       setTimeout(() => {
@@ -161,6 +258,20 @@ export function GlobalCallOverlay() {
           console.log('[CallOverlay] Force-unmuted remote audio element');
         }
       }, 100);
+
+      // iOS/iPad: Check if we need user interaction for autoplay
+      const isIOS = isIOSorIPad();
+      if (isIOS && stateRef.current.call?.callType === 'video') {
+        console.log('[CallOverlay] iOS detected - may need user tap for video');
+        // Check if video actually started
+        setTimeout(() => {
+          const local = daily.participants()?.local;
+          if (!local?.video && stateRef.current.call?.callType === 'video') {
+            console.log('[CallOverlay] iOS video not started - showing tap overlay');
+            setNeedsUserInteraction(true);
+          }
+        }, 1000);
+      }
 
       callSounds.stopAll();
       callSounds.connect();
@@ -334,7 +445,7 @@ export function GlobalCallOverlay() {
     });
 
     return daily;
-  }, [clearJoinTimeout, setPhase, setError, endCall, attachTrack]);
+  }, [clearJoinTimeout, setPhase, setError, endCall, attachTrack, forceEnableVideoTracks, isIOSorIPad]);
 
   // Join room when phase becomes 'joining'
   useEffect(() => {
@@ -555,6 +666,49 @@ export function GlobalCallOverlay() {
     return () => clearInterval(pollInterval);
   }, [state.phase]);
 
+  // Re-enable video tracks when returning from background/minimized state
+  useEffect(() => {
+    if (state.phase !== 'connected') return;
+    if (state.call?.callType !== 'video') return;
+    
+    const daily = dailyRef.current;
+    if (!daily) return;
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[CallOverlay] Tab became visible, re-enabling video tracks');
+        
+        // Small delay to let the browser settle
+        await new Promise(r => setTimeout(r, 300));
+        
+        // Re-enable video if it was on before
+        if (!isVideoOff) {
+          try {
+            await daily.setLocalVideo(true);
+            console.log('[CallOverlay] Video re-enabled after visibility change');
+          } catch (err) {
+            console.warn('[CallOverlay] Failed to re-enable video:', err);
+          }
+        }
+
+        // Try to resume remote video/audio playback
+        if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+          remoteVideoRef.current.play().catch(() => {});
+        }
+        if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
+          remoteAudioRef.current.muted = false;
+          remoteAudioRef.current.play().catch(() => {});
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [state.phase, state.call?.callType, isVideoOff]);
+
   // HANGUP - must always work
   const handleHangup = useCallback(async () => {
     if (isHangingUp) return;
@@ -566,23 +720,40 @@ export function GlobalCallOverlay() {
 
     // Stop preloaded camera
     stopPreloadedCamera();
+    
+    // Reset UI states
+    setCameraError(null);
+    setNeedsUserInteraction(false);
 
-    // Call daily.leave()
+    // Call daily.leave() with 5-second timeout failsafe
     const daily = dailyRef.current;
     if (daily) {
-      try {
-        const meetingState = daily.meetingState();
-        if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
-          console.log('[CallOverlay] Calling daily.leave()');
-          await daily.leave();
+      const leavePromise = (async () => {
+        try {
+          const meetingState = daily.meetingState();
+          if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
+            console.log('[CallOverlay] Calling daily.leave()');
+            await daily.leave();
+            console.log('[CallOverlay] daily.leave() completed');
+          }
+        } catch (err) {
+          console.error('[CallOverlay] Error leaving:', err);
         }
-      } catch (err) {
-        console.error('[CallOverlay] Error leaving:', err);
-      }
+      })();
+      
+      // Force timeout after 5 seconds - hangup MUST always work
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => {
+          console.warn('[CallOverlay] Hangup timeout - forcing cleanup');
+          resolve();
+        }, 5000);
+      });
+      
+      await Promise.race([leavePromise, timeoutPromise]);
     }
 
-    // Force cleanup after 500ms max wait
-    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+    // Force cleanup 
+    await new Promise<void>((resolve) => setTimeout(resolve, 200));
     
     await endCall();
     setIsHangingUp(false);
@@ -599,15 +770,42 @@ export function GlobalCallOverlay() {
     setIsMuted(newMuted);
   }, [isMuted, state.phase]);
 
-  // Toggle video
-  const handleToggleVideo = useCallback(() => {
+  // Toggle video - sync with actual Daily state
+  const handleToggleVideo = useCallback(async () => {
     const daily = dailyRef.current;
     if (!daily || state.phase !== 'connected' || state.call?.callType !== 'video') return;
     
-    const newVideoOff = !isVideoOff;
-    daily.setLocalVideo(!newVideoOff);
-    setIsVideoOff(newVideoOff);
-  }, [isVideoOff, state.phase, state.call?.callType]);
+    // Check actual current state from Daily
+    const local = daily.participants()?.local;
+    const currentlyHasVideo = local?.video === true;
+    
+    console.log('[CallOverlay] Toggle video, current state:', currentlyHasVideo);
+    
+    try {
+      if (currentlyHasVideo) {
+        await daily.setLocalVideo(false);
+        setIsVideoOff(true);
+        setCameraError(null);
+      } else {
+        // Turning video ON - may need to retry
+        await daily.setLocalVideo(true);
+        
+        // Verify it worked
+        setTimeout(() => {
+          const p = daily.participants()?.local;
+          if (p?.video) {
+            setIsVideoOff(false);
+            setCameraError(null);
+          } else {
+            setCameraError('Camera failed to enable');
+          }
+        }, 500);
+      }
+    } catch (err: any) {
+      console.error('[CallOverlay] Toggle video error:', err);
+      setCameraError(err.message || 'Failed to toggle camera');
+    }
+  }, [state.phase, state.call?.callType]);
 
   // Handle device changes from settings
   const handleMicChange = useCallback((deviceId: string) => {
@@ -798,6 +996,37 @@ export function GlobalCallOverlay() {
                   )}
                 </div>
 
+                {/* iOS/iPad Tap to Start Video Overlay */}
+                <AnimatePresence>
+                  {needsUserInteraction && isConnected && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-30"
+                      onClick={handleTapToStart}
+                    >
+                      <motion.div
+                        initial={{ scale: 0.8 }}
+                        animate={{ scale: 1 }}
+                        className="flex flex-col items-center gap-4 p-8"
+                      >
+                        <motion.div
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ repeat: Infinity, duration: 1.5 }}
+                          className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary"
+                        >
+                          <Play className="w-10 h-10 text-primary" />
+                        </motion.div>
+                        <p className="text-white text-lg font-medium">Tap to start video</p>
+                        <p className="text-white/60 text-sm text-center max-w-xs">
+                          Your device requires a tap to enable video playback
+                        </p>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 {/* Local Video - Picture-in-Picture (INSTANT - shows preloaded camera immediately) */}
                 {showLocalVideoContainer && (
                   <motion.div
@@ -829,6 +1058,53 @@ export function GlobalCallOverlay() {
                       )}
                       style={{ transform: 'scaleX(-1)' }} // Mirror for selfie view
                     />
+                  </motion.div>
+                )}
+
+                {/* Camera Off Indicator (when local video is disabled) */}
+                {!showLocalVideoContainer && isConnected && !isVideoOff && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 bg-black/80 flex flex-col items-center justify-center"
+                  >
+                    <VideoOff className="w-8 h-8 text-white/50 mb-2" />
+                    <p className="text-white/50 text-xs">Camera Off</p>
+                    {cameraError && (
+                      <p className="text-red-400 text-xs text-center px-2 mt-1">{cameraError}</p>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Camera Error / Retry Button */}
+                {cameraError && isConnected && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="absolute bottom-32 left-4 right-4 flex justify-center z-20"
+                  >
+                    <div className="bg-red-500/20 backdrop-blur-lg border border-red-500/30 rounded-xl p-4 flex items-center gap-3 max-w-sm">
+                      <div className="flex-1">
+                        <p className="text-white text-sm font-medium">Camera Issue</p>
+                        <p className="text-white/70 text-xs">{cameraError}</p>
+                      </div>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleRetryVideo}
+                        disabled={isRetryingVideo}
+                        className="h-10 px-4 rounded-lg bg-white/20 text-white flex items-center gap-2 hover:bg-white/30 disabled:opacity-50"
+                      >
+                        {isRetryingVideo ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4" />
+                            <span className="text-sm">Retry</span>
+                          </>
+                        )}
+                      </motion.button>
+                    </div>
                   </motion.div>
                 )}
               </>
@@ -1076,20 +1352,43 @@ export function GlobalCallOverlay() {
                       className={cn(
                         "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
                         "disabled:opacity-50 disabled:cursor-not-allowed",
-                        isVideoOff 
+                        isVideoOff || (!hasLocalVideo && !showPreloadedLocalVideo)
                           ? "bg-white text-black shadow-lg ring-2 ring-accent/50" 
                           : "bg-white/10 text-white hover:bg-white/20"
                       )}
                     >
-                      {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                      {(isVideoOff || (!hasLocalVideo && !showPreloadedLocalVideo)) ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
                       {/* Active indicator glow for video */}
-                      {!isVideoOff && isConnected && (
+                      {!isVideoOff && hasLocalVideo && isConnected && (
                         <motion.div
                           className="absolute inset-0 rounded-xl pointer-events-none"
                           style={{ boxShadow: '0 0 15px hsl(var(--accent) / 0.3)' }}
                           animate={{ opacity: [0.3, 0.6, 0.3] }}
                           transition={{ duration: 2, repeat: Infinity }}
                         />
+                      )}
+                    </motion.button>
+                  )}
+
+                  {/* Retry Video Button - shown when camera has error */}
+                  {isVideoCall && cameraError && isConnected && (
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleRetryVideo}
+                      disabled={isRetryingVideo}
+                      className={cn(
+                        "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
+                        "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30",
+                        "disabled:opacity-50 disabled:cursor-not-allowed"
+                      )}
+                    >
+                      {isRetryingVideo ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-5 w-5" />
                       )}
                     </motion.button>
                   )}
