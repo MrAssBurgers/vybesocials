@@ -1,0 +1,268 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface ThemeTokens {
+  colorPrimary: string;
+  colorSecondary: string;
+  colorAccent: string;
+  bgMain: string;
+  bgCard: string;
+  textPrimary: string;
+  textSecondary: string;
+  borderRadius: "small" | "medium" | "large";
+  mode: "light" | "dark";
+}
+
+const THEME_PRESETS: Record<string, ThemeTokens> = {
+  classic: {
+    colorPrimary: "262 83% 58%",
+    colorSecondary: "240 4% 16%",
+    colorAccent: "280 100% 70%",
+    bgMain: "240 10% 4%",
+    bgCard: "240 6% 10%",
+    textPrimary: "0 0% 98%",
+    textSecondary: "240 5% 65%",
+    borderRadius: "medium",
+    mode: "dark",
+  },
+  midnight: {
+    colorPrimary: "220 90% 56%",
+    colorSecondary: "230 25% 18%",
+    colorAccent: "200 100% 62%",
+    bgMain: "230 25% 8%",
+    bgCard: "230 20% 14%",
+    textPrimary: "210 40% 98%",
+    textSecondary: "215 20% 65%",
+    borderRadius: "medium",
+    mode: "dark",
+  },
+  neon: {
+    colorPrimary: "330 100% 60%",
+    colorSecondary: "280 100% 50%",
+    colorAccent: "160 100% 50%",
+    bgMain: "270 50% 6%",
+    bgCard: "270 40% 12%",
+    textPrimary: "0 0% 100%",
+    textSecondary: "270 30% 70%",
+    borderRadius: "large",
+    mode: "dark",
+  },
+  soft: {
+    colorPrimary: "340 65% 65%",
+    colorSecondary: "200 50% 75%",
+    colorAccent: "160 50% 60%",
+    bgMain: "30 30% 96%",
+    bgCard: "0 0% 100%",
+    textPrimary: "240 10% 20%",
+    textSecondary: "240 5% 50%",
+    borderRadius: "large",
+    mode: "light",
+  },
+  cyberpunk: {
+    colorPrimary: "55 100% 50%",
+    colorSecondary: "330 100% 50%",
+    colorAccent: "180 100% 50%",
+    bgMain: "240 20% 4%",
+    bgCard: "240 15% 10%",
+    textPrimary: "55 100% 90%",
+    textSecondary: "55 50% 60%",
+    borderRadius: "small",
+    mode: "dark",
+  },
+  minimal: {
+    colorPrimary: "0 0% 15%",
+    colorSecondary: "0 0% 30%",
+    colorAccent: "0 0% 50%",
+    bgMain: "0 0% 100%",
+    bgCard: "0 0% 98%",
+    textPrimary: "0 0% 10%",
+    textSecondary: "0 0% 45%",
+    borderRadius: "small",
+    mode: "light",
+  },
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { prompt, basePreset = "classic" } = await req.json();
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
+    }
+
+    const baseTheme = THEME_PRESETS[basePreset] || THEME_PRESETS.classic;
+
+    const systemPrompt = `You are a UI theme designer for a social media app called VYBE. 
+Your task is to interpret natural language descriptions and generate safe, accessible color themes.
+
+IMPORTANT RULES:
+1. All colors MUST be in HSL format: "hue saturation% lightness%" (e.g., "262 83% 58%")
+2. Ensure text contrast ratios meet WCAG AA standards (4.5:1 for normal text)
+3. For dark mode: bgMain lightness should be 4-15%, textPrimary lightness should be 90-100%
+4. For light mode: bgMain lightness should be 90-100%, textPrimary lightness should be 5-20%
+5. borderRadius must be exactly "small", "medium", or "large"
+6. mode must be exactly "light" or "dark"
+
+Current base theme (${basePreset}):
+${JSON.stringify(baseTheme, null, 2)}
+
+Generate a theme that matches the user's description while keeping it safe and readable.`;
+
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Create a theme based on this description: "${prompt}"` },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "generate_theme",
+              description: "Generate a UI theme with specific color tokens",
+              parameters: {
+                type: "object",
+                properties: {
+                  colorPrimary: {
+                    type: "string",
+                    description: "Primary brand color in HSL format (e.g., '262 83% 58%')",
+                  },
+                  colorSecondary: {
+                    type: "string",
+                    description: "Secondary color in HSL format",
+                  },
+                  colorAccent: {
+                    type: "string",
+                    description: "Accent/highlight color in HSL format",
+                  },
+                  bgMain: {
+                    type: "string",
+                    description: "Main background color in HSL format",
+                  },
+                  bgCard: {
+                    type: "string",
+                    description: "Card/surface background color in HSL format",
+                  },
+                  textPrimary: {
+                    type: "string",
+                    description: "Primary text color in HSL format",
+                  },
+                  textSecondary: {
+                    type: "string",
+                    description: "Secondary/muted text color in HSL format",
+                  },
+                  borderRadius: {
+                    type: "string",
+                    enum: ["small", "medium", "large"],
+                    description: "Border radius preset",
+                  },
+                  mode: {
+                    type: "string",
+                    enum: ["light", "dark"],
+                    description: "Light or dark mode",
+                  },
+                  themeName: {
+                    type: "string",
+                    description: "A short, creative name for this theme (2-3 words)",
+                  },
+                },
+                required: [
+                  "colorPrimary",
+                  "colorSecondary",
+                  "colorAccent",
+                  "bgMain",
+                  "bgCard",
+                  "textPrimary",
+                  "textSecondary",
+                  "borderRadius",
+                  "mode",
+                  "themeName",
+                ],
+                additionalProperties: false,
+              },
+            },
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "generate_theme" } },
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "AI credits exhausted. Please add funds to continue." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const errorText = await response.text();
+      console.error("AI gateway error:", response.status, errorText);
+      throw new Error("Failed to generate theme");
+    }
+
+    const data = await response.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    
+    if (!toolCall?.function?.arguments) {
+      throw new Error("Invalid response from AI");
+    }
+
+    const theme = JSON.parse(toolCall.function.arguments) as ThemeTokens & { themeName: string };
+
+    // Validate and sanitize the theme
+    const sanitizedTheme: ThemeTokens & { themeName: string } = {
+      colorPrimary: validateHSL(theme.colorPrimary) || baseTheme.colorPrimary,
+      colorSecondary: validateHSL(theme.colorSecondary) || baseTheme.colorSecondary,
+      colorAccent: validateHSL(theme.colorAccent) || baseTheme.colorAccent,
+      bgMain: validateHSL(theme.bgMain) || baseTheme.bgMain,
+      bgCard: validateHSL(theme.bgCard) || baseTheme.bgCard,
+      textPrimary: validateHSL(theme.textPrimary) || baseTheme.textPrimary,
+      textSecondary: validateHSL(theme.textSecondary) || baseTheme.textSecondary,
+      borderRadius: ["small", "medium", "large"].includes(theme.borderRadius) 
+        ? theme.borderRadius 
+        : baseTheme.borderRadius,
+      mode: ["light", "dark"].includes(theme.mode) ? theme.mode : baseTheme.mode,
+      themeName: theme.themeName || "Custom Theme",
+    };
+
+    return new Response(JSON.stringify({ theme: sanitizedTheme, presets: THEME_PRESETS }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("generate-theme error:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
+
+function validateHSL(value: string): string | null {
+  if (!value || typeof value !== "string") return null;
+  // Match HSL format: "hue saturation% lightness%"
+  const hslRegex = /^\d{1,3}\s+\d{1,3}%\s+\d{1,3}%$/;
+  if (hslRegex.test(value.trim())) {
+    return value.trim();
+  }
+  return null;
+}

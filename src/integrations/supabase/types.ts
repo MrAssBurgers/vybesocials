@@ -3256,6 +3256,39 @@ export type Database = {
           },
         ]
       }
+      user_themes: {
+        Row: {
+          base_preset: string | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          theme_name: string | null
+          theme_tokens: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          base_preset?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          theme_name?: string | null
+          theme_tokens?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          base_preset?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          theme_name?: string | null
+          theme_tokens?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_warnings: {
         Row: {
           created_at: string

@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
+import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
 import { CallStoreProvider } from "@/lib/callStore";
 import { GlobalCallOverlay } from "@/components/call/GlobalCallOverlay";
@@ -120,8 +121,9 @@ const App = memo(() => {
               <SplashScreen isVisible={showSplash} />
               <GlobalErrorHandler />
               <AuthProvider>
-                <GlobalMessageNotifications />
-                <EasterEggProvider>
+                <CustomThemeProvider>
+                  <GlobalMessageNotifications />
+                  <EasterEggProvider>
                   <CallStoreProvider>
                     <TooltipProvider>
                       <Toaster />
@@ -168,7 +170,8 @@ const App = memo(() => {
                     </TooltipProvider>
                   </CallStoreProvider>
                 </EasterEggProvider>
-              </AuthProvider>
+              </CustomThemeProvider>
+            </AuthProvider>
             </AccessibilityProvider>
           </GlassIntensityProvider>
         </ThemeProvider>

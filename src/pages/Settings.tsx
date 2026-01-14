@@ -2,7 +2,7 @@ import { useState, useEffect, forwardRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles, MessageSquareHeart, Lock, Vibrate, Volume2, Zap, Layers, Contrast, Bell, Phone, Link2, Check, X, Loader2 } from 'lucide-react';
+import { LogOut, ChevronRight, Globe, Moon, Sun, Monitor, Sparkles, MessageSquareHeart, Lock, Vibrate, Volume2, Zap, Layers, Contrast, Bell, Phone, Link2, Check, X, Loader2, Palette } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { useGlassIntensity } from '@/components/ui/glass/GlassIntensityProvider';
@@ -22,6 +22,7 @@ import { haptics } from '@/lib/haptics';
 import { useNotificationPreferences, useUpdateNotificationPreference } from '@/hooks/useNotificationPreferences';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { useQueryClient } from '@tanstack/react-query';
+import { DesignYourVybe } from '@/components/settings/DesignYourVybe';
 
 const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref) {
   const { t, i18n } = useTranslation();
@@ -357,6 +358,16 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
               }} 
             />
           </div>
+        </motion.section>
+
+        {/* Design Your Own VYBE */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.11 }}
+          className="mb-4 sm:mb-6"
+        >
+          <DesignYourVybe />
         </motion.section>
 
         {/* Feedback & Sounds Section */}
