@@ -125,6 +125,7 @@
 
     --border: 240 5% 85%;
     --input: 240 5% 85%;
+    --input-foreground: 240 10% 4%;
     --ring: 330 100% 50%;
 
     --glass: 0 0% 100%;
@@ -666,7 +667,15 @@
     border: 1px solid hsl(var(--foreground) / 0.08);
     border-radius: 0.75rem;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    color: hsl(var(--foreground)) !important;
+    color: hsl(var(--input-foreground)) !important;
+    caret-color: hsl(var(--input-foreground)) !important;
+  }
+
+  /* Some browsers apply different colors on hover; lock it */
+  .liquid-glass-input:hover,
+  .liquid-glass-input:active {
+    color: hsl(var(--input-foreground)) !important;
+    caret-color: hsl(var(--input-foreground)) !important;
   }
 
   .liquid-glass-input:focus {
@@ -680,6 +689,20 @@
       0 0 0 3px hsl(var(--primary) / 0.1),
       0 4px 20px hsl(var(--primary) / 0.15),
       inset 0 1px 1px hsl(var(--foreground) / 0.05);
+    color: hsl(var(--input-foreground)) !important;
+    caret-color: hsl(var(--input-foreground)) !important;
+  }
+
+  /* Chrome/Safari autofill can force low-contrast text; override it */
+  .liquid-glass-input:-webkit-autofill,
+  .liquid-glass-input:-webkit-autofill:hover,
+  .liquid-glass-input:-webkit-autofill:focus,
+  .liquid-glass-input:-webkit-autofill:active,
+  .liquid-glass-input:autofill {
+    -webkit-text-fill-color: hsl(var(--input-foreground)) !important;
+    caret-color: hsl(var(--input-foreground)) !important;
+    box-shadow: 0 0 0 1000px hsl(var(--glass) / 0.25) inset;
+    transition: background-color 9999s ease-in-out 0s;
   }
 
   /* Colorful frosted pill button */
