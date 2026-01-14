@@ -90,8 +90,8 @@ export function useUnreadMessagesCount() {
       return totalUnread;
     },
     enabled: !!profile?.id,
-    staleTime: 5000,
-    refetchInterval: 15000,
+    staleTime: 30000, // 30 seconds
+    refetchInterval: 60000, // Check every minute instead of 15s
   });
 }
 
@@ -203,8 +203,9 @@ export function useConversations() {
       return result as Conversation[];
     },
     enabled: !!profile?.id,
-    staleTime: 10000, // Cache for 10 seconds
+    staleTime: 30000, // 30 seconds cache
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Real-time subscription for conversations with notification sound
@@ -293,8 +294,9 @@ export function useMessages(conversationId: string | undefined) {
       return filtered as Message[];
     },
     enabled: !!conversationId && !!profile?.id,
-    staleTime: 5000,
+    staleTime: 10000, // 10 seconds
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Subscribe to real-time updates

@@ -23,9 +23,9 @@ interface Post {
   is_bookmarked: boolean;
 }
 
-const PAGE_SIZE = 12; // Slightly larger page for fewer requests
-const STALE_TIME = 60 * 1000; // 1 minute
-const GC_TIME = 10 * 60 * 1000; // 10 minutes
+const PAGE_SIZE = 15; // Larger page for fewer requests
+const STALE_TIME = 5 * 60 * 1000; // 5 minutes
+const GC_TIME = 30 * 60 * 1000; // 30 minutes
 
 // Transform RPC result to Post format - optimized with minimal object creation
 function transformPost(row: any): Post {
