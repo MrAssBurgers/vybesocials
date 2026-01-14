@@ -49,6 +49,10 @@ interface CallStoreContextType {
     callType: CallType;
     conversationId: string;
     receiverId: string;
+    // Receiver profile info for display during call
+    receiverUsername?: string;
+    receiverDisplayName?: string | null;
+    receiverAvatarUrl?: string | null;
     // Group call support
     isGroupCall?: boolean;
     groupName?: string;
@@ -220,6 +224,10 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     callType: CallType;
     conversationId: string;
     receiverId: string;
+    // Receiver profile info for display during call
+    receiverUsername?: string;
+    receiverDisplayName?: string | null;
+    receiverAvatarUrl?: string | null;
     // Group call support
     isGroupCall?: boolean;
     groupName?: string;
@@ -282,9 +290,9 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         },
         receiver: {
           id: params.receiverId,
-          username: '', // Will be populated by receiver
-          display_name: null,
-          avatar_url: null,
+          username: params.receiverUsername || '',
+          display_name: params.receiverDisplayName || null,
+          avatar_url: params.receiverAvatarUrl || null,
         },
         isInitiator: true,
         isGroupCall: params.isGroupCall,

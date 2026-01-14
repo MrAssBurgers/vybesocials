@@ -16,6 +16,10 @@ import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
 interface CallButtonsProps {
   conversationId: string;
   receiverId: string;
+  // Receiver profile info for display during call
+  receiverUsername?: string;
+  receiverDisplayName?: string | null;
+  receiverAvatarUrl?: string | null;
   // Group call support
   isGroupCall?: boolean;
   groupName?: string;
@@ -26,6 +30,9 @@ interface CallButtonsProps {
 export function CallButtons({ 
   conversationId, 
   receiverId,
+  receiverUsername,
+  receiverDisplayName,
+  receiverAvatarUrl,
   isGroupCall,
   groupName,
   groupAvatar,
@@ -53,11 +60,14 @@ export function CallButtons({
       // Request permissions (will be fast if already granted)
       await requestCallMediaPermissions(callType);
 
-      // Start the call with group info if applicable
+      // Start the call with group info and receiver profile
       await startCall({
         callType,
         conversationId,
         receiverId,
+        receiverUsername,
+        receiverDisplayName,
+        receiverAvatarUrl,
         isGroupCall,
         groupName,
         groupAvatar,
@@ -70,7 +80,7 @@ export function CallButtons({
       startGuardRef.current = false;
       setIsStarting(null);
     }
-  }, [state.phase, startCall, conversationId, receiverId, isGroupCall, groupName, groupAvatar, participantIds]);
+  }, [state.phase, startCall, conversationId, receiverId, receiverUsername, receiverDisplayName, receiverAvatarUrl, isGroupCall, groupName, groupAvatar, participantIds]);
 
   const isDisabled = state.phase !== 'idle' || isStarting !== null;
 
