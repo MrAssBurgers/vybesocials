@@ -13,7 +13,7 @@ import { useUserRole, useReports, useContentFlags, useUpdateReport, useUpdateFla
 import { useAllWarnings, useAllBans, useUnbanUser } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
 import { formatDistanceToNow } from 'date-fns';
-import { Shield, Flag, AlertTriangle, Users, Ban, CheckCircle, XCircle, Eye, UserPlus, Trash2, Crown, Megaphone } from 'lucide-react';
+import { Shield, Flag, AlertTriangle, Users, Ban, CheckCircle, XCircle, Eye, UserPlus, Trash2, Crown, Megaphone, MessageSquareWarning, Video, FileText, Gavel } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -63,6 +63,52 @@ export default function AdminDashboard() {
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
+    },
+  });
+
+  // Appeals query
+  const { data: appeals = [], isLoading: appealsLoading } = useQuery({
+    queryKey: ['all-appeals'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('content_appeals')
+        .select(`*, user:profiles!user_id(id, username, avatar_url, display_name), reviewer:profiles!reviewed_by(username)`)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Appeal category filter
+  const [appealCategory, setAppealCategory] = useState<'all' | 'video' | 'image' | 'text' | 'post' | 'ban'>('all');
+  
+  const filteredAppeals = appeals.filter((appeal: any) => {
+    if (appealCategory === 'all') return true;
+    if (appealCategory === 'ban') return appeal.content_type === 'ban';
+    if (appealCategory === 'post') return appeal.content_type === 'post';
+    return appeal.content_type === appealCategory;
+  });
+
+  // Update appeal status
+  const updateAppeal = useMutation({
+    mutationFn: async ({ id, status, adminNotes }: { id: string; status: 'approved' | 'rejected'; adminNotes?: string }) => {
+      const { error } = await supabase
+        .from('content_appeals')
+        .update({
+          status,
+          admin_notes: adminNotes,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: profile?.id,
+        })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-appeals'] });
+      toast.success('Appeal updated');
+    },
+    onError: () => {
+      toast.error('Failed to update appeal');
     },
   });
 
@@ -133,6 +179,7 @@ export default function AdminDashboard() {
 
   const pendingReports = reports.filter(r => r.status === 'pending');
   const pendingFlags = flags.filter(f => f.status === 'pending');
+  const pendingAppeals = appeals.filter((a: any) => a.status === 'pending');
 
   const handleReportAction = async (id: string, status: 'reviewed' | 'dismissed' | 'actioned') => {
     if (!profile?.id) return;
@@ -209,7 +256,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stats - responsive grid */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-5">
           <Card className="liquid-glass">
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
@@ -226,6 +273,15 @@ export default function AdminDashboard() {
                 <span className="text-2xl font-bold">{pendingFlags.length}</span>
               </div>
               <p className="text-sm text-muted-foreground">Content Flags</p>
+            </CardContent>
+          </Card>
+          <Card className="liquid-glass">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <MessageSquareWarning className="h-5 w-5 text-purple-500" />
+                <span className="text-2xl font-bold">{pendingAppeals.length}</span>
+              </div>
+              <p className="text-sm text-muted-foreground">Pending Appeals</p>
             </CardContent>
           </Card>
           <Card className="liquid-glass">
@@ -254,6 +310,7 @@ export default function AdminDashboard() {
             <TabsList className="liquid-glass inline-flex w-auto min-w-full sm:w-full gap-1">
               <TabsTrigger value="reports" className="text-xs sm:text-sm flex-shrink-0">Reports</TabsTrigger>
               <TabsTrigger value="flags" className="text-xs sm:text-sm flex-shrink-0">Flags</TabsTrigger>
+              <TabsTrigger value="appeals" className="text-xs sm:text-sm flex-shrink-0">Appeals</TabsTrigger>
               <TabsTrigger value="warnings" className="text-xs sm:text-sm flex-shrink-0">Warnings</TabsTrigger>
               <TabsTrigger value="bans" className="text-xs sm:text-sm flex-shrink-0">Bans</TabsTrigger>
               <TabsTrigger value="announcements" className="text-xs sm:text-sm flex-shrink-0">Announce</TabsTrigger>
@@ -349,6 +406,158 @@ export default function AdminDashboard() {
                                 <CheckCircle className="h-4 w-4 mr-1" /> Approve
                               </Button>
                               <Button size="sm" variant="ghost" onClick={() => handleFlagAction(flag.id, 'rejected')}>
+                                <XCircle className="h-4 w-4 mr-1" /> Reject
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Appeals Tab */}
+          <TabsContent value="appeals">
+            <Card className="liquid-glass">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquareWarning className="h-5 w-5" />
+                  Content Appeals
+                </CardTitle>
+                <CardDescription>Review user appeals for blocked content</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Category Filter */}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant={appealCategory === 'all' ? 'default' : 'outline'}
+                    onClick={() => setAppealCategory('all')}
+                  >
+                    All ({appeals.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={appealCategory === 'video' ? 'default' : 'outline'}
+                    onClick={() => setAppealCategory('video')}
+                    className="gap-1"
+                  >
+                    <Video className="h-3 w-3" />
+                    Video ({appeals.filter((a: any) => a.content_type === 'video').length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={appealCategory === 'image' ? 'default' : 'outline'}
+                    onClick={() => setAppealCategory('image')}
+                    className="gap-1"
+                  >
+                    <FileText className="h-3 w-3" />
+                    Image ({appeals.filter((a: any) => a.content_type === 'image').length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={appealCategory === 'post' ? 'default' : 'outline'}
+                    onClick={() => setAppealCategory('post')}
+                    className="gap-1"
+                  >
+                    <FileText className="h-3 w-3" />
+                    Posts ({appeals.filter((a: any) => a.content_type === 'post').length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={appealCategory === 'ban' ? 'default' : 'outline'}
+                    onClick={() => setAppealCategory('ban')}
+                    className="gap-1"
+                  >
+                    <Gavel className="h-3 w-3" />
+                    Bans ({appeals.filter((a: any) => a.content_type === 'ban').length})
+                  </Button>
+                </div>
+
+                {/* Appeals List */}
+                {appealsLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading...</div>
+                ) : filteredAppeals.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No appeals in this category</div>
+                ) : (
+                  <ScrollArea className="h-[400px]">
+                    <div className="space-y-4">
+                      {filteredAppeals.map((appeal: any) => (
+                        <div key={appeal.id} className="p-4 rounded-lg bg-muted/30 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={appeal.user?.avatar_url || ''} />
+                                <AvatarFallback>{appeal.user?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <span className="font-medium">{appeal.user?.display_name || appeal.user?.username}</span>
+                                <p className="text-xs text-muted-foreground">@{appeal.user?.username}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="capitalize">
+                                {appeal.content_type === 'video' && <Video className="h-3 w-3 mr-1" />}
+                                {appeal.content_type === 'ban' && <Gavel className="h-3 w-3 mr-1" />}
+                                {appeal.content_type}
+                              </Badge>
+                              <Badge variant={
+                                appeal.status === 'pending' ? 'destructive' : 
+                                appeal.status === 'approved' ? 'default' : 'secondary'
+                              }>
+                                {appeal.status}
+                              </Badge>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-muted/50 p-3 rounded-md">
+                            <p className="text-sm font-medium mb-1">Appeal Reason:</p>
+                            <p className="text-sm text-muted-foreground">{appeal.reason}</p>
+                          </div>
+                          
+                          <p className="text-xs text-muted-foreground">
+                            Submitted {formatDistanceToNow(new Date(appeal.created_at), { addSuffix: true })}
+                          </p>
+
+                          {appeal.admin_notes && (
+                            <div className="bg-primary/10 p-3 rounded-md">
+                              <p className="text-sm font-medium mb-1">Admin Notes:</p>
+                              <p className="text-sm text-muted-foreground">{appeal.admin_notes}</p>
+                              {appeal.reviewer && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Reviewed by @{appeal.reviewer.username}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          
+                          {appeal.status === 'pending' && (
+                            <div className="flex gap-2 pt-2">
+                              <Button 
+                                size="sm" 
+                                variant="default"
+                                onClick={() => updateAppeal.mutate({ 
+                                  id: appeal.id, 
+                                  status: 'approved',
+                                  adminNotes: 'Appeal approved - content restored'
+                                })}
+                                disabled={updateAppeal.isPending}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" /> Approve
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="ghost"
+                                onClick={() => updateAppeal.mutate({ 
+                                  id: appeal.id, 
+                                  status: 'rejected',
+                                  adminNotes: 'Appeal rejected - decision upheld'
+                                })}
+                                disabled={updateAppeal.isPending}
+                              >
                                 <XCircle className="h-4 w-4 mr-1" /> Reject
                               </Button>
                             </div>
