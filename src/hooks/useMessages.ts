@@ -102,24 +102,35 @@ export function useConversations() {
     queryFn: async () => {
       if (!profile?.id) return [];
 
-      // Fetch conversations with members in a single query
-      const { data: conversations, error } = await supabase
-        .from('conversations')
-        .select(`
-          *,
-          members:conversation_members(
-            user_id,
-            role,
-            is_muted,
-            is_pinned,
-            last_read_at,
-            profile:profiles(id, username, avatar_url, display_name)
-          )
-        `)
-        .order('updated_at', { ascending: false });
+      // Fetch hidden conversations and conversations in parallel
+      const [hiddenResult, conversationsResult] = await Promise.all([
+        supabase
+          .from('hidden_conversations')
+          .select('conversation_id')
+          .eq('user_id', profile.id),
+        supabase
+          .from('conversations')
+          .select(`
+            *,
+            members:conversation_members(
+              user_id,
+              role,
+              is_muted,
+              is_pinned,
+              last_read_at,
+              profile:profiles(id, username, avatar_url, display_name)
+            )
+          `)
+          .order('updated_at', { ascending: false }),
+      ]);
 
-      if (error) throw error;
-      if (!conversations?.length) return [];
+      const hiddenIds = new Set((hiddenResult.data || []).map(h => h.conversation_id));
+      
+      if (conversationsResult.error) throw conversationsResult.error;
+      if (!conversationsResult.data?.length) return [];
+
+      // Filter out hidden conversations (unless there's a new message - handled below)
+      const conversations = conversationsResult.data.filter(c => !hiddenIds.has(c.id));
 
       // Batch fetch last messages for all conversations
       const convIds = conversations.map(c => c.id);
@@ -138,8 +149,27 @@ export function useConversations() {
         }
       });
 
+      // Check if any hidden conversations have new messages - unhide them
+      const hiddenConvsWithNewMessages = conversationsResult.data.filter(c => {
+        if (!hiddenIds.has(c.id)) return false;
+        const memberRecord = c.members?.find((m: any) => m.user_id === profile.id);
+        const hiddenAt = hiddenResult.data?.find(h => h.conversation_id === c.id);
+        // If there's a message after the conversation was hidden, show it
+        const lastMsg = (allMessages || []).find(msg => msg.conversation_id === c.id);
+        if (lastMsg && hiddenAt) {
+          // Note: We'd need hidden_at timestamp to properly check this
+          // For now, we show if there's any unread message
+          const lastReadAt = memberRecord?.last_read_at || '1970-01-01';
+          return lastMsg.sender_id !== profile.id && lastMsg.created_at > lastReadAt;
+        }
+        return false;
+      });
+
+      // Add back conversations with new messages
+      const finalConversations = [...conversations, ...hiddenConvsWithNewMessages];
+
       // Build final result with unread counts
-      const result = conversations.map(conv => {
+      const result = finalConversations.map(conv => {
         const memberRecord = conv.members?.find((m: any) => m.user_id === profile.id);
         const lastReadAt = memberRecord?.last_read_at || '1970-01-01';
         
