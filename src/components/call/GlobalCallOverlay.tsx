@@ -902,6 +902,20 @@ export function GlobalCallOverlay() {
 
   return (
     <>
+      {/* CRITICAL: Always keep audio/video elements mounted during active call (even when minimized)
+          This ensures the call continues working in background */}
+      {isVisible && !isRinging && (
+        <div className="fixed pointer-events-none" style={{ opacity: 0, position: 'fixed', left: -9999, top: -9999 }}>
+          {/* Remote audio - ALWAYS mounted for audio to work */}
+          <audio 
+            ref={remoteAudioRef} 
+            autoPlay 
+            playsInline
+            style={{ display: 'none' }}
+          />
+        </div>
+      )}
+
       {/* Minimized Call Bubble - shown when call is minimized */}
       <AnimatePresence>
         {isVisible && !isRinging && isMinimized && (
@@ -948,15 +962,7 @@ export function GlobalCallOverlay() {
               />
             </div>
 
-            {/* Hidden audio element for remote audio playback - CRITICAL for hearing remote user */}
-            <audio
-              ref={remoteAudioRef}
-              autoPlay
-              playsInline
-              muted={false}
-              className="hidden"
-              style={{ display: 'none' }}
-            />
+            {/* Audio element is now rendered outside this block to stay mounted when minimized */}
 
             {/* Video Container */}
             {isVideoCall && (
