@@ -21,12 +21,12 @@ export interface SharedTheme {
   };
 }
 
-// Fetch all public shared themes
-export function usePublicThemes() {
+// Fetch all public shared themes with search and sorting
+export function usePublicThemes(searchQuery?: string) {
   return useQuery({
-    queryKey: ['public-themes'],
+    queryKey: ['public-themes', searchQuery],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('shared_themes')
         .select(`
           *,
@@ -35,6 +35,13 @@ export function usePublicThemes() {
         .eq('is_public', true)
         .order('likes_count', { ascending: false })
         .limit(50);
+
+      // Apply search filter if provided
+      if (searchQuery && searchQuery.trim()) {
+        query = query.ilike('theme_name', `%${searchQuery.trim()}%`);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return (data || []) as unknown as SharedTheme[];
@@ -45,12 +52,12 @@ export function usePublicThemes() {
 
 // Fetch user's saved themes
 export function useSavedThemes() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
 
   return useQuery({
-    queryKey: ['saved-themes', user?.id],
+    queryKey: ['saved-themes', profile?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!profile?.id) return [];
 
       const { data, error } = await supabase
         .from('saved_themes')
@@ -62,43 +69,43 @@ export function useSavedThemes() {
             creator:profiles!shared_themes_creator_id_fkey(display_name, avatar_url, username)
           )
         `)
-        .eq('user_id', user.id) // Use auth user ID
+        .eq('user_id', profile.id) // Use profile ID
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return (data?.map(d => ({ ...d.shared_theme, saved_id: d.id })) || []) as unknown as (SharedTheme & { saved_id: string })[];
     },
-    enabled: !!user?.id,
+    enabled: !!profile?.id,
     staleTime: 60000,
   });
 }
 
 // Fetch user's own shared themes
 export function useMySharedThemes() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
 
   return useQuery({
-    queryKey: ['my-shared-themes', user?.id],
+    queryKey: ['my-shared-themes', profile?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!profile?.id) return [];
 
       const { data, error } = await supabase
         .from('shared_themes')
         .select('*')
-        .eq('creator_id', user.id) // Use auth user ID
+        .eq('creator_id', profile.id) // Use profile ID
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return (data || []) as unknown as SharedTheme[];
     },
-    enabled: !!user?.id,
+    enabled: !!profile?.id,
     staleTime: 60000,
   });
 }
 
 // Share a theme
 export function useShareTheme() {
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -111,13 +118,13 @@ export function useShareTheme() {
       themeTokens: ThemeTokens;
       description?: string;
     }) => {
-      // Use auth user id for creator_id since RLS checks auth.uid()
-      if (!user?.id) throw new Error('Not authenticated');
+      // Use profile.id for creator_id since FK references profiles.id
+      if (!profile?.id) throw new Error('Not authenticated');
 
       const { data, error } = await supabase
         .from('shared_themes')
         .insert({
-          creator_id: user.id, // Use auth user ID, not profile ID
+          creator_id: profile.id, // Use profile ID, not auth user ID
           theme_name: themeName,
           theme_tokens: themeTokens as any,
           description: description || null,
@@ -143,17 +150,17 @@ export function useShareTheme() {
 
 // Save/favorite a theme
 export function useSaveSharedTheme() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sharedThemeId: string) => {
-      if (!user?.id) throw new Error('Not authenticated');
+      if (!profile?.id) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('saved_themes')
         .insert({
-          user_id: user.id, // Use auth user ID
+          user_id: profile.id, // Use profile ID
           shared_theme_id: sharedThemeId,
         });
 
@@ -179,17 +186,17 @@ export function useSaveSharedTheme() {
 
 // Unsave a theme
 export function useUnsaveTheme() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sharedThemeId: string) => {
-      if (!user?.id) throw new Error('Not authenticated');
+      if (!profile?.id) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('saved_themes')
         .delete()
-        .eq('user_id', user.id) // Use auth user ID
+        .eq('user_id', profile.id) // Use profile ID
         .eq('shared_theme_id', sharedThemeId);
 
       if (error) throw error;
@@ -207,17 +214,17 @@ export function useUnsaveTheme() {
 
 // Like a theme
 export function useLikeTheme() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sharedThemeId: string) => {
-      if (!user?.id) throw new Error('Not authenticated');
+      if (!profile?.id) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('theme_likes')
         .insert({
-          user_id: user.id, // Use auth user ID
+          user_id: profile.id, // Use profile ID
           shared_theme_id: sharedThemeId,
         });
 
@@ -237,17 +244,17 @@ export function useLikeTheme() {
 
 // Unlike a theme
 export function useUnlikeTheme() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sharedThemeId: string) => {
-      if (!user?.id) throw new Error('Not authenticated');
+      if (!profile?.id) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('theme_likes')
         .delete()
-        .eq('user_id', user.id) // Use auth user ID
+        .eq('user_id', profile.id) // Use profile ID
         .eq('shared_theme_id', sharedThemeId);
 
       if (error) throw error;
@@ -264,22 +271,22 @@ export function useUnlikeTheme() {
 
 // Check if user has liked themes
 export function useUserThemeLikes() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
 
   return useQuery({
-    queryKey: ['theme-likes', user?.id],
+    queryKey: ['theme-likes', profile?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!profile?.id) return [];
 
       const { data, error } = await supabase
         .from('theme_likes')
         .select('shared_theme_id')
-        .eq('user_id', user.id); // Use auth user ID
+        .eq('user_id', profile.id); // Use profile ID
 
       if (error) throw error;
       return data.map(d => d.shared_theme_id);
     },
-    enabled: !!user?.id,
+    enabled: !!profile?.id,
     staleTime: 60000,
   });
 }
