@@ -727,13 +727,22 @@ export function ChatView() {
         </div>
         
         {!isGroupChat && otherMember?.id && (
-          <CallButtons conversationId={conversationId!} receiverId={otherMember.id} />
+          <CallButtons 
+            conversationId={conversationId!} 
+            receiverId={otherMember.id}
+            receiverUsername={otherMember.username}
+            receiverDisplayName={otherMember.display_name}
+            receiverAvatarUrl={otherMember.avatar_url}
+          />
         )}
         
         {isGroupChat && otherMember?.id && (
           <CallButtons 
             conversationId={conversationId!} 
             receiverId={otherMember.id}
+            receiverUsername={otherMember.username}
+            receiverDisplayName={otherMember.display_name}
+            receiverAvatarUrl={otherMember.avatar_url}
             isGroupCall={true}
             groupName={conversation?.name || 'Group Chat'}
             groupAvatar={conversation?.avatar_url}
