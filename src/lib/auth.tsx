@@ -48,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const banSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Check if user is banned
   const checkBanStatus = async (profileId: string) => {
@@ -65,6 +66,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setBanInfo(null);
     }
+  };
+
+  // Subscribe to realtime ban changes
+  const subscribeToBanChanges = (profileId: string) => {
+    // Clean up existing subscription
+    if (banSubscriptionRef.current) {
+      supabase.removeChannel(banSubscriptionRef.current);
+      banSubscriptionRef.current = null;
+    }
+
+    const channel = supabase
+      .channel(`ban-status-${profileId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_bans',
+          filter: `user_id=eq.${profileId}`,
+        },
+        () => {
+          // Re-check ban status on any change (INSERT, UPDATE, DELETE)
+          checkBanStatus(profileId);
+        }
+      )
+      .subscribe();
+
+    banSubscriptionRef.current = channel;
   };
 
   // Schedule token refresh before expiry
@@ -109,8 +138,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!error && data?.[0]) {
       setProfile(data[0]);
-      // Check ban status after fetching profile
+      // Check ban status and subscribe to realtime changes
       checkBanStatus(data[0].id);
+      subscribeToBanChanges(data[0].id);
       return data[0];
     }
 
@@ -130,8 +160,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!afterEnsureError && afterEnsure?.[0]) {
       setProfile(afterEnsure[0]);
-      // Check ban status after fetching profile
+      // Check ban status and subscribe to realtime changes
       checkBanStatus(afterEnsure[0].id);
+      subscribeToBanChanges(afterEnsure[0].id);
       return afterEnsure[0];
     }
 
@@ -158,10 +189,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }, 0);
         } else {
           setProfile(null);
+          setBanInfo(null);
           // Clear refresh timer on logout
           if (refreshTimerRef.current) {
             clearTimeout(refreshTimerRef.current);
             refreshTimerRef.current = null;
+          }
+          // Clean up ban subscription
+          if (banSubscriptionRef.current) {
+            supabase.removeChannel(banSubscriptionRef.current);
+            banSubscriptionRef.current = null;
           }
         }
         
@@ -192,6 +229,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
+      }
+      if (banSubscriptionRef.current) {
+        supabase.removeChannel(banSubscriptionRef.current);
       }
     };
   }, []);
