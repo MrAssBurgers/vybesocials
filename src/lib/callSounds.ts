@@ -45,27 +45,35 @@ function createSmoothTone(
   const oscillator = ctx.createOscillator();
   const gain = ctx.createGain();
   
+  // Ensure startTime is never negative (fixes AudioParam error)
+  const safeStartTime = Math.max(0, startTime, ctx.currentTime);
+  const safeDuration = Math.max(0.1, duration); // Minimum duration
+  
   // Add slight low-pass filter for warmth
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(3000, startTime);
-  filter.Q.setValueAtTime(0.5, startTime);
+  filter.frequency.setValueAtTime(3000, safeStartTime);
+  filter.Q.setValueAtTime(0.5, safeStartTime);
   
   oscillator.connect(filter);
   filter.connect(gain);
   gain.connect(ctx.destination);
   
-  oscillator.frequency.setValueAtTime(frequency, startTime);
+  oscillator.frequency.setValueAtTime(frequency, safeStartTime);
   oscillator.type = type;
   
-  // Smooth envelope - prevents clicks
-  gain.gain.setValueAtTime(0, startTime);
-  gain.gain.linearRampToValueAtTime(volume, startTime + 0.015); // Soft attack
-  gain.gain.setValueAtTime(volume, startTime + duration - 0.05);
-  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration); // Smooth release
+  // Smooth envelope - prevents clicks (ensure all times are positive)
+  const attackEnd = safeStartTime + 0.015;
+  const releaseStart = Math.max(attackEnd + 0.01, safeStartTime + safeDuration - 0.05);
+  const releaseEnd = safeStartTime + safeDuration;
   
-  oscillator.start(startTime);
-  oscillator.stop(startTime + duration);
+  gain.gain.setValueAtTime(0, safeStartTime);
+  gain.gain.linearRampToValueAtTime(volume, attackEnd); // Soft attack
+  gain.gain.setValueAtTime(volume, releaseStart);
+  gain.gain.exponentialRampToValueAtTime(0.0001, releaseEnd); // Smooth release
+  
+  oscillator.start(safeStartTime);
+  oscillator.stop(releaseEnd);
   
   // Track for cleanup
   activeNodes.add(oscillator);
