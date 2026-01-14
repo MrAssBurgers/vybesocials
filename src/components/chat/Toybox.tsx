@@ -16,7 +16,8 @@ import {
   Clock,
   Settings,
   Sparkles,
-  Shield
+  Shield,
+  SmilePlus
 } from 'lucide-react';
 import { useUserRole } from '@/hooks/useModeration';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ interface ToyboxProps {
   onVoiceStart: () => void;
   onStickerSelect?: (sticker: string) => void;
   onLocationShare?: () => void;
+  onEmojiSelect?: (emoji: string) => void;
   isUploading?: boolean;
   disabled?: boolean;
   // New props for DM features
@@ -53,6 +55,16 @@ interface ToyboxProps {
 
 const STICKERS = ['😀', '😂', '🥰', '😎', '🔥', '💯', '🎉', '❤️', '👍', '🙌', '💪', '✨'];
 
+// Extended emoji list for computer users
+const EMOJI_CATEGORIES = {
+  'Smileys': ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '🥸', '😎', '🤓', '🧐'],
+  'Hearts': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '♥️', '🫶', '💑', '💏'],
+  'Gestures': ['👍', '👎', '👊', '✊', '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🤌', '🤏', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '🤙', '💪', '🦾', '🙏', '🤝', '👏', '🙌', '👐', '🤲'],
+  'Objects': ['🔥', '✨', '💫', '⭐', '🌟', '💥', '💢', '💦', '💨', '🎉', '🎊', '🎁', '🎈', '💯', '💤', '💭', '💬', '🗯️', '💌', '📱', '💻', '🎮', '🎧', '🎤', '📸', '🎬', '📺', '📻', '⏰', '💡', '🔔', '🎵', '🎶'],
+  'Animals': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦄', '🐝', '🦋', '🐌', '🐛', '🐢', '🐍', '🦎', '🦖', '🐙', '🦀', '🐠', '🐳', '🦈'],
+  'Food': ['🍎', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🥑', '🍔', '🍟', '🍕', '🌭', '🍿', '🧁', '🍰', '🎂', '🍩', '🍪', '🍫', '🍬', '🍭', '☕', '🧋', '🍺', '🍷', '🥤'],
+};
+
 export const Toybox = memo(function Toybox({
   onImageSelect,
   onVideoSelect,
@@ -60,6 +72,7 @@ export const Toybox = memo(function Toybox({
   onVoiceStart,
   onStickerSelect,
   onLocationShare,
+  onEmojiSelect,
   isUploading,
   disabled,
   onOpenVanishThreads,
@@ -74,6 +87,8 @@ export const Toybox = memo(function Toybox({
   const [isOpen, setIsOpen] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
+  const [showEmojis, setShowEmojis] = useState(false);
+  const [selectedEmojiCategory, setSelectedEmojiCategory] = useState<keyof typeof EMOJI_CATEGORIES>('Smileys');
   const [showDMFeatures, setShowDMFeatures] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +122,12 @@ export const Toybox = memo(function Toybox({
     setShowStickers(false);
     setIsOpen(false);
   }, [onStickerSelect]);
+
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    onEmojiSelect?.(emoji);
+    setShowEmojis(false);
+    setIsOpen(false);
+  }, [onEmojiSelect]);
 
   const handleVoiceStart = useCallback(() => {
     onVoiceStart();
@@ -148,6 +169,14 @@ export const Toybox = memo(function Toybox({
       color: 'text-yellow-500',
       bg: 'bg-yellow-500/10',
     },
+    // Emoji picker - great for computer users without emoji keyboard
+    ...(onEmojiSelect ? [{
+      icon: SmilePlus, 
+      label: 'Emoji', 
+      onClick: () => setShowEmojis(true),
+      color: 'text-pink-500',
+      bg: 'bg-pink-500/10',
+    }] : []),
     { 
       icon: Mic, 
       label: 'Voice', 
@@ -257,6 +286,59 @@ export const Toybox = memo(function Toybox({
                   className="text-2xl p-2 rounded-lg hover:bg-muted transition-colors"
                 >
                   {sticker}
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        ) : showEmojis ? (
+          <motion.div
+            key="emojis"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-semibold text-sm flex items-center gap-2">
+                <SmilePlus className="h-4 w-4 text-pink-500" />
+                Emoji
+              </span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setShowEmojis(false)}
+                className="h-7 w-7"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {/* Category tabs */}
+            <div className="flex gap-1 mb-3 overflow-x-auto pb-1 scrollbar-hide">
+              {(Object.keys(EMOJI_CATEGORIES) as (keyof typeof EMOJI_CATEGORIES)[]).map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedEmojiCategory(category)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors",
+                    selectedEmojiCategory === category 
+                      ? "bg-primary text-primary-foreground" 
+                      : "bg-muted hover:bg-muted/80"
+                  )}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+            {/* Emoji grid */}
+            <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
+              {EMOJI_CATEGORIES[selectedEmojiCategory].map((emoji) => (
+                <motion.button
+                  key={emoji}
+                  whileHover={{ scale: 1.2 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => handleEmojiSelect(emoji)}
+                  className="text-xl p-1.5 rounded-lg hover:bg-muted transition-colors"
+                >
+                  {emoji}
                 </motion.button>
               ))}
             </div>

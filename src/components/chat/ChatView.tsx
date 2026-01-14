@@ -1158,6 +1158,10 @@ const MessageInputArea = memo(function MessageInputArea({
                 await sendMediaMessage(gifUrl, 'gif');
               }}
               onVoiceStart={() => setIsRecordingVoice(true)}
+              onEmojiSelect={(emoji) => {
+                handleInputChange(messageText + emoji);
+                inputRef.current?.focus();
+              }}
               isUploading={isUploadingMedia}
               onOpenVanishThreads={onOpenVanishThreads}
               onOpenMemoryPins={onOpenMemoryPins}
