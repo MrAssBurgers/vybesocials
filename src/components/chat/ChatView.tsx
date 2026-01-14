@@ -70,7 +70,8 @@ import {
   MoreHorizontal,
   Users,
   Settings,
-  FileText
+  FileText,
+  Camera
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -113,7 +114,7 @@ export function ChatView() {
   const editMessage = useEditMessage();
   // Use new presence hook for Snapchat-style presence + typing
   const { presentUsers, typingUsers, setTyping } = useChatPresence(conversationId);
-  const { notifyScreenshot } = useScreenshotNotification(conversationId);
+  const { notifyScreenshot, screenshotEvents } = useScreenshotNotification(conversationId);
   
   // v1.1: Instant read clear - marks as read immediately and clears badges
   useInstantReadClear(conversationId);
@@ -251,17 +252,80 @@ export function ChatView() {
     
   }, [conversationId, messages?.length]);
 
-  // Screenshot detection
+  // Enhanced Screenshot detection - desktop keyboard shortcuts + mobile resize detection
   useEffect(() => {
+    if (!conversationId) return;
+    
+    // Desktop: Detect PrintScreen and Mac screenshot shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.key === 'PrintScreen') || (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4'))) {
+      // Windows/Linux PrintScreen
+      if (e.key === 'PrintScreen') {
         notifyScreenshot();
+        return;
+      }
+      // Mac: Cmd+Shift+3 (full screen) or Cmd+Shift+4 (selection) or Cmd+Shift+5 (menu)
+      if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
+        notifyScreenshot();
+        return;
+      }
+      // Windows: Win+Shift+S (Snipping Tool)
+      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 's') {
+        notifyScreenshot();
+        return;
+      }
+    };
+
+    // Mobile: iOS/Android screenshot detection via resize event
+    // When a screenshot is taken, some devices briefly resize the viewport
+    let lastHeight = window.innerHeight;
+    let screenshotDebounce: NodeJS.Timeout | null = null;
+    
+    const handleResize = () => {
+      const heightDiff = Math.abs(window.innerHeight - lastHeight);
+      // iOS screenshot briefly changes height by ~30-50px on some devices
+      if (heightDiff > 20 && heightDiff < 100) {
+        // Debounce to avoid false positives
+        if (screenshotDebounce) clearTimeout(screenshotDebounce);
+        screenshotDebounce = setTimeout(() => {
+          // Double-check it returned to normal (indicating screenshot, not keyboard)
+          if (Math.abs(window.innerHeight - lastHeight) < 10) {
+            notifyScreenshot();
+          }
+        }, 300);
+      }
+      lastHeight = window.innerHeight;
+    };
+
+    // Visibility change can also indicate screenshot on some devices
+    const handleVisibilityChange = () => {
+      // If document becomes hidden very briefly (< 500ms), might be screenshot
+      if (document.visibilityState === 'hidden') {
+        const hideTime = Date.now();
+        const checkVisibility = () => {
+          if (document.visibilityState === 'visible') {
+            const hiddenDuration = Date.now() - hideTime;
+            // Very brief hide (< 500ms) could indicate screenshot on some devices
+            if (hiddenDuration < 500 && hiddenDuration > 50) {
+              // This is heuristic-based and may have false positives
+              // notifyScreenshot(); // Uncomment if you want this behavior
+            }
+          }
+        };
+        setTimeout(checkVisibility, 600);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [notifyScreenshot]);
+    window.addEventListener('resize', handleResize);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (screenshotDebounce) clearTimeout(screenshotDebounce);
+    };
+  }, [conversationId, notifyScreenshot]);
 
   // Handle typing indicator - debounced, doesn't block input
   const handleInputChange = useCallback((value: string) => {
@@ -756,6 +820,32 @@ export function ChatView() {
               spacingClass = 'pt-4 sm:pt-5'; // Media transition (16-20px)
             }
             
+            // Check if this is a screenshot notification system message
+            const isScreenshotNotification = message.message_type === 'screenshot_notification';
+            
+            if (isScreenshotNotification) {
+              return (
+                <div key={message.id} className={cn(spacingClass, index === 0 && 'pt-0')}>
+                  {showTimestamp && (
+                    <div className="text-center py-5 sm:py-6">
+                      <span className="text-[10px] sm:text-[11px] text-muted-foreground/50 bg-muted/30 px-3 py-1 rounded-full font-medium">
+                        {formatMessageDate(message.created_at)}
+                      </span>
+                    </div>
+                  )}
+                  {/* Screenshot notification - centered system message */}
+                  <div className="flex justify-center py-2">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-medium">
+                      <Camera className="h-3.5 w-3.5" />
+                      <span>
+                        {message.sender?.username || 'Someone'} {message.content}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            
             return (
               <div 
                 key={message.id}
@@ -832,6 +922,23 @@ export function ChatView() {
               </div>
             </div>
           )}
+
+          {/* Screenshot notification banner - Snapchat style */}
+          <AnimatePresence>
+            {screenshotEvents.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="flex items-center justify-center gap-2 py-2 px-4 mx-4 mb-2 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-sm"
+              >
+                <Camera className="h-4 w-4" />
+                <span className="font-medium">
+                  {screenshotEvents[screenshotEvents.length - 1]?.username} took a screenshot
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Snapchat-style presence/typing indicator - in message flow, above input */}
           {presentUsers && presentUsers.length > 0 && (
