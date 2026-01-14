@@ -73,6 +73,18 @@ export function DesignYourVybe() {
   const generationRunIdRef = useRef(0);
   const GENERATION_TIMEOUT_MS = 30000;
 
+  // Lock scroll while generating
+  useEffect(() => {
+    if (isGenerating) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isGenerating]);
+
   // Load user's current theme/preset on mount
   useEffect(() => {
     if (userTheme) {
