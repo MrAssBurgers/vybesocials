@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useRef, ReactNode } fro
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { BannedScreen } from '@/components/auth/BannedScreen';
+import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -22,6 +23,7 @@ interface BanInfo {
   reason: string;
   expires_at: string | null;
   is_permanent: boolean;
+  is_meme_ban?: boolean | null;
 }
 
 interface AuthContextType {
@@ -51,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkBanStatus = async (profileId: string) => {
     const { data, error } = await supabase
       .from('user_bans')
-      .select('reason, expires_at, is_permanent')
+      .select('reason, expires_at, is_permanent, is_meme_ban')
       .eq('user_id', profileId)
       .or(`is_permanent.eq.true,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
@@ -264,7 +266,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Show banned screen if user is banned
   if (banInfo) {
-    return (
+    return banInfo.is_meme_ban ? (
+      <MemeBanScreen reason={banInfo.reason} expiresAt={banInfo.expires_at} />
+    ) : (
       <BannedScreen
         reason={banInfo.reason}
         expiresAt={banInfo.expires_at}
