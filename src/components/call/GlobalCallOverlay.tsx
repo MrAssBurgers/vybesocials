@@ -538,13 +538,16 @@ export function GlobalCallOverlay() {
 
       if (cancelled) return;
 
-      // Set 10 second timeout (reduced from 15)
+      // Set 30 second timeout for join (generous to handle slow networks)
       clearJoinTimeout();
       joinTimeoutRef.current = setTimeout(() => {
-        console.error('[CallOverlay] Join timeout');
-        toast.error('Call failed to connect');
-        endCall();
-      }, 10000);
+        // Only timeout if still in joining phase - don't interrupt connected calls
+        if (stateRef.current.phase === 'joining') {
+          console.error('[CallOverlay] Join timeout after 30s');
+          toast.error('Call failed to connect');
+          endCall();
+        }
+      }, 30000);
 
       // Join the room - this should be instant now
       try {
@@ -609,7 +612,7 @@ export function GlobalCallOverlay() {
     if (!daily) return;
 
     let pollCount = 0;
-    const maxPolls = 10; // Reduced: 10 polls over 20 seconds is enough
+    const maxPolls = 5; // Only 5 polls - after that rely on events
 
     const checkRemoteParticipants = () => {
       try {
@@ -619,34 +622,38 @@ export function GlobalCallOverlay() {
           if (!p.local) {
             setRemoteParticipant(p);
 
-            // Video: use guarded attachment
+            // Video: STRICT guard - never re-attach same track
             const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
             const trackState = p.tracks?.video?.state;
             const isPlayable = trackState === 'playable' || trackState === 'loading';
 
             if (videoTrack && isPlayable && remoteVideoRef.current) {
-              // Skip if already attached with same track
+              // ONLY attach if track ID is different
               if (attachedTrackIdsRef.current.remoteVideo !== videoTrack.id) {
+                console.log('[CallOverlay] Poll: Attaching new remote video track');
                 attachedTrackIdsRef.current.remoteVideo = videoTrack.id;
                 remoteVideoRef.current.srcObject = new MediaStream([videoTrack]);
                 remoteVideoRef.current.play().catch(() => {});
                 setHasRemoteVideo(true);
               }
+              // If same track, do NOT touch srcObject at all - just ensure playing
+              else if (remoteVideoRef.current.paused) {
+                remoteVideoRef.current.play().catch(() => {});
+              }
             }
 
-            // Audio: use guarded attachment
+            // Audio: STRICT guard
             const audioTrack = p.tracks?.audio?.persistentTrack || p.tracks?.audio?.track;
             const audioState = p.tracks?.audio?.state;
             const isAudioPlayable = audioState === 'playable' || audioState === 'loading';
 
             if (p.audio && audioTrack && isAudioPlayable && remoteAudioRef.current) {
-              // Skip if already attached with same track - just ensure playback
-              if (attachedTrackIdsRef.current.remoteAudio === audioTrack.id) {
+              if (attachedTrackIdsRef.current.remoteAudio !== audioTrack.id) {
+                attachRemoteAudioTrack(audioTrack);
+              } else if (remoteAudioRef.current.paused) {
                 remoteAudioRef.current.muted = false;
                 remoteAudioRef.current.volume = 1;
                 remoteAudioRef.current.play().catch(() => {});
-              } else {
-                attachRemoteAudioTrack(audioTrack);
               }
             }
           }
@@ -658,17 +665,17 @@ export function GlobalCallOverlay() {
       pollCount++;
     };
 
-    // Immediate check
+    // Immediate check once
     checkRemoteParticipants();
 
-    // Poll every 2000ms (less frequent for smoother performance)
+    // Poll every 3 seconds (very infrequent - rely on events primarily)
     const pollInterval = setInterval(() => {
       if (pollCount >= maxPolls) {
         clearInterval(pollInterval);
         return;
       }
       checkRemoteParticipants();
-    }, 2000);
+    }, 3000);
 
     return () => clearInterval(pollInterval);
   }, [state.phase, attachRemoteAudioTrack]);
