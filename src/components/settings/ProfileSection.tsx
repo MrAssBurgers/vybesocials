@@ -50,10 +50,10 @@ export function ProfileSection() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="liquid-glass-card overflow-hidden"
+        className="liquid-glass-card overflow-hidden rounded-xl"
       >
-        {/* Header with gradient */}
-        <div className="h-20 bg-gradient-to-r from-primary/30 via-primary/20 to-accent/30" />
+        {/* Header with gradient - contained within card bounds */}
+        <div className="h-20 bg-gradient-to-r from-primary/30 via-primary/20 to-accent/30 rounded-t-xl" />
         
         {/* Profile content */}
         <div className="px-4 sm:px-6 pb-6 -mt-10">
