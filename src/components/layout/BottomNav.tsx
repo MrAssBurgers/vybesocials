@@ -1,4 +1,4 @@
-import { Home, Film, PlusCircle, MessageCircle, Settings } from 'lucide-react';
+import { Home, Compass, PlusCircle, MessageCircle, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -174,10 +174,10 @@ export function BottomNav() {
     lastTapTime.current = now;
   }, []);
 
-  // Updated nav order: Home | Clips | Upload | Messages | Settings
+  // Updated nav order: Home | Explore | Upload | Messages | Settings
   const navItems = [
     { icon: Home, path: '/home', badge: 0, tutorialId: 'home-nav' },
-    { icon: Film, path: '/clips', badge: 0, tutorialId: 'clips-nav' },
+    { icon: Compass, path: '/explore', badge: 0, tutorialId: 'explore-nav' },
     { icon: PlusCircle, path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav' },
     { icon: MessageCircle, path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav' },
     { icon: Settings, path: '/settings', badge: 0, tutorialId: 'settings-nav' },

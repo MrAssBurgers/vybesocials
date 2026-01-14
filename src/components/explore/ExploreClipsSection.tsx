@@ -1,10 +1,14 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Eye, X, ChevronUp, Volume2, VolumeX } from 'lucide-react';
+import { Play, Eye, X } from 'lucide-react';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ShortCard } from '@/components/posts/ShortCard';
+import { MobileShortCard } from '@/components/posts/MobileShortCard';
+import { useIsMobileOrTablet } from '@/hooks/use-mobile';
+import { useVideoPreload } from '@/hooks/useVideoPreload';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
 interface ClipPost {
   id: string;
@@ -105,116 +109,207 @@ const ClipThumbnail = memo(function ClipThumbnail({
   );
 });
 
-function ClipViewer({
+// Full-screen TikTok-style clip viewer
+const BOTTOM_NAV_HEIGHT = 80;
+
+function FullscreenClipViewer({
   clips,
-  selectedIndex,
+  startIndex,
   onClose,
-  onNavigate,
 }: {
   clips: ClipPost[];
-  selectedIndex: number;
+  startIndex: number;
   onClose: () => void;
-  onNavigate: (index: number) => void;
 }) {
-  const [isMuted, setIsMuted] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(startIndex);
+  const [globalMuted, setGlobalMuted] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const observerRef = useRef<IntersectionObserver | null>(null);
   
-  const handleSwipe = useCallback((direction: 'up' | 'down') => {
-    if (direction === 'up' && selectedIndex < clips.length - 1) {
-      onNavigate(selectedIndex + 1);
-    } else if (direction === 'down' && selectedIndex > 0) {
-      onNavigate(selectedIndex - 1);
+  const { isMobileOrTablet } = useIsMobileOrTablet();
+  const { isSlowConnection } = useNetworkStatus();
+  
+  // Smart preload videos around current position
+  const videoUrls = useMemo(() => clips.map(c => c.media_url), [clips]);
+  useVideoPreload(videoUrls, { 
+    currentIndex, 
+    preloadDepth: isSlowConnection ? 1 : 2,
+    enabled: !isSlowConnection 
+  });
+
+  // Lock body scroll when viewer is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
+
+  // Scroll to starting clip on mount
+  useEffect(() => {
+    const target = itemRefs.current[startIndex];
+    if (target) {
+      target.scrollIntoView({ behavior: 'instant', block: 'start' });
     }
-  }, [selectedIndex, clips.length, onNavigate]);
+  }, [startIndex]);
+
+  // IntersectionObserver to track current clip
+  useEffect(() => {
+    if (!clips?.length) return;
+
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+            const index = itemRefs.current.findIndex((ref) => ref === entry.target);
+            if (index !== -1 && index !== currentIndex) {
+              setCurrentIndex(index);
+            }
+          }
+        });
+      },
+      {
+        root: containerRef.current,
+        threshold: 0.6,
+      }
+    );
+
+    itemRefs.current.forEach((ref) => {
+      if (ref) observerRef.current?.observe(ref);
+    });
+
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, [clips?.length, currentIndex]);
+
+  // Keyboard navigation (desktop)
+  useEffect(() => {
+    if (isMobileOrTablet) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault();
+        scrollToIndex(currentIndex + 1);
+      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault();
+        scrollToIndex(currentIndex - 1);
+      } else if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, clips?.length, isMobileOrTablet, onClose]);
+
+  const scrollToIndex = useCallback((index: number) => {
+    if (index < 0 || index >= clips.length) return;
+    const target = itemRefs.current[index];
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [clips.length]);
+
+  const handleToggleMute = useCallback(() => {
+    setGlobalMuted(prev => !prev);
+  }, []);
+
+  const containerHeight = isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh';
+  const CardComponent = isMobileOrTablet ? MobileShortCard : ShortCard;
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black flex items-center justify-center"
-      onTouchStart={(e) => {
-        const touch = e.touches[0];
-        (e.currentTarget as any)._touchStartY = touch.clientY;
-      }}
-      onTouchEnd={(e) => {
-        const startY = (e.currentTarget as any)._touchStartY;
-        const endY = e.changedTouches[0].clientY;
-        const diff = startY - endY;
-        if (Math.abs(diff) > 50) {
-          handleSwipe(diff > 0 ? 'up' : 'down');
-        }
-      }}
+      className="fixed inset-0 z-50 bg-black"
     >
-      {/* Close button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute top-4 right-4 z-20 text-white hover:bg-white/20 rounded-full"
-        onClick={onClose}
+      <div
+        ref={containerRef}
+        className="overflow-y-scroll scrollbar-hide bg-black"
+        style={{ 
+          height: containerHeight,
+          scrollSnapType: 'y mandatory',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          scrollSnapStop: 'always',
+        }}
       >
-        <X className="h-6 w-6" />
-      </Button>
+        <div className="flex flex-col w-full">
+          {clips.map((clip, index) => (
+            <div
+              key={clip.id}
+              ref={(el) => { itemRefs.current[index] = el; }}
+              className="w-full flex-shrink-0 flex justify-center"
+              style={{ 
+                height: containerHeight,
+                scrollSnapAlign: 'start',
+                scrollSnapStop: 'always',
+              }}
+            >
+              <div className="relative h-full w-full max-w-[500px]">
+                <CardComponent 
+                  post={clip} 
+                  isActive={index === currentIndex}
+                  globalMuted={globalMuted}
+                  onToggleMute={handleToggleMute}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
 
-      {/* Mute toggle */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute top-4 left-4 z-20 text-white hover:bg-white/20 rounded-full"
-        onClick={() => setIsMuted(!isMuted)}
-      >
-        {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-      </Button>
-
-      {/* Clip content */}
-      <div className="w-full h-full max-w-md mx-auto">
-        <ShortCard 
-          post={clips[selectedIndex]} 
-          isActive={true}
-          globalMuted={isMuted}
-          onToggleMute={() => setIsMuted(!isMuted)}
-        />
-      </div>
-
-      {/* Clip counter */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full">
-        <span className="text-white/80 text-sm font-medium">
-          {selectedIndex + 1} / {clips.length}
-        </span>
-      </div>
-
-      {/* Navigation hints */}
-      {selectedIndex > 0 && (
-        <button
-          onClick={() => handleSwipe('down')}
-          className="absolute top-20 left-1/2 -translate-x-1/2 text-white/60 hover:text-white transition-colors"
+        {/* Close button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60"
+          onClick={onClose}
         >
-          <ChevronUp className="h-8 w-8" />
-        </button>
-      )}
-      
-      {selectedIndex < clips.length - 1 && (
-        <button
-          onClick={() => handleSwipe('up')}
-          className="absolute bottom-20 left-1/2 -translate-x-1/2 text-white/60 hover:text-white transition-colors rotate-180"
-        >
-          <ChevronUp className="h-8 w-8" />
-        </button>
-      )}
+          <X className="w-5 h-5" />
+        </Button>
 
-      {/* Swipe hint on first clip */}
-      {selectedIndex === 0 && (
-        <motion.div
-          className="absolute bottom-32 left-1/2 -translate-x-1/2 pointer-events-none"
-          initial={{ opacity: 1, y: 0 }}
-          animate={{ opacity: 0, y: -10 }}
-          transition={{ delay: 2, duration: 1 }}
-        >
-          <div className="text-white/60 text-xs flex flex-col items-center gap-1">
-            <ChevronUp className="h-4 w-4 rotate-180" />
-            <span>Swipe for more</span>
+        {/* Progress indicator (desktop only) */}
+        {!isMobileOrTablet && (
+          <div className="fixed right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 pointer-events-none">
+            {clips.slice(Math.max(0, currentIndex - 3), currentIndex + 4).map((_, idx) => {
+              const actualIdx = Math.max(0, currentIndex - 3) + idx;
+              return (
+                <div
+                  key={actualIdx}
+                  className="w-1 rounded-full bg-white transition-all duration-200"
+                  style={{
+                    height: actualIdx === currentIndex ? 20 : 6,
+                    opacity: actualIdx === currentIndex ? 1 : 0.3,
+                  }}
+                />
+              );
+            })}
           </div>
-        </motion.div>
-      )}
+        )}
+
+        {/* Swipe hint on first clip (mobile) */}
+        {currentIndex === startIndex && isMobileOrTablet && (
+          <motion.div 
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 pointer-events-none z-20"
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 0 }}
+            transition={{ delay: 2, duration: 1 }}
+          >
+            <div className="text-white/70 text-sm flex flex-col items-center animate-pulse">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              </svg>
+              <span className="font-medium">Swipe up</span>
+            </div>
+          </motion.div>
+        )}
+      </div>
     </motion.div>
   );
 }
@@ -227,19 +322,11 @@ export const ExploreClipsSection = memo(function ExploreClipsSection({
 
   const handleOpen = useCallback((index: number) => {
     setSelectedIndex(index);
-    document.body.style.overflow = 'hidden';
   }, []);
 
   const handleClose = useCallback(() => {
     setSelectedIndex(null);
-    document.body.style.overflow = '';
   }, []);
-
-  const handleNavigate = useCallback((index: number) => {
-    if (index >= 0 && index < clips.length) {
-      setSelectedIndex(index);
-    }
-  }, [clips.length]);
 
   if (clips.length === 0) {
     return (
@@ -255,7 +342,7 @@ export const ExploreClipsSection = memo(function ExploreClipsSection({
 
   return (
     <>
-      {/* Grid of clip thumbnails - 3 columns on mobile, 4-5 on larger screens */}
+      {/* Grid of clip thumbnails */}
       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
         {clips.map((clip, index) => (
           <ClipThumbnail
@@ -267,14 +354,13 @@ export const ExploreClipsSection = memo(function ExploreClipsSection({
         ))}
       </div>
 
-      {/* Full-screen viewer */}
+      {/* Full-screen TikTok-style viewer */}
       <AnimatePresence>
         {selectedIndex !== null && (
-          <ClipViewer
+          <FullscreenClipViewer
             clips={clips}
-            selectedIndex={selectedIndex}
+            startIndex={selectedIndex}
             onClose={handleClose}
-            onNavigate={handleNavigate}
           />
         )}
       </AnimatePresence>
