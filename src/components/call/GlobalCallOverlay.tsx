@@ -335,40 +335,19 @@ export function GlobalCallOverlay() {
       endCall();
     });
 
-    // Helper to attach remote participant video
+    // Helper to attach remote participant video - GUARDED to prevent flickering
     const attachRemoteParticipantVideo = (p: DailyParticipant, videoEl: HTMLVideoElement | null) => {
       if (!p || !videoEl) return;
 
-      // Check multiple track access patterns for compatibility
       const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
       const trackState = p.tracks?.video?.state;
       const isPlayable = trackState === 'playable' || trackState === 'loading';
       const canRenderVideo = !!videoTrack && isPlayable;
 
-      console.log('[CallOverlay] Checking remote video:', {
-        participantId: p.session_id,
-        participantVideoFlag: p.video,
-        trackState,
-        hasTrack: !!videoTrack,
-        canRenderVideo,
-      });
-
       if (canRenderVideo) {
-        console.log('[CallOverlay] Attaching remote video track');
-        try {
-          const stream = new MediaStream([videoTrack]);
-          videoEl.srcObject = stream;
-          videoEl.play().catch((err) => {
-            console.error('[CallOverlay] Remote video play failed:', err);
-            // iOS/iPad: playback often requires a user gesture
-            if (isIOSorIPad()) {
-              setNeedsUserInteraction(true);
-            }
-          });
-          setHasRemoteVideo(true);
-        } catch (err) {
-          console.error('[CallOverlay] Failed to attach remote video:', err);
-        }
+        // Use guarded attach to prevent flickering from repeated re-attachments
+        attachTrack(videoTrack, videoEl);
+        setHasRemoteVideo(true);
       }
     };
 
@@ -377,7 +356,6 @@ export function GlobalCallOverlay() {
       console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.session_id);
       if (event?.participant && !event.participant.local) {
         setRemoteParticipant(event.participant);
-        // Immediately try to attach video if available
         attachRemoteParticipantVideo(event.participant, remoteVideoRef.current);
       }
     });
@@ -387,6 +365,7 @@ export function GlobalCallOverlay() {
       if (event?.participant && !event.participant.local) {
         setRemoteParticipant(null);
         setHasRemoteVideo(false);
+        attachedTrackIdsRef.current.remoteVideo = undefined;
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = null;
         }
@@ -398,7 +377,6 @@ export function GlobalCallOverlay() {
       
       const p = event.participant;
       if (p.local) {
-        // Update local video state
         const hasVideo = p.video && (p.tracks?.video?.state === 'playable' || p.tracks?.video?.state === 'loading');
         const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
         setHasLocalVideo(hasVideo && !!videoTrack);
@@ -407,7 +385,6 @@ export function GlobalCallOverlay() {
           attachTrack(videoTrack, localVideoRef.current);
         }
       } else {
-        // Update remote participant
         setRemoteParticipant(p);
         attachRemoteParticipantVideo(p, remoteVideoRef.current);
       }
@@ -623,7 +600,7 @@ export function GlobalCallOverlay() {
     return () => clearInterval(interval);
   }, [state.phase]);
 
-  // CRITICAL: Poll for remote participants after connection
+  // CRITICAL: Poll for remote participants after connection (GUARDED - no flickering)
   // This ensures we catch remote video even if events fire before refs are ready
   useEffect(() => {
     if (state.phase !== 'connected') return;
@@ -632,7 +609,7 @@ export function GlobalCallOverlay() {
     if (!daily) return;
 
     let pollCount = 0;
-    const maxPolls = 30; // Poll for up to 15 seconds (30 * 500ms)
+    const maxPolls = 10; // Reduced: 10 polls over 20 seconds is enough
 
     const checkRemoteParticipants = () => {
       try {
@@ -640,52 +617,36 @@ export function GlobalCallOverlay() {
 
         Object.values(participants).forEach((p: any) => {
           if (!p.local) {
-            console.log(`[CallOverlay] Poll #${pollCount + 1}: Found remote participant`, {
-              session_id: p.session_id,
-              participantVideoFlag: p.video,
-              trackState: p.tracks?.video?.state,
-            });
-
             setRemoteParticipant(p);
 
-            // Try to attach video if available and we don't have it yet
+            // Video: use guarded attachment
             const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
             const trackState = p.tracks?.video?.state;
             const isPlayable = trackState === 'playable' || trackState === 'loading';
 
             if (videoTrack && isPlayable && remoteVideoRef.current) {
-              console.log('[CallOverlay] Poll: Attaching remote video track');
-              try {
-                const stream = new MediaStream([videoTrack]);
-                remoteVideoRef.current.srcObject = stream;
-                remoteVideoRef.current.play().catch((err) => {
-                  console.error('[CallOverlay] Poll: Remote video play error:', err);
-                  if (isIOSorIPad()) setNeedsUserInteraction(true);
-                });
+              // Skip if already attached with same track
+              if (attachedTrackIdsRef.current.remoteVideo !== videoTrack.id) {
+                attachedTrackIdsRef.current.remoteVideo = videoTrack.id;
+                remoteVideoRef.current.srcObject = new MediaStream([videoTrack]);
+                remoteVideoRef.current.play().catch(() => {});
                 setHasRemoteVideo(true);
-              } catch (err) {
-                console.error('[CallOverlay] Poll: Failed to attach video:', err);
               }
             }
 
-            // Also check for audio - CRITICAL: ensure audio is always attached and playing
+            // Audio: use guarded attachment
             const audioTrack = p.tracks?.audio?.persistentTrack || p.tracks?.audio?.track;
             const audioState = p.tracks?.audio?.state;
             const isAudioPlayable = audioState === 'playable' || audioState === 'loading';
 
             if (p.audio && audioTrack && isAudioPlayable && remoteAudioRef.current) {
-              // Always try to attach audio, even if already attached (ensures it's playing)
-              console.log('[CallOverlay] Poll: Attaching/refreshing remote audio track');
-              try {
-                const audioStream = new MediaStream([audioTrack]);
-                remoteAudioRef.current.srcObject = audioStream;
+              // Skip if already attached with same track - just ensure playback
+              if (attachedTrackIdsRef.current.remoteAudio === audioTrack.id) {
                 remoteAudioRef.current.muted = false;
                 remoteAudioRef.current.volume = 1;
-                remoteAudioRef.current.play().catch((err) => {
-                  console.warn('[CallOverlay] Poll: Audio play error:', err);
-                });
-              } catch (err) {
-                console.error('[CallOverlay] Poll: Failed to attach audio:', err);
+                remoteAudioRef.current.play().catch(() => {});
+              } else {
+                attachRemoteAudioTrack(audioTrack);
               }
             }
           }
@@ -700,18 +661,17 @@ export function GlobalCallOverlay() {
     // Immediate check
     checkRemoteParticipants();
 
-    // Poll every 1000ms (reduced frequency for smoother performance)
+    // Poll every 2000ms (less frequent for smoother performance)
     const pollInterval = setInterval(() => {
       if (pollCount >= maxPolls) {
         clearInterval(pollInterval);
-        console.log('[CallOverlay] Stopped polling after max attempts');
         return;
       }
       checkRemoteParticipants();
-    }, 1000);
+    }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [state.phase, isIOSorIPad]);
+  }, [state.phase, attachRemoteAudioTrack]);
 
   // Re-enable video tracks when returning from background/minimized state
   useEffect(() => {
@@ -962,7 +922,6 @@ export function GlobalCallOverlay() {
   const handleExpand = useCallback(async () => {
     setIsMinimized(false);
     
-    // Re-attach video tracks after a short delay to ensure elements are visible
     const daily = dailyRef.current;
     if (!daily || state.call?.callType !== 'video') return;
     
@@ -970,22 +929,20 @@ export function GlobalCallOverlay() {
     await new Promise(r => setTimeout(r, 100));
     
     try {
-      // Refresh local video
       const participants = daily.participants();
       const local = participants?.local;
       
+      // Resume local video playback (no re-attach, just play)
       if (local && localVideoRef.current) {
         const videoTrack = local.tracks?.video?.persistentTrack || local.tracks?.video?.track;
         if (videoTrack && local.video) {
-          const stream = new MediaStream([videoTrack]);
-          localVideoRef.current.srcObject = stream;
-          localVideoRef.current.play().catch(() => {});
+          // Use guarded attach
+          attachTrack(videoTrack, localVideoRef.current);
           setHasLocalVideo(true);
-          console.log('[CallOverlay] Re-attached local video after expand');
         }
       }
       
-      // Refresh remote video
+      // Resume remote video playback (guarded)
       Object.values(participants).forEach((p: any) => {
         if (!p.local && remoteVideoRef.current) {
           const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
@@ -993,11 +950,8 @@ export function GlobalCallOverlay() {
           const isPlayable = trackState === 'playable' || trackState === 'loading';
           
           if (videoTrack && isPlayable) {
-            const stream = new MediaStream([videoTrack]);
-            remoteVideoRef.current.srcObject = stream;
-            remoteVideoRef.current.play().catch(() => {});
+            attachTrack(videoTrack, remoteVideoRef.current);
             setHasRemoteVideo(true);
-            console.log('[CallOverlay] Re-attached remote video after expand');
           }
         }
       });
@@ -1008,9 +962,9 @@ export function GlobalCallOverlay() {
         remoteAudioRef.current.play().catch(() => {});
       }
     } catch (err) {
-      console.error('[CallOverlay] Error re-attaching tracks after expand:', err);
+      console.error('[CallOverlay] Error resuming playback after expand:', err);
     }
-  }, [state.call?.callType]);
+  }, [state.call?.callType, attachTrack]);
 
   // Reset minimize state when call ends
   useEffect(() => {
