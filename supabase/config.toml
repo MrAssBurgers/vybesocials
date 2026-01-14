@@ -30,3 +30,6 @@ verify_jwt = false
 [functions.unsend-message]
 verify_jwt = false
 
+[functions.generate-ai-video]
+verify_jwt = false
+
