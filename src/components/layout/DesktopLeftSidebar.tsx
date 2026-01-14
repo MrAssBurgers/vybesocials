@@ -1,7 +1,6 @@
-import { useState, useCallback, useRef, forwardRef } from 'react';
+import { useState, useCallback, useRef, forwardRef, memo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Home, Compass, MessageCircle, ShoppingBag, Calendar, Bell, Settings, 
   LogOut, PlusCircle, Shield, ChevronLeft, ChevronRight, Users, LucideIcon
@@ -38,8 +37,8 @@ interface DesktopLeftSidebarProps {
   compact?: boolean;
 }
 
-// NavLink component with forwardRef - liquid glass styling
-const NavLinkContent = forwardRef<
+// NavLink component with forwardRef - simplified for performance
+const NavLinkContent = memo(forwardRef<
   HTMLAnchorElement,
   {
     item: NavItemData;
@@ -49,72 +48,42 @@ const NavLinkContent = forwardRef<
   }
 >(({ item, isActive, collapsed, label, ...props }, ref) => {
   const Icon = item.icon;
-  const [isHovered, setIsHovered] = useState(false);
-  const [isPressed, setIsPressed] = useState(false);
   
   return (
-    <motion.div
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => { setIsHovered(false); setIsPressed(false); }}
-      onMouseDown={() => setIsPressed(true)}
-      onMouseUp={() => setIsPressed(false)}
-      animate={{
-        scale: isPressed ? 0.97 : isHovered ? 1.01 : 1,
-      }}
-      transition={{ type: 'spring', stiffness: 600, damping: 30 }}
+    <Link
+      ref={ref}
+      to={item.path}
+      onClick={triggerNavFeedback}
+      data-tutorial={item.tutorialId}
+      className={cn(
+        "flex items-center gap-3 rounded-xl transition-colors relative group overflow-hidden",
+        "active:scale-[0.98] transition-transform duration-100",
+        collapsed ? "px-3 py-3 justify-center" : "px-3 py-2.5",
+        isActive
+          ? "text-sidebar-foreground bg-gradient-to-r from-primary/15 via-accent/10 to-primary/15 border border-primary/20"
+          : "text-muted-foreground hover:bg-foreground/5 hover:text-sidebar-foreground border border-transparent"
+      )}
+      {...props}
     >
-      <Link
-        ref={ref}
-        to={item.path}
-        onClick={triggerNavFeedback}
-        data-tutorial={item.tutorialId}
-        className={cn(
-          "flex items-center gap-3 rounded-xl transition-all relative group overflow-hidden backdrop-blur-sm",
-          collapsed ? "px-3 py-3 justify-center" : "px-3 py-2.5",
-          isActive
-            ? "text-sidebar-foreground bg-gradient-to-r from-primary/15 via-accent/10 to-primary/15 border border-primary/20"
-            : "text-muted-foreground hover:bg-foreground/5 hover:text-sidebar-foreground border border-transparent"
-        )}
-        {...props}
-      >
-        {/* Glossy sheen on hover */}
-        <motion.div
-          className="absolute inset-0 pointer-events-none rounded-xl"
-          initial={{ opacity: 0, x: '-100%' }}
-          animate={isHovered && !isActive ? { opacity: 1, x: '100%' } : { opacity: 0, x: '-100%' }}
-          transition={{ duration: 0.5, ease: 'easeInOut' }}
-          style={{
-            background: 'linear-gradient(105deg, transparent 30%, hsl(var(--foreground) / 0.06) 50%, transparent 70%)',
-          }}
-        />
-        
-        {/* Active inner glow */}
-        {isActive && (
-          <div className="absolute inset-0 rounded-xl pointer-events-none">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent" />
-          </div>
-        )}
-        
-        <div className="relative z-10 flex-shrink-0">
-          <Icon className="h-5 w-5 transition-transform" />
-          <AnimatePresence>
-            {item.badge > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0 }}
-                className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold"
-              >
-                {item.badge > 9 ? '9+' : item.badge}
-              </motion.span>
-            )}
-          </AnimatePresence>
+      {/* Active inner glow */}
+      {isActive && (
+        <div className="absolute inset-0 rounded-xl pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent" />
         </div>
-        {!collapsed && <span className="relative z-10 font-medium truncate flex-1">{label}</span>}
-      </Link>
-    </motion.div>
+      )}
+      
+      <div className="relative z-10 flex-shrink-0">
+        <Icon className="h-5 w-5" />
+        {item.badge > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold">
+            {item.badge > 9 ? '9+' : item.badge}
+          </span>
+        )}
+      </div>
+      {!collapsed && <span className="relative z-10 font-medium truncate flex-1">{label}</span>}
+    </Link>
   );
-});
+}));
 NavLinkContent.displayName = 'NavLinkContent';
 
 export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = false }: DesktopLeftSidebarProps) {

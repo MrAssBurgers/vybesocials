@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import { useStories } from '@/hooks/useStories';
 import { useAuth } from '@/lib/auth';
@@ -11,7 +11,7 @@ import { StoryCreator } from './StoryCreator';
 import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 
-export function StoriesBar() {
+export const StoriesBar = memo(function StoriesBar() {
   const { t } = useTranslation();
   const { profile } = useAuth();
   const { data: storyGroups, isLoading } = useStories();
@@ -82,7 +82,7 @@ export function StoriesBar() {
       </AnimatePresence>
     </>
   );
-}
+});
 
 interface StoryAvatarProps {
   avatarUrl?: string | null;
@@ -97,7 +97,7 @@ interface StoryAvatarProps {
   onAddClick?: () => void;
 }
 
-function StoryAvatar({ 
+const StoryAvatar = memo(function StoryAvatar({ 
   avatarUrl, 
   username, 
   displayName,
@@ -118,10 +118,9 @@ function StoryAvatar({
   };
   
   return (
-    <motion.button
-      whileTap={{ scale: 0.95 }}
+    <button
       onClick={onClick}
-      className="flex flex-col items-center gap-1.5 flex-shrink-0"
+      className="flex flex-col items-center gap-1.5 flex-shrink-0 active:scale-95 transition-transform"
     >
       <div className="relative">
         <div className={cn(
@@ -161,6 +160,6 @@ function StoryAvatar({
       <span className="text-[11px] font-medium text-muted-foreground truncate w-16 text-center leading-tight">
         {isUploading ? 'Posting...' : label || displayName || username}
       </span>
-    </motion.button>
+    </button>
   );
-}
+});

@@ -1,7 +1,7 @@
 import { useState, useRef, memo, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, ImageIcon } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -132,24 +132,23 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
           onError={handleError}
         />
 
-        {/* Play indicator when not playing */}
+        {/* Play indicator when not playing - CSS only */}
         {!isPlaying && isLoaded && !hasError && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <div className="hover:scale-110 active:scale-90 transition-transform">
               <Play className="h-16 w-16 text-white/90 fill-white/90" />
-            </motion.div>
+            </div>
           </div>
         )}
 
         {/* Mute/Unmute button when playing */}
         {isPlaying && !hasError && (
-          <motion.button
-            whileTap={{ scale: 0.9 }}
+          <button
             onClick={toggleMute}
-            className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white"
+            className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white active:scale-90 transition-transform"
           >
             {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-          </motion.button>
+          </button>
         )}
       </div>
     </div>
@@ -515,86 +514,43 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         <div className="flex items-center justify-between h-8">
           {/* Left action buttons - perfectly aligned */}
           <div className="flex items-center gap-1">
-            {/* Like button with particles */}
-            <div className="relative">
-              <motion.button 
-                whileTap={{ scale: 0.85 }}
-                onClick={handleLike} 
-                className="flex items-center justify-center h-8 w-8"
-              >
-                <motion.div
-                  className="flex items-center justify-center"
-                  animate={isLiked ? { 
-                    scale: [1, 1.3, 0.9, 1.1, 1],
-                    rotate: [0, -10, 10, -5, 0]
-                  } : {}}
-                  transition={{ duration: 0.5, type: 'spring', stiffness: 400 }}
-                >
-                  <Heart
-                    className={cn(
-                      "h-6 w-6 transition-colors",
-                      isLiked ? "fill-red-500 text-red-500" : "text-foreground hover:text-primary"
-                    )}
-                  />
-                </motion.div>
-              </motion.button>
-              
-              {/* Simplified particle burst - fewer particles for better performance */}
-              <AnimatePresence>
-                {showLikeParticles && (
-                  <div className="absolute inset-0 pointer-events-none">
-                    {[0, 1, 2, 3].map((i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                        animate={{ 
-                          scale: [0, 1, 0.5],
-                          x: Math.cos(i * 90 * Math.PI / 180) * 20,
-                          y: Math.sin(i * 90 * Math.PI / 180) * 20,
-                          opacity: [1, 1, 0],
-                        }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.4 }}
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-red-500"
-                      />
-                    ))}
-                  </div>
+            {/* Like button - simplified for performance */}
+            <button 
+              onClick={handleLike} 
+              className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform"
+            >
+              <Heart
+                className={cn(
+                  "h-6 w-6 transition-all",
+                  isLiked ? "fill-red-500 text-red-500 scale-110" : "text-foreground hover:text-primary"
                 )}
-              </AnimatePresence>
-            </div>
+              />
+            </button>
 
-            <Link to={`/p/${post.id}`} className="flex items-center justify-center h-8 w-8">
-              <motion.div 
-                whileTap={{ scale: 0.85 }} 
-                className="flex items-center justify-center"
-              >
-                <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
-              </motion.div>
+            <Link to={`/p/${post.id}`} className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform">
+              <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
             </Link>
             
-            <motion.button 
-              whileTap={{ scale: 0.85 }}
+            <button 
               onClick={handleShare}
-              className="flex items-center justify-center h-8 w-8"
+              className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform"
             >
               <Share2 className="h-6 w-6 hover:text-primary transition-colors" />
-            </motion.button>
+            </button>
           </div>
           
           {/* Bookmark button - right aligned */}
-          <motion.button 
-            whileTap={{ scale: 0.85 }}
-            animate={isBookmarked ? { scale: [1, 1.3, 1] } : {}}
+          <button 
             onClick={handleBookmark}
-            className="flex items-center justify-center h-8 w-8"
+            className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform"
           >
             <Bookmark
               className={cn(
-                "h-6 w-6 transition-colors",
-                isBookmarked ? "fill-yellow-400 text-yellow-400" : "hover:text-primary"
+                "h-6 w-6 transition-all",
+                isBookmarked ? "fill-yellow-400 text-yellow-400 scale-110" : "hover:text-primary"
               )}
             />
-          </motion.button>
+          </button>
         </div>
 
         {/* Likes */}
