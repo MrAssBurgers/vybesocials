@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
 import { 
   Search, TrendingUp, ShoppingBag, Calendar, 
   Volume2, VolumeX, Bookmark, Users, Sparkles, ChevronRight,
@@ -24,7 +23,7 @@ import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 
-// Online friend avatar with click-to-DM functionality
+// Online friend avatar with click-to-DM functionality - simplified for performance
 const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend: any }) {
   const navigate = useNavigate();
   const createConversation = useCreateConversation();
@@ -45,15 +44,13 @@ const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend
   }, [friend?.id, createConversation, navigate, isLoading]);
 
   return (
-    <motion.button
+    <button
       onClick={handleClick}
       disabled={isLoading}
-      whileHover={{ scale: 1.08 }}
-      whileTap={{ scale: 0.95 }}
-      className="flex-shrink-0 group relative"
+      className="flex-shrink-0 group relative hover:scale-105 active:scale-95 transition-transform"
     >
       <div className="relative">
-        <Avatar className="h-10 w-10 ring-2 ring-background group-hover:ring-primary/50 transition-all group-active:ring-primary/70">
+        <Avatar className="h-10 w-10 ring-2 ring-background group-hover:ring-primary/50 transition-all">
           <AvatarImage src={friend?.avatar_url || undefined} />
           <AvatarFallback className="text-xs bg-gradient-to-br from-pink-500 to-purple-500">
             {friend?.username?.[0]?.toUpperCase() || '?'}
@@ -66,7 +63,7 @@ const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend
           </div>
         )}
       </div>
-    </motion.button>
+    </button>
   );
 });
 

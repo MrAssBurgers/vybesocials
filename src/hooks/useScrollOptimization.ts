@@ -1,13 +1,12 @@
 import { useEffect, useRef } from 'react';
 
-// Shared state to prevent multiple listeners - using WeakRef pattern
+// Shared state - singleton pattern
 let scrollListenerAttached = false;
 let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 let isScrolling = false;
 
 /**
- * Hook to detect scrolling and add/remove 'is-scrolling' class to document
- * Uses passive listeners and reduced updates for better performance
+ * Lightweight scroll optimization hook - uses passive listeners
  * SINGLETON: Only one listener across all components
  */
 export function useScrollOptimization() {
@@ -26,7 +25,7 @@ export function useScrollOptimization() {
       scrollTimeout = setTimeout(() => {
         isScrolling = false;
         document.documentElement.classList.remove('is-scrolling');
-      }, 200); // Slightly longer timeout for less flickering
+      }, 150);
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -45,23 +44,18 @@ export function useScrollOptimization() {
 }
 
 /**
- * Hook to add will-change hints for better GPU acceleration
- * Uses transform3d for hardware acceleration
+ * Lightweight GPU acceleration - only applies essential styles
  */
 export function useGPUAcceleration(ref: React.RefObject<HTMLElement>) {
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
 
-    // Use contain for better performance isolation
-    element.style.contain = 'layout style paint';
+    // Minimal GPU hints - avoid will-change which can cause issues
     element.style.transform = 'translateZ(0)';
-    element.style.backfaceVisibility = 'hidden';
 
     return () => {
-      element.style.contain = '';
       element.style.transform = '';
-      element.style.backfaceVisibility = '';
     };
   }, [ref]);
 }
@@ -78,13 +72,12 @@ export function usePrefersReducedMotion() {
 }
 
 /**
- * Frame-rate aware animation hook - optimized to avoid memory leaks
+ * Simplified frame callback - only runs when enabled
  */
 export function useFrameCallback(callback: () => void, enabled = true) {
   const frameRef = useRef<number>();
   const callbackRef = useRef(callback);
   
-  // Update callback ref without triggering effect
   useEffect(() => {
     callbackRef.current = callback;
   });
