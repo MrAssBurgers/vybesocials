@@ -38,12 +38,10 @@ export function DMSafetyGate({ targetUserId, targetUsername, children }: DMSafet
 
   const isLoading = friendshipLoading || profileLoading;
 
+  // Show children immediately while loading - optimistic approach for instant input
+  // This prevents the input bar from appearing delayed
   if (isLoading) {
-    return (
-      <div className="p-4 border-t border-border">
-        <div className="h-10 bg-muted/50 rounded-full animate-pulse" />
-      </div>
-    );
+    return <>{children}</>;
   }
 
   // Public accounts can be messaged by anyone

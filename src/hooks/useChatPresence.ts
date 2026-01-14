@@ -24,34 +24,50 @@ export function useChatPresence(conversationId: string | undefined) {
     profileIdRef.current = profile?.id;
   }, [conversationId, profile?.id]);
 
-  // Stable setTyping function
-  const setTyping = useCallback(async (isTyping: boolean) => {
+  // Debounced typing indicator to prevent excessive DB calls
+  const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTypingStateRef = useRef<boolean>(false);
+
+  // Stable setTyping function - debounced to reduce DB overhead
+  const setTyping = useCallback((isTyping: boolean) => {
+    // Skip if no change
+    if (lastTypingStateRef.current === isTyping) return;
+    
     const cid = conversationIdRef.current;
     const pid = profileIdRef.current;
     if (!cid || !pid) return;
 
-    try {
-      if (isTyping) {
-        await supabase
-          .from('typing_indicators')
-          .upsert(
-            {
-              conversation_id: cid,
-              user_id: pid,
-              started_at: new Date().toISOString(),
-            },
-            { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
-          );
-      } else {
-        await supabase
-          .from('typing_indicators')
-          .delete()
-          .eq('conversation_id', cid)
-          .eq('user_id', pid);
-      }
-    } catch (error) {
-      // Silent fail for typing - non-critical
+    // Clear pending debounce
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
     }
+
+    // Debounce the actual DB call
+    typingDebounceRef.current = setTimeout(async () => {
+      lastTypingStateRef.current = isTyping;
+      try {
+        if (isTyping) {
+          await supabase
+            .from('typing_indicators')
+            .upsert(
+              {
+                conversation_id: cid,
+                user_id: pid,
+                started_at: new Date().toISOString(),
+              },
+              { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
+            );
+        } else {
+          await supabase
+            .from('typing_indicators')
+            .delete()
+            .eq('conversation_id', cid)
+            .eq('user_id', pid);
+        }
+      } catch (error) {
+        // Silent fail for typing - non-critical
+      }
+    }, isTyping ? 300 : 100); // Faster for stopping, slightly delayed for starting
   }, []);
 
   // Setup presence and subscriptions
