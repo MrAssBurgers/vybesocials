@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Clock, Eye } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Play, Eye, Clock } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
@@ -141,7 +142,7 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
     );
   }
 
-  // Default variant - YouTube style card
+  // Default variant - YouTube style card with enhanced styling
   return (
     <Link 
       to={isVideo && post.type === 'video' ? `/watch/${post.id}` : `/p/${post.id}`}
@@ -150,7 +151,7 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Thumbnail */}
-      <div className="relative aspect-video rounded-xl overflow-hidden bg-muted mb-3">
+      <div className="relative aspect-video rounded-2xl overflow-hidden bg-card/50 mb-3 border border-border/30">
         {!imageError && signedThumbnail ? (
           <img
             src={signedThumbnail}
@@ -162,49 +163,52 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
             onError={() => setImageError(true)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-muted">
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neon-pink/10 to-neon-purple/10">
             <Play className="h-12 w-12 text-muted-foreground" />
           </div>
         )}
         
         {/* Duration badge */}
         {post.duration && (
-          <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+          <div className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-lg font-medium">
             {formatDuration(post.duration)}
           </div>
         )}
         
-        {/* Video type badge */}
-        {isVideo && (
-          <div className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded font-medium">
-            {post.type === 'short' ? 'SHORT' : 'VIDEO'}
-          </div>
-        )}
+        {/* View count badge */}
+        <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-lg font-medium">
+          <Eye className="h-3 w-3" />
+          {formatViewCount(viewCount).replace(' views', '')}
+        </div>
         
         {/* Play icon overlay on hover */}
         <div className={cn(
-          "absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity",
+          "absolute inset-0 flex items-center justify-center bg-black/20 transition-all duration-300",
           isHovered ? "opacity-100" : "opacity-0"
         )}>
-          <div className="w-14 h-14 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
-            <Play className="h-7 w-7 text-white ml-1" fill="white" />
-          </div>
+          <motion.div 
+            initial={false}
+            animate={isHovered ? { scale: 1 } : { scale: 0.8 }}
+            className="w-16 h-16 rounded-full bg-white/30 backdrop-blur-sm flex items-center justify-center border border-white/20"
+          >
+            <Play className="h-8 w-8 text-white ml-1" fill="white" />
+          </motion.div>
         </div>
       </div>
       
       {/* Info */}
       <div className="flex gap-3">
         <Link to={`/u/${post.author.username}`} className="shrink-0">
-          <Avatar className="h-9 w-9">
+          <Avatar className="h-10 w-10 ring-2 ring-border/50 ring-offset-2 ring-offset-background">
             <AvatarImage src={signedAvatar || undefined} />
-            <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+            <AvatarFallback className="bg-gradient-to-br from-neon-pink to-neon-purple text-white text-sm font-medium">
               {post.author.username[0].toUpperCase()}
             </AvatarFallback>
           </Avatar>
         </Link>
         
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold line-clamp-2 text-sm group-hover:text-primary transition-colors">
+          <h3 className="font-semibold line-clamp-2 text-sm group-hover:text-primary transition-colors leading-snug">
             {post.caption || 'Untitled'}
           </h3>
           <Link 
@@ -214,9 +218,9 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
           >
             @{post.author.username}
           </Link>
-          <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
             <span>{formatViewCount(viewCount)}</span>
-            <span>•</span>
+            <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
             <span>{timeAgo}</span>
           </div>
         </div>
