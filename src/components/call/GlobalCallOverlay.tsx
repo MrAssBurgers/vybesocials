@@ -873,11 +873,16 @@ export function GlobalCallOverlay() {
     : (otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0));
   
   const isVisible = state.phase !== 'idle';
-  const isRinging = state.phase === 'ringing';
+  // CRITICAL: isRinging should only be true for the RECEIVER (not initiator)
+  // The receiver sees the accept/decline UI, the caller sees the call UI with "Ringing..." text
+  const isRinging = state.phase === 'ringing' && !state.call?.isInitiator;
   const isConnected = state.phase === 'connected';
-  const isConnecting = state.phase === 'creating' || state.phase === 'joining';
-  // We're "ringing out" when connected to the room but waiting for the other person
-  const isRingingOut = isConnected && !remoteParticipant && state.call?.isInitiator;
+  // isConnecting: only for creating phase (very brief) or joining if NOT the initiator
+  // The initiator should see "Ringing..." not "Connecting..."
+  const isConnecting = state.phase === 'creating' || (state.phase === 'joining' && !state.call?.isInitiator);
+  // We're "ringing out" when initiator is waiting for the other person to answer
+  // This happens during joining/connected phase before remoteParticipant joins
+  const isRingingOut = state.call?.isInitiator && !remoteParticipant && (state.phase === 'joining' || state.phase === 'connected');
   
   // Show preloaded camera while Daily hasn't started yet (instant video like FaceTime)
   // Show it as soon as we have the stream, even before Daily is connected
@@ -1295,7 +1300,7 @@ export function GlobalCallOverlay() {
                         {displayName}
                       </p>
                       <div className="flex items-center gap-2">
-                        {isConnecting && (
+                        {isConnecting && !isRingingOut && (
                           <motion.div 
                             className="flex items-center gap-2 text-white/60"
                             animate={{ opacity: [0.5, 1, 0.5] }}
@@ -1361,9 +1366,9 @@ export function GlobalCallOverlay() {
               </div>
             </motion.div>
 
-            {/* Connecting overlay */}
+            {/* Connecting overlay - only for receiver, not initiator */}
             <AnimatePresence>
-              {isConnecting && isVideoCall && (
+              {isConnecting && isVideoCall && !state.call?.isInitiator && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
