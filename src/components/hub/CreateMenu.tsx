@@ -89,36 +89,58 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
 
             {/* Menu - Centered */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              initial={{ opacity: 0, scale: 0.85, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              transition={{ 
+                type: 'spring', 
+                stiffness: 300, 
+                damping: 25,
+                mass: 0.8
+              }}
               className="fixed inset-0 z-[101] flex items-center justify-center pointer-events-none"
             >
-              <div 
+              <motion.div 
                 className="liquid-glass overflow-hidden rounded-3xl p-4 w-[90vw] max-w-xs pointer-events-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header */}
                 <div className="text-center mb-4">
-                  <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.05 }}
-                  >
-                    <h2 className="text-lg font-bold gradient-text">Create</h2>
-                    <p className="text-xs text-muted-foreground">What do you want to share?</p>
-                  </motion.div>
+                  <h2 className="text-lg font-bold gradient-text">Create</h2>
+                  <p className="text-xs text-muted-foreground">What do you want to share?</p>
                 </div>
 
                 {/* Menu Items */}
-                <div className="space-y-2">
+                <motion.div 
+                  className="space-y-2"
+                  initial="hidden"
+                  animate="visible"
+                  variants={{
+                    hidden: {},
+                    visible: {
+                      transition: {
+                        staggerChildren: 0.04,
+                        delayChildren: 0.05
+                      }
+                    }
+                  }}
+                >
                   {menuItems.map((item) => (
                     <motion.button
                       key={item.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: item.delay }}
+                      variants={{
+                        hidden: { opacity: 0, y: 12, scale: 0.95 },
+                        visible: { 
+                          opacity: 1, 
+                          y: 0, 
+                          scale: 1,
+                          transition: {
+                            type: 'spring',
+                            stiffness: 400,
+                            damping: 25
+                          }
+                        }
+                      }}
                       onClick={() => handleAction(item.id)}
                       className="w-full p-3 rounded-2xl liquid-glass-button flex items-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-transform"
                     >
@@ -131,20 +153,20 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
                       </div>
                     </motion.button>
                   ))}
-                </div>
+                </motion.div>
 
                 {/* Close Button */}
                 <motion.button
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ delay: 0.2 }}
+                  transition={{ delay: 0.15, duration: 0.2 }}
                   onClick={onClose}
                   className="w-full mt-4 p-2 rounded-xl text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2 text-sm"
                 >
                   <X className="h-4 w-4" />
                   Cancel
                 </motion.button>
-              </div>
+              </motion.div>
             </motion.div>
           </>
         )}
