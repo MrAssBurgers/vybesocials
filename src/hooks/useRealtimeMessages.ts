@@ -79,7 +79,7 @@ export function useRealtimeMessages(conversationId: string | undefined) {
     });
   }, [conversationId, queryClient]);
 
-  // Subscribe to realtime changes
+  // Subscribe to realtime changes with improved instant updates
   useEffect(() => {
     if (!conversationId || !profile?.id) return;
 
@@ -98,8 +98,7 @@ export function useRealtimeMessages(conversationId: string | undefined) {
           
           // Skip if it's our own message (we handle optimistic updates separately)
           if (newMessage.sender_id === profile.id) {
-            // Just trigger a background refresh to get the final server data
-            queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+            // Quietly sync - don't refetch, just ensure it's in cache
             return;
           }
           
@@ -140,9 +139,11 @@ export function useRealtimeMessages(conversationId: string | undefined) {
         (payload) => {
           const updatedMessage = payload.new as any;
           
+          // Handle deleted messages - remove from cache instantly
           if (updatedMessage.is_deleted) {
             removeMessageFromCache(updatedMessage.id);
           } else {
+            // Handle edits - update in cache instantly
             updateMessageInCache(updatedMessage);
           }
         }
@@ -155,7 +156,7 @@ export function useRealtimeMessages(conversationId: string | undefined) {
           table: 'message_reactions',
         },
         () => {
-          // Refresh to get updated reactions
+          // Refresh to get updated reactions - could be optimized further
           queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
         }
       )
@@ -171,7 +172,11 @@ export function useRealtimeMessages(conversationId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`[Realtime] Subscribed to messages for ${conversationId}`);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);

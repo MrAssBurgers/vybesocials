@@ -18,6 +18,8 @@ export interface Message {
   view_mode: ViewMode;
   expires_at: string | null;
   is_deleted: boolean;
+  is_edited?: boolean;
+  edited_at?: string | null;
   reply_to_id: string | null;
   created_at: string;
   sender?: {

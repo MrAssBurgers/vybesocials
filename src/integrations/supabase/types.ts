@@ -3113,6 +3113,52 @@ export type Database = {
           },
         ]
       }
+      trashed_conversations: {
+        Row: {
+          auto_delete_at: string | null
+          conversation_id: string
+          id: string
+          trashed_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_delete_at?: string | null
+          conversation_id: string
+          id?: string
+          trashed_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_delete_at?: string | null
+          conversation_id?: string
+          id?: string
+          trashed_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trashed_conversations_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trashed_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trashed_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       typing_indicators: {
         Row: {
           conversation_id: string

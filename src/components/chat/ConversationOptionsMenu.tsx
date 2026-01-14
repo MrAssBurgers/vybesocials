@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, Trash2, BellOff, Bell, User } from 'lucide-react';
-import { useHideConversation } from '@/hooks/useHiddenConversations';
+import { useTrashConversation } from '@/hooks/useTrashedConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -41,12 +41,12 @@ export function ConversationOptionsMenu({
 }: ConversationOptionsMenuProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const hideConversation = useHideConversation();
+  const trashConversation = useTrashConversation();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isTogglingMute, setIsTogglingMute] = useState(false);
 
   const handleDeleteChat = async () => {
-    await hideConversation.mutateAsync(conversationId);
+    await trashConversation.mutateAsync(conversationId);
     setShowDeleteConfirm(false);
     // Navigate back to messages list if currently in this conversation
     if (window.location.pathname.includes(conversationId)) {
@@ -139,7 +139,7 @@ export function ConversationOptionsMenu({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
             <AlertDialogDescription>
-              This only removes the chat from your list. The other person will still see the conversation and messages.
+              This chat will be moved to trash. You can recover it within 30 days or delete it permanently.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -148,7 +148,7 @@ export function ConversationOptionsMenu({
               onClick={handleDeleteChat}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              Move to Trash
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

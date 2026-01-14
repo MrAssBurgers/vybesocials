@@ -6,6 +6,7 @@ import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useOnlineFriends } from '@/hooks/useOnlineFriends';
 import { useAuth } from '@/lib/auth';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
+import { useTrashedConversationIds } from '@/hooks/useTrashedConversations';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,13 +15,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
 import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { ConversationOptionsMenu } from './ConversationOptionsMenu';
+import { TrashBin } from './TrashBin';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
@@ -81,9 +83,11 @@ export function ConversationList() {
   useRealtimeConversations();
   const { onlineFriends, onlineCount, isLoading: onlineLoading } = useOnlineFriends();
   const createConversation = useCreateConversation();
+  const { data: trashedIds } = useTrashedConversationIds();
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
+  const [isTrashOpen, setIsTrashOpen] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
   
   // Debug logging in dev mode
@@ -149,7 +153,11 @@ export function ConversationList() {
   }, [profile?.id, createConversation, navigate]);
 
   const { pinnedConversations, unpinnedConversations } = useMemo(() => {
+    // Filter out trashed conversations
     const filtered = conversations?.filter((conv) => {
+      // Exclude trashed conversations
+      if (trashedIds?.has(conv.id)) return false;
+      
       const otherMembers = conv.members?.filter((m) => m.user_id !== profile?.id) || [];
       const name = conv.is_group 
         ? conv.name 
@@ -165,7 +173,7 @@ export function ConversationList() {
         (c) => !c.members?.find((m) => m.user_id === profile?.id)?.is_pinned
       ),
     };
-  }, [conversations, profile?.id, searchQuery]);
+  }, [conversations, profile?.id, searchQuery, trashedIds]);
 
   const handleConversationClick = useCallback((convId: string) => {
     navigate(`/messages/${convId}`);
@@ -195,6 +203,20 @@ export function ConversationList() {
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">{t('messages.title')}</h1>
           <div className="flex items-center gap-1">
+            {/* Trash Bin Button */}
+            <TrashBin 
+              open={isTrashOpen} 
+              onOpenChange={setIsTrashOpen}
+              trigger={
+                <Button 
+                  size="icon" 
+                  variant="ghost"
+                  className="h-9 w-9"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </Button>
+              }
+            />
             {/* Create Group Button */}
             <Button 
               size="icon" 
