@@ -817,6 +817,15 @@ export function ChatView() {
             </div>
           )}
 
+          {/* Snapchat-style presence/typing indicator - in message flow, above input */}
+          {presentUsers && presentUsers.length > 0 && (
+            <ChatPresenceIndicator
+              presentUsers={presentUsers}
+              typingUserIds={typingUsers || []}
+              maxDisplay={3}
+            />
+          )}
+
           <div ref={messagesEndRef} className="h-1" />
         </div>
       </div>
@@ -945,14 +954,6 @@ const MessageInputArea = memo(function MessageInputArea({
 }) {
   return (
     <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30">
-      {/* Snapchat-style presence indicator - floats above input */}
-      {presentUsers && presentUsers.length > 0 && (
-        <ChatPresenceIndicator
-          presentUsers={presentUsers}
-          typingUserIds={typingUserIds || []}
-          maxDisplay={3}
-        />
-      )}
       
       <div className="px-2 py-2 sm:px-4 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <input

@@ -28,6 +28,9 @@ export interface ThemeTokens {
   neonPink?: string;
   neonPurple?: string;
   neonCyan?: string;
+  // Animation settings
+  animationSpeed?: 'slow' | 'normal' | 'fast' | 'instant';
+  animationStyle?: 'smooth' | 'bouncy' | 'snappy' | 'none';
 }
 
 export const THEME_PRESETS: Record<string, ThemeTokens> = {
@@ -420,6 +423,27 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     // === BORDER RADIUS ===
     const validRadius = ['small', 'medium', 'large'].includes(tokens.borderRadius) ? tokens.borderRadius : 'medium';
     root.style.setProperty('--radius', BORDER_RADIUS_MAP[validRadius]);
+    
+    // === ANIMATION SETTINGS ===
+    const animSpeed = tokens.animationSpeed || 'normal';
+    const animStyle = tokens.animationStyle || 'smooth';
+    
+    // Animation duration multiplier
+    const speedMap = { slow: '1.5', normal: '1', fast: '0.6', instant: '0.1' };
+    root.style.setProperty('--anim-speed', speedMap[animSpeed] || '1');
+    
+    // Animation easing
+    const easingMap = {
+      smooth: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      bouncy: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+      snappy: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      none: 'linear',
+    };
+    root.style.setProperty('--anim-easing', easingMap[animStyle] || easingMap.smooth);
+    
+    // Set CSS classes for animation styles
+    root.dataset.animSpeed = animSpeed;
+    root.dataset.animStyle = animStyle;
     
     // === LIGHT MODE SPECIFIC ===
     if (tokens.mode === 'light') {
