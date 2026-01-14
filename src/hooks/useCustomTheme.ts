@@ -302,124 +302,164 @@ export function useGenerateTheme() {
   });
 }
 
-export function applyThemeTokens(tokens: ThemeTokens) {
-  const root = document.documentElement;
-  
-  // Smooth transition for all changes
-  root.style.transition = 'all 0.4s ease';
-  
-  // === PRIMARY COLORS ===
-  root.style.setProperty('--primary', tokens.colorPrimary);
-  root.style.setProperty('--secondary', tokens.colorSecondary);
-  root.style.setProperty('--accent', tokens.colorAccent);
-  root.style.setProperty('--ring', tokens.colorPrimary);
-  
-  // === BACKGROUNDS - The main ones that need to change ===
-  root.style.setProperty('--background', tokens.bgMain);
-  root.style.setProperty('--card', tokens.bgCard);
-  root.style.setProperty('--popover', tokens.bgCard);
-  
-  // Gradient backgrounds
-  const gradientFrom = tokens.bgGradientFrom || tokens.bgMain;
-  const gradientMid = tokens.bgGradientMid || tokens.bgCard;
-  const gradientTo = tokens.bgGradientTo || tokens.bgMain;
-  root.style.setProperty('--gradient-start', tokens.colorPrimary);
-  root.style.setProperty('--gradient-mid', tokens.colorSecondary);
-  root.style.setProperty('--gradient-end', tokens.colorAccent);
-  
-  // Glass effects - critical for removing "black barriers"
-  const glassBg = tokens.glassBg || tokens.bgCard;
-  const glassBorder = tokens.glassBorder || tokens.borderColor || (tokens.mode === 'dark' ? '240 10% 20%' : '240 5% 90%');
-  root.style.setProperty('--glass', glassBg);
-  root.style.setProperty('--glass-border', glassBorder);
-  
-  // Muted backgrounds
-  const mutedBg = tokens.mode === 'dark' 
-    ? adjustLightness(tokens.bgCard, 5) 
-    : adjustLightness(tokens.bgCard, -5);
-  root.style.setProperty('--muted', mutedBg);
-  
-  // === SIDEBAR ===
-  const sidebarBg = tokens.sidebarBg || tokens.bgCard;
-  root.style.setProperty('--sidebar-background', sidebarBg);
-  root.style.setProperty('--sidebar-foreground', tokens.textPrimary);
-  root.style.setProperty('--sidebar-primary', tokens.colorPrimary);
-  root.style.setProperty('--sidebar-primary-foreground', tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%');
-  root.style.setProperty('--sidebar-accent', tokens.colorSecondary);
-  root.style.setProperty('--sidebar-accent-foreground', tokens.textPrimary);
-  root.style.setProperty('--sidebar-border', tokens.borderColor || glassBorder);
-  root.style.setProperty('--sidebar-ring', tokens.colorPrimary);
-  
-  // === TEXT COLORS ===
-  root.style.setProperty('--foreground', tokens.textPrimary);
-  root.style.setProperty('--muted-foreground', tokens.textSecondary);
-  root.style.setProperty('--card-foreground', tokens.textPrimary);
-  root.style.setProperty('--popover-foreground', tokens.textPrimary);
-  root.style.setProperty('--primary-foreground', tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%');
-  root.style.setProperty('--secondary-foreground', tokens.textPrimary);
-  root.style.setProperty('--accent-foreground', tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%');
-  
-  // === BORDERS & INPUTS ===
-  const borderColor = tokens.borderColor || (tokens.mode === 'dark' ? '240 10% 18%' : '240 5% 85%');
-  const inputBg = tokens.inputBg || borderColor;
-  root.style.setProperty('--border', borderColor);
-  root.style.setProperty('--input', inputBg);
-  
-  // === NEON/ACCENT COLORS ===
-  root.style.setProperty('--neon-pink', tokens.neonPink || tokens.colorPrimary);
-  root.style.setProperty('--neon-purple', tokens.neonPurple || tokens.colorSecondary);
-  root.style.setProperty('--neon-cyan', tokens.neonCyan || tokens.colorAccent);
-  
-  // === CHART COLORS ===
-  root.style.setProperty('--chart-1', tokens.colorPrimary);
-  root.style.setProperty('--chart-2', tokens.colorSecondary);
-  root.style.setProperty('--chart-3', tokens.colorAccent);
-  root.style.setProperty('--chart-4', tokens.neonPink || tokens.colorPrimary);
-  root.style.setProperty('--chart-5', tokens.neonCyan || tokens.colorAccent);
-  
-  // === BORDER RADIUS ===
-  root.style.setProperty('--radius', BORDER_RADIUS_MAP[tokens.borderRadius]);
-  
-  // === LIGHT MODE SPECIFIC ===
-  if (tokens.mode === 'light') {
-    root.style.setProperty('--light-bg-start', gradientFrom);
-    root.style.setProperty('--light-bg-mid', gradientMid);
-  }
-  
-  // === UPDATE BODY BACKGROUND DIRECTLY ===
-  // This ensures the gradient background changes too
-  const bodyGradient = `linear-gradient(160deg, hsl(${gradientFrom}) 0%, hsl(${gradientMid}) 50%, hsl(${gradientTo}) 100%)`;
-  document.body.style.background = bodyGradient;
-  document.body.style.transition = 'background 0.4s ease';
-  
-  // === MODE CLASS ===
-  root.classList.remove('light', 'dark');
-  root.classList.add(tokens.mode);
-  
-  // Remove transition after applied
-  setTimeout(() => {
-    root.style.transition = '';
-  }, 500);
+// Helper to safely get HSL value with fallback
+function safeHSL(value: string | undefined, fallback: string): string {
+  if (!value || typeof value !== 'string') return fallback;
+  // Basic validation - should have at least a number
+  const trimmed = value.trim();
+  if (!trimmed || !/\d/.test(trimmed)) return fallback;
+  return trimmed;
 }
 
 // Helper to adjust HSL lightness
 function adjustLightness(hsl: string, amount: number): string {
-  const parts = hsl.split(' ');
-  if (parts.length >= 3) {
-    const lightness = parseFloat(parts[2].replace('%', ''));
-    const newLightness = Math.max(0, Math.min(100, lightness + amount));
-    return `${parts[0]} ${parts[1]} ${newLightness}%`;
+  try {
+    const parts = hsl.split(' ');
+    if (parts.length >= 3) {
+      const lightness = parseFloat(parts[2].replace('%', ''));
+      if (isNaN(lightness)) return hsl;
+      const newLightness = Math.max(0, Math.min(100, lightness + amount));
+      return `${parts[0]} ${parts[1]} ${newLightness}%`;
+    }
+  } catch {
+    // Return original if parsing fails
   }
   return hsl;
+}
+
+export function applyThemeTokens(tokens: ThemeTokens) {
+  if (!tokens || typeof tokens !== 'object') {
+    console.error('Invalid theme tokens provided');
+    return;
+  }
+
+  try {
+    const root = document.documentElement;
+    
+    // Default fallbacks for critical values
+    const defaultDark = '240 10% 4%';
+    const defaultLight = '0 0% 98%';
+    const defaultPrimary = '330 100% 60%';
+    const defaultText = tokens.mode === 'dark' ? '0 0% 98%' : '240 10% 20%';
+    const defaultMuted = tokens.mode === 'dark' ? '240 5% 55%' : '240 5% 50%';
+    const defaultBg = tokens.mode === 'dark' ? defaultDark : defaultLight;
+    
+    // Smooth transition for all changes
+    root.style.transition = 'all 0.4s ease';
+    
+    // === PRIMARY COLORS ===
+    root.style.setProperty('--primary', safeHSL(tokens.colorPrimary, defaultPrimary));
+    root.style.setProperty('--secondary', safeHSL(tokens.colorSecondary, '240 10% 12%'));
+    root.style.setProperty('--accent', safeHSL(tokens.colorAccent, '185 100% 50%'));
+    root.style.setProperty('--ring', safeHSL(tokens.colorPrimary, defaultPrimary));
+    
+    // === BACKGROUNDS - The main ones that need to change ===
+    const bgMain = safeHSL(tokens.bgMain, defaultBg);
+    const bgCard = safeHSL(tokens.bgCard, tokens.mode === 'dark' ? '240 10% 6%' : '0 0% 100%');
+    
+    root.style.setProperty('--background', bgMain);
+    root.style.setProperty('--card', bgCard);
+    root.style.setProperty('--popover', bgCard);
+    
+    // Gradient backgrounds
+    const gradientFrom = safeHSL(tokens.bgGradientFrom, bgMain);
+    const gradientMid = safeHSL(tokens.bgGradientMid, bgCard);
+    const gradientTo = safeHSL(tokens.bgGradientTo, bgMain);
+    root.style.setProperty('--gradient-start', safeHSL(tokens.colorPrimary, defaultPrimary));
+    root.style.setProperty('--gradient-mid', safeHSL(tokens.colorSecondary, '240 10% 12%'));
+    root.style.setProperty('--gradient-end', safeHSL(tokens.colorAccent, '185 100% 50%'));
+    
+    // Glass effects - critical for removing "black barriers"
+    const glassBg = safeHSL(tokens.glassBg, bgCard);
+    const glassBorder = safeHSL(tokens.glassBorder, safeHSL(tokens.borderColor, tokens.mode === 'dark' ? '240 10% 20%' : '240 5% 90%'));
+    root.style.setProperty('--glass', glassBg);
+    root.style.setProperty('--glass-border', glassBorder);
+    
+    // Muted backgrounds
+    const mutedBg = adjustLightness(bgCard, tokens.mode === 'dark' ? 5 : -5);
+    root.style.setProperty('--muted', mutedBg);
+    
+    // === SIDEBAR ===
+    const sidebarBg = safeHSL(tokens.sidebarBg, bgCard);
+    root.style.setProperty('--sidebar-background', sidebarBg);
+    root.style.setProperty('--sidebar-foreground', safeHSL(tokens.textPrimary, defaultText));
+    root.style.setProperty('--sidebar-primary', safeHSL(tokens.colorPrimary, defaultPrimary));
+    root.style.setProperty('--sidebar-primary-foreground', tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%');
+    root.style.setProperty('--sidebar-accent', safeHSL(tokens.colorSecondary, '240 10% 12%'));
+    root.style.setProperty('--sidebar-accent-foreground', safeHSL(tokens.textPrimary, defaultText));
+    root.style.setProperty('--sidebar-border', safeHSL(tokens.borderColor, glassBorder));
+    root.style.setProperty('--sidebar-ring', safeHSL(tokens.colorPrimary, defaultPrimary));
+    
+    // === TEXT COLORS ===
+    root.style.setProperty('--foreground', safeHSL(tokens.textPrimary, defaultText));
+    root.style.setProperty('--muted-foreground', safeHSL(tokens.textSecondary, defaultMuted));
+    root.style.setProperty('--card-foreground', safeHSL(tokens.textPrimary, defaultText));
+    root.style.setProperty('--popover-foreground', safeHSL(tokens.textPrimary, defaultText));
+    root.style.setProperty('--primary-foreground', tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%');
+    root.style.setProperty('--secondary-foreground', safeHSL(tokens.textPrimary, defaultText));
+    root.style.setProperty('--accent-foreground', tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%');
+    
+    // === BORDERS & INPUTS ===
+    const borderColor = safeHSL(tokens.borderColor, tokens.mode === 'dark' ? '240 10% 18%' : '240 5% 85%');
+    const inputBg = safeHSL(tokens.inputBg, borderColor);
+    root.style.setProperty('--border', borderColor);
+    root.style.setProperty('--input', inputBg);
+    
+    // === NEON/ACCENT COLORS ===
+    root.style.setProperty('--neon-pink', safeHSL(tokens.neonPink, safeHSL(tokens.colorPrimary, defaultPrimary)));
+    root.style.setProperty('--neon-purple', safeHSL(tokens.neonPurple, safeHSL(tokens.colorSecondary, '280 100% 60%')));
+    root.style.setProperty('--neon-cyan', safeHSL(tokens.neonCyan, safeHSL(tokens.colorAccent, '185 100% 50%')));
+    
+    // === CHART COLORS ===
+    root.style.setProperty('--chart-1', safeHSL(tokens.colorPrimary, defaultPrimary));
+    root.style.setProperty('--chart-2', safeHSL(tokens.colorSecondary, '240 10% 12%'));
+    root.style.setProperty('--chart-3', safeHSL(tokens.colorAccent, '185 100% 50%'));
+    root.style.setProperty('--chart-4', safeHSL(tokens.neonPink, safeHSL(tokens.colorPrimary, defaultPrimary)));
+    root.style.setProperty('--chart-5', safeHSL(tokens.neonCyan, safeHSL(tokens.colorAccent, '185 100% 50%')));
+    
+    // === BORDER RADIUS ===
+    const validRadius = ['small', 'medium', 'large'].includes(tokens.borderRadius) ? tokens.borderRadius : 'medium';
+    root.style.setProperty('--radius', BORDER_RADIUS_MAP[validRadius]);
+    
+    // === LIGHT MODE SPECIFIC ===
+    if (tokens.mode === 'light') {
+      root.style.setProperty('--light-bg-start', gradientFrom);
+      root.style.setProperty('--light-bg-mid', gradientMid);
+    }
+    
+    // === UPDATE BODY BACKGROUND DIRECTLY ===
+    // This ensures the gradient background changes too
+    const bodyGradient = `linear-gradient(160deg, hsl(${gradientFrom}) 0%, hsl(${gradientMid}) 50%, hsl(${gradientTo}) 100%)`;
+    document.body.style.background = bodyGradient;
+    document.body.style.transition = 'background 0.4s ease';
+    
+    // === MODE CLASS ===
+    root.classList.remove('light', 'dark');
+    root.classList.add(tokens.mode === 'light' ? 'light' : 'dark');
+    
+    // Remove transition after applied
+    setTimeout(() => {
+      root.style.transition = '';
+    }, 500);
+  } catch (error) {
+    console.error('Error applying theme tokens:', error);
+  }
 }
 
 export function useApplyUserTheme() {
   const { data: userTheme } = useUserTheme();
 
   useEffect(() => {
-    if (userTheme?.is_active && userTheme.theme_tokens) {
-      const tokens = userTheme.theme_tokens as unknown as ThemeTokens;
-      applyThemeTokens(tokens);
+    try {
+      if (userTheme?.is_active && userTheme.theme_tokens) {
+        const tokens = userTheme.theme_tokens as unknown as ThemeTokens;
+        // Validate minimum required fields exist
+        if (tokens && typeof tokens === 'object' && tokens.colorPrimary) {
+          applyThemeTokens(tokens);
+        }
+      }
+    } catch (error) {
+      console.error('Error applying user theme:', error);
     }
   }, [userTheme]);
 }
