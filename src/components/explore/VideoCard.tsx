@@ -1,8 +1,9 @@
 import { memo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Play, Eye, Clock } from 'lucide-react';
+import { Play, Eye } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -31,9 +32,7 @@ interface VideoCardProps {
 
 export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: VideoCardProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const [imageError, setImageError] = useState(false);
   
-  const signedThumbnail = useSignedUrl(post.thumbnail_url || post.media_url);
   const signedAvatar = useSignedUrl(post.author.avatar_url);
 
   const isVideo = post.type === 'video' || post.type === 'short';
@@ -62,18 +61,12 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
       >
         {/* Thumbnail */}
         <div className="relative w-40 sm:w-48 aspect-video rounded-xl overflow-hidden bg-muted shrink-0">
-          {!imageError && signedThumbnail ? (
-            <img
-              src={signedThumbnail}
-              alt={post.caption}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              onError={() => setImageError(true)}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted">
-              <Play className="h-8 w-8 text-muted-foreground" />
-            </div>
-          )}
+          <VideoThumbnail
+            videoUrl={post.media_url}
+            thumbnailUrl={post.thumbnail_url}
+            alt={post.caption}
+            className="group-hover:scale-105 transition-transform duration-300"
+          />
           
           {/* Duration badge */}
           {post.duration && (
@@ -114,18 +107,12 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
       >
         {/* Thumbnail */}
         <div className="relative aspect-video rounded-lg overflow-hidden bg-muted mb-2">
-          {!imageError && signedThumbnail ? (
-            <img
-              src={signedThumbnail}
-              alt={post.caption}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              onError={() => setImageError(true)}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted">
-              <Play className="h-6 w-6 text-muted-foreground" />
-            </div>
-          )}
+          <VideoThumbnail
+            videoUrl={post.media_url}
+            thumbnailUrl={post.thumbnail_url}
+            alt={post.caption}
+            className="group-hover:scale-105 transition-transform duration-300"
+          />
           
           {post.duration && (
             <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
@@ -152,21 +139,15 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
     >
       {/* Thumbnail */}
       <div className="relative aspect-video rounded-2xl overflow-hidden bg-card/50 mb-3 border border-border/30">
-        {!imageError && signedThumbnail ? (
-          <img
-            src={signedThumbnail}
-            alt={post.caption}
-            className={cn(
-              "w-full h-full object-cover transition-transform duration-300",
-              isHovered && "scale-105"
-            )}
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neon-pink/10 to-neon-purple/10">
-            <Play className="h-12 w-12 text-muted-foreground" />
-          </div>
-        )}
+        <VideoThumbnail
+          videoUrl={post.media_url}
+          thumbnailUrl={post.thumbnail_url}
+          alt={post.caption}
+          className={cn(
+            "transition-transform duration-300",
+            isHovered && "scale-105"
+          )}
+        />
         
         {/* Duration badge */}
         {post.duration && (
