@@ -280,6 +280,9 @@ export function GlobalCallOverlay() {
       console.log('[CallOverlay] ✅ joined-meeting event');
       clearJoinTimeout();
       
+      // CRITICAL: Stop ALL sounds immediately on join to prevent ringing during call
+      callSounds.stopAll();
+      
       if (stateRef.current.phase !== 'joining') {
         console.log('[CallOverlay] Ignoring joined-meeting (not in joining phase)');
         return;
@@ -311,7 +314,7 @@ export function GlobalCallOverlay() {
         }, 1000);
       }
 
-      callSounds.stopAll();
+      // Play connect sound (no ringing should be playing at this point)
       callSounds.connect();
       setPhase('connected');
     });
@@ -481,6 +484,9 @@ export function GlobalCallOverlay() {
   useEffect(() => {
     if (state.phase !== 'joining' || !state.call?.roomUrl || !state.call?.roomName) return;
     if (isLeavingRef.current) return;
+
+    // CRITICAL: Stop any lingering sounds when entering joining phase
+    callSounds.stopAll();
 
     let cancelled = false;
 
