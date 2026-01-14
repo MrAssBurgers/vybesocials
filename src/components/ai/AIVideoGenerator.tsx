@@ -1,31 +1,40 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Video, Loader2, Check, AlertCircle, X, Wand2 } from 'lucide-react';
+import { Sparkles, Loader2, Check, AlertCircle, X, Wand2, RefreshCw, Type, Upload, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useCreatePost } from '@/hooks/usePosts';
+import { useNavigate } from 'react-router-dom';
 
 interface AIVideoGeneratorProps {
-  onVideoGenerated: (videoUrl: string, videoBlob: Blob) => void;
+  onVideoGenerated?: (videoUrl: string, videoBlob: Blob) => void;
   onClose: () => void;
 }
 
-type GenerationStatus = 'idle' | 'generating' | 'polling' | 'succeeded' | 'failed';
+type GenerationStatus = 'idle' | 'generating' | 'preview' | 'details' | 'posting';
 
 export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGeneratorProps) {
+  const navigate = useNavigate();
+  const createPost = useCreatePost();
+  
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState<GenerationStatus>('idle');
-  const [progress, setProgress] = useState(0);
-  const [taskId, setTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+  const [tags, setTags] = useState<string[]>(['ai']);
 
   const examplePrompts = [
     "A serene sunset over calm ocean waves",
     "A cat walking through a magical forest",
     "Abstract colorful liquid flowing in slow motion",
     "City streets at night with neon lights",
+    "Northern lights dancing over snowy mountains",
+    "A cozy coffee shop on a rainy day",
   ];
 
   const startGeneration = async () => {
@@ -35,16 +44,11 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
     }
 
     setStatus('generating');
-    setProgress(5);
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('generate-runway-video', {
-        body: { 
-          prompt: prompt.trim(),
-          duration: 5,
-          aspectRatio: "9:16" // Vertical for social media
-        }
+      const { data, error: fnError } = await supabase.functions.invoke('generate-ai-video', {
+        body: { prompt: prompt.trim() }
       });
 
       if (fnError) throw fnError;
@@ -53,74 +57,75 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
         throw new Error(data.error);
       }
 
-      setTaskId(data.taskId);
-      setStatus('polling');
-      setProgress(10);
-      toast.success('Video generation started! This may take 1-3 minutes.');
+      if (data.imageUrl) {
+        setGeneratedImageUrl(data.imageUrl);
+        setStatus('preview');
+        toast.success('AI content generated!');
+      } else {
+        throw new Error('No image returned');
+      }
 
     } catch (err) {
       console.error('Generation error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to start generation');
-      setStatus('failed');
-      toast.error(err instanceof Error ? err.message : 'Failed to start video generation');
+      setError(err instanceof Error ? err.message : 'Failed to generate');
+      setStatus('idle');
+      toast.error(err instanceof Error ? err.message : 'Failed to generate AI content');
     }
   };
 
-  const checkStatus = useCallback(async () => {
-    if (!taskId) return;
+  const handleRemake = useCallback(() => {
+    setGeneratedImageUrl(null);
+    setStatus('idle');
+    setTitle('');
+  }, []);
+
+  const handleContinueToDetails = useCallback(() => {
+    setStatus('details');
+  }, []);
+
+  const handlePost = async () => {
+    if (!generatedImageUrl) return;
+
+    setStatus('posting');
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('check-runway-status', {
-        body: { taskId }
+      // Fetch the image and create a File
+      const response = await fetch(generatedImageUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `ai-content-${Date.now()}.png`, { type: 'image/png' });
+
+      // Combine title and any additional text as caption
+      const caption = title ? `✨ ${title}\n\n🤖 Created with AI` : '🤖 Created with AI';
+
+      await createPost.mutateAsync({
+        mediaFile: file,
+        caption,
+        type: 'post',
+        tags: tags.includes('ai') ? tags : [...tags, 'ai']
       });
 
-      if (fnError) throw fnError;
-
-      if (data.error && data.status === 'FAILED') {
-        setError(data.error);
-        setStatus('failed');
-        toast.error('Video generation failed: ' + data.error);
-        return;
-      }
-
-      setProgress(data.progress || progress);
-
-      if (data.status === 'SUCCEEDED' && data.videoUrl) {
-        setStatus('succeeded');
-        setProgress(100);
-        
-        // Fetch the video and convert to blob
-        try {
-          const response = await fetch(data.videoUrl);
-          const blob = await response.blob();
-          onVideoGenerated(data.videoUrl, blob);
-          toast.success('AI video generated successfully!');
-        } catch (fetchErr) {
-          console.error('Error fetching video:', fetchErr);
-          // Still provide the URL even if blob conversion fails
-          onVideoGenerated(data.videoUrl, new Blob());
-          toast.success('AI video generated!');
-        }
-      } else if (data.status === 'FAILED' || data.status === 'CANCELLED') {
-        setError(data.error || 'Generation failed');
-        setStatus('failed');
-      }
-
+      toast.success('AI content posted successfully!');
+      navigate('/home');
+      onClose();
     } catch (err) {
-      console.error('Status check error:', err);
+      console.error('Post error:', err);
+      toast.error('Failed to post. Please try again.');
+      setStatus('details');
     }
-  }, [taskId, progress, onVideoGenerated]);
+  };
 
-  // Poll for status updates
-  useEffect(() => {
-    if (status !== 'polling' || !taskId) return;
-
-    const interval = setInterval(checkStatus, 5000);
-    // Initial check
-    checkStatus();
-
-    return () => clearInterval(interval);
-  }, [status, taskId, checkStatus]);
+  const handleUseInUpload = useCallback(async () => {
+    if (!generatedImageUrl || !onVideoGenerated) return;
+    
+    try {
+      const response = await fetch(generatedImageUrl);
+      const blob = await response.blob();
+      onVideoGenerated(generatedImageUrl, blob);
+    } catch (err) {
+      console.error('Error:', err);
+      toast.error('Failed to load generated content');
+    }
+  }, [generatedImageUrl, onVideoGenerated]);
 
   return (
     <motion.div
@@ -133,7 +138,7 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
-        className="w-full max-w-md liquid-glass rounded-3xl p-6 space-y-6"
+        className="w-full max-w-md liquid-glass rounded-3xl p-6 space-y-6 max-h-[90vh] overflow-y-auto"
       >
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -142,20 +147,21 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
               <Wand2 className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">AI Video Generator</h2>
-              <p className="text-xs text-muted-foreground">Powered by Runway ML</p>
+              <h2 className="text-lg font-bold">AI Content Generator</h2>
+              <p className="text-xs text-muted-foreground">Powered by Lovable AI</p>
             </div>
           </div>
           <button
             onClick={onClose}
             className="p-2 rounded-full hover:bg-muted transition-colors"
-            disabled={status === 'generating' || status === 'polling'}
+            disabled={status === 'generating' || status === 'posting'}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <AnimatePresence mode="wait">
+          {/* Idle - Input prompt */}
           {status === 'idle' && (
             <motion.div
               key="input"
@@ -165,7 +171,7 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
               className="space-y-4"
             >
               <div className="space-y-2">
-                <label className="text-sm font-medium">Describe your video</label>
+                <label className="text-sm font-medium">Describe your content</label>
                 <Textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
@@ -185,7 +191,7 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
                       onClick={() => setPrompt(example)}
                       className="text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-muted/80 transition-colors text-left"
                     >
-                      {example.slice(0, 30)}...
+                      {example.slice(0, 25)}...
                     </button>
                   ))}
                 </div>
@@ -198,16 +204,13 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
                 size="lg"
               >
                 <Sparkles className="w-4 h-4 mr-2" />
-                Generate Video
+                Generate
               </Button>
-
-              <p className="text-xs text-center text-muted-foreground">
-                Generation takes 1-3 minutes. Uses your Runway credits.
-              </p>
             </motion.div>
           )}
 
-          {(status === 'generating' || status === 'polling') && (
+          {/* Generating */}
+          {status === 'generating' && (
             <motion.div
               key="loading"
               initial={{ opacity: 0, y: 10 }}
@@ -218,7 +221,7 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
               <div className="flex flex-col items-center gap-4">
                 <div className="relative">
                   <div className="w-16 h-16 rounded-2xl gradient-animated flex items-center justify-center">
-                    <Video className="w-8 h-8 text-white" />
+                    <Wand2 className="w-8 h-8 text-white" />
                   </div>
                   <motion.div
                     animate={{ rotate: 360 }}
@@ -227,14 +230,9 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
                   />
                 </div>
                 <div className="text-center">
-                  <p className="font-medium">Creating your video...</p>
-                  <p className="text-sm text-muted-foreground">This may take 1-3 minutes</p>
+                  <p className="font-medium">Creating your content...</p>
+                  <p className="text-sm text-muted-foreground">This may take a moment</p>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Progress value={progress} className="h-2" />
-                <p className="text-xs text-center text-muted-foreground">{progress}% complete</p>
               </div>
 
               <p className="text-xs text-center text-muted-foreground px-4">
@@ -243,53 +241,141 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
             </motion.div>
           )}
 
-          {status === 'succeeded' && (
+          {/* Preview - Show generated content with remake option */}
+          {status === 'preview' && generatedImageUrl && (
             <motion.div
-              key="success"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="py-8 flex flex-col items-center gap-4"
+              key="preview"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-4"
             >
-              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
-                <Check className="w-8 h-8 text-green-500" />
+              <div className="relative rounded-2xl overflow-hidden bg-muted aspect-square">
+                <img 
+                  src={generatedImageUrl} 
+                  alt="AI Generated" 
+                  className="w-full h-full object-cover"
+                />
+                <Badge className="absolute top-3 left-3 bg-gradient-to-r from-violet-500 to-purple-500 text-white border-0">
+                  <Bot className="w-3 h-3 mr-1" />
+                  AI Generated
+                </Badge>
               </div>
-              <div className="text-center">
-                <p className="font-medium">Video Generated!</p>
-                <p className="text-sm text-muted-foreground">Your AI video is ready to use</p>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleRemake}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Remake
+                </Button>
+                <Button
+                  onClick={handleContinueToDetails}
+                  className="flex-1"
+                >
+                  <Type className="w-4 h-4 mr-2" />
+                  Add Details
+                </Button>
+              </div>
+
+              {onVideoGenerated && (
+                <Button
+                  onClick={handleUseInUpload}
+                  variant="ghost"
+                  className="w-full text-muted-foreground"
+                >
+                  Use in upload page instead
+                </Button>
+              )}
+            </motion.div>
+          )}
+
+          {/* Details - Add title and post */}
+          {status === 'details' && generatedImageUrl && (
+            <motion.div
+              key="details"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-4"
+            >
+              <div className="relative rounded-2xl overflow-hidden bg-muted aspect-video">
+                <img 
+                  src={generatedImageUrl} 
+                  alt="AI Generated" 
+                  className="w-full h-full object-cover"
+                />
+                <Badge className="absolute top-3 left-3 bg-gradient-to-r from-violet-500 to-purple-500 text-white border-0">
+                  <Bot className="w-3 h-3 mr-1" />
+                  AI Generated
+                </Badge>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Title (optional)</label>
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Give your creation a title..."
+                  maxLength={100}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">Tags</label>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <Badge key={tag} variant="secondary" className="gap-1">
+                      #{tag}
+                      {tag !== 'ai' && (
+                        <button 
+                          onClick={() => setTags(tags.filter(t => t !== tag))}
+                          className="ml-1 hover:text-destructive"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Bot className="w-3 h-3" />
+                  This post will be marked as AI-generated
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  onClick={() => setStatus('preview')}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={handlePost}
+                  className="flex-1 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Post
+                </Button>
               </div>
             </motion.div>
           )}
 
-          {status === 'failed' && (
+          {/* Posting */}
+          {status === 'posting' && (
             <motion.div
-              key="error"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="py-8 space-y-4"
+              key="posting"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="py-12 flex flex-col items-center gap-4"
             >
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-destructive/20 flex items-center justify-center">
-                  <AlertCircle className="w-8 h-8 text-destructive" />
-                </div>
-                <div className="text-center">
-                  <p className="font-medium">Generation Failed</p>
-                  <p className="text-sm text-muted-foreground">{error || 'Something went wrong'}</p>
-                </div>
-              </div>
-              <Button
-                onClick={() => {
-                  setStatus('idle');
-                  setError(null);
-                  setTaskId(null);
-                  setProgress(0);
-                }}
-                variant="outline"
-                className="w-full"
-              >
-                Try Again
-              </Button>
+              <Loader2 className="w-12 h-12 text-primary animate-spin" />
+              <p className="font-medium">Posting your AI creation...</p>
             </motion.div>
           )}
         </AnimatePresence>
