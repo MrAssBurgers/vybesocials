@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Play } from 'lucide-react';
+import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Play, Minimize2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,7 @@ import { callSounds } from '@/lib/callSounds';
 import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall, DailyParticipant } from '@daily-co/daily-js';
 import { CallSettingsSheet } from './CallSettingsSheet';
+import { MinimizedCallBubble } from './MinimizedCallBubble';
 import { useCameraPreload, stopPreloadedCamera, getPreloadedStream } from '@/hooks/useCameraPreload';
 
 export function GlobalCallOverlay() {
@@ -54,6 +55,9 @@ export function GlobalCallOverlay() {
   const [needsUserInteraction, setNeedsUserInteraction] = useState(false);
   const [isRetryingVideo, setIsRetryingVideo] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  
+  // Minimize state - keeps call active but shows a floating bubble
+  const [isMinimized, setIsMinimized] = useState(false);
   
   // INSTANT CAMERA: Preload camera for video calls - start as soon as call begins
   const isVideoCall = state.call?.callType === 'video';
@@ -911,11 +915,41 @@ export function GlobalCallOverlay() {
   // Always show local video in video calls (either preloaded or Daily-managed)
   const showLocalVideoContainer = isVideoCall && (hasLocalVideo || showPreloadedLocalVideo) && !isVideoOff;
 
+  // Handle minimize/expand
+  const handleMinimize = useCallback(() => {
+    setIsMinimized(true);
+  }, []);
+
+  const handleExpand = useCallback(() => {
+    setIsMinimized(false);
+  }, []);
+
+  // Reset minimize state when call ends
+  useEffect(() => {
+    if (state.phase === 'idle') {
+      setIsMinimized(false);
+    }
+  }, [state.phase]);
+
   return (
     <>
-      {/* Main Call UI (not ringing) */}
+      {/* Minimized Call Bubble - shown when call is minimized */}
       <AnimatePresence>
-        {isVisible && !isRinging && (
+        {isVisible && !isRinging && isMinimized && (
+          <MinimizedCallBubble
+            displayName={displayName || 'Call'}
+            displayAvatar={displayAvatar}
+            isVideoCall={isVideoCall}
+            duration={callDuration}
+            hasRemoteVideo={hasRemoteVideo}
+            onExpand={handleExpand}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Main Call UI (not ringing, not minimized) */}
+      <AnimatePresence>
+        {isVisible && !isRinging && !isMinimized && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1245,7 +1279,7 @@ export function GlobalCallOverlay() {
                     </div>
                   </div>
                   
-                  {/* Call type badge */}
+                  {/* Call type badge and minimize button */}
                   <div className="flex items-center gap-2">
                     <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
                       {isVideoCall ? (
@@ -1254,6 +1288,17 @@ export function GlobalCallOverlay() {
                         <Phone className="h-4 w-4 text-white/70" />
                       )}
                     </div>
+                    
+                    {/* Minimize button */}
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleMinimize}
+                      className="h-9 w-9 rounded-full bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                      title="Minimize call"
+                    >
+                      <Minimize2 className="h-4 w-4 text-white/70" />
+                    </motion.button>
                   </div>
                 </div>
               </div>
