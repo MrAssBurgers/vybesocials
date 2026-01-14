@@ -3818,6 +3818,10 @@ export type Database = {
         Returns: boolean
       }
       is_server_member: { Args: { p_server_id: string }; Returns: boolean }
+      process_due_scheduled_messages: {
+        Args: { limit_count?: number }
+        Returns: number
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user" | "owner_wife"
