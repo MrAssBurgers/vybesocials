@@ -40,7 +40,7 @@ export default function ExplorePage() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [activeCategory, setActiveCategory] = useState(searchParams.get('cat') || 'all');
   const [contentType, setContentType] = useState<'clips' | 'videos'>(
-    (searchParams.get('type') as 'clips' | 'videos') || 'clips'
+    (searchParams.get('type') as 'clips' | 'videos') || 'videos'
   );
   const selectedTag = searchParams.get('tag');
   const { data: posts, isLoading } = usePosts();
