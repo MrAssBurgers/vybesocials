@@ -53,29 +53,44 @@ serve(async (req) => {
       );
     }
 
-    // Use Gemini's native video understanding capabilities
-    // Gemini can process video directly including audio transcription and visual analysis
+    // Use Gemini's native video understanding capabilities with STRICT nudity detection
     const messages = [
       {
         role: "system",
-        content: `You are a comprehensive video content safety analyzer. You must analyze BOTH the visual content AND the audio/speech content of videos.
+        content: `You are a STRICT video content safety analyzer with ZERO TOLERANCE for nudity or partial nudity. You must analyze BOTH the visual content AND the audio/speech content of videos.
 
 YOUR TASK:
-1. VISUAL ANALYSIS: Analyze all frames for inappropriate imagery
+1. VISUAL ANALYSIS: Analyze all frames for inappropriate imagery - BE EXTREMELY STRICT about nudity/skin exposure
 2. AUDIO ANALYSIS: Listen to and transcribe any speech/audio, then analyze it for inappropriate content
 
-VISUAL SAFETY CHECKS:
+IMMEDIATE BLOCK (score 1.0) - ZERO TOLERANCE FOR:
+- ANY shirtless person (male or female) at any point in the video
+- ANY exposed chest, torso, midriff, or stomach
+- Swimwear, bikinis, underwear, or lingerie
+- Sports bras or crop tops showing midriff
+- Suggestive poses even if partially clothed
+- ANY visible skin below the neck and above the knees (except arms)
+- Cleavage or low-cut clothing
+- Tight/revealing clothing that shows body contours
+- Beach, pool, or gym content showing skin
+- ANY adult/explicit/sexual content
+- Implied nudity (covered but suggestive)
+- Changing or undressing scenes
+- Showering/bathing content
+
+ALSO IMMEDIATE BLOCK:
 - Violence, gore, or graphic content
-- Nudity or explicit sexual content
+- Nudity or explicit sexual content of any kind
 - Hate symbols, gestures, or imagery
 - Self-harm content or promotion
 - Dangerous or illegal activities
-- Disturbing or shocking content
+- Drug use or paraphernalia
 
-AUDIO/SPEECH SAFETY CHECKS:
+AUDIO/SPEECH SAFETY CHECKS - BLOCK FOR:
+- ANY sexual or suggestive language
+- References to nudity or undressing
 - Hate speech, slurs, or discriminatory language
 - Threats, harassment, or bullying
-- Explicit sexual language
 - Self-harm encouragement
 - Promotion of illegal activities
 - Excessive profanity or abusive language
@@ -91,19 +106,20 @@ Respond with ONLY valid JSON in this exact format:
   "audioIssues": "description of audio concerns if any"
 }
 
-SCORING:
-- "allowed" (score < 0.3): Safe content, no concerns
-- "warned" (score 0.3-0.7): Mildly sensitive, can be posted with content warning
-- "blocked" (score > 0.7): Violates guidelines, cannot be posted
+CRITICAL SCORING RULES:
+- "blocked" (score 1.0): ANY shirtless content, swimwear, skin exposure, or suggestive content - BLOCK IMMEDIATELY
+- "blocked" (score > 0.5): Any other safety violations
+- "warned" (score 0.3-0.5): Borderline content that might be concerning
+- "allowed" (score < 0.3): ONLY for fully clothed people or non-human content
 
-IMPORTANT: Consider BOTH visual AND audio when determining the final result. If either is problematic, the overall result should reflect that.`
+WHEN IN DOUBT, BLOCK IT. Be extremely conservative. A shirtless person for even 1 frame = BLOCKED.`
       },
       {
         role: "user",
         content: [
           {
             type: "text",
-            text: "Analyze this video for content safety. Check BOTH the visual content AND transcribe/analyze any audio or speech. Respond with only the JSON object."
+            text: "Analyze this video with STRICT nudity detection. BLOCK ANY shirtless, swimwear, or skin-exposing content. Check BOTH visual content AND audio. Respond with only the JSON object."
           },
           {
             type: "image_url",
