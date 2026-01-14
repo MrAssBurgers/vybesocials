@@ -99,13 +99,14 @@ export function ScheduleMessageSheet({ conversationId, open, onOpenChange }: Sch
                   {date ? format(date, 'PPP') : 'Pick a date'}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverContent className="w-auto p-0 z-[9999]" align="start">
                 <Calendar
                   mode="single"
                   selected={date}
                   onSelect={setDate}
                   disabled={(date) => date < new Date()}
                   initialFocus
+                  className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
