@@ -258,37 +258,39 @@ export function ChatView() {
     
     // Desktop: Detect PrintScreen and Mac screenshot shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
+      console.log('[Screenshot] Key pressed:', e.key, 'meta:', e.metaKey, 'shift:', e.shiftKey);
+      
       // Windows/Linux PrintScreen
       if (e.key === 'PrintScreen') {
+        console.log('[Screenshot] PrintScreen detected!');
         notifyScreenshot();
         return;
       }
       // Mac: Cmd+Shift+3 (full screen) or Cmd+Shift+4 (selection) or Cmd+Shift+5 (menu)
       if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
+        console.log('[Screenshot] Mac shortcut detected!');
         notifyScreenshot();
         return;
       }
       // Windows: Win+Shift+S (Snipping Tool)
       if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 's') {
+        console.log('[Screenshot] Win+Shift+S detected!');
         notifyScreenshot();
         return;
       }
     };
 
     // Mobile: iOS/Android screenshot detection via resize event
-    // When a screenshot is taken, some devices briefly resize the viewport
     let lastHeight = window.innerHeight;
     let screenshotDebounce: NodeJS.Timeout | null = null;
     
     const handleResize = () => {
       const heightDiff = Math.abs(window.innerHeight - lastHeight);
-      // iOS screenshot briefly changes height by ~30-50px on some devices
       if (heightDiff > 20 && heightDiff < 100) {
-        // Debounce to avoid false positives
         if (screenshotDebounce) clearTimeout(screenshotDebounce);
         screenshotDebounce = setTimeout(() => {
-          // Double-check it returned to normal (indicating screenshot, not keyboard)
           if (Math.abs(window.innerHeight - lastHeight) < 10) {
+            console.log('[Screenshot] Mobile screenshot detected via resize!');
             notifyScreenshot();
           }
         }, 300);
@@ -296,33 +298,43 @@ export function ChatView() {
       lastHeight = window.innerHeight;
     };
 
-    // Visibility change can also indicate screenshot on some devices
-    const handleVisibilityChange = () => {
-      // If document becomes hidden very briefly (< 500ms), might be screenshot
-      if (document.visibilityState === 'hidden') {
-        const hideTime = Date.now();
-        const checkVisibility = () => {
-          if (document.visibilityState === 'visible') {
-            const hiddenDuration = Date.now() - hideTime;
-            // Very brief hide (< 500ms) could indicate screenshot on some devices
-            if (hiddenDuration < 500 && hiddenDuration > 50) {
-              // This is heuristic-based and may have false positives
-              // notifyScreenshot(); // Uncomment if you want this behavior
-            }
-          }
-        };
-        setTimeout(checkVisibility, 600);
+    // Clipboard change detection - detects when image is copied to clipboard
+    const handleCopy = (e: ClipboardEvent) => {
+      // Check if clipboard contains image data (screenshot)
+      if (e.clipboardData?.types.includes('image/png')) {
+        console.log('[Screenshot] Clipboard image detected!');
+        notifyScreenshot();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    // Focus/blur detection for mobile - some devices blur briefly during screenshot
+    let blurTime = 0;
+    const handleBlur = () => {
+      blurTime = Date.now();
+    };
+    const handleFocus = () => {
+      const blurDuration = Date.now() - blurTime;
+      // Very brief blur (100-500ms) may indicate screenshot on mobile
+      if (blurDuration > 100 && blurDuration < 500) {
+        console.log('[Screenshot] Brief blur detected, possible screenshot');
+        // Uncomment to enable: notifyScreenshot();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true); // Use capture phase
+    window.addEventListener('keyup', handleKeyDown, true);   // Also check keyup for PrintScreen
     window.addEventListener('resize', handleResize);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('copy', handleCopy);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
     
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyDown, true);
       window.removeEventListener('resize', handleResize);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('copy', handleCopy);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
       if (screenshotDebounce) clearTimeout(screenshotDebounce);
     };
   }, [conversationId, notifyScreenshot]);
