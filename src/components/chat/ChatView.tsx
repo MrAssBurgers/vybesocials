@@ -14,6 +14,8 @@ import {
 import { useInstantSend } from '@/hooks/useInstantSend';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { useUnsendForEveryone, useDeleteForMe, useEditMessage } from '@/hooks/useMessageActions';
+import { useInstantReadClear } from '@/hooks/useMessageNotifications';
+import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,6 +41,9 @@ import { CallButtons } from '@/components/call/CallButtons';
 import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 import { useChatPresence } from '@/hooks/useChatPresence';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
+import { AIAssistButton } from './AIAssistButton';
+import { SmartRepliesBar } from './SmartRepliesBar';
+import { ChatSummarySheet } from './ChatSummarySheet';
 
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
@@ -62,7 +67,8 @@ import {
   Edit3,
   MoreHorizontal,
   Users,
-  Settings
+  Settings,
+  FileText
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -106,6 +112,12 @@ export function ChatView() {
   // Use new presence hook for Snapchat-style presence + typing
   const { presentUsers, typingUsers, setTyping } = useChatPresence(conversationId);
   const { notifyScreenshot } = useScreenshotNotification(conversationId);
+  
+  // v1.1: Instant read clear - marks as read immediately and clears badges
+  useInstantReadClear(conversationId);
+  
+  // v1.1: AI Smart Replies
+  const { suggestions: smartReplies, generateReplies, clearSuggestions } = useAISmartReplies();
   
   const { settings } = useDMSettings(conversationId);
 
