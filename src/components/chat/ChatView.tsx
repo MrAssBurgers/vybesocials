@@ -232,24 +232,20 @@ export function ChatView() {
     });
   }, [messages, profile?.id, conversationId, markViewed]);
 
-  // Scroll to bottom when conversation opens or messages change - reliable method
+  // Scroll to bottom when conversation opens or messages change - instant method
   useEffect(() => {
     if (!conversationId) return;
     
-    // Use a small delay to ensure DOM is rendered
+    // Scroll immediately without delay for instant feel
     const scrollToBottom = () => {
       if (messagesEndRef.current) {
         messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
       }
     };
     
-    // Immediate scroll
-    scrollToBottom();
+    // Use requestAnimationFrame for smoother, immediate scroll
+    requestAnimationFrame(scrollToBottom);
     
-    // Fallback scroll after render completes
-    const timeoutId = setTimeout(scrollToBottom, 100);
-    
-    return () => clearTimeout(timeoutId);
   }, [conversationId, messages?.length]);
 
   // Screenshot detection
