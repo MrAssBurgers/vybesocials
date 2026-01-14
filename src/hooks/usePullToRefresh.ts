@@ -15,6 +15,7 @@ export function usePullToRefresh({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const startY = useRef(0);
   const isPulling = useRef(false);
+  const rafId = useRef<number | null>(null);
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
     const scrollTop = window.scrollY || document.documentElement.scrollTop;
@@ -38,12 +39,17 @@ export function usePullToRefresh({
     const diff = currentY - startY.current;
 
     if (diff > 0) {
-      // Apply resistance - the further you pull, the harder it gets
-      const resistance = 0.4;
-      const distance = Math.min(diff * resistance, maxPull);
-      setPullDistance(distance);
+      // Cancel any pending frame
+      if (rafId.current) cancelAnimationFrame(rafId.current);
       
-      if (distance > 10) {
+      // Throttle updates with RAF
+      rafId.current = requestAnimationFrame(() => {
+        const resistance = 0.4;
+        const distance = Math.min(diff * resistance, maxPull);
+        setPullDistance(distance);
+      });
+      
+      if (diff > 25) {
         e.preventDefault();
       }
     }
@@ -52,6 +58,11 @@ export function usePullToRefresh({
   const handleTouchEnd = useCallback(async () => {
     if (!isPulling.current) return;
     isPulling.current = false;
+    
+    if (rafId.current) {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
 
     if (pullDistance >= threshold && !isRefreshing) {
       setIsRefreshing(true);
@@ -77,6 +88,7 @@ export function usePullToRefresh({
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
+      if (rafId.current) cancelAnimationFrame(rafId.current);
     };
   }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
 

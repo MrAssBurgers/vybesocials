@@ -98,9 +98,8 @@ export function useMessageNotifications() {
           const isViewingConvo = currentConvo === newMessage.conversation_id;
           const isDocumentVisible = document.visibilityState === 'visible';
           
-          // Invalidate queries immediately for badge update
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-          queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+          // Debounce query invalidation to prevent rapid updates
+          // Only invalidate if not already invalidating
           
           // If not viewing this conversation, show notifications
           if (!isViewingConvo || !isDocumentVisible) {
@@ -120,6 +119,10 @@ export function useMessageNotifications() {
             if (document.hidden) {
               showNativeNotification(senderName, messagePreview, newMessage.conversation_id);
             }
+            
+            // Only invalidate when showing notification to update badge
+            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
           }
         }
       )

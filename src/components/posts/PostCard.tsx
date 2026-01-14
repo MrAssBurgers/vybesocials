@@ -1,4 +1,4 @@
-import { useState, useRef, memo, useCallback } from 'react';
+import { useState, useRef, memo, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -241,7 +241,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const queryClient = useQueryClient();
   const togglePin = useTogglePin();
   const { data: userRole } = useUserRole();
-  const { data: authorRole } = useUserRoleById(post.author.id);
+  // Defer fetching author role until menu is opened to reduce initial load
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { data: authorRole } = useUserRoleById(menuOpen ? post.author.id : undefined);
   const isModOrAdmin = useIsModOrAdmin();
   const [isLiked, setIsLiked] = useState(post.is_liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
@@ -256,9 +258,16 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
 
-  const isOwnPost = profile?.id === post.author.id;
-  const isAdmin = userRole === 'admin' || userRole === 'moderator';
+  // Memoize computed values
+  const isOwnPost = useMemo(() => profile?.id === post.author.id, [profile?.id, post.author.id]);
+  const isAdmin = useMemo(() => userRole === 'admin' || userRole === 'moderator', [userRole]);
   const canDelete = isOwnPost || isAdmin;
+  
+  // Memoize formatted date
+  const formattedDate = useMemo(() => 
+    formatDistanceToNow(new Date(post.created_at), { addSuffix: true }),
+    [post.created_at]
+  );
 
   const handleReport = useCallback(async () => {
     if (!profile) return;
@@ -391,13 +400,13 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 )}
               </p>
               <p className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                {formattedDate}
               </p>
             </div>
           </Link>
         </UserProfileHoverCard>
         <div className="flex items-center gap-1">
-          <DropdownMenu>
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon-sm">
                 <MoreHorizontal className="h-5 w-5" />
@@ -530,24 +539,23 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 </motion.div>
               </motion.button>
               
-              {/* Particle burst */}
+              {/* Simplified particle burst - fewer particles for better performance */}
               <AnimatePresence>
                 {showLikeParticles && (
                   <div className="absolute inset-0 pointer-events-none">
-                    {[...Array(6)].map((_, i) => (
+                    {[0, 1, 2, 3].map((i) => (
                       <motion.div
                         key={i}
                         initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
                         animate={{ 
                           scale: [0, 1, 0.5],
-                          x: Math.cos(i * 60 * Math.PI / 180) * 25,
-                          y: Math.sin(i * 60 * Math.PI / 180) * 25,
+                          x: Math.cos(i * 90 * Math.PI / 180) * 20,
+                          y: Math.sin(i * 90 * Math.PI / 180) * 20,
                           opacity: [1, 1, 0],
                         }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.5 }}
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full"
-                        style={{ backgroundColor: i % 2 === 0 ? '#ef4444' : '#f97316' }}
+                        transition={{ duration: 0.4 }}
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-red-500"
                       />
                     ))}
                   </div>
