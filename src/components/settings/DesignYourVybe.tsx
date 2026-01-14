@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Palette, Sparkles, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon, Share2, Zap, Timer } from 'lucide-react';
@@ -70,6 +70,9 @@ export function DesignYourVybe() {
   const [animationSpeed, setAnimationSpeed] = useState<'slow' | 'normal' | 'fast' | 'instant'>('normal');
   const [animationStyle, setAnimationStyle] = useState<'smooth' | 'bouncy' | 'snappy' | 'none'>('smooth');
 
+  const generationRunIdRef = useRef(0);
+  const GENERATION_TIMEOUT_MS = 30000;
+
   // Load user's current theme/preset on mount
   useEffect(() => {
     if (userTheme) {
@@ -125,35 +128,66 @@ export function DesignYourVybe() {
 
   const handleGenerateTheme = async () => {
     if (!prompt.trim()) return;
-    
+
+    const runId = (generationRunIdRef.current += 1);
+    const promptValue = prompt.trim();
+
     setIsGenerating(true);
+    console.debug('[DesignYourVybe] generateTheme:start', { runId, basePreset: selectedPreset });
+
+    const withTimeout = <T,>(promise: Promise<T>, ms: number) =>
+      Promise.race<T>([
+        promise,
+        new Promise<T>((_resolve, reject) =>
+          setTimeout(() => reject(new Error('THEME_GENERATION_TIMEOUT')), ms)
+        ),
+      ]);
+
     try {
-      const theme = await generateTheme.mutateAsync({
-        prompt: prompt.trim(),
-        basePreset: selectedPreset,
-      });
-      
+      const theme = await withTimeout(
+        generateTheme.mutateAsync({
+          prompt: promptValue,
+          basePreset: selectedPreset,
+        }),
+        GENERATION_TIMEOUT_MS
+      );
+
+      if (generationRunIdRef.current !== runId) return;
+
       // Validate theme has required properties
-      if (theme && typeof theme === 'object' && 'colorPrimary' in theme && theme.colorPrimary) {
+      if (theme && typeof theme === 'object' && 'colorPrimary' in theme && (theme as any).colorPrimary) {
         const themeWithAnimations = {
-          ...theme,
+          ...(theme as any),
           animationSpeed,
           animationStyle,
-        };
+        } as ThemeTokens & { themeName?: string };
+
         setPreviewTheme(themeWithAnimations);
-        setGeneratedName(theme.themeName || 'Custom Theme');
+        setGeneratedName((themeWithAnimations as any).themeName || 'Custom Theme');
         applyThemeTokens(themeWithAnimations);
         setShowConfirmation(true);
+        console.debug('[DesignYourVybe] generateTheme:success', { runId });
       } else {
-        console.error('Invalid theme response:', theme);
+        console.error('[DesignYourVybe] Invalid theme response:', theme);
         toast.error('Generated theme was invalid. Please try again.');
       }
-    } catch (error) {
-      console.error('Error generating theme:', error);
-      // Error toast is already shown by the mutation's onError
+    } catch (error: any) {
+      if (generationRunIdRef.current !== runId) return;
+
+      const msg = String(error?.message || '');
+      console.error('[DesignYourVybe] generateTheme:error', { runId, error });
+
+      if (msg.includes('THEME_GENERATION_TIMEOUT')) {
+        // Clear the mutation state so the user can try again immediately
+        generateTheme.reset();
+        toast.error('Theme generation timed out. Please try again.');
+      }
+      // Other errors already surface via the mutation's onError toast
     } finally {
-      // Always ensure loading state is cleared
-      setIsGenerating(false);
+      if (generationRunIdRef.current === runId) {
+        setIsGenerating(false);
+        console.debug('[DesignYourVybe] generateTheme:finally', { runId });
+      }
     }
   };
 
