@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useMemo, memo, useCallback } from 'react';
 import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, Eye, User, Search, TrendingUp, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +18,7 @@ import {
   useDeleteSharedTheme,
   SharedTheme,
 } from '@/hooks/useSharedThemes';
-import { applyThemeTokens, ThemeTokens } from '@/hooks/useCustomTheme';
+import { applyThemeTokens } from '@/hooks/useCustomTheme';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -37,7 +36,8 @@ interface ThemeCardProps {
   onPreview: () => void;
 }
 
-function ThemeCard({ 
+// Memoized ThemeCard to prevent unnecessary re-renders
+const ThemeCard = memo(function ThemeCard({ 
   theme, 
   isLiked, 
   isSaved, 
@@ -52,16 +52,10 @@ function ThemeCard({
   const tokens = theme.theme_tokens;
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      className="relative group"
-    >
+    <div className="relative group">
       <div 
         className={cn(
-          "p-4 rounded-xl border-2 transition-all cursor-pointer",
+          "p-4 rounded-xl border-2 transition-colors cursor-pointer",
           isPopular 
             ? "border-primary/50 bg-primary/5 hover:border-primary" 
             : "border-border hover:border-primary/50"
@@ -177,9 +171,9 @@ function ThemeCard({
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
-}
+});
 
 function ThemeGridSkeleton() {
   return (
@@ -219,24 +213,24 @@ export function ThemeGallery() {
     return new Set(publicThemes.slice(0, 3).map(t => t.id));
   }, [publicThemes]);
 
-  const handlePreview = (theme: SharedTheme) => {
+  const handlePreview = useCallback((theme: SharedTheme) => {
     setPreviewingTheme(theme);
     try {
       applyThemeTokens(theme.theme_tokens);
     } catch (error) {
       console.error('Error previewing theme:', error);
     }
-  };
+  }, []);
 
-  const handleLike = (themeId: string, isLiked: boolean) => {
+  const handleLike = useCallback((themeId: string, isLiked: boolean) => {
     if (isLiked) {
       unlikeTheme.mutate(themeId);
     } else {
       likeTheme.mutate(themeId);
     }
-  };
+  }, [unlikeTheme, likeTheme]);
 
-  const savedThemeIds = savedThemes?.map(t => t.id) || [];
+  const savedThemeIds = useMemo(() => savedThemes?.map(t => t.id) || [], [savedThemes]);
 
   return (
     <Card>
@@ -278,23 +272,21 @@ export function ThemeGallery() {
               <ThemeGridSkeleton />
             ) : publicThemes?.length ? (
               <div className="grid grid-cols-2 gap-3">
-                <AnimatePresence mode="popLayout">
-                  {publicThemes.map((theme) => (
-                    <ThemeCard
-                      key={theme.id}
-                      theme={theme}
-                      isLiked={likedIds?.includes(theme.id) || false}
-                      isSaved={savedThemeIds.includes(theme.id)}
-                      isOwn={theme.creator_id === profile?.id}
-                      isPopular={popularThemeIds.has(theme.id) && !searchQuery}
-                      onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
-                      onSave={() => saveTheme.mutate(theme.id)}
-                      onUnsave={() => unsaveTheme.mutate(theme.id)}
-                      onDelete={theme.creator_id === profile?.id ? () => deleteTheme.mutate(theme.id) : undefined}
-                      onPreview={() => handlePreview(theme)}
-                    />
-                  ))}
-                </AnimatePresence>
+                {publicThemes.map((theme) => (
+                  <ThemeCard
+                    key={theme.id}
+                    theme={theme}
+                    isLiked={likedIds?.includes(theme.id) || false}
+                    isSaved={savedThemeIds.includes(theme.id)}
+                    isOwn={theme.creator_id === profile?.id}
+                    isPopular={popularThemeIds.has(theme.id) && !searchQuery}
+                    onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
+                    onSave={() => saveTheme.mutate(theme.id)}
+                    onUnsave={() => unsaveTheme.mutate(theme.id)}
+                    onDelete={theme.creator_id === profile?.id ? () => deleteTheme.mutate(theme.id) : undefined}
+                    onPreview={() => handlePreview(theme)}
+                  />
+                ))}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
@@ -320,21 +312,19 @@ export function ThemeGallery() {
               <ThemeGridSkeleton />
             ) : savedThemes?.length ? (
               <div className="grid grid-cols-2 gap-3">
-                <AnimatePresence mode="popLayout">
-                  {savedThemes.map((theme) => (
-                    <ThemeCard
-                      key={theme.id}
-                      theme={theme}
-                      isLiked={likedIds?.includes(theme.id) || false}
-                      isSaved={true}
-                      isOwn={theme.creator_id === profile?.id}
-                      onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
-                      onSave={() => {}}
-                      onUnsave={() => unsaveTheme.mutate(theme.id)}
-                      onPreview={() => handlePreview(theme)}
-                    />
-                  ))}
-                </AnimatePresence>
+                {savedThemes.map((theme) => (
+                  <ThemeCard
+                    key={theme.id}
+                    theme={theme}
+                    isLiked={likedIds?.includes(theme.id) || false}
+                    isSaved={true}
+                    isOwn={theme.creator_id === profile?.id}
+                    onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
+                    onSave={() => {}}
+                    onUnsave={() => unsaveTheme.mutate(theme.id)}
+                    onPreview={() => handlePreview(theme)}
+                  />
+                ))}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
@@ -350,22 +340,20 @@ export function ThemeGallery() {
               <ThemeGridSkeleton />
             ) : myThemes?.length ? (
               <div className="grid grid-cols-2 gap-3">
-                <AnimatePresence mode="popLayout">
-                  {myThemes.map((theme) => (
-                    <ThemeCard
-                      key={theme.id}
-                      theme={theme}
-                      isLiked={likedIds?.includes(theme.id) || false}
-                      isSaved={savedThemeIds.includes(theme.id)}
-                      isOwn={true}
-                      onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
-                      onSave={() => saveTheme.mutate(theme.id)}
-                      onUnsave={() => unsaveTheme.mutate(theme.id)}
-                      onDelete={() => deleteTheme.mutate(theme.id)}
-                      onPreview={() => handlePreview(theme)}
-                    />
-                  ))}
-                </AnimatePresence>
+                {myThemes.map((theme) => (
+                  <ThemeCard
+                    key={theme.id}
+                    theme={theme}
+                    isLiked={likedIds?.includes(theme.id) || false}
+                    isSaved={savedThemeIds.includes(theme.id)}
+                    isOwn={true}
+                    onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
+                    onSave={() => saveTheme.mutate(theme.id)}
+                    onUnsave={() => unsaveTheme.mutate(theme.id)}
+                    onDelete={() => deleteTheme.mutate(theme.id)}
+                    onPreview={() => handlePreview(theme)}
+                  />
+                ))}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
@@ -378,27 +366,20 @@ export function ThemeGallery() {
         </Tabs>
 
         {/* Preview notification */}
-        <AnimatePresence>
-          {previewingTheme && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/30 text-sm"
-            >
-              <div className="flex items-center justify-between">
-                <span>Previewing: <strong>{previewingTheme.theme_name}</strong></span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setPreviewingTheme(null)}
-                >
-                  Done
-                </Button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {previewingTheme && (
+          <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/30 text-sm">
+            <div className="flex items-center justify-between">
+              <span>Previewing: <strong>{previewingTheme.theme_name}</strong></span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPreviewingTheme(null)}
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

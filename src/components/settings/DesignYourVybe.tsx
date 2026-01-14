@@ -299,13 +299,11 @@ export function DesignYourVybe() {
                 const isSelected = selectedPreset === key && !previewTheme;
                 
                 return (
-                  <motion.button
+                  <button
                     key={key}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
                     onClick={() => handlePresetSelect(key)}
                     className={cn(
-                      "relative p-4 rounded-xl border-2 transition-all text-left",
+                      "relative p-4 rounded-xl border-2 transition-colors text-left active:scale-[0.98]",
                       isSelected
                         ? "border-primary bg-primary/10"
                         : "border-border hover:border-primary/50"
@@ -355,7 +353,7 @@ export function DesignYourVybe() {
                         <Sun className="h-3 w-3 text-muted-foreground" />
                       )}
                     </div>
-                  </motion.button>
+                  </button>
                 );
               })}
             </div>
@@ -376,20 +374,18 @@ export function DesignYourVybe() {
               </Label>
               <div className="grid grid-cols-4 gap-2">
                 {ANIMATION_SPEEDS.map((speed) => (
-                  <motion.button
+                  <button
                     key={speed.value}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
                     onClick={() => handleAnimationChange(speed.value, animationStyle)}
                     className={cn(
-                      "p-2 rounded-lg border text-center transition-all",
+                      "p-2 rounded-lg border text-center transition-colors active:scale-[0.98]",
                       animationSpeed === speed.value
                         ? "border-primary bg-primary/10"
                         : "border-border hover:border-primary/50"
                     )}
                   >
                     <p className="text-xs font-medium">{speed.label}</p>
-                  </motion.button>
+                  </button>
                 ))}
               </div>
             </div>
@@ -402,20 +398,18 @@ export function DesignYourVybe() {
               </Label>
               <div className="grid grid-cols-4 gap-2">
                 {ANIMATION_STYLES.map((style) => (
-                  <motion.button
+                  <button
                     key={style.value}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
                     onClick={() => handleAnimationChange(animationSpeed, style.value)}
                     className={cn(
-                      "p-2 rounded-lg border text-center transition-all",
+                      "p-2 rounded-lg border text-center transition-colors active:scale-[0.98]",
                       animationStyle === style.value
                         ? "border-primary bg-primary/10"
                         : "border-border hover:border-primary/50"
                     )}
                   >
                     <p className="text-xs font-medium">{style.label}</p>
-                  </motion.button>
+                  </button>
                 ))}
               </div>
             </div>

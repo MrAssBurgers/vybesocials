@@ -355,8 +355,7 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     const defaultMuted = tokens.mode === 'dark' ? '240 5% 55%' : '240 5% 50%';
     const defaultBg = tokens.mode === 'dark' ? defaultDark : defaultLight;
     
-    // Smooth transition for all changes
-    root.style.transition = 'all 0.4s ease';
+    // Use requestAnimationFrame for smoother updates - no transition on root to prevent lag
     
     // === PRIMARY COLORS ===
     root.style.setProperty('--primary', safeHSL(tokens.colorPrimary, defaultPrimary));
