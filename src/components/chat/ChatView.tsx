@@ -1434,6 +1434,14 @@ const MessageBubble = memo(function MessageBubble({
                 <Check className="h-4 w-4" /> Copy
               </button>
             )}
+            {isOwn && message.content && !message.media_url && (
+              <button
+                onClick={() => { onEdit?.(); setShowContextMenu(false); menuOpenedRef.current = false; }}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+              >
+                <Edit3 className="h-4 w-4" /> Edit
+              </button>
+            )}
             {isOwn && (
               <button
                 onClick={handleUnsend}
@@ -1450,15 +1458,20 @@ const MessageBubble = memo(function MessageBubble({
             </button>
           </div>
         )}
+        {/* Edited indicator */}
+        {message.is_edited && (
+          <span className="text-[9px] text-muted-foreground/50 italic ml-1">(edited)</span>
+        )}
         </div>
       </div>
     </div>
   );
 }, (prevProps, nextProps) => {
-  // Custom comparison for memo - prevent unnecessary re-renders
   return (
     prevProps.message.id === nextProps.message.id &&
+    prevProps.message.content === nextProps.message.content &&
     prevProps.message.is_deleted === nextProps.message.is_deleted &&
+    prevProps.message.is_edited === nextProps.message.is_edited &&
     prevProps.isOwn === nextProps.isOwn &&
     prevProps.showAvatar === nextProps.showAvatar &&
     prevProps.showReactions === nextProps.showReactions &&

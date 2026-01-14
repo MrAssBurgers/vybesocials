@@ -2,10 +2,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import { Message } from './useMessages';
 
 /**
  * Unsend message for everyone (soft delete via UPDATE - no new row insertion)
  * Sets is_deleted = true, clears content/media on existing row
+ * Now with instant optimistic UI updates
  */
 export function useUnsendForEveryone() {
   const { profile } = useAuth();
@@ -15,7 +17,7 @@ export function useUnsendForEveryone() {
     mutationFn: async (messageId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // Verify ownership first
+      // Get the message to verify ownership and get conversation_id
       const { data: message, error: fetchError } = await supabase
         .from('messages')
         .select('sender_id, conversation_id')
@@ -29,7 +31,24 @@ export function useUnsendForEveryone() {
         throw new Error('You can only unsend your own messages');
       }
 
-      // Soft delete via UPDATE (no INSERT) - RLS-safe
+      // Return conversation_id for optimistic update before the actual mutation
+      return { messageId, conversationId: message.conversation_id };
+    },
+    onMutate: async (messageId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['messages'] });
+
+      // We'll update optimistically after we get the conversation_id
+      return { messageId };
+    },
+    onSuccess: async ({ messageId, conversationId }) => {
+      // Optimistically remove from cache immediately
+      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+        if (!old) return old;
+        return old.filter(m => m.id !== messageId);
+      });
+
+      // Now perform the actual database update
       const { error } = await supabase
         .from('messages')
         .update({ 
@@ -39,14 +58,15 @@ export function useUnsendForEveryone() {
           media_url: null,
         })
         .eq('id', messageId)
-        .eq('sender_id', profile.id);
+        .eq('sender_id', profile?.id);
 
-      if (error) throw error;
+      if (error) {
+        // Revert on error
+        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+        throw error;
+      }
 
-      return message.conversation_id;
-    },
-    onSuccess: (conversationId) => {
-      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+      // Update conversation list
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       toast.success('Message unsent');
     },
@@ -59,6 +79,7 @@ export function useUnsendForEveryone() {
 
 /**
  * Delete message for current user only (uses separate table, no touching messages row)
+ * Now with instant optimistic UI updates
  */
 export function useDeleteForMe() {
   const { profile } = useAuth();
@@ -78,22 +99,30 @@ export function useDeleteForMe() {
       if (fetchError) throw fetchError;
       if (!message) throw new Error('Message not found');
 
-      // Insert into message_deletions table (RLS ensures user_id = current user)
+      return { messageId, conversationId: message.conversation_id };
+    },
+    onSuccess: async ({ messageId, conversationId }) => {
+      // Optimistically remove from cache immediately
+      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+        if (!old) return old;
+        return old.filter(m => m.id !== messageId);
+      });
+
+      // Insert into message_deletions table
       const { error } = await supabase
         .from('message_deletions')
         .upsert({
           message_id: messageId,
-          user_id: profile.id,
+          user_id: profile?.id,
         }, {
           onConflict: 'message_id,user_id',
         });
 
-      if (error) throw error;
+      if (error) {
+        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+        throw error;
+      }
 
-      return message.conversation_id;
-    },
-    onSuccess: (conversationId) => {
-      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
       toast.success('Message deleted for you');
     },
     onError: (error: any) => {
@@ -103,7 +132,10 @@ export function useDeleteForMe() {
   });
 }
 
-// Edit message (text only, own messages only)
+/**
+ * Edit message (text only, own messages only)
+ * Now with instant optimistic UI updates
+ */
 export function useEditMessage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -126,6 +158,26 @@ export function useEditMessage() {
         throw new Error('You can only edit your own messages');
       }
 
+      return { messageId, newContent, conversationId: message.conversation_id, oldContent: message.content };
+    },
+    onSuccess: async ({ messageId, newContent, conversationId }) => {
+      // Optimistically update the message in cache immediately
+      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+        if (!old) return old;
+        return old.map(m => {
+          if (m.id === messageId) {
+            return {
+              ...m,
+              content: newContent,
+              is_edited: true,
+              edited_at: new Date().toISOString(),
+            };
+          }
+          return m;
+        });
+      });
+
+      // Now perform the actual database update
       const { error } = await supabase
         .from('messages')
         .update({ 
@@ -135,12 +187,12 @@ export function useEditMessage() {
         })
         .eq('id', messageId);
 
-      if (error) throw error;
+      if (error) {
+        // Revert on error
+        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+        throw error;
+      }
 
-      return message.conversation_id;
-    },
-    onSuccess: (conversationId) => {
-      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
       toast.success('Message edited');
     },
     onError: (error: any) => {
