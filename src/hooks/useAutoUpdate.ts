@@ -1,19 +1,16 @@
 import { useEffect, useRef } from 'react';
 
-const BUILD_VERSION = import.meta.env.VITE_BUILD_TIME || Date.now().toString();
-const CHECK_INTERVAL = 30000; // Check every 30 seconds
-
 export function useAutoUpdate() {
-  const currentVersion = useRef(BUILD_VERSION);
-  const checkingRef = useRef(false);
+  const hasChecked = useRef(false);
 
   useEffect(() => {
-    // Only run in production
+    // Only run in production and only once
     if (import.meta.env.DEV) return;
+    if (hasChecked.current) return;
 
     const checkForUpdates = async () => {
-      if (checkingRef.current) return;
-      checkingRef.current = true;
+      if (hasChecked.current) return;
+      hasChecked.current = true;
 
       try {
         // Fetch index.html with cache-busting to check for new version
@@ -22,10 +19,7 @@ export function useAutoUpdate() {
           headers: { 'Cache-Control': 'no-cache' }
         });
         
-        if (!response.ok) {
-          checkingRef.current = false;
-          return;
-        }
+        if (!response.ok) return;
 
         const html = await response.text();
         
@@ -33,14 +27,19 @@ export function useAutoUpdate() {
         const scriptMatch = html.match(/src="\/assets\/index-([a-zA-Z0-9]+)\.js"/);
         const newVersion = scriptMatch?.[1] || '';
         
-        // If we have a stored version and it's different, reload
+        // If we have a stored version and it's different, reload once
         const storedVersion = sessionStorage.getItem('app-version');
+        const hasReloaded = sessionStorage.getItem('app-reloaded');
         
-        if (storedVersion && newVersion && storedVersion !== newVersion) {
-          console.log('[AutoUpdate] New version detected, reloading...', {
+        if (storedVersion && newVersion && storedVersion !== newVersion && !hasReloaded) {
+          console.log('[AutoUpdate] New version detected, reloading once...', {
             old: storedVersion,
             new: newVersion
           });
+          
+          // Mark that we've reloaded to prevent loop
+          sessionStorage.setItem('app-reloaded', 'true');
+          sessionStorage.setItem('app-version', newVersion);
           
           // Clear cache and reload
           if ('caches' in window) {
@@ -52,36 +51,21 @@ export function useAutoUpdate() {
           return;
         }
         
-        // Store current version
+        // Store current version and clear reload flag
         if (newVersion) {
           sessionStorage.setItem('app-version', newVersion);
+          sessionStorage.removeItem('app-reloaded');
         }
       } catch (error) {
         console.warn('[AutoUpdate] Check failed:', error);
-      } finally {
-        checkingRef.current = false;
       }
     };
 
-    // Initial check after a delay
-    const initialTimeout = setTimeout(checkForUpdates, 5000);
-    
-    // Periodic checks
-    const interval = setInterval(checkForUpdates, CHECK_INTERVAL);
-
-    // Check on visibility change (when user returns to tab)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        checkForUpdates();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Single check after a short delay
+    const timeout = setTimeout(checkForUpdates, 3000);
 
     return () => {
-      clearTimeout(initialTimeout);
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearTimeout(timeout);
     };
   }, []);
 }
