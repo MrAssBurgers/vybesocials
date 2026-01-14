@@ -10,8 +10,14 @@ export interface ThemeTokens {
   colorAccent: string;
   bgMain: string;
   bgCard: string;
+  bgGradientFrom?: string;
+  bgGradientTo?: string;
+  sidebarBg?: string;
+  navBg?: string;
+  inputBg?: string;
   textPrimary: string;
   textSecondary: string;
+  borderColor?: string;
   borderRadius: 'small' | 'medium' | 'large';
   mode: 'light' | 'dark';
   themeName?: string;
@@ -93,29 +99,30 @@ const BORDER_RADIUS_MAP = {
 };
 
 export function useUserTheme() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
+  const userId = user?.id;
 
   return useQuery({
-    queryKey: ['user-theme', profile?.id],
+    queryKey: ['user-theme', userId],
     queryFn: async () => {
-      if (!profile?.id) return null;
+      if (!userId) return null;
 
       const { data, error } = await supabase
         .from('user_themes')
         .select('*')
-        .eq('user_id', profile.id)
+        .eq('user_id', userId)
         .maybeSingle();
 
       if (error) throw error;
       return data;
     },
-    enabled: !!profile?.id,
+    enabled: !!userId,
     staleTime: 60000,
   });
 }
 
 export function useSaveTheme() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -128,41 +135,24 @@ export function useSaveTheme() {
       themeName: string;
       basePreset: string;
     }) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      const userId = user?.id;
+      if (!userId) throw new Error('Not authenticated');
 
-      // Check if theme exists
-      const { data: existing } = await supabase
+      // Upsert theme using on conflict
+      const { error } = await supabase
         .from('user_themes')
-        .select('id')
-        .eq('user_id', profile.id)
-        .maybeSingle();
+        .upsert({
+          user_id: userId,
+          theme_name: themeName,
+          theme_tokens: themeTokens as any,
+          base_preset: basePreset,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id',
+        });
 
-      if (existing) {
-        // Update existing
-        const { error } = await supabase
-          .from('user_themes')
-          .update({
-            theme_name: themeName,
-            theme_tokens: themeTokens as any,
-            base_preset: basePreset,
-            is_active: true,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('user_id', profile.id);
-        if (error) throw error;
-      } else {
-        // Insert new
-        const { error } = await supabase
-          .from('user_themes')
-          .insert({
-            user_id: profile.id,
-            theme_name: themeName,
-            theme_tokens: themeTokens as any,
-            base_preset: basePreset,
-            is_active: true,
-          });
-        if (error) throw error;
-      }
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-theme'] });
@@ -176,17 +166,18 @@ export function useSaveTheme() {
 }
 
 export function useResetTheme() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async () => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      const userId = user?.id;
+      if (!userId) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('user_themes')
         .delete()
-        .eq('user_id', profile.id);
+        .eq('user_id', userId);
 
       if (error) throw error;
     },
@@ -249,15 +240,37 @@ export function applyThemeTokens(tokens: ThemeTokens) {
   root.style.setProperty('--foreground', tokens.textPrimary);
   root.style.setProperty('--muted-foreground', tokens.textSecondary);
   
+  // Extended background colors
+  const sidebarBg = tokens.sidebarBg || tokens.bgCard;
+  const navBg = tokens.navBg || tokens.bgCard;
+  const inputBg = tokens.inputBg || (tokens.mode === 'dark' ? '240 4% 16%' : '240 6% 90%');
+  const borderColor = tokens.borderColor || (tokens.mode === 'dark' ? '240 4% 16%' : '240 6% 90%');
+  
+  root.style.setProperty('--sidebar', sidebarBg);
+  root.style.setProperty('--sidebar-foreground', tokens.textPrimary);
+  root.style.setProperty('--sidebar-primary', tokens.colorPrimary);
+  root.style.setProperty('--sidebar-accent', tokens.colorAccent);
+  
   // Derived colors
   root.style.setProperty('--primary-foreground', tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%');
+  root.style.setProperty('--secondary-foreground', tokens.textPrimary);
+  root.style.setProperty('--accent-foreground', tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%');
   root.style.setProperty('--card-foreground', tokens.textPrimary);
   root.style.setProperty('--popover', tokens.bgCard);
   root.style.setProperty('--popover-foreground', tokens.textPrimary);
   root.style.setProperty('--muted', tokens.mode === 'dark' ? '240 4% 16%' : '240 5% 90%');
-  root.style.setProperty('--border', tokens.mode === 'dark' ? '240 4% 16%' : '240 6% 90%');
-  root.style.setProperty('--input', tokens.mode === 'dark' ? '240 4% 16%' : '240 6% 90%');
+  root.style.setProperty('--border', borderColor);
+  root.style.setProperty('--input', inputBg);
   root.style.setProperty('--ring', tokens.colorPrimary);
+  
+  // Destructive colors (keep consistent but tint slightly)
+  root.style.setProperty('--destructive', '0 84% 60%');
+  root.style.setProperty('--destructive-foreground', '0 0% 98%');
+  
+  // Chart colors based on theme
+  root.style.setProperty('--chart-1', tokens.colorPrimary);
+  root.style.setProperty('--chart-2', tokens.colorSecondary);
+  root.style.setProperty('--chart-3', tokens.colorAccent);
   
   // Border radius
   root.style.setProperty('--radius', BORDER_RADIUS_MAP[tokens.borderRadius]);
