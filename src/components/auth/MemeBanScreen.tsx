@@ -8,19 +8,54 @@ interface MemeBanScreenProps {
 
 export const MemeBanScreen = ({ reason, expiresAt }: MemeBanScreenProps) => {
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden">
-      {/* Background image */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${memeBanBg})` }}
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-gradient-to-br from-red-900 via-orange-800 to-yellow-700">
+      {/* Animated running character - multiple instances for chaos */}
+      {[...Array(8)].map((_, i) => (
+        <motion.img
+          key={`runner-${i}`}
+          src={memeBanBg}
+          alt=""
+          className="absolute w-32 h-32 object-contain"
+          initial={{
+            x: -150,
+            y: Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 600),
+            scaleX: 1,
+          }}
+          animate={{
+            x: (typeof window !== 'undefined' ? window.innerWidth : 1000) + 150,
+          }}
+          transition={{
+            duration: 1.5 + Math.random() * 1.5,
+            repeat: Infinity,
+            delay: i * 0.4,
+            ease: "linear",
+          }}
+        />
+      ))}
+      
+      {/* Big central running character */}
+      <motion.img
+        src={memeBanBg}
+        alt=""
+        className="absolute w-64 h-64 object-contain z-0"
+        animate={{
+          x: [-300, 300, -300],
+          y: [-50, 50, -50],
+          rotate: [0, 10, -10, 0],
+        }}
+        transition={{
+          duration: 2,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
       />
       
       {/* Dark overlay for text readability */}
-      <div className="absolute inset-0 bg-black/40" />
+      <div className="absolute inset-0 bg-black/30 pointer-events-none" />
       
       {/* Animated laughing emojis */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
+        {[...Array(15)].map((_, i) => (
           <motion.div
             key={i}
             className="absolute text-4xl"
@@ -40,7 +75,7 @@ export const MemeBanScreen = ({ reason, expiresAt }: MemeBanScreenProps) => {
               ease: "linear",
             }}
           >
-            {['😂', '🤣', '😹', '💀', '😆'][Math.floor(Math.random() * 5)]}
+            {['😂', '🤣', '😹', '💀', '😆', '🏃'][Math.floor(Math.random() * 6)]}
           </motion.div>
         ))}
       </div>
