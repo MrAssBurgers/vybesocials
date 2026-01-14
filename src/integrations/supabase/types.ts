@@ -562,6 +562,71 @@ export type Database = {
           },
         ]
       }
+      content_appeals: {
+        Row: {
+          admin_notes: string | null
+          content_type: string
+          created_at: string
+          id: string
+          reason: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          content_type: string
+          created_at?: string
+          id?: string
+          reason: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          content_type?: string
+          created_at?: string
+          id?: string
+          reason?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_appeals_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_appeals_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_appeals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_appeals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_flags: {
         Row: {
           ai_categories: Json | null
@@ -1765,6 +1830,8 @@ export type Database = {
           comments_enabled: boolean | null
           created_at: string
           dms_enabled: boolean | null
+          dnd_enabled: boolean | null
+          dnd_until: string | null
           events_enabled: boolean | null
           follows_enabled: boolean | null
           id: string
@@ -1782,6 +1849,8 @@ export type Database = {
           comments_enabled?: boolean | null
           created_at?: string
           dms_enabled?: boolean | null
+          dnd_enabled?: boolean | null
+          dnd_until?: string | null
           events_enabled?: boolean | null
           follows_enabled?: boolean | null
           id?: string
@@ -1799,6 +1868,8 @@ export type Database = {
           comments_enabled?: boolean | null
           created_at?: string
           dms_enabled?: boolean | null
+          dnd_enabled?: boolean | null
+          dnd_until?: string | null
           events_enabled?: boolean | null
           follows_enabled?: boolean | null
           id?: string
@@ -2067,6 +2138,7 @@ export type Database = {
           created_at: string
           id: string
           is_pinned: boolean | null
+          is_sensitive: boolean | null
           media_url: string
           tags: string[] | null
           thumbnail_url: string | null
@@ -2079,6 +2151,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_pinned?: boolean | null
+          is_sensitive?: boolean | null
           media_url: string
           tags?: string[] | null
           thumbnail_url?: string | null
@@ -2091,6 +2164,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_pinned?: boolean | null
+          is_sensitive?: boolean | null
           media_url?: string
           tags?: string[] | null
           thumbnail_url?: string | null

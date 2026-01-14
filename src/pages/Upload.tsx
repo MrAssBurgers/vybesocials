@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, X, Image, Film, Video, Hash, Camera as CameraIcon } from 'lucide-react';
 import { useCreatePost } from '@/hooks/usePosts';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -14,6 +14,8 @@ import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Progress } from '@/components/ui/progress';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { Camera } from '@/components/camera';
+import { ContentSafetyScanner, SafetyResult } from '@/components/safety/ContentSafetyScanner';
+import { useContentSafety } from '@/hooks/useContentSafety';
 
 const contentTypes = [
   { value: 'post', label: 'Photo Post', icon: Image, description: 'Share a photo or meme' },
@@ -27,6 +29,7 @@ export default function UploadPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const createPost = useCreatePost();
+  const contentSafety = useContentSafety();
 
   const [type, setType] = useState<'post' | 'short' | 'video'>('post');
   const [file, setFile] = useState<File | null>(null);
@@ -37,8 +40,10 @@ export default function UploadPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showCamera, setShowCamera] = useState(false);
+  const [showSafetyScanner, setShowSafetyScanner] = useState(false);
+  const [isSensitive, setIsSensitive] = useState(false);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
@@ -67,6 +72,32 @@ export default function UploadPage() {
     // Create preview
     const url = URL.createObjectURL(selectedFile);
     setPreview(url);
+
+    // For images, run safety scan immediately
+    if (isImage) {
+      setShowSafetyScanner(true);
+      await contentSafety.scanImage(selectedFile);
+    }
+  };
+
+  const handleSafetyContinue = () => {
+    setShowSafetyScanner(false);
+    if (contentSafety.result === 'warned') {
+      setIsSensitive(true);
+    }
+  };
+
+  const handleSafetyCancel = () => {
+    setShowSafetyScanner(false);
+    clearFile();
+    contentSafety.reset();
+  };
+
+  const handleSafetyAppeal = () => {
+    contentSafety.submitAppeal('image', 'User appealed blocked content');
+    clearFile();
+    setShowSafetyScanner(false);
+    contentSafety.reset();
   };
 
   const handleAddTag = (tag: string) => {
@@ -93,6 +124,12 @@ export default function UploadPage() {
 
     if (!file) {
       toast.error('Please select a file to upload');
+      return;
+    }
+
+    // Check if content was blocked
+    if (contentSafety.result === 'blocked') {
+      toast.error('This content cannot be posted');
       return;
     }
 
@@ -142,6 +179,7 @@ export default function UploadPage() {
       URL.revokeObjectURL(preview);
       setPreview(null);
     }
+    setIsSensitive(false);
   };
 
   return (
@@ -150,6 +188,27 @@ export default function UploadPage() {
       {showCamera && (
         <Camera onClose={() => setShowCamera(false)} />
       )}
+
+      {/* Safety Scanner Modal */}
+      <AnimatePresence>
+        {showSafetyScanner && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
+          >
+            <ContentSafetyScanner
+              isScanning={contentSafety.isScanning}
+              result={contentSafety.result}
+              message={contentSafety.message}
+              onContinue={handleSafetyContinue}
+              onCancel={handleSafetyCancel}
+              onAppeal={handleSafetyAppeal}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
@@ -234,6 +293,11 @@ export default function UploadPage() {
                 >
                   <X className="h-4 w-4" />
                 </button>
+                {isSensitive && (
+                  <div className="absolute bottom-2 left-2 px-3 py-1 rounded-full bg-yellow-500/80 text-white text-xs font-medium">
+                    Marked as Sensitive
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -318,7 +382,7 @@ export default function UploadPage() {
             variant="gradient"
             size="xl"
             className="w-full"
-            disabled={!file || uploading}
+            disabled={!file || uploading || contentSafety.result === 'blocked'}
           >
             {uploading ? 'Uploading...' : 'Share Post'}
           </Button>
