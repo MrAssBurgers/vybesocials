@@ -52,24 +52,41 @@ serve(async (req) => {
     let messages: any[];
 
     if (type === 'image') {
-      // For images, use vision model
+      // For images, use vision model with STRICT nudity detection
       messages = [
         {
           role: "system",
-          content: `You are a content safety analyzer. Analyze images for:
+          content: `You are a STRICT content safety analyzer. You MUST block ANY form of nudity or partial nudity. Analyze images for:
+
+IMMEDIATE BLOCK (score 1.0) - Zero tolerance:
+- ANY shirtless person (male or female)
+- ANY exposed chest, torso, or midriff
+- Swimwear, bikinis, underwear, or lingerie
+- Suggestive poses even if clothed
+- ANY visible skin below the neck and above the knees (except arms)
+- Cleavage or low-cut clothing
+- Tight/revealing clothing that shows body contours
+- ANY adult/explicit/sexual content
+- Implied nudity (covered but suggestive)
+
+ALSO BLOCK:
 - Violence or gore
-- Adult/explicit content
-- Hate symbols or imagery
+- Hate symbols or imagery  
 - Self-harm content
 - Illegal activities
+- Drug use or paraphernalia
 
 Respond with ONLY valid JSON in this exact format:
 {"result": "allowed" | "warned" | "blocked", "categories": ["category1"], "score": 0.0-1.0, "reason": "brief explanation"}
 
-Use:
-- "allowed" for safe content (score < 0.3)
-- "warned" for mildly sensitive content that can be posted with warning (score 0.3-0.7)
-- "blocked" for content that violates guidelines (score > 0.7)`
+CRITICAL RULES:
+- If there is ANY doubt about nudity/skin exposure, BLOCK IT (score 1.0)
+- Shirtless = BLOCKED, no exceptions
+- Beach/pool photos = BLOCKED (swimwear)
+- Gym/workout photos showing skin = BLOCKED
+- Mirror selfies showing torso = BLOCKED
+- "allowed" ONLY for fully clothed people or non-human content (score < 0.2)
+- "blocked" for ANY skin exposure or suggestive content (score > 0.5)`
         },
         {
           role: "user",
@@ -82,34 +99,40 @@ Use:
             },
             {
               type: "text",
-              text: "Analyze this image for content safety. Respond with only the JSON object.",
+              text: "Analyze this image with STRICT nudity detection. Block ANY shirtless, swimwear, or skin-exposing content. Respond with only the JSON object.",
             },
           ],
         },
       ];
     } else {
-      // For text
+      // For text with strict content rules
       messages = [
         {
           role: "system",
-          content: `You are a content safety analyzer. Analyze text for:
+          content: `You are a STRICT content safety analyzer. Analyze text for:
+
+IMMEDIATE BLOCK:
+- ANY sexual or suggestive content
+- References to nudity or undressing
+- Explicit adult content or innuendo
 - Hate speech or discrimination
 - Threats or harassment
-- Explicit adult content
 - Self-harm content
 - Illegal activities
+- Drug references
+- Violent content
 
 Respond with ONLY valid JSON in this exact format:
 {"result": "allowed" | "warned" | "blocked", "categories": ["category1"], "score": 0.0-1.0, "reason": "brief explanation"}
 
-Use:
-- "allowed" for safe content (score < 0.3)
-- "warned" for mildly sensitive content (score 0.3-0.7)
-- "blocked" for content that violates guidelines (score > 0.7)`
+CRITICAL: Be very strict. When in doubt, block it.
+- "allowed" for clearly safe content (score < 0.2)
+- "warned" for borderline content (score 0.2-0.5)  
+- "blocked" for ANY violating content (score > 0.5)`
         },
         {
           role: "user",
-          content: `Analyze this text for content safety: "${content.slice(0, 5000)}"\n\nRespond with only the JSON object.`,
+          content: `Analyze this text with STRICT content moderation: "${content.slice(0, 5000)}"\n\nRespond with only the JSON object.`,
         },
       ];
     }
