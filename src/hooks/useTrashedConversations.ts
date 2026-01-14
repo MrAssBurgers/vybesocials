@@ -63,31 +63,34 @@ export function useTrashedConversations() {
 
 // Move conversation to trash
 export function useTrashConversation() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (conversationId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!profile?.id || !user?.id) throw new Error('Not authenticated');
 
-      // First remove from hidden_conversations if exists
+      // hidden_conversations is keyed by auth.users.id (not profiles.id)
       await supabase
         .from('hidden_conversations')
         .delete()
-        .eq('user_id', profile.id)
+        .eq('user_id', user.id)
         .eq('conversation_id', conversationId);
 
-      // Add to trashed_conversations
+      // Add to trashed_conversations (keyed by profiles.id)
       const { error } = await supabase
         .from('trashed_conversations')
-        .upsert({
-          user_id: profile.id,
-          conversation_id: conversationId,
-          trashed_at: new Date().toISOString(),
-          auto_delete_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
-        }, {
-          onConflict: 'user_id,conversation_id',
-        });
+        .upsert(
+          {
+            user_id: profile.id,
+            conversation_id: conversationId,
+            trashed_at: new Date().toISOString(),
+            auto_delete_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+          },
+          {
+            onConflict: 'user_id,conversation_id',
+          }
+        );
 
       if (error) throw error;
     },
@@ -134,12 +137,12 @@ export function useRestoreConversation() {
 
 // Permanently delete conversation (remove from trash)
 export function usePermanentlyDeleteConversation() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (conversationId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!profile?.id || !user?.id) throw new Error('Not authenticated');
 
       // Remove from trashed_conversations
       const { error: trashError } = await supabase
@@ -150,15 +153,18 @@ export function usePermanentlyDeleteConversation() {
 
       if (trashError) throw trashError;
 
-      // Also add to hidden_conversations to permanently hide it
+      // Also add to hidden_conversations to permanently hide it (auth.users.id)
       const { error: hideError } = await supabase
         .from('hidden_conversations')
-        .upsert({
-          user_id: profile.id,
-          conversation_id: conversationId,
-        }, {
-          onConflict: 'user_id,conversation_id',
-        });
+        .upsert(
+          {
+            user_id: user.id,
+            conversation_id: conversationId,
+          },
+          {
+            onConflict: 'user_id,conversation_id',
+          }
+        );
 
       if (hideError) throw hideError;
     },
