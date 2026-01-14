@@ -15,6 +15,7 @@ import { FriendButton } from '@/components/friends/FriendButton';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
 import { ClipsGrid } from '@/components/posts/ClipsGrid';
+import { MutualFriendsDisplay } from '@/components/profile/MutualFriendsDisplay';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useCreateConversation } from '@/hooks/useMessages';
@@ -251,6 +252,13 @@ export default function ProfilePage() {
             {/* Bio */}
             {profile.bio && (
               <p className="text-muted-foreground max-w-md">{profile.bio}</p>
+            )}
+            
+            {/* Mutual Friends - only show on other people's profiles */}
+            {!isOwnProfile && (
+              <div className="mt-4">
+                <MutualFriendsDisplay targetUserId={profile.id} variant="compact" />
+              </div>
             )}
           </div>
         </motion.div>

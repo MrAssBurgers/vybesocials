@@ -14,12 +14,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Circle } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
 import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
 import { CreateGroupDialog } from './CreateGroupDialog';
+import { ConversationOptionsMenu } from './ConversationOptionsMenu';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
@@ -338,6 +339,8 @@ const ConversationItem = memo(function ConversationItem({
   currentUserId?: string;
   userRole?: 'admin' | 'moderator' | null;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  
   const otherMembers = useMemo(() => 
     conversation.members?.filter((m) => m.user_id !== currentUserId) || [],
     [conversation.members, currentUserId]
@@ -364,10 +367,12 @@ const ConversationItem = memo(function ConversationItem({
     return formatDistanceToNow(new Date(lastMessage.created_at), { addSuffix: true });
   }, [lastMessage?.created_at]);
 
+  const isMuted = conversation.members?.find((m) => m.user_id === currentUserId)?.is_muted;
+
   return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-4 p-4 rounded-2xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-2"
+    <div 
+      className="group relative w-full flex items-center gap-4 p-4 rounded-2xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-2 cursor-pointer"
+      onClick={menuOpen ? undefined : onClick}
     >
       <div className="relative flex-shrink-0">
         {conversation.is_group ? (
@@ -417,9 +422,18 @@ const ConversationItem = memo(function ConversationItem({
             {!conversation.is_group && otherMember && isOwner(otherMember.username || '') && <OwnerBadge />}
             {!conversation.is_group && otherMember && isOwnerWife(otherMember.id) && <PrincessBadge />}
           </div>
-          {formattedTime && (
-            <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formattedTime}</span>
-          )}
+          <div className="flex items-center gap-1">
+            {formattedTime && (
+              <span className="text-xs text-muted-foreground flex-shrink-0">{formattedTime}</span>
+            )}
+            <ConversationOptionsMenu
+              conversationId={conversation.id}
+              otherUserId={!conversation.is_group ? otherMember?.id : undefined}
+              otherUsername={!conversation.is_group ? otherMember?.username : undefined}
+              isMuted={isMuted}
+              onOpenChange={setMenuOpen}
+            />
+          </div>
         </div>
 
         <div className="flex items-center justify-between">
@@ -458,7 +472,7 @@ const ConversationItem = memo(function ConversationItem({
           )}
         </div>
       </div>
-    </button>
+    </div>
   );
 });
 
