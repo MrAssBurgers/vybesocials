@@ -62,12 +62,16 @@ export function WarningPopup() {
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, y: -100, scale: 0.9 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -100, scale: 0.9 }}
-        className="fixed inset-x-0 top-4 z-[9999] flex justify-center px-4"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       >
-        <div className="relative w-full max-w-md overflow-hidden rounded-2xl border-2 border-yellow-500/50 bg-yellow-500 shadow-2xl shadow-yellow-500/30">
+        <motion.div 
+          initial={{ y: -50 }}
+          animate={{ y: 0 }}
+          className="relative w-full max-w-md overflow-hidden rounded-2xl border-2 border-yellow-500/50 bg-yellow-500 shadow-2xl shadow-yellow-500/30"
+        >
           {/* Animated background */}
           <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600" />
           
@@ -82,53 +86,49 @@ export function WarningPopup() {
           </div>
           
           {/* Content */}
-          <div className="relative p-5">
-            <div className="flex items-start gap-4">
-              <motion.div
-                animate={{ 
-                  rotate: [0, -10, 10, -10, 10, 0],
-                  scale: [1, 1.1, 1]
-                }}
-                transition={{ 
-                  duration: 0.5,
-                  repeat: 3,
-                  repeatDelay: 2
-                }}
-              >
-                <div className="rounded-full bg-yellow-600/30 p-2">
-                  <AlertTriangle className="h-8 w-8 text-yellow-900" />
-                </div>
-              </motion.div>
-              
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-yellow-900">
-                  ⚠️ You Have Been Warned!
-                </h3>
-                <p className="mt-2 text-sm font-medium text-yellow-800">
-                  {unacknowledgedWarning.reason}
-                </p>
-                <p className="mt-3 text-xs text-yellow-700">
-                  Please follow our community guidelines to avoid further action.
-                </p>
-                
-                <Button
-                  onClick={() => acknowledgeWarning.mutate(unacknowledgedWarning.id)}
-                  disabled={acknowledgeWarning.isPending}
-                  className="mt-4 w-full bg-yellow-900 hover:bg-yellow-950 text-yellow-100"
-                >
-                  {acknowledgeWarning.isPending ? 'Acknowledging...' : 'I Understand'}
-                </Button>
+          <div className="relative p-6 text-center">
+            <motion.div
+              animate={{ 
+                rotate: [0, -10, 10, -10, 10, 0],
+                scale: [1, 1.1, 1]
+              }}
+              transition={{ 
+                duration: 0.5,
+                repeat: 3,
+                repeatDelay: 2
+              }}
+              className="flex justify-center mb-4"
+            >
+              <div className="rounded-full bg-yellow-600/30 p-3">
+                <AlertTriangle className="h-10 w-10 text-yellow-900" />
               </div>
-              
-              <button
-                onClick={() => acknowledgeWarning.mutate(unacknowledgedWarning.id)}
-                className="rounded-full p-1 text-yellow-800 hover:bg-yellow-600/30 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+            </motion.div>
+            
+            <h3 className="text-xl font-bold text-yellow-900">
+              ⚠️ You Have Been Warned!
+            </h3>
+            
+            <p className="mt-3 text-sm font-medium text-yellow-800 bg-yellow-600/20 rounded-lg p-3">
+              {unacknowledgedWarning.reason}
+            </p>
+            
+            <p className="mt-4 text-sm font-semibold text-yellow-900 bg-yellow-600/30 rounded-lg p-2">
+              ⚠️ If you get 2 more warnings you will receive a temporary ban!
+            </p>
+            
+            <p className="mt-3 text-xs text-yellow-700">
+              Please follow our community guidelines to avoid further action.
+            </p>
+            
+            <Button
+              onClick={() => acknowledgeWarning.mutate(unacknowledgedWarning.id)}
+              disabled={acknowledgeWarning.isPending}
+              className="mt-5 w-full bg-yellow-900 hover:bg-yellow-950 text-yellow-100 font-semibold py-3"
+            >
+              {acknowledgeWarning.isPending ? 'Acknowledging...' : 'I Understand'}
+            </Button>
           </div>
-        </div>
+        </motion.div>
       </motion.div>
     </AnimatePresence>
   );
