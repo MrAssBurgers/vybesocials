@@ -31,24 +31,7 @@ export function useUnsendForEveryone() {
         throw new Error('You can only unsend your own messages');
       }
 
-      // Return conversation_id for optimistic update before the actual mutation
-      return { messageId, conversationId: message.conversation_id };
-    },
-    onMutate: async (messageId) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ['messages'] });
-
-      // We'll update optimistically after we get the conversation_id
-      return { messageId };
-    },
-    onSuccess: async ({ messageId, conversationId }) => {
-      // Optimistically remove from cache immediately
-      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
-        if (!old) return old;
-        return old.filter(m => m.id !== messageId);
-      });
-
-      // Now perform the actual database update
+      // Perform the actual database update in mutationFn (not onSuccess)
       const { error } = await supabase
         .from('messages')
         .update({ 
@@ -58,13 +41,23 @@ export function useUnsendForEveryone() {
           media_url: null,
         })
         .eq('id', messageId)
-        .eq('sender_id', profile?.id);
+        .eq('sender_id', profile.id); // Ensure ownership
 
-      if (error) {
-        // Revert on error
-        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-        throw error;
-      }
+      if (error) throw error;
+
+      return { messageId, conversationId: message.conversation_id };
+    },
+    onMutate: async (messageId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['messages'] });
+      return { messageId };
+    },
+    onSuccess: ({ messageId, conversationId }) => {
+      // Remove from cache after successful DB update
+      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+        if (!old) return old;
+        return old.filter(m => m.id !== messageId);
+      });
 
       // Update conversation list
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
@@ -99,29 +92,26 @@ export function useDeleteForMe() {
       if (fetchError) throw fetchError;
       if (!message) throw new Error('Message not found');
 
-      return { messageId, conversationId: message.conversation_id };
-    },
-    onSuccess: async ({ messageId, conversationId }) => {
-      // Optimistically remove from cache immediately
-      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
-        if (!old) return old;
-        return old.filter(m => m.id !== messageId);
-      });
-
-      // Insert into message_deletions table
+      // Insert into message_deletions table in mutationFn
       const { error } = await supabase
         .from('message_deletions')
         .upsert({
           message_id: messageId,
-          user_id: profile?.id,
+          user_id: profile.id,
         }, {
           onConflict: 'message_id,user_id',
         });
 
-      if (error) {
-        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-        throw error;
-      }
+      if (error) throw error;
+
+      return { messageId, conversationId: message.conversation_id };
+    },
+    onSuccess: ({ messageId, conversationId }) => {
+      // Remove from cache after successful DB update
+      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+        if (!old) return old;
+        return old.filter(m => m.id !== messageId);
+      });
 
       toast.success('Message deleted for you');
     },
