@@ -3,7 +3,7 @@
  * 
  * Analyzes videos by:
  * 1. Extracting frames for visual analysis
- * 2. Transcribing audio content
+ * 2. Transcribing audio content (CRITICAL for hate speech detection)
  * 3. Using AI to evaluate both for safety violations
  */
 
@@ -53,73 +53,78 @@ serve(async (req) => {
       );
     }
 
-    // Use Gemini's native video understanding capabilities with STRICT nudity detection
+    // Use Gemini's native video understanding capabilities with STRICT content detection
     const messages = [
       {
         role: "system",
-        content: `You are a STRICT video content safety analyzer with ZERO TOLERANCE for nudity or partial nudity. You must analyze BOTH the visual content AND the audio/speech content of videos.
+        content: `You are an extremely strict video content safety analyzer. Your PRIMARY task is to:
 
-YOUR TASK:
-1. VISUAL ANALYSIS: Analyze all frames for inappropriate imagery - BE EXTREMELY STRICT about nudity/skin exposure
-2. AUDIO ANALYSIS: Listen to and transcribe any speech/audio, then analyze it for inappropriate content
+1. TRANSCRIBE ALL AUDIO/SPEECH in the video WORD FOR WORD
+2. Analyze the transcript for ANY hate speech, slurs, or offensive language
+3. Analyze visual content for safety violations
 
-IMMEDIATE BLOCK (score 1.0) - ZERO TOLERANCE FOR:
-- ANY shirtless person (male or female) at any point in the video
-- ANY exposed chest, torso, midriff, or stomach
+CRITICAL: AUDIO TRANSCRIPTION IS MANDATORY
+You MUST listen to and transcribe every word spoken in the video. This is the most important part of your analysis.
+
+IMMEDIATE BLOCK - HATE SPEECH & SLURS (score 1.0):
+Block ANY video containing these types of language (spoken or written):
+- The N-word in ANY form or spelling variation (hard-r or soft-a ending)
+- Any racial slurs against ANY race or ethnicity
+- Anti-Semitic slurs or Holocaust denial
+- Homophobic slurs (f-word slur, etc.)
+- Transphobic slurs
+- Ableist slurs (r-word, etc.)
+- Sexist/misogynistic slurs
+- Religious hate speech
+- Ethnic slurs of any kind
+- ANY derogatory terms targeting protected groups
+- Dog whistles or coded hate speech
+- Threats against any group or individual
+
+ALSO BLOCK FOR:
+- ANY shirtless person (male or female)
 - Swimwear, bikinis, underwear, or lingerie
-- Sports bras or crop tops showing midriff
-- Suggestive poses even if partially clothed
-- ANY visible skin below the neck and above the knees (except arms)
-- Cleavage or low-cut clothing
-- Tight/revealing clothing that shows body contours
-- Beach, pool, or gym content showing skin
-- ANY adult/explicit/sexual content
-- Implied nudity (covered but suggestive)
-- Changing or undressing scenes
-- Showering/bathing content
-
-ALSO IMMEDIATE BLOCK:
+- Nudity or sexually suggestive content
 - Violence, gore, or graphic content
-- Nudity or explicit sexual content of any kind
-- Hate symbols, gestures, or imagery
-- Self-harm content or promotion
+- Self-harm content
+- Drug use
 - Dangerous or illegal activities
-- Drug use or paraphernalia
 
-AUDIO/SPEECH SAFETY CHECKS - BLOCK FOR:
-- ANY sexual or suggestive language
-- References to nudity or undressing
-- Hate speech, slurs, or discriminatory language
-- Threats, harassment, or bullying
-- Self-harm encouragement
-- Promotion of illegal activities
-- Excessive profanity or abusive language
-
-Respond with ONLY valid JSON in this exact format:
+YOUR RESPONSE FORMAT (JSON only):
 {
-  "result": "allowed" | "warned" | "blocked",
-  "categories": ["category1", "category2"],
+  "result": "blocked" | "warned" | "allowed",
+  "categories": ["hate_speech", "racial_slur", etc.],
   "score": 0.0-1.0,
-  "reason": "brief explanation",
-  "audioTranscript": "transcription of speech if any",
-  "visualIssues": "description of visual concerns if any",
-  "audioIssues": "description of audio concerns if any"
+  "reason": "Clear explanation of why blocked",
+  "audioTranscript": "EXACT word-for-word transcription of ALL speech in the video - THIS IS MANDATORY",
+  "visualIssues": "Description of visual concerns if any",
+  "audioIssues": "Specific offensive words/phrases found in audio"
 }
 
-CRITICAL SCORING RULES:
-- "blocked" (score 1.0): ANY shirtless content, swimwear, skin exposure, or suggestive content - BLOCK IMMEDIATELY
-- "blocked" (score > 0.5): Any other safety violations
-- "warned" (score 0.3-0.5): Borderline content that might be concerning
-- "allowed" (score < 0.3): ONLY for fully clothed people or non-human content
+SCORING:
+- 1.0 = BLOCKED: ANY slur, hate speech, or explicit content
+- 0.5-0.9 = BLOCKED: Violence, dangerous content
+- 0.3-0.5 = WARNED: Borderline language, mild profanity
+- 0.0-0.3 = ALLOWED: Clean content
 
-WHEN IN DOUBT, BLOCK IT. Be extremely conservative. A shirtless person for even 1 frame = BLOCKED.`
+CRITICAL RULES:
+1. ALWAYS transcribe the audio - even if you think it's clean
+2. If you hear ANYTHING that sounds like a slur, BLOCK IT
+3. When in doubt, BLOCK
+4. Pay attention to music lyrics too - they count as audio content
+5. Mumbled or unclear slurs still count - BLOCK them
+6. Context does NOT excuse slurs - block regardless of "educational" or "quoting" claims`
       },
       {
         role: "user",
         content: [
           {
             type: "text",
-            text: "Analyze this video with STRICT nudity detection. BLOCK ANY shirtless, swimwear, or skin-exposing content. Check BOTH visual content AND audio. Respond with only the JSON object."
+            text: `IMPORTANT: First, transcribe EVERY WORD of audio in this video. Then analyze for hate speech, slurs, and offensive content. 
+
+You MUST provide the audioTranscript field with the exact words spoken. If there are racial slurs, hate speech, or any offensive language, immediately set result to "blocked".
+
+Respond with ONLY the JSON object, no other text.`
           },
           {
             type: "image_url",
@@ -131,7 +136,7 @@ WHEN IN DOUBT, BLOCK IT. Be extremely conservative. A shirtless person for even 
       },
     ];
 
-    console.log("Sending video to AI for analysis...");
+    console.log("Sending video to AI for audio transcription and safety analysis...");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -140,9 +145,9 @@ WHEN IN DOUBT, BLOCK IT. Be extremely conservative. A shirtless person for even 
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-pro", // Using Pro for better audio understanding
         messages,
-        max_tokens: 1000,
+        max_tokens: 2000,
       }),
     });
 
@@ -152,13 +157,13 @@ WHEN IN DOUBT, BLOCK IT. Be extremely conservative. A shirtless person for even 
       
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ result: 'allowed', message: 'Rate limited, allowing content' }),
+          JSON.stringify({ result: 'blocked', message: 'Rate limited - video not verified. Please try again.' }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ result: 'allowed', message: 'Service unavailable, allowing content' }),
+          JSON.stringify({ result: 'blocked', message: 'Service unavailable - video not verified. Please try again.' }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -168,7 +173,7 @@ WHEN IN DOUBT, BLOCK IT. Be extremely conservative. A shirtless person for even 
     const data = await response.json();
     const aiResponse = data.choices?.[0]?.message?.content || '';
 
-    console.log("AI response received:", aiResponse.substring(0, 200));
+    console.log("AI response received:", aiResponse.substring(0, 500));
 
     // Parse the JSON response
     try {
@@ -179,6 +184,11 @@ WHEN IN DOUBT, BLOCK IT. Be extremely conservative. A shirtless person for even 
       }
       
       const parsed = JSON.parse(jsonStr.trim());
+      
+      // Log the transcript for debugging
+      if (parsed.audioTranscript) {
+        console.log("Audio transcript:", parsed.audioTranscript);
+      }
       
       const safetyResponse: SafetyResponse = {
         result: parsed.result || 'allowed',
@@ -192,19 +202,27 @@ WHEN IN DOUBT, BLOCK IT. Be extremely conservative. A shirtless person for even 
       // Generate user-friendly message
       if (safetyResponse.result === 'blocked') {
         const issues: string[] = [];
+        if (parsed.audioIssues) issues.push('audio content containing hate speech or slurs');
         if (parsed.visualIssues) issues.push('visual content');
-        if (parsed.audioIssues) issues.push('audio/speech content');
         
-        safetyResponse.message = `This video cannot be posted because it contains inappropriate ${
-          issues.length > 0 ? issues.join(' and ') : 'content'
-        }${safetyResponse.categories?.length ? ` (${safetyResponse.categories.join(', ')})` : ''}.`;
+        if (safetyResponse.categories?.some(c => 
+          c.toLowerCase().includes('hate') || 
+          c.toLowerCase().includes('slur') || 
+          c.toLowerCase().includes('racial')
+        )) {
+          safetyResponse.message = `This video cannot be posted because it contains hate speech or slurs. This type of content violates our community guidelines.`;
+        } else {
+          safetyResponse.message = `This video cannot be posted because it contains inappropriate ${
+            issues.length > 0 ? issues.join(' and ') : 'content'
+          }.`;
+        }
       } else if (safetyResponse.result === 'warned') {
         safetyResponse.message = `This video may contain sensitive content. Viewers will see a content warning.`;
       } else {
         safetyResponse.message = 'Video passed safety checks.';
       }
 
-      console.log("Safety result:", safetyResponse.result, "Score:", safetyResponse.score);
+      console.log("Safety result:", safetyResponse.result, "Score:", safetyResponse.score, "Categories:", safetyResponse.categories);
 
       return new Response(
         JSON.stringify(safetyResponse),
@@ -212,15 +230,23 @@ WHEN IN DOUBT, BLOCK IT. Be extremely conservative. A shirtless person for even 
       );
     } catch (parseError) {
       console.error('Failed to parse AI response:', aiResponse);
+      // If we can't parse the response, block for safety
       return new Response(
-        JSON.stringify({ result: 'allowed', message: 'Could not analyze video' }),
+        JSON.stringify({ 
+          result: 'blocked', 
+          message: 'Could not verify video safety. Please try again or contact support.' 
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
   } catch (error) {
     console.error("Video safety scan error:", error);
+    // On error, block for safety rather than allowing potentially harmful content
     return new Response(
-      JSON.stringify({ result: 'allowed', message: 'Safety check unavailable' }),
+      JSON.stringify({ 
+        result: 'blocked', 
+        message: 'Safety check failed. Please try again.' 
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
