@@ -6,7 +6,7 @@ import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useOnlineFriends } from '@/hooks/useOnlineFriends';
 import { useAuth } from '@/lib/auth';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
-import { useTrashedConversationIds } from '@/hooks/useTrashedConversations';
+import { useTrashedConversationIds, useTrashConversation } from '@/hooks/useTrashedConversations';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Trash2 } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Trash2, MoreVertical } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
@@ -84,6 +84,7 @@ export function ConversationList() {
   const { onlineFriends, onlineCount, isLoading: onlineLoading } = useOnlineFriends();
   const createConversation = useCreateConversation();
   const { data: trashedIds } = useTrashedConversationIds();
+  const trashConversation = useTrashConversation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
@@ -178,6 +179,10 @@ export function ConversationList() {
   const handleConversationClick = useCallback((convId: string) => {
     navigate(`/messages/${convId}`);
   }, [navigate]);
+
+  const handleTrashConversation = useCallback((convId: string) => {
+    trashConversation.mutate(convId);
+  }, [trashConversation]);
 
 
   if (isLoading) {
@@ -301,6 +306,7 @@ export function ConversationList() {
                   isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
                   currentUserId={profile?.id}
                   userRole={otherMemberId ? usersRoles[otherMemberId] : null}
+                  onTrash={() => handleTrashConversation(conv.id)}
                 />
               );
             })}
@@ -324,6 +330,7 @@ export function ConversationList() {
                     isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
                     currentUserId={profile?.id}
                     userRole={otherMemberId ? usersRoles[otherMemberId] : null}
+                    onTrash={() => handleTrashConversation(conv.id)}
                   />
                 );
               })}
@@ -354,12 +361,14 @@ const ConversationItem = memo(function ConversationItem({
   isOnline,
   currentUserId,
   userRole,
+  onTrash,
 }: { 
   conversation: Conversation; 
   onClick: () => void;
   isOnline?: boolean;
   currentUserId?: string;
   userRole?: 'admin' | 'moderator' | null;
+  onTrash?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   
@@ -393,60 +402,113 @@ const ConversationItem = memo(function ConversationItem({
 
   return (
     <div 
-      className="group relative w-full flex items-center gap-4 p-4 rounded-2xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-2 cursor-pointer"
+      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer"
       onClick={menuOpen ? undefined : onClick}
     >
       <div className="relative flex-shrink-0">
         {conversation.is_group ? (
           // Group chat avatar with member count badge
           <div className="relative">
-            <Avatar className="h-14 w-14 ring-2 ring-background shadow-md">
+            <Avatar className="h-12 w-12 ring-2 ring-background shadow-md">
               {avatarUrl ? (
                 <AvatarImage src={avatarUrl} />
               ) : (
-                <AvatarFallback className="text-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-                  <Users className="h-6 w-6" />
+                <AvatarFallback className="text-base bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                  <Users className="h-5 w-5" />
                 </AvatarFallback>
               )}
             </Avatar>
             {/* Member count badge */}
-            <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center border-2 border-background">
+            <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[9px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center border-2 border-background">
               {memberCount}
             </div>
           </div>
         ) : (
           // DM avatar with online status
           <>
-            <Avatar className="h-14 w-14 ring-2 ring-background shadow-md">
+            <Avatar className="h-12 w-12 ring-2 ring-background shadow-md">
               <AvatarImage src={avatarUrl || undefined} />
-              <AvatarFallback className="text-lg">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+              <AvatarFallback className="text-base">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
             <OnlineIndicator isOnline={isOnline} size="sm" className="bottom-0 right-0" />
           </>
         )}
         {isPinned && (
           <div className="absolute -top-1 -right-1 bg-primary rounded-full p-0.5">
-            <Pin className="h-3 w-3 text-primary-foreground" />
+            <Pin className="h-2.5 w-2.5 text-primary-foreground" />
           </div>
         )}
       </div>
 
-      <div className="flex-1 min-w-0 py-1">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-semibold text-base truncate">{displayName}</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-0.5">
+          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+            <span className="font-semibold text-sm truncate max-w-[120px] sm:max-w-[180px]">{displayName}</span>
             {!conversation.is_group && userRole && <ModBadge role={userRole} />}
             {conversation.is_group && (
-              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full flex-shrink-0">
+              <span className="text-[9px] text-muted-foreground bg-muted px-1 py-0.5 rounded-full flex-shrink-0">
                 Group
               </span>
             )}
             {!conversation.is_group && otherMember && isOwner(otherMember.username || '') && <OwnerBadge />}
             {!conversation.is_group && otherMember && isOwnerWife(otherMember.id) && <PrincessBadge />}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 flex-shrink-0 ml-1">
             {formattedTime && (
-              <span className="text-xs text-muted-foreground flex-shrink-0">{formattedTime}</span>
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                {formattedTime.replace(' ago', '').replace('about ', '').replace('less than a minute', '1m')}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+            {lastMessage && (
+              <>
+                {lastMessage.sender_id === currentUserId && (
+                  <span className="flex-shrink-0">
+                    {unreadCount === 0 ? (
+                      <CheckCheck className="h-3.5 w-3.5 text-primary" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                  </span>
+                )}
+                <p className="text-xs text-muted-foreground truncate">
+                  {lastMessage.media_type === 'image' 
+                    ? '📷 Photo' 
+                    : lastMessage.media_type === 'audio'
+                    ? '🎤 Voice'
+                    : (lastMessage.content?.slice(0, 30) || 'Message') + (lastMessage.content && lastMessage.content.length > 30 ? '...' : '')}
+                </p>
+              </>
+            )}
+            {!lastMessage && conversation.is_group && (
+              <p className="text-xs text-muted-foreground truncate">
+                Start chatting
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {unreadCount > 0 && (
+              <span className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+            {/* Trash button - visible on hover */}
+            {onTrash && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTrash();
+                }}
+                className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                title="Move to trash"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
             )}
             <ConversationOptionsMenu
               conversationId={conversation.id}
@@ -456,42 +518,6 @@ const ConversationItem = memo(function ConversationItem({
               onOpenChange={setMenuOpen}
             />
           </div>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            {lastMessage && (
-              <>
-                {lastMessage.sender_id === currentUserId && (
-                  <span className="flex-shrink-0">
-                    {unreadCount === 0 ? (
-                      <CheckCheck className="h-4 w-4 text-primary" />
-                    ) : (
-                      <Check className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </span>
-                )}
-                <p className="text-sm text-muted-foreground truncate">
-                  {lastMessage.media_type === 'image' 
-                    ? '📷 Photo' 
-                    : lastMessage.media_type === 'audio'
-                    ? '🎤 Voice message'
-                    : lastMessage.content || 'Message'}
-                </p>
-              </>
-            )}
-            {!lastMessage && conversation.is_group && (
-              <p className="text-sm text-muted-foreground truncate">
-                Start chatting with the group
-              </p>
-            )}
-          </div>
-
-          {unreadCount > 0 && (
-            <span className="flex-shrink-0 bg-primary text-primary-foreground text-xs font-bold px-2.5 py-1 rounded-full ml-2 shadow-sm">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
         </div>
       </div>
     </div>
