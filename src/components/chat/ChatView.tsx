@@ -263,10 +263,12 @@ export function ChatView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [notifyScreenshot]);
 
-  // Handle typing indicator - debounced
+  // Handle typing indicator - debounced, doesn't block input
   const handleInputChange = useCallback((value: string) => {
+    // Update text immediately - no blocking
     setMessageText(value);
     
+    // Debounce typing indicator separately - non-blocking
     if (value.length > 0) {
       setTyping(true);
       
@@ -277,7 +279,8 @@ export function ChatView() {
       typingTimeoutRef.current = setTimeout(() => {
         setTyping(false);
       }, 3000);
-    } else {
+    } else if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
       setTyping(false);
     }
   }, [setTyping]);
