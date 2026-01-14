@@ -26,3 +26,7 @@ verify_jwt = false
 
 [functions.check-runway-status]
 verify_jwt = false
+
+[functions.unsend-message]
+verify_jwt = false
+
