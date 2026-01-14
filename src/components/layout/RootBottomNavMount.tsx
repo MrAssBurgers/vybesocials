@@ -8,6 +8,9 @@ import { useIsMobileOrTablet } from "@/hooks/use-mobile";
  * Includes iPad in any orientation.
  * Hides nav when inside a DM conversation.
  */
+// Routes where bottom nav should be hidden
+const HIDDEN_NAV_ROUTES = ['/', '/onboarding', '/complete-profile'];
+
 export const RootBottomNavMount = memo(function RootBottomNavMount() {
   const { isMobileOrTablet } = useIsMobileOrTablet();
   const location = useLocation();
@@ -15,6 +18,9 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
   // Hide nav when inside a specific DM conversation (e.g., /messages/uuid)
   const isInDMConversation = /^\/messages\/[^/]+/.test(location.pathname);
   
-  if (!isMobileOrTablet || isInDMConversation) return null;
+  // Hide nav on landing, onboarding, and profile completion pages
+  const isHiddenRoute = HIDDEN_NAV_ROUTES.includes(location.pathname);
+  
+  if (!isMobileOrTablet || isInDMConversation || isHiddenRoute) return null;
   return <BottomNav />;
 });
