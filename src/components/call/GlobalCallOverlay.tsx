@@ -637,7 +637,7 @@ export function GlobalCallOverlay() {
     // Immediate check
     checkRemoteParticipants();
 
-    // Poll every 500ms
+    // Poll every 1000ms (reduced frequency for smoother performance)
     const pollInterval = setInterval(() => {
       if (pollCount >= maxPolls) {
         clearInterval(pollInterval);
@@ -645,7 +645,7 @@ export function GlobalCallOverlay() {
         return;
       }
       checkRemoteParticipants();
-    }, 500);
+    }, 1000);
 
     return () => clearInterval(pollInterval);
   }, [state.phase, isIOSorIPad]);
@@ -1030,32 +1030,21 @@ export function GlobalCallOverlay() {
               background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(240 10% 8%) 50%, hsl(280 20% 8%) 100%)'
             }}
           >
-            {/* Ambient gradient background */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <motion.div
-                animate={{ 
-                  scale: [1, 1.2, 1],
-                  rotate: [0, 180, 360]
-                }}
-                transition={{ 
-                  duration: 20, 
-                  repeat: Infinity,
-                  ease: "linear"
-                }}
-                className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] opacity-30"
-                style={{
-                  background: 'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, hsl(var(--accent) / 0.3) 0%, transparent 50%)'
-                }}
-              />
-            </div>
+            {/* Subtle static gradient background - no heavy animations for smooth video */}
+            <div 
+              className="absolute inset-0 overflow-hidden pointer-events-none opacity-20"
+              style={{
+                background: 'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, hsl(var(--accent) / 0.3) 0%, transparent 50%)'
+              }}
+            />
 
             {/* Audio element is now rendered outside this block to stay mounted when minimized */}
 
             {/* Video Container */}
             {isVideoCall && (
               <>
-                {/* Remote Video - Full Screen */}
-                <div className="absolute inset-0">
+                {/* Remote Video - Full Screen with GPU acceleration */}
+                <div className="absolute inset-0" style={{ willChange: 'contents' }}>
                   {/* Always render the video element so tracks can attach even before we have state */}
                   <video
                     ref={remoteVideoRef}
@@ -1063,44 +1052,37 @@ export function GlobalCallOverlay() {
                     playsInline
                     muted
                     className={cn(
-                      "w-full h-full object-cover",
+                      "w-full h-full object-cover transition-opacity duration-200",
                       hasRemoteVideo ? "opacity-100" : "opacity-0"
                     )}
+                    style={{ 
+                      willChange: 'auto',
+                      transform: 'translateZ(0)', // Force GPU layer
+                    }}
                   />
 
                   {/* Placeholder when remote video isn't available yet */}
                   {!hasRemoteVideo && (
                     <div className="absolute inset-0 w-full h-full flex items-center justify-center">
-                      {/* Remote avatar placeholder */}
+                      {/* Remote avatar placeholder - minimal animation for performance */}
                       <div className="relative">
-                        <motion.div
-                          animate={{ scale: [1, 1.1, 1] }}
-                          transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                        >
+                        <div className="animate-pulse">
                           <Avatar className="h-40 w-40 ring-4 ring-white/10 shadow-2xl">
                             <AvatarImage src={displayAvatar || undefined} />
                             <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
                               {displayInitial}
                             </AvatarFallback>
                           </Avatar>
-                        </motion.div>
+                        </div>
                         {isRingingOut && (
-                          <motion.p
-                            animate={{ opacity: [0.5, 1, 0.5] }}
-                            transition={{ repeat: Infinity, duration: 1.5 }}
-                            className="mt-6 text-white/60 text-lg font-light text-center"
-                          >
+                          <p className="mt-6 text-white/60 text-lg font-light text-center animate-pulse">
                             Ringing...
-                          </motion.p>
+                          </p>
                         )}
                         {!isConnected && !isRingingOut && (
-                          <motion.p
-                            animate={{ opacity: [0.5, 1, 0.5] }}
-                            transition={{ repeat: Infinity, duration: 2 }}
-                            className="mt-6 text-white/60 text-lg font-light text-center"
-                          >
+                          <p className="mt-6 text-white/60 text-lg font-light text-center animate-pulse">
                             Waiting for video...
-                          </motion.p>
+                          </p>
                         )}
                       </div>
                     </div>
@@ -1110,41 +1092,28 @@ export function GlobalCallOverlay() {
                 {/* iOS/iPad Tap to Start Video Overlay */}
                 <AnimatePresence>
                   {needsUserInteraction && isConnected && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
+                    <div
                       className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-30"
                       onClick={handleTapToStart}
                     >
-                      <motion.div
-                        initial={{ scale: 0.8 }}
-                        animate={{ scale: 1 }}
-                        className="flex flex-col items-center gap-4 p-8"
-                      >
-                        <motion.div
-                          animate={{ scale: [1, 1.1, 1] }}
-                          transition={{ repeat: Infinity, duration: 1.5 }}
-                          className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary"
-                        >
+                      <div className="flex flex-col items-center gap-4 p-8">
+                        <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary animate-pulse">
                           <Play className="w-10 h-10 text-primary" />
-                        </motion.div>
+                        </div>
                         <p className="text-white text-lg font-medium">Tap to start video</p>
                         <p className="text-white/60 text-sm text-center max-w-xs">
                           Your device requires a tap to enable video playback
                         </p>
-                      </motion.div>
-                    </motion.div>
+                      </div>
+                    </div>
                   )}
                 </AnimatePresence>
 
                 {/* Local Video - Picture-in-Picture (INSTANT - shows preloaded camera immediately) */}
                 {showLocalVideoContainer && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.2 }}
+                  <div
                     className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 bg-black"
+                    style={{ willChange: 'auto', transform: 'translateZ(0)' }}
                   >
                     {/* Show preloaded stream while Daily camera initializes - INSTANT like FaceTime */}
                     {showPreloadedLocalVideo && (
@@ -1154,7 +1123,7 @@ export function GlobalCallOverlay() {
                         playsInline
                         muted
                         className="w-full h-full object-cover absolute inset-0 z-10"
-                        style={{ transform: 'scaleX(-1)' }} // Mirror for selfie view
+                        style={{ transform: 'scaleX(-1) translateZ(0)' }}
                       />
                     )}
                     {/* Daily-managed local video (takes over once ready) */}
@@ -1164,12 +1133,12 @@ export function GlobalCallOverlay() {
                       playsInline
                       muted
                       className={cn(
-                        "w-full h-full object-cover absolute inset-0",
-                        hasLocalVideo ? "z-20" : "opacity-0"
+                        "w-full h-full object-cover absolute inset-0 transition-opacity duration-150",
+                        hasLocalVideo ? "z-20 opacity-100" : "opacity-0"
                       )}
-                      style={{ transform: 'scaleX(-1)' }} // Mirror for selfie view
+                      style={{ transform: 'scaleX(-1) translateZ(0)' }}
                     />
-                  </motion.div>
+                  </div>
                 )}
 
                 {/* Camera Off Indicator (when local video is disabled) */}
