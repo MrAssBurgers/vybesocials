@@ -38,13 +38,12 @@ export function usePresence() {
         console.error('[Presence] Failed to update presence:', error.message, error.details);
       } else {
         logPresence('Presence updated successfully');
-        // Invalidate presence queries so others see the update
-        queryClient.invalidateQueries({ queryKey: ['users-presence'] });
+        // Don't invalidate here - too frequent. Let other hooks refresh on their own schedule
       }
     } catch (error: any) {
       console.error('[Presence] Failed to update presence:', error?.message || error);
     }
-  }, [profile?.id, queryClient]);
+  }, [profile?.id]);
 
   // Set offline on unmount
   const setOffline = useCallback(async () => {
@@ -73,21 +72,25 @@ export function usePresence() {
 
     logPresence('Initializing presence for user:', profile.id);
 
-    // Set online immediately
-    updatePresence();
+    // Debounce initial presence update to avoid rapid calls on mount
+    const initialTimeout = setTimeout(updatePresence, 500);
 
-    // Update presence every 30 seconds
-    intervalRef.current = setInterval(updatePresence, 30000);
+    // Update presence every 60 seconds (was 30s - reduce API calls)
+    intervalRef.current = setInterval(updatePresence, 60000);
 
-    // Handle visibility change
+    // Debounced visibility change handler
+    let visibilityTimeout: NodeJS.Timeout | null = null;
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        logPresence('App became visible, updating presence');
-        updatePresence();
-      } else {
-        logPresence('App became hidden, setting offline');
-        setOffline();
-      }
+      if (visibilityTimeout) clearTimeout(visibilityTimeout);
+      visibilityTimeout = setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          logPresence('App became visible, updating presence');
+          updatePresence();
+        } else {
+          logPresence('App became hidden, setting offline');
+          setOffline();
+        }
+      }, 300);
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -115,6 +118,8 @@ export function usePresence() {
 
     return () => {
       logPresence('Cleaning up presence');
+      clearTimeout(initialTimeout);
+      if (visibilityTimeout) clearTimeout(visibilityTimeout);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
@@ -157,8 +162,8 @@ export function useUserOnlineStatus(userId: string | undefined) {
       return data;
     },
     enabled: !!userId,
-    staleTime: 10000,
-    refetchInterval: 30000,
+    staleTime: 30000, // 30 seconds stale time
+    refetchInterval: 60000, // 60 seconds refetch interval
   });
 
   // Subscribe to realtime updates
@@ -238,7 +243,7 @@ export function useUsersOnlineStatus(userIds: string[]) {
       return statusMap;
     },
     enabled: userIds.length > 0,
-    staleTime: 10000,
-    refetchInterval: 15000, // Check more frequently
+    staleTime: 30000, // 30 seconds stale
+    refetchInterval: 60000, // 60 seconds check
   });
 }

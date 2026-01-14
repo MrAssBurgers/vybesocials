@@ -27,6 +27,7 @@ export const useBanStatus = () => {
       return data;
     },
     enabled: !!profile?.id,
-    refetchInterval: 60000,
+    staleTime: 5 * 60 * 1000, // 5 minutes stale time
+    refetchInterval: 5 * 60 * 1000, // Check every 5 minutes instead of 1 minute
   });
 };

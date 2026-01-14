@@ -68,9 +68,11 @@ const queryClient = new QueryClient({
       refetchOnReconnect: false,
       retry: 1, // Only retry once
       retryDelay: 1000,
+      networkMode: 'offlineFirst', // Prefer cached data
     },
     mutations: {
       retry: 0, // Don't retry mutations
+      networkMode: 'offlineFirst',
     },
   },
 });

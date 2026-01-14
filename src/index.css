@@ -1371,6 +1371,33 @@ html, body, #root {
   max-width: 100vw;
 }
 
+/* Performance optimizations during scroll */
+.is-scrolling * {
+  pointer-events: none !important;
+}
+
+.is-scrolling .post-card,
+.is-scrolling article {
+  will-change: transform;
+}
+
+/* GPU acceleration for scrolling containers */
+.scroll-container {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Reduce motion for accessibility and performance */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Responsive text scaling with clamp */
 .text-responsive-xs {
   font-size: clamp(0.625rem, 2vw, 0.75rem);

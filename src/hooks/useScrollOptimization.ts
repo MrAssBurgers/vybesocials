@@ -1,14 +1,13 @@
 import { useEffect, useRef } from 'react';
 
-// Shared state to prevent multiple listeners
+// Shared state to prevent multiple listeners - using WeakRef pattern
 let scrollListenerAttached = false;
 let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
-let rafId: number | null = null;
 let isScrolling = false;
 
 /**
  * Hook to detect scrolling and add/remove 'is-scrolling' class to document
- * Uses requestAnimationFrame for smoother performance
+ * Uses passive listeners and reduced updates for better performance
  * SINGLETON: Only one listener across all components
  */
 export function useScrollOptimization() {
@@ -16,27 +15,18 @@ export function useScrollOptimization() {
     if (scrollListenerAttached) return;
     scrollListenerAttached = true;
 
-    let ticking = false;
-
     const handleScroll = () => {
-      if (!ticking) {
-        rafId = requestAnimationFrame(() => {
-          if (!isScrolling) {
-            isScrolling = true;
-            document.documentElement.classList.add('is-scrolling');
-          }
-
-          if (scrollTimeout) clearTimeout(scrollTimeout);
-          
-          scrollTimeout = setTimeout(() => {
-            isScrolling = false;
-            document.documentElement.classList.remove('is-scrolling');
-          }, 150);
-
-          ticking = false;
-        });
-        ticking = true;
+      if (!isScrolling) {
+        isScrolling = true;
+        document.documentElement.classList.add('is-scrolling');
       }
+
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      
+      scrollTimeout = setTimeout(() => {
+        isScrolling = false;
+        document.documentElement.classList.remove('is-scrolling');
+      }, 200); // Slightly longer timeout for less flickering
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -47,10 +37,6 @@ export function useScrollOptimization() {
       if (scrollTimeout) {
         clearTimeout(scrollTimeout);
         scrollTimeout = null;
-      }
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
       }
       isScrolling = false;
       document.documentElement.classList.remove('is-scrolling');
