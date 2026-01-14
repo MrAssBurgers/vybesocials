@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -29,6 +29,11 @@ export function EditPostDialog({ open, onOpenChange, post }: EditPostDialogProps
   const [tagsInput, setTagsInput] = useState(post.tags?.join(', ') || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Sync state when post changes
+  useEffect(() => {
+    setCaption(post.caption);
+    setTagsInput(post.tags?.join(', ') || '');
+  }, [post.caption, post.tags]);
   const handleSave = async () => {
     setIsSubmitting(true);
 
