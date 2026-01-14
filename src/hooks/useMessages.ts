@@ -605,21 +605,45 @@ export function useTypingIndicator(conversationId: string | undefined) {
 export function useScreenshotNotification(conversationId: string | undefined) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const [screenshotEvents, setScreenshotEvents] = useState<{ id: string; username: string; timestamp: string }[]>([]);
 
   const notifyScreenshot = useCallback(async () => {
     if (!conversationId || !profile?.id) return;
 
-    await supabase
-      .from('screenshot_notifications')
-      .insert({
-        conversation_id: conversationId,
-        user_id: profile.id,
-      });
+    try {
+      // Insert screenshot notification
+      const { error } = await supabase
+        .from('screenshot_notifications')
+        .insert({
+          conversation_id: conversationId,
+          user_id: profile.id,
+        });
 
-    toast.info('Screenshot detected and notified to chat members');
-  }, [conversationId, profile?.id]);
+      if (error) {
+        console.error('Failed to record screenshot:', error);
+        return;
+      }
 
-  // Listen for screenshot notifications
+      // Also insert a system message so it shows in chat history
+      await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversationId,
+          sender_id: profile.id,
+          content: '📸 took a screenshot',
+          message_type: 'screenshot_notification',
+        });
+
+      toast.info('Screenshot detected and notified to chat members');
+      
+      // Invalidate messages to show the new system message
+      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+    } catch (err) {
+      console.error('Screenshot notification error:', err);
+    }
+  }, [conversationId, profile?.id, queryClient]);
+
+  // Listen for screenshot notifications in real-time
   useEffect(() => {
     if (!conversationId) return;
 
@@ -634,14 +658,27 @@ export function useScreenshotNotification(conversationId: string | undefined) {
           filter: `conversation_id=eq.${conversationId}`,
         },
         async (payload) => {
-          if (payload.new.user_id !== profile?.id) {
+          if ((payload.new as any).user_id !== profile?.id) {
             const { data: user } = await supabase
               .from('profiles')
               .select('username')
-              .eq('id', payload.new.user_id)
+              .eq('id', (payload.new as any).user_id)
               .single();
 
-            toast.warning(`${user?.username || 'Someone'} took a screenshot!`);
+            const username = user?.username || 'Someone';
+            
+            // Show toast notification
+            toast.warning(`📸 ${username} took a screenshot!`, {
+              icon: '📸',
+              duration: 5000,
+            });
+            
+            // Add to local events for in-chat display
+            setScreenshotEvents(prev => [...prev, {
+              id: (payload.new as any).id,
+              username,
+              timestamp: (payload.new as any).created_at,
+            }]);
           }
         }
       )
@@ -652,7 +689,20 @@ export function useScreenshotNotification(conversationId: string | undefined) {
     };
   }, [conversationId, profile?.id]);
 
-  return { notifyScreenshot };
+  // Clear old screenshot events after they've been displayed
+  useEffect(() => {
+    if (screenshotEvents.length === 0) return;
+    
+    const timer = setTimeout(() => {
+      // Remove events older than 10 seconds from local state
+      const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
+      setScreenshotEvents(prev => prev.filter(e => e.timestamp > tenSecondsAgo));
+    }, 10000);
+    
+    return () => clearTimeout(timer);
+  }, [screenshotEvents]);
+
+  return { notifyScreenshot, screenshotEvents };
 }
 
 export function useStreaks() {
