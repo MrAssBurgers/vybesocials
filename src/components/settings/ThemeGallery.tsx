@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, Eye, User } from 'lucide-react';
+import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, Eye, User, Search, TrendingUp, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import {
   usePublicThemes,
   useSavedThemes,
@@ -21,12 +22,14 @@ import {
 import { applyThemeTokens, ThemeTokens } from '@/hooks/useCustomTheme';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 interface ThemeCardProps {
   theme: SharedTheme;
   isLiked: boolean;
   isSaved: boolean;
   isOwn: boolean;
+  isPopular?: boolean;
   onLike: () => void;
   onSave: () => void;
   onUnsave: () => void;
@@ -39,6 +42,7 @@ function ThemeCard({
   isLiked, 
   isSaved, 
   isOwn,
+  isPopular,
   onLike, 
   onSave, 
   onUnsave, 
@@ -56,9 +60,24 @@ function ThemeCard({
       className="relative group"
     >
       <div 
-        className="p-4 rounded-xl border-2 border-border hover:border-primary/50 transition-all cursor-pointer"
+        className={cn(
+          "p-4 rounded-xl border-2 transition-all cursor-pointer",
+          isPopular 
+            ? "border-primary/50 bg-primary/5 hover:border-primary" 
+            : "border-border hover:border-primary/50"
+        )}
         onClick={onPreview}
       >
+        {/* Popular badge */}
+        {isPopular && (
+          <div className="absolute -top-2 -right-2 z-10">
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+              <TrendingUp className="h-3 w-3" />
+              Popular
+            </div>
+          </div>
+        )}
+
         {/* Theme Preview */}
         <div 
           className="h-24 rounded-lg mb-3 relative overflow-hidden"
@@ -177,8 +196,11 @@ function ThemeGridSkeleton() {
 }
 
 export function ThemeGallery() {
-  const { user } = useAuth();
-  const { data: publicThemes, isLoading: loadingPublic } = usePublicThemes();
+  const { profile } = useAuth();
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
+  
+  const { data: publicThemes, isLoading: loadingPublic } = usePublicThemes(debouncedSearch);
   const { data: savedThemes, isLoading: loadingSaved } = useSavedThemes();
   const { data: myThemes, isLoading: loadingMy } = useMySharedThemes();
   const { data: likedIds } = useUserThemeLikes();
@@ -190,6 +212,12 @@ export function ThemeGallery() {
   const deleteTheme = useDeleteSharedTheme();
 
   const [previewingTheme, setPreviewingTheme] = useState<SharedTheme | null>(null);
+
+  // Get top 3 most liked themes as "popular"
+  const popularThemeIds = useMemo(() => {
+    if (!publicThemes?.length) return new Set<string>();
+    return new Set(publicThemes.slice(0, 3).map(t => t.id));
+  }, [publicThemes]);
 
   const handlePreview = (theme: SharedTheme) => {
     setPreviewingTheme(theme);
@@ -226,7 +254,26 @@ export function ThemeGallery() {
             <TabsTrigger value="mine">My Themes</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="discover" className="mt-0">
+          <TabsContent value="discover" className="mt-0 space-y-4">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search themes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 bg-secondary border-border"
+              />
+            </div>
+
+            {/* Popular Section Header (only when not searching) */}
+            {!searchQuery && publicThemes && publicThemes.length > 0 && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span>Sorted by popularity</span>
+              </div>
+            )}
+
             {loadingPublic ? (
               <ThemeGridSkeleton />
             ) : publicThemes?.length ? (
@@ -238,11 +285,12 @@ export function ThemeGallery() {
                       theme={theme}
                       isLiked={likedIds?.includes(theme.id) || false}
                       isSaved={savedThemeIds.includes(theme.id)}
-                      isOwn={theme.creator_id === user?.id}
+                      isOwn={theme.creator_id === profile?.id}
+                      isPopular={popularThemeIds.has(theme.id) && !searchQuery}
                       onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
                       onSave={() => saveTheme.mutate(theme.id)}
                       onUnsave={() => unsaveTheme.mutate(theme.id)}
-                      onDelete={theme.creator_id === user?.id ? () => deleteTheme.mutate(theme.id) : undefined}
+                      onDelete={theme.creator_id === profile?.id ? () => deleteTheme.mutate(theme.id) : undefined}
                       onPreview={() => handlePreview(theme)}
                     />
                   ))}
@@ -250,9 +298,19 @@ export function ThemeGallery() {
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                <Share2 className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No shared themes yet</p>
-                <p className="text-sm">Be the first to share your VYBE!</p>
+                {searchQuery ? (
+                  <>
+                    <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No themes found for "{searchQuery}"</p>
+                    <p className="text-sm">Try a different search term</p>
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No shared themes yet</p>
+                    <p className="text-sm">Be the first to share your VYBE!</p>
+                  </>
+                )}
               </div>
             )}
           </TabsContent>
@@ -269,7 +327,7 @@ export function ThemeGallery() {
                       theme={theme}
                       isLiked={likedIds?.includes(theme.id) || false}
                       isSaved={true}
-                      isOwn={theme.creator_id === user?.id}
+                      isOwn={theme.creator_id === profile?.id}
                       onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
                       onSave={() => {}}
                       onUnsave={() => unsaveTheme.mutate(theme.id)}
