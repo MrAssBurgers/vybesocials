@@ -115,7 +115,7 @@ export function ProfileSection() {
               value={formData.username}
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
               placeholder="your_username"
-              className="h-11"
+              className="h-11 text-foreground placeholder:text-muted-foreground"
             />
             <p className="text-xs text-muted-foreground">
               This is your unique identifier on VYBE
@@ -135,7 +135,7 @@ export function ProfileSection() {
               onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
               rows={4}
               maxLength={150}
-              className="resize-none"
+              className="resize-none text-foreground placeholder:text-muted-foreground"
             />
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
