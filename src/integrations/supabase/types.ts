@@ -2406,6 +2406,49 @@ export type Database = {
           },
         ]
       }
+      saved_themes: {
+        Row: {
+          created_at: string
+          id: string
+          shared_theme_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          shared_theme_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          shared_theme_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_themes_shared_theme_id_fkey"
+            columns: ["shared_theme_id"]
+            isOneToOne: false
+            referencedRelation: "shared_themes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_themes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_themes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_messages: {
         Row: {
           content: string | null
@@ -2768,6 +2811,60 @@ export type Database = {
           },
         ]
       }
+      shared_themes: {
+        Row: {
+          created_at: string
+          creator_id: string
+          description: string | null
+          downloads_count: number | null
+          id: string
+          is_public: boolean | null
+          likes_count: number | null
+          theme_name: string
+          theme_tokens: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          creator_id: string
+          description?: string | null
+          downloads_count?: number | null
+          id?: string
+          is_public?: boolean | null
+          likes_count?: number | null
+          theme_name: string
+          theme_tokens: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          creator_id?: string
+          description?: string | null
+          downloads_count?: number | null
+          id?: string
+          is_public?: boolean | null
+          likes_count?: number | null
+          theme_name?: string
+          theme_tokens?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_themes_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shared_themes_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stories: {
         Row: {
           aspect_ratio: number | null
@@ -2967,6 +3064,49 @@ export type Database = {
           {
             foreignKeyName: "streaks_user2_id_fkey"
             columns: ["user2_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      theme_likes: {
+        Row: {
+          created_at: string
+          id: string
+          shared_theme_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          shared_theme_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          shared_theme_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "theme_likes_shared_theme_id_fkey"
+            columns: ["shared_theme_id"]
+            isOneToOne: false
+            referencedRelation: "shared_themes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "theme_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "theme_likes_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
             referencedColumns: ["id"]
@@ -3618,6 +3758,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_theme_downloads: {
+        Args: { theme_id: string }
+        Returns: undefined
       }
       increment_view_count: {
         Args: { post_id_param: string }

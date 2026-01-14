@@ -23,6 +23,7 @@ import { useNotificationPreferences, useUpdateNotificationPreference } from '@/h
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { useQueryClient } from '@tanstack/react-query';
 import { DesignYourVybe } from '@/components/settings/DesignYourVybe';
+import { ThemeGallery } from '@/components/settings/ThemeGallery';
 
 const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref) {
   const { t, i18n } = useTranslation();
@@ -368,6 +369,16 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
           className="mb-4 sm:mb-6"
         >
           <DesignYourVybe />
+        </motion.section>
+
+        {/* Theme Gallery - Share & Save Themes */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.115 }}
+          className="mb-4 sm:mb-6"
+        >
+          <ThemeGallery />
         </motion.section>
 
         {/* Feedback & Sounds Section */}
