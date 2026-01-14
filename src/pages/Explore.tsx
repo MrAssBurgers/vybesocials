@@ -249,23 +249,28 @@ function FullscreenClipsViewer({
         </Button>
 
         {/* Switch to Videos button */}
-        <motion.button
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          onClick={onSwitchToVideos}
+        <div
           className={cn(
             "fixed z-30 left-1/2 -translate-x-1/2",
-            "flex items-center gap-2 px-5 py-3 rounded-full",
-            "bg-white/10 backdrop-blur-xl border border-white/20",
-            "text-white font-medium text-sm",
-            "hover:bg-white/20 transition-all shadow-xl",
             isMobileOrTablet ? "bottom-24" : "bottom-8"
           )}
         >
-          <Film className="h-4 w-4" />
-          Switch to Videos
-        </motion.button>
+          <motion.button
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            onClick={onSwitchToVideos}
+            className={cn(
+              "flex items-center gap-2 px-5 py-3 rounded-full",
+              "bg-white/10 backdrop-blur-xl border border-white/20",
+              "text-white font-medium text-sm",
+              "hover:bg-white/20 transition-all shadow-xl"
+            )}
+          >
+            <Film className="h-4 w-4" />
+            Switch to Videos
+          </motion.button>
+        </div>
 
         {/* Progress indicator (desktop only) */}
         {!isMobileOrTablet && (
@@ -445,23 +450,28 @@ function VideosGalleryView({
         <ExploreVideosGrid videos={videos} isLoading={isLoading} />
 
         {/* Switch to Clips button */}
-        <motion.button
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          onClick={onSwitchToClips}
+        <div
           className={cn(
             "fixed z-30 left-1/2 -translate-x-1/2",
-            "flex items-center gap-2 px-5 py-3 rounded-full",
-            "bg-gradient-to-r from-neon-pink to-neon-purple",
-            "text-white font-medium text-sm",
-            "hover:shadow-lg hover:shadow-neon-pink/30 transition-all shadow-xl",
             isMobileOrTablet ? "bottom-24" : "bottom-8"
           )}
         >
-          <Clapperboard className="h-4 w-4" />
-          Switch to Clips
-        </motion.button>
+          <motion.button
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            onClick={onSwitchToClips}
+            className={cn(
+              "flex items-center gap-2 px-5 py-3 rounded-full",
+              "bg-gradient-to-r from-neon-pink to-neon-purple",
+              "text-white font-medium text-sm",
+              "hover:shadow-lg hover:shadow-neon-pink/30 transition-all shadow-xl"
+            )}
+          >
+            <Clapperboard className="h-4 w-4" />
+            Switch to Clips
+          </motion.button>
+        </div>
       </div>
     </AppLayout>
   );
