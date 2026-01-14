@@ -300,6 +300,9 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         groupAvatar: params.groupAvatar,
       };
 
+      // Stop ringback before transitioning to joining - the overlay will handle connected sound
+      callSounds.stopAll();
+      
       // Transition to joining IMMEDIATELY
       setState({ phase: 'joining', call: callData, error: null });
     } catch (err: any) {
