@@ -49,12 +49,18 @@ export function DesignYourVybe() {
   }, [userTheme]);
 
   const handlePresetSelect = (presetKey: string) => {
-    setSelectedPreset(presetKey);
-    const preset = THEME_PRESETS[presetKey];
-    setPreviewTheme(preset);
-    setGeneratedName(PRESET_INFO[presetKey]?.name || presetKey);
-    applyThemeTokens(preset);
-    setShowConfirmation(true);
+    try {
+      setSelectedPreset(presetKey);
+      const preset = THEME_PRESETS[presetKey];
+      if (preset) {
+        setPreviewTheme(preset);
+        setGeneratedName(PRESET_INFO[presetKey]?.name || presetKey);
+        applyThemeTokens(preset);
+        setShowConfirmation(true);
+      }
+    } catch (error) {
+      console.error('Error selecting preset:', error);
+    }
   };
 
   const handleGenerateTheme = async () => {
@@ -67,12 +73,14 @@ export function DesignYourVybe() {
         basePreset: selectedPreset,
       });
       
-      setPreviewTheme(theme);
-      setGeneratedName(theme.themeName || 'Custom Theme');
-      applyThemeTokens(theme);
-      setShowConfirmation(true);
+      if (theme && typeof theme === 'object' && theme.colorPrimary) {
+        setPreviewTheme(theme);
+        setGeneratedName(theme.themeName || 'Custom Theme');
+        applyThemeTokens(theme);
+        setShowConfirmation(true);
+      }
     } catch (error) {
-      // Error handled in mutation
+      console.error('Error generating theme:', error);
     } finally {
       setIsGenerating(false);
     }
