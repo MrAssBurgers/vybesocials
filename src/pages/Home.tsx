@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
 
-// Memoized post list to prevent unnecessary re-renders
+// Memoized post list with optimized rendering
 const PostList = memo(({ 
   posts, 
   isLoading, 
@@ -34,7 +34,7 @@ const PostList = memo(({
   emptyText: string;
 }) => {
   if (isLoading) {
-    return <PostSkeletonList count={3} />;
+    return <PostSkeletonList count={2} />;
   }
 
   if (posts.length === 0) {
@@ -57,6 +57,14 @@ const PostList = memo(({
         )}
       </div>
     </>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison for better memoization
+  return (
+    prevProps.isLoading === nextProps.isLoading &&
+    prevProps.isFetchingNext === nextProps.isFetchingNext &&
+    prevProps.posts.length === nextProps.posts.length &&
+    prevProps.posts === nextProps.posts
   );
 });
 
