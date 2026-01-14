@@ -48,7 +48,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const banExpiryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const banSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // Clear ban expiry timer
+  const clearBanExpiryTimer = () => {
+    if (banExpiryTimerRef.current) {
+      clearTimeout(banExpiryTimerRef.current);
+      banExpiryTimerRef.current = null;
+    }
+  };
+
+  // Schedule auto-unban when ban expires
+  const scheduleBanExpiry = (expiresAt: string | null, isPermanent: boolean) => {
+    clearBanExpiryTimer();
+    
+    if (isPermanent || !expiresAt) return;
+    
+    const expiryTime = new Date(expiresAt).getTime();
+    const now = Date.now();
+    const timeUntilExpiry = expiryTime - now;
+    
+    if (timeUntilExpiry <= 0) {
+      // Already expired, clear ban immediately
+      setBanInfo(null);
+      return;
+    }
+    
+    // Schedule the unban
+    banExpiryTimerRef.current = setTimeout(() => {
+      setBanInfo(null);
+    }, timeUntilExpiry);
+  };
 
   // Check if user is banned
   const checkBanStatus = async (profileId: string) => {
@@ -63,8 +94,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!error && data) {
       setBanInfo(data);
+      // Schedule auto-unban when time is up
+      scheduleBanExpiry(data.expires_at, data.is_permanent);
     } else {
       setBanInfo(null);
+      clearBanExpiryTimer();
     }
   };
 
@@ -200,6 +234,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             supabase.removeChannel(banSubscriptionRef.current);
             banSubscriptionRef.current = null;
           }
+          // Clear ban expiry timer
+          clearBanExpiryTimer();
         }
         
         setLoading(false);
@@ -233,6 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (banSubscriptionRef.current) {
         supabase.removeChannel(banSubscriptionRef.current);
       }
+      clearBanExpiryTimer();
     };
   }, []);
 
