@@ -70,7 +70,7 @@ export function WarningPopup() {
         <motion.div 
           initial={{ y: -50 }}
           animate={{ y: 0 }}
-          className="relative w-full max-w-md overflow-hidden rounded-2xl border-2 border-yellow-500/50 bg-yellow-500 shadow-2xl shadow-yellow-500/30"
+          className="relative w-full max-w-md overflow-hidden rounded-2xl border-2 border-yellow-500/50 bg-yellow-500 shadow-2xl shadow-yellow-500/30 pointer-events-auto"
         >
           {/* Animated background */}
           <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600" />
@@ -121,9 +121,14 @@ export function WarningPopup() {
             </p>
             
             <Button
-              onClick={() => acknowledgeWarning.mutate(unacknowledgedWarning.id)}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                acknowledgeWarning.mutate(unacknowledgedWarning.id);
+              }}
               disabled={acknowledgeWarning.isPending}
-              className="mt-5 w-full bg-yellow-900 hover:bg-yellow-950 text-yellow-100 font-semibold py-3"
+              className="mt-5 w-full bg-yellow-900 hover:bg-yellow-950 text-yellow-100 font-semibold py-3 cursor-pointer z-50 relative"
             >
               {acknowledgeWarning.isPending ? 'Acknowledging...' : 'I Understand'}
             </Button>
