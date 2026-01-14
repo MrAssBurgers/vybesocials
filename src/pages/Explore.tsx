@@ -179,12 +179,12 @@ function FullscreenClipsViewer({
 
   if (clips.length === 0) {
     return (
-      <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
-        <div className="text-center text-white">
+      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
+        <div className="text-center text-foreground">
           <Play className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-xl font-semibold mb-2">No clips yet</h3>
           <p className="text-muted-foreground mb-6">Be the first to share a clip!</p>
-          <Button onClick={onSwitchToVideos} variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+          <Button onClick={onSwitchToVideos} variant="outline" className="bg-card/60 border-border/30 text-foreground hover:bg-card/80">
             <Film className="h-4 w-4 mr-2" />
             Browse Videos Instead
           </Button>
@@ -192,7 +192,7 @@ function FullscreenClipsViewer({
         <Button
           variant="ghost"
           size="icon"
-          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60"
+          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-background/40 backdrop-blur-md border border-border/20 text-foreground hover:bg-background/60"
           onClick={onClose}
         >
           <X className="w-5 h-5" />
@@ -202,10 +202,10 @@ function FullscreenClipsViewer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black">
+    <div className="fixed inset-0 z-50 bg-background">
       <div
         ref={containerRef}
-        className="overflow-y-scroll scrollbar-hide bg-black"
+        className="overflow-y-scroll scrollbar-hide bg-background"
         style={{ 
           height: containerHeight,
           scrollSnapType: 'y mandatory',
@@ -242,7 +242,7 @@ function FullscreenClipsViewer({
         <Button
           variant="ghost"
           size="icon"
-          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60"
+          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-background/40 backdrop-blur-md border border-border/20 text-foreground hover:bg-background/60"
           onClick={onClose}
         >
           <X className="w-5 h-5" />
@@ -262,9 +262,9 @@ function FullscreenClipsViewer({
             onClick={onSwitchToVideos}
             className={cn(
               "flex items-center gap-2 px-5 py-3 rounded-full",
-              "bg-white/10 backdrop-blur-xl border border-white/20",
-              "text-white font-medium text-sm",
-              "hover:bg-white/20 transition-all shadow-xl"
+              "bg-card/60 backdrop-blur-xl border border-border/30",
+              "text-foreground font-medium text-sm",
+              "hover:bg-card/80 transition-all shadow-xl"
             )}
           >
             <Film className="h-4 w-4" />
@@ -280,7 +280,7 @@ function FullscreenClipsViewer({
               return (
                 <div
                   key={actualIdx}
-                  className="w-1 rounded-full bg-white transition-all duration-200"
+                  className="w-1 rounded-full bg-foreground transition-all duration-200"
                   style={{
                     height: actualIdx === currentIndex ? 20 : 6,
                     opacity: actualIdx === currentIndex ? 1 : 0.3,
@@ -299,7 +299,7 @@ function FullscreenClipsViewer({
             animate={{ opacity: 0 }}
             transition={{ delay: 2, duration: 1 }}
           >
-            <div className="text-white/70 text-sm flex flex-col items-center animate-pulse">
+            <div className="text-muted-foreground text-sm flex flex-col items-center animate-pulse">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
               </svg>
