@@ -1,8 +1,8 @@
 import { useState, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ChevronRight, Sparkles } from 'lucide-react';
+import { LogOut, ChevronRight, Sparkles, Settings } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { NotificationsSection } from '@/components/settings/NotificationsSection
 import { LanguageSection } from '@/components/settings/LanguageSection';
 import { HelpSection } from '@/components/settings/HelpSection';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Separator } from '@/components/ui/separator';
 
 const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref) {
   const { t } = useTranslation();
@@ -30,6 +31,21 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
     haptics.impact();
     await signOut();
     navigate('/');
+  };
+
+  const getCategoryTitle = () => {
+    const titles: Record<SettingsCategory, string> = {
+      profile: 'Profile Settings',
+      privacy: 'Privacy & Security',
+      connections: 'Connected Accounts',
+      appearance: 'Appearance',
+      themes: 'Custom Themes',
+      feedback: 'Feedback & Sounds',
+      notifications: 'Notification Preferences',
+      language: 'Language & Region',
+      help: 'Help & Support',
+    };
+    return titles[activeCategory];
   };
 
   const renderContent = () => {
@@ -59,40 +75,63 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <h1 className="text-xl sm:text-2xl font-bold mb-4">{t('settings.title')}</h1>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Settings className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold">{t('settings.title')}</h1>
+              <p className="text-sm text-muted-foreground">Manage your account and preferences</p>
+            </div>
+          </div>
+        </motion.div>
 
         {/* Mobile: Horizontal scrolling nav */}
-        {isMobile ? (
-          <div className="mb-4">
+        {isMobile && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-6 -mx-4 px-4"
+          >
             <SettingsNav 
               activeCategory={activeCategory} 
               onCategoryChange={setActiveCategory} 
             />
-          </div>
-        ) : null}
+          </motion.div>
+        )}
 
         {/* Desktop: Two-column layout */}
-        <div className="flex gap-6">
+        <div className="flex gap-8">
           {/* Desktop sidebar nav */}
           {!isMobile && (
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="w-56 flex-shrink-0 sticky top-4 self-start"
+              transition={{ delay: 0.1 }}
+              className="w-64 flex-shrink-0"
             >
-              <div className="liquid-glass-card p-3">
-                <SettingsNavVertical 
-                  activeCategory={activeCategory} 
-                  onCategoryChange={setActiveCategory} 
-                />
-              </div>
+              <div className="sticky top-4 space-y-4">
+                <div className="liquid-glass-card p-2 overflow-hidden">
+                  <SettingsNavVertical 
+                    activeCategory={activeCategory} 
+                    onCategoryChange={setActiveCategory} 
+                  />
+                </div>
 
-              {/* Sign Out Button - Desktop */}
-              <div className="mt-4">
+                <Separator className="my-4" />
+
+                {/* Sign Out Button - Desktop */}
                 <Button
-                  variant="destructive"
-                  className="w-full justify-between text-sm"
+                  variant="outline"
+                  className="w-full justify-between text-sm border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
                   onClick={handleSignOut}
                 >
                   <span className="flex items-center gap-2">
@@ -101,76 +140,94 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
                   </span>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-              </div>
 
-              {/* App Info - Desktop */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="text-center mt-6 text-muted-foreground"
-              >
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <div className="gradient-static rounded-lg p-1">
-                    <Sparkles className="w-4 h-4 text-white" />
+                {/* App Info - Desktop */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-center pt-4 text-muted-foreground"
+                >
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <div className="gradient-static rounded-lg p-1.5">
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                    <span className="font-display font-black text-lg gradient-text">VYBE</span>
                   </div>
-                  <span className="font-display font-black text-lg gradient-text">VYBE</span>
-                </div>
-                <p className="text-xs">Version 2.0.0</p>
-              </motion.div>
+                  <p className="text-xs">Version 2.0.0</p>
+                  <p className="text-[10px] mt-1 opacity-60">{t('app.tagline')}</p>
+                </motion.div>
+              </div>
             </motion.div>
           )}
 
           {/* Main content area */}
-          <motion.div
-            key={activeCategory}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="flex-1 min-w-0"
-          >
-            {renderContent()}
+          <div className="flex-1 min-w-0">
+            {/* Section title for desktop */}
+            {!isMobile && (
+              <motion.div
+                key={`title-${activeCategory}`}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="mb-4"
+              >
+                <h2 className="text-lg font-semibold">{getCategoryTitle()}</h2>
+              </motion.div>
+            )}
+
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeCategory}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                className="min-h-[400px]"
+              >
+                {renderContent()}
+              </motion.div>
+            </AnimatePresence>
 
             {/* Mobile: Sign Out & App Info */}
             {isMobile && (
-              <>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                  className="mt-6"
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="mt-8 space-y-6"
+              >
+                <Separator />
+                
+                <Button
+                  variant="outline"
+                  className="w-full justify-between text-sm border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={handleSignOut}
                 >
-                  <Button
-                    variant="destructive"
-                    className="w-full justify-between text-sm"
-                    onClick={handleSignOut}
-                  >
-                    <span className="flex items-center gap-2">
-                      <LogOut className="h-4 w-4" />
-                      {t('auth.logout')}
-                    </span>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </motion.div>
+                  <span className="flex items-center gap-2">
+                    <LogOut className="h-4 w-4" />
+                    {t('auth.logout')}
+                  </span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
 
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ delay: 0.2 }}
-                  className="text-center mt-8 text-muted-foreground pb-4"
+                  transition={{ delay: 0.3 }}
+                  className="text-center py-6 text-muted-foreground"
                 >
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <div className="gradient-static rounded-lg p-1">
-                      <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                    <div className="gradient-static rounded-lg p-1.5">
+                      <Sparkles className="w-5 h-5 text-white" />
                     </div>
-                    <span className="font-display font-black text-lg sm:text-xl gradient-text">VYBE</span>
+                    <span className="font-display font-black text-xl gradient-text">VYBE</span>
                   </div>
-                  <p className="text-xs sm:text-sm">Version 2.0.0</p>
-                  <p className="text-[10px] sm:text-xs mt-1">{t('app.tagline')}</p>
+                  <p className="text-sm">Version 2.0.0</p>
+                  <p className="text-xs mt-1 opacity-60">{t('app.tagline')}</p>
                 </motion.div>
-              </>
+              </motion.div>
             )}
-          </motion.div>
+          </div>
         </div>
       </div>
     </AppLayout>

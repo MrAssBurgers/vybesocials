@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Lock } from 'lucide-react';
+import { Lock, Eye, EyeOff, Shield, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
@@ -42,8 +42,10 @@ export function PrivacySection() {
       
       if (error) throw error;
       setIsPrivate(value);
+      haptics.success();
       toast.success(value ? 'Account set to private' : 'Account set to public');
     } catch (error: any) {
+      haptics.error();
       toast.error(getUserFriendlyError(error));
     } finally {
       setPrivacyLoading(false);
@@ -51,27 +53,82 @@ export function PrivacySection() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="liquid-glass-card p-4 sm:p-6"
-    >
-      <h3 className="font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base">
-        <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-        {t('settings.privacy')}
-      </h3>
-
-      <div className="flex items-center justify-between py-3">
-        <div className="flex-1 min-w-0 mr-4">
-          <p className="font-medium text-sm sm:text-base">{t('settings.privateAccount')}</p>
-          <p className="text-xs sm:text-sm text-muted-foreground">{t('settings.privateAccountDesc')}</p>
+    <div className="space-y-6">
+      {/* Privacy Overview Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="liquid-glass-card p-4 sm:p-6"
+      >
+        <div className="flex items-start gap-4 mb-6">
+          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Shield className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-base mb-1">Privacy & Security</h3>
+            <p className="text-sm text-muted-foreground">
+              Control who can see your content and interact with you
+            </p>
+          </div>
         </div>
-        <Switch 
-          checked={isPrivate} 
-          onCheckedChange={handlePrivacyChange}
-          disabled={privacyLoading}
-        />
-      </div>
-    </motion.div>
+
+        {/* Private Account Toggle */}
+        <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center flex-shrink-0 mt-0.5">
+                {isPrivate ? (
+                  <EyeOff className="w-5 h-5 text-primary" />
+                ) : (
+                  <Eye className="w-5 h-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium">{t('settings.privateAccount')}</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {t('settings.privateAccountDesc')}
+                </p>
+              </div>
+            </div>
+            <Switch 
+              checked={isPrivate} 
+              onCheckedChange={handlePrivacyChange}
+              disabled={privacyLoading}
+              className="mt-1"
+            />
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Current Status */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="liquid-glass-card p-4 sm:p-6"
+      >
+        <h4 className="font-medium mb-4 flex items-center gap-2">
+          <Users className="w-4 h-4 text-muted-foreground" />
+          Current Visibility
+        </h4>
+        
+        <div className={`p-4 rounded-xl border-2 ${isPrivate ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/20'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-3 h-3 rounded-full ${isPrivate ? 'bg-primary' : 'bg-green-500'}`} />
+            <div>
+              <p className="font-medium">
+                {isPrivate ? 'Private Account' : 'Public Account'}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {isPrivate 
+                  ? 'Only approved followers can see your posts'
+                  : 'Anyone can see your posts and follow you'
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
   );
 }
