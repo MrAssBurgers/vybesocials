@@ -37,7 +37,46 @@ export function GlobalCallOverlay() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
-  
+
+  // Prevent constant stream re-attaches (these cause flashing + jank in video calls)
+  const attachedTrackIdsRef = useRef<{ localVideo?: string; remoteVideo?: string; remoteAudio?: string }>({});
+
+  const elementHasTrack = useCallback((el: HTMLMediaElement, trackId: string) => {
+    const stream = el.srcObject as MediaStream | null;
+    return !!stream?.getTracks?.().some((t) => t.id === trackId);
+  }, []);
+
+  const attachRemoteAudioTrack = useCallback((track: MediaStreamTrack) => {
+    const audioEl = remoteAudioRef.current;
+    if (!audioEl) return;
+
+    // If the exact track is already attached, just ensure it plays
+    if (attachedTrackIdsRef.current.remoteAudio === track.id && elementHasTrack(audioEl, track.id)) {
+      audioEl.muted = false;
+      audioEl.volume = 1;
+      audioEl.play().catch(() => {});
+      return;
+    }
+
+    // If DOM already has the track, sync our ref and ensure playback
+    if (elementHasTrack(audioEl, track.id)) {
+      attachedTrackIdsRef.current.remoteAudio = track.id;
+      audioEl.muted = false;
+      audioEl.volume = 1;
+      audioEl.play().catch(() => {});
+      return;
+    }
+
+    try {
+      audioEl.srcObject = new MediaStream([track]);
+      attachedTrackIdsRef.current.remoteAudio = track.id;
+      audioEl.muted = false;
+      audioEl.volume = 1;
+      audioEl.play().catch(() => {});
+    } catch (err) {
+      console.error('[CallOverlay] Failed to attach remote audio track:', err);
+    }
+  }, [elementHasTrack]);
   // Local UI state
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
@@ -183,16 +222,40 @@ export function GlobalCallOverlay() {
     }
   }, [forceEnableVideoTracks]);
 
-  // Attach video track to element
+  // Attach video track to element (guarded to avoid flashing from frequent re-attaches)
   const attachTrack = useCallback((track: MediaStreamTrack, videoEl: HTMLVideoElement) => {
     try {
-      const stream = new MediaStream([track]);
-      videoEl.srcObject = stream;
-      videoEl.play().catch(console.error);
+      const key =
+        videoEl === localVideoRef.current
+          ? 'localVideo'
+          : videoEl === remoteVideoRef.current
+            ? 'remoteVideo'
+            : undefined;
+
+      // If the track is already attached, just ensure playback
+      if (key) {
+        if (attachedTrackIdsRef.current[key] === track.id && elementHasTrack(videoEl, track.id)) {
+          videoEl.play().catch(() => {});
+          return;
+        }
+        if (elementHasTrack(videoEl, track.id)) {
+          attachedTrackIdsRef.current[key] = track.id;
+          videoEl.play().catch(() => {});
+          return;
+        }
+      } else if (elementHasTrack(videoEl, track.id)) {
+        videoEl.play().catch(() => {});
+        return;
+      }
+
+      // Attach once
+      videoEl.srcObject = new MediaStream([track]);
+      if (key) attachedTrackIdsRef.current[key] = track.id;
+      videoEl.play().catch(() => {});
     } catch (err) {
       console.error('[CallOverlay] Failed to attach track:', err);
     }
-  }, []);
+  }, [elementHasTrack]);
 
   // Create Daily call object lazily when needed (moved before the useEffect that uses it)
 
