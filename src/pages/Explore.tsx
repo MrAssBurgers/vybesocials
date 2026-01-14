@@ -255,7 +255,7 @@ function FullscreenClipsViewer({
           transition={{ delay: 0.3 }}
           onClick={onSwitchToVideos}
           className={cn(
-            "fixed z-30 left-1/2 -translate-x-1/2",
+            "fixed z-30 left-1/2 -translate-x-[55%]",
             "flex items-center gap-2 px-5 py-3 rounded-full",
             "bg-white/10 backdrop-blur-xl border border-white/20",
             "text-white font-medium text-sm",
@@ -451,7 +451,7 @@ function VideosGalleryView({
           transition={{ delay: 0.3 }}
           onClick={onSwitchToClips}
           className={cn(
-            "fixed z-30 left-1/2 -translate-x-1/2",
+            "fixed z-30 left-1/2 -translate-x-[55%]",
             "flex items-center gap-2 px-5 py-3 rounded-full",
             "bg-gradient-to-r from-neon-pink to-neon-purple",
             "text-white font-medium text-sm",
