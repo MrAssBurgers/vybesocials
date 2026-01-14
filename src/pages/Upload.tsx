@@ -9,11 +9,12 @@ import { Progress } from '@/components/ui/progress';
 import { Camera } from '@/components/camera/Camera';
 import { ContentSafetyScanner } from '@/components/safety/ContentSafetyScanner';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
+import { AIVideoGenerator } from '@/components/ai/AIVideoGenerator';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon } from 'lucide-react';
+import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon, Wand2 } from 'lucide-react';
 
 const contentTypes = [
   { id: 'post', label: 'Post', icon: Image, description: 'Share a photo' },
@@ -21,7 +22,7 @@ const contentTypes = [
   { id: 'video', label: 'Video', icon: Video, description: 'Longer video content' },
 ];
 
-const suggestedTags = ['photography', 'art', 'music', 'gaming', 'food', 'travel', 'fashion', 'fitness'];
+const suggestedTags = ['photography', 'art', 'music', 'gaming', 'food', 'travel', 'fashion', 'fitness', 'ai'];
 
 export default function UploadPage() {
   const navigate = useNavigate();
@@ -40,7 +41,35 @@ export default function UploadPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [showSafetyScanner, setShowSafetyScanner] = useState(false);
+  const [showAIVideoGenerator, setShowAIVideoGenerator] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  const handleAIVideoGenerated = useCallback(async (videoUrl: string, videoBlob: Blob) => {
+    setShowAIVideoGenerator(false);
+    
+    // Create a File from the blob
+    const file = new File([videoBlob], `ai-video-${Date.now()}.mp4`, { type: 'video/mp4' });
+    
+    // If blob is empty, fetch from URL
+    if (videoBlob.size === 0) {
+      try {
+        const response = await fetch(videoUrl);
+        const fetchedBlob = await response.blob();
+        const fetchedFile = new File([fetchedBlob], `ai-video-${Date.now()}.mp4`, { type: 'video/mp4' });
+        handleFileSelect(fetchedFile);
+      } catch (err) {
+        console.error('Error fetching AI video:', err);
+        toast.error('Failed to load AI video');
+      }
+    } else {
+      handleFileSelect(file);
+    }
+    
+    // Add AI tag automatically
+    if (!tags.includes('ai')) {
+      setTags(prev => [...prev, 'ai']);
+    }
+  }, [tags]);
 
   // Run safety scan when file is selected
   useEffect(() => {
@@ -154,6 +183,15 @@ export default function UploadPage() {
 
   if (showCamera) return <Camera onClose={() => setShowCamera(false)} />;
 
+  if (showAIVideoGenerator) {
+    return (
+      <AIVideoGenerator 
+        onVideoGenerated={handleAIVideoGenerated}
+        onClose={() => setShowAIVideoGenerator(false)}
+      />
+    );
+  }
+
   return (
     <AppLayout>
       {showSafetyScanner && file && (
@@ -197,9 +235,12 @@ export default function UploadPage() {
               <UploadIcon className={`w-12 h-12 mx-auto mb-4 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
               <p className={`text-lg font-medium mb-2 ${isDragging ? 'text-primary' : 'text-foreground'}`}>{isDragging ? 'Drop to upload' : 'Drag and drop your file here'}</p>
               <p className="text-sm text-muted-foreground mb-4">or click to browse</p>
-              <div className="flex gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
+              <div className="flex flex-wrap gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
                 <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Plus className="w-4 h-4 mr-2" />Choose File</Button>
                 <Button variant="outline" onClick={() => setShowCamera(true)}><CameraIcon className="w-4 h-4 mr-2" />Camera</Button>
+                <Button variant="outline" onClick={() => setShowAIVideoGenerator(true)} className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 border-violet-500/30 hover:border-violet-500/50">
+                  <Wand2 className="w-4 h-4 mr-2 text-violet-500" />AI Video
+                </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-4">Supports: JPG, PNG, GIF, WebP, MP4, WebM (max 50MB)</p>
             </div>
