@@ -45,12 +45,12 @@ export function usePublicThemes() {
 
 // Fetch user's saved themes
 export function useSavedThemes() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
 
   return useQuery({
-    queryKey: ['saved-themes', profile?.id],
+    queryKey: ['saved-themes', user?.id],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!user?.id) return [];
 
       const { data, error } = await supabase
         .from('saved_themes')
@@ -62,43 +62,43 @@ export function useSavedThemes() {
             creator:profiles!shared_themes_creator_id_fkey(display_name, avatar_url, username)
           )
         `)
-        .eq('user_id', profile.id)
+        .eq('user_id', user.id) // Use auth user ID
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return (data?.map(d => ({ ...d.shared_theme, saved_id: d.id })) || []) as unknown as (SharedTheme & { saved_id: string })[];
     },
-    enabled: !!profile?.id,
+    enabled: !!user?.id,
     staleTime: 60000,
   });
 }
 
 // Fetch user's own shared themes
 export function useMySharedThemes() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
 
   return useQuery({
-    queryKey: ['my-shared-themes', profile?.id],
+    queryKey: ['my-shared-themes', user?.id],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!user?.id) return [];
 
       const { data, error } = await supabase
         .from('shared_themes')
         .select('*')
-        .eq('creator_id', profile.id)
+        .eq('creator_id', user.id) // Use auth user ID
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return (data || []) as unknown as SharedTheme[];
     },
-    enabled: !!profile?.id,
+    enabled: !!user?.id,
     staleTime: 60000,
   });
 }
 
 // Share a theme
 export function useShareTheme() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -111,12 +111,13 @@ export function useShareTheme() {
       themeTokens: ThemeTokens;
       description?: string;
     }) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      // Use auth user id for creator_id since RLS checks auth.uid()
+      if (!user?.id) throw new Error('Not authenticated');
 
       const { data, error } = await supabase
         .from('shared_themes')
         .insert({
-          creator_id: profile.id,
+          creator_id: user.id, // Use auth user ID, not profile ID
           theme_name: themeName,
           theme_tokens: themeTokens as any,
           description: description || null,
@@ -142,17 +143,17 @@ export function useShareTheme() {
 
 // Save/favorite a theme
 export function useSaveSharedTheme() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sharedThemeId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!user?.id) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('saved_themes')
         .insert({
-          user_id: profile.id,
+          user_id: user.id, // Use auth user ID
           shared_theme_id: sharedThemeId,
         });
 
@@ -178,17 +179,17 @@ export function useSaveSharedTheme() {
 
 // Unsave a theme
 export function useUnsaveTheme() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sharedThemeId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!user?.id) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('saved_themes')
         .delete()
-        .eq('user_id', profile.id)
+        .eq('user_id', user.id) // Use auth user ID
         .eq('shared_theme_id', sharedThemeId);
 
       if (error) throw error;
@@ -206,17 +207,17 @@ export function useUnsaveTheme() {
 
 // Like a theme
 export function useLikeTheme() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sharedThemeId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!user?.id) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('theme_likes')
         .insert({
-          user_id: profile.id,
+          user_id: user.id, // Use auth user ID
           shared_theme_id: sharedThemeId,
         });
 
@@ -236,17 +237,17 @@ export function useLikeTheme() {
 
 // Unlike a theme
 export function useUnlikeTheme() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sharedThemeId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!user?.id) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('theme_likes')
         .delete()
-        .eq('user_id', profile.id)
+        .eq('user_id', user.id) // Use auth user ID
         .eq('shared_theme_id', sharedThemeId);
 
       if (error) throw error;
@@ -263,22 +264,22 @@ export function useUnlikeTheme() {
 
 // Check if user has liked themes
 export function useUserThemeLikes() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
 
   return useQuery({
-    queryKey: ['theme-likes', profile?.id],
+    queryKey: ['theme-likes', user?.id],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!user?.id) return [];
 
       const { data, error } = await supabase
         .from('theme_likes')
         .select('shared_theme_id')
-        .eq('user_id', profile.id);
+        .eq('user_id', user.id); // Use auth user ID
 
       if (error) throw error;
       return data.map(d => d.shared_theme_id);
     },
-    enabled: !!profile?.id,
+    enabled: !!user?.id,
     staleTime: 60000,
   });
 }

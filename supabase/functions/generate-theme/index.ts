@@ -27,6 +27,8 @@ interface ThemeTokens {
   neonPink?: string;
   neonPurple?: string;
   neonCyan?: string;
+  animationSpeed?: "slow" | "normal" | "fast" | "instant";
+  animationStyle?: "smooth" | "bouncy" | "snappy" | "none";
 }
 
 const THEME_PRESETS: Record<string, ThemeTokens> = {
@@ -186,7 +188,7 @@ serve(async (req) => {
     const baseTheme = THEME_PRESETS[basePreset] || THEME_PRESETS.classic;
 
     const systemPrompt = `You are a UI theme designer for a social media app called VYBE. 
-Your task is to interpret natural language descriptions and generate COMPLETE, IMMERSIVE color themes that transform the ENTIRE app.
+Your task is to interpret natural language descriptions and generate COMPLETE, IMMERSIVE color themes AND animation settings that transform the ENTIRE app.
 
 When a user describes something like "ocean vibes", "forest theme", or "pink aesthetic", you MUST change EVERYTHING:
 - Main background and gradient backgrounds
@@ -196,8 +198,12 @@ When a user describes something like "ocean vibes", "forest theme", or "pink aes
 - Border colors
 - Accent and highlight colors
 - Text colors (while maintaining readability)
+- Animation speed and style that matches the mood
 
-The goal is to make the ENTIRE app FEEL like what the user described. Not just change one color - transform the whole experience.
+ANIMATION RULES:
+- animationSpeed: "slow" for calm/relaxed vibes, "normal" for balanced, "fast" for energetic, "instant" for snappy/tech
+- animationStyle: "smooth" for elegant, "bouncy" for playful, "snappy" for modern/tech, "none" for minimal
+- Match animations to the mood: ocean/calm = slow+smooth, cyberpunk = fast+snappy, cute/playful = normal+bouncy
 
 CRITICAL RULES:
 1. All colors MUST be in HSL format: "hue saturation% lightness%" (e.g., "262 83% 58%")
@@ -210,7 +216,7 @@ CRITICAL RULES:
 8. Gradient colors should create smooth transitions matching the vibe
 9. neonPink, neonPurple, neonCyan are for glows and highlights - match the theme
 
-Example: For "ocean theme" - use deep blues, teals, and aqua accents. ALL backgrounds should be oceanic, not just the primary color.
+Example: For "ocean theme" - use deep blues, teals, and aqua accents. ALL backgrounds should be oceanic, slow+smooth animations.
 
 Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
 
@@ -224,14 +230,14 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Transform the ENTIRE app to match: "${prompt}". Change backgrounds, cards, sidebar, inputs, borders - EVERYTHING should match this vibe.` },
+          { role: "user", content: `Transform the ENTIRE app to match: "${prompt}". Change backgrounds, cards, sidebar, inputs, borders, AND pick appropriate animation speed+style that matches this vibe. EVERYTHING should match this mood.` },
         ],
         tools: [
           {
             type: "function",
             function: {
               name: "generate_theme",
-              description: "Generate a complete immersive UI theme",
+              description: "Generate a complete immersive UI theme with animation settings",
               parameters: {
                 type: "object",
                 properties: {
@@ -257,6 +263,8 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
                   borderRadius: { type: "string", enum: ["small", "medium", "large"] },
                   mode: { type: "string", enum: ["light", "dark"] },
                   themeName: { type: "string", description: "Creative 2-3 word theme name" },
+                  animationSpeed: { type: "string", enum: ["slow", "normal", "fast", "instant"], description: "Animation speed: slow for calm, normal for balanced, fast for energetic, instant for snappy" },
+                  animationStyle: { type: "string", enum: ["smooth", "bouncy", "snappy", "none"], description: "Animation style: smooth for elegant, bouncy for playful, snappy for modern, none for minimal" },
                 },
                 required: [
                   "colorPrimary", "colorSecondary", "colorAccent",
@@ -264,7 +272,8 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
                   "glassBg", "glassBorder", "sidebarBg", "navBg", "inputBg",
                   "textPrimary", "textSecondary", "borderColor",
                   "neonPink", "neonPurple", "neonCyan",
-                  "borderRadius", "mode", "themeName"
+                  "borderRadius", "mode", "themeName",
+                  "animationSpeed", "animationStyle"
                 ],
               },
             },
@@ -325,6 +334,12 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
         : baseTheme.borderRadius,
       mode: ["light", "dark"].includes(theme.mode) ? theme.mode : baseTheme.mode,
       themeName: theme.themeName || "Custom Theme",
+      animationSpeed: ["slow", "normal", "fast", "instant"].includes(theme.animationSpeed)
+        ? theme.animationSpeed
+        : "normal",
+      animationStyle: ["smooth", "bouncy", "snappy", "none"].includes(theme.animationStyle)
+        ? theme.animationStyle
+        : "smooth",
     };
 
     return new Response(JSON.stringify({ theme: sanitizedTheme }), {
