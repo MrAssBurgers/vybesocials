@@ -608,10 +608,16 @@ export function useScreenshotNotification(conversationId: string | undefined) {
   const [screenshotEvents, setScreenshotEvents] = useState<{ id: string; username: string; timestamp: string }[]>([]);
 
   const notifyScreenshot = useCallback(async () => {
-    if (!conversationId || !profile?.id) return;
+    console.log('[Screenshot] notifyScreenshot called, conversationId:', conversationId, 'profile:', profile?.id);
+    
+    if (!conversationId || !profile?.id) {
+      console.log('[Screenshot] Missing conversationId or profile');
+      return;
+    }
 
     try {
       // Insert screenshot notification
+      console.log('[Screenshot] Inserting to screenshot_notifications table...');
       const { error } = await supabase
         .from('screenshot_notifications')
         .insert({
@@ -620,12 +626,15 @@ export function useScreenshotNotification(conversationId: string | undefined) {
         });
 
       if (error) {
-        console.error('Failed to record screenshot:', error);
-        return;
+        console.error('[Screenshot] Failed to record screenshot:', error);
+        // Don't return - still try to insert the message
+      } else {
+        console.log('[Screenshot] Screenshot notification recorded successfully');
       }
 
       // Also insert a system message so it shows in chat history
-      await supabase
+      console.log('[Screenshot] Inserting system message...');
+      const { error: msgError } = await supabase
         .from('messages')
         .insert({
           conversation_id: conversationId,
@@ -634,12 +643,17 @@ export function useScreenshotNotification(conversationId: string | undefined) {
           message_type: 'screenshot_notification',
         });
 
-      toast.info('Screenshot detected and notified to chat members');
+      if (msgError) {
+        console.error('[Screenshot] Failed to insert system message:', msgError);
+      } else {
+        console.log('[Screenshot] System message inserted successfully');
+        toast.info('Screenshot detected and notified to chat members');
+      }
       
       // Invalidate messages to show the new system message
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
     } catch (err) {
-      console.error('Screenshot notification error:', err);
+      console.error('[Screenshot] Screenshot notification error:', err);
     }
   }, [conversationId, profile?.id, queryClient]);
 
