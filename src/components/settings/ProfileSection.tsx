@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Camera, AtSign, FileText, Save } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,7 +32,7 @@ export function ProfileSection() {
       });
       if (error) throw error;
       haptics.success();
-      toast.success(t('common.save') + ' ✓');
+      toast.success('Profile updated successfully!');
     } catch (error: any) {
       haptics.error();
       toast.error(getUserFriendlyError(error));
@@ -41,69 +41,113 @@ export function ProfileSection() {
     }
   };
 
+  const hasChanges = formData.username !== (profile?.username || '') || 
+                     formData.bio !== (profile?.bio || '');
+
   return (
-    <div className="space-y-4">
-      {/* Quick Profile Access */}
+    <div className="space-y-6">
+      {/* Profile Card */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
+        className="liquid-glass-card overflow-hidden"
       >
-        <Link 
-          to={`/u/${profile?.username}`}
-          className="liquid-glass-card p-4 flex items-center justify-between hover:bg-muted/50 transition-colors active:scale-[0.99]"
-        >
-          <div className="flex items-center gap-3">
-            <Avatar className="h-12 w-12 ring-2 ring-primary/20">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="text-lg bg-secondary">
-                {profile?.username?.[0]?.toUpperCase() || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <h2 className="font-semibold truncate">@{profile?.username}</h2>
-              <p className="text-xs text-muted-foreground">View your profile</p>
+        {/* Header with gradient */}
+        <div className="h-20 bg-gradient-to-r from-primary/30 via-primary/20 to-accent/30" />
+        
+        {/* Profile content */}
+        <div className="px-4 sm:px-6 pb-6 -mt-10">
+          <Link 
+            to={`/u/${profile?.username}`}
+            className="block group"
+          >
+            <div className="flex items-end gap-4">
+              <div className="relative">
+                <Avatar className="h-20 w-20 ring-4 ring-background shadow-xl">
+                  <AvatarImage src={profile?.avatar_url || undefined} />
+                  <AvatarFallback className="text-2xl bg-primary text-primary-foreground font-bold">
+                    {profile?.username?.[0]?.toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute bottom-0 right-0 w-7 h-7 bg-primary rounded-full flex items-center justify-center ring-2 ring-background">
+                  <Camera className="w-3.5 h-3.5 text-primary-foreground" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0 pb-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="font-bold text-lg truncate group-hover:text-primary transition-colors">
+                    @{profile?.username}
+                  </h2>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                </div>
+                <p className="text-sm text-muted-foreground">View your public profile</p>
+              </div>
             </div>
-          </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-        </Link>
+          </Link>
+        </div>
       </motion.div>
 
-      {/* Profile Edit */}
+      {/* Edit Form */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
+        transition={{ delay: 0.1 }}
         className="liquid-glass-card p-4 sm:p-6"
       >
-        <h3 className="font-semibold mb-4 text-sm sm:text-base">{t('profile.editProfile')}</h3>
+        <h3 className="font-semibold mb-6 text-base">Edit Profile</h3>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
+          {/* Username */}
           <div className="space-y-2">
-            <Label htmlFor="username" className="text-sm font-medium">{t('auth.username')}</Label>
+            <Label htmlFor="username" className="text-sm font-medium flex items-center gap-2">
+              <AtSign className="w-4 h-4 text-muted-foreground" />
+              {t('auth.username')}
+            </Label>
             <Input
               id="username"
               value={formData.username}
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              placeholder="your_username"
+              className="h-11"
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="bio" className="text-sm font-medium">{t('onboarding.bio')}</Label>
-            <Textarea
-              id="bio"
-              placeholder="Tell us about yourself..."
-              value={formData.bio}
-              onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-              rows={3}
-              maxLength={150}
-            />
-            <p className="text-xs text-muted-foreground text-right">
-              {formData.bio.length}/150
+            <p className="text-xs text-muted-foreground">
+              This is your unique identifier on VYBE
             </p>
           </div>
 
-          <Button onClick={handleSave} disabled={loading} className="w-full">
-            {loading ? t('common.loading') : t('common.save')}
+          {/* Bio */}
+          <div className="space-y-2">
+            <Label htmlFor="bio" className="text-sm font-medium flex items-center gap-2">
+              <FileText className="w-4 h-4 text-muted-foreground" />
+              {t('onboarding.bio')}
+            </Label>
+            <Textarea
+              id="bio"
+              placeholder="Tell the world about yourself..."
+              value={formData.bio}
+              onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+              rows={4}
+              maxLength={150}
+              className="resize-none"
+            />
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Write a short bio to introduce yourself
+              </p>
+              <span className={`text-xs ${formData.bio.length > 130 ? 'text-warning' : 'text-muted-foreground'}`}>
+                {formData.bio.length}/150
+              </span>
+            </div>
+          </div>
+
+          {/* Save Button */}
+          <Button 
+            onClick={handleSave} 
+            disabled={loading || !hasChanges} 
+            className="w-full h-11 gap-2"
+          >
+            <Save className="w-4 h-4" />
+            {loading ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
       </motion.div>
