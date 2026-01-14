@@ -19,6 +19,8 @@ interface ThemeTokens {
   sidebarBg?: string;
   navBg?: string;
   inputBg?: string;
+  inputText?: string;
+  buttonText?: string;
   textPrimary: string;
   textSecondary: string;
   borderColor?: string;
@@ -35,6 +37,72 @@ interface ThemeTokens {
   backgroundOverlay?: string;
   backgroundBlur?: number;
   backgroundOpacity?: number;
+}
+
+// Helper to parse HSL and calculate relative luminance for contrast checking
+function parseHSL(hsl: string): { h: number; s: number; l: number } | null {
+  if (!hsl) return null;
+  const match = hsl.match(/^(\d+)\s+(\d+)%\s+(\d+)%$/);
+  if (!match) return null;
+  return { h: parseInt(match[1]), s: parseInt(match[2]), l: parseInt(match[3]) };
+}
+
+// Ensure proper contrast by adjusting text lightness if needed
+function ensureContrast(bgHSL: string, textHSL: string, mode: "light" | "dark"): string {
+  const bg = parseHSL(bgHSL);
+  const text = parseHSL(textHSL);
+  if (!bg || !text) return textHSL;
+  
+  // For dark mode: text should be light (high lightness)
+  // For light mode: text should be dark (low lightness)
+  const bgLightness = bg.l;
+  let textLightness = text.l;
+  
+  // Calculate contrast difference
+  const diff = Math.abs(bgLightness - textLightness);
+  
+  // If contrast is too low (less than 50% difference), adjust text
+  if (diff < 50) {
+    if (mode === "dark") {
+      // Make text lighter for dark backgrounds
+      textLightness = Math.min(98, bgLightness + 60);
+    } else {
+      // Make text darker for light backgrounds
+      textLightness = Math.max(5, bgLightness - 60);
+    }
+    return `${text.h} ${text.s}% ${textLightness}%`;
+  }
+  
+  return textHSL;
+}
+
+// Derive input text color based on input background
+function deriveInputTextColor(inputBgHSL: string, mode: "light" | "dark"): string {
+  const bg = parseHSL(inputBgHSL);
+  if (!bg) return mode === "dark" ? "0 0% 98%" : "0 0% 10%";
+  
+  // For input fields, we want high contrast text
+  if (mode === "dark" || bg.l < 50) {
+    // Light text for dark inputs
+    return `${bg.h} ${Math.max(0, bg.s - 30)}% 95%`;
+  } else {
+    // Dark text for light inputs
+    return `${bg.h} ${Math.max(0, bg.s - 20)}% 10%`;
+  }
+}
+
+// Derive button text color based on primary color
+function deriveButtonTextColor(primaryHSL: string): string {
+  const primary = parseHSL(primaryHSL);
+  if (!primary) return "0 0% 98%";
+  
+  // If primary is bright (high lightness or high saturation with mid lightness), use dark text
+  // Otherwise use light text
+  if (primary.l > 55 || (primary.s > 70 && primary.l > 40)) {
+    return `${primary.h} ${Math.max(0, primary.s - 40)}% 10%`;
+  } else {
+    return "0 0% 98%";
+  }
 }
 
 const THEME_PRESETS: Record<string, ThemeTokens> = {
@@ -291,7 +359,7 @@ When a user describes something like "ocean vibes", "forest theme", or "pink aes
 - Main background and gradient backgrounds
 - Card and glass surfaces
 - Sidebar and navigation colors
-- Input field backgrounds
+- Input field backgrounds WITH PROPER TEXT CONTRAST
 - Border colors
 - Accent and highlight colors
 - Text colors (while maintaining readability)
@@ -314,11 +382,21 @@ BACKGROUND EFFECTS (choose ONE that matches the vibe):
 - "fireflies" - glowing fireflies (nature/forest themes)
 - "geometric" - geometric shapes (modern/tech themes)
 
-CRITICAL RULES:
+CRITICAL CONTRAST RULES - MUST FOLLOW:
 1. All colors MUST be in HSL format: "hue saturation% lightness%" (e.g., "262 83% 58%")
-2. Ensure text contrast ratios meet WCAG AA (4.5:1 minimum)
-3. For dark themes: bgMain 4-15% lightness, text 90-100% lightness
-4. For light themes: bgMain 90-100% lightness, text 5-20% lightness
+2. TEXT CONTRAST IS CRITICAL: Ensure minimum 4.5:1 contrast ratio (WCAG AA)
+3. For dark themes (mode: "dark"):
+   - bgMain: 4-15% lightness
+   - inputBg: 10-25% lightness (slightly lighter than bgMain for visibility)
+   - textPrimary: 90-100% lightness (MUST contrast with ALL backgrounds)
+   - inputText: ALWAYS light (85-100% lightness) to contrast with dark inputBg
+   - buttonText: MUST contrast with colorPrimary - use dark text (5-20%) for bright buttons, light text (90-100%) for dark buttons
+4. For light themes (mode: "light"):
+   - bgMain: 90-100% lightness  
+   - inputBg: 90-98% lightness (slightly darker than bgMain)
+   - textPrimary: 5-20% lightness (MUST contrast with ALL backgrounds)
+   - inputText: ALWAYS dark (5-25% lightness) to contrast with light inputBg
+   - buttonText: MUST contrast with colorPrimary - use light text (90-100%) for dark buttons, dark text (5-20%) for bright buttons
 5. borderRadius: "small" (sharp), "medium" (balanced), or "large" (bubbly)
 6. Create COHESIVE palettes - all backgrounds should flow together
 7. Glass backgrounds should be slightly lighter/more saturated than bgMain
@@ -327,7 +405,17 @@ CRITICAL RULES:
 10. backgroundOpacity: 20-50 for subtle, 50-70 for medium, 70-100 for strong image presence
 11. backgroundBlur: 0-5 for sharp, 5-10 for soft, 10-20 for very blurred
 
-Example: For "ocean theme" - use deep blues, teals, and aqua accents. ALL backgrounds should be oceanic, slow+smooth animations, bubbles effect.
+BUTTON CONTRAST EXAMPLES:
+- Bright pink button (330 80% 60%): Use dark text like "240 10% 10%"
+- Dark purple button (280 50% 30%): Use light text like "0 0% 98%"
+- Neon green button (120 100% 50%): Use dark text like "120 50% 10%"
+
+INPUT FIELD RULES:
+- inputBg MUST have clear visual separation from bgMain
+- Input text (textPrimary inside inputs) MUST be readable against inputBg
+- Input borders (borderColor) should be visible but not overpowering
+
+Example: For "ocean theme" - use deep blues, teals, and aqua accents. ALL backgrounds should be oceanic, slow+smooth animations, bubbles effect. Inputs should have slightly lighter blue backgrounds with white text.
 
 Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
 
@@ -380,6 +468,8 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
                   backgroundOverlay: { type: "string", description: "Overlay color for background image (HSL) - should match bgMain for cohesion" },
                   backgroundOpacity: { type: "number", description: "Background image opacity 0-100 (30 = subtle, 50 = balanced, 70+ = prominent)" },
                   backgroundBlur: { type: "number", description: "Background image blur 0-20 (0 = sharp, 10 = soft)" },
+                  inputText: { type: "string", description: "Text color inside input fields (HSL) - MUST contrast with inputBg" },
+                  buttonText: { type: "string", description: "Text color on primary buttons (HSL) - MUST contrast with colorPrimary" },
                 },
                 required: [
                   "colorPrimary", "colorSecondary", "colorAccent",
@@ -422,13 +512,22 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
     }
 
     const theme = JSON.parse(toolCall.function.arguments);
+    
+    // Determine mode first for contrast calculations
+    const mode = ["light", "dark"].includes(theme.mode) ? theme.mode : baseTheme.mode;
+    
+    // Get validated colors
+    const inputBg = validateHSL(theme.inputBg) || baseTheme.inputBg || "240 10% 18%";
+    const colorPrimary = validateHSL(theme.colorPrimary) || baseTheme.colorPrimary;
+    const bgMain = validateHSL(theme.bgMain) || baseTheme.bgMain;
+    const textPrimary = validateHSL(theme.textPrimary) || baseTheme.textPrimary;
 
-    // Sanitize all values
+    // Sanitize all values with contrast enforcement
     const sanitizedTheme = {
-      colorPrimary: validateHSL(theme.colorPrimary) || baseTheme.colorPrimary,
+      colorPrimary,
       colorSecondary: validateHSL(theme.colorSecondary) || baseTheme.colorSecondary,
       colorAccent: validateHSL(theme.colorAccent) || baseTheme.colorAccent,
-      bgMain: validateHSL(theme.bgMain) || baseTheme.bgMain,
+      bgMain,
       bgCard: validateHSL(theme.bgCard) || baseTheme.bgCard,
       bgGradientFrom: validateHSL(theme.bgGradientFrom) || baseTheme.bgGradientFrom,
       bgGradientMid: validateHSL(theme.bgGradientMid) || baseTheme.bgGradientMid,
@@ -437,8 +536,13 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
       glassBorder: validateHSL(theme.glassBorder) || baseTheme.glassBorder,
       sidebarBg: validateHSL(theme.sidebarBg) || baseTheme.sidebarBg,
       navBg: validateHSL(theme.navBg) || baseTheme.navBg,
-      inputBg: validateHSL(theme.inputBg) || baseTheme.inputBg,
-      textPrimary: validateHSL(theme.textPrimary) || baseTheme.textPrimary,
+      inputBg,
+      // Derive input text color with proper contrast
+      inputText: validateHSL(theme.inputText) || deriveInputTextColor(inputBg, mode),
+      // Derive button text color with proper contrast against primary
+      buttonText: validateHSL(theme.buttonText) || deriveButtonTextColor(colorPrimary),
+      // Ensure main text contrasts with background
+      textPrimary: ensureContrast(bgMain, textPrimary, mode),
       textSecondary: validateHSL(theme.textSecondary) || baseTheme.textSecondary,
       borderColor: validateHSL(theme.borderColor) || baseTheme.borderColor,
       neonPink: validateHSL(theme.neonPink) || baseTheme.neonPink,
@@ -447,7 +551,7 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
       borderRadius: ["small", "medium", "large"].includes(theme.borderRadius) 
         ? theme.borderRadius 
         : baseTheme.borderRadius,
-      mode: ["light", "dark"].includes(theme.mode) ? theme.mode : baseTheme.mode,
+      mode,
       themeName: theme.themeName || "Custom Theme",
       animationSpeed: ["slow", "normal", "fast", "instant"].includes(theme.animationSpeed)
         ? theme.animationSpeed
