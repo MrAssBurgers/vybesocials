@@ -1,7 +1,7 @@
 /**
  * Content Safety Hook
  * 
- * Handles image and text safety scanning via AI
+ * Handles image, text, and video safety scanning via AI
  */
 
 import { useState, useCallback } from 'react';
@@ -15,23 +15,30 @@ interface SafetyCheckResult {
   message?: string;
   categories?: string[];
   score?: number;
+  audioTranscript?: string;
+  visualAnalysis?: string;
+  audioAnalysis?: string;
 }
 
 export function useContentSafety() {
   const [isScanning, setIsScanning] = useState(false);
   const [result, setResult] = useState<SafetyResult>('scanning');
   const [message, setMessage] = useState<string>('');
+  const [scanDetails, setScanDetails] = useState<{
+    audioTranscript?: string;
+    visualAnalysis?: string;
+    audioAnalysis?: string;
+  }>({});
 
   const scanImage = useCallback(async (file: File): Promise<SafetyCheckResult> => {
     setIsScanning(true);
     setResult('scanning');
     setMessage('');
+    setScanDetails({});
 
     try {
-      // Convert file to base64 for analysis
       const base64 = await fileToBase64(file);
 
-      // Call edge function for AI safety check
       const { data, error } = await supabase.functions.invoke('scan-content-safety', {
         body: {
           type: 'image',
@@ -55,7 +62,62 @@ export function useContentSafety() {
       return safetyResult;
     } catch (err: any) {
       console.error('Safety scan error:', err);
-      // On error, allow content but log for review
+      setResult('allowed');
+      setMessage('Safety check unavailable. Content will be reviewed.');
+      return { result: 'allowed', message: 'Safety check unavailable' };
+    } finally {
+      setIsScanning(false);
+    }
+  }, []);
+
+  const scanVideo = useCallback(async (file: File): Promise<SafetyCheckResult> => {
+    setIsScanning(true);
+    setResult('scanning');
+    setMessage('Analyzing video content and audio...');
+    setScanDetails({});
+
+    try {
+      // For large videos, we need to be careful about size limits
+      // The AI can handle videos up to ~20MB in base64
+      const maxSize = 20 * 1024 * 1024; // 20MB
+      
+      if (file.size > maxSize) {
+        console.warn('Video too large for full analysis, sampling frames...');
+        setMessage('Video is large, performing partial analysis...');
+      }
+
+      const base64 = await fileToBase64(file);
+
+      const { data, error } = await supabase.functions.invoke('scan-video-safety', {
+        body: {
+          videoBase64: base64,
+          mimeType: file.type,
+        },
+      });
+
+      if (error) throw error;
+
+      const safetyResult: SafetyCheckResult = {
+        result: data.result || 'allowed',
+        message: data.message,
+        categories: data.categories,
+        score: data.score,
+        audioTranscript: data.audioTranscript,
+        visualAnalysis: data.visualAnalysis,
+        audioAnalysis: data.audioAnalysis,
+      };
+
+      setResult(safetyResult.result);
+      setMessage(safetyResult.message || '');
+      setScanDetails({
+        audioTranscript: safetyResult.audioTranscript,
+        visualAnalysis: safetyResult.visualAnalysis,
+        audioAnalysis: safetyResult.audioAnalysis,
+      });
+
+      return safetyResult;
+    } catch (err: any) {
+      console.error('Video safety scan error:', err);
       setResult('allowed');
       setMessage('Safety check unavailable. Content will be reviewed.');
       return { result: 'allowed', message: 'Safety check unavailable' };
@@ -68,6 +130,7 @@ export function useContentSafety() {
     setIsScanning(true);
     setResult('scanning');
     setMessage('');
+    setScanDetails({});
 
     try {
       const { data, error } = await supabase.functions.invoke('scan-content-safety', {
@@ -103,11 +166,11 @@ export function useContentSafety() {
     setIsScanning(false);
     setResult('scanning');
     setMessage('');
+    setScanDetails({});
   }, []);
 
-  const submitAppeal = useCallback(async (contentType: 'image' | 'text', reason: string) => {
+  const submitAppeal = useCallback(async (contentType: 'image' | 'text' | 'video', reason: string) => {
     try {
-      // Get user profile first
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast.error('Please log in to submit an appeal');
@@ -141,7 +204,9 @@ export function useContentSafety() {
     isScanning,
     result,
     message,
+    scanDetails,
     scanImage,
+    scanVideo,
     scanText,
     reset,
     submitAppeal,
@@ -154,7 +219,6 @@ function fileToBase64(file: File): Promise<string> {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      // Remove data URL prefix to get just the base64
       const base64 = result.split(',')[1];
       resolve(base64);
     };

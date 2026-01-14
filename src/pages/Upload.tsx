@@ -73,10 +73,14 @@ export default function UploadPage() {
     const url = URL.createObjectURL(selectedFile);
     setPreview(url);
 
-    // For images, run safety scan immediately
+    // Run safety scan based on content type
+    setShowSafetyScanner(true);
+    
     if (isImage) {
-      setShowSafetyScanner(true);
       await contentSafety.scanImage(selectedFile);
+    } else if (isVideo) {
+      // For videos, analyze both visual content and audio/speech
+      await contentSafety.scanVideo(selectedFile);
     }
   };
 
@@ -94,7 +98,8 @@ export default function UploadPage() {
   };
 
   const handleSafetyAppeal = () => {
-    contentSafety.submitAppeal('image', 'User appealed blocked content');
+    const contentType = type === 'post' ? 'image' : 'video';
+    contentSafety.submitAppeal(contentType, 'User appealed blocked content');
     clearFile();
     setShowSafetyScanner(false);
     contentSafety.reset();
@@ -202,6 +207,7 @@ export default function UploadPage() {
               isScanning={contentSafety.isScanning}
               result={contentSafety.result}
               message={contentSafety.message}
+              scanDetails={contentSafety.scanDetails}
               onContinue={handleSafetyContinue}
               onCancel={handleSafetyCancel}
               onAppeal={handleSafetyAppeal}
