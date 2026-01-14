@@ -23,6 +23,10 @@ import { TutorialProvider } from "@/components/tutorial/TutorialProvider";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
+import { WarningPopup } from "@/components/moderation/WarningPopup";
+import { BannedScreen } from "@/components/auth/BannedScreen";
+import { MemeBanScreen } from "@/components/auth/MemeBanScreen";
+import { useBanStatus } from "@/hooks/useBanStatus";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -98,6 +102,25 @@ function ScrollRestoration() {
   return null;
 }
 
+// Ban check component
+function BanCheck() {
+  const { data: banData } = useBanStatus();
+  
+  if (!banData) return null;
+  
+  if (banData.is_meme_ban) {
+    return <MemeBanScreen reason={banData.reason} expiresAt={banData.expires_at} />;
+  }
+  
+  return (
+    <BannedScreen 
+      reason={banData.reason} 
+      expiresAt={banData.expires_at} 
+      isPermanent={banData.is_permanent} 
+    />
+  );
+}
+
 const App = memo(() => {
   const [showSplash, setShowSplash] = useState(true);
   
@@ -167,6 +190,8 @@ const App = memo(() => {
                           <RootBottomNavMount />
                           <PushNotificationPrompt />
                           <GlobalCallOverlay />
+                          <WarningPopup />
+                          <BanCheck />
                         </TutorialProvider>
                       </BrowserRouter>
                     </TooltipProvider>

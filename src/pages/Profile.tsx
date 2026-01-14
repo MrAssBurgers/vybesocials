@@ -39,6 +39,7 @@ export default function ProfilePage() {
   const isModOrAdmin = useIsModOrAdmin();
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
+  const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
 
   const isOwnProfile = currentProfile?.username === username;
 
@@ -225,6 +226,7 @@ export default function ProfilePage() {
                           username={profile.username}
                           onWarnClick={() => setWarnDialogOpen(true)}
                           onBanClick={() => setBanDialogOpen(true)}
+                          onMemeBanClick={() => setMemeBanDialogOpen(true)}
                         />
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -371,6 +373,8 @@ export default function ProfilePage() {
             setWarnDialogOpen={setWarnDialogOpen}
             banDialogOpen={banDialogOpen}
             setBanDialogOpen={setBanDialogOpen}
+            memeBanDialogOpen={memeBanDialogOpen}
+            setMemeBanDialogOpen={setMemeBanDialogOpen}
           />
         )}
       </div>

@@ -251,6 +251,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
+  const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
 
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
@@ -454,6 +455,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                   postId={post.id}
                   onWarnClick={() => setWarnDialogOpen(true)}
                   onBanClick={() => setBanDialogOpen(true)}
+                  onMemeBanClick={() => setMemeBanDialogOpen(true)}
                 />
               )}
             </DropdownMenuContent>
@@ -467,6 +469,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           setWarnDialogOpen={setWarnDialogOpen}
           banDialogOpen={banDialogOpen}
           setBanDialogOpen={setBanDialogOpen}
+          memeBanDialogOpen={memeBanDialogOpen}
+          setMemeBanDialogOpen={setMemeBanDialogOpen}
         />
       </div>
 

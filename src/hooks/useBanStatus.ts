@@ -12,7 +12,7 @@ export const useBanStatus = () => {
 
       const { data, error } = await supabase
         .from('user_bans')
-        .select('*')
+        .select('*, is_meme_ban')
         .eq('user_id', profile.id)
         .or(`is_permanent.eq.true,expires_at.gt.${new Date().toISOString()}`)
         .order('created_at', { ascending: false })
@@ -27,6 +27,6 @@ export const useBanStatus = () => {
       return data;
     },
     enabled: !!profile?.id,
-    refetchInterval: 60000, // Check every minute
+    refetchInterval: 60000,
   });
 };
