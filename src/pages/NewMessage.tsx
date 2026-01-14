@@ -15,8 +15,9 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAuth } from "@/lib/auth";
 import { pushRecentMessageUser, RecentMessageUser } from "@/lib/recentMessageUsers";
 import { useCreateConversation } from "@/hooks/useMessages";
-import { useFriendshipStatus, useSendFriendRequest } from "@/hooks/useFriends";
+import { useFriendshipStatus, useSendFriendRequest, useFriends } from "@/hooks/useFriends";
 import { cn } from "@/lib/utils";
+import { QuickAddRow } from "@/components/chat/QuickAddRow";
 
 function FriendshipBadge({ userId }: { userId: string }) {
   const { data: friendship } = useFriendshipStatus(userId);
@@ -126,12 +127,26 @@ export default function NewMessage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const createConversation = useCreateConversation();
+  const { data: friends, isLoading: friendsLoading } = useFriends();
 
   const [query, setQuery] = useState("");
   const debounced = useDebouncedValue(query.trim(), 250);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Convert friends to QuickAddRow format
+  const friendsForQuickAdd = useMemo(() => 
+    (friends || [])
+      .filter((f): f is NonNullable<typeof f> => f !== null && !!f.id)
+      .map(f => ({
+        id: f.id,
+        username: f.username,
+        avatar_url: f.avatar_url,
+        display_name: f.display_name,
+      })),
+    [friends]
+  );
 
   useEffect(() => {
     setActiveIndex(0);
@@ -222,7 +237,7 @@ export default function NewMessage() {
           </div>
         </header>
 
-        <main className="p-4 space-y-3">
+        <main className="p-4 space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -235,6 +250,18 @@ export default function NewMessage() {
               aria-label="Search users"
             />
           </div>
+
+          {/* Quick Add Friends - show when not searching */}
+          {!debounced && friendsForQuickAdd.length > 0 && (
+            <QuickAddRow
+              title="Friends"
+              users={friendsForQuickAdd.slice(0, 10)}
+              onSelect={(userId) => {
+                const user = friendsForQuickAdd.find(f => f.id === userId);
+                if (user) selectUser(user);
+              }}
+            />
+          )}
 
           <section className="rounded-xl border border-border overflow-hidden">
             {isLoading ? (
@@ -266,13 +293,13 @@ export default function NewMessage() {
               <div className="p-8 text-center text-muted-foreground">
                 No users found.
               </div>
-            ) : (
+            ) : friendsForQuickAdd.length === 0 && !friendsLoading ? (
               <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2">
                 <Users className="h-8 w-8 opacity-50" />
-                <p>Type a username to find friends</p>
-                <p className="text-xs">You can only message friends</p>
+                <p>No friends yet</p>
+                <p className="text-xs">Add friends to start chatting</p>
               </div>
-            )}
+            ) : null}
           </section>
         </main>
       </div>
