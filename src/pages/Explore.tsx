@@ -344,11 +344,11 @@ function VideosGalleryView({
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-neon-cyan via-neon-purple to-neon-pink flex items-center justify-center shadow-lg shadow-primary/30">
-              <Film className="h-6 w-6 text-white" />
+            <div className="h-12 w-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
+              <Film className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-neon-cyan via-neon-purple to-neon-pink bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold text-foreground">
                 Videos
               </h1>
               <p className="text-sm text-muted-foreground">Browse video content</p>
@@ -356,7 +356,7 @@ function VideosGalleryView({
           </div>
           
           <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
-            <Film className="h-4 w-4 text-neon-cyan" />
+            <Film className="h-4 w-4 text-primary" />
             {videos.length} videos
           </div>
         </div>
@@ -386,7 +386,7 @@ function VideosGalleryView({
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all shrink-0 border",
                     isActive
-                      ? "bg-gradient-to-r from-neon-cyan to-neon-purple text-white border-transparent shadow-lg shadow-neon-cyan/30"
+                      ? "bg-primary text-primary-foreground border-transparent shadow-lg shadow-primary/30"
                       : "bg-card/60 hover:bg-card border-border/50 text-foreground hover:border-primary/50"
                   )}
                 >
@@ -409,8 +409,8 @@ function VideosGalleryView({
                 className={cn(
                   "cursor-pointer transition-all px-3 py-1.5 text-sm whitespace-nowrap shrink-0 rounded-full",
                   selectedTag === tag 
-                    ? "bg-gradient-to-r from-neon-cyan to-neon-purple text-white border-transparent shadow-md shadow-neon-cyan/20" 
-                    : "bg-card/40 hover:bg-card border-border/50 hover:border-neon-cyan/50 text-muted-foreground hover:text-foreground"
+                    ? "bg-primary text-primary-foreground border-transparent shadow-md shadow-primary/20" 
+                    : "bg-card/40 hover:bg-card border-border/50 hover:border-primary/50 text-muted-foreground hover:text-foreground"
                 )}
                 onClick={() => handleTagClick(tag)}
               >
@@ -433,7 +433,7 @@ function VideosGalleryView({
               <div className="flex items-center justify-between p-4 rounded-xl bg-card/50 border border-border/50">
                 <h2 className="text-lg font-semibold text-foreground">
                   {selectedTag ? (
-                    <span className="text-neon-cyan">#{selectedTag}</span>
+                    <span className="text-primary">#{selectedTag}</span>
                   ) : (
                     <>Results for "<span className="text-primary">{searchQuery}</span>"</>
                   )}
@@ -463,9 +463,9 @@ function VideosGalleryView({
             onClick={onSwitchToClips}
             className={cn(
               "flex items-center gap-2 px-5 py-3 rounded-full",
-              "bg-gradient-to-r from-neon-pink to-neon-purple",
-              "text-white font-medium text-sm",
-              "hover:shadow-lg hover:shadow-neon-pink/30 transition-all shadow-xl"
+              "bg-primary",
+              "text-primary-foreground font-medium text-sm",
+              "hover:shadow-lg hover:shadow-primary/30 transition-all shadow-xl"
             )}
           >
             <Clapperboard className="h-4 w-4" />
