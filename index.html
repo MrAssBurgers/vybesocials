@@ -12,11 +12,18 @@
     <!-- Preload critical font -->
     <link rel="preload" href="https://cdn.gpteng.co/mcp-widgets/v1/fonts/CameraPlainVariable.woff2" as="font" type="font/woff2" crossorigin />
     
-    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5" />
-    <meta name="theme-color" content="#0a0a0b" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96x96.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5, user-scalable=yes" />
+    <meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#e6007a" media="(prefers-color-scheme: light)" />
     <meta name="description" content="VYBE - The Next Generation Social Platform. Share moments, connect with friends, and discover amazing content from creators worldwide." />
-    <meta name="keywords" content="social media, shorts, videos, memes, creators, community" />
+    <meta name="keywords" content="social media, shorts, videos, memes, creators, community, VYBE, social network" />
+    <meta name="author" content="VYBE" />
+    <meta name="application-name" content="VYBE" />
     
     <!-- Performance hints -->
     <meta http-equiv="x-dns-prefetch-control" content="on" />
@@ -26,16 +33,27 @@
     <meta property="og:title" content="VYBE - The Next Generation Social Platform" />
     <meta property="og:description" content="Share moments, connect with friends, and discover amazing content from creators worldwide." />
     <meta property="og:site_name" content="VYBE" />
+    <meta property="og:image" content="/icons/icon-512x512.png" />
+    <meta property="og:url" content="https://vybeapp.lovable.app" />
     
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="VYBE - The Next Generation Social Platform" />
     <meta name="twitter:description" content="Share moments, connect with friends, and discover amazing content from creators worldwide." />
+    <meta name="twitter:image" content="/icons/icon-512x512.png" />
     
-    <!-- PWA -->
+    <!-- PWA / Mobile App -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="VYBE" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-TileColor" content="#0a0a0b" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    
+    <!-- Android specific -->
+    <meta name="theme-color" content="#0a0a0b" />
+    <meta name="color-scheme" content="dark light" />
     
     <title>VYBE - The Next Generation Social Platform</title>
     
@@ -45,14 +63,35 @@
       #root { min-height: 100vh; background: #0a0a0b; }
       /* Prevent layout shift */
       img, video { max-width: 100%; height: auto; }
+      /* Native app feel */
+      body { 
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+        overscroll-behavior: contain;
+      }
+      /* Allow text selection in inputs and text areas */
+      input, textarea, [contenteditable="true"] {
+        -webkit-user-select: text;
+        user-select: text;
+      }
+      /* Safe area support for notched devices */
+      body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+      }
       /* NOTE: Avoid transforms on #root — they break position:fixed (e.g., bottom nav) on some browsers */
     </style>
   </head>
   <body>
     <div id="root">
       <!-- Inline skeleton for faster LCP -->
-      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0a0b;">
-        <div style="width:40px;height:40px;border:3px solid #333;border-top-color:#a855f7;border-radius:50%;animation:spin 1s linear infinite;"></div>
+      <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0b;gap:16px;">
+        <img src="/icons/icon-192x192.png" alt="VYBE" style="width:80px;height:80px;border-radius:16px;" onerror="this.style.display='none'" />
+        <div style="width:40px;height:40px;border:3px solid #333;border-top-color:#e6007a;border-radius:50%;animation:spin 1s linear infinite;"></div>
       </div>
       <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
     </div>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- VYBE Brand Colors -->
+    <color name="colorPrimary">#E6007A</color>
+    <color name="colorPrimaryDark">#0A0A0B</color>
+    <color name="colorAccent">#00D4FF</color>
+    
+    <!-- Splash Screen -->
+    <color name="splash_background">#0A0A0B</color>
+</resources>
