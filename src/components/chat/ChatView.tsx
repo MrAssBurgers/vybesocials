@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
   useMessages, 
@@ -1390,23 +1391,37 @@ const MessageBubble = memo(function MessageBubble({
           />
         )}
 
-        {/* Quick reactions popup */}
-        {showReactions && (
-          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-background border border-border rounded-full px-2 py-1 shadow-lg flex gap-1 z-20 animate-in fade-in zoom-in-95 duration-150">
-            {QUICK_REACTIONS.map((emoji) => (
-              <button
-                key={emoji}
-                onClick={() => handleReaction(emoji)}
-                className={cn(
-                  "p-1 hover:scale-125 transition-transform text-base sm:text-lg",
-                  userReaction === emoji && "bg-primary/20 rounded-full"
-                )}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Quick reactions popup - positioned above the bubble */}
+        <AnimatePresence>
+          {showReactions && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 10 }}
+              transition={{ duration: 0.15 }}
+              className={cn(
+                "absolute bottom-full mb-2 bg-background border border-border rounded-full px-2 py-1.5 shadow-xl flex gap-0.5 z-50",
+                isOwn ? "right-0" : "left-0"
+              )}
+            >
+              {QUICK_REACTIONS.map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleReaction(emoji);
+                  }}
+                  className={cn(
+                    "p-1.5 hover:scale-125 active:scale-95 transition-transform text-lg sm:text-xl rounded-full",
+                    userReaction === emoji && "bg-primary/20"
+                  )}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Context menu for long-press */}
         {showContextMenu && (
