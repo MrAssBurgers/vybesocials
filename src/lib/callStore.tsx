@@ -256,37 +256,20 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       const { data: roomData, error: roomError } = await roomPromise;
 
       if (roomError || !roomData?.roomUrl) {
-        throw new Error(roomError?.message || 'Failed to create call room');
+        throw new Error(roomError?.message || roomData?.error || 'Failed to create call room');
       }
 
-      console.log('[CallStore] Room created:', roomData.roomName);
+      console.log('[CallStore] Room created:', roomData.roomName, 'callId:', roomData.callId);
 
-      // Create call record in DB - use insert without re-fetching for speed
-      const { data: callRecord, error: callError } = await supabase
-        .from('calls')
-        .insert({
-          conversation_id: params.conversationId,
-          caller_id: profile.id,
-          receiver_id: params.receiverId,
-          call_type: params.callType,
-          status: 'ringing',
-          room_url: roomData.roomUrl,
-          room_name: roomData.roomName,
-          is_group_call: params.isGroupCall || false,
-          max_participants: allParticipants.length + 1,
-        })
-        .select('id')
-        .single();
-
-      if (callError || !callRecord) {
-        throw new Error(callError?.message || 'Failed to create call record');
+      // The edge function already created the call record, use its ID
+      const callId = roomData.callId;
+      if (!callId) {
+        throw new Error('No call ID returned from server');
       }
-
-      console.log('[CallStore] Call record created:', callRecord.id);
 
       // Build call data directly without re-fetching profiles (we already have them)
       const callData: CallData = {
-        id: callRecord.id,
+        id: callId,
         roomUrl: roomData.roomUrl,
         roomName: roomData.roomName,
         callType: params.callType,
