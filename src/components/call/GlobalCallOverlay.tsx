@@ -300,25 +300,33 @@ export function GlobalCallOverlay() {
     // Helper to attach remote participant video
     const attachRemoteParticipantVideo = (p: DailyParticipant, videoEl: HTMLVideoElement | null) => {
       if (!p || !videoEl) return;
-      
+
       // Check multiple track access patterns for compatibility
       const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
       const trackState = p.tracks?.video?.state;
-      const hasVideo = p.video && (trackState === 'playable' || trackState === 'loading');
-      
+      const isPlayable = trackState === 'playable' || trackState === 'loading';
+      const canRenderVideo = !!videoTrack && isPlayable;
+
       console.log('[CallOverlay] Checking remote video:', {
-        hasVideo: p.video,
+        participantId: p.session_id,
+        participantVideoFlag: p.video,
         trackState,
         hasTrack: !!videoTrack,
-        participantId: p.session_id
+        canRenderVideo,
       });
-      
-      if (hasVideo && videoTrack) {
+
+      if (canRenderVideo) {
         console.log('[CallOverlay] Attaching remote video track');
         try {
           const stream = new MediaStream([videoTrack]);
           videoEl.srcObject = stream;
-          videoEl.play().catch(err => console.error('[CallOverlay] Remote video play failed:', err));
+          videoEl.play().catch((err) => {
+            console.error('[CallOverlay] Remote video play failed:', err);
+            // iOS/iPad: playback often requires a user gesture
+            if (isIOSorIPad()) {
+              setNeedsUserInteraction(true);
+            }
+          });
           setHasRemoteVideo(true);
         } catch (err) {
           console.error('[CallOverlay] Failed to attach remote video:', err);
@@ -581,7 +589,7 @@ export function GlobalCallOverlay() {
   // This ensures we catch remote video even if events fire before refs are ready
   useEffect(() => {
     if (state.phase !== 'connected') return;
-    
+
     const daily = dailyRef.current;
     if (!daily) return;
 
@@ -591,41 +599,42 @@ export function GlobalCallOverlay() {
     const checkRemoteParticipants = () => {
       try {
         const participants = daily.participants();
-        
+
         Object.values(participants).forEach((p: any) => {
           if (!p.local) {
             console.log(`[CallOverlay] Poll #${pollCount + 1}: Found remote participant`, {
               session_id: p.session_id,
-              hasVideo: p.video,
-              trackState: p.tracks?.video?.state
+              participantVideoFlag: p.video,
+              trackState: p.tracks?.video?.state,
             });
-            
+
             setRemoteParticipant(p);
-            
+
             // Try to attach video if available and we don't have it yet
             const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
             const trackState = p.tracks?.video?.state;
             const isPlayable = trackState === 'playable' || trackState === 'loading';
-            
-            if (p.video && videoTrack && isPlayable && remoteVideoRef.current) {
+
+            if (videoTrack && isPlayable && remoteVideoRef.current) {
               console.log('[CallOverlay] Poll: Attaching remote video track');
               try {
                 const stream = new MediaStream([videoTrack]);
                 remoteVideoRef.current.srcObject = stream;
-                remoteVideoRef.current.play().catch(err => {
+                remoteVideoRef.current.play().catch((err) => {
                   console.error('[CallOverlay] Poll: Remote video play error:', err);
+                  if (isIOSorIPad()) setNeedsUserInteraction(true);
                 });
                 setHasRemoteVideo(true);
               } catch (err) {
                 console.error('[CallOverlay] Poll: Failed to attach video:', err);
               }
             }
-            
+
             // Also check for audio - CRITICAL: ensure audio is always attached and playing
             const audioTrack = p.tracks?.audio?.persistentTrack || p.tracks?.audio?.track;
             const audioState = p.tracks?.audio?.state;
             const isAudioPlayable = audioState === 'playable' || audioState === 'loading';
-            
+
             if (p.audio && audioTrack && isAudioPlayable && remoteAudioRef.current) {
               // Always try to attach audio, even if already attached (ensures it's playing)
               console.log('[CallOverlay] Poll: Attaching/refreshing remote audio track');
@@ -634,7 +643,7 @@ export function GlobalCallOverlay() {
                 remoteAudioRef.current.srcObject = audioStream;
                 remoteAudioRef.current.muted = false;
                 remoteAudioRef.current.volume = 1;
-                remoteAudioRef.current.play().catch(err => {
+                remoteAudioRef.current.play().catch((err) => {
                   console.warn('[CallOverlay] Poll: Audio play error:', err);
                 });
               } catch (err) {
@@ -646,13 +655,13 @@ export function GlobalCallOverlay() {
       } catch (err) {
         console.error('[CallOverlay] Poll error:', err);
       }
-      
+
       pollCount++;
     };
 
     // Immediate check
     checkRemoteParticipants();
-    
+
     // Poll every 500ms
     const pollInterval = setInterval(() => {
       if (pollCount >= maxPolls) {
@@ -664,7 +673,7 @@ export function GlobalCallOverlay() {
     }, 500);
 
     return () => clearInterval(pollInterval);
-  }, [state.phase]);
+  }, [state.phase, isIOSorIPad]);
 
   // Re-enable video tracks when returning from background/minimized state
   useEffect(() => {
@@ -951,15 +960,21 @@ export function GlobalCallOverlay() {
               <>
                 {/* Remote Video - Full Screen */}
                 <div className="absolute inset-0">
-                  {hasRemoteVideo ? (
-                    <video
-                      ref={remoteVideoRef}
-                      autoPlay
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
+                  {/* Always render the video element so tracks can attach even before we have state */}
+                  <video
+                    ref={remoteVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={cn(
+                      "w-full h-full object-cover",
+                      hasRemoteVideo ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+
+                  {/* Placeholder when remote video isn't available yet */}
+                  {!hasRemoteVideo && (
+                    <div className="absolute inset-0 w-full h-full flex items-center justify-center">
                       {/* Remote avatar placeholder */}
                       <div className="relative">
                         <motion.div
