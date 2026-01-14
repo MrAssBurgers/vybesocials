@@ -11,8 +11,14 @@ interface ThemeTokens {
   colorAccent: string;
   bgMain: string;
   bgCard: string;
+  bgGradientFrom?: string;
+  bgGradientTo?: string;
+  sidebarBg?: string;
+  navBg?: string;
+  inputBg?: string;
   textPrimary: string;
   textSecondary: string;
+  borderColor?: string;
   borderRadius: "small" | "medium" | "large";
   mode: "light" | "dark";
 }
@@ -24,8 +30,12 @@ const THEME_PRESETS: Record<string, ThemeTokens> = {
     colorAccent: "280 100% 70%",
     bgMain: "240 10% 4%",
     bgCard: "240 6% 10%",
+    sidebarBg: "240 6% 8%",
+    navBg: "240 6% 8%",
+    inputBg: "240 4% 16%",
     textPrimary: "0 0% 98%",
     textSecondary: "240 5% 65%",
+    borderColor: "240 4% 16%",
     borderRadius: "medium",
     mode: "dark",
   },
@@ -35,8 +45,12 @@ const THEME_PRESETS: Record<string, ThemeTokens> = {
     colorAccent: "200 100% 62%",
     bgMain: "230 25% 8%",
     bgCard: "230 20% 14%",
+    sidebarBg: "230 25% 10%",
+    navBg: "230 25% 10%",
+    inputBg: "230 20% 18%",
     textPrimary: "210 40% 98%",
     textSecondary: "215 20% 65%",
+    borderColor: "230 20% 20%",
     borderRadius: "medium",
     mode: "dark",
   },
@@ -46,8 +60,12 @@ const THEME_PRESETS: Record<string, ThemeTokens> = {
     colorAccent: "160 100% 50%",
     bgMain: "270 50% 6%",
     bgCard: "270 40% 12%",
+    sidebarBg: "270 50% 8%",
+    navBg: "270 50% 8%",
+    inputBg: "270 40% 16%",
     textPrimary: "0 0% 100%",
     textSecondary: "270 30% 70%",
+    borderColor: "270 40% 20%",
     borderRadius: "large",
     mode: "dark",
   },
@@ -57,8 +75,12 @@ const THEME_PRESETS: Record<string, ThemeTokens> = {
     colorAccent: "160 50% 60%",
     bgMain: "30 30% 96%",
     bgCard: "0 0% 100%",
+    sidebarBg: "30 20% 94%",
+    navBg: "0 0% 100%",
+    inputBg: "30 20% 92%",
     textPrimary: "240 10% 20%",
     textSecondary: "240 5% 50%",
+    borderColor: "30 20% 88%",
     borderRadius: "large",
     mode: "light",
   },
@@ -68,8 +90,12 @@ const THEME_PRESETS: Record<string, ThemeTokens> = {
     colorAccent: "180 100% 50%",
     bgMain: "240 20% 4%",
     bgCard: "240 15% 10%",
+    sidebarBg: "240 20% 6%",
+    navBg: "240 20% 6%",
+    inputBg: "240 15% 14%",
     textPrimary: "55 100% 90%",
     textSecondary: "55 50% 60%",
+    borderColor: "55 100% 30%",
     borderRadius: "small",
     mode: "dark",
   },
@@ -79,8 +105,12 @@ const THEME_PRESETS: Record<string, ThemeTokens> = {
     colorAccent: "0 0% 50%",
     bgMain: "0 0% 100%",
     bgCard: "0 0% 98%",
+    sidebarBg: "0 0% 96%",
+    navBg: "0 0% 100%",
+    inputBg: "0 0% 94%",
     textPrimary: "0 0% 10%",
     textSecondary: "0 0% 45%",
+    borderColor: "0 0% 90%",
     borderRadius: "small",
     mode: "light",
   },
@@ -102,7 +132,9 @@ serve(async (req) => {
     const baseTheme = THEME_PRESETS[basePreset] || THEME_PRESETS.classic;
 
     const systemPrompt = `You are a UI theme designer for a social media app called VYBE. 
-Your task is to interpret natural language descriptions and generate safe, accessible color themes.
+Your task is to interpret natural language descriptions and generate COMPLETE, COHESIVE color themes that transform the ENTIRE app appearance.
+
+When a user describes something like "ocean vibes" or "forest theme", you should change EVERYTHING - backgrounds, cards, sidebar, navigation, inputs, borders - to match that aesthetic completely.
 
 IMPORTANT RULES:
 1. All colors MUST be in HSL format: "hue saturation% lightness%" (e.g., "262 83% 58%")
@@ -111,11 +143,14 @@ IMPORTANT RULES:
 4. For light mode: bgMain lightness should be 90-100%, textPrimary lightness should be 5-20%
 5. borderRadius must be exactly "small", "medium", or "large"
 6. mode must be exactly "light" or "dark"
+7. Create a COHESIVE color palette where all elements complement each other
+8. Sidebar, nav, cards, and inputs should all follow the same color story
+9. Make the theme FEEL like what the user described - don't just change the primary color
 
 Current base theme (${basePreset}):
 ${JSON.stringify(baseTheme, null, 2)}
 
-Generate a theme that matches the user's description while keeping it safe and readable.`;
+Generate a complete theme that FULLY transforms the app to match the user's description.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -127,54 +162,70 @@ Generate a theme that matches the user's description while keeping it safe and r
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Create a theme based on this description: "${prompt}"` },
+          { role: "user", content: `Create a complete theme transformation based on this description: "${prompt}". Change EVERYTHING - backgrounds, colors, borders, inputs - to match this vibe completely.` },
         ],
         tools: [
           {
             type: "function",
             function: {
               name: "generate_theme",
-              description: "Generate a UI theme with specific color tokens",
+              description: "Generate a complete UI theme with all color tokens for full app transformation",
               parameters: {
                 type: "object",
                 properties: {
                   colorPrimary: {
                     type: "string",
-                    description: "Primary brand color in HSL format (e.g., '262 83% 58%')",
+                    description: "Primary brand/accent color in HSL format (e.g., '262 83% 58%')",
                   },
                   colorSecondary: {
                     type: "string",
-                    description: "Secondary color in HSL format",
+                    description: "Secondary color for buttons and highlights in HSL format",
                   },
                   colorAccent: {
                     type: "string",
-                    description: "Accent/highlight color in HSL format",
+                    description: "Accent/glow color for special elements in HSL format",
                   },
                   bgMain: {
                     type: "string",
-                    description: "Main background color in HSL format",
+                    description: "Main app background color in HSL format - this is the dominant background",
                   },
                   bgCard: {
                     type: "string",
-                    description: "Card/surface background color in HSL format",
+                    description: "Card/elevated surface background color in HSL format",
+                  },
+                  sidebarBg: {
+                    type: "string",
+                    description: "Sidebar background color in HSL format",
+                  },
+                  navBg: {
+                    type: "string",
+                    description: "Navigation bar background color in HSL format",
+                  },
+                  inputBg: {
+                    type: "string",
+                    description: "Input field background color in HSL format",
                   },
                   textPrimary: {
                     type: "string",
-                    description: "Primary text color in HSL format",
+                    description: "Primary text color in HSL format - must contrast with bgMain",
                   },
                   textSecondary: {
                     type: "string",
                     description: "Secondary/muted text color in HSL format",
                   },
+                  borderColor: {
+                    type: "string",
+                    description: "Border color for cards and inputs in HSL format",
+                  },
                   borderRadius: {
                     type: "string",
                     enum: ["small", "medium", "large"],
-                    description: "Border radius preset",
+                    description: "Border radius preset - small for sharp, large for bubbly",
                   },
                   mode: {
                     type: "string",
                     enum: ["light", "dark"],
-                    description: "Light or dark mode",
+                    description: "Light or dark mode - choose based on the vibe described",
                   },
                   themeName: {
                     type: "string",
@@ -187,8 +238,12 @@ Generate a theme that matches the user's description while keeping it safe and r
                   "colorAccent",
                   "bgMain",
                   "bgCard",
+                  "sidebarBg",
+                  "navBg",
+                  "inputBg",
                   "textPrimary",
                   "textSecondary",
+                  "borderColor",
                   "borderRadius",
                   "mode",
                   "themeName",
@@ -236,8 +291,12 @@ Generate a theme that matches the user's description while keeping it safe and r
       colorAccent: validateHSL(theme.colorAccent) || baseTheme.colorAccent,
       bgMain: validateHSL(theme.bgMain) || baseTheme.bgMain,
       bgCard: validateHSL(theme.bgCard) || baseTheme.bgCard,
+      sidebarBg: validateHSL(theme.sidebarBg || "") || baseTheme.sidebarBg,
+      navBg: validateHSL(theme.navBg || "") || baseTheme.navBg,
+      inputBg: validateHSL(theme.inputBg || "") || baseTheme.inputBg,
       textPrimary: validateHSL(theme.textPrimary) || baseTheme.textPrimary,
       textSecondary: validateHSL(theme.textSecondary) || baseTheme.textSecondary,
+      borderColor: validateHSL(theme.borderColor || "") || baseTheme.borderColor,
       borderRadius: ["small", "medium", "large"].includes(theme.borderRadius) 
         ? theme.borderRadius 
         : baseTheme.borderRadius,
