@@ -101,7 +101,7 @@ export function GlobalCallOverlay() {
            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   }, []);
 
-  // Force enable video tracks - NON-NEGOTIABLE for video calls
+  // Force enable video tracks - single attempt only
   const forceEnableVideoTracks = useCallback(async (daily: DailyCall) => {
     if (!daily) return;
     
@@ -114,40 +114,13 @@ export function GlobalCallOverlay() {
       console.log('[CallOverlay] Audio enabled');
       
       if (callType === 'video') {
-        // Force camera on
-        console.log('[CallOverlay] Forcing camera on...');
+        // Force camera on - single attempt
+        console.log('[CallOverlay] Enabling camera...');
         await daily.setLocalVideo(true);
         
-        // Verify it actually enabled - retry if not
-        setTimeout(async () => {
-          try {
-            const participants = daily.participants();
-            const local = participants?.local;
-            const videoTrack = local?.tracks?.video;
-            
-            console.log('[CallOverlay] Video track state after enable:', {
-              hasVideo: local?.video,
-              trackState: videoTrack?.state,
-              hasTrack: !!videoTrack?.persistentTrack || !!videoTrack?.track
-            });
-            
-            if (!local?.video || videoTrack?.state === 'off') {
-              console.log('[CallOverlay] Video not enabled, retrying...');
-              await daily.setLocalVideo(true);
-              
-              // Check again after second attempt
-              setTimeout(async () => {
-                const p2 = daily.participants()?.local;
-                if (!p2?.video) {
-                  console.error('[CallOverlay] Camera failed to enable after retries');
-                  setCameraError('Camera could not be enabled. Check permissions.');
-                }
-              }, 500);
-            }
-          } catch (e) {
-            console.error('[CallOverlay] Video verification failed:', e);
-          }
-        }, 300);
+        // Quick verification (no retry, just log)
+        const local = daily.participants()?.local;
+        console.log('[CallOverlay] Camera enabled, state:', local?.video);
       } else {
         await daily.setLocalVideo(false);
       }
@@ -157,37 +130,33 @@ export function GlobalCallOverlay() {
     }
   }, []);
 
-  // Retry video - user-triggered
+  // Retry video - user-triggered (single attempt only)
   const handleRetryVideo = useCallback(async () => {
     const daily = dailyRef.current;
-    if (!daily) return;
+    if (!daily || isRetryingVideo) return;
     
     setIsRetryingVideo(true);
     setCameraError(null);
     
     try {
       console.log('[CallOverlay] User-triggered video retry');
-      await daily.setLocalVideo(false);
-      await new Promise(r => setTimeout(r, 200));
       await daily.setLocalVideo(true);
       
-      // Check result
-      setTimeout(() => {
-        const local = daily.participants()?.local;
-        if (local?.video) {
-          console.log('[CallOverlay] Video retry succeeded');
-          setIsVideoOff(false);
-        } else {
-          setCameraError('Camera still not working. Check browser permissions.');
-        }
-        setIsRetryingVideo(false);
-      }, 500);
+      // Check result once
+      const local = daily.participants()?.local;
+      if (local?.video) {
+        console.log('[CallOverlay] Video retry succeeded');
+        setIsVideoOff(false);
+      } else {
+        setCameraError('Camera not available. Check permissions.');
+      }
     } catch (err: any) {
       console.error('[CallOverlay] Video retry failed:', err);
       setCameraError(err.message || 'Retry failed');
+    } finally {
       setIsRetryingVideo(false);
     }
-  }, []);
+  }, [isRetryingVideo]);
 
   // iOS tap-to-start handler
   const handleTapToStart = useCallback(async () => {
