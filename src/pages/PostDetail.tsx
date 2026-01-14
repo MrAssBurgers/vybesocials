@@ -1,8 +1,10 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, Image, X, Loader2, Send, Smile } from 'lucide-react';
+import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, Image, X, Loader2, Send, Smile, Pencil } from 'lucide-react';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
+import { useUserRole } from '@/hooks/useModeration';
+import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -119,6 +121,12 @@ export default function PostDetailPage() {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [warnDialogOpen, setWarnDialogOpen] = useState(false);
+  const [banDialogOpen, setBanDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: userRole } = useUserRole();
+  const isModOrAdmin = useIsModOrAdmin();
 
   const { data: post, isLoading: postLoading } = useQuery({
     queryKey: ['post', id, profile?.id],
@@ -178,6 +186,32 @@ export default function PostDetailPage() {
   const { data: comments, isLoading: commentsLoading } = useComments(id!);
   const createComment = useCreateComment();
   const deleteComment = useDeleteComment();
+
+  // Permission checks - must be after post is loaded
+  const isOwnPost = profile?.id === post?.author?.id;
+  const isAdmin = userRole === 'admin' || userRole === 'moderator';
+  const canDelete = isOwnPost || isAdmin;
+
+  const handleDelete = async () => {
+    if (!post) return;
+    if (!confirm('Are you sure you want to delete this post?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', post.id);
+
+      if (error) throw error;
+
+      toast.success('Post deleted');
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      navigate(-1);
+    } catch (error) {
+      console.error('Failed to delete post:', error);
+      toast.error('Failed to delete post');
+    }
+  };
 
   const handleLike = async () => {
     if (!profile || !post) return;
@@ -390,6 +424,20 @@ export default function PostDetailPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {/* Edit option for own posts */}
+                  {isOwnPost && (
+                    <DropdownMenuItem onClick={() => setIsEditOpen(true)}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit Post
+                    </DropdownMenuItem>
+                  )}
+                  {/* Delete option for own posts or admins */}
+                  {canDelete && (
+                    <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Post
+                    </DropdownMenuItem>
+                  )}
                   <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
                     <DialogTrigger asChild>
                       <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
@@ -421,14 +469,45 @@ export default function PostDetailPage() {
                       </div>
                     </DialogContent>
                   </Dialog>
-                  {profile?.id !== post.author.id && (
+                  {!isOwnPost && (
                     <DropdownMenuItem onClick={handleBlockUser} className="text-destructive">
                       <Ban className="h-4 w-4 mr-2" />
                       Block @{post.author.username}
                     </DropdownMenuItem>
                   )}
+                  {/* Mod actions - only visible to mods/admins and not on own content */}
+                  {isModOrAdmin && !isOwnPost && (
+                    <ModeratorMenuItems
+                      userId={post.author.id}
+                      username={post.author.username}
+                      postId={post.id}
+                      onWarnClick={() => setWarnDialogOpen(true)}
+                      onBanClick={() => setBanDialogOpen(true)}
+                    />
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
+              {/* Mod dialogs */}
+              <ModeratorDialogs
+                userId={post.author.id}
+                username={post.author.username}
+                warnDialogOpen={warnDialogOpen}
+                setWarnDialogOpen={setWarnDialogOpen}
+                banDialogOpen={banDialogOpen}
+                setBanDialogOpen={setBanDialogOpen}
+              />
+              {/* Edit dialog */}
+              {isOwnPost && (
+                <EditPostDialog
+                  open={isEditOpen}
+                  onOpenChange={setIsEditOpen}
+                  post={{
+                    id: post.id,
+                    caption: post.caption || '',
+                    tags: post.tags || [],
+                  }}
+                />
+              )}
             </div>
 
             {/* Caption & Tags */}
