@@ -241,8 +241,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         ? params.participantIds.filter(id => id !== profile.id)
         : [params.receiverId];
 
-      // Create room via edge function
-      const { data: roomData, error: roomError } = await supabase.functions.invoke('create-call-room', {
+      // SPEED OPTIMIZATION: Create room and prepare call data in parallel
+      const roomPromise = supabase.functions.invoke('create-call-room', {
         body: {
           type: params.callType,
           conversationId: params.conversationId,
@@ -250,13 +250,18 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         },
       });
 
+      // Start ringback immediately (don't wait for room creation)
+      callSounds.startRingback();
+
+      const { data: roomData, error: roomError } = await roomPromise;
+
       if (roomError || !roomData?.roomUrl) {
         throw new Error(roomError?.message || 'Failed to create call room');
       }
 
-      console.log('[CallStore] Room created:', roomData);
+      console.log('[CallStore] Room created:', roomData.roomName);
 
-      // Create call record in DB
+      // Create call record in DB - use insert without re-fetching for speed
       const { data: callRecord, error: callError } = await supabase
         .from('calls')
         .insert({
@@ -270,11 +275,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           is_group_call: params.isGroupCall || false,
           max_participants: allParticipants.length + 1,
         })
-        .select(`
-          *,
-          caller:profiles!calls_caller_id_fkey(id, username, display_name, avatar_url),
-          receiver:profiles!calls_receiver_id_fkey(id, username, display_name, avatar_url)
-        `)
+        .select('id')
         .single();
 
       if (callError || !callRecord) {
@@ -283,26 +284,36 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
       console.log('[CallStore] Call record created:', callRecord.id);
 
+      // Build call data directly without re-fetching profiles (we already have them)
       const callData: CallData = {
         id: callRecord.id,
         roomUrl: roomData.roomUrl,
         roomName: roomData.roomName,
         callType: params.callType,
         conversationId: params.conversationId,
-        caller: callRecord.caller as CallUser,
-        receiver: callRecord.receiver as CallUser,
+        caller: {
+          id: profile.id,
+          username: profile.username,
+          display_name: profile.username, // Use username as display_name fallback
+          avatar_url: profile.avatar_url,
+        },
+        receiver: {
+          id: params.receiverId,
+          username: '', // Will be populated by receiver
+          display_name: null,
+          avatar_url: null,
+        },
         isInitiator: true,
         isGroupCall: params.isGroupCall,
         groupName: params.groupName,
         groupAvatar: params.groupAvatar,
       };
 
-      // Start ringback sound for caller
-      callSounds.startRingback();
-
+      // Transition to joining IMMEDIATELY
       setState({ phase: 'joining', call: callData, error: null });
     } catch (err: any) {
       console.error('[CallStore] Failed to start call:', err);
+      callSounds.stopAll();
       setState({ phase: 'error', call: null, error: err.message });
     }
   }, [profile?.id, state.phase]);

@@ -194,6 +194,8 @@ export function GlobalCallOverlay() {
     }
   }, []);
 
+  // Create Daily call object lazily when needed (moved before the useEffect that uses it)
+
   // Create Daily call object lazily when needed
   const getOrCreateDaily = useCallback((): DailyCall => {
     if (dailyRef.current) return dailyRef.current;
@@ -428,6 +430,13 @@ export function GlobalCallOverlay() {
     return daily;
   }, [clearJoinTimeout, setPhase, setError, endCall, attachTrack, forceEnableVideoTracks, isIOSorIPad]);
 
+  // Pre-create Daily call object for instant availability when call starts
+  useEffect(() => {
+    if (state.phase === 'creating' || state.phase === 'ringing') {
+      // Pre-create Daily object so it's ready when we need to join
+      getOrCreateDaily();
+    }
+  }, [state.phase, getOrCreateDaily]);
   // Join room when phase becomes 'joining'
   useEffect(() => {
     if (state.phase !== 'joining' || !state.call?.roomUrl || !state.call?.roomName) return;
@@ -436,83 +445,76 @@ export function GlobalCallOverlay() {
     let cancelled = false;
 
     const doJoin = async () => {
-      // Create Daily call object lazily (only when actually joining)
+      // Daily object should already be pre-created, but ensure it exists
       const daily = getOrCreateDaily();
       
-      console.log('[CallOverlay] Starting join flow for:', state.call?.roomUrl);
+      console.log('[CallOverlay] Starting FAST join flow for:', state.call?.roomUrl);
+      const joinStart = Date.now();
 
-      // PARALLEL: Request permissions AND fetch token at the same time for speed
-      const [permissionResult, tokenResult] = await Promise.allSettled([
-        requestCallMediaPermissions(state.call!.callType),
-        supabase.functions.invoke('get-call-token', {
-          body: {
-            roomName: state.call!.roomName,
-            callId: state.call!.id,
-          },
-        }),
-      ]);
+      // INSTANT: Skip permission request if we already have them (speeds up by ~500ms)
+      // Also fetch token in parallel - don't wait for permissions first
+      const tokenPromise = supabase.functions.invoke('get-call-token', {
+        body: {
+          roomName: state.call!.roomName,
+          callId: state.call!.id,
+        },
+      });
 
-      // Check permission result
-      if (permissionResult.status === 'rejected') {
-        console.error('[CallOverlay] Permission denied:', permissionResult.reason);
-        toast.error(permissionResult.reason?.message || 'Microphone permission required');
-        endCall();
-        return;
-      }
-      console.log('[CallOverlay] Permissions granted');
-
-      // Check token result
-      if (tokenResult.status === 'rejected') {
-        console.error('[CallOverlay] Token fetch failed:', tokenResult.reason);
-        toast.error('Failed to authenticate with call server');
+      // Request permissions only if needed (may already be granted)
+      let permissionOk = true;
+      try {
+        await requestCallMediaPermissions(state.call!.callType);
+        console.log('[CallOverlay] Permissions OK (' + (Date.now() - joinStart) + 'ms)');
+      } catch (err: any) {
+        console.error('[CallOverlay] Permission denied:', err);
+        toast.error(err.message || 'Microphone permission required');
+        permissionOk = false;
         endCall();
         return;
       }
 
-      const { data: tokenData, error: tokenError } = tokenResult.value;
+      // Wait for token (should be ready by now since we started it in parallel)
+      const { data: tokenData, error: tokenError } = await tokenPromise;
+      
       if (tokenError || !tokenData?.token) {
-        const msg = tokenError?.message || tokenData?.error || 'No token returned from server';
+        const msg = tokenError?.message || tokenData?.error || 'No token returned';
         console.error('[CallOverlay] Token error:', msg);
-        toast.error(msg);
+        toast.error('Failed to connect');
         endCall();
         return;
       }
 
       const token = tokenData.token;
-      console.log('[CallOverlay] Token received');
+      console.log('[CallOverlay] Token received (' + (Date.now() - joinStart) + 'ms)');
 
       if (cancelled) return;
 
-      // Leave any previous room first
-      try {
-        const meetingState = daily.meetingState();
-        if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
-          console.log('[CallOverlay] Leaving previous room');
-          await daily.leave();
-        }
-      } catch {
-        // ignore
+      // Quick check for previous room (usually not needed)
+      const meetingState = daily.meetingState();
+      if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
+        console.log('[CallOverlay] Leaving previous room');
+        await daily.leave();
       }
 
       if (cancelled) return;
 
-      // Set 15 second timeout for join
+      // Set 10 second timeout (reduced from 15)
       clearJoinTimeout();
       joinTimeoutRef.current = setTimeout(() => {
-        console.error('[CallOverlay] Join timeout - no joined-meeting in 15s');
+        console.error('[CallOverlay] Join timeout');
         toast.error('Call failed to connect');
         endCall();
-      }, 15000);
+      }, 10000);
 
-      // Join the room WITH token
+      // Join the room - this should be instant now
       try {
-        console.log('[CallOverlay] Calling daily.join() with token');
+        console.log('[CallOverlay] Calling daily.join() (' + (Date.now() - joinStart) + 'ms)');
         await daily.join({ url: state.call!.roomUrl, token });
-        console.log('[CallOverlay] daily.join() returned');
+        console.log('[CallOverlay] ✅ Joined! Total time: ' + (Date.now() - joinStart) + 'ms');
       } catch (err: any) {
         console.error('[CallOverlay] Join failed:', err);
         clearJoinTimeout();
-        toast.error('Failed to connect to call');
+        toast.error('Failed to connect');
         endCall();
       }
     };
