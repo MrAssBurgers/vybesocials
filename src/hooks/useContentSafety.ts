@@ -169,12 +169,12 @@ export function useContentSafety() {
     setScanDetails({});
   }, []);
 
-  const submitAppeal = useCallback(async (contentType: 'image' | 'text' | 'video', reason: string) => {
+  const submitAppeal = useCallback(async (contentType: 'image' | 'text' | 'video' | 'post' | 'ban', reason: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast.error('Please log in to submit an appeal');
-        return;
+        return false;
       }
       
       const { data: profile } = await supabase
@@ -185,18 +185,23 @@ export function useContentSafety() {
         
       if (!profile) {
         toast.error('Profile not found');
-        return;
+        return false;
       }
 
-      await supabase.from('content_appeals').insert({
+      const { error } = await supabase.from('content_appeals').insert({
         user_id: profile.id,
         content_type: contentType,
         reason,
       });
-      toast.success('Appeal submitted. We will review your content.');
+      
+      if (error) throw error;
+      
+      toast.success('Appeal submitted. We will review your request.');
+      return true;
     } catch (err) {
       console.error('Appeal error:', err);
       toast.error('Failed to submit appeal');
+      return false;
     }
   }, []);
 
