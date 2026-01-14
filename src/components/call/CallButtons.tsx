@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { useCallStore, CallType } from '@/lib/callStore';
 import { toast } from 'sonner';
 import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
-import { preloadCameraStream } from '@/hooks/useCameraPreload';
 
 interface CallButtonsProps {
   conversationId: string;
@@ -37,12 +36,6 @@ export function CallButtons({
 
   // Prevent iOS double-fire (touch -> click) starting two calls.
   const startGuardRef = useRef(false);
-
-  // Pre-warm camera on hover/focus for instant video
-  const handleVideoButtonHover = useCallback(() => {
-    // Start preloading camera in background
-    preloadCameraStream();
-  }, []);
 
   const handleStartCall = useCallback(async (callType: CallType) => {
     if (startGuardRef.current) return;
@@ -109,8 +102,6 @@ export function CallButtons({
         size="icon"
         onClick={() => handleStartCall('video')}
         onTouchEnd={handleTouchStart('video')}
-        onMouseEnter={handleVideoButtonHover}
-        onFocus={handleVideoButtonHover}
         disabled={isDisabled}
         title={isGroupCall ? "Group FaceTime" : "FaceTime"}
         className="active:scale-95 transition-transform touch-manipulation"

@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -87,45 +86,13 @@ serve(async (req) => {
       );
     }
 
-    // Upload to Supabase Storage
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    console.log("AI content generated successfully");
 
-    // Convert base64 to blob
-    const base64Data = imageUrl.split(",")[1];
-    const binaryString = atob(base64Data);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    const fileName = `ai-generated/${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
-    
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("posts")
-      .upload(fileName, bytes, {
-        contentType: "image/png",
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.error("Storage upload error:", uploadError);
-      return new Response(
-        JSON.stringify({ error: "Failed to save generated image" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Get public URL
-    const { data: urlData } = supabase.storage.from("posts").getPublicUrl(fileName);
-
-    console.log("AI content generated and uploaded:", urlData.publicUrl);
-
+    // Return the base64 image directly - no storage upload needed
     return new Response(
       JSON.stringify({ 
         success: true,
-        imageUrl: urlData.publicUrl,
+        imageUrl: imageUrl,
         message: "AI content generated successfully!"
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
