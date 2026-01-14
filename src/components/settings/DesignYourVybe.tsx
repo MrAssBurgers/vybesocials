@@ -16,11 +16,11 @@ import {
 import { cn } from '@/lib/utils';
 
 const PRESET_INFO: Record<string, { name: string; description: string; icon: string }> = {
-  classic: { name: 'Classic VYBE', description: 'The original purple aesthetic', icon: '💜' },
-  midnight: { name: 'Midnight', description: 'Deep blues and cool tones', icon: '🌙' },
-  neon: { name: 'Neon', description: 'Vibrant cyberpunk colors', icon: '⚡' },
-  soft: { name: 'Soft', description: 'Gentle pastel palette', icon: '🌸' },
-  cyberpunk: { name: 'Cyberpunk', description: 'High contrast yellow & pink', icon: '🤖' },
+  classic: { name: 'Classic VYBE', description: 'Pink & cyan neon vibes', icon: '💜' },
+  midnight: { name: 'Midnight', description: 'Deep ocean blues', icon: '🌙' },
+  neon: { name: 'Neon', description: 'Electric purple glow', icon: '⚡' },
+  soft: { name: 'Soft', description: 'Warm pastel comfort', icon: '🌸' },
+  cyberpunk: { name: 'Cyberpunk', description: 'Yellow & pink future', icon: '🤖' },
   minimal: { name: 'Minimal', description: 'Clean black & white', icon: '⬛' },
 };
 
@@ -182,7 +182,8 @@ export function DesignYourVybe() {
                       <div 
                         className="w-10 h-10 rounded-lg flex items-center justify-center text-lg"
                         style={{ 
-                          background: `hsl(${preset.colorPrimary})`,
+                          background: `linear-gradient(135deg, hsl(${preset.bgMain}), hsl(${preset.bgCard}))`,
+                          border: `2px solid hsl(${preset.colorPrimary})`,
                         }}
                       >
                         {info.icon}
@@ -195,20 +196,22 @@ export function DesignYourVybe() {
                       </div>
                     </div>
                     
-                    {/* Color preview */}
-                    <div className="flex gap-1 mt-3">
-                      <div 
-                        className="h-2 flex-1 rounded-full"
-                        style={{ background: `hsl(${preset.colorPrimary})` }}
-                      />
-                      <div 
-                        className="h-2 flex-1 rounded-full"
-                        style={{ background: `hsl(${preset.colorSecondary})` }}
-                      />
-                      <div 
-                        className="h-2 flex-1 rounded-full"
-                        style={{ background: `hsl(${preset.colorAccent})` }}
-                      />
+                    {/* Full color preview showing background + accents */}
+                    <div className="mt-3 p-2 rounded-lg" style={{ background: `hsl(${preset.bgMain})` }}>
+                      <div className="flex gap-1">
+                        <div 
+                          className="h-3 flex-1 rounded-full"
+                          style={{ background: `hsl(${preset.colorPrimary})` }}
+                        />
+                        <div 
+                          className="h-3 flex-1 rounded-full"
+                          style={{ background: `hsl(${preset.colorSecondary})` }}
+                        />
+                        <div 
+                          className="h-3 flex-1 rounded-full"
+                          style={{ background: `hsl(${preset.colorAccent})` }}
+                        />
+                      </div>
                     </div>
                     
                     {/* Mode indicator */}
