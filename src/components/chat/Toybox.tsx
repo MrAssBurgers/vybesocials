@@ -15,8 +15,10 @@ import {
   Pin,
   Clock,
   Settings,
-  Sparkles
+  Sparkles,
+  Shield
 } from 'lucide-react';
+import { useUserRole } from '@/hooks/useModeration';
 import { Button } from '@/components/ui/button';
 import { 
   Popover,
@@ -46,6 +48,7 @@ interface ToyboxProps {
   onOpenMemoryPins?: () => void;
   onOpenScheduleMessage?: () => void;
   onOpenDMSettings?: () => void;
+  onOpenAdminPanel?: () => void;
 }
 
 const STICKERS = ['😀', '😂', '🥰', '😎', '🔥', '💯', '🎉', '❤️', '👍', '🙌', '💪', '✨'];
@@ -63,7 +66,10 @@ export const Toybox = memo(function Toybox({
   onOpenMemoryPins,
   onOpenScheduleMessage,
   onOpenDMSettings,
+  onOpenAdminPanel,
 }: ToyboxProps) {
+  const { data: userRole } = useUserRole();
+  const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
@@ -187,9 +193,17 @@ export const Toybox = memo(function Toybox({
       onClick: () => handleDMFeatureClick(onOpenDMSettings),
       color: 'text-gray-500',
     },
+    // Admin panel - only shown for admins/mods
+    ...(isModOrAdmin && onOpenAdminPanel ? [{
+      icon: Shield,
+      label: 'Admin Panel',
+      description: 'Warn, ban, or meme ban 🛡️',
+      onClick: () => handleDMFeatureClick(onOpenAdminPanel),
+      color: 'text-red-500',
+    }] : []),
   ];
 
-  const hasDMFeatures = onOpenVanishThreads || onOpenMemoryPins || onOpenScheduleMessage || onOpenDMSettings;
+  const hasDMFeatures = onOpenVanishThreads || onOpenMemoryPins || onOpenScheduleMessage || onOpenDMSettings || (isModOrAdmin && onOpenAdminPanel);
 
   const ToyboxContent = (
     <div className="p-4 max-h-[70vh] overflow-y-auto">

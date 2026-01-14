@@ -45,6 +45,7 @@ import { ChatPresenceIndicator } from './ChatPresenceIndicator';
 import { AIAssistButton } from './AIAssistButton';
 import { SmartRepliesBar } from './SmartRepliesBar';
 import { ChatSummarySheet } from './ChatSummarySheet';
+import { AdminPanelSheet } from './AdminPanelSheet';
 
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
@@ -140,6 +141,7 @@ export function ChatView() {
   const [showDMSettings, setShowDMSettings] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [showMediaSettings, setShowMediaSettings] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -667,6 +669,16 @@ export function ChatView() {
         <ScheduleMessageSheet conversationId={conversationId!} open={showScheduleMessage} onOpenChange={setShowScheduleMessage} />
         <DMSettingsSheetControlled conversationId={conversationId!} open={showDMSettings} onOpenChange={setShowDMSettings} />
         
+        {/* Admin Panel Sheet - for moderating users in DMs */}
+        {!isGroupChat && otherMember && (
+          <AdminPanelSheet
+            open={showAdminPanel}
+            onOpenChange={setShowAdminPanel}
+            userId={otherMember.id}
+            username={otherMember.username || 'User'}
+          />
+        )}
+        
         {/* Group Info Sheet */}
         {isGroupChat && (
           <GroupInfoSheet
@@ -859,6 +871,7 @@ export function ChatView() {
             onOpenMemoryPins={() => setShowMemoryPins(true)}
             onOpenScheduleMessage={() => setShowScheduleMessage(true)}
             onOpenDMSettings={() => setShowDMSettings(true)}
+            onOpenAdminPanel={!isGroupChat ? () => setShowAdminPanel(true) : undefined}
             presentUsers={presentUsers}
             typingUserIds={typingUsers}
           />
@@ -889,6 +902,7 @@ export function ChatView() {
           onOpenMemoryPins={() => setShowMemoryPins(true)}
           onOpenScheduleMessage={() => setShowScheduleMessage(true)}
           onOpenDMSettings={() => setShowDMSettings(true)}
+          onOpenAdminPanel={!isGroupChat ? () => setShowAdminPanel(true) : undefined}
           presentUsers={presentUsers}
           typingUserIds={typingUsers}
         />
@@ -923,6 +937,7 @@ const MessageInputArea = memo(function MessageInputArea({
   onOpenMemoryPins,
   onOpenScheduleMessage,
   onOpenDMSettings,
+  onOpenAdminPanel,
   presentUsers,
   typingUserIds,
 }: {
@@ -950,6 +965,7 @@ const MessageInputArea = memo(function MessageInputArea({
   onOpenMemoryPins?: () => void;
   onOpenScheduleMessage?: () => void;
   onOpenDMSettings?: () => void;
+  onOpenAdminPanel?: () => void;
   presentUsers?: { user_id: string; username: string; avatar_url: string | null; display_name: string | null; is_typing: boolean }[];
   typingUserIds?: string[];
 }) {
@@ -1016,6 +1032,7 @@ const MessageInputArea = memo(function MessageInputArea({
               onOpenMemoryPins={onOpenMemoryPins}
               onOpenScheduleMessage={onOpenScheduleMessage}
               onOpenDMSettings={onOpenDMSettings}
+              onOpenAdminPanel={onOpenAdminPanel}
             />
 
             <DropdownMenu open={showViewModeMenu} onOpenChange={setShowViewModeMenu}>
