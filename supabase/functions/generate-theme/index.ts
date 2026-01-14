@@ -29,6 +29,12 @@ interface ThemeTokens {
   neonCyan?: string;
   animationSpeed?: "slow" | "normal" | "fast" | "instant";
   animationStyle?: "smooth" | "bouncy" | "snappy" | "none";
+  // Background image and effects
+  backgroundImage?: string;
+  backgroundEffect?: "none" | "particles" | "stars" | "bubbles" | "aurora" | "rain" | "snow" | "fireflies" | "geometric";
+  backgroundOverlay?: string;
+  backgroundBlur?: number;
+  backgroundOpacity?: number;
 }
 
 const THEME_PRESETS: Record<string, ThemeTokens> = {
@@ -172,6 +178,94 @@ const THEME_PRESETS: Record<string, ThemeTokens> = {
   },
 };
 
+// Background image URLs for different moods
+const BACKGROUND_IMAGES: Record<string, string[]> = {
+  ocean: [
+    "https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=1920&q=80",
+    "https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=1920&q=80",
+  ],
+  space: [
+    "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1920&q=80",
+    "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1920&q=80",
+  ],
+  forest: [
+    "https://images.unsplash.com/photo-1448375240586-882707db888b?w=1920&q=80",
+    "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=1920&q=80",
+  ],
+  sunset: [
+    "https://images.unsplash.com/photo-1495344517868-8ebaf0a2044a?w=1920&q=80",
+    "https://images.unsplash.com/photo-1472120435266-53107fd0c44a?w=1920&q=80",
+  ],
+  city: [
+    "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1920&q=80",
+    "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=1920&q=80",
+  ],
+  mountains: [
+    "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920&q=80",
+    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80",
+  ],
+  aurora: [
+    "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1920&q=80",
+    "https://images.unsplash.com/photo-1483347756197-71ef80e95f73?w=1920&q=80",
+  ],
+  flowers: [
+    "https://images.unsplash.com/photo-1490750967868-88aa4486c946?w=1920&q=80",
+    "https://images.unsplash.com/photo-1518882605630-8df77e4bf24f?w=1920&q=80",
+  ],
+  abstract: [
+    "https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=1920&q=80",
+    "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1920&q=80",
+  ],
+  neon: [
+    "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1920&q=80",
+    "https://images.unsplash.com/photo-1550684376-efcbd6e3f031?w=1920&q=80",
+  ],
+};
+
+function getBackgroundForMood(prompt: string): { image?: string; effect?: string } {
+  const lowerPrompt = prompt.toLowerCase();
+  
+  // Check for mood keywords and assign backgrounds/effects
+  if (lowerPrompt.includes("ocean") || lowerPrompt.includes("sea") || lowerPrompt.includes("water") || lowerPrompt.includes("beach")) {
+    return { image: BACKGROUND_IMAGES.ocean[Math.floor(Math.random() * BACKGROUND_IMAGES.ocean.length)], effect: "bubbles" };
+  }
+  if (lowerPrompt.includes("space") || lowerPrompt.includes("galaxy") || lowerPrompt.includes("cosmic") || lowerPrompt.includes("star")) {
+    return { image: BACKGROUND_IMAGES.space[Math.floor(Math.random() * BACKGROUND_IMAGES.space.length)], effect: "stars" };
+  }
+  if (lowerPrompt.includes("forest") || lowerPrompt.includes("nature") || lowerPrompt.includes("tree") || lowerPrompt.includes("green")) {
+    return { image: BACKGROUND_IMAGES.forest[Math.floor(Math.random() * BACKGROUND_IMAGES.forest.length)], effect: "fireflies" };
+  }
+  if (lowerPrompt.includes("sunset") || lowerPrompt.includes("sunrise") || lowerPrompt.includes("golden")) {
+    return { image: BACKGROUND_IMAGES.sunset[Math.floor(Math.random() * BACKGROUND_IMAGES.sunset.length)], effect: "particles" };
+  }
+  if (lowerPrompt.includes("city") || lowerPrompt.includes("urban") || lowerPrompt.includes("night") || lowerPrompt.includes("cyberpunk")) {
+    return { image: BACKGROUND_IMAGES.city[Math.floor(Math.random() * BACKGROUND_IMAGES.city.length)], effect: "geometric" };
+  }
+  if (lowerPrompt.includes("mountain") || lowerPrompt.includes("alpine") || lowerPrompt.includes("snow")) {
+    return { image: BACKGROUND_IMAGES.mountains[Math.floor(Math.random() * BACKGROUND_IMAGES.mountains.length)], effect: "snow" };
+  }
+  if (lowerPrompt.includes("aurora") || lowerPrompt.includes("northern lights")) {
+    return { image: BACKGROUND_IMAGES.aurora[Math.floor(Math.random() * BACKGROUND_IMAGES.aurora.length)], effect: "aurora" };
+  }
+  if (lowerPrompt.includes("flower") || lowerPrompt.includes("floral") || lowerPrompt.includes("garden") || lowerPrompt.includes("spring")) {
+    return { image: BACKGROUND_IMAGES.flowers[Math.floor(Math.random() * BACKGROUND_IMAGES.flowers.length)], effect: "particles" };
+  }
+  if (lowerPrompt.includes("abstract") || lowerPrompt.includes("art") || lowerPrompt.includes("creative")) {
+    return { image: BACKGROUND_IMAGES.abstract[Math.floor(Math.random() * BACKGROUND_IMAGES.abstract.length)], effect: "geometric" };
+  }
+  if (lowerPrompt.includes("neon") || lowerPrompt.includes("glow") || lowerPrompt.includes("electric")) {
+    return { image: BACKGROUND_IMAGES.neon[Math.floor(Math.random() * BACKGROUND_IMAGES.neon.length)], effect: "particles" };
+  }
+  if (lowerPrompt.includes("rain") || lowerPrompt.includes("storm")) {
+    return { effect: "rain" };
+  }
+  if (lowerPrompt.includes("winter") || lowerPrompt.includes("christmas") || lowerPrompt.includes("cold")) {
+    return { effect: "snow" };
+  }
+  
+  return {};
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -186,6 +280,9 @@ serve(async (req) => {
     }
 
     const baseTheme = THEME_PRESETS[basePreset] || THEME_PRESETS.classic;
+    
+    // Get background suggestion based on prompt
+    const bgSuggestion = getBackgroundForMood(prompt);
 
     const systemPrompt = `You are a UI theme designer for a social media app called VYBE. 
 Your task is to interpret natural language descriptions and generate COMPLETE, IMMERSIVE color themes AND animation settings that transform the ENTIRE app.
@@ -199,11 +296,23 @@ When a user describes something like "ocean vibes", "forest theme", or "pink aes
 - Accent and highlight colors
 - Text colors (while maintaining readability)
 - Animation speed and style that matches the mood
+- Background effects that enhance the atmosphere
 
 ANIMATION RULES:
 - animationSpeed: "slow" for calm/relaxed vibes, "normal" for balanced, "fast" for energetic, "instant" for snappy/tech
 - animationStyle: "smooth" for elegant, "bouncy" for playful, "snappy" for modern/tech, "none" for minimal
 - Match animations to the mood: ocean/calm = slow+smooth, cyberpunk = fast+snappy, cute/playful = normal+bouncy
+
+BACKGROUND EFFECTS (choose ONE that matches the vibe):
+- "none" - no effect (minimal themes)
+- "particles" - floating particles (general ambient)
+- "stars" - twinkling stars (space/night themes)
+- "bubbles" - floating bubbles (ocean/water themes)
+- "aurora" - northern lights effect (ethereal themes)
+- "rain" - rain drops (moody/rainy themes)
+- "snow" - snowflakes (winter/cold themes)
+- "fireflies" - glowing fireflies (nature/forest themes)
+- "geometric" - geometric shapes (modern/tech themes)
 
 CRITICAL RULES:
 1. All colors MUST be in HSL format: "hue saturation% lightness%" (e.g., "262 83% 58%")
@@ -215,8 +324,10 @@ CRITICAL RULES:
 7. Glass backgrounds should be slightly lighter/more saturated than bgMain
 8. Gradient colors should create smooth transitions matching the vibe
 9. neonPink, neonPurple, neonCyan are for glows and highlights - match the theme
+10. backgroundOpacity: 20-50 for subtle, 50-70 for medium, 70-100 for strong image presence
+11. backgroundBlur: 0-5 for sharp, 5-10 for soft, 10-20 for very blurred
 
-Example: For "ocean theme" - use deep blues, teals, and aqua accents. ALL backgrounds should be oceanic, slow+smooth animations.
+Example: For "ocean theme" - use deep blues, teals, and aqua accents. ALL backgrounds should be oceanic, slow+smooth animations, bubbles effect.
 
 Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
 
@@ -230,14 +341,14 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Transform the ENTIRE app to match: "${prompt}". Change backgrounds, cards, sidebar, inputs, borders, AND pick appropriate animation speed+style that matches this vibe. EVERYTHING should match this mood.` },
+          { role: "user", content: `Transform the ENTIRE app to match: "${prompt}". Change backgrounds, cards, sidebar, inputs, borders, pick appropriate animation speed+style AND a background effect that matches this vibe. EVERYTHING should match this mood.` },
         ],
         tools: [
           {
             type: "function",
             function: {
               name: "generate_theme",
-              description: "Generate a complete immersive UI theme with animation settings",
+              description: "Generate a complete immersive UI theme with animation settings and background effects",
               parameters: {
                 type: "object",
                 properties: {
@@ -265,6 +376,10 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
                   themeName: { type: "string", description: "Creative 2-3 word theme name" },
                   animationSpeed: { type: "string", enum: ["slow", "normal", "fast", "instant"], description: "Animation speed: slow for calm, normal for balanced, fast for energetic, instant for snappy" },
                   animationStyle: { type: "string", enum: ["smooth", "bouncy", "snappy", "none"], description: "Animation style: smooth for elegant, bouncy for playful, snappy for modern, none for minimal" },
+                  backgroundEffect: { type: "string", enum: ["none", "particles", "stars", "bubbles", "aurora", "rain", "snow", "fireflies", "geometric"], description: "Background visual effect that matches the theme mood" },
+                  backgroundOverlay: { type: "string", description: "Overlay color for background image (HSL) - should match bgMain for cohesion" },
+                  backgroundOpacity: { type: "number", description: "Background image opacity 0-100 (30 = subtle, 50 = balanced, 70+ = prominent)" },
+                  backgroundBlur: { type: "number", description: "Background image blur 0-20 (0 = sharp, 10 = soft)" },
                 },
                 required: [
                   "colorPrimary", "colorSecondary", "colorAccent",
@@ -273,7 +388,7 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
                   "textPrimary", "textSecondary", "borderColor",
                   "neonPink", "neonPurple", "neonCyan",
                   "borderRadius", "mode", "themeName",
-                  "animationSpeed", "animationStyle"
+                  "animationSpeed", "animationStyle", "backgroundEffect"
                 ],
               },
             },
@@ -340,6 +455,14 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
       animationStyle: ["smooth", "bouncy", "snappy", "none"].includes(theme.animationStyle)
         ? theme.animationStyle
         : "smooth",
+      // Background image and effects
+      backgroundImage: bgSuggestion.image || undefined,
+      backgroundEffect: ["none", "particles", "stars", "bubbles", "aurora", "rain", "snow", "fireflies", "geometric"].includes(theme.backgroundEffect)
+        ? theme.backgroundEffect
+        : (bgSuggestion.effect || "none"),
+      backgroundOverlay: validateHSL(theme.backgroundOverlay) || undefined,
+      backgroundOpacity: typeof theme.backgroundOpacity === "number" ? Math.min(100, Math.max(0, theme.backgroundOpacity)) : 35,
+      backgroundBlur: typeof theme.backgroundBlur === "number" ? Math.min(20, Math.max(0, theme.backgroundBlur)) : 0,
     };
 
     return new Response(JSON.stringify({ theme: sanitizedTheme }), {

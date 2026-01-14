@@ -31,6 +31,12 @@ export interface ThemeTokens {
   // Animation settings
   animationSpeed?: 'slow' | 'normal' | 'fast' | 'instant';
   animationStyle?: 'smooth' | 'bouncy' | 'snappy' | 'none';
+  // Background image and effects (AI-generated)
+  backgroundImage?: string; // URL to background image
+  backgroundEffect?: 'none' | 'particles' | 'stars' | 'bubbles' | 'aurora' | 'rain' | 'snow' | 'fireflies' | 'geometric';
+  backgroundOverlay?: string; // HSL color for overlay
+  backgroundBlur?: number; // 0-20 blur amount
+  backgroundOpacity?: number; // 0-100 opacity of bg image
 }
 
 export const THEME_PRESETS: Record<string, ThemeTokens> = {
@@ -445,6 +451,25 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     root.dataset.animSpeed = animSpeed;
     root.dataset.animStyle = animStyle;
     
+    // === BACKGROUND IMAGE & EFFECTS ===
+    root.dataset.bgEffect = tokens.backgroundEffect || 'none';
+    
+    if (tokens.backgroundImage) {
+      root.style.setProperty('--bg-image', `url(${tokens.backgroundImage})`);
+      root.style.setProperty('--bg-image-opacity', String((tokens.backgroundOpacity ?? 30) / 100));
+      root.style.setProperty('--bg-image-blur', `${tokens.backgroundBlur ?? 0}px`);
+    } else {
+      root.style.removeProperty('--bg-image');
+      root.style.removeProperty('--bg-image-opacity');
+      root.style.removeProperty('--bg-image-blur');
+    }
+    
+    if (tokens.backgroundOverlay) {
+      root.style.setProperty('--bg-overlay', safeHSL(tokens.backgroundOverlay, '0 0% 0%'));
+    } else {
+      root.style.removeProperty('--bg-overlay');
+    }
+    
     // === LIGHT MODE SPECIFIC ===
     if (tokens.mode === 'light') {
       root.style.setProperty('--light-bg-start', gradientFrom);
@@ -452,9 +477,35 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     }
     
     // === UPDATE BODY BACKGROUND DIRECTLY ===
-    // This ensures the gradient background changes too
-    const bodyGradient = `linear-gradient(160deg, hsl(${gradientFrom}) 0%, hsl(${gradientMid}) 50%, hsl(${gradientTo}) 100%)`;
-    document.body.style.background = bodyGradient;
+    // Build background with optional image
+    let bodyBackground = '';
+    
+    if (tokens.backgroundImage) {
+      const opacity = (tokens.backgroundOpacity ?? 30) / 100;
+      const blur = tokens.backgroundBlur ?? 0;
+      const overlayColor = tokens.backgroundOverlay 
+        ? `hsl(${safeHSL(tokens.backgroundOverlay, bgMain)} / 0.6)` 
+        : `hsl(${bgMain} / 0.7)`;
+      
+      // Layer: overlay gradient on top of image
+      bodyBackground = `
+        linear-gradient(160deg, ${overlayColor} 0%, ${overlayColor} 100%),
+        url(${tokens.backgroundImage})
+      `;
+      document.body.style.backgroundSize = 'cover, cover';
+      document.body.style.backgroundPosition = 'center, center';
+      document.body.style.backgroundRepeat = 'no-repeat, no-repeat';
+      document.body.style.backgroundAttachment = 'fixed, fixed';
+    } else {
+      // Standard gradient background
+      bodyBackground = `linear-gradient(160deg, hsl(${gradientFrom}) 0%, hsl(${gradientMid}) 50%, hsl(${gradientTo}) 100%)`;
+      document.body.style.backgroundSize = '';
+      document.body.style.backgroundPosition = '';
+      document.body.style.backgroundRepeat = '';
+      document.body.style.backgroundAttachment = '';
+    }
+    
+    document.body.style.background = bodyBackground;
     document.body.style.transition = 'background 0.4s ease';
     
     // === MODE CLASS ===
