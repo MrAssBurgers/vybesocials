@@ -889,9 +889,58 @@ export function GlobalCallOverlay() {
     setIsMinimized(true);
   }, []);
 
-  const handleExpand = useCallback(() => {
+  const handleExpand = useCallback(async () => {
     setIsMinimized(false);
-  }, []);
+    
+    // Re-attach video tracks after a short delay to ensure elements are visible
+    const daily = dailyRef.current;
+    if (!daily || state.call?.callType !== 'video') return;
+    
+    // Give React time to render the video elements
+    await new Promise(r => setTimeout(r, 100));
+    
+    try {
+      // Refresh local video
+      const participants = daily.participants();
+      const local = participants?.local;
+      
+      if (local && localVideoRef.current) {
+        const videoTrack = local.tracks?.video?.persistentTrack || local.tracks?.video?.track;
+        if (videoTrack && local.video) {
+          const stream = new MediaStream([videoTrack]);
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.play().catch(() => {});
+          setHasLocalVideo(true);
+          console.log('[CallOverlay] Re-attached local video after expand');
+        }
+      }
+      
+      // Refresh remote video
+      Object.values(participants).forEach((p: any) => {
+        if (!p.local && remoteVideoRef.current) {
+          const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
+          const trackState = p.tracks?.video?.state;
+          const isPlayable = trackState === 'playable' || trackState === 'loading';
+          
+          if (videoTrack && isPlayable) {
+            const stream = new MediaStream([videoTrack]);
+            remoteVideoRef.current.srcObject = stream;
+            remoteVideoRef.current.play().catch(() => {});
+            setHasRemoteVideo(true);
+            console.log('[CallOverlay] Re-attached remote video after expand');
+          }
+        }
+      });
+      
+      // Ensure audio is playing
+      if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
+        remoteAudioRef.current.muted = false;
+        remoteAudioRef.current.play().catch(() => {});
+      }
+    } catch (err) {
+      console.error('[CallOverlay] Error re-attaching tracks after expand:', err);
+    }
+  }, [state.call?.callType]);
 
   // Reset minimize state when call ends
   useEffect(() => {
@@ -903,9 +952,18 @@ export function GlobalCallOverlay() {
   return (
     <>
       {/* CRITICAL: Always keep audio/video elements mounted during active call (even when minimized)
-          This ensures the call continues working in background */}
+          This ensures the call continues working in background - camera stays on for other person */}
       {isVisible && !isRinging && (
-        <div className="fixed pointer-events-none" style={{ opacity: 0, position: 'fixed', left: -9999, top: -9999 }}>
+        <div 
+          className="fixed pointer-events-none" 
+          style={{ 
+            opacity: isMinimized ? 0 : undefined, 
+            position: isMinimized ? 'fixed' : undefined, 
+            left: isMinimized ? -9999 : undefined, 
+            top: isMinimized ? -9999 : undefined,
+            zIndex: isMinimized ? -1 : undefined
+          }}
+        >
           {/* Remote audio - ALWAYS mounted for audio to work */}
           <audio 
             ref={remoteAudioRef} 
@@ -913,6 +971,28 @@ export function GlobalCallOverlay() {
             playsInline
             style={{ display: 'none' }}
           />
+          
+          {/* Hidden video elements that stay mounted when minimized - keeps camera active for other person */}
+          {isMinimized && isVideoCall && (
+            <div style={{ position: 'absolute', left: -9999, top: -9999, width: 1, height: 1, overflow: 'hidden' }}>
+              {/* Local video - keeps broadcasting to other person */}
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{ width: 1, height: 1 }}
+              />
+              {/* Remote video - keeps receiving from other person */}
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{ width: 1, height: 1 }}
+              />
+            </div>
+          )}
         </div>
       )}
 
