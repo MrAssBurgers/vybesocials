@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Palette, Sparkles, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon, Share2, Zap, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -132,15 +133,26 @@ export function DesignYourVybe() {
         basePreset: selectedPreset,
       });
       
-      if (theme && typeof theme === 'object' && theme.colorPrimary) {
-        setPreviewTheme(theme);
+      // Validate theme has required properties
+      if (theme && typeof theme === 'object' && 'colorPrimary' in theme && theme.colorPrimary) {
+        const themeWithAnimations = {
+          ...theme,
+          animationSpeed,
+          animationStyle,
+        };
+        setPreviewTheme(themeWithAnimations);
         setGeneratedName(theme.themeName || 'Custom Theme');
-        applyThemeTokens(theme);
+        applyThemeTokens(themeWithAnimations);
         setShowConfirmation(true);
+      } else {
+        console.error('Invalid theme response:', theme);
+        toast.error('Generated theme was invalid. Please try again.');
       }
     } catch (error) {
       console.error('Error generating theme:', error);
+      // Error toast is already shown by the mutation's onError
     } finally {
+      // Always ensure loading state is cleared
       setIsGenerating(false);
     }
   };
