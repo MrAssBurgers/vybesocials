@@ -1523,3 +1523,52 @@ img, video, picture, svg, canvas {
     margin: 0.5rem;
   }
 }
+
+/* ========================================
+   PERFORMANCE OPTIMIZATIONS
+   GPU acceleration & reduced paint
+   ======================================== */
+
+/* Enable hardware acceleration for animated elements */
+.liquid-glass-card,
+.glass-card,
+[class*="animate-"],
+[class*="transition-"] {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Optimize scrolling containers */
+.scrollbar-hide,
+[class*="overflow-"] {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Reduce paint on hover states */
+button, a, [role="button"] {
+  contain: layout style;
+}
+
+/* Content containment for cards */
+article, .post-card, .card {
+  contain: content;
+}
+
+/* Optimize images */
+img, video {
+  content-visibility: auto;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

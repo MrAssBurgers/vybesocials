@@ -209,10 +209,11 @@ export function useUnreadCount() {
       return count || 0;
     },
     enabled: !!profile,
-    staleTime: 30000, // Cache longer
-    gcTime: 1000 * 60 * 5,
-    refetchInterval: 30000, // Less frequent polling
+    staleTime: 60000, // Cache for 1 minute
+    gcTime: 1000 * 60 * 10,
+    refetchInterval: 60000, // Poll every minute instead of 30s
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 }
 

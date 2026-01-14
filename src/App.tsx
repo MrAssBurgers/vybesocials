@@ -61,17 +61,18 @@ const Watch = lazy(() => import("./pages/Watch"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes - reduce refetches
-      gcTime: 1000 * 60 * 30, // 30 minutes cache
+      staleTime: 1000 * 60 * 10, // 10 minutes - significantly reduce refetches
+      gcTime: 1000 * 60 * 60, // 1 hour cache
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
-      retry: 1, // Only retry once
-      retryDelay: 1000,
-      networkMode: 'offlineFirst', // Prefer cached data
+      retry: 1,
+      retryDelay: 500,
+      networkMode: 'offlineFirst',
+      structuralSharing: true,
     },
     mutations: {
-      retry: 0, // Don't retry mutations
+      retry: 0,
       networkMode: 'offlineFirst',
     },
   },
@@ -130,10 +131,10 @@ const App = memo(() => {
   useAutoUpdate();
 
   useEffect(() => {
-    // Faster splash - 800ms
+    // Ultra-fast splash - 400ms
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 800);
+    }, 400);
 
     return () => clearTimeout(timer);
   }, []);
