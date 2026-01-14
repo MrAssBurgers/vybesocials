@@ -69,6 +69,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [viewCount, setViewCount] = useState(post.view_count || 0);
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
+  const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
   const hasCountedView = useRef(false);
   const lastTapTime = useRef(0);
 
@@ -507,6 +508,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
                 postId={post.id}
                 onWarnClick={() => setWarnDialogOpen(true)}
                 onBanClick={() => setBanDialogOpen(true)}
+                onMemeBanClick={() => setMemeBanDialogOpen(true)}
               />
             )}
           </DropdownMenuContent>
@@ -520,6 +522,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           setWarnDialogOpen={setWarnDialogOpen}
           banDialogOpen={banDialogOpen}
           setBanDialogOpen={setBanDialogOpen}
+          memeBanDialogOpen={memeBanDialogOpen}
+          setMemeBanDialogOpen={setMemeBanDialogOpen}
         />
       </div>
 

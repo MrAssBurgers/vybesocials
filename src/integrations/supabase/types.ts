@@ -3208,6 +3208,7 @@ export type Database = {
           created_at: string
           expires_at: string | null
           id: string
+          is_meme_ban: boolean | null
           is_permanent: boolean
           reason: string
           user_id: string
@@ -3217,6 +3218,7 @@ export type Database = {
           created_at?: string
           expires_at?: string | null
           id?: string
+          is_meme_ban?: boolean | null
           is_permanent?: boolean
           reason: string
           user_id: string
@@ -3226,6 +3228,7 @@ export type Database = {
           created_at?: string
           expires_at?: string | null
           id?: string
+          is_meme_ban?: boolean | null
           is_permanent?: boolean
           reason?: string
           user_id?: string
@@ -3477,6 +3480,8 @@ export type Database = {
       }
       user_warnings: {
         Row: {
+          acknowledged: boolean | null
+          acknowledged_at: string | null
           created_at: string
           id: string
           reason: string
@@ -3484,6 +3489,8 @@ export type Database = {
           warned_by: string
         }
         Insert: {
+          acknowledged?: boolean | null
+          acknowledged_at?: string | null
           created_at?: string
           id?: string
           reason: string
@@ -3491,6 +3498,8 @@ export type Database = {
           warned_by: string
         }
         Update: {
+          acknowledged?: boolean | null
+          acknowledged_at?: string | null
           created_at?: string
           id?: string
           reason?: string

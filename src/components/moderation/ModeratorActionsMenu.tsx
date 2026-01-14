@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, AlertTriangle, Ban } from 'lucide-react';
+import { Trash2, AlertTriangle, Ban, Laugh, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenuItem,
@@ -17,6 +17,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useUserRole } from '@/hooks/useModeration';
 import { useWarnUser, useBanUser } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
@@ -50,6 +57,7 @@ export function ModeratorMenuItems({
   onCommentDelete,
   onWarnClick,
   onBanClick,
+  onMemeBanClick,
 }: {
   userId: string;
   username: string;
@@ -59,6 +67,7 @@ export function ModeratorMenuItems({
   onCommentDelete?: () => void;
   onWarnClick: () => void;
   onBanClick: () => void;
+  onMemeBanClick: () => void;
 }) {
   const queryClient = useQueryClient();
 
@@ -122,11 +131,27 @@ export function ModeratorMenuItems({
         <Ban className="h-4 w-4 mr-2" />
         Ban User
       </DropdownMenuItem>
+      
+      <DropdownMenuItem onClick={onMemeBanClick} className="text-orange-500">
+        <Laugh className="h-4 w-4 mr-2" />
+        Meme Ban 😂
+      </DropdownMenuItem>
     </>
   );
 }
 
-// Dialogs component - renders the warn/ban dialogs
+// Time unit options for custom ban duration
+type TimeUnit = 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
+
+const timeUnitMultipliers: Record<TimeUnit, number> = {
+  minutes: 1 / (24 * 60),
+  hours: 1 / 24,
+  days: 1,
+  weeks: 7,
+  months: 30,
+};
+
+// Dialogs component - renders the warn/ban/meme-ban dialogs
 export function ModeratorDialogs({
   username,
   userId,
@@ -134,6 +159,8 @@ export function ModeratorDialogs({
   setWarnDialogOpen,
   banDialogOpen,
   setBanDialogOpen,
+  memeBanDialogOpen,
+  setMemeBanDialogOpen,
 }: {
   username: string;
   userId: string;
@@ -141,12 +168,15 @@ export function ModeratorDialogs({
   setWarnDialogOpen: (open: boolean) => void;
   banDialogOpen: boolean;
   setBanDialogOpen: (open: boolean) => void;
+  memeBanDialogOpen: boolean;
+  setMemeBanDialogOpen: (open: boolean) => void;
 }) {
   const warnUser = useWarnUser();
   const banUser = useBanUser();
   const [reason, setReason] = useState('');
   const [isPermanent, setIsPermanent] = useState(false);
-  const [banDays, setBanDays] = useState(7);
+  const [banAmount, setBanAmount] = useState(7);
+  const [banUnit, setBanUnit] = useState<TimeUnit>('days');
 
   const handleWarn = async () => {
     if (!reason.trim()) {
@@ -158,19 +188,48 @@ export function ModeratorDialogs({
     setReason('');
   };
 
+  const calculateDays = (amount: number, unit: TimeUnit): number => {
+    return amount * timeUnitMultipliers[unit];
+  };
+
   const handleBan = async () => {
     if (!reason.trim()) {
       toast.error('Please provide a reason');
       return;
     }
+    const durationDays = isPermanent ? undefined : calculateDays(banAmount, banUnit);
     await banUser.mutateAsync({ 
       userId, 
       reason, 
       isPermanent, 
-      durationDays: isPermanent ? undefined : banDays 
+      durationDays,
+      isMemeBan: false,
     });
     setBanDialogOpen(false);
     setReason('');
+    setBanAmount(7);
+    setBanUnit('days');
+    setIsPermanent(false);
+  };
+
+  const handleMemeBan = async () => {
+    if (!reason.trim()) {
+      toast.error('Please provide a reason');
+      return;
+    }
+    const durationDays = isPermanent ? undefined : calculateDays(banAmount, banUnit);
+    await banUser.mutateAsync({ 
+      userId, 
+      reason, 
+      isPermanent, 
+      durationDays,
+      isMemeBan: true,
+    });
+    setMemeBanDialogOpen(false);
+    setReason('');
+    setBanAmount(1);
+    setBanUnit('hours');
+    setIsPermanent(false);
   };
 
   return (
@@ -179,7 +238,10 @@ export function ModeratorDialogs({
       <Dialog open={warnDialogOpen} onOpenChange={setWarnDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Warn @{username}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Warn @{username}
+            </DialogTitle>
             <DialogDescription>
               Send a warning to this user about their behavior.
             </DialogDescription>
@@ -214,7 +276,10 @@ export function ModeratorDialogs({
       <Dialog open={banDialogOpen} onOpenChange={setBanDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ban @{username}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Ban className="h-5 w-5 text-destructive" />
+              Ban @{username}
+            </DialogTitle>
             <DialogDescription>
               This will prevent the user from accessing the platform.
             </DialogDescription>
@@ -239,15 +304,32 @@ export function ModeratorDialogs({
             </div>
             {!isPermanent && (
               <div className="space-y-2">
-                <Label htmlFor="ban-days">Ban Duration (days)</Label>
-                <Input
-                  id="ban-days"
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={banDays}
-                  onChange={(e) => setBanDays(parseInt(e.target.value) || 7)}
-                />
+                <Label className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Custom Ban Duration
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={banAmount}
+                    onChange={(e) => setBanAmount(parseInt(e.target.value) || 1)}
+                    className="w-24"
+                  />
+                  <Select value={banUnit} onValueChange={(v) => setBanUnit(v as TimeUnit)}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minutes">Minutes</SelectItem>
+                      <SelectItem value="hours">Hours</SelectItem>
+                      <SelectItem value="days">Days</SelectItem>
+                      <SelectItem value="weeks">Weeks</SelectItem>
+                      <SelectItem value="months">Months</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
           </div>
@@ -261,6 +343,82 @@ export function ModeratorDialogs({
               disabled={banUser.isPending}
             >
               {banUser.isPending ? 'Banning...' : 'Ban User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Meme Ban Dialog */}
+      <Dialog open={memeBanDialogOpen} onOpenChange={setMemeBanDialogOpen}>
+        <DialogContent className="border-orange-500/50">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-500">
+              <Laugh className="h-5 w-5" />
+              Meme Ban @{username} 😂
+            </DialogTitle>
+            <DialogDescription>
+              Give them the funny ban screen! They'll see a hilarious meme ban page.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="meme-ban-reason">Reason (shown on meme screen)</Label>
+              <Textarea
+                id="meme-ban-reason"
+                placeholder="Get rekt noob..."
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="meme-permanent">Permanent Meme Ban</Label>
+              <Switch
+                id="meme-permanent"
+                checked={isPermanent}
+                onCheckedChange={setIsPermanent}
+              />
+            </div>
+            {!isPermanent && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  How long should they suffer? 😈
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={banAmount}
+                    onChange={(e) => setBanAmount(parseInt(e.target.value) || 1)}
+                    className="w-24"
+                  />
+                  <Select value={banUnit} onValueChange={(v) => setBanUnit(v as TimeUnit)}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minutes">Minutes</SelectItem>
+                      <SelectItem value="hours">Hours</SelectItem>
+                      <SelectItem value="days">Days</SelectItem>
+                      <SelectItem value="weeks">Weeks</SelectItem>
+                      <SelectItem value="months">Months</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMemeBanDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleMemeBan} 
+              disabled={banUser.isPending}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              {banUser.isPending ? 'Banning...' : '😂 Meme Ban!'}
             </Button>
           </DialogFooter>
         </DialogContent>

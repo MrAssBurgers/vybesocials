@@ -149,15 +149,18 @@ export function useBanUser() {
       userId, 
       reason, 
       isPermanent = false, 
-      durationDays 
+      durationDays,
+      isMemeBan = false,
     }: { 
       userId: string; 
       reason: string; 
       isPermanent?: boolean;
       durationDays?: number;
+      isMemeBan?: boolean;
     }) => {
       if (!profile?.id) throw new Error('Not authenticated');
       
+      // Convert fractional days to proper timestamp
       const expiresAt = !isPermanent && durationDays 
         ? new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
         : null;
@@ -170,15 +173,16 @@ export function useBanUser() {
           reason,
           is_permanent: isPermanent,
           expires_at: expiresAt,
+          is_meme_ban: isMemeBan,
         });
       
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['user-bans'] });
       queryClient.invalidateQueries({ queryKey: ['all-bans'] });
       queryClient.invalidateQueries({ queryKey: ['is-banned'] });
-      toast.success('User banned successfully');
+      toast.success(variables.isMemeBan ? '😂 User meme banned!' : 'User banned successfully');
     },
     onError: () => {
       toast.error('Failed to ban user');
