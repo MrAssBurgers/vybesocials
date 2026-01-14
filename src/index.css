@@ -42,6 +42,7 @@
 
     --border: 240 10% 18%;
     --input: 240 10% 18%;
+    --input-foreground: 0 0% 98%;
     --ring: 330 100% 60%;
 
     /* Consistent radius scale */

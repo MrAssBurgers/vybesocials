@@ -16,6 +16,8 @@ export interface ThemeTokens {
   sidebarBg?: string;
   navBg?: string;
   inputBg?: string;
+  inputText?: string; // Text color inside input fields for proper contrast
+  buttonText?: string; // Text color on primary buttons for proper contrast
   glassBg?: string;
   glassBorder?: string;
   textPrimary: string;
@@ -404,15 +406,17 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     root.style.setProperty('--muted-foreground', safeHSL(tokens.textSecondary, defaultMuted));
     root.style.setProperty('--card-foreground', safeHSL(tokens.textPrimary, defaultText));
     root.style.setProperty('--popover-foreground', safeHSL(tokens.textPrimary, defaultText));
-    root.style.setProperty('--primary-foreground', tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%');
+    root.style.setProperty('--primary-foreground', safeHSL(tokens.buttonText, tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%'));
     root.style.setProperty('--secondary-foreground', safeHSL(tokens.textPrimary, defaultText));
     root.style.setProperty('--accent-foreground', tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%');
     
     // === BORDERS & INPUTS ===
     const borderColor = safeHSL(tokens.borderColor, tokens.mode === 'dark' ? '240 10% 18%' : '240 5% 85%');
     const inputBg = safeHSL(tokens.inputBg, borderColor);
+    const inputText = safeHSL(tokens.inputText, safeHSL(tokens.textPrimary, defaultText));
     root.style.setProperty('--border', borderColor);
     root.style.setProperty('--input', inputBg);
+    root.style.setProperty('--input-foreground', inputText);
     
     // === NEON/ACCENT COLORS ===
     root.style.setProperty('--neon-pink', safeHSL(tokens.neonPink, safeHSL(tokens.colorPrimary, defaultPrimary)));
