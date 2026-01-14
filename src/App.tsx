@@ -14,6 +14,7 @@ import { SplashScreen } from "@/components/ui/SplashScreen";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
+import { GlobalMessageNotifications } from "@/components/notifications/GlobalMessageNotifications";
 import { Skeleton } from "@/components/ui/skeleton";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
 import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
@@ -119,6 +120,7 @@ const App = memo(() => {
               <SplashScreen isVisible={showSplash} />
               <GlobalErrorHandler />
               <AuthProvider>
+                <GlobalMessageNotifications />
                 <EasterEggProvider>
                   <CallStoreProvider>
                     <TooltipProvider>
