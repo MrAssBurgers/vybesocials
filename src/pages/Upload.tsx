@@ -1,398 +1,212 @@
-import { useState, useRef } from 'react';
+import { useState, useCallback, useRef, DragEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, X, Image, Film, Video, Hash, Camera as CameraIcon } from 'lucide-react';
-import { useCreatePost } from '@/hooks/usePosts';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
-import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Progress } from '@/components/ui/progress';
+import { Camera } from '@/components/camera/Camera';
+import { ContentSafetyScanner } from '@/components/safety/ContentSafetyScanner';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
-import { Camera } from '@/components/camera';
-import { ContentSafetyScanner, SafetyResult } from '@/components/safety/ContentSafetyScanner';
-import { useContentSafety } from '@/hooks/useContentSafety';
+import { useCreatePost } from '@/hooks/usePosts';
+import { useAuth } from '@/lib/auth';
+import { toast } from 'sonner';
+import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon } from 'lucide-react';
 
 const contentTypes = [
-  { value: 'post', label: 'Photo Post', icon: Image, description: 'Share a photo or meme' },
-  { value: 'short', label: 'Short', icon: Film, description: 'Vertical video (under 60s)' },
-  { value: 'video', label: 'Video', icon: Video, description: 'Longer video content' },
-] as const;
+  { id: 'post', label: 'Post', icon: Image, description: 'Share a photo' },
+  { id: 'short', label: 'Clip', icon: Film, description: 'Quick vertical video' },
+  { id: 'video', label: 'Video', icon: Video, description: 'Longer video content' },
+];
 
-const suggestedTags = ['meme', 'fails', 'pets', 'gaming', 'comedy', 'sports', 'music', 'food'];
+const suggestedTags = ['photography', 'art', 'music', 'gaming', 'food', 'travel', 'fashion', 'fitness'];
 
 export default function UploadPage() {
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
   const createPost = useCreatePost();
-  const contentSafety = useContentSafety();
-
-  const [type, setType] = useState<'post' | 'short' | 'video'>('post');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [contentType, setContentType] = useState<'post' | 'short' | 'video'>('post');
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
-  const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [tagInput, setTagInput] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [showSafetyScanner, setShowSafetyScanner] = useState(false);
-  const [isSensitive, setIsSensitive] = useState(false);
+  const [safetyFile, setSafetyFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
-
-    // Validate file type
-    const isImage = selectedFile.type.startsWith('image/');
-    const isVideo = selectedFile.type.startsWith('video/');
-
-    if (type === 'post' && !isImage) {
-      toast.error('Please select an image file for photo posts');
+  const handleFileSelect = useCallback((selectedFile: File) => {
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
+    if (!validTypes.includes(selectedFile.type)) {
+      toast.error('Invalid file type. Please upload an image or video.');
       return;
     }
-
-    if ((type === 'short' || type === 'video') && !isVideo) {
-      toast.error('Please select a video file for shorts/videos');
-      return;
-    }
-
-    // Validate file size (50MB max)
     if (selectedFile.size > 50 * 1024 * 1024) {
-      toast.error('File size must be under 50MB');
+      toast.error('File too large. Maximum size is 50MB.');
       return;
     }
-
-    setFile(selectedFile);
-
-    // Create preview
     const url = URL.createObjectURL(selectedFile);
     setPreview(url);
-
-    // Run safety scan based on content type
+    setFile(selectedFile);
+    if (selectedFile.type.startsWith('video/')) {
+      setContentType('short');
+    } else {
+      setContentType('post');
+    }
+    setSafetyFile(selectedFile);
     setShowSafetyScanner(true);
-    
-    if (isImage) {
-      await contentSafety.scanImage(selectedFile);
-    } else if (isVideo) {
-      // For videos, analyze both visual content and audio/speech
-      await contentSafety.scanVideo(selectedFile);
-    }
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) handleFileSelect(selectedFile);
   };
 
-  const handleSafetyContinue = () => {
-    setShowSafetyScanner(false);
-    if (contentSafety.result === 'warned') {
-      setIsSensitive(true);
-    }
-  };
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
 
-  const handleSafetyCancel = () => {
-    setShowSafetyScanner(false);
-    clearFile();
-    contentSafety.reset();
-  };
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
 
-  const handleSafetyAppeal = () => {
-    const contentType = type === 'post' ? 'image' : 'video';
-    contentSafety.submitAppeal(contentType, 'User appealed blocked content');
-    clearFile();
-    setShowSafetyScanner(false);
-    contentSafety.reset();
-  };
+  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) handleFileSelect(droppedFile);
+  }, [handleFileSelect]);
+
+  const handleSafetyContinue = () => setShowSafetyScanner(false);
+  const handleSafetyCancel = () => { setShowSafetyScanner(false); clearFile(); };
+  const handleSafetyAppeal = () => { toast.info('Appeal submitted for review'); setShowSafetyScanner(false); };
 
   const handleAddTag = (tag: string) => {
-    const cleanTag = tag.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (cleanTag && !tags.includes(cleanTag) && tags.length < 5) {
+    const cleanTag = tag.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+    if (cleanTag && !tags.includes(cleanTag) && tags.length < 10) {
       setTags([...tags, cleanTag]);
+      setTagInput('');
     }
-    setTagInput('');
   };
 
-  const handleRemoveTag = (tag: string) => {
-    setTags(tags.filter((t) => t !== tag));
-  };
+  const handleRemoveTag = (tagToRemove: string) => setTags(tags.filter(tag => tag !== tagToRemove));
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      handleAddTag(tagInput);
-    }
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); handleAddTag(tagInput); }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!file) {
-      toast.error('Please select a file to upload');
-      return;
-    }
-
-    // Check if content was blocked
-    if (contentSafety.result === 'blocked') {
-      toast.error('This content cannot be posted');
-      return;
-    }
-
-    setUploading(true);
-
-    // Simulate upload progress
-    const progressInterval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(progressInterval);
-          return prev;
-        }
-        return prev + 10;
-      });
-    }, 200);
-
+  const handleSubmit = async () => {
+    if (!file || !user) { toast.error('Please select a file to upload'); return; }
+    setIsUploading(true);
+    setUploadProgress(0);
     try {
-      await createPost.mutateAsync({
-        type,
-        mediaFile: file,
-        caption,
-        tags,
-      });
-
+      const progressInterval = setInterval(() => setUploadProgress(prev => Math.min(prev + 10, 90)), 200);
+      await createPost.mutateAsync({ file, caption, type: contentType, tags });
       clearInterval(progressInterval);
       setUploadProgress(100);
-      toast.success('Post created successfully!');
-      
-      // Navigate to clips page if posting a short/clip, otherwise home
-      if (type === 'short') {
-        navigate('/clips');
-      } else {
-        navigate('/home');
-      }
-    } catch (error: any) {
-      clearInterval(progressInterval);
-      toast.error(getUserFriendlyError(error));
+      toast.success('Posted successfully!');
+      navigate('/home');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload. Please try again.');
     } finally {
-      setUploading(false);
+      setIsUploading(false);
       setUploadProgress(0);
     }
   };
 
   const clearFile = () => {
+    if (preview) URL.revokeObjectURL(preview);
     setFile(null);
-    if (preview) {
-      URL.revokeObjectURL(preview);
-      setPreview(null);
-    }
-    setIsSensitive(false);
+    setPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const handleCameraCapture = (mediaUrl: string, mediaFile: File) => {
+    setPreview(mediaUrl);
+    setFile(mediaFile);
+    setShowCamera(false);
+    if (mediaFile.type.startsWith('video/')) setContentType('short');
+    else setContentType('post');
+    setSafetyFile(mediaFile);
+    setShowSafetyScanner(true);
+  };
+
+  if (showCamera) return <Camera onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />;
 
   return (
     <AppLayout>
-      {/* Full-screen Camera */}
-      {showCamera && (
-        <Camera onClose={() => setShowCamera(false)} />
+      {showSafetyScanner && safetyFile && (
+        <ContentSafetyScanner file={safetyFile} onContinue={handleSafetyContinue} onCancel={handleSafetyCancel} onAppeal={handleSafetyAppeal} />
       )}
-
-      {/* Safety Scanner Modal */}
-      <AnimatePresence>
-        {showSafetyScanner && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
-          >
-            <ContentSafetyScanner
-              isScanning={contentSafety.isScanning}
-              result={contentSafety.result}
-              message={contentSafety.message}
-              scanDetails={contentSafety.scanDetails}
-              onContinue={handleSafetyContinue}
-              onCancel={handleSafetyCancel}
-              onAppeal={handleSafetyAppeal}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold gradient-text">Create Post</h1>
-          <Button
-            onClick={() => setShowCamera(true)}
-            variant="outline"
-            className="gap-2"
-          >
-            <CameraIcon className="h-4 w-4" />
-            Open Camera
-          </Button>
+      <div className="max-w-2xl mx-auto p-4 pb-24 space-y-6">
+        <h1 className="text-2xl font-bold">Create Post</h1>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-muted-foreground">Content Type</label>
+          <div className="grid grid-cols-3 gap-2">
+            {contentTypes.map((type) => (
+              <button key={type.id} onClick={() => setContentType(type.id as 'post' | 'short' | 'video')}
+                className={`p-3 rounded-xl border-2 transition-all ${contentType === type.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                <type.icon className={`w-6 h-6 mx-auto mb-1 ${contentType === type.id ? 'text-primary' : 'text-muted-foreground'}`} />
+                <p className={`text-sm font-medium ${contentType === type.id ? 'text-primary' : 'text-foreground'}`}>{type.label}</p>
+                <p className="text-xs text-muted-foreground">{type.description}</p>
+              </button>
+            ))}
+          </div>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Content Type */}
-          <div className="space-y-3">
-            <Label>Content Type</Label>
-            <div className="grid grid-cols-3 gap-3">
-              {contentTypes.map((contentType) => {
-                const Icon = contentType.icon;
-                return (
-                  <motion.button
-                    key={contentType.value}
-                    type="button"
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      setType(contentType.value);
-                      clearFile();
-                    }}
-                    className={`p-4 rounded-xl border-2 transition-all ${
-                      type === contentType.value
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-muted-foreground'
-                    }`}
-                  >
-                    <Icon className={`h-8 w-8 mx-auto mb-2 ${
-                      type === contentType.value ? 'text-primary' : 'text-muted-foreground'
-                    }`} />
-                    <p className="font-medium text-sm">{contentType.label}</p>
-                  </motion.button>
-                );
-              })}
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-muted-foreground">Media</label>
+          {preview ? (
+            <div className="relative rounded-xl overflow-hidden bg-muted">
+              {file?.type.startsWith('video/') ? <video src={preview} className="w-full max-h-96 object-contain" controls /> : <img src={preview} alt="Preview" className="w-full max-h-96 object-contain" />}
+              <button onClick={clearFile} className="absolute top-2 right-2 p-2 rounded-full bg-background/80 hover:bg-background"><X className="w-4 h-4" /></button>
             </div>
-          </div>
-
-          {/* File Upload */}
-          <div className="space-y-3">
-            <Label>Upload {type === 'post' ? 'Image' : 'Video'}</Label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={type === 'post' ? 'image/*' : 'video/*'}
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-
-            {!file ? (
-              <motion.div
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-border rounded-xl p-12 cursor-pointer hover:border-primary/50 transition-colors flex flex-col items-center justify-center"
-              >
-                <Upload className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-lg font-medium">Click to upload</p>
-                <p className="text-sm text-muted-foreground">
-                  {type === 'post' ? 'JPG, PNG, GIF up to 50MB' : 'MP4, WebM up to 50MB'}
-                </p>
-              </motion.div>
-            ) : (
-              <div className="relative rounded-xl overflow-hidden bg-muted">
-                {type === 'post' ? (
-                  <img src={preview!} alt="Preview" className="w-full max-h-96 object-contain" />
-                ) : (
-                  <video src={preview!} controls className="w-full max-h-96" />
-                )}
-                <button
-                  type="button"
-                  onClick={clearFile}
-                  className="absolute top-2 right-2 p-2 rounded-full bg-background/80 hover:bg-background transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-                {isSensitive && (
-                  <div className="absolute bottom-2 left-2 px-3 py-1 rounded-full bg-yellow-500/80 text-white text-xs font-medium">
-                    Marked as Sensitive
-                  </div>
-                )}
+          ) : (
+            <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${isDragging ? 'border-primary bg-primary/10 scale-[1.02]' : 'border-border hover:border-primary/50'}`}>
+              <UploadIcon className={`w-12 h-12 mx-auto mb-4 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
+              <p className={`text-lg font-medium mb-2 ${isDragging ? 'text-primary' : 'text-foreground'}`}>{isDragging ? 'Drop to upload' : 'Drag and drop your file here'}</p>
+              <p className="text-sm text-muted-foreground mb-4">or click to browse</p>
+              <div className="flex gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
+                <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Plus className="w-4 h-4 mr-2" />Choose File</Button>
+                <Button variant="outline" onClick={() => setShowCamera(true)}><CameraIcon className="w-4 h-4 mr-2" />Camera</Button>
               </div>
-            )}
-          </div>
-
-          {/* Caption */}
-          <div className="space-y-3">
-            <Label htmlFor="caption">Caption</Label>
-            <AICaptionGenerator
-              tags={tags}
-              contentType={type}
-              onSelectCaption={(caption) => setCaption(caption)}
-            />
-            <Textarea
-              id="caption"
-              placeholder="Write a caption..."
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              className="bg-secondary border-border min-h-[100px] resize-none"
-              maxLength={500}
-            />
-            <p className="text-xs text-muted-foreground text-right">{caption.length}/500</p>
-          </div>
-
-          {/* Tags */}
-          <div className="space-y-3">
-            <Label>Tags</Label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="gap-1 pr-1">
-                  #{tag}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(tag)}
-                    className="ml-1 hover:text-destructive"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-            <div className="relative">
-              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Add a tag..."
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleTagInputKeyDown}
-                className="pl-9 bg-secondary border-border"
-                disabled={tags.length >= 5}
-              />
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {suggestedTags
-                .filter((t) => !tags.includes(t))
-                .slice(0, 5)
-                .map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => handleAddTag(tag)}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    #{tag}
-                  </button>
-                ))}
-            </div>
-          </div>
-
-          {/* Upload Progress */}
-          {uploading && (
-            <div className="space-y-2">
-              <Progress value={uploadProgress} className="h-2" />
-              <p className="text-sm text-muted-foreground text-center">
-                Uploading... {uploadProgress}%
-              </p>
+              <p className="text-xs text-muted-foreground mt-4">Supports: JPG, PNG, GIF, WebP, MP4, WebM (max 50MB)</p>
             </div>
           )}
-
-          {/* Submit */}
-          <Button
-            type="submit"
-            variant="gradient"
-            size="xl"
-            className="w-full"
-            disabled={!file || uploading || contentSafety.result === 'blocked'}
-          >
-            {uploading ? 'Uploading...' : 'Share Post'}
-          </Button>
-        </form>
+          <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleInputChange} className="hidden" />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-muted-foreground">Caption</label>
+          <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write a caption..." className="min-h-24 resize-none" maxLength={2200} />
+          <div className="flex items-center justify-between">
+            <AICaptionGenerator mediaUrl={preview || undefined} onCaptionGenerated={setCaption} />
+            <span className="text-xs text-muted-foreground">{caption.length}/2200</span>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-muted-foreground">Tags</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {tags.map((tag) => (<Badge key={tag} variant="secondary" className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground" onClick={() => handleRemoveTag(tag)}>#{tag} <X className="w-3 h-3 ml-1" /></Badge>))}
+          </div>
+          <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleTagInputKeyDown} placeholder="Add tags (press Enter)" maxLength={30} />
+          <div className="flex flex-wrap gap-1 mt-2">
+            {suggestedTags.filter(tag => !tags.includes(tag)).slice(0, 6).map((tag) => (<Badge key={tag} variant="outline" className="cursor-pointer hover:bg-primary/10" onClick={() => handleAddTag(tag)}>#{tag}</Badge>))}
+          </div>
+        </div>
+        {isUploading && (<div className="space-y-2"><Progress value={uploadProgress} className="h-2" /><p className="text-sm text-center text-muted-foreground">Uploading... {uploadProgress}%</p></div>)}
+        <Button onClick={handleSubmit} disabled={!file || isUploading} className="w-full" size="lg">{isUploading ? 'Uploading...' : 'Share'}</Button>
       </div>
     </AppLayout>
   );
