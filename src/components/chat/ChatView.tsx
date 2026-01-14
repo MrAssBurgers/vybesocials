@@ -1281,7 +1281,7 @@ const MessageBubble = memo(function MessageBubble({
         {/* Message bubble - Instagram-quality padding and radius */}
         <div
           className={cn(
-            'relative rounded-[20px] break-words select-none',
+            'relative rounded-[20px] break-words select-none group/bubble',
             // Padding: 14-16px horizontal, 10-12px vertical
             isEmojiOnly 
               ? 'px-3 py-2' // Reduced padding for emoji
@@ -1300,6 +1300,42 @@ const MessageBubble = memo(function MessageBubble({
           onTouchCancel={handleTouchEnd}
           onDoubleClick={onToggleReactions}
         >
+          {/* Quick action button - appears on hover/touch */}
+          <div className={cn(
+            "absolute top-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity z-10",
+            isOwn ? "-left-8" : "-right-8"
+          )}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="p-1.5 rounded-full bg-muted/80 hover:bg-muted text-muted-foreground">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align={isOwn ? "end" : "start"} className="min-w-[140px]">
+                <DropdownMenuItem onClick={onReply} className="gap-2 text-sm">
+                  <Reply className="h-4 w-4" /> Reply
+                </DropdownMenuItem>
+                {message.content && (
+                  <DropdownMenuItem onClick={copyToClipboard} className="gap-2 text-sm">
+                    <Check className="h-4 w-4" /> Copy
+                  </DropdownMenuItem>
+                )}
+                {isOwn && message.content && !message.media_url && (
+                  <DropdownMenuItem onClick={() => onEdit?.()} className="gap-2 text-sm">
+                    <Edit3 className="h-4 w-4" /> Edit
+                  </DropdownMenuItem>
+                )}
+                {isOwn && (
+                  <DropdownMenuItem onClick={handleUnsend} className="gap-2 text-sm text-destructive focus:text-destructive">
+                    <Trash2 className="h-4 w-4" /> Unsend
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => { onDeleteForMe(); }} className="gap-2 text-sm text-muted-foreground">
+                  <EyeOff className="h-4 w-4" /> Delete for me
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           {isMediaMessage && (
             <div className={message.content ? "mb-2" : ""}>
               <img
