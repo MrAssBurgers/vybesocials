@@ -693,32 +693,53 @@ export function GlobalCallOverlay() {
   // Re-enable video tracks when returning from background/minimized state
   useEffect(() => {
     if (state.phase !== 'connected') return;
-    if (state.call?.callType !== 'video') return;
     
     const daily = dailyRef.current;
     if (!daily) return;
 
     const handleVisibilityChange = async () => {
+      // When tab becomes visible again, ensure call is still active
       if (document.visibilityState === 'visible') {
-        console.log('[CallOverlay] Tab became visible, re-enabling video tracks');
+        console.log('[CallOverlay] Tab became visible, resuming call...');
         
         // Small delay to let the browser settle
         await new Promise(r => setTimeout(r, 300));
         
-        // Re-enable video if it was on before
-        if (!isVideoOff) {
+        const meetingState = daily.meetingState();
+        console.log('[CallOverlay] Meeting state on visibility:', meetingState);
+        
+        // If we're still in a meeting, just resume media
+        if (meetingState === 'joined-meeting') {
+          // Re-enable video if it was on before (only for video calls)
+          if (state.call?.callType === 'video' && !isVideoOff) {
+            try {
+              await daily.setLocalVideo(true);
+              console.log('[CallOverlay] Video re-enabled after visibility change');
+            } catch (err) {
+              console.warn('[CallOverlay] Failed to re-enable video:', err);
+            }
+          }
+          
+          // Ensure audio is still enabled
           try {
-            await daily.setLocalVideo(true);
-            console.log('[CallOverlay] Video re-enabled after visibility change');
+            await daily.setLocalAudio(true);
           } catch (err) {
-            console.warn('[CallOverlay] Failed to re-enable video:', err);
+            console.warn('[CallOverlay] Failed to re-enable audio:', err);
+          }
+
+          // Try to resume remote video/audio playback
+          if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+            remoteVideoRef.current.play().catch(() => {});
+          }
+          if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
+            remoteAudioRef.current.muted = false;
+            remoteAudioRef.current.play().catch(() => {});
           }
         }
-
-        // Try to resume remote video/audio playback
-        if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
-          remoteVideoRef.current.play().catch(() => {});
-        }
+      } else {
+        // Tab is hidden - DON'T end the call, but log it
+        console.log('[CallOverlay] Tab hidden, call continues in background');
+        // Ensure audio stays active in background
         if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
           remoteAudioRef.current.muted = false;
           remoteAudioRef.current.play().catch(() => {});
@@ -726,10 +747,21 @@ export function GlobalCallOverlay() {
       }
     };
 
+    // Prevent page unload from ending call - just warn user
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (state.phase === 'connected' || state.phase === 'joining') {
+        e.preventDefault();
+        e.returnValue = 'You have an active call. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
     
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [state.phase, state.call?.callType, isVideoOff]);
 
