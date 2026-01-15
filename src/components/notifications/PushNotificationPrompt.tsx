@@ -55,10 +55,10 @@ export function PushNotificationPrompt() {
       return;
     }
 
-    // Show prompt after 3 seconds if notifications not enabled
+    // Show prompt quickly if notifications not enabled
     const timer = setTimeout(() => {
       setShouldShow(true);
-    }, 3000);
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [isSupported, isCheckingSubscription, browserPermission]);
