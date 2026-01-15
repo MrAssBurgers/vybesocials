@@ -28,6 +28,7 @@ import { BannedScreen } from "@/components/auth/BannedScreen";
 import { MemeBanScreen } from "@/components/auth/MemeBanScreen";
 import { useBanStatus } from "@/hooks/useBanStatus";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
+import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -137,6 +138,9 @@ function AppWithPreloader() {
   
   // Auto-update checker
   useAutoUpdate();
+  
+  // Real-time profile sync - updates propagate instantly to all users
+  useRealtimeProfiles();
 
   useEffect(() => {
     // Only hide splash when preloading is truly complete
