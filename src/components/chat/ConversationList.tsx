@@ -216,9 +216,9 @@ export function ConversationList() {
   }
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden box-border">
+    <div className="flex flex-col h-full w-full min-w-0 overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-border">
+      <div className="p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">{t('messages.title')}</h1>
           <div className="flex items-center gap-1">
@@ -275,7 +275,7 @@ export function ConversationList() {
 
       {/* Quick Add Section - Online Friends */}
       {!searchQuery && (recentUsers.length > 0 || onlineFriendsForQuickAdd.length > 0) && (
-        <div className="px-4 pt-2 space-y-3">
+        <div className="px-4 pt-2 space-y-3 flex-shrink-0 overflow-hidden">
           {recentUsers.length > 0 && (
             <QuickAddRow
               title="Recent"
