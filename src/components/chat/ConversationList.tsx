@@ -280,8 +280,8 @@ export function ConversationList() {
       )}
 
       {/* Conversation List */}
-      <ScrollArea className="flex-1 pb-0">
-        <div className="p-3 pb-0 space-y-1">
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-3 pb-20 space-y-1">
           <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
             <Users className="h-3.5 w-3.5" />
             Friends & AI
@@ -401,7 +401,7 @@ const ConversationItem = memo(function ConversationItem({
 
   return (
     <div 
-      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer overflow-hidden"
+      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer"
       onClick={menuOpen ? undefined : onClick}
     >
       <div className="relative flex-shrink-0">
