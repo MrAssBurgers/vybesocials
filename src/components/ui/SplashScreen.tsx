@@ -1,5 +1,5 @@
-import { memo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { memo, useState, useEffect } from 'react';
+import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
 
 interface SplashScreenProps {
   isVisible: boolean;
@@ -13,49 +13,78 @@ export const SplashScreen = memo(function SplashScreen({
   progress = 0 
 }: SplashScreenProps) {
   const showComplete = progress >= 100;
+  
+  // Smooth spring animation for progress
+  const springProgress = useSpring(progress, {
+    stiffness: 100,
+    damping: 30,
+    mass: 1,
+  });
+  
+  // Animated display progress
+  const [displayProgress, setDisplayProgress] = useState(0);
+  
+  useEffect(() => {
+    const unsubscribe = springProgress.on('change', (v) => {
+      setDisplayProgress(Math.round(v));
+    });
+    return unsubscribe;
+  }, [springProgress]);
+  
+  useEffect(() => {
+    springProgress.set(progress);
+  }, [progress, springProgress]);
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {isVisible && (
         <motion.div
           initial={{ opacity: 1 }}
-          exit={{ opacity: 0, scale: 1.02 }}
-          transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+          exit={{ 
+            opacity: 0, 
+            scale: 1.05,
+            filter: 'blur(10px)',
+          }}
+          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
           className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background overflow-hidden"
         >
           {/* Animated background gradients */}
           <div className="absolute inset-0">
             <motion.div 
-              className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-accent/10"
+              className="absolute inset-0"
               animate={{ 
                 background: [
-                  'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.15) 0%, transparent 50%)',
-                  'radial-gradient(circle at 70% 70%, hsl(var(--primary) / 0.15) 0%, transparent 50%)',
-                  'radial-gradient(circle at 30% 70%, hsl(var(--primary) / 0.15) 0%, transparent 50%)',
-                  'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.15) 0%, transparent 50%)',
+                  'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.12) 0%, transparent 50%)',
+                  'radial-gradient(circle at 70% 70%, hsl(var(--primary) / 0.12) 0%, transparent 50%)',
+                  'radial-gradient(circle at 70% 30%, hsl(var(--primary) / 0.12) 0%, transparent 50%)',
+                  'radial-gradient(circle at 30% 70%, hsl(var(--primary) / 0.12) 0%, transparent 50%)',
+                  'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.12) 0%, transparent 50%)',
                 ]
               }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
             />
             
             {/* Floating particles */}
-            {[...Array(6)].map((_, i) => (
+            {[...Array(8)].map((_, i) => (
               <motion.div
                 key={i}
-                className="absolute w-2 h-2 rounded-full bg-primary/20"
+                className="absolute rounded-full bg-primary/15"
                 style={{
-                  left: `${15 + i * 15}%`,
-                  top: `${20 + (i % 3) * 25}%`,
+                  width: 6 + (i % 3) * 4,
+                  height: 6 + (i % 3) * 4,
+                  left: `${10 + i * 11}%`,
+                  top: `${15 + (i % 4) * 20}%`,
                 }}
                 animate={{
-                  y: [0, -30, 0],
-                  opacity: [0.3, 0.7, 0.3],
-                  scale: [1, 1.3, 1],
+                  y: [0, -40, 0],
+                  x: [0, (i % 2 === 0 ? 15 : -15), 0],
+                  opacity: [0.2, 0.6, 0.2],
+                  scale: [1, 1.2, 1],
                 }}
                 transition={{
-                  duration: 2 + i * 0.3,
+                  duration: 3 + i * 0.4,
                   repeat: Infinity,
-                  delay: i * 0.2,
+                  delay: i * 0.3,
                   ease: 'easeInOut',
                 }}
               />
@@ -64,41 +93,61 @@ export const SplashScreen = memo(function SplashScreen({
           
           {/* Logo container */}
           <motion.div
-            initial={{ scale: 0.5, opacity: 0, y: 20 }}
+            initial={{ scale: 0.3, opacity: 0, y: 30 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             transition={{ 
-              duration: 0.6, 
+              duration: 0.8, 
               ease: [0.34, 1.56, 0.64, 1],
               delay: 0.1
             }}
             className="relative mb-10"
           >
-            {/* Glow ring effect */}
+            {/* Outer glow pulse */}
             <motion.div
-              className="absolute -inset-8 rounded-full"
+              className="absolute -inset-12 rounded-full"
               style={{
-                background: 'radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, hsl(var(--primary) / 0.25) 0%, transparent 70%)',
               }}
               animate={{
-                scale: [1, 1.2, 1],
-                opacity: [0.5, 0.8, 0.5],
+                scale: [1, 1.3, 1],
+                opacity: [0.4, 0.7, 0.4],
               }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            
+            {/* Inner glow */}
+            <motion.div
+              className="absolute -inset-6 rounded-full"
+              style={{
+                background: 'radial-gradient(circle, hsl(var(--primary) / 0.4) 0%, transparent 60%)',
+              }}
+              animate={{
+                scale: [1.1, 1, 1.1],
+                opacity: [0.3, 0.5, 0.3],
+              }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
             />
             
             {/* Spinning ring */}
             <motion.div
-              className="absolute -inset-4 rounded-full border-2 border-primary/20"
-              style={{ borderTopColor: 'hsl(var(--primary))' }}
+              className="absolute -inset-5 rounded-full border-2 border-primary/20"
+              style={{ borderTopColor: 'hsl(var(--primary) / 0.8)', borderRightColor: 'hsl(var(--primary) / 0.4)' }}
               animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
             />
             
             {/* Logo icon */}
             <motion.div
               className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl"
-              animate={showComplete ? { scale: [1, 1.1, 1] } : {}}
-              transition={{ duration: 0.3 }}
+              animate={showComplete ? { 
+                scale: [1, 1.15, 1],
+                boxShadow: [
+                  '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                  '0 25px 50px -12px hsl(var(--primary) / 0.4)',
+                  '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                ]
+              } : {}}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
             >
               {/* Animated gradient background */}
               <motion.div 
@@ -106,12 +155,14 @@ export const SplashScreen = memo(function SplashScreen({
                 animate={{
                   background: [
                     'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
+                    'linear-gradient(180deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
                     'linear-gradient(225deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
+                    'linear-gradient(270deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
                     'linear-gradient(315deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
                     'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
                   ]
                 }}
-                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
               />
               
               {/* Glass overlay */}
@@ -127,7 +178,7 @@ export const SplashScreen = memo(function SplashScreen({
                   strokeLinejoin="round"
                   initial={{ pathLength: 0, opacity: 0 }}
                   animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
+                  transition={{ duration: 1, delay: 0.3, ease: [0.4, 0, 0.2, 1] }}
                 />
                 <motion.path
                   d="M10 6C10 6 12 10 16 10C20 10 22 6 22 6"
@@ -136,33 +187,34 @@ export const SplashScreen = memo(function SplashScreen({
                   strokeLinecap="round"
                   initial={{ pathLength: 0, opacity: 0 }}
                   animate={{ pathLength: 1, opacity: 0.7 }}
-                  transition={{ duration: 0.6, delay: 0.6, ease: 'easeOut' }}
+                  transition={{ duration: 0.8, delay: 0.7, ease: [0.4, 0, 0.2, 1] }}
                 />
                 <motion.circle
                   cx="16"
                   cy="24"
                   r="2"
                   fill="white"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ duration: 0.3, delay: 0.9 }}
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.4, delay: 1.1, ease: [0.34, 1.56, 0.64, 1] }}
                 />
               </svg>
               
-              {/* Shine effect */}
+              {/* Shine sweep */}
               <motion.div 
-                className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-transparent"
-                animate={{ opacity: [0.3, 0.6, 0.3] }}
-                transition={{ duration: 2, repeat: Infinity }}
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                initial={{ x: '-100%' }}
+                animate={{ x: '200%' }}
+                transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 2, ease: 'easeInOut' }}
               />
             </motion.div>
           </motion.div>
 
           {/* VYBE Text */}
           <motion.h1
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
+            initial={{ opacity: 0, y: 15, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: 0.5, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
             className="text-3xl sm:text-4xl font-display font-black tracking-tight gradient-text mb-8"
           >
             VYBE
@@ -170,81 +222,82 @@ export const SplashScreen = memo(function SplashScreen({
 
           {/* Progress bar container */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.4 }}
+            transition={{ delay: 0.6, duration: 0.5, ease: 'easeOut' }}
             className="w-56 sm:w-64"
           >
             {/* Progress bar background */}
-            <div className="relative h-1.5 bg-muted/30 rounded-full overflow-hidden backdrop-blur-sm">
+            <div className="relative h-2 bg-muted/20 rounded-full overflow-hidden backdrop-blur-sm border border-white/5">
               {/* Animated background shimmer */}
               <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
-                animate={{ x: ['-100%', '100%'] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"
+                animate={{ x: ['-100%', '200%'] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
               />
               
-              {/* Progress fill */}
+              {/* Progress fill - using spring animation */}
               <motion.div
                 className="absolute inset-y-0 left-0 rounded-full"
                 style={{
+                  width: `${displayProgress}%`,
                   background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))',
                   backgroundSize: '200% 100%',
                 }}
                 animate={{ 
-                  width: `${progress}%`,
                   backgroundPosition: ['0% 0%', '100% 0%'],
                 }}
                 transition={{ 
-                  width: { duration: 0.3, ease: 'easeOut' },
                   backgroundPosition: { duration: 2, repeat: Infinity, ease: 'linear' }
                 }}
               />
               
               {/* Glow at progress tip */}
               <motion.div
-                className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full blur-sm"
+                className="absolute top-1/2 -translate-y-1/2 w-6 h-6 rounded-full blur-md pointer-events-none"
                 style={{
-                  left: `${progress}%`,
-                  marginLeft: '-8px',
+                  left: `${displayProgress}%`,
+                  marginLeft: '-12px',
                   background: 'hsl(var(--primary))',
-                  opacity: progress > 0 && progress < 100 ? 0.8 : 0,
                 }}
+                animate={{
+                  opacity: displayProgress > 0 && displayProgress < 100 ? [0.5, 0.9, 0.5] : 0,
+                }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
               />
             </div>
 
             {/* Status text */}
-            <motion.div
-              className="flex justify-between items-center mt-3"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-            >
-              <motion.span 
-                key={status}
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-xs text-muted-foreground truncate max-w-[140px]"
-              >
-                {status}
-              </motion.span>
+            <div className="flex justify-between items-center mt-3 h-5">
+              <AnimatePresence mode="wait">
+                <motion.span 
+                  key={status}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                  className="text-xs text-muted-foreground truncate max-w-[140px]"
+                >
+                  {status}
+                </motion.span>
+              </AnimatePresence>
               <motion.span
-                className="text-sm font-medium tabular-nums"
+                className="text-sm font-medium tabular-nums transition-colors duration-300"
                 style={{ 
                   color: showComplete ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'
                 }}
               >
-                {Math.round(progress)}%
+                {displayProgress}%
               </motion.span>
-            </motion.div>
+            </div>
           </motion.div>
 
           {/* Tagline */}
           <motion.p
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.6 }}
-            transition={{ delay: 0.8, duration: 0.5 }}
-            className="absolute bottom-8 sm:bottom-12 text-xs text-muted-foreground"
+            animate={{ opacity: 0.5 }}
+            transition={{ delay: 1, duration: 0.8 }}
+            className="absolute bottom-8 sm:bottom-12 text-xs text-muted-foreground tracking-wide"
           >
             The Next Generation Social Platform
           </motion.p>
