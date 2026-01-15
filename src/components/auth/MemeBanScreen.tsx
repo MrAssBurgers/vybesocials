@@ -1,21 +1,33 @@
 import { motion } from 'framer-motion';
+import { useMemeBanBackgrounds } from '@/hooks/useMemeBanBackgrounds';
+import { useMemo } from 'react';
 
 interface MemeBanScreenProps {
   reason?: string;
   expiresAt?: string | null;
 }
 
-// Tenor GIF URL - Among Us Twerk
-const MEME_GIF_URL = 'https://media1.tenor.com/m/jUMex_rdqPwAAAAC/among-us-twerk.gif';
+// Fallback GIF URL
+const FALLBACK_GIF_URL = 'https://media1.tenor.com/m/jUMex_rdqPwAAAAC/among-us-twerk.gif';
 
 export const MemeBanScreen = ({ reason, expiresAt }: MemeBanScreenProps) => {
+  const { data: backgrounds } = useMemeBanBackgrounds();
   const expiresLabel = expiresAt ? new Date(expiresAt).toLocaleString() : null;
+
+  // Pick a random background once on mount
+  const backgroundUrl = useMemo(() => {
+    if (!backgrounds || backgrounds.length === 0) {
+      return FALLBACK_GIF_URL;
+    }
+    const randomIndex = Math.floor(Math.random() * backgrounds.length);
+    return backgrounds[randomIndex].gif_url;
+  }, [backgrounds]);
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-hidden bg-black">
       {/* Fullscreen GIF background - stretched to fill */}
       <img
-        src={MEME_GIF_URL}
+        src={backgroundUrl}
         alt=""
         className="absolute inset-0 h-full w-full object-cover"
         draggable={false}

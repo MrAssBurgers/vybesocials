@@ -13,12 +13,13 @@ import { useUserRole, useReports, useContentFlags, useUpdateReport, useUpdateFla
 import { useAllWarnings, useAllBans, useUnbanUser } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
 import { formatDistanceToNow } from 'date-fns';
-import { Shield, Flag, AlertTriangle, Users, Ban, CheckCircle, XCircle, Eye, UserPlus, Trash2, Crown, Megaphone, MessageSquareWarning, Video, FileText, Gavel } from 'lucide-react';
+import { Shield, Flag, AlertTriangle, Users, Ban, CheckCircle, XCircle, Eye, UserPlus, Trash2, Crown, Megaphone, MessageSquareWarning, Video, FileText, Gavel, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { CreateAnnouncementDialog } from '@/components/announcements/CreateAnnouncementDialog';
+import { MemeBanManager } from '@/components/admin/MemeBanManager';
 
 // Hook to search users for adding roles
 function useSearchUsers(searchTerm: string) {
@@ -314,6 +315,10 @@ export default function AdminDashboard() {
               <TabsTrigger value="warnings" className="text-xs sm:text-sm flex-shrink-0">Warnings</TabsTrigger>
               <TabsTrigger value="bans" className="text-xs sm:text-sm flex-shrink-0">Bans</TabsTrigger>
               <TabsTrigger value="announcements" className="text-xs sm:text-sm flex-shrink-0">Announce</TabsTrigger>
+              <TabsTrigger value="meme-bans" className="text-xs sm:text-sm flex-shrink-0">
+                <ImageIcon className="h-3 w-3 mr-1" />
+                Meme Bans
+              </TabsTrigger>
               <TabsTrigger value="roles" className="text-xs sm:text-sm flex-shrink-0">Roles</TabsTrigger>
             </TabsList>
           </div>
@@ -845,6 +850,15 @@ export default function AdminDashboard() {
                     </div>
                   </ScrollArea>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Meme Ban Backgrounds Tab */}
+          <TabsContent value="meme-bans">
+            <Card className="liquid-glass">
+              <CardContent className="p-6">
+                <MemeBanManager />
               </CardContent>
             </Card>
           </TabsContent>

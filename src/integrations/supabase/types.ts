@@ -1557,6 +1557,36 @@ export type Database = {
           },
         ]
       }
+      meme_ban_backgrounds: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          gif_url: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          gif_url: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          gif_url?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
       message_deletions: {
         Row: {
           deleted_at: string
