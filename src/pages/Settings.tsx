@@ -1,4 +1,4 @@
-import { useState, forwardRef } from 'react';
+import { useState, forwardRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,10 @@ import { LanguageSection } from '@/components/settings/LanguageSection';
 import { HelpSection } from '@/components/settings/HelpSection';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Lazy load developer section (only used in dev)
+const DeveloperSection = lazy(() => import('@/components/settings/DeveloperSection').then(m => ({ default: m.DeveloperSection })));
 
 const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref) {
   const { t } = useTranslation();
@@ -44,6 +48,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
       notifications: 'Notification Preferences',
       language: 'Language & Region',
       help: 'Help & Support',
+      developer: 'Developer Options',
     };
     return titles[activeCategory];
   };
@@ -68,6 +73,12 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
         return <LanguageSection />;
       case 'help':
         return <HelpSection />;
+      case 'developer':
+        return (
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <DeveloperSection />
+          </Suspense>
+        );
       default:
         return <ProfileSection />;
     }
