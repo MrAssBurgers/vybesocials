@@ -73,7 +73,7 @@ const initialState: CallStoreState = {
 };
 
 // Show browser notification for incoming call
-function showCallNotification(caller: CallUser, callType: CallType, isGroupCall?: boolean, groupName?: string) {
+async function showCallNotification(caller: CallUser, callType: CallType, callId: string, isGroupCall?: boolean, groupName?: string) {
   // Request permission if needed
   if (!('Notification' in window)) return;
   
@@ -89,12 +89,37 @@ function showCallNotification(caller: CallUser, callType: CallType, isGroupCall?
     : (caller.display_name || caller.username || 'Someone');
   const callTypeLabel = callType === 'video' ? '📹 FaceTime' : '📞 Audio';
   
+  // Try to use service worker for better notification handling
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const options: NotificationOptions & { data?: unknown; requireInteraction?: boolean; actions?: Array<{ action: string; title: string }> } = {
+        body: `${callerName} is calling you`,
+        icon: caller.avatar_url || '/icons/icon-192x192.png',
+        badge: '/icons/icon-96x96.png',
+        tag: `vybe-call-${callId}`,
+        requireInteraction: true,
+        data: {
+          url: '/',
+          type: 'call',
+          callId,
+          callerName,
+          callType,
+        },
+      };
+      await registration.showNotification(`VYBE - Incoming ${callTypeLabel} Call`, options);
+      return;
+    } catch (err) {
+      console.warn('[CallStore] SW notification failed, falling back:', err);
+    }
+  }
+  
+  // Fallback to standard Notification API
   const notification = new Notification(`VYBE - Incoming ${callTypeLabel} Call`, {
     body: `${callerName} is calling you`,
-    icon: caller.avatar_url || '/favicon.ico',
+    icon: caller.avatar_url || '/icons/icon-192x192.png',
     tag: 'vybe-incoming-call',
     requireInteraction: true,
-    silent: false, // Let browser play default sound too
   });
   
   // Focus window when notification clicked
@@ -179,7 +204,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
             callSounds.startRinging();
             
             // Show browser notification with VYBE branding
-            showCallNotification(data.caller as CallUser, data.call_type as CallType, isGroupCall, groupName);
+            showCallNotification(data.caller as CallUser, data.call_type as CallType, data.id, isGroupCall, groupName);
           }
         }
       )
