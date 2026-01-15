@@ -12,6 +12,7 @@ import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { MessageCircle, UserPlus, UserCheck, BadgeCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { useMutualFriendsWithUser } from '@/components/profile/MutualFriendsDisplay';
 
 interface UserProfileHoverCardProps {
   username: string;
@@ -82,6 +83,55 @@ function useHoverProfile(username: string, enabled: boolean) {
     enabled,
     staleTime: 30000, // Cache for 30 seconds
   });
+}
+
+// Mini mutual friends row component for hover card
+function MutualFriendsRow({ targetUserId }: { targetUserId: string }) {
+  const navigate = useNavigate();
+  const { data: mutualFriends, isLoading } = useMutualFriendsWithUser(targetUserId);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Skeleton className="h-5 w-5 rounded-full" />
+        <Skeleton className="h-5 w-5 rounded-full" />
+        <Skeleton className="h-3 w-16" />
+      </div>
+    );
+  }
+
+  const count = mutualFriends?.length || 0;
+  if (count === 0) return null;
+
+  const displayFriends = mutualFriends?.slice(0, 3) || [];
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex -space-x-1.5">
+        {displayFriends.map((friend) => (
+          <button
+            key={friend.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/u/${friend.username}`);
+            }}
+            className="relative hover:z-10 transition-transform hover:scale-110 focus:outline-none rounded-full"
+            title={friend.display_name || friend.username}
+          >
+            <Avatar className="h-5 w-5 border border-background cursor-pointer">
+              <AvatarImage src={friend.avatar_url || undefined} />
+              <AvatarFallback className="text-[8px] bg-primary/20">
+                {friend.username?.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        ))}
+      </div>
+      <span className="text-[11px] text-muted-foreground">
+        {count} mutual friend{count !== 1 ? 's' : ''}
+      </span>
+    </div>
+  );
 }
 
 export function UserProfileHoverCard({ 
@@ -209,6 +259,11 @@ export function UserProfileHoverCard({
                 <span className="text-muted-foreground ml-1">following</span>
               </div>
             </div>
+
+            {/* Mutual Friends */}
+            {!isOwnProfile && currentUser && (
+              <MutualFriendsRow targetUserId={profileData.id} />
+            )}
 
             {/* Actions */}
             {!isOwnProfile && currentUser && (

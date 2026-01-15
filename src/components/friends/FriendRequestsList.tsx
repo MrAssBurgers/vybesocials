@@ -6,7 +6,48 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useMutualFriendsWithUser } from '@/components/profile/MutualFriendsDisplay';
+
+// Mini mutual friends display for friend request cards
+function MiniMutualFriends({ userId }: { userId: string }) {
+  const navigate = useNavigate();
+  const { data: mutualFriends } = useMutualFriendsWithUser(userId);
+  
+  const count = mutualFriends?.length || 0;
+  if (count === 0) return null;
+  
+  const displayFriends = mutualFriends?.slice(0, 2) || [];
+  
+  return (
+    <div className="flex items-center gap-1.5 mt-1">
+      <div className="flex -space-x-1">
+        {displayFriends.map((friend) => (
+          <button
+            key={friend.id}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate(`/u/${friend.username}`);
+            }}
+            className="relative hover:z-10 transition-transform hover:scale-110 rounded-full"
+            title={friend.display_name || friend.username}
+          >
+            <Avatar className="h-4 w-4 border border-background">
+              <AvatarImage src={friend.avatar_url || undefined} />
+              <AvatarFallback className="text-[6px] bg-primary/20">
+                {friend.username?.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        ))}
+      </div>
+      <span className="text-[10px] text-muted-foreground">
+        {count} mutual
+      </span>
+    </div>
+  );
+}
 
 export function FriendRequestsList() {
   const { t } = useTranslation();
@@ -76,6 +117,7 @@ export function FriendRequestsList() {
                   <p className="text-sm text-muted-foreground">
                     {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
                   </p>
+                  {request.sender?.id && <MiniMutualFriends userId={request.sender.id} />}
                 </div>
 
                 <div className="flex gap-2">
@@ -134,6 +176,7 @@ export function FriendRequestsList() {
                   <p className="text-sm text-muted-foreground">
                     {t('friends.requestSent')} • {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
                   </p>
+                  {request.receiver?.id && <MiniMutualFriends userId={request.receiver.id} />}
                 </div>
 
                 <span className="text-sm text-muted-foreground">{t('friends.pending')}</span>
