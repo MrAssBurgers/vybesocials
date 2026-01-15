@@ -25,6 +25,7 @@ export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
@@ -42,6 +43,9 @@ export function usePushNotifications() {
     if (supported && profile) {
       registerServiceWorker();
       checkSubscription();
+    } else if (!profile) {
+      // No profile yet, mark as done checking
+      setIsCheckingSubscription(false);
     }
   }, [profile]);
 
@@ -66,8 +70,12 @@ export function usePushNotifications() {
   };
 
   const checkSubscription = async () => {
+    setIsCheckingSubscription(true);
     try {
-      if (!profile) return;
+      if (!profile) {
+        setIsCheckingSubscription(false);
+        return;
+      }
       
       const { data, error } = await supabase
         .from('push_tokens')
@@ -78,6 +86,7 @@ export function usePushNotifications() {
       
       if (error) {
         console.error('[Push] Error checking subscription:', error);
+        setIsCheckingSubscription(false);
         return;
       }
       
@@ -98,6 +107,8 @@ export function usePushNotifications() {
       }
     } catch (error) {
       console.error('[Push] Error checking subscription:', error);
+    } finally {
+      setIsCheckingSubscription(false);
     }
   };
 
@@ -231,6 +242,7 @@ export function usePushNotifications() {
     isSupported,
     isSubscribed,
     isLoading,
+    isCheckingSubscription,
     permission,
     subscribe,
     unsubscribe,

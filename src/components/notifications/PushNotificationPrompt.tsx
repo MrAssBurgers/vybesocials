@@ -5,7 +5,15 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function PushNotificationPrompt() {
-  const { isSupported, isSubscribed, isLoading, subscribe } = usePushNotifications();
+  const { 
+    isSupported, 
+    isSubscribed, 
+    isLoading, 
+    isCheckingSubscription,
+    permission,
+    subscribe 
+  } = usePushNotifications();
+  
   const [dismissed, setDismissed] = useState(false);
   const [shouldShow, setShouldShow] = useState(false);
 
@@ -17,15 +25,27 @@ export function PushNotificationPrompt() {
       return;
     }
 
-    // Show prompt after 5 seconds if not subscribed
+    // Wait until subscription check is complete
+    if (isCheckingSubscription) {
+      return;
+    }
+
+    // Don't show if:
+    // - Not supported
+    // - Already subscribed
+    // - Permission already denied (can't ask again)
+    if (!isSupported || isSubscribed || permission === 'denied') {
+      setShouldShow(false);
+      return;
+    }
+
+    // Show prompt after 5 seconds if conditions are met
     const timer = setTimeout(() => {
-      if (isSupported && !isSubscribed) {
-        setShouldShow(true);
-      }
+      setShouldShow(true);
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, [isSupported, isSubscribed]);
+  }, [isSupported, isSubscribed, isCheckingSubscription, permission]);
 
   const handleDismiss = () => {
     setDismissed(true);
@@ -39,57 +59,56 @@ export function PushNotificationPrompt() {
     }
   };
 
-  if (!shouldShow || dismissed || isSubscribed || !isSupported) {
+  // Early return if shouldn't show
+  if (!shouldShow || dismissed || isSubscribed || !isSupported || permission === 'denied') {
     return null;
   }
 
   return (
     <AnimatePresence mode="wait">
-      {shouldShow && !dismissed && !isSubscribed && isSupported && (
-        <motion.div
-          key="push-prompt"
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 50 }}
-          className="fixed bottom-20 left-4 right-4 z-50 md:left-auto md:right-6 md:w-96"
-        >
-          <div className="bg-card border border-border rounded-xl p-4 shadow-lg">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-primary/10 rounded-full">
-                <Bell className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-foreground">Stay Updated</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Get notified about calls and messages instantly.
-                </p>
-                <div className="flex gap-2 mt-3">
-                  <Button
-                    size="sm"
-                    onClick={handleEnable}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? 'Enabling...' : 'Enable'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleDismiss}
-                  >
-                    Not now
-                  </Button>
-                </div>
-              </div>
-              <button
-                onClick={handleDismiss}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
+      <motion.div
+        key="push-prompt"
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 50 }}
+        className="fixed bottom-20 left-4 right-4 z-50 md:left-auto md:right-6 md:w-96"
+      >
+        <div className="bg-card border border-border rounded-xl p-4 shadow-lg">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-primary/10 rounded-full">
+              <Bell className="h-5 w-5 text-primary" />
             </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-foreground">Stay Updated</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Get notified about calls and messages instantly.
+              </p>
+              <div className="flex gap-2 mt-3">
+                <Button
+                  size="sm"
+                  onClick={handleEnable}
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Enabling...' : 'Enable'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleDismiss}
+                >
+                  Not now
+                </Button>
+              </div>
+            </div>
+            <button
+              onClick={handleDismiss}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-        </motion.div>
-      )}
+        </div>
+      </motion.div>
     </AnimatePresence>
   );
 }
