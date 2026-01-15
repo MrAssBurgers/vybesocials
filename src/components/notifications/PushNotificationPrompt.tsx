@@ -14,53 +14,61 @@ export function PushNotificationPrompt() {
     subscribe 
   } = usePushNotifications();
   
-  const [dismissed, setDismissed] = useState(false);
   const [shouldShow, setShouldShow] = useState(false);
 
   useEffect(() => {
-    // Check if user has dismissed before
-    const wasDismissed = localStorage.getItem('push-prompt-dismissed');
-    if (wasDismissed) {
-      setDismissed(true);
-      return;
-    }
-
     // Wait until subscription check is complete
     if (isCheckingSubscription) {
       return;
     }
 
-    // Don't show if:
-    // - Not supported
-    // - Already subscribed
-    // - Permission already denied (can't ask again)
-    if (!isSupported || isSubscribed || permission === 'denied') {
+    // If already subscribed, never show - user has notifications enabled
+    if (isSubscribed) {
       setShouldShow(false);
       return;
     }
 
-    // Show prompt after 5 seconds if conditions are met
+    // Don't show if:
+    // - Not supported
+    // - Permission already denied by browser (can't ask again)
+    if (!isSupported || permission === 'denied') {
+      setShouldShow(false);
+      return;
+    }
+
+    // Check if user dismissed temporarily (expires after 7 days)
+    const dismissedUntil = localStorage.getItem('push-prompt-dismissed-until');
+    if (dismissedUntil && Date.now() < parseInt(dismissedUntil)) {
+      setShouldShow(false);
+      return;
+    }
+
+    // Show prompt after 3 seconds if conditions are met
     const timer = setTimeout(() => {
       setShouldShow(true);
-    }, 5000);
+    }, 3000);
 
     return () => clearTimeout(timer);
   }, [isSupported, isSubscribed, isCheckingSubscription, permission]);
 
   const handleDismiss = () => {
-    setDismissed(true);
-    localStorage.setItem('push-prompt-dismissed', 'true');
+    // Dismiss for 7 days
+    const sevenDaysFromNow = Date.now() + (7 * 24 * 60 * 60 * 1000);
+    localStorage.setItem('push-prompt-dismissed-until', sevenDaysFromNow.toString());
+    setShouldShow(false);
   };
 
   const handleEnable = async () => {
     const success = await subscribe();
     if (success) {
-      setDismissed(true);
+      // Successfully subscribed - clear any dismiss timer and hide
+      localStorage.removeItem('push-prompt-dismissed-until');
+      setShouldShow(false);
     }
   };
 
   // Early return if shouldn't show
-  if (!shouldShow || dismissed || isSubscribed || !isSupported || permission === 'denied') {
+  if (!shouldShow || isSubscribed || !isSupported || permission === 'denied') {
     return null;
   }
 
