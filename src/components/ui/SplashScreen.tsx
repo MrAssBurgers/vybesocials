@@ -210,15 +210,30 @@ export const SplashScreen = memo(function SplashScreen({
             </motion.div>
           </motion.div>
 
-          {/* VYBE Text */}
-          <motion.h1
-            initial={{ opacity: 0, y: 15, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
+          {/* Welcome to VYBE Text */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
-            className="text-3xl sm:text-4xl font-display font-black tracking-tight gradient-text mb-8"
+            className="text-center mb-8"
           >
-            VYBE
-          </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.5 }}
+              className="text-sm sm:text-base text-muted-foreground mb-2"
+            >
+              Welcome to
+            </motion.p>
+            <motion.h1
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.6, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+              className="text-4xl sm:text-5xl font-display font-black tracking-tight gradient-text"
+            >
+              VYBE
+            </motion.h1>
+          </motion.div>
 
           {/* Progress bar container */}
           <motion.div
