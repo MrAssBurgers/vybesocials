@@ -21,7 +21,7 @@ export const OnlineIndicator = forwardRef<HTMLSpanElement, OnlineIndicatorProps>
       <span
         ref={ref}
         className={cn(
-          'absolute rounded-full bg-green-500 ring-2 ring-background',
+          'absolute rounded-full bg-green-500 ring-2 ring-background z-10',
           sizeClasses[size],
           className
         )}

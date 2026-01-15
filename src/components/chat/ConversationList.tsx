@@ -55,12 +55,11 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
         <div className="h-14 w-14 rounded-full gradient-animated flex items-center justify-center shadow-md">
           <Bot className="h-7 w-7 text-white" />
         </div>
-        <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-background" />
       </div>
       <div className="flex-1 min-w-0 py-1">
         <div className="flex items-center justify-between mb-1">
           <span className="font-semibold text-base flex items-center gap-1.5">
-            Autisy
+            Brock
             <Sparkles className="h-4 w-4 text-primary" />
           </span>
           <span className="text-xs text-muted-foreground px-2 py-0.5 bg-primary/10 rounded-full">AI</span>
@@ -281,8 +280,8 @@ export function ConversationList() {
       )}
 
       {/* Conversation List */}
-      <ScrollArea className="flex-1">
-        <div className="p-3 space-y-1">
+      <ScrollArea className="flex-1 pb-0">
+        <div className="p-3 pb-0 space-y-1">
           <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
             <Users className="h-3.5 w-3.5" />
             Friends & AI
@@ -313,7 +312,7 @@ export function ConversationList() {
           </div>
         )}
 
-        <div className="p-3 space-y-1">
+        <div className="p-3 pb-2 space-y-1">
           {unpinnedConversations.length > 0 ? (
             <>
               <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
