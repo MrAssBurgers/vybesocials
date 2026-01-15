@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { MutualFriendsSheet } from './MutualFriendsSheet';
 
 interface MutualFriend {
   id: string;
@@ -99,33 +100,34 @@ export const MutualFriendsDisplay = memo(function MutualFriendsDisplay({
     const remaining = count - 3;
 
     return (
-      <div className={`flex items-center gap-2 ${className}`}>
-        <div className="flex -space-x-2">
-          {displayFriends.map((friend) => (
-            <button
-              key={friend.id}
-              onClick={() => handleProfileClick(friend.username)}
-              className="relative hover:z-10 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full"
-              title={friend.display_name || friend.username}
-            >
-              <Avatar className="h-6 w-6 border-2 border-background cursor-pointer">
-                <AvatarImage src={friend.avatar_url || undefined} />
-                <AvatarFallback className="text-[10px] bg-primary/20">
-                  {friend.username?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </button>
-          ))}
-          {remaining > 0 && (
-            <div className="h-6 w-6 rounded-full bg-muted border-2 border-background flex items-center justify-center">
-              <span className="text-[9px] font-medium">+{remaining}</span>
-            </div>
-          )}
-        </div>
-        <span className="text-xs text-muted-foreground">
-          {count} mutual friend{count !== 1 ? 's' : ''}
-        </span>
-      </div>
+      <MutualFriendsSheet targetUserId={targetUserId}>
+        <button className={`flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer ${className}`}>
+          <div className="flex -space-x-2">
+            {displayFriends.map((friend) => (
+              <div
+                key={friend.id}
+                className="relative hover:z-10 transition-transform hover:scale-110 rounded-full"
+                title={friend.display_name || friend.username}
+              >
+                <Avatar className="h-6 w-6 border-2 border-background">
+                  <AvatarImage src={friend.avatar_url || undefined} />
+                  <AvatarFallback className="text-[10px] bg-primary/20">
+                    {friend.username?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+            ))}
+            {remaining > 0 && (
+              <div className="h-6 w-6 rounded-full bg-muted border-2 border-background flex items-center justify-center">
+                <span className="text-[9px] font-medium">+{remaining}</span>
+              </div>
+            )}
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {count} mutual friend{count !== 1 ? 's' : ''}
+          </span>
+        </button>
+      </MutualFriendsSheet>
     );
   }
 

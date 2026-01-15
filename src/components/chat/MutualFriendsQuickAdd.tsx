@@ -102,6 +102,8 @@ function useSuggestedUsers() {
   });
 }
 
+import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
+
 export function MutualFriendsQuickAdd({ 
   onSelect 
 }: { 
@@ -113,14 +115,17 @@ export function MutualFriendsQuickAdd({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserWithMutualFriends[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  
+  // Use persistent dismissed state
+  const { dismissedIds, dismissUser, isDismissed } = useDismissedQuickAdd();
 
   const suggestions = (mutualSuggestions?.length ?? 0) > 0 ? mutualSuggestions : suggestedUsers;
   const isLoading = isLoadingMutual || isLoadingSuggested;
   const hasMutualFriends = (mutualSuggestions?.length ?? 0) > 0;
 
+  // Handle dismiss - now persists to localStorage
   const handleDismiss = (userId: string) => {
-    setDismissedIds(prev => new Set([...prev, userId]));
+    dismissUser(userId);
   };
 
   const handleSearch = async (query: string) => {
@@ -166,7 +171,7 @@ export function MutualFriendsQuickAdd({
   };
 
   const allUsers = searchQuery.length >= 2 ? searchResults : suggestions;
-  const displayUsers = allUsers?.filter(u => !dismissedIds.has(u.id));
+  const displayUsers = allUsers?.filter(u => !isDismissed(u.id));
 
   if (isLoading && !searchQuery) {
     return (

@@ -7,6 +7,8 @@ import { useOnlineFriends } from '@/hooks/useOnlineFriends';
 import { useAuth } from '@/lib/auth';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { useTrashedConversationIds, useTrashConversation } from '@/hooks/useTrashedConversations';
+import { useStories, StoryGroup } from '@/hooks/useStories';
+import { useAcceptedFriendRequests, useDismissAcceptedRequest } from '@/hooks/useAcceptedFriendRequests';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Trash2, MoreVertical } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Trash2, MoreVertical, UserCheck, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
@@ -29,6 +31,7 @@ import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useUsersRoles } from '@/hooks/useUserRoleById';
+import { AvatarRing } from '@/components/ui/AvatarRing';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
@@ -84,11 +87,23 @@ export function ConversationList() {
   const createConversation = useCreateConversation();
   const { data: trashedIds } = useTrashedConversationIds();
   const trashConversation = useTrashConversation();
+  const { data: storyGroups } = useStories();
+  const { data: acceptedRequests } = useAcceptedFriendRequests();
+  const dismissAccepted = useDismissAcceptedRequest();
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [isTrashOpen, setIsTrashOpen] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
+  
+  // Create a map of user IDs to story groups for quick lookup
+  const userStoryMap = useMemo(() => {
+    const map = new Map<string, StoryGroup>();
+    storyGroups?.forEach(group => {
+      map.set(group.user.id, group);
+    });
+    return map;
+  }, [storyGroups]);
   
   // Debug logging in dev mode
   useEffect(() => {
@@ -279,6 +294,24 @@ export function ConversationList() {
         </div>
       )}
 
+      {/* Accepted Friend Requests Section */}
+      {acceptedRequests && acceptedRequests.length > 0 && (
+        <div className="p-3 space-y-1 w-full max-w-full overflow-hidden border-b border-border">
+          <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
+            <UserCheck className="h-3.5 w-3.5 text-green-500" />
+            New Friends
+          </p>
+          {acceptedRequests.map((request) => (
+            <AcceptedFriendRow 
+              key={request.id}
+              request={request}
+              onDismiss={() => dismissAccepted.mutate(request.id)}
+              onMessage={handleQuickAddSelect}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Conversation List */}
       <ScrollArea className="flex-1 overflow-x-hidden">
         <div className="p-3 pb-0 space-y-1 w-full max-w-full overflow-hidden">
@@ -297,6 +330,8 @@ export function ConversationList() {
             </p>
             {pinnedConversations.map((conv) => {
               const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
+              const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
+              const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
               return (
                 <ConversationItem
                   key={conv.id}
@@ -306,6 +341,8 @@ export function ConversationList() {
                   currentUserId={profile?.id}
                   userRole={otherMemberId ? usersRoles[otherMemberId] : null}
                   onTrash={() => handleTrashConversation(conv.id)}
+                  hasStory={hasStory}
+                  storyGroup={storyGroup}
                 />
               );
             })}
@@ -321,6 +358,8 @@ export function ConversationList() {
               </p>
               {unpinnedConversations.map((conv) => {
                 const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
+                const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
+                const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
                 return (
                   <ConversationItem
                     key={conv.id}
@@ -330,6 +369,8 @@ export function ConversationList() {
                     currentUserId={profile?.id}
                     userRole={otherMemberId ? usersRoles[otherMemberId] : null}
                     onTrash={() => handleTrashConversation(conv.id)}
+                    hasStory={hasStory}
+                    storyGroup={storyGroup}
                   />
                 );
               })}
@@ -353,6 +394,60 @@ export function ConversationList() {
   );
 }
 
+// Accepted Friend Request Row
+const AcceptedFriendRow = memo(function AcceptedFriendRow({
+  request,
+  onDismiss,
+  onMessage,
+}: {
+  request: { id: string; sender?: { id: string; username: string; avatar_url: string | null; display_name: string | null } };
+  onDismiss: () => void;
+  onMessage: (userId: string) => void;
+}) {
+  const navigate = useNavigate();
+  
+  if (!request.sender) return null;
+  
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-xl bg-green-500/10 border border-green-500/20 mb-1.5">
+      <button
+        onClick={() => navigate(`/u/${request.sender!.username}`)}
+        className="flex-shrink-0"
+      >
+        <Avatar className="h-10 w-10 ring-2 ring-green-500/30">
+          <AvatarImage src={request.sender.avatar_url || undefined} />
+          <AvatarFallback>{request.sender.username?.charAt(0).toUpperCase()}</AvatarFallback>
+        </Avatar>
+      </button>
+      
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm truncate">{request.sender.display_name || request.sender.username}</p>
+        <p className="text-xs text-green-600 dark:text-green-400">Accepted your friend request!</p>
+      </div>
+      
+      <div className="flex items-center gap-1">
+        <Button
+          size="sm"
+          variant="default"
+          onClick={() => onMessage(request.sender!.id)}
+          className="h-8"
+        >
+          <MessageCircle className="h-4 w-4 mr-1" />
+          Message
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onDismiss}
+          className="h-8 w-8"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+});
+
 // Memoized conversation item
 const ConversationItem = memo(function ConversationItem({ 
   conversation, 
@@ -361,6 +456,8 @@ const ConversationItem = memo(function ConversationItem({
   currentUserId,
   userRole,
   onTrash,
+  hasStory,
+  storyGroup,
 }: { 
   conversation: Conversation; 
   onClick: () => void;
@@ -368,7 +465,10 @@ const ConversationItem = memo(function ConversationItem({
   currentUserId?: string;
   userRole?: 'admin' | 'moderator' | null;
   onTrash?: () => void;
+  hasStory?: boolean;
+  storyGroup?: StoryGroup;
 }) {
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   
   const otherMembers = useMemo(() => 
@@ -399,6 +499,20 @@ const ConversationItem = memo(function ConversationItem({
 
   const isMuted = conversation.members?.find((m) => m.user_id === currentUserId)?.is_muted;
 
+  // Handle avatar click - go to story if has one, otherwise profile
+  const handleAvatarClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!conversation.is_group && otherMember) {
+      if (hasStory && storyGroup) {
+        // Open story viewer - navigate to a story view
+        navigate(`/stories/${otherMember.username}`);
+      } else {
+        // Go to profile
+        navigate(`/u/${otherMember.username}`);
+      }
+    }
+  };
+
   return (
     <div 
       className="group relative w-full max-w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer overflow-hidden"
@@ -421,13 +535,18 @@ const ConversationItem = memo(function ConversationItem({
             </div>
           </div>
         ) : (
-          <>
-            <Avatar className="h-12 w-12 ring-2 ring-background shadow-md">
-              <AvatarImage src={avatarUrl || undefined} />
-              <AvatarFallback className="text-base">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
-            </Avatar>
+          <button onClick={handleAvatarClick} className="block">
+            <div className={`relative ${hasStory ? 'p-0.5' : ''}`}>
+              {hasStory && (
+                <div className={`absolute inset-0 rounded-full ${storyGroup?.hasUnviewed ? 'bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500' : 'bg-muted-foreground/30'}`} />
+              )}
+              <Avatar className={`h-12 w-12 ring-2 ring-background shadow-md ${hasStory ? 'relative' : ''}`}>
+                <AvatarImage src={avatarUrl || undefined} />
+                <AvatarFallback className="text-base">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
+            </div>
             <OnlineIndicator isOnline={isOnline} size="sm" className="-bottom-0.5 -right-0.5" />
-          </>
+          </button>
         )}
         {isPinned && (
           <div className="absolute -top-1 -right-1 bg-primary rounded-full p-0.5">
