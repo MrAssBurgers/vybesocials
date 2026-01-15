@@ -240,21 +240,28 @@ export const MemeBanGifPicker = ({ selectedGifUrl, onSelectGif }: MemeBanGifPick
         )}
       </AnimatePresence>
 
-      {/* Existing Backgrounds Grid */}
-      {backgrounds.length > 0 && (
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Or pick from library:</Label>
-          <ScrollArea className="h-32">
-            <div className="grid grid-cols-4 gap-2">
+      {/* Premade Backgrounds Gallery - Always Show */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground flex items-center gap-2">
+          🎨 Premade Meme Backgrounds
+          {backgrounds.length > 0 && (
+            <span className="bg-orange-500/20 text-orange-500 text-[10px] px-1.5 py-0.5 rounded-full">
+              {backgrounds.length} available
+            </span>
+          )}
+        </Label>
+        <ScrollArea className="h-40 border border-border rounded-lg p-2 bg-muted/30">
+          {backgrounds.length > 0 ? (
+            <div className="grid grid-cols-3 gap-2">
               {backgrounds.map((bg) => (
                 <button
                   key={bg.id}
                   type="button"
                   onClick={() => onSelectGif(selectedGifUrl === bg.gif_url ? null : bg.gif_url)}
                   className={cn(
-                    "relative aspect-video rounded-lg overflow-hidden border-2 transition-all",
+                    "relative aspect-video rounded-lg overflow-hidden border-2 transition-all hover:scale-105",
                     selectedGifUrl === bg.gif_url
-                      ? "border-orange-500 ring-2 ring-orange-500/50"
+                      ? "border-orange-500 ring-2 ring-orange-500/50 scale-105"
                       : "border-transparent hover:border-orange-500/50"
                   )}
                 >
@@ -265,15 +272,26 @@ export const MemeBanGifPicker = ({ selectedGifUrl, onSelectGif }: MemeBanGifPick
                   />
                   {selectedGifUrl === bg.gif_url && (
                     <div className="absolute inset-0 bg-orange-500/30 flex items-center justify-center">
-                      <Check className="h-4 w-4 text-white" />
+                      <Check className="h-5 w-5 text-white drop-shadow-lg" />
+                    </div>
+                  )}
+                  {bg.is_default && (
+                    <div className="absolute top-1 left-1 bg-black/60 text-[8px] text-white px-1 py-0.5 rounded">
+                      Default
                     </div>
                   )}
                 </button>
               ))}
             </div>
-          </ScrollArea>
-        </div>
-      )}
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-4">
+              <ImageIcon className="h-8 w-8 mb-2 opacity-50" />
+              <p className="text-xs">No backgrounds yet</p>
+              <p className="text-[10px]">Upload one above!</p>
+            </div>
+          )}
+        </ScrollArea>
+      </div>
 
       {/* Preview */}
       {selectedGifUrl && (
