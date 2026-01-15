@@ -27,83 +27,22 @@ export function useMutualFriendsWithUser(targetUserId: string | undefined) {
     queryKey: ['mutual-friends', profile?.id, targetUserId],
     queryFn: async (): Promise<MutualFriend[]> => {
       if (!profile?.id || !targetUserId || profile.id === targetUserId) {
-        console.log('[MutualFriends] Skipping - same user or missing ids');
         return [];
       }
 
-      console.log('[MutualFriends] Fetching for', { myId: profile.id, targetId: targetUserId });
+      // Use the security definer function to bypass RLS
+      const { data, error } = await supabase
+        .rpc('get_mutual_friends', {
+          current_user_id: profile.id,
+          target_user_id: targetUserId
+        });
 
-      // Get current user's friends (accepted friend requests)
-      const { data: myFriendsAsSender, error: e1 } = await supabase
-        .from('friend_requests')
-        .select('receiver_id')
-        .eq('sender_id', profile.id)
-        .eq('status', 'accepted');
-
-      const { data: myFriendsAsReceiver, error: e2 } = await supabase
-        .from('friend_requests')
-        .select('sender_id')
-        .eq('receiver_id', profile.id)
-        .eq('status', 'accepted');
-
-      if (e1 || e2) {
-        console.error('[MutualFriends] Error fetching my friends:', e1 || e2);
+      if (error) {
+        console.error('[MutualFriends] Error:', error);
+        return [];
       }
 
-      const myFriendIds = new Set([
-        ...(myFriendsAsSender || []).map(f => f.receiver_id),
-        ...(myFriendsAsReceiver || []).map(f => f.sender_id),
-      ]);
-
-      console.log('[MutualFriends] My friends count:', myFriendIds.size);
-
-      if (myFriendIds.size === 0) return [];
-
-      // Get target user's friends
-      const { data: targetFriendsAsSender, error: e3 } = await supabase
-        .from('friend_requests')
-        .select('receiver_id')
-        .eq('sender_id', targetUserId)
-        .eq('status', 'accepted');
-
-      const { data: targetFriendsAsReceiver, error: e4 } = await supabase
-        .from('friend_requests')
-        .select('sender_id')
-        .eq('receiver_id', targetUserId)
-        .eq('status', 'accepted');
-
-      if (e3 || e4) {
-        console.error('[MutualFriends] Error fetching target friends:', e3 || e4);
-      }
-
-      const targetFriendIds = new Set([
-        ...(targetFriendsAsSender || []).map(f => f.receiver_id),
-        ...(targetFriendsAsReceiver || []).map(f => f.sender_id),
-      ]);
-
-      console.log('[MutualFriends] Target friends count:', targetFriendIds.size);
-
-      // Find intersection (mutual friends)
-      const mutualIds = Array.from(myFriendIds).filter(id => targetFriendIds.has(id));
-
-      console.log('[MutualFriends] Mutual friends count:', mutualIds.length);
-
-      if (mutualIds.length === 0) return [];
-
-      // Fetch profiles for mutual friends
-      const { data: mutualProfiles, error: e5 } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url, display_name')
-        .in('id', mutualIds)
-        .limit(10);
-
-      if (e5) {
-        console.error('[MutualFriends] Error fetching profiles:', e5);
-      }
-
-      console.log('[MutualFriends] Mutual profiles:', mutualProfiles);
-
-      return mutualProfiles || [];
+      return (data || []) as MutualFriend[];
     },
     enabled: !!profile?.id && !!targetUserId && profile.id !== targetUserId,
     staleTime: 60000,
@@ -116,17 +55,24 @@ export const MutualFriendsDisplay = memo(function MutualFriendsDisplay({
   className = '',
 }: MutualFriendsDisplayProps) {
   const navigate = useNavigate();
+  const { profile: currentUser } = useAuth();
   const { data: mutualFriends, isLoading, error } = useMutualFriendsWithUser(targetUserId);
 
   const handleProfileClick = (username: string) => {
     navigate(`/u/${username}`);
   };
 
+  // Don't show anything if user is not logged in
+  if (!currentUser) {
+    return null;
+  }
+
   if (isLoading) {
     return (
       <div className={`flex items-center gap-2 ${className}`}>
-        <Skeleton className="h-4 w-4 rounded-full" />
-        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-5 w-5 rounded-full" />
+        <Skeleton className="h-5 w-5 rounded-full" />
+        <Skeleton className="h-3 w-20" />
       </div>
     );
   }

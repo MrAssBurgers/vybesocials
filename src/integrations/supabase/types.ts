@@ -3837,6 +3837,15 @@ export type Database = {
         }[]
       }
       get_like_count: { Args: { p_post_id: string }; Returns: number }
+      get_mutual_friends: {
+        Args: { current_user_id: string; target_user_id: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          username: string
+        }[]
+      }
       get_posts_with_counts: {
         Args: {
           p_author_id?: string
