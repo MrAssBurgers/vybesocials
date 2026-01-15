@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link2, Phone, Check, X, Loader2 } from 'lucide-react';
+import { Link2, Phone, Check, X, Loader2, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,6 @@ import { getUserFriendlyError } from '@/lib/errorUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { haptics } from '@/lib/haptics';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-
 export function ConnectionsSection() {
   const { profile } = useAuth();
   const [googleLinked, setGoogleLinked] = useState(false);
@@ -21,6 +20,7 @@ export function ConnectionsSection() {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [checkingGoogle, setCheckingGoogle] = useState(true);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     const checkGoogleLink = async () => {
@@ -104,23 +104,41 @@ export function ConnectionsSection() {
     }
   };
 
+  const formatPhone = (phone: string) => {
+    return phone.startsWith('+') ? phone : `+1${phone.replace(/\D/g, '')}`;
+  };
+
+  const startResendCooldown = () => {
+    setResendCooldown(60);
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const handleSavePhone = async () => {
     if (!profile?.id || !phoneNumber) return;
     haptics.tap();
     setLoading(true);
     
     try {
-      const formattedPhone = phoneNumber.startsWith('+') 
-        ? phoneNumber 
-        : `+1${phoneNumber.replace(/\D/g, '')}`;
+      const formattedPhone = formatPhone(phoneNumber);
       
-      const { error: authError } = await supabase.auth.updateUser({
-        phone: formattedPhone,
+      // Call custom Twilio edge function
+      const { data, error } = await supabase.functions.invoke('send-sms-code', {
+        body: { phone: formattedPhone }
       });
       
-      if (authError) throw authError;
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       
-      const { error: profileError } = await supabase
+      // Update profile with phone number (not verified yet)
+      await supabase
         .from('profiles')
         .update({ 
           phone_number: formattedPhone,
@@ -128,13 +146,39 @@ export function ConnectionsSection() {
         })
         .eq('id', profile.id);
       
-      if (profileError) throw profileError;
-      
+      setPhoneNumber(formattedPhone);
       setShowPhoneInput(false);
       setShowOtpInput(true);
+      startResendCooldown();
       toast.success('Verification code sent to your phone');
     } catch (error: any) {
-      toast.error(getUserFriendlyError(error));
+      console.error('Send SMS error:', error);
+      toast.error(error.message || 'Failed to send verification code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (resendCooldown > 0 || !phoneNumber) return;
+    haptics.tap();
+    setLoading(true);
+    
+    try {
+      const formattedPhone = formatPhone(phoneNumber);
+      
+      const { data, error } = await supabase.functions.invoke('send-sms-code', {
+        body: { phone: formattedPhone }
+      });
+      
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      startResendCooldown();
+      toast.success('New code sent!');
+    } catch (error: any) {
+      console.error('Resend SMS error:', error);
+      toast.error(error.message || 'Failed to resend code');
     } finally {
       setLoading(false);
     }
@@ -146,22 +190,19 @@ export function ConnectionsSection() {
     setLoading(true);
     
     try {
-      const formattedPhone = phoneNumber.startsWith('+') 
-        ? phoneNumber 
-        : `+1${phoneNumber.replace(/\D/g, '')}`;
+      const formattedPhone = formatPhone(phoneNumber);
       
-      const { error } = await supabase.auth.verifyOtp({
-        phone: formattedPhone,
-        token: otp,
-        type: 'sms',
+      // Call custom Twilio edge function
+      const { data, error } = await supabase.functions.invoke('verify-sms-code', {
+        body: { 
+          phone: formattedPhone, 
+          code: otp,
+          userId: profile.id 
+        }
       });
       
       if (error) throw error;
-      
-      await supabase
-        .from('profiles')
-        .update({ phone_verified: true })
-        .eq('id', profile.id);
+      if (data?.error) throw new Error(data.error);
       
       setPhoneVerified(true);
       setShowOtpInput(false);
@@ -169,8 +210,9 @@ export function ConnectionsSection() {
       haptics.success();
       toast.success('Phone number verified!');
     } catch (error: any) {
+      console.error('Verify SMS error:', error);
       haptics.error();
-      toast.error(getUserFriendlyError(error));
+      toast.error(error.message || 'Invalid verification code');
     } finally {
       setLoading(false);
     }
@@ -376,18 +418,30 @@ export function ConnectionsSection() {
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify'}
               </Button>
             </div>
-            <Button 
-              variant="link" 
-              size="sm"
-              onClick={() => {
-                setShowOtpInput(false);
-                setShowPhoneInput(true);
-                setOtp('');
-              }}
-              className="p-0 h-auto"
-            >
-              Use a different number
-            </Button>
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="link" 
+                size="sm"
+                onClick={() => {
+                  setShowOtpInput(false);
+                  setShowPhoneInput(true);
+                  setOtp('');
+                }}
+                className="p-0 h-auto"
+              >
+                Use a different number
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleResendCode}
+                disabled={loading || resendCooldown > 0}
+                className="p-0 h-auto gap-1"
+              >
+                <RefreshCw className="h-3 w-3" />
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
+              </Button>
+            </div>
           </motion.div>
         )}
       </div>
