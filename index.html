@@ -88,12 +88,47 @@
   </head>
   <body>
     <div id="root">
-      <!-- Inline skeleton for faster LCP -->
-      <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0b;gap:16px;">
-        <img src="/icons/icon-192x192.png" alt="VYBE" style="width:80px;height:80px;border-radius:16px;" onerror="this.style.display='none'" />
-        <div style="width:40px;height:40px;border:3px solid #333;border-top-color:#e6007a;border-radius:50%;animation:spin 1s linear infinite;"></div>
+      <!-- Inline splash skeleton for faster LCP - matches React splash screen -->
+      <div id="initial-splash" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0b;gap:24px;position:relative;overflow:hidden;">
+        <!-- Background glow -->
+        <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 40%, rgba(230,0,122,0.08) 0%, transparent 60%);"></div>
+        
+        <!-- Logo container with glow -->
+        <div style="position:relative;">
+          <!-- Spinning ring -->
+          <div style="position:absolute;inset:-16px;border:2px solid rgba(230,0,122,0.2);border-top-color:#e6007a;border-radius:50%;animation:spin 2s linear infinite;"></div>
+          
+          <!-- Logo box -->
+          <div style="width:80px;height:80px;border-radius:16px;background:linear-gradient(135deg, #e6007a 0%, #8b5cf6 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 20px 40px -12px rgba(230,0,122,0.4);">
+            <svg viewBox="0 0 32 32" fill="none" style="width:48px;height:48px;">
+              <path d="M6 8L16 24L26 8" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M10 6C10 6 12 10 16 10C20 10 22 6 22 6" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+              <circle cx="16" cy="24" r="2" fill="white"/>
+            </svg>
+          </div>
+        </div>
+        
+        <!-- VYBE text -->
+        <div style="font-family:system-ui,-apple-system,sans-serif;font-size:28px;font-weight:900;letter-spacing:-0.02em;background:linear-gradient(135deg, #e6007a 0%, #8b5cf6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">VYBE</div>
+        
+        <!-- Progress bar -->
+        <div style="width:200px;">
+          <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:999px;overflow:hidden;">
+            <div style="height:100%;width:0%;background:linear-gradient(90deg, #e6007a, #8b5cf6);border-radius:999px;animation:progress 1.2s ease-out forwards;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:rgba(255,255,255,0.4);font-family:system-ui,-apple-system,sans-serif;">
+            <span>Loading...</span>
+            <span style="font-variant-numeric:tabular-nums;">0%</span>
+          </div>
+        </div>
+        
+        <!-- Tagline -->
+        <div style="position:absolute;bottom:32px;font-size:11px;color:rgba(255,255,255,0.3);font-family:system-ui,-apple-system,sans-serif;">The Next Generation Social Platform</div>
       </div>
-      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+      <style>
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes progress{0%{width:0%}50%{width:60%}100%{width:85%}}
+      </style>
     </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
