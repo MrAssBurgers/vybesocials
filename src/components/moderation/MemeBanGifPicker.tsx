@@ -25,7 +25,7 @@ export const MemeBanGifPicker = ({ selectedGifUrl, onSelectGif }: MemeBanGifPick
   const { data: backgrounds = [] } = useMemeBanBackgrounds();
   const addBackground = useAddMemeBanBackground();
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = useCallback(async (file: File) => {
     if (!file.type.includes('gif') && !file.type.includes('image')) {
       toast.error('Please upload a GIF or image file');
       return;
@@ -57,17 +57,18 @@ export const MemeBanGifPicker = ({ selectedGifUrl, onSelectGif }: MemeBanGifPick
     } finally {
       setIsUploading(false);
     }
-  };
+  }, [addBackground, onSelectGif]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
     
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFileUpload(file);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleFileUpload(files[0]);
     }
-  }, []);
+  }, [handleFileUpload]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
