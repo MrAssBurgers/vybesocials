@@ -27,11 +27,19 @@ import { useCameraPreload, stopPreloadedCamera, getPreloadedStream } from '@/hoo
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, setPhase, setError, dismissIncoming } = useCallStore();
   
-  // Daily call object ref
+  // Daily call object ref - persists across re-renders
   const dailyRef = useRef<DailyCall | null>(null);
   
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Track component mount to detect unexpected unmounts
+  useEffect(() => {
+    console.log('[CallOverlay] Component MOUNTED');
+    return () => {
+      console.log('[CallOverlay] Component UNMOUNTING - this should NOT happen during calls!');
+    };
+  }, []);
   
   // Video/Audio refs for attaching streams
   const localVideoRef = useRef<HTMLVideoElement>(null);
