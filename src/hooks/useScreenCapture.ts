@@ -36,59 +36,13 @@ export function useScreenCapture({ enabled = true, onCapture }: UseScreenCapture
   }, [onCapture]);
 
   // Screenshot detection via combined signals
+  // NOTE: Web browsers cannot reliably detect screenshots - this is disabled
+  // to prevent false positives from normal tab switching behavior.
+  // Only screen recording detection (via getDisplayMedia override) is active.
   useEffect(() => {
     if (!enabled) return;
 
-    const handleBlur = () => {
-      lastBlurTime.current = Date.now();
-    };
-
-    const handleFocus = () => {
-      const now = Date.now();
-      const blurDuration = lastBlurTime.current ? now - lastBlurTime.current : Infinity;
-      const visibilityDuration = lastVisibilityChange.current ? now - lastVisibilityChange.current : Infinity;
-      
-      // Screenshot pattern: brief blur (<1s) + visibility change + no navigation
-      if (
-        blurDuration < 1000 &&
-        blurDuration > 50 && // Ignore instant blur/focus
-        visibilityDuration < 1500 &&
-        wasHidden.current &&
-        !navigationOccurred.current
-      ) {
-        const confidence = blurDuration < 500 ? 'high' : 'medium';
-        triggerCapture({
-          type: 'screenshot',
-          timestamp: new Date(),
-          confidence
-        });
-      }
-
-      // Reset state
-      wasHidden.current = false;
-      navigationOccurred.current = false;
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        wasHidden.current = true;
-        lastVisibilityChange.current = Date.now();
-      } else {
-        // Check for screenshot pattern on visibility restore
-        const now = Date.now();
-        const hiddenDuration = lastVisibilityChange.current ? now - lastVisibilityChange.current : Infinity;
-        
-        if (hiddenDuration < 800 && hiddenDuration > 50 && !navigationOccurred.current) {
-          triggerCapture({
-            type: 'screenshot',
-            timestamp: new Date(),
-            confidence: hiddenDuration < 400 ? 'high' : 'medium'
-          });
-        }
-      }
-    };
-
-    // Track navigation to avoid false positives
+    // Track navigation to avoid false positives in any future detection
     const handleBeforeUnload = () => {
       navigationOccurred.current = true;
     };
@@ -97,20 +51,14 @@ export function useScreenCapture({ enabled = true, onCapture }: UseScreenCapture
       navigationOccurred.current = true;
     };
 
-    window.addEventListener('blur', handleBlur);
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('popstate', handlePopState);
 
     return () => {
-      window.removeEventListener('blur', handleBlur);
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [enabled, triggerCapture]);
+  }, [enabled]);
 
   // Screen recording detection via MediaDevices API
   useEffect(() => {
@@ -183,33 +131,8 @@ export function useScreenCapture({ enabled = true, onCapture }: UseScreenCapture
     };
   }, [enabled, triggerCapture]);
 
-  // iOS-specific: detect potential screenshots via orientation/resize patterns
-  useEffect(() => {
-    if (!enabled) return;
-
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (!isIOS) return;
-
-    let lastResize = 0;
-    const handleResize = () => {
-      const now = Date.now();
-      const timeSinceLastResize = now - lastResize;
-      
-      // iOS screenshot causes brief resize events in some cases
-      if (timeSinceLastResize < 100 && wasHidden.current) {
-        triggerCapture({
-          type: 'screenshot',
-          timestamp: new Date(),
-          confidence: 'medium'
-        });
-      }
-      
-      lastResize = now;
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [enabled, triggerCapture]);
+  // iOS-specific screenshot detection is disabled due to high false positive rate
+  // from normal resize events and orientation changes.
 
   return {
     isRecording
