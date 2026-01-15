@@ -1142,7 +1142,7 @@ export function GlobalCallOverlay() {
                 {/* Local Video - Picture-in-Picture (INSTANT - shows preloaded camera immediately) */}
                 {showLocalVideoContainer && (
                   <div
-                    className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 bg-black"
+                    className="absolute top-24 right-4 w-36 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 bg-black flex items-center justify-center"
                     style={{ willChange: 'auto', transform: 'translateZ(0)' }}
                   >
                     {/* Show preloaded stream while Daily camera initializes - INSTANT like FaceTime */}
@@ -1152,7 +1152,7 @@ export function GlobalCallOverlay() {
                         autoPlay
                         playsInline
                         muted
-                        className="w-full h-full object-cover absolute inset-0 z-10"
+                        className="w-full h-full object-contain absolute inset-0 z-10"
                         style={{ transform: 'scaleX(-1) translateZ(0)' }}
                       />
                     )}
@@ -1163,7 +1163,7 @@ export function GlobalCallOverlay() {
                       playsInline
                       muted
                       className={cn(
-                        "w-full h-full object-cover absolute inset-0 transition-opacity duration-150",
+                        "w-full h-full object-contain absolute inset-0 transition-opacity duration-150",
                         hasLocalVideo ? "z-20 opacity-100" : "opacity-0"
                       )}
                       style={{ transform: 'scaleX(-1) translateZ(0)' }}

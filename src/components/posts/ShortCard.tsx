@@ -70,8 +70,33 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
-  const hasCountedView = useRef(false);
+  const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
+
+  // Subscribe to realtime view count updates
+  useEffect(() => {
+    const channel = supabase
+      .channel(`post-views-${post.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'posts',
+          filter: `id=eq.${post.id}`,
+        },
+        (payload) => {
+          if (payload.new && typeof payload.new.view_count === 'number') {
+            setViewCount(payload.new.view_count);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [post.id]);
 
   const isOwnPost = profile?.id === post.author.id;
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
@@ -110,8 +135,9 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         videoRef.current.play().then(() => {
           setIsPlaying(true);
           setBrowserForcedMute(false);
-          if (!hasCountedView.current && profile) {
-            hasCountedView.current = true;
+          // Count initial view
+          if (!hasCountedInitialView.current && profile) {
+            hasCountedInitialView.current = true;
             incrementViewCount();
           }
         }).catch(() => {
@@ -126,7 +152,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         videoRef.current.pause();
         if (!isActive) {
           videoRef.current.currentTime = 0;
-          hasCountedView.current = false;
+          hasCountedInitialView.current = false;
         }
         setIsPlaying(false);
       }
@@ -136,11 +162,18 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const incrementViewCount = async () => {
     try {
       await supabase.rpc('increment_view_count', { post_id_param: post.id });
-      setViewCount(prev => prev + 1);
+      // Don't update local state - let realtime handle it for live sync
     } catch (error) {
       console.error('Failed to increment view count:', error);
     }
   };
+
+  // Handle video loop/repeat - count each replay as a view
+  const handleVideoEnded = useCallback(() => {
+    if (profile && isActive) {
+      incrementViewCount();
+    }
+  }, [profile, isActive]);
 
   // Tap to toggle mute (single tap), double tap to like
   const handleTap = useCallback((e: React.MouseEvent) => {
@@ -292,6 +325,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
             muted={isMuted}
             preload={isActive ? "auto" : isSlowConnection ? "none" : "metadata"}
             onLoadedData={() => setIsLoading(false)}
+            onEnded={handleVideoEnded}
             onError={() => {
               setIsLoading(false);
               setHasError(true);
