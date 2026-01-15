@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { callSounds } from '@/lib/callSounds';
+import { premiumSounds } from '@/lib/premiumSounds';
 import { toast } from 'sonner';
 
 /**
@@ -143,12 +143,13 @@ export function useMessageNotifications() {
           
           // If not viewing this conversation, show notifications
           if (!isViewingConvo || !isDocumentVisible) {
-            // Play sound
-            callSounds.message();
+            // Play premium message sound (auto-debounced for rapid messages)
+            premiumSounds.messageReceive();
             
-            // Show toast
-            toast.info(`${senderName}: ${messagePreview}`, {
-              duration: 4000,
+            // Show toast (clean, minimal)
+            toast(senderName, {
+              description: messagePreview,
+              duration: 3000,
               action: {
                 label: 'View',
                 onClick: () => window.location.href = `/messages/${newMessage.conversation_id}`,

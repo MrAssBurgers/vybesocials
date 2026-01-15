@@ -262,16 +262,12 @@ export function playCallEnd(): void {
   }
 }
 
-// Play message notification sound (debounced)
+// Play message notification sound - now uses premium sounds
 export function playMessageSound(): void {
-  const now = Date.now();
-  if (now - lastMessageSoundTime < 500) return;
-  lastMessageSoundTime = now;
-  
-  const ctx = getAudioContext();
-  if (ctx) {
-    playMessageNotif(ctx, ctx.currentTime);
-  }
+  // Import dynamically to avoid circular dependency
+  import('./premiumSounds').then(({ premiumSounds }) => {
+    premiumSounds.messageReceive();
+  });
 }
 
 // Stop all call sounds cleanly

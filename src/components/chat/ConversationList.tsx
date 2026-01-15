@@ -294,24 +294,6 @@ export function ConversationList() {
         </div>
       )}
 
-      {/* Accepted Friend Requests Section */}
-      {acceptedRequests && acceptedRequests.length > 0 && (
-        <div className="p-3 space-y-1 w-full max-w-full overflow-hidden border-b border-border">
-          <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
-            <UserCheck className="h-3.5 w-3.5 text-green-500" />
-            New Friends
-          </p>
-          {acceptedRequests.map((request) => (
-            <AcceptedFriendRow 
-              key={request.id}
-              request={request}
-              onDismiss={() => dismissAccepted.mutate(request.id)}
-              onMessage={handleQuickAddSelect}
-            />
-          ))}
-        </div>
-      )}
-
       {/* Conversation List */}
       <ScrollArea className="flex-1 overflow-x-hidden">
         <div className="p-3 pb-0 space-y-1 w-full max-w-full overflow-hidden">
@@ -350,6 +332,20 @@ export function ConversationList() {
         )}
 
         <div className="p-3 pb-2 space-y-1 w-full max-w-full overflow-hidden">
+          {/* Accepted Friend Requests as Chat Notifications */}
+          {acceptedRequests && acceptedRequests.length > 0 && (
+            <>
+              {acceptedRequests.map((request) => (
+                <AcceptedFriendChatRow 
+                  key={request.id}
+                  request={request}
+                  onDismiss={() => dismissAccepted.mutate(request.id)}
+                  onMessage={handleQuickAddSelect}
+                />
+              ))}
+            </>
+          )}
+          
           {unpinnedConversations.length > 0 ? (
             <>
               <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
@@ -375,7 +371,7 @@ export function ConversationList() {
                 );
               })}
             </>
-          ) : (
+          ) : !acceptedRequests?.length ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-4">
               <div className="w-20 h-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
                 <MessageCircle className="h-10 w-10 text-muted-foreground" />
@@ -387,15 +383,15 @@ export function ConversationList() {
                 {t('messages.newChat')}
               </Button>
             </div>
-          )}
+          ) : null}
         </div>
       </ScrollArea>
     </div>
   );
 }
 
-// Accepted Friend Request Row
-const AcceptedFriendRow = memo(function AcceptedFriendRow({
+// Accepted Friend Request as Chat Row (inline notification style)
+const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
   request,
   onDismiss,
   onMessage,
@@ -409,41 +405,47 @@ const AcceptedFriendRow = memo(function AcceptedFriendRow({
   if (!request.sender) return null;
   
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl bg-green-500/10 border border-green-500/20 mb-1.5">
+    <div 
+      className="group relative w-full max-w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-green-500/20 bg-green-500/5 mb-1.5 cursor-pointer overflow-hidden"
+      onClick={() => onMessage(request.sender!.id)}
+    >
       <button
-        onClick={() => navigate(`/u/${request.sender!.username}`)}
-        className="flex-shrink-0"
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate(`/u/${request.sender!.username}`);
+        }}
+        className="relative flex-shrink-0"
       >
-        <Avatar className="h-10 w-10 ring-2 ring-green-500/30">
+        <Avatar className="h-12 w-12 ring-2 ring-green-500/30 shadow-md">
           <AvatarImage src={request.sender.avatar_url || undefined} />
-          <AvatarFallback>{request.sender.username?.charAt(0).toUpperCase()}</AvatarFallback>
+          <AvatarFallback className="text-base">{request.sender.username?.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
+        <div className="absolute -bottom-0.5 -right-0.5 bg-green-500 rounded-full p-0.5">
+          <UserCheck className="h-2.5 w-2.5 text-white" />
+        </div>
       </button>
       
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm truncate">{request.sender.display_name || request.sender.username}</p>
-        <p className="text-xs text-green-600 dark:text-green-400">Accepted your friend request!</p>
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex items-center justify-between mb-0.5 gap-2">
+          <span className="font-semibold text-sm truncate">{request.sender.display_name || request.sender.username}</span>
+          <span className="text-[10px] text-green-600 dark:text-green-400 whitespace-nowrap">New friend</span>
+        </div>
+        <p className="text-xs text-green-600 dark:text-green-400 truncate">
+          Accepted your friend request! Tap to message 💬
+        </p>
       </div>
       
-      <div className="flex items-center gap-1">
-        <Button
-          size="sm"
-          variant="default"
-          onClick={() => onMessage(request.sender!.id)}
-          className="h-8"
-        >
-          <MessageCircle className="h-4 w-4 mr-1" />
-          Message
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={onDismiss}
-          className="h-8 w-8"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDismiss();
+        }}
+        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+      >
+        <X className="h-4 w-4" />
+      </Button>
     </div>
   );
 });
