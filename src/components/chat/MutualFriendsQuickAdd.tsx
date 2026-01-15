@@ -169,14 +169,14 @@ export function MutualFriendsQuickAdd({
 
   if (isLoading && !searchQuery) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
           <Users className="h-3 w-3" />
           <span>Quick Add</span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
           {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
+            <Skeleton key={i} className="h-11 rounded-lg" />
           ))}
         </div>
       </div>
@@ -184,7 +184,7 @@ export function MutualFriendsQuickAdd({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* Search by name */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -221,9 +221,9 @@ export function MutualFriendsQuickAdd({
       
       <AnimatePresence mode="wait">
         {isSearching ? (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-24 rounded-xl" />
+              <Skeleton key={i} className="h-11 rounded-lg" />
             ))}
           </div>
         ) : displayUsers && displayUsers.length > 0 ? (
@@ -232,7 +232,7 @@ export function MutualFriendsQuickAdd({
             variants={containerVariants}
             initial="hidden"
             animate="show"
-            className="grid grid-cols-2 gap-2"
+            className="space-y-1.5"
           >
             {displayUsers.slice(0, 6).map((user) => (
               <MutualFriendCard 
@@ -295,137 +295,81 @@ function MutualFriendCard({
   return (
     <motion.div
       variants={itemVariants}
-      whileHover={{ scale: 1.02, y: -2 }}
-      whileTap={{ scale: 0.98 }}
-      className="relative bg-card border border-border rounded-xl p-3 flex flex-col items-center gap-2 hover:shadow-lg transition-shadow group"
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.97 }}
+      className="relative bg-card border border-border rounded-lg p-2 flex items-center gap-2 hover:shadow-md transition-shadow group"
     >
-      {/* Animated gradient border on hover */}
-      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-      
-      <div className="relative">
-        <motion.div
-          whileHover={{ rotate: [0, -5, 5, 0] }}
-          transition={{ duration: 0.3 }}
-        >
-          <Avatar className="h-12 w-12 ring-2 ring-background shadow-md">
-            <AvatarImage src={user.avatar_url || undefined} />
-            <AvatarFallback className="bg-primary/10 text-primary font-bold">
-              {(user.first_name?.[0] || user.username[0]).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        </motion.div>
+      {/* Avatar section */}
+      <div className="relative flex-shrink-0">
+        <Avatar className="h-9 w-9 ring-1 ring-background">
+          <AvatarImage src={user.avatar_url || undefined} />
+          <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+            {(user.first_name?.[0] || user.username[0]).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
         
         {/* Status indicator */}
         {isFriends && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -bottom-1 -right-1 h-5 w-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm"
-          >
-            <Check className="h-3 w-3 text-white" />
-          </motion.div>
+          <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 bg-emerald-500 rounded-full flex items-center justify-center">
+            <Check className="h-2.5 w-2.5 text-white" />
+          </div>
         )}
         {isPendingSent && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -bottom-1 -right-1 h-5 w-5 bg-amber-500 rounded-full flex items-center justify-center shadow-sm"
-          >
-            <Clock className="h-3 w-3 text-white" />
-          </motion.div>
+          <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 bg-amber-500 rounded-full flex items-center justify-center">
+            <Clock className="h-2.5 w-2.5 text-white" />
+          </div>
         )}
       </div>
       
-      <div className="text-center z-10 w-full">
-        {/* Show full name prominently */}
-        <p className="text-sm font-medium truncate max-w-[100px] mx-auto">
-          {fullName}
-        </p>
-        {/* Show username below if different from name */}
-        {user.first_name && (
-          <p className="text-[10px] text-muted-foreground truncate max-w-[100px] mx-auto">
-            @{user.username}
+      {/* Info section */}
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium truncate">{fullName}</p>
+        {user.mutual_friends_count > 0 ? (
+          <p className="text-[10px] text-muted-foreground">
+            {user.mutual_friends_count} mutual friend{user.mutual_friends_count > 1 ? 's' : ''}
           </p>
-        )}
-        
-        {/* Mutual friends indicator */}
-        {user.mutual_friends_count > 0 && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="flex items-center justify-center gap-1 mt-1"
-          >
-            {user.mutual_friends.slice(0, 2).map((mf, i) => (
-              <motion.div
-                key={mf.id}
-                initial={{ x: -5 * i, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.15 + i * 0.05 }}
-                style={{ marginLeft: i > 0 ? -8 : 0 }}
-                title={getMutualFriendName(mf)}
-              >
-                <Avatar className="h-4 w-4 ring-1 ring-background">
-                  <AvatarImage src={mf.avatar_url || undefined} />
-                  <AvatarFallback className="text-[8px] bg-muted">
-                    {(mf.first_name?.[0] || mf.username[0]).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </motion.div>
-            ))}
-            <span className="text-[10px] text-muted-foreground ml-1">
-              {user.mutual_friends_count} mutual{user.mutual_friends_count > 1 ? 's' : ''}
-            </span>
-          </motion.div>
-        )}
+        ) : user.first_name ? (
+          <p className="text-[10px] text-muted-foreground truncate">@{user.username}</p>
+        ) : null}
+      </div>
 
-        {/* Action buttons */}
-        <div className="mt-2 flex gap-1 justify-center">
-          {isLoadingStatus ? (
-            <Skeleton className="h-7 w-16 rounded-md" />
-          ) : isFriends ? (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={handleMessageClick}
-              className="h-7 text-xs gap-1"
-            >
-              <MessageCircle className="h-3 w-3" />
-              Chat
-            </Button>
-          ) : isPendingSent ? (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled
-              className="h-7 text-xs gap-1"
-            >
-              <Clock className="h-3 w-3" />
-              Pending
-            </Button>
-          ) : isPendingReceived ? (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={handleAddFriend}
-              className="h-7 text-xs gap-1"
-            >
-              <Check className="h-3 w-3" />
-              Accept
-            </Button>
-          ) : canAdd ? (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={handleAddFriend}
-              disabled={sendRequest.isPending}
-              className="h-7 text-xs gap-1"
-            >
-              <UserPlus className="h-3 w-3" />
-              Add
-            </Button>
-          ) : null}
-        </div>
+      {/* Action button */}
+      <div className="flex-shrink-0">
+        {isLoadingStatus ? (
+          <Skeleton className="h-6 w-6 rounded-full" />
+        ) : isFriends ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleMessageClick}
+            className="h-6 w-6 rounded-full"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+          </Button>
+        ) : isPendingSent ? (
+          <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
+            <Clock className="h-3 w-3 text-muted-foreground" />
+          </div>
+        ) : isPendingReceived ? (
+          <Button
+            size="icon"
+            variant="default"
+            onClick={handleAddFriend}
+            className="h-6 w-6 rounded-full"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </Button>
+        ) : canAdd ? (
+          <Button
+            size="icon"
+            variant="default"
+            onClick={handleAddFriend}
+            disabled={sendRequest.isPending}
+            className="h-6 w-6 rounded-full"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
       </div>
     </motion.div>
   );
