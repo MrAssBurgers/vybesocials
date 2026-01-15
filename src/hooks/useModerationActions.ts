@@ -2,6 +2,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import { isOwner } from '@/components/ui/OwnerBadge';
+
+// Owner username for protection
+const OWNER_USERNAME = 'mrassburgers';
+
+// Helper to check if a user is the owner by their profile ID
+async function isUserOwner(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('username')
+    .eq('id', userId)
+    .single();
+  return data?.username?.toLowerCase() === OWNER_USERNAME.toLowerCase();
+}
 
 // Fetch user warnings
 export function useUserWarnings(userId?: string) {
@@ -139,7 +153,7 @@ export function useWarnUser() {
   });
 }
 
-// Ban user mutation
+// Ban user mutation with owner protection
 export function useBanUser() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -157,10 +171,43 @@ export function useBanUser() {
       isPermanent?: boolean;
       durationDays?: number;
       isMemeBan?: boolean;
-    }) => {
+    }): Promise<{ reversedOnMod: boolean }> => {
       if (!profile?.id) throw new Error('Not authenticated');
       
-      // Convert fractional days to proper timestamp
+      // Check if target user is the owner
+      const targetIsOwner = await isUserOwner(userId);
+      
+      // If trying to ban the owner, ban the person trying instead for double the time
+      if (targetIsOwner) {
+        // Also check if the person trying is the owner (owner can't ban themselves this way)
+        const currentUserIsOwner = isOwner(profile.username);
+        if (currentUserIsOwner) {
+          throw new Error('Nice try, but you can\'t ban yourself!');
+        }
+        
+        // Calculate double the ban duration for the mod
+        const doubleDurationDays = durationDays ? durationDays * 2 : 14; // Default 2 weeks if no duration
+        const expiresAt = !isPermanent 
+          ? new Date(Date.now() + doubleDurationDays * 24 * 60 * 60 * 1000).toISOString()
+          : null;
+
+        // Ban the mod/admin who tried to ban the owner
+        const { error } = await supabase
+          .from('user_bans')
+          .insert({
+            user_id: profile.id, // Ban the person who tried
+            banned_by: profile.id, // Self-inflicted (by their own action)
+            reason: `Attempted to ban the owner. Original reason: "${reason}"`,
+            is_permanent: isPermanent, // If they tried permanent, they get permanent
+            expires_at: expiresAt,
+            is_meme_ban: true, // Always meme ban them for the irony
+          });
+        
+        if (error) throw error;
+        return { reversedOnMod: true };
+      }
+      
+      // Normal ban flow for non-owner targets
       const expiresAt = !isPermanent && durationDays 
         ? new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
         : null;
@@ -177,15 +224,24 @@ export function useBanUser() {
         });
       
       if (error) throw error;
+      return { reversedOnMod: false };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['user-bans'] });
       queryClient.invalidateQueries({ queryKey: ['all-bans'] });
       queryClient.invalidateQueries({ queryKey: ['is-banned'] });
-      toast.success(variables.isMemeBan ? '😂 User meme banned!' : 'User banned successfully');
+      queryClient.invalidateQueries({ queryKey: ['ban-status'] });
+      
+      if (result.reversedOnMod) {
+        toast.error('🚫 Nice try! You got banned for trying to ban the owner 😂', {
+          duration: 5000,
+        });
+      } else {
+        toast.success(variables.isMemeBan ? '😂 User meme banned!' : 'User banned successfully');
+      }
     },
-    onError: () => {
-      toast.error('Failed to ban user');
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to ban user');
     },
   });
 }
