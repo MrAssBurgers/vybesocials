@@ -274,6 +274,8 @@ function SnapchatStyleCard({
       onSuccess: () => {
         setIsAdded(true);
         toast.success(`Added ${fullName}!`);
+        // Auto-dismiss the card after adding
+        onDismiss(user.id);
       },
     });
   };
