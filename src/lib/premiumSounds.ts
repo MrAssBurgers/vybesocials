@@ -30,7 +30,7 @@ export interface SoundSettings {
 }
 
 const DEFAULT_SETTINGS: SoundSettings = {
-  master: false, // Off by default
+  master: true, // ON by default for notifications
   messages: true,
   calls: true,
   ui: true,
