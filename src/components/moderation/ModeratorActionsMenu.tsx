@@ -24,12 +24,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserRole } from '@/hooks/useModeration';
 import { useWarnUser, useBanUser } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { MemeBanGifPicker } from './MemeBanGifPicker';
 
 interface ModeratorActionsMenuProps {
   userId: string;
@@ -177,6 +179,7 @@ export function ModeratorDialogs({
   const [isPermanent, setIsPermanent] = useState(false);
   const [banAmount, setBanAmount] = useState(7);
   const [banUnit, setBanUnit] = useState<TimeUnit>('days');
+  const [customGifUrl, setCustomGifUrl] = useState<string | null>(null);
 
   const handleWarn = async () => {
     if (!reason.trim()) {
@@ -224,12 +227,14 @@ export function ModeratorDialogs({
       isPermanent, 
       durationDays,
       isMemeBan: true,
+      customGifUrl,
     });
     setMemeBanDialogOpen(false);
     setReason('');
     setBanAmount(1);
     setBanUnit('hours');
     setIsPermanent(false);
+    setCustomGifUrl(null);
   };
 
   return (
@@ -350,7 +355,7 @@ export function ModeratorDialogs({
 
       {/* Meme Ban Dialog */}
       <Dialog open={memeBanDialogOpen} onOpenChange={setMemeBanDialogOpen}>
-        <DialogContent className="border-orange-500/50">
+        <DialogContent className="border-orange-500/50 max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-orange-500">
               <Laugh className="h-5 w-5" />
@@ -360,56 +365,64 @@ export function ModeratorDialogs({
               Give them the funny ban screen! They'll see a hilarious meme ban page.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="meme-ban-reason">Reason (shown on meme screen)</Label>
-              <Textarea
-                id="meme-ban-reason"
-                placeholder="Get rekt noob..."
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="meme-permanent">Permanent Meme Ban</Label>
-              <Switch
-                id="meme-permanent"
-                checked={isPermanent}
-                onCheckedChange={setIsPermanent}
-              />
-            </div>
-            {!isPermanent && (
+          <ScrollArea className="flex-1 pr-4">
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  How long should they suffer? 😈
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={999}
-                    value={banAmount}
-                    onChange={(e) => setBanAmount(parseInt(e.target.value) || 1)}
-                    className="w-24"
-                  />
-                  <Select value={banUnit} onValueChange={(v) => setBanUnit(v as TimeUnit)}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="minutes">Minutes</SelectItem>
-                      <SelectItem value="hours">Hours</SelectItem>
-                      <SelectItem value="days">Days</SelectItem>
-                      <SelectItem value="weeks">Weeks</SelectItem>
-                      <SelectItem value="months">Months</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Label htmlFor="meme-ban-reason">Reason (shown on meme screen)</Label>
+                <Textarea
+                  id="meme-ban-reason"
+                  placeholder="Get rekt noob..."
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                />
               </div>
-            )}
-          </div>
-          <DialogFooter>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="meme-permanent">Permanent Meme Ban</Label>
+                <Switch
+                  id="meme-permanent"
+                  checked={isPermanent}
+                  onCheckedChange={setIsPermanent}
+                />
+              </div>
+              {!isPermanent && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    How long should they suffer? 😈
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={999}
+                      value={banAmount}
+                      onChange={(e) => setBanAmount(parseInt(e.target.value) || 1)}
+                      className="w-24"
+                    />
+                    <Select value={banUnit} onValueChange={(v) => setBanUnit(v as TimeUnit)}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="minutes">Minutes</SelectItem>
+                        <SelectItem value="hours">Hours</SelectItem>
+                        <SelectItem value="days">Days</SelectItem>
+                        <SelectItem value="weeks">Weeks</SelectItem>
+                        <SelectItem value="months">Months</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+              
+              {/* GIF Picker */}
+              <MemeBanGifPicker
+                selectedGifUrl={customGifUrl}
+                onSelectGif={setCustomGifUrl}
+              />
+            </div>
+          </ScrollArea>
+          <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setMemeBanDialogOpen(false)}>
               Cancel
             </Button>

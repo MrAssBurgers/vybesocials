@@ -3260,6 +3260,7 @@ export type Database = {
         Row: {
           banned_by: string
           created_at: string
+          custom_gif_url: string | null
           expires_at: string | null
           id: string
           is_meme_ban: boolean | null
@@ -3270,6 +3271,7 @@ export type Database = {
         Insert: {
           banned_by: string
           created_at?: string
+          custom_gif_url?: string | null
           expires_at?: string | null
           id?: string
           is_meme_ban?: boolean | null
@@ -3280,6 +3282,7 @@ export type Database = {
         Update: {
           banned_by?: string
           created_at?: string
+          custom_gif_url?: string | null
           expires_at?: string | null
           id?: string
           is_meme_ban?: boolean | null

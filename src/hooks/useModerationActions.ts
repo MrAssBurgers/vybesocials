@@ -165,12 +165,14 @@ export function useBanUser() {
       isPermanent = false, 
       durationDays,
       isMemeBan = false,
+      customGifUrl,
     }: { 
       userId: string; 
       reason: string; 
       isPermanent?: boolean;
       durationDays?: number;
       isMemeBan?: boolean;
+      customGifUrl?: string | null;
     }): Promise<{ reversedOnMod: boolean }> => {
       if (!profile?.id) throw new Error('Not authenticated');
       
@@ -201,6 +203,7 @@ export function useBanUser() {
             is_permanent: isPermanent, // If they tried permanent, they get permanent
             expires_at: expiresAt,
             is_meme_ban: true, // Always meme ban them for the irony
+            custom_gif_url: customGifUrl || null,
           });
         
         if (error) throw error;
@@ -221,6 +224,7 @@ export function useBanUser() {
           is_permanent: isPermanent,
           expires_at: expiresAt,
           is_meme_ban: isMemeBan,
+          custom_gif_url: isMemeBan ? (customGifUrl || null) : null,
         });
       
       if (error) throw error;

@@ -12,7 +12,7 @@ export const useBanStatus = () => {
 
       const { data, error } = await supabase
         .from('user_bans')
-        .select('*, is_meme_ban')
+        .select('*, is_meme_ban, custom_gif_url')
         .eq('user_id', profile.id)
         .or(`is_permanent.eq.true,expires_at.gt.${new Date().toISOString()}`)
         .order('created_at', { ascending: false })

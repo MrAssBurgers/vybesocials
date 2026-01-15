@@ -24,6 +24,7 @@ interface BanInfo {
   expires_at: string | null;
   is_permanent: boolean;
   is_meme_ban?: boolean | null;
+  custom_gif_url?: string | null;
 }
 
 interface AuthContextType {
@@ -344,7 +345,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Show banned screen if user is banned
   if (banInfo) {
     return banInfo.is_meme_ban ? (
-      <MemeBanScreen reason={banInfo.reason} expiresAt={banInfo.expires_at} />
+      <MemeBanScreen reason={banInfo.reason} expiresAt={banInfo.expires_at} customGifUrl={banInfo.custom_gif_url} />
     ) : (
       <BannedScreen
         reason={banInfo.reason}
