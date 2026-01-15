@@ -139,10 +139,9 @@ function AppWithPreloader() {
   useAutoUpdate();
 
   useEffect(() => {
-    // Only hide splash when preloading is truly complete
     if (preloadStatus.isComplete) {
-      // Small delay for smooth transition
-      const timer = setTimeout(() => setShowSplash(false), 400);
+      // Minimal delay for smooth transition
+      const timer = setTimeout(() => setShowSplash(false), 150);
       return () => clearTimeout(timer);
     }
   }, [preloadStatus.isComplete]);
