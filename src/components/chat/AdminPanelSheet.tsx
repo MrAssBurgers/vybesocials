@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, Ban, Laugh, Shield, Clock, X } from 'lucide-react';
+import { AlertTriangle, Ban, Laugh, Shield, Clock, X, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { useWarnUser, useBanUser } from '@/hooks/useModerationActions';
 import { toast } from 'sonner';
+import { MemeBanGifPicker } from '@/components/moderation/MemeBanGifPicker';
 
 interface AdminPanelSheetProps {
   open: boolean;
@@ -47,6 +48,8 @@ export function AdminPanelSheet({ open, onOpenChange, userId, username }: AdminP
   const [isPermanent, setIsPermanent] = useState(false);
   const [banAmount, setBanAmount] = useState(1);
   const [banUnit, setBanUnit] = useState<TimeUnit>('hours');
+  const [customGifUrl, setCustomGifUrl] = useState<string | null>(null);
+  const [showGifPicker, setShowGifPicker] = useState(false);
 
   const warnUser = useWarnUser();
   const banUser = useBanUser();
@@ -82,6 +85,7 @@ export function AdminPanelSheet({ open, onOpenChange, userId, username }: AdminP
         isPermanent,
         durationDays,
         isMemeBan,
+        customGifUrl: isMemeBan ? customGifUrl : null,
       });
       toast.success(`${isMemeBan ? 'Meme banned' : 'Banned'} @${username}`);
       resetAndClose();
@@ -96,6 +100,8 @@ export function AdminPanelSheet({ open, onOpenChange, userId, username }: AdminP
     setIsPermanent(false);
     setBanAmount(1);
     setBanUnit('hours');
+    setCustomGifUrl(null);
+    setShowGifPicker(false);
     onOpenChange(false);
   };
 
@@ -269,6 +275,51 @@ export function AdminPanelSheet({ open, onOpenChange, userId, username }: AdminP
                           </SelectContent>
                         </Select>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Meme GIF Selector - only for meme ban */}
+                  {activeAction === 'meme-ban' && (
+                    <div className="space-y-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowGifPicker(!showGifPicker)}
+                        className="w-full border-orange-500/50 text-orange-500 hover:bg-orange-500/10"
+                      >
+                        <ImageIcon className="h-4 w-4 mr-2" />
+                        {customGifUrl ? 'Change Meme Background' : 'Select Meme Background'}
+                      </Button>
+                      
+                      {showGifPicker && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <MemeBanGifPicker
+                            selectedGifUrl={customGifUrl}
+                            onSelectGif={(url) => {
+                              setCustomGifUrl(url);
+                              if (url) setShowGifPicker(false);
+                            }}
+                          />
+                        </motion.div>
+                      )}
+                      
+                      {customGifUrl && !showGifPicker && (
+                        <div className="relative rounded-lg overflow-hidden border border-orange-500/30 bg-black">
+                          <img
+                            src={customGifUrl}
+                            alt="Selected meme"
+                            className="w-full h-24 object-cover"
+                          />
+                          <div className="absolute bottom-1 right-1 bg-black/70 text-xs px-2 py-0.5 rounded text-orange-400">
+                            Selected
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
