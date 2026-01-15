@@ -134,15 +134,12 @@ function AppWithPreloader() {
   useAutoUpdate();
 
   useEffect(() => {
-    // Hide splash when preloading is complete (or after max 3 seconds)
+    // Only hide splash when preloading is truly complete
     if (preloadStatus.isComplete) {
-      const timer = setTimeout(() => setShowSplash(false), 300);
+      // Small delay for smooth transition
+      const timer = setTimeout(() => setShowSplash(false), 400);
       return () => clearTimeout(timer);
     }
-    
-    // Fallback: hide after 3 seconds even if not complete
-    const fallback = setTimeout(() => setShowSplash(false), 3000);
-    return () => clearTimeout(fallback);
   }, [preloadStatus.isComplete]);
 
   return (
