@@ -145,14 +145,14 @@ export function useAppPreloader() {
           await Promise.all(avatarUrls.map(preloadImage));
         }
 
-        // Step 5: Load feed posts
+        // Step 5: Load feed posts - load ALL posts for instant experience
         updateStatus('posts');
         const { data: posts } = await supabase.rpc('get_posts_with_counts', {
           p_type: null,
           p_author_id: null,
           p_user_id: uid,
           p_offset: 0,
-          p_limit: 20,
+          p_limit: 100, // Load 100 posts for instant experience
         });
 
         if (posts && posts.length > 0) {
@@ -179,17 +179,20 @@ export function useAppPreloader() {
           queryClient.setQueryData(
             ['infinite-posts', undefined, undefined, uid],
             {
-              pages: [{ posts: transformedPosts, nextPage: transformedPosts.length >= 20 ? 1 : null }],
+              pages: [{ posts: transformedPosts, nextPage: transformedPosts.length >= 100 ? 1 : null, totalLoaded: transformedPosts.length }],
               pageParams: [0],
             }
           );
 
-          // Preload post media (thumbnails first, then full images)
+          // Preload post media (first 20 thumbnails immediately)
           const mediaToPreload = transformedPosts
-            .slice(0, 10)
+            .slice(0, 20)
             .flatMap((post: any) => [post.thumbnail_url, post.author?.avatar_url])
             .filter(Boolean);
-          await Promise.all(mediaToPreload.map(preloadImage));
+          mediaToPreload.forEach((url: string) => {
+            const img = new Image();
+            img.src = url;
+          });
         }
 
         // Step 6: Load notifications
