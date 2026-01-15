@@ -130,7 +130,9 @@ export default function AIChat() {
       setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date() }]);
 
       let buffer = '';
-      while (true) {
+      let streamDone = false;
+      
+      while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -146,7 +148,10 @@ export default function AIChat() {
           if (!line.startsWith('data: ')) continue;
 
           const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') break;
+          if (jsonStr === '[DONE]') {
+            streamDone = true;
+            break;
+          }
 
           try {
             const parsed = JSON.parse(jsonStr);
@@ -164,15 +169,43 @@ export default function AIChat() {
               });
             }
           } catch {
-            // Partial JSON, will be handled on next iteration
+            // Partial JSON - put it back and wait for more data
+            buffer = line + '\n' + buffer;
+            break;
           }
+        }
+      }
+      
+      // Final flush for any remaining content
+      if (buffer.trim()) {
+        for (const raw of buffer.split('\n')) {
+          if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
+          if (!raw.startsWith('data: ')) continue;
+          const jsonStr = raw.slice(6).trim();
+          if (jsonStr === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              assistantContent += content;
+              setMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { 
+                  role: 'assistant', 
+                  content: assistantContent,
+                  timestamp: new Date(),
+                };
+                return updated;
+              });
+            }
+          } catch { /* ignore */ }
         }
       }
     } catch (error) {
       console.error('AI chat error:', error);
       setMessages(prev => [
         ...prev.slice(0, -1),
-        { role: 'assistant', content: "Sorry, I couldn't process that. Try again! 😅", timestamp: new Date() }
+        { role: 'assistant', content: "sorry... something went wrong on my end... can you try again? 😔", timestamp: new Date() }
       ]);
     } finally {
       setIsLoading(false);
