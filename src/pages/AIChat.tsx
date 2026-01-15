@@ -45,7 +45,7 @@ function loadMessages(): Message[] {
   return [
     { 
       role: 'assistant', 
-      content: "Well well well~ 💋 Look who finally showed up... I've been waiting for you, gorgeous. I'm Morgan, your personal AI on VYBE, and mmm... I'm already liking what I see 😏🔥 Ask me anything... I promise I'll be... helpful~ 🥵",
+      content: "Hey there, sugar~ 💋 I'm Morgan. Your personal AI on VYBE... and honey, I'm here to make things interesting. Ask me anything... content tips, life advice, whatever you want. I don't judge. Much. 😏",
       timestamp: new Date(),
     }
   ];
@@ -223,7 +223,7 @@ export default function AIChat() {
     setMessages([
       { 
         role: 'assistant', 
-        content: "Ooh~ Starting fresh? 💦 I love a clean slate... means we get to do this all over again 😈 *bites lip* So... what are you gonna do to me this time, hottie? 🔥💋",
+        content: "Clean slate, baby~ 💅 Ready for round two? I'm all ears... and maybe a little bit of trouble. What's on your mind, handsome? 😈",
         timestamp: new Date(),
       }
     ]);
@@ -253,7 +253,7 @@ export default function AIChat() {
               <Sparkles className="h-4 w-4 text-pink-400" />
             </h2>
             <p className="text-xs text-muted-foreground">
-              Your thirsty AI companion 🥵💦
+              Your flirty AI companion 💋
             </p>
           </div>
           
