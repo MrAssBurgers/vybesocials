@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Sheet,
   SheetContent,
@@ -21,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useWarnUser, useBanUser } from '@/hooks/useModerationActions';
+import { MemeBanGifPicker } from '@/components/moderation/MemeBanGifPicker';
 import { toast } from 'sonner';
 
 interface AdminPanelSheetProps {
@@ -47,6 +49,7 @@ export function AdminPanelSheet({ open, onOpenChange, userId, username }: AdminP
   const [isPermanent, setIsPermanent] = useState(false);
   const [banAmount, setBanAmount] = useState(1);
   const [banUnit, setBanUnit] = useState<TimeUnit>('hours');
+  const [customGifUrl, setCustomGifUrl] = useState<string | null>(null);
 
   const warnUser = useWarnUser();
   const banUser = useBanUser();
@@ -82,6 +85,7 @@ export function AdminPanelSheet({ open, onOpenChange, userId, username }: AdminP
         isPermanent,
         durationDays,
         isMemeBan,
+        customGifUrl: isMemeBan ? customGifUrl : undefined,
       });
       toast.success(`${isMemeBan ? 'Meme banned' : 'Banned'} @${username}`);
       resetAndClose();
@@ -96,6 +100,7 @@ export function AdminPanelSheet({ open, onOpenChange, userId, username }: AdminP
     setIsPermanent(false);
     setBanAmount(1);
     setBanUnit('hours');
+    setCustomGifUrl(null);
     onOpenChange(false);
   };
 
@@ -269,6 +274,16 @@ export function AdminPanelSheet({ open, onOpenChange, userId, username }: AdminP
                           </SelectContent>
                         </Select>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Meme GIF Gallery - only for meme ban */}
+                  {activeAction === 'meme-ban' && (
+                    <div className="mt-2">
+                      <MemeBanGifPicker
+                        selectedGifUrl={customGifUrl}
+                        onSelectGif={setCustomGifUrl}
+                      />
                     </div>
                   )}
 

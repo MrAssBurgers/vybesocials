@@ -401,7 +401,7 @@ const ConversationItem = memo(function ConversationItem({
 
   return (
     <div 
-      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer"
+      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer overflow-hidden"
       onClick={menuOpen ? undefined : onClick}
     >
       <div className="relative flex-shrink-0">
@@ -439,10 +439,10 @@ const ConversationItem = memo(function ConversationItem({
         )}
       </div>
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 overflow-hidden">
         <div className="flex items-center justify-between mb-0.5">
           <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
-            <span className="font-semibold text-sm truncate max-w-[120px] sm:max-w-[180px]">{displayName}</span>
+            <span className="font-semibold text-sm truncate">{displayName}</span>
             {!conversation.is_group && userRole && <ModBadge role={userRole} />}
             {conversation.is_group && (
               <span className="text-[9px] text-muted-foreground bg-muted px-1 py-0.5 rounded-full flex-shrink-0">
