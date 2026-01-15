@@ -26,7 +26,7 @@ export default function Messages() {
       >
         {/* Conversation list - hidden on mobile when in chat */}
         <div 
-          className={`w-full md:w-80 lg:w-96 border-r border-border flex-shrink-0 ${isInChat ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}
+          className={`w-full md:w-80 lg:w-96 border-r border-border flex-shrink-0 min-w-0 ${isInChat ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}
           style={{ 
             overflow: 'hidden',
             height: '100%',

@@ -38,20 +38,21 @@ export function QuickAddRow({
   if (!users.length) return null;
 
   return (
-    <section className="space-y-2">
+    <section className="space-y-2 min-w-0 w-full">
       <motion.div 
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
         className="flex items-center justify-between"
       >
-        <h2 className="text-xs font-medium text-muted-foreground">{title}</h2>
+        <h2 className="text-xs font-medium text-muted-foreground truncate">{title}</h2>
       </motion.div>
 
       <motion.div 
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="flex gap-3 overflow-x-auto pb-2"
+        className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {users.map((u, i) => (
           <motion.button
