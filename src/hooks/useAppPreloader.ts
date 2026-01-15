@@ -105,21 +105,14 @@ export function useAppPreloader() {
       try {
         // Step 1: Initialize
         updateStatus('init');
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise(r => setTimeout(r, 50));
 
         // Step 2: Check authentication
         updateStatus('auth');
-        await new Promise(r => setTimeout(r, 50));
         const { data: { session } } = await supabase.auth.getSession();
 
         if (!session?.user) {
-          // Not logged in - fast track to ready for landing page
-          updateStatus('profile');
-          await new Promise(r => setTimeout(r, 100));
-          updateStatus('posts');
-          await new Promise(r => setTimeout(r, 100));
-          updateStatus('finalizing');
-          await new Promise(r => setTimeout(r, 150));
+          // Not logged in - minimal preload for landing page
           updateStatus('ready');
           return;
         }

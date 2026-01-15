@@ -129,7 +129,6 @@ function BanCheck() {
 function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
   const [showSplash, setShowSplash] = useState(true);
-  const [appReady, setAppReady] = useState(false);
   
   // Auto-update checker
   useAutoUpdate();
@@ -137,24 +136,11 @@ function AppWithPreloader() {
   useEffect(() => {
     // Only hide splash when preloading is truly complete
     if (preloadStatus.isComplete) {
-      // Mark app as ready first
-      setAppReady(true);
-      // Then hide splash with smooth transition
-      const timer = setTimeout(() => setShowSplash(false), 500);
+      // Small delay for smooth transition
+      const timer = setTimeout(() => setShowSplash(false), 400);
       return () => clearTimeout(timer);
     }
   }, [preloadStatus.isComplete]);
-
-  // Show ONLY splash screen until preloading is complete
-  if (!appReady) {
-    return (
-      <SplashScreen 
-        isVisible={true} 
-        status={preloadStatus.step}
-        progress={preloadStatus.progress}
-      />
-    );
-  }
 
   return (
     <>
