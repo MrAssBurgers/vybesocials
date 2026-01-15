@@ -45,7 +45,7 @@ function loadMessages(): Message[] {
   return [
     { 
       role: 'assistant', 
-      content: "YOOO what's up bestie!! 🎪✨ I'm Autisy, your chaotic AI companion here on VYBE! Ask me ANYTHING about content, going viral, or just chat - I don't bite (much) 🦆💀",
+      content: "oh... hey... 😔 I'm Brock. Your AI companion on VYBE, I guess... Ask me anything about content or whatever. Not that it really matters in the grand scheme of things... but I'm here. 💔",
       timestamp: new Date(),
     }
   ];
@@ -190,7 +190,7 @@ export default function AIChat() {
     setMessages([
       { 
         role: 'assistant', 
-        content: "Fresh start bestie!! 🎪✨ What's on your mind? 🦆",
+        content: "starting over... again... 😔 what's on your mind? not that anything really changes...",
         timestamp: new Date(),
       }
     ]);
@@ -216,11 +216,11 @@ export default function AIChat() {
           </div>
           <div className="flex-1">
             <h2 className="font-semibold flex items-center gap-1">
-              Autisy
-              <Sparkles className="h-4 w-4 text-primary" />
+              Brock
+              <Sparkles className="h-4 w-4 text-muted-foreground" />
             </h2>
             <p className="text-xs text-muted-foreground">
-              Your chaotic AI bestie 🦆
+              Your melancholic AI companion 😔
             </p>
           </div>
           
@@ -289,7 +289,7 @@ export default function AIChat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Autisy anything..."
+              placeholder="Ask Brock anything..."
               className="flex-1"
               disabled={isLoading}
             />
