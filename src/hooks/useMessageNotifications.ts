@@ -17,14 +17,44 @@ import { toast } from 'sonner';
  */
 
 // Show native browser notification for new messages
-function showNativeNotification(title: string, body: string, conversationId?: string) {
+async function showNativeNotification(
+  senderName: string, 
+  body: string, 
+  conversationId?: string,
+  isGroup?: boolean,
+  groupName?: string
+) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   
-  const notification = new Notification(title, {
+  // Try to use service worker for better notification handling
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      // Use type assertion for extended notification options supported by service workers
+      const options: NotificationOptions & { renotify?: boolean; vibrate?: number[]; data?: unknown } = {
+        body,
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/icon-96x96.png',
+        tag: `vybe-dm-${conversationId || 'message'}`,
+        data: {
+          url: conversationId ? `/messages/${conversationId}` : '/messages',
+          type: isGroup ? 'group_message' : 'dm',
+          conversationId,
+        },
+      };
+      await registration.showNotification(isGroup ? (groupName || 'Group') : senderName, options);
+      return;
+    } catch (err) {
+      console.warn('[Notifications] SW notification failed, falling back:', err);
+    }
+  }
+  
+  // Fallback to standard Notification API
+  const notification = new Notification(isGroup ? (groupName || 'Group') : senderName, {
     body,
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
-    tag: `dm-${conversationId || 'message'}`, // Unique tag per conversation
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-96x96.png',
+    tag: `dm-${conversationId || 'message'}`,
   });
 
   notification.onclick = () => {
@@ -101,6 +131,16 @@ export function useMessageNotifications() {
           // Debounce query invalidation to prevent rapid updates
           // Only invalidate if not already invalidating
           
+          // Fetch conversation info to check if group
+          const { data: conversation } = await supabase
+            .from('conversations')
+            .select('is_group, name')
+            .eq('id', newMessage.conversation_id)
+            .single();
+          
+          const isGroup = conversation?.is_group || false;
+          const groupName = conversation?.name || undefined;
+          
           // If not viewing this conversation, show notifications
           if (!isViewingConvo || !isDocumentVisible) {
             // Play sound
@@ -115,9 +155,15 @@ export function useMessageNotifications() {
               },
             });
             
-            // Show native notification if page hidden
-            if (document.hidden) {
-              showNativeNotification(senderName, messagePreview, newMessage.conversation_id);
+            // Show native notification if page hidden or not focused
+            if (document.hidden || !document.hasFocus()) {
+              showNativeNotification(
+                senderName, 
+                messagePreview, 
+                newMessage.conversation_id,
+                isGroup,
+                groupName
+              );
             }
             
             // Only invalidate when showing notification to update badge
