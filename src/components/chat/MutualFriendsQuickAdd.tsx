@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutualFriends, UserWithMutualFriends } from '@/hooks/useMutualFriends';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -8,9 +8,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { UserPlus, Users, Search, X, Check, Clock, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { useFriendshipStatus, useSendFriendRequest } from '@/hooks/useFriends';
+import { useFriendshipStatus, useSendFriendRequest, useFriends } from '@/hooks/useFriends';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -38,16 +39,87 @@ function getFullName(user: { first_name?: string | null; last_name?: string | nu
   return user.display_name || user.username;
 }
 
+// Hook to get suggested users when no mutual friends exist
+function useSuggestedUsers() {
+  const { profile } = useAuth();
+  const { data: friends } = useFriends();
+  
+  return useQuery({
+    queryKey: ['suggested-users', profile?.id, friends?.length],
+    queryFn: async (): Promise<UserWithMutualFriends[]> => {
+      if (!profile?.id) return [];
+      
+      // Get IDs to exclude (self + existing friends)
+      const friendIds = friends?.map(f => f.id) || [];
+      const excludeIds = [profile.id, ...friendIds];
+      
+      // Build query - exclude self and existing friends
+      let query = supabase
+        .from('profiles')
+        .select('id, username, display_name, first_name, last_name, avatar_url')
+        .neq('id', profile.id)
+        .limit(20);
+      
+      // Also exclude existing friends if any
+      if (friendIds.length > 0) {
+        query = query.not('id', 'in', `(${friendIds.join(',')})`);
+      }
+      
+      const { data: users, error } = await query;
+      
+      console.log('[useSuggestedUsers] Fetched users:', users?.length, error);
+      
+      if (!users || users.length === 0) return [];
+      
+      // For each user, count how many friends they have (for popularity sorting)
+      const usersWithFriendCount = await Promise.all(
+        users.slice(0, 10).map(async (user) => {
+          const { count } = await supabase
+            .from('friend_requests')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'accepted')
+            .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+          
+          return {
+            id: user.id,
+            username: user.username,
+            display_name: user.display_name,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            avatar_url: user.avatar_url,
+            mutual_friends_count: 0, // No mutual friends, this is discovery
+            mutual_friends: [],
+            total_friends: count || 0,
+          };
+        })
+      );
+      
+      // Sort by friend count descending (popular users first)
+      return usersWithFriendCount
+        .sort((a, b) => (b.total_friends || 0) - (a.total_friends || 0))
+        .slice(0, 6);
+    },
+    enabled: !!profile?.id,
+    staleTime: 60000,
+  });
+}
+
 export function MutualFriendsQuickAdd({ 
   onSelect 
 }: { 
   onSelect: (userId: string) => void;
 }) {
   const { profile } = useAuth();
-  const { data: suggestions, isLoading } = useMutualFriends();
+  const { data: mutualSuggestions, isLoading: isLoadingMutual } = useMutualFriends();
+  const { data: suggestedUsers, isLoading: isLoadingSuggested } = useSuggestedUsers();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserWithMutualFriends[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  // Use mutual friends if available, otherwise fall back to suggested users
+  const suggestions = (mutualSuggestions?.length ?? 0) > 0 ? mutualSuggestions : suggestedUsers;
+  const isLoading = isLoadingMutual || isLoadingSuggested;
+  const hasMutualFriends = (mutualSuggestions?.length ?? 0) > 0;
 
   // Search by name
   const handleSearch = async (query: string) => {
@@ -138,7 +210,13 @@ export function MutualFriendsQuickAdd({
         className="flex items-center gap-2 text-xs text-muted-foreground px-1"
       >
         <Users className="h-3 w-3 animate-pulse" />
-        <span>{searchQuery ? 'Search Results' : 'Quick Add'}</span>
+        <span>
+          {searchQuery 
+            ? 'Search Results' 
+            : hasMutualFriends 
+              ? 'Quick Add' 
+              : 'Suggested Users'}
+        </span>
       </motion.div>
       
       <AnimatePresence mode="wait">
@@ -157,16 +235,17 @@ export function MutualFriendsQuickAdd({
             className="grid grid-cols-2 gap-2"
           >
             {displayUsers.slice(0, 6).map((user) => (
-              <MutualFriendCard key={user.id} user={user} onSelect={onSelect} />
+              <MutualFriendCard 
+                key={user.id} 
+                user={user} 
+                onSelect={onSelect}
+                showMutualBadge={hasMutualFriends}
+              />
             ))}
           </motion.div>
         ) : searchQuery.length >= 2 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
             No users found for "{searchQuery}"
-          </p>
-        ) : !suggestions?.length ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Add friends to see suggestions
           </p>
         ) : null}
       </AnimatePresence>
@@ -177,9 +256,11 @@ export function MutualFriendsQuickAdd({
 function MutualFriendCard({
   user,
   onSelect,
+  showMutualBadge = true,
 }: {
   user: UserWithMutualFriends;
   onSelect: (userId: string) => void;
+  showMutualBadge?: boolean;
 }) {
   const fullName = getFullName(user);
   const { data: friendship, isLoading: isLoadingStatus } = useFriendshipStatus(user.id);
