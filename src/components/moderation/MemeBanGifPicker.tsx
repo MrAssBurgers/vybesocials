@@ -89,20 +89,23 @@ export const MemeBanGifPicker = ({ selectedGifUrl, onSelectGif }: MemeBanGifPick
   const handleAddFromUrl = async () => {
     if (!customUrl.trim()) return;
     
+    const urlToUse = customUrl.trim();
+    
+    // Immediately select the GIF for preview
+    onSelectGif(urlToUse);
+    setCustomUrl('');
+    setShowUrlInput(false);
+    
+    // Try to add to library in the background (don't block on this)
     try {
-      // Try to add to library
       await addBackground.mutateAsync({ 
         name: `Custom GIF ${Date.now()}`, 
-        gifUrl: customUrl 
+        gifUrl: urlToUse 
       });
-      onSelectGif(customUrl);
-      setCustomUrl('');
-      setShowUrlInput(false);
-    } catch {
-      // Just use the URL without adding to library
-      onSelectGif(customUrl);
-      setCustomUrl('');
-      setShowUrlInput(false);
+      toast.success('GIF added to library!');
+    } catch (error) {
+      // URL will still be used for this ban, just not saved to library
+      console.log('Could not save to library (may already exist or no permission):', error);
     }
   };
 
