@@ -168,7 +168,8 @@ export const MobileShortCard = memo(function MobileShortCard({
     }
   }, [profile, isActive]);
 
-  const handleTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+  const handleTap = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
@@ -248,7 +249,6 @@ export const MobileShortCard = memo(function MobileShortCard({
       <div 
         className="absolute inset-0 flex items-center justify-center"
         onClick={handleTap}
-        onTouchEnd={handleTap}
       >
         {/* Loading indicator */}
         {isLoading && !hasError && (
