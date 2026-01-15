@@ -111,24 +111,25 @@ const SOUND_CONFIGS: Record<PremiumSoundType, {
     delays: [0, 0.02],
   },
   
-  // Message receive - satisfying notification "ding" (Apple/Discord-inspired)
+  // Message receive - quick subtle pop for in-app
   messageReceive: {
     category: 'messages',
-    frequencies: [880, 1320, 1760], // A5, E6, A6 - pleasant harmonic chord
-    durations: [0.15, 0.12, 0.1],
-    volumes: [0.06, 0.04, 0.03],
-    types: ['sine', 'sine', 'sine'],
-    delays: [0, 0.02, 0.04],
+    frequencies: [1200, 1800],
+    durations: [0.06, 0.04],
+    volumes: [0.03, 0.02],
+    types: ['sine', 'sine'],
+    delays: [0, 0.015],
   },
   
-  // Notification sound - even more satisfying "bloom" effect
+  // DM Notification - SATISFYING crystal chime (think iPhone/Snapchat)
+  // Two-tone ascending with shimmer - feels rewarding and fresh
   notification: {
     category: 'messages',
-    frequencies: [523, 659, 784, 1047], // C5, E5, G5, C6 - major chord bloom
-    durations: [0.18, 0.15, 0.12, 0.1],
-    volumes: [0.07, 0.05, 0.04, 0.03],
-    types: ['sine', 'sine', 'sine', 'sine'],
-    delays: [0, 0.03, 0.06, 0.09],
+    frequencies: [1047, 1319, 1568, 2093], // C6, E6, G6, C7 - bright major sparkle
+    durations: [0.12, 0.10, 0.08, 0.15],
+    volumes: [0.12, 0.09, 0.07, 0.05], // Louder, more presence
+    types: ['sine', 'sine', 'sine', 'triangle'], // Triangle adds shimmer
+    delays: [0, 0.04, 0.08, 0.12],
   },
   
   // UI tap - very quiet click
