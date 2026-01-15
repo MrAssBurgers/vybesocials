@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, memo } from 'react';
+import { useEffect, lazy, Suspense, memo } from 'react';
 import './lib/i18n';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -11,7 +11,7 @@ import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
 import { CallStoreProvider } from "@/lib/callStore";
 import { GlobalCallOverlay } from "@/components/call/GlobalCallOverlay";
-import { SplashScreen } from "@/components/ui/SplashScreen";
+// SplashScreen removed for instant app loading
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
@@ -27,7 +27,7 @@ import { WarningPopup } from "@/components/moderation/WarningPopup";
 import { BannedScreen } from "@/components/auth/BannedScreen";
 import { MemeBanScreen } from "@/components/auth/MemeBanScreen";
 import { useBanStatus } from "@/hooks/useBanStatus";
-import { useAppPreloader } from "@/hooks/useAppPreloader";
+// useAppPreloader removed - app loads instantly now
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 
 // Expose query client for error recovery
@@ -131,33 +131,16 @@ function BanCheck() {
   );
 }
 
-// Preloader wrapper component - must be inside QueryClientProvider
+// App component - no splash screen, instant load
 function AppWithPreloader() {
-  const preloadStatus = useAppPreloader();
-  const [showSplash, setShowSplash] = useState(true);
-  
   // Auto-update checker
   useAutoUpdate();
   
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
 
-  useEffect(() => {
-    // Only hide splash when preloading is truly complete
-    if (preloadStatus.isComplete) {
-      // Small delay for smooth transition
-      const timer = setTimeout(() => setShowSplash(false), 400);
-      return () => clearTimeout(timer);
-    }
-  }, [preloadStatus.isComplete]);
-
   return (
     <>
-      <SplashScreen 
-        isVisible={showSplash} 
-        status={preloadStatus.step}
-        progress={preloadStatus.progress}
-      />
       <GlobalErrorHandler />
       <AuthProvider>
         <CustomThemeProvider>
