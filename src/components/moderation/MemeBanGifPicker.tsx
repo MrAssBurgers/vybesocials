@@ -258,12 +258,16 @@ export const MemeBanGifPicker = ({ selectedGifUrl, onSelectGif }: MemeBanGifPick
       {/* Preview */}
       {selectedGifUrl && (
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Preview:</Label>
-          <div className="relative aspect-video rounded-lg overflow-hidden border border-border">
+          <Label className="text-xs text-muted-foreground">Preview (will fill screen):</Label>
+          <div className="relative rounded-lg overflow-hidden border border-border bg-black max-h-48">
             <img
               src={selectedGifUrl}
               alt="Selected GIF"
-              className="w-full h-full object-cover"
+              className="w-full h-auto max-h-48 object-contain mx-auto"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                toast.error('Could not load GIF - check the URL');
+              }}
             />
           </div>
         </div>
