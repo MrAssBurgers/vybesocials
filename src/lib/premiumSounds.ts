@@ -5,7 +5,8 @@
 type SoundCategory = 'messages' | 'calls' | 'ui';
 type PremiumSoundType = 
   | 'messageSend' 
-  | 'messageReceive' 
+  | 'messageReceive'
+  | 'notification'
   | 'tap' 
   | 'toggle'
   | 'success'
@@ -110,14 +111,24 @@ const SOUND_CONFIGS: Record<PremiumSoundType, {
     delays: [0, 0.02],
   },
   
-  // Message receive - soft bubble pop
+  // Message receive - satisfying notification "ding" (Apple/Discord-inspired)
   messageReceive: {
     category: 'messages',
-    frequencies: [600, 800, 500],
-    durations: [0.08, 0.06, 0.05],
-    volumes: [0.04, 0.025, 0.02],
+    frequencies: [880, 1320, 1760], // A5, E6, A6 - pleasant harmonic chord
+    durations: [0.15, 0.12, 0.1],
+    volumes: [0.06, 0.04, 0.03],
     types: ['sine', 'sine', 'sine'],
-    delays: [0, 0.03, 0.05],
+    delays: [0, 0.02, 0.04],
+  },
+  
+  // Notification sound - even more satisfying "bloom" effect
+  notification: {
+    category: 'messages',
+    frequencies: [523, 659, 784, 1047], // C5, E5, G5, C6 - major chord bloom
+    durations: [0.18, 0.15, 0.12, 0.1],
+    volumes: [0.07, 0.05, 0.04, 0.03],
+    types: ['sine', 'sine', 'sine', 'sine'],
+    delays: [0, 0.03, 0.06, 0.09],
   },
   
   // UI tap - very quiet click
@@ -301,6 +312,14 @@ export function playMessageReceiveSound(): void {
   }, 200);
 }
 
+// Play satisfying notification sound for DM notifications
+export function playNotificationSound(): void {
+  if (!isCategoryEnabled('messages')) return;
+  
+  // Use notification sound for a more satisfying "ding"
+  playPremiumSound('notification');
+}
+
 // Call sound loops with proper cleanup
 let callRingInterval: ReturnType<typeof setInterval> | null = null;
 let ringbackInterval: ReturnType<typeof setInterval> | null = null;
@@ -351,6 +370,7 @@ export const premiumSounds = {
   // Messages
   messageSend: () => playPremiumSound('messageSend'),
   messageReceive: playMessageReceiveSound,
+  notification: playNotificationSound,
   
   // UI interactions
   tap: () => playPremiumSound('tap'),
