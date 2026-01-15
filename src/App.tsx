@@ -27,6 +27,7 @@ import { WarningPopup } from "@/components/moderation/WarningPopup";
 import { BannedScreen } from "@/components/auth/BannedScreen";
 import { MemeBanScreen } from "@/components/auth/MemeBanScreen";
 import { useBanStatus } from "@/hooks/useBanStatus";
+import { useAppPreloader } from "@/hooks/useAppPreloader";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -124,84 +125,101 @@ function BanCheck() {
   );
 }
 
-const App = memo(() => {
+// Preloader wrapper component - must be inside QueryClientProvider
+function AppWithPreloader() {
+  const preloadStatus = useAppPreloader();
   const [showSplash, setShowSplash] = useState(true);
   
-  // Auto-update checker - refreshes when new version is deployed
+  // Auto-update checker
   useAutoUpdate();
 
   useEffect(() => {
-    // Ultra-fast splash - 400ms
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 400);
+    // Hide splash when preloading is complete (or after max 3 seconds)
+    if (preloadStatus.isComplete) {
+      const timer = setTimeout(() => setShowSplash(false), 300);
+      return () => clearTimeout(timer);
+    }
+    
+    // Fallback: hide after 3 seconds even if not complete
+    const fallback = setTimeout(() => setShowSplash(false), 3000);
+    return () => clearTimeout(fallback);
+  }, [preloadStatus.isComplete]);
 
-    return () => clearTimeout(timer);
-  }, []);
+  return (
+    <>
+      <SplashScreen 
+        isVisible={showSplash} 
+        status={preloadStatus.step}
+        progress={preloadStatus.progress}
+      />
+      <GlobalErrorHandler />
+      <AuthProvider>
+        <CustomThemeProvider>
+          <GlobalMessageNotifications />
+          <EasterEggProvider>
+          <CallStoreProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <TutorialProvider>
+                  <ScrollRestoration />
+                  <Suspense fallback={<PageFallback />}>
+                    <Routes>
+                      <Route path="/" element={<Landing />} />
+                      <Route path="/home" element={<Home />} />
+                      <Route path="/clips" element={<Shorts />} />
+                      <Route path="/shorts" element={<Shorts />} />
+                      <Route path="/explore" element={<Explore />} />
+                      <Route path="/upload" element={<Upload />} />
+                      <Route path="/p/:id" element={<PostDetail />} />
+                      <Route path="/u/:username" element={<Profile />} />
+                      <Route path="/profile" element={<Profile />} />
+                      <Route path="/notifications" element={<Notifications />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="/onboarding" element={<Onboarding />} />
+                      <Route path="/complete-profile" element={<CompleteProfile />} />
+                      <Route path="/messages" element={<Messages />} />
+                      <Route path="/messages/new" element={<NewMessage />} />
+                      <Route path="/messages/ai-autisy" element={<AIChat />} />
+                      <Route path="/messages/:conversationId" element={<Messages />} />
+                      <Route path="/feedback" element={<Feedback />} />
+                      <Route path="/market" element={<Market />} />
+                      <Route path="/market/new" element={<CreateListing />} />
+                      <Route path="/market/:id" element={<ListingDetail />} />
+                      <Route path="/events" element={<Events />} />
+                      <Route path="/events/new" element={<CreateEvent />} />
+                      <Route path="/admin" element={<AdminDashboard />} />
+                      <Route path="/community" element={<Community />} />
+                      <Route path="/spaces" element={<Spaces />} />
+                      <Route path="/watch/:id" element={<Watch />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </Suspense>
+                  <RootBottomNavMount />
+                  <PushNotificationPrompt />
+                  <GlobalCallOverlay />
+                  <WarningPopup />
+                  <BanCheck />
+                </TutorialProvider>
+              </BrowserRouter>
+            </TooltipProvider>
+          </CallStoreProvider>
+        </EasterEggProvider>
+      </CustomThemeProvider>
+    </AuthProvider>
+    </>
+  );
+}
 
+const App = memo(() => {
   return (
     <SmartErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <GlassIntensityProvider>
             <AccessibilityProvider>
-              <SplashScreen isVisible={showSplash} />
-              <GlobalErrorHandler />
-              <AuthProvider>
-                <CustomThemeProvider>
-                  <GlobalMessageNotifications />
-                  <EasterEggProvider>
-                  <CallStoreProvider>
-                    <TooltipProvider>
-                      <Toaster />
-                      <Sonner />
-                      <BrowserRouter>
-                        <TutorialProvider>
-                          <ScrollRestoration />
-                          <Suspense fallback={<PageFallback />}>
-                            <Routes>
-                              <Route path="/" element={<Landing />} />
-                              <Route path="/home" element={<Home />} />
-                              <Route path="/clips" element={<Shorts />} />
-                              <Route path="/shorts" element={<Shorts />} />
-                              <Route path="/explore" element={<Explore />} />
-                              <Route path="/upload" element={<Upload />} />
-                              <Route path="/p/:id" element={<PostDetail />} />
-                              <Route path="/u/:username" element={<Profile />} />
-                              <Route path="/profile" element={<Profile />} />
-                              <Route path="/notifications" element={<Notifications />} />
-                              <Route path="/settings" element={<Settings />} />
-                              <Route path="/onboarding" element={<Onboarding />} />
-                              <Route path="/complete-profile" element={<CompleteProfile />} />
-                              <Route path="/messages" element={<Messages />} />
-                              <Route path="/messages/new" element={<NewMessage />} />
-                              <Route path="/messages/ai-autisy" element={<AIChat />} />
-                              <Route path="/messages/:conversationId" element={<Messages />} />
-                              <Route path="/feedback" element={<Feedback />} />
-                              <Route path="/market" element={<Market />} />
-                              <Route path="/market/new" element={<CreateListing />} />
-                              <Route path="/market/:id" element={<ListingDetail />} />
-                              <Route path="/events" element={<Events />} />
-                              <Route path="/events/new" element={<CreateEvent />} />
-                              <Route path="/admin" element={<AdminDashboard />} />
-                              <Route path="/community" element={<Community />} />
-                              <Route path="/spaces" element={<Spaces />} />
-                              <Route path="/watch/:id" element={<Watch />} />
-                              <Route path="*" element={<NotFound />} />
-                            </Routes>
-                          </Suspense>
-                          <RootBottomNavMount />
-                          <PushNotificationPrompt />
-                          <GlobalCallOverlay />
-                          <WarningPopup />
-                          <BanCheck />
-                        </TutorialProvider>
-                      </BrowserRouter>
-                    </TooltipProvider>
-                  </CallStoreProvider>
-                </EasterEggProvider>
-              </CustomThemeProvider>
-            </AuthProvider>
+              <AppWithPreloader />
             </AccessibilityProvider>
           </GlassIntensityProvider>
         </ThemeProvider>
