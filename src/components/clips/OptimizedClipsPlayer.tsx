@@ -10,6 +10,11 @@ import { cn } from '@/lib/utils';
 const isMobileDevice = () => typeof window !== 'undefined' && 
   (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 1024);
 
+// Detect if specifically on iPad (needs extra care for video playback)
+const isIPad = () => typeof window !== 'undefined' && 
+  (/iPad/i.test(navigator.userAgent) || 
+   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+
 interface Clip {
   id: string;
   media_url: string;
@@ -69,15 +74,30 @@ const ClipItem = memo(function ClipItem({
   const thumbnailUrl = useSignedUrl(clip.thumbnail_url || null);
   const isUrlLoading = !signedUrl;
 
-  // Handle video play/pause based on visibility - with better error handling for mobile
+  // Handle video play/pause based on visibility - with better error handling for mobile/iPad
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !signedUrl) return;
 
+    // iPad-specific: reset video state to prevent freezing
+    const onIPad = isIPad();
+    
     if (isActive) {
       // Use a small delay on mobile to prevent race conditions
       const playVideo = async () => {
         try {
+          // iPad fix: ensure video is loaded and ready
+          if (onIPad && video.readyState < 2) {
+            await new Promise<void>((resolve) => {
+              const handleCanPlay = () => {
+                video.removeEventListener('canplay', handleCanPlay);
+                resolve();
+              };
+              video.addEventListener('canplay', handleCanPlay);
+              video.load();
+            });
+          }
+          
           await video.play();
           setIsPlaying(true);
         } catch (err) {
@@ -87,11 +107,15 @@ const ClipItem = memo(function ClipItem({
         }
       };
       
-      // Small delay helps mobile browsers
-      const timeout = setTimeout(playVideo, 100);
+      // Small delay helps mobile browsers, slightly longer for iPad
+      const timeout = setTimeout(playVideo, onIPad ? 200 : 100);
       return () => clearTimeout(timeout);
     } else {
       video.pause();
+      // iPad fix: reset currentTime to prevent memory buildup
+      if (onIPad) {
+        video.currentTime = 0;
+      }
       setIsPlaying(false);
     }
   }, [isActive, signedUrl]);
@@ -139,7 +163,7 @@ const ClipItem = memo(function ClipItem({
         </div>
       )}
 
-      {/* Video */}
+      {/* Video - with iPad-specific optimizations */}
       {signedUrl && (
         <video
           ref={videoRef}
@@ -148,10 +172,13 @@ const ClipItem = memo(function ClipItem({
           loop
           playsInline
           muted={isMuted}
-          preload={isActive ? 'auto' : 'metadata'}
+          preload={isActive ? 'auto' : 'none'}
           onLoadedData={() => setIsLoaded(true)}
           onClick={handleTap}
           onDoubleClick={handleDoubleTap}
+          // iPad/iOS fixes
+          webkit-playsinline="true"
+          x-webkit-airplay="deny"
         />
       )}
 

@@ -482,3 +482,28 @@ export function useMyServerRole(serverId: string | undefined) {
     enabled: !!serverId && !!profile?.id,
   });
 }
+
+// Fetch all public servers
+export function usePublicServers(search?: string) {
+  return useQuery({
+    queryKey: ['public-servers', search],
+    queryFn: async () => {
+      let query = supabase
+        .from('servers')
+        .select('*')
+        .eq('is_public', true)
+        .order('member_count', { ascending: false })
+        .limit(50);
+
+      if (search && search.trim()) {
+        query = query.ilike('name', `%${search.trim()}%`);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      return (data || []) as Server[];
+    },
+    staleTime: 30000,
+  });
+}
