@@ -44,21 +44,26 @@ const DialogContent = React.forwardRef<
         e.preventDefault();
       }}
       className={cn(
-        "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[151] w-[90vw] max-w-lg max-h-[90vh] overflow-y-auto",
-        "liquid-glass overflow-hidden rounded-3xl p-0",
+        // Centered positioning - works on all platforms
+        "fixed inset-0 m-auto z-[151]",
+        "w-[90vw] max-w-lg h-fit max-h-[85vh]",
+        // Solid background with glass effect overlay
+        "bg-background/95 backdrop-blur-xl",
+        "border border-border/50",
+        "overflow-hidden rounded-2xl md:rounded-3xl",
+        "shadow-2xl shadow-black/20",
+        // Animations
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-        // Safe area padding for mobile
-        "pb-safe",
         className,
       )}
       {...props}
     >
-      <div className="p-6">
+      <div className="p-6 overflow-y-auto max-h-[85vh]">
         {children}
       </div>
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full liquid-glass-subtle p-1.5 opacity-70 ring-offset-background transition-all hover:opacity-100 hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full bg-muted/80 p-1.5 opacity-70 ring-offset-background transition-all hover:opacity-100 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
