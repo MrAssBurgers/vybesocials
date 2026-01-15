@@ -669,7 +669,7 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background relative overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 bg-background relative overflow-x-hidden">
       {/* Header - fixed height, compact on mobile */}
       <header className="flex-shrink-0 h-14 sm:h-16 px-2 sm:px-4 border-b border-border flex items-center gap-2 sm:gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20">
         <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10">
@@ -820,7 +820,7 @@ export function ChatView() {
       <div 
         className={cn(
           "flex-1 overflow-y-auto overflow-x-hidden min-h-0",
-          "px-3 sm:px-4 py-3 sm:py-4",
+          "px-3 sm:px-4 pt-3 sm:pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:pb-6",
           "scroll-smooth",
           getWallpaperClass()
         )}
@@ -1557,7 +1557,7 @@ const MessageBubble = memo(function MessageBubble({
             <p className="text-[13px] sm:text-sm italic opacity-75 leading-[1.4]">Message viewed</p>
           ) : message.content ? (
             <p className={cn(
-              "whitespace-pre-wrap leading-[1.4]",
+              "whitespace-pre-wrap break-words leading-[1.4]",
               isEmojiOnly 
                 ? "text-2xl sm:text-3xl" // Larger font for emoji-only
                 : "text-[14px] sm:text-[15px]" // Readable size
