@@ -5,9 +5,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { UserPlus, Users, Search, X } from 'lucide-react';
+import { UserPlus, Users, Search, X, Check, Clock, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useFriendshipStatus, useSendFriendRequest } from '@/hooks/useFriends';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -161,6 +164,10 @@ export function MutualFriendsQuickAdd({
           <p className="text-sm text-muted-foreground text-center py-4">
             No users found for "{searchQuery}"
           </p>
+        ) : !suggestions?.length ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Add friends to see suggestions
+          </p>
         ) : null}
       </AnimatePresence>
     </div>
@@ -175,11 +182,33 @@ function MutualFriendCard({
   onSelect: (userId: string) => void;
 }) {
   const fullName = getFullName(user);
+  const { data: friendship, isLoading: isLoadingStatus } = useFriendshipStatus(user.id);
+  const sendRequest = useSendFriendRequest();
   
+  const isFriends = friendship?.status === 'friends';
+  const isPendingSent = friendship?.status === 'pending_sent';
+  const isPendingReceived = friendship?.status === 'pending_received';
+  const canAdd = friendship?.status === 'none';
+
   // Get mutual friend names for tooltip
   const getMutualFriendName = (mf: { first_name?: string | null; last_name?: string | null; username: string }) => {
     if (mf.first_name) return mf.first_name;
     return mf.username;
+  };
+
+  const handleAddFriend = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    sendRequest.mutate(user.id, {
+      onSuccess: () => {
+        toast.success(`Friend request sent to ${fullName}`);
+      },
+    });
+  };
+
+  const handleMessageClick = () => {
+    if (isFriends) {
+      onSelect(user.id);
+    }
   };
 
   return (
@@ -187,11 +216,10 @@ function MutualFriendCard({
       variants={itemVariants}
       whileHover={{ scale: 1.02, y: -2 }}
       whileTap={{ scale: 0.98 }}
-      className="relative bg-card border border-border rounded-xl p-3 flex flex-col items-center gap-2 hover:shadow-lg transition-shadow cursor-pointer group"
-      onClick={() => onSelect(user.id)}
+      className="relative bg-card border border-border rounded-xl p-3 flex flex-col items-center gap-2 hover:shadow-lg transition-shadow group"
     >
       {/* Animated gradient border on hover */}
-      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
       
       <div className="relative">
         <motion.div
@@ -206,25 +234,35 @@ function MutualFriendCard({
           </Avatar>
         </motion.div>
         
-        {/* Add button overlay */}
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.2, type: 'spring' }}
-          className="absolute -bottom-1 -right-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center shadow-sm"
-        >
-          <UserPlus className="h-3 w-3 text-primary-foreground" />
-        </motion.div>
+        {/* Status indicator */}
+        {isFriends && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute -bottom-1 -right-1 h-5 w-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm"
+          >
+            <Check className="h-3 w-3 text-white" />
+          </motion.div>
+        )}
+        {isPendingSent && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute -bottom-1 -right-1 h-5 w-5 bg-amber-500 rounded-full flex items-center justify-center shadow-sm"
+          >
+            <Clock className="h-3 w-3 text-white" />
+          </motion.div>
+        )}
       </div>
       
-      <div className="text-center z-10">
+      <div className="text-center z-10 w-full">
         {/* Show full name prominently */}
-        <p className="text-sm font-medium truncate max-w-[100px]">
+        <p className="text-sm font-medium truncate max-w-[100px] mx-auto">
           {fullName}
         </p>
         {/* Show username below if different from name */}
         {user.first_name && (
-          <p className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+          <p className="text-[10px] text-muted-foreground truncate max-w-[100px] mx-auto">
             @{user.username}
           </p>
         )}
@@ -259,6 +297,54 @@ function MutualFriendCard({
             </span>
           </motion.div>
         )}
+
+        {/* Action buttons */}
+        <div className="mt-2 flex gap-1 justify-center">
+          {isLoadingStatus ? (
+            <Skeleton className="h-7 w-16 rounded-md" />
+          ) : isFriends ? (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={handleMessageClick}
+              className="h-7 text-xs gap-1"
+            >
+              <MessageCircle className="h-3 w-3" />
+              Chat
+            </Button>
+          ) : isPendingSent ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled
+              className="h-7 text-xs gap-1"
+            >
+              <Clock className="h-3 w-3" />
+              Pending
+            </Button>
+          ) : isPendingReceived ? (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={handleAddFriend}
+              className="h-7 text-xs gap-1"
+            >
+              <Check className="h-3 w-3" />
+              Accept
+            </Button>
+          ) : canAdd ? (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={handleAddFriend}
+              disabled={sendRequest.isPending}
+              className="h-7 text-xs gap-1"
+            >
+              <UserPlus className="h-3 w-3" />
+              Add
+            </Button>
+          ) : null}
+        </div>
       </div>
     </motion.div>
   );
