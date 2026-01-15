@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -9,13 +9,28 @@ interface PreloadStatus {
 }
 
 const PRELOAD_STEPS = [
-  { key: 'auth', label: 'Checking authentication...', weight: 15 },
-  { key: 'profile', label: 'Loading profile...', weight: 15 },
-  { key: 'posts', label: 'Loading feed...', weight: 30 },
-  { key: 'conversations', label: 'Loading messages...', weight: 20 },
+  { key: 'init', label: 'Initializing...', weight: 5 },
+  { key: 'auth', label: 'Checking authentication...', weight: 10 },
+  { key: 'profile', label: 'Loading profile...', weight: 10 },
+  { key: 'posts', label: 'Loading feed...', weight: 20 },
+  { key: 'stories', label: 'Loading stories...', weight: 10 },
+  { key: 'conversations', label: 'Loading messages...', weight: 15 },
   { key: 'notifications', label: 'Checking notifications...', weight: 10 },
-  { key: 'ready', label: 'Ready!', weight: 10 },
+  { key: 'images', label: 'Preloading media...', weight: 15 },
+  { key: 'ready', label: 'Ready!', weight: 5 },
 ];
+
+// Preload a single image and return a promise
+const preloadImage = (url: string): Promise<void> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve(); // Don't fail on image errors
+    img.src = url;
+    // Timeout after 3 seconds per image
+    setTimeout(resolve, 3000);
+  });
+};
 
 export function useAppPreloader() {
   const queryClient = useQueryClient();
@@ -24,66 +39,71 @@ export function useAppPreloader() {
     progress: 0,
     isComplete: false,
   });
-  const [userId, setUserId] = useState<string | null>(null);
+  const hasStarted = useRef(false);
 
-  const updateStatus = useCallback((stepKey: string) => {
+  const updateStatus = useCallback((stepKey: string, partialProgress?: number) => {
     const stepIndex = PRELOAD_STEPS.findIndex(s => s.key === stepKey);
     if (stepIndex === -1) return;
 
     const step = PRELOAD_STEPS[stepIndex];
     const progressBefore = PRELOAD_STEPS.slice(0, stepIndex).reduce((acc, s) => acc + s.weight, 0);
+    const stepProgress = partialProgress !== undefined ? (step.weight * partialProgress) : step.weight;
     
     setStatus({
       step: step.label,
-      progress: progressBefore + step.weight,
+      progress: Math.min(progressBefore + stepProgress, 100),
       isComplete: stepKey === 'ready',
     });
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
+    if (hasStarted.current) return;
+    hasStarted.current = true;
 
     const preload = async () => {
+      const imagesToPreload: string[] = [];
+
       try {
-        // Step 1: Check authentication
+        // Step 1: Initialize
+        updateStatus('init');
+        await new Promise(r => setTimeout(r, 100));
+
+        // Step 2: Check authentication
         updateStatus('auth');
         const { data: { session } } = await supabase.auth.getSession();
-        if (!isMounted) return;
 
         if (!session?.user) {
-          // Not logged in - complete quickly
-          setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+          // Not logged in - complete quickly with minimal preloading
+          updateStatus('ready');
           return;
         }
 
         const uid = session.user.id;
-        setUserId(uid);
 
-        // Step 2: Load profile
+        // Step 3: Load profile
         updateStatus('profile');
         const { data: profile } = await supabase
           .from('profiles')
-          .select('id, username, avatar_url, display_name, role')
+          .select('id, username, avatar_url, display_name')
           .eq('id', uid)
           .single();
-        
-        if (!isMounted) return;
 
         if (profile) {
           queryClient.setQueryData(['profile', uid], profile);
+          if (profile.avatar_url) {
+            imagesToPreload.push(profile.avatar_url);
+          }
         }
 
-        // Step 3: Prefetch posts
+        // Step 4: Prefetch posts
         updateStatus('posts');
         const { data: posts } = await supabase.rpc('get_posts_with_counts', {
           p_type: null,
           p_author_id: null,
           p_user_id: uid,
           p_offset: 0,
-          p_limit: 10,
+          p_limit: 15,
         });
-
-        if (!isMounted) return;
 
         if (posts && posts.length > 0) {
           // Transform and cache posts
@@ -107,15 +127,14 @@ export function useAppPreloader() {
             is_bookmarked: row.is_bookmarked || false,
           }));
 
-          // Preload images
-          transformedPosts.slice(0, 6).forEach((post: any) => {
+          // Collect images to preload
+          transformedPosts.slice(0, 8).forEach((post: any) => {
             const url = post.thumbnail_url || post.media_url;
-            if (url) {
-              const link = document.createElement('link');
-              link.rel = 'preload';
-              link.as = 'image';
-              link.href = url;
-              document.head.appendChild(link);
+            if (url && !url.includes('.mp4') && !url.includes('.webm')) {
+              imagesToPreload.push(url);
+            }
+            if (post.author?.avatar_url) {
+              imagesToPreload.push(post.author.avatar_url);
             }
           });
 
@@ -123,13 +142,45 @@ export function useAppPreloader() {
           queryClient.setQueryData(
             ['infinite-posts', undefined, undefined, uid],
             {
-              pages: [{ posts: transformedPosts, nextPage: transformedPosts.length >= 10 ? 1 : null }],
+              pages: [{ posts: transformedPosts, nextPage: transformedPosts.length >= 15 ? 1 : null }],
               pageParams: [0],
             }
           );
         }
 
-        // Step 4: Load conversations
+        // Step 5: Load stories
+        updateStatus('stories');
+        const { data: stories } = await supabase
+          .from('stories')
+          .select(`
+            id,
+            media_url,
+            created_at,
+            user_id,
+            profiles:user_id (
+              id,
+              username,
+              avatar_url
+            )
+          `)
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (stories && stories.length > 0) {
+          queryClient.setQueryData(['stories'], stories);
+          // Collect story images
+          stories.slice(0, 10).forEach((story: any) => {
+            if (story.media_url && !story.media_url.includes('.mp4')) {
+              imagesToPreload.push(story.media_url);
+            }
+            if (story.profiles?.avatar_url) {
+              imagesToPreload.push(story.profiles.avatar_url);
+            }
+          });
+        }
+
+        // Step 6: Load conversations
         updateStatus('conversations');
         const { data: conversations } = await supabase
           .from('conversation_members')
@@ -145,15 +196,19 @@ export function useAppPreloader() {
           `)
           .eq('user_id', uid)
           .order('joined_at', { ascending: false })
-          .limit(10);
-
-        if (!isMounted) return;
+          .limit(15);
 
         if (conversations) {
           queryClient.setQueryData(['conversations', uid], conversations);
+          // Collect conversation avatars
+          conversations.forEach((conv: any) => {
+            if (conv.conversations?.avatar_url) {
+              imagesToPreload.push(conv.conversations.avatar_url);
+            }
+          });
         }
 
-        // Step 5: Check notifications count
+        // Step 7: Check notifications count
         updateStatus('notifications');
         const { count } = await supabase
           .from('notifications')
@@ -161,29 +216,36 @@ export function useAppPreloader() {
           .eq('user_id', uid)
           .eq('read', false);
 
-        if (!isMounted) return;
-
         if (count !== null) {
           queryClient.setQueryData(['unread-notifications', uid], count);
         }
 
-        // Step 6: Complete!
+        // Step 8: Preload all collected images
+        updateStatus('images', 0);
+        const uniqueImages = [...new Set(imagesToPreload)].slice(0, 20);
+        
+        if (uniqueImages.length > 0) {
+          let loaded = 0;
+          await Promise.all(
+            uniqueImages.map(async (url) => {
+              await preloadImage(url);
+              loaded++;
+              updateStatus('images', loaded / uniqueImages.length);
+            })
+          );
+        }
+
+        // Step 9: Complete!
         updateStatus('ready');
 
       } catch (error) {
         console.error('[Preloader] Error during preload:', error);
         // Still complete even on error
-        if (isMounted) {
-          setStatus({ step: 'Ready!', progress: 100, isComplete: true });
-        }
+        setStatus({ step: 'Ready!', progress: 100, isComplete: true });
       }
     };
 
     preload();
-
-    return () => {
-      isMounted = false;
-    };
   }, [queryClient, updateStatus]);
 
   return status;
