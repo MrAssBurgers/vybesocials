@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { callSounds } from '@/lib/callSounds';
+import { premiumSounds } from '@/lib/premiumSounds';
 import { Message } from './useMessages';
 
 /**
@@ -119,13 +119,7 @@ export function useRealtimeMessages(conversationId: string | undefined) {
           // Add to cache instantly
           appendMessageToCache(fullMessage);
           
-          // Play sound if not in this conversation view
-          const isViewingConvo = window.location.pathname.includes(conversationId);
-          const isDocumentVisible = document.visibilityState === 'visible';
-          
-          if (!isViewingConvo || !isDocumentVisible) {
-            callSounds.message();
-          }
+          // Sound is handled by useMessageNotifications to avoid duplicates
         }
       )
       .on(
@@ -236,16 +230,7 @@ export function useRealtimeConversations() {
             });
           });
           
-          // Play sound if message is from someone else
-          if (newMessage.sender_id !== profile.id) {
-            const currentConvo = window.location.pathname.match(/\/messages\/([a-f0-9-]+)/)?.[1];
-            const isViewingConvo = currentConvo === newMessage.conversation_id;
-            const isDocumentVisible = document.visibilityState === 'visible';
-            
-            if (!isViewingConvo || !isDocumentVisible) {
-              callSounds.message();
-            }
-          }
+          // Sound is handled by useMessageNotifications to avoid duplicates
         }
       )
       .on(
