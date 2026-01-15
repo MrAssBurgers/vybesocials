@@ -106,7 +106,6 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
   const mainNavItems: NavItemData[] = [
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0, tutorialId: 'sidebar-home' },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0, tutorialId: 'sidebar-explore' },
-    { icon: Compass, label: 'Clips', path: '/clips', badge: 0, tutorialId: 'sidebar-clips' },
     { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages, tutorialId: 'sidebar-messages' },
     { icon: Users, label: 'Community', path: '/community', badge: 0, tutorialId: 'sidebar-community' },
     { icon: ShoppingBag, label: 'Market', path: '/market', badge: 0 },
