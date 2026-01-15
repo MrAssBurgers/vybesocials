@@ -98,6 +98,10 @@ export function GlobalCallOverlay() {
   // Minimize state - keeps call active but shows a floating bubble
   const [isMinimized, setIsMinimized] = useState(false);
   
+  // Header visibility state - auto-hide, show on hover
+  const [showHeader, setShowHeader] = useState(true);
+  const headerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
   // INSTANT CAMERA: Preload camera for video calls - start as soon as call begins
   const isVideoCall = state.call?.callType === 'video';
   const isActiveCall = state.phase !== 'idle';
@@ -983,8 +987,40 @@ export function GlobalCallOverlay() {
   useEffect(() => {
     if (state.phase === 'idle') {
       setIsMinimized(false);
+      setShowHeader(true);
     }
   }, [state.phase]);
+
+  // Auto-hide header after 3 seconds when connected
+  useEffect(() => {
+    if (isConnected && !isMinimized) {
+      headerTimeoutRef.current = setTimeout(() => {
+        setShowHeader(false);
+      }, 3000);
+    }
+    
+    return () => {
+      if (headerTimeoutRef.current) {
+        clearTimeout(headerTimeoutRef.current);
+      }
+    };
+  }, [isConnected, isMinimized]);
+
+  // Header hover handlers
+  const handleHeaderAreaEnter = useCallback(() => {
+    if (headerTimeoutRef.current) {
+      clearTimeout(headerTimeoutRef.current);
+    }
+    setShowHeader(true);
+  }, []);
+
+  const handleHeaderAreaLeave = useCallback(() => {
+    if (isConnected) {
+      headerTimeoutRef.current = setTimeout(() => {
+        setShowHeader(false);
+      }, 1500);
+    }
+  }, [isConnected]);
 
   return (
     <>
@@ -1269,101 +1305,111 @@ export function GlobalCallOverlay() {
               </div>
             )}
 
-            {/* Glassmorphic Header */}
-            <motion.div 
-              initial={{ y: -20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.1, duration: 0.4 }}
-              className="absolute top-0 left-0 right-0 pointer-events-auto"
+            {/* Header Hover Zone - invisible trigger area at top */}
+            <div 
+              className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto"
+              onMouseEnter={handleHeaderAreaEnter}
+              onMouseLeave={handleHeaderAreaLeave}
             >
-              <div className="mx-4 mt-4 p-4 rounded-2xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <Avatar className="h-12 w-12 ring-2 ring-white/20 shadow-lg">
-                        <AvatarImage src={displayAvatar || undefined} />
-                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">
-                          {displayInitial}
-                        </AvatarFallback>
-                      </Avatar>
-                      {isConnected && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black/50"
-                        />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-white font-semibold text-lg">
-                        {displayName}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        {isConnecting && !isRingingOut && (
-                          <motion.div 
-                            className="flex items-center gap-2 text-white/60"
-                            animate={{ opacity: [0.5, 1, 0.5] }}
-                            transition={{ repeat: Infinity, duration: 1.5 }}
-                          >
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                            </span>
-                            <span className="text-sm">Connecting</span>
-                          </motion.div>
-                        )}
-                        {isRingingOut && (
-                          <motion.div 
-                            className="flex items-center gap-2 text-white/60"
-                            animate={{ opacity: [0.5, 1, 0.5] }}
-                            transition={{ repeat: Infinity, duration: 1.5 }}
-                          >
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-500 opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" />
-                            </span>
-                            <span className="text-sm">Ringing</span>
-                          </motion.div>
-                        )}
-                        {isConnected && !isRingingOut && (
-                          <div className="flex items-center gap-2">
-                            <span className="flex h-2 w-2 rounded-full bg-green-500" />
-                            <span className="text-white/70 text-sm font-mono tracking-wide">
-                              {formatDuration(callDuration)}
-                            </span>
-                          </div>
-                        )}
-                        {state.phase === 'error' && (
-                          <span className="text-red-400 text-sm">{state.error}</span>
+              {/* Glassmorphic Header - slides down on hover */}
+              <motion.div 
+                initial={{ y: -100, opacity: 0 }}
+                animate={{ 
+                  y: showHeader ? 0 : -100, 
+                  opacity: showHeader ? 1 : 0 
+                }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="pointer-events-auto"
+              >
+                <div className="mx-4 mt-4 p-4 rounded-2xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        <Avatar className="h-12 w-12 ring-2 ring-white/20 shadow-lg">
+                          <AvatarImage src={displayAvatar || undefined} />
+                          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">
+                            {displayInitial}
+                          </AvatarFallback>
+                        </Avatar>
+                        {isConnected && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black/50"
+                          />
                         )}
                       </div>
-                    </div>
-                  </div>
-                  
-                  {/* Call type badge and minimize button */}
-                  <div className="flex items-center gap-2">
-                    <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
-                      {isVideoCall ? (
-                        <Video className="h-4 w-4 text-white/70" />
-                      ) : (
-                        <Phone className="h-4 w-4 text-white/70" />
-                      )}
+                      <div>
+                        <p className="text-white font-semibold text-lg">
+                          {displayName}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {isConnecting && !isRingingOut && (
+                            <motion.div 
+                              className="flex items-center gap-2 text-white/60"
+                              animate={{ opacity: [0.5, 1, 0.5] }}
+                              transition={{ repeat: Infinity, duration: 1.5 }}
+                            >
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                              </span>
+                              <span className="text-sm">Connecting</span>
+                            </motion.div>
+                          )}
+                          {isRingingOut && (
+                            <motion.div 
+                              className="flex items-center gap-2 text-white/60"
+                              animate={{ opacity: [0.5, 1, 0.5] }}
+                              transition={{ repeat: Infinity, duration: 1.5 }}
+                            >
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-500 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" />
+                              </span>
+                              <span className="text-sm">Ringing</span>
+                            </motion.div>
+                          )}
+                          {isConnected && !isRingingOut && (
+                            <div className="flex items-center gap-2">
+                              <span className="flex h-2 w-2 rounded-full bg-green-500" />
+                              <span className="text-white/70 text-sm font-mono tracking-wide">
+                                {formatDuration(callDuration)}
+                              </span>
+                            </div>
+                          )}
+                          {state.phase === 'error' && (
+                            <span className="text-red-400 text-sm">{state.error}</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     
-                    {/* Minimize button */}
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleMinimize}
-                      className="h-9 w-9 rounded-full bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
-                      title="Minimize call"
-                    >
-                      <Minimize2 className="h-4 w-4 text-white/70" />
-                    </motion.button>
+                    {/* Call type badge and minimize button */}
+                    <div className="flex items-center gap-2">
+                      <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
+                        {isVideoCall ? (
+                          <Video className="h-4 w-4 text-white/70" />
+                        ) : (
+                          <Phone className="h-4 w-4 text-white/70" />
+                        )}
+                      </div>
+                      
+                      {/* Minimize button */}
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleMinimize}
+                        className="h-9 w-9 rounded-full bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                        title="Minimize call"
+                      >
+                        <Minimize2 className="h-4 w-4 text-white/70" />
+                      </motion.button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            </div>
 
             {/* Connecting overlay - only for receiver, not initiator */}
             <AnimatePresence>
