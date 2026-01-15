@@ -1,4 +1,4 @@
-import { Home, PlusCircle, MessageCircle, Settings } from 'lucide-react';
+import { Home, Compass, PlusCircle, MessageCircle, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -174,9 +174,10 @@ export function BottomNav() {
     lastTapTime.current = now;
   }, []);
 
-  // Updated nav order: Home | Upload | Messages | Settings
+  // Nav order: Home | Explore | Upload | Messages | Settings
   const navItems = [
     { icon: Home, path: '/home', badge: 0, tutorialId: 'home-nav' },
+    { icon: Compass, path: '/explore', badge: 0, tutorialId: 'explore-nav' },
     { icon: PlusCircle, path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav' },
     { icon: MessageCircle, path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav' },
     { icon: Settings, path: '/settings', badge: 0, tutorialId: 'settings-nav' },
@@ -209,7 +210,7 @@ export function BottomNav() {
       >
         {/* Compact glass bar */}
         <div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">
-          <div className="grid grid-cols-4 h-14 px-1 relative z-10">
+          <div className="grid grid-cols-5 h-14 px-1 relative z-10">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
 
