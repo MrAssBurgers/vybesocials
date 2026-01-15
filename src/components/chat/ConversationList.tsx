@@ -52,17 +52,17 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   return (
     <button
       onClick={() => navigate('/messages/ai-autisy')}
-      className="w-full max-w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 overflow-hidden"
+      className="w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 box-border"
     >
       <div className="relative flex-shrink-0">
         <div className="h-12 w-12 rounded-full gradient-animated flex items-center justify-center shadow-md">
           <Bot className="h-6 w-6 text-white" />
         </div>
       </div>
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5 gap-2">
-          <span className="font-semibold text-sm flex items-center gap-1.5 truncate">
-            Morgan
+          <span className="font-semibold text-sm flex items-center gap-1.5 min-w-0">
+            <span className="truncate">Morgan</span>
             <Sparkles className="h-3.5 w-3.5 text-pink-400 flex-shrink-0" />
           </span>
           <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-pink-500/10 rounded-full flex-shrink-0">AI</span>
@@ -216,7 +216,7 @@ export function ConversationList() {
   }
 
   return (
-    <div className="flex flex-col h-full w-full max-w-full overflow-hidden">
+    <div className="flex flex-col h-full w-full overflow-hidden box-border">
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-4">
@@ -295,20 +295,20 @@ export function ConversationList() {
       )}
 
       {/* Conversation List */}
-      <ScrollArea className="flex-1 overflow-x-hidden">
-        <div className="p-3 pb-0 space-y-1 w-full max-w-full overflow-hidden">
+      <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
+        <div className="p-3 pb-0 space-y-1 w-full box-border">
           <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
-            <Users className="h-3.5 w-3.5" />
-            Friends & AI
+            <Users className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="truncate">Friends & AI</span>
           </p>
           <AutisyAIChatRow />
         </div>
 
         {pinnedConversations.length > 0 && (
-          <div className="p-3 space-y-1 w-full max-w-full overflow-hidden">
+          <div className="p-3 space-y-1 w-full box-border">
             <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
-              <Pin className="h-3.5 w-3.5" />
-              {t('messages.pinned')}
+              <Pin className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">{t('messages.pinned')}</span>
             </p>
             {pinnedConversations.map((conv) => {
               const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
@@ -331,7 +331,7 @@ export function ConversationList() {
           </div>
         )}
 
-        <div className="p-3 pb-2 space-y-1 w-full max-w-full overflow-hidden">
+        <div className="p-3 pb-2 space-y-1 w-full box-border">
           {/* Accepted Friend Requests as Chat Notifications */}
           {acceptedRequests && acceptedRequests.length > 0 && (
             <>
@@ -349,8 +349,8 @@ export function ConversationList() {
           {unpinnedConversations.length > 0 ? (
             <>
               <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
-                <MessageCircle className="h-3.5 w-3.5" />
-                All Messages
+                <MessageCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate">All Messages</span>
               </p>
               {unpinnedConversations.map((conv) => {
                 const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
@@ -404,10 +404,16 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
   
   if (!request.sender) return null;
   
+  const handleRowClick = () => {
+    // Dismiss notification and start chat
+    onDismiss();
+    onMessage(request.sender!.id);
+  };
+  
   return (
     <div 
-      className="group relative w-full max-w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-green-500/20 bg-green-500/5 mb-1.5 cursor-pointer overflow-hidden"
-      onClick={() => onMessage(request.sender!.id)}
+      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-green-500/20 bg-green-500/5 mb-1.5 cursor-pointer box-border"
+      onClick={handleRowClick}
     >
       <button
         onClick={(e) => {
@@ -425,10 +431,10 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
         </div>
       </button>
       
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5 gap-2">
-          <span className="font-semibold text-sm truncate">{request.sender.display_name || request.sender.username}</span>
-          <span className="text-[10px] text-green-600 dark:text-green-400 whitespace-nowrap">New friend</span>
+          <span className="font-semibold text-sm truncate flex-1 min-w-0">{request.sender.display_name || request.sender.username}</span>
+          <span className="text-[10px] text-green-600 dark:text-green-400 whitespace-nowrap flex-shrink-0">New friend</span>
         </div>
         <p className="text-xs text-green-600 dark:text-green-400 truncate">
           Accepted your friend request! Tap to message 💬
@@ -517,7 +523,7 @@ const ConversationItem = memo(function ConversationItem({
 
   return (
     <div 
-      className="group relative w-full max-w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer overflow-hidden"
+      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer box-border"
       onClick={menuOpen ? undefined : onClick}
     >
       <div className="relative flex-shrink-0">
@@ -557,9 +563,9 @@ const ConversationItem = memo(function ConversationItem({
         )}
       </div>
 
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5 gap-2">
-          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
             <span className="font-semibold text-sm truncate">{displayName}</span>
             {!conversation.is_group && userRole && <ModBadge role={userRole} />}
             {conversation.is_group && (
@@ -580,7 +586,7 @@ const ConversationItem = memo(function ConversationItem({
         </div>
 
         <div className="flex items-center justify-between gap-1">
-          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
             {lastMessage && (
               <>
                 {lastMessage.sender_id === currentUserId && (
