@@ -58,6 +58,11 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const Community = lazy(() => import("./pages/Community"));
 const Spaces = lazy(() => import("./pages/Spaces"));
 const Watch = lazy(() => import("./pages/Watch"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const Terms = lazy(() => import("./pages/Terms"));
+
+// Debug panel - only loaded in dev mode
+const DebugPanel = lazy(() => import("./components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -190,8 +195,16 @@ function AppWithPreloader() {
                       <Route path="/community" element={<Community />} />
                       <Route path="/spaces" element={<Spaces />} />
                       <Route path="/watch/:id" element={<Watch />} />
+                      <Route path="/privacy" element={<Privacy />} />
+                      <Route path="/terms" element={<Terms />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
+                    {/* Debug panel - only in dev mode */}
+                    {import.meta.env.DEV && (
+                      <Suspense fallback={null}>
+                        <DebugPanel />
+                      </Suspense>
+                    )}
                   </Suspense>
                   <RootBottomNavMount />
                   <PushNotificationPrompt />

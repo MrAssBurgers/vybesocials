@@ -9,6 +9,7 @@ import {
   Bell, 
   Globe, 
   HelpCircle,
+  Code2,
 } from 'lucide-react';
 import { haptics } from '@/lib/haptics';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -22,7 +23,8 @@ export type SettingsCategory =
   | 'feedback' 
   | 'notifications' 
   | 'language' 
-  | 'help';
+  | 'help'
+  | 'developer';
 
 interface SettingsNavProps {
   activeCategory: SettingsCategory;
@@ -39,6 +41,8 @@ const categories = [
   { id: 'notifications' as const, label: 'Notifications', icon: Bell, description: 'Alerts' },
   { id: 'language' as const, label: 'Language', icon: Globe, description: 'App language' },
   { id: 'help' as const, label: 'Help', icon: HelpCircle, description: 'Support' },
+  // Developer section only shown in dev mode
+  ...(import.meta.env.DEV ? [{ id: 'developer' as const, label: 'Developer', icon: Code2, description: 'Dev tools' }] : []),
 ];
 
 export function SettingsNav({ activeCategory, onCategoryChange }: SettingsNavProps) {

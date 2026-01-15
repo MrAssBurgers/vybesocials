@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { MessageSquareHeart, Sparkles, ChevronRight, BookOpen, MessageCircle, ExternalLink } from 'lucide-react';
+import { MessageSquareHeart, Sparkles, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { haptics } from '@/lib/haptics';
 
@@ -60,11 +60,46 @@ export function HelpSection() {
         </div>
       </motion.div>
 
-      {/* FAQ Section */}
+      {/* Legal Section */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
+        className="liquid-glass-card p-4 sm:p-6"
+      >
+        <h4 className="font-medium mb-4 flex items-center gap-2">
+          <FileText className="w-4 h-4 text-muted-foreground" />
+          Legal
+        </h4>
+        
+        <div className="space-y-3">
+          <Link to="/privacy" className="block">
+            <div className="w-full flex items-center gap-4 p-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all active:scale-[0.98]">
+              <Shield className="w-5 h-5 text-muted-foreground" />
+              <div className="flex-1 text-left">
+                <p className="font-medium text-sm">Privacy Policy</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </Link>
+          
+          <Link to="/terms" className="block">
+            <div className="w-full flex items-center gap-4 p-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all active:scale-[0.98]">
+              <FileText className="w-5 h-5 text-muted-foreground" />
+              <div className="flex-1 text-left">
+                <p className="font-medium text-sm">Terms of Service</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </Link>
+        </div>
+      </motion.div>
+
+      {/* FAQ Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
         className="liquid-glass-card p-4 sm:p-6"
       >
         <h4 className="font-medium mb-4 flex items-center gap-2">
@@ -98,7 +133,7 @@ export function HelpSection() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+        transition={{ delay: 0.3 }}
         className="liquid-glass-card p-4 sm:p-6 bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20"
       >
         <p className="text-sm">
