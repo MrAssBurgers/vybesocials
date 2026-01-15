@@ -13,58 +13,144 @@ interface UseScreenCaptureOptions {
 
 export function useScreenCapture({ enabled = true, onCapture }: UseScreenCaptureOptions = {}) {
   const [isRecording, setIsRecording] = useState(false);
-  const lastBlurTime = useRef<number | null>(null);
-  const lastVisibilityChange = useRef<number | null>(null);
-  const wasHidden = useRef(false);
+  
+  // Signal tracking for screenshot detection
+  const lastBlurTime = useRef<number>(0);
+  const lastVisibilityHidden = useRef<number>(0);
+  const wasHiddenRecently = useRef(false);
   const navigationOccurred = useRef(false);
   const cooldownRef = useRef(false);
+  const isActivelyViewingChat = useRef(true);
   const recordingCheckInterval = useRef<NodeJS.Timeout | null>(null);
 
   // Prevent duplicate detections with cooldown
   const triggerCapture = useCallback((event: CaptureEvent) => {
+    // Don't trigger if on cooldown for screenshots
     if (cooldownRef.current && event.type === 'screenshot') return;
-    if (event.confidence === 'low') return; // Don't notify on low confidence
+    // Only notify on high/medium confidence
+    if (event.confidence === 'low') return;
     
+    console.log('[ScreenCapture] Triggered:', event.type, 'confidence:', event.confidence);
     onCapture?.(event);
     
     if (event.type === 'screenshot') {
       cooldownRef.current = true;
       setTimeout(() => {
         cooldownRef.current = false;
-      }, 2000); // 2s cooldown between screenshot detections
+      }, 3000); // 3s cooldown between screenshot detections
     }
   }, [onCapture]);
 
-  // Screenshot detection via combined signals
-  // NOTE: Web browsers cannot reliably detect screenshots - this is disabled
-  // to prevent false positives from normal tab switching behavior.
-  // Only screen recording detection (via getDisplayMedia override) is active.
+  // SCREENSHOT DETECTION - Combined signals approach (Snapchat-style)
   useEffect(() => {
     if (!enabled) return;
 
-    // Track navigation to avoid false positives in any future detection
+    let blurFocusTimeout: NodeJS.Timeout | null = null;
+    
+    // Track navigation to avoid false positives
     const handleBeforeUnload = () => {
       navigationOccurred.current = true;
     };
-
     const handlePopState = () => {
       navigationOccurred.current = true;
+      setTimeout(() => { navigationOccurred.current = false; }, 1000);
     };
+    const handleHashChange = () => {
+      navigationOccurred.current = true;
+      setTimeout(() => { navigationOccurred.current = false; }, 1000);
+    };
+
+    // Track visibility changes
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        lastVisibilityHidden.current = Date.now();
+        wasHiddenRecently.current = true;
+      } else {
+        // Document became visible again
+        const hiddenDuration = Date.now() - lastVisibilityHidden.current;
+        
+        // Screenshot signal: Very brief visibility change (50-800ms)
+        // Normal tab switch is usually longer
+        if (wasHiddenRecently.current && hiddenDuration > 50 && hiddenDuration < 800) {
+          // Wait a tiny bit to check if it's combined with blur/focus
+          setTimeout(() => {
+            if (!navigationOccurred.current && isActivelyViewingChat.current) {
+              // Check if blur also happened around same time
+              const blurWasRecent = (Date.now() - lastBlurTime.current) < 1000;
+              
+              if (blurWasRecent) {
+                console.log('[ScreenCapture] Screenshot pattern detected: visibility + blur combo');
+                triggerCapture({
+                  type: 'screenshot',
+                  timestamp: new Date(),
+                  confidence: 'high'
+                });
+              }
+            }
+          }, 100);
+        }
+        wasHiddenRecently.current = false;
+      }
+    };
+
+    // Track blur/focus for screenshot detection
+    const handleBlur = () => {
+      lastBlurTime.current = Date.now();
+    };
+
+    const handleFocus = () => {
+      const blurDuration = Date.now() - lastBlurTime.current;
+      
+      // Screenshot pattern: Very brief blur (100-1000ms) 
+      // Combined with no navigation and active chat viewing
+      if (blurDuration > 100 && blurDuration < 1000 && !navigationOccurred.current && isActivelyViewingChat.current) {
+        // Clear any pending check
+        if (blurFocusTimeout) clearTimeout(blurFocusTimeout);
+        
+        // Wait briefly to combine with visibility signal
+        blurFocusTimeout = setTimeout(() => {
+          const visibilityWasRecent = (Date.now() - lastVisibilityHidden.current) < 1500;
+          
+          if (visibilityWasRecent) {
+            console.log('[ScreenCapture] Screenshot pattern: blur+focus combo, duration:', blurDuration);
+            triggerCapture({
+              type: 'screenshot',
+              timestamp: new Date(),
+              confidence: 'high'
+            });
+          }
+        }, 150);
+      }
+    };
+
+    // Reset navigation flag periodically
+    const resetInterval = setInterval(() => {
+      navigationOccurred.current = false;
+    }, 2000);
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handleHashChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handleHashChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(resetInterval);
+      if (blurFocusTimeout) clearTimeout(blurFocusTimeout);
     };
-  }, [enabled]);
+  }, [enabled, triggerCapture]);
 
-  // Screen recording detection via MediaDevices API
+  // SCREEN RECORDING DETECTION - Override getDisplayMedia
   useEffect(() => {
     if (!enabled) return;
 
-    // Override getDisplayMedia to detect screen recording
     const originalGetDisplayMedia = navigator.mediaDevices?.getDisplayMedia;
     
     if (originalGetDisplayMedia) {
@@ -100,26 +186,22 @@ export function useScreenCapture({ enabled = true, onCapture }: UseScreenCapture
       };
     }
 
-    // Check for existing screen capture (browser support varies)
-    const checkExistingCapture = async () => {
+    // Check for Screen Capture API if available
+    const checkScreenCapture = () => {
+      // Try to detect if screen is being captured via experimental APIs
+      // This is very limited in browsers
       try {
-        // Some browsers expose this info
-        if ('getDisplayMedia' in navigator.mediaDevices) {
-          // We can only detect when someone requests capture from this page
-          // External capture tools are not detectable
+        // @ts-ignore - experimental API
+        if (navigator.mediaDevices?.getDisplayMedia && 'getCapabilities' in MediaStreamTrack.prototype) {
+          // Some browsers expose capture state
         }
       } catch {
-        // Silently fail - detection is best-effort
+        // Silent fail - detection is best-effort
       }
     };
 
-    checkExistingCapture();
-
-    // Periodic check for recording indicators (where available)
-    recordingCheckInterval.current = setInterval(() => {
-      // Check if any media streams are active with display capture
-      // This is limited by browser APIs
-    }, 5000);
+    // Periodic check for any recording indicators
+    recordingCheckInterval.current = setInterval(checkScreenCapture, 5000);
 
     return () => {
       if (originalGetDisplayMedia) {
@@ -131,10 +213,13 @@ export function useScreenCapture({ enabled = true, onCapture }: UseScreenCapture
     };
   }, [enabled, triggerCapture]);
 
-  // iOS-specific screenshot detection is disabled due to high false positive rate
-  // from normal resize events and orientation changes.
+  // Track if user is actively in a chat (for context)
+  const setActivelyViewingChat = useCallback((active: boolean) => {
+    isActivelyViewingChat.current = active;
+  }, []);
 
   return {
-    isRecording
+    isRecording,
+    setActivelyViewingChat
   };
 }
