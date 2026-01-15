@@ -13,10 +13,25 @@ serve(async (req) => {
 
   try {
     const { phone } = await req.json();
-    
+
     if (!phone) {
       return new Response(
         JSON.stringify({ error: "Phone number is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const normalizePhone = (raw: string) => {
+      const trimmed = String(raw).trim();
+      const digits = trimmed.replace(/\D/g, "");
+      if (!digits) return "";
+      return trimmed.startsWith("+") ? `+${digits}` : `+1${digits}`;
+    };
+
+    const toPhone = normalizePhone(phone);
+    if (!toPhone) {
+      return new Response(
+        JSON.stringify({ error: "Invalid phone number" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -42,11 +57,11 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
     
     // Delete any existing codes for this phone
-    await supabase.from("phone_verifications").delete().eq("phone", phone);
+    await supabase.from("phone_verifications").delete().eq("phone", toPhone);
     
     // Insert new code
     const { error: insertError } = await supabase.from("phone_verifications").insert({
-      phone,
+      phone: toPhone,
       code,
       expires_at: expiresAt.toISOString(),
     });
@@ -65,7 +80,7 @@ serve(async (req) => {
     
     const formData = new URLSearchParams();
     formData.append("From", TWILIO_PHONE_NUMBER);
-    formData.append("To", phone);
+    formData.append("To", toPhone);
     formData.append("Body", `Your VYBE verification code is: ${code}. It expires in 10 minutes.`);
 
     const twilioResponse = await fetch(twilioUrl, {
@@ -86,8 +101,27 @@ serve(async (req) => {
       );
     }
 
+    let twilioData: any = null;
+    try {
+      twilioData = await twilioResponse.json();
+      console.log("Twilio message created", {
+        sid: twilioData?.sid,
+        status: twilioData?.status,
+        to: twilioData?.to,
+        from: twilioData?.from,
+        error_code: twilioData?.error_code,
+      });
+    } catch (e) {
+      console.log("Twilio message created (non-JSON response)");
+    }
+
     return new Response(
-      JSON.stringify({ success: true, message: "Verification code sent" }),
+      JSON.stringify({
+        success: true,
+        message: "Verification code sent",
+        messageSid: twilioData?.sid ?? null,
+        twilioStatus: twilioData?.status ?? null,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

@@ -13,10 +13,25 @@ serve(async (req) => {
 
   try {
     const { phone, code, userId } = await req.json();
-    
+
     if (!phone || !code) {
       return new Response(
         JSON.stringify({ error: "Phone and code are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const normalizePhone = (raw: string) => {
+      const trimmed = String(raw).trim();
+      const digits = trimmed.replace(/\D/g, "");
+      if (!digits) return "";
+      return trimmed.startsWith("+") ? `+${digits}` : `+1${digits}`;
+    };
+
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      return new Response(
+        JSON.stringify({ error: "Invalid phone number" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -30,7 +45,7 @@ serve(async (req) => {
     const { data: verification, error: fetchError } = await supabase
       .from("phone_verifications")
       .select("*")
-      .eq("phone", phone)
+      .eq("phone", normalizedPhone)
       .eq("code", code)
       .single();
 
@@ -57,7 +72,7 @@ serve(async (req) => {
       const { error: updateError } = await supabase
         .from("profiles")
         .update({ 
-          phone_number: phone,
+          phone_number: normalizedPhone,
           phone_verified: true,
         })
         .eq("id", userId);
