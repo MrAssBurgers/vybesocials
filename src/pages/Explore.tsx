@@ -70,11 +70,13 @@ function FullscreenClipsViewer({
   startIndex,
   onClose,
   onSwitchToVideos,
+  isLoading,
 }: {
   clips: ClipPost[];
   startIndex: number;
   onClose: () => void;
   onSwitchToVideos: () => void;
+  isLoading?: boolean;
 }) {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [globalMuted, setGlobalMuted] = useState(true);
@@ -176,6 +178,18 @@ function FullscreenClipsViewer({
 
   const containerHeight = isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh';
   const CardComponent = isMobileOrTablet ? MobileShortCard : ShortCard;
+
+  // Show loading skeleton while fetching
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-muted" />
+          <div className="h-4 w-32 bg-muted rounded" />
+        </div>
+      </div>
+    );
+  }
 
   if (clips.length === 0) {
     return (
@@ -607,6 +621,7 @@ export default function ExplorePage() {
         startIndex={0}
         onClose={handleCloseClips}
         onSwitchToVideos={handleSwitchToVideos}
+        isLoading={isLoading}
       />
     );
   }
