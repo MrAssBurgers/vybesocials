@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutualFriends, UserWithMutualFriends } from '@/hooks/useMutualFriends';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -10,7 +10,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useFriendshipStatus, useSendFriendRequest, useFriends } from '@/hooks/useFriends';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 
 const containerVariants = {
@@ -22,13 +21,18 @@ const containerVariants = {
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, scale: 0.8, y: 20 },
+  hidden: { opacity: 0, scale: 0.9 },
   show: { 
     opacity: 1, 
-    scale: 1, 
-    y: 0,
+    scale: 1,
     transition: { type: 'spring' as const, stiffness: 400, damping: 25 }
   },
+  exit: {
+    opacity: 0,
+    scale: 0.8,
+    x: -100,
+    transition: { duration: 0.2 }
+  }
 };
 
 // Helper to get display name from user
@@ -36,6 +40,7 @@ function getFullName(user: { first_name?: string | null; last_name?: string | nu
   if (user.first_name && user.last_name) {
     return `${user.first_name} ${user.last_name}`;
   }
+  if (user.first_name) return user.first_name;
   return user.display_name || user.username;
 }
 
@@ -49,29 +54,22 @@ function useSuggestedUsers() {
     queryFn: async (): Promise<UserWithMutualFriends[]> => {
       if (!profile?.id) return [];
       
-      // Get IDs to exclude (self + existing friends)
       const friendIds = friends?.map(f => f.id) || [];
-      const excludeIds = [profile.id, ...friendIds];
       
-      // Build query - exclude self and existing friends
       let query = supabase
         .from('profiles')
         .select('id, username, display_name, first_name, last_name, avatar_url')
         .neq('id', profile.id)
         .limit(20);
       
-      // Also exclude existing friends if any
       if (friendIds.length > 0) {
         query = query.not('id', 'in', `(${friendIds.join(',')})`);
       }
       
-      const { data: users, error } = await query;
-      
-      console.log('[useSuggestedUsers] Fetched users:', users?.length, error);
+      const { data: users } = await query;
       
       if (!users || users.length === 0) return [];
       
-      // For each user, count how many friends they have (for popularity sorting)
       const usersWithFriendCount = await Promise.all(
         users.slice(0, 10).map(async (user) => {
           const { count } = await supabase
@@ -87,17 +85,16 @@ function useSuggestedUsers() {
             first_name: user.first_name,
             last_name: user.last_name,
             avatar_url: user.avatar_url,
-            mutual_friends_count: 0, // No mutual friends, this is discovery
+            mutual_friends_count: 0,
             mutual_friends: [],
             total_friends: count || 0,
           };
         })
       );
       
-      // Sort by friend count descending (popular users first)
       return usersWithFriendCount
         .sort((a, b) => (b.total_friends || 0) - (a.total_friends || 0))
-        .slice(0, 6);
+        .slice(0, 8);
     },
     enabled: !!profile?.id,
     staleTime: 60000,
@@ -115,13 +112,16 @@ export function MutualFriendsQuickAdd({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserWithMutualFriends[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
-  // Use mutual friends if available, otherwise fall back to suggested users
   const suggestions = (mutualSuggestions?.length ?? 0) > 0 ? mutualSuggestions : suggestedUsers;
   const isLoading = isLoadingMutual || isLoadingSuggested;
   const hasMutualFriends = (mutualSuggestions?.length ?? 0) > 0;
 
-  // Search by name
+  const handleDismiss = (userId: string) => {
+    setDismissedIds(prev => new Set([...prev, userId]));
+  };
+
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     
@@ -140,7 +140,6 @@ export function MutualFriendsQuickAdd({
         .limit(10);
 
       if (data) {
-        // Convert to UserWithMutualFriends format (without mutual friend data for search)
         const results: UserWithMutualFriends[] = data.map(p => ({
           id: p.id,
           username: p.username,
@@ -165,18 +164,19 @@ export function MutualFriendsQuickAdd({
     setSearchResults([]);
   };
 
-  const displayUsers = searchQuery.length >= 2 ? searchResults : suggestions;
+  const allUsers = searchQuery.length >= 2 ? searchResults : suggestions;
+  const displayUsers = allUsers?.filter(u => !dismissedIds.has(u.id));
 
   if (isLoading && !searchQuery) {
     return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
-          <Users className="h-3 w-3" />
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-xs font-semibold text-foreground px-1">
+          <Users className="h-3.5 w-3.5" />
           <span>Quick Add</span>
         </div>
-        <div className="space-y-1.5">
+        <div className="grid grid-cols-2 gap-2">
           {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-11 rounded-lg" />
+            <Skeleton key={i} className="h-[140px] rounded-2xl" />
           ))}
         </div>
       </div>
@@ -184,15 +184,15 @@ export function MutualFriendsQuickAdd({
   }
 
   return (
-    <div className="space-y-2">
-      {/* Search by name */}
+    <div className="space-y-3">
+      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search by name..."
+          placeholder="Search..."
           value={searchQuery}
           onChange={(e) => handleSearch(e.target.value)}
-          className="pl-9 pr-9 bg-card border-border h-9 text-sm"
+          className="pl-9 pr-9 bg-muted/50 border-0 h-9 text-sm rounded-full"
         />
         {searchQuery && (
           <button
@@ -204,86 +204,83 @@ export function MutualFriendsQuickAdd({
         )}
       </div>
 
-      <motion.div 
-        initial={{ opacity: 0, x: -10 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="flex items-center gap-2 text-xs text-muted-foreground px-1"
-      >
-        <Users className="h-3 w-3 animate-pulse" />
+      <div className="flex items-center gap-2 text-xs font-semibold text-foreground px-1">
+        <Users className="h-3.5 w-3.5" />
         <span>
           {searchQuery 
             ? 'Search Results' 
-            : hasMutualFriends 
-              ? 'Quick Add' 
-              : 'Suggested Users'}
+            : 'Quick Add'}
         </span>
-      </motion.div>
+      </div>
       
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="popLayout">
         {isSearching ? (
-          <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-2">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-11 rounded-lg" />
+              <Skeleton key={i} className="h-[140px] rounded-2xl" />
             ))}
           </div>
         ) : displayUsers && displayUsers.length > 0 ? (
           <motion.div 
-            key={searchQuery}
             variants={containerVariants}
             initial="hidden"
             animate="show"
-            className="space-y-1.5"
+            className="grid grid-cols-2 gap-2"
           >
             {displayUsers.slice(0, 6).map((user) => (
-              <MutualFriendCard 
+              <SnapchatStyleCard 
                 key={user.id} 
                 user={user} 
                 onSelect={onSelect}
-                showMutualBadge={hasMutualFriends}
+                onDismiss={handleDismiss}
               />
             ))}
           </motion.div>
         ) : searchQuery.length >= 2 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            No users found for "{searchQuery}"
+          <p className="text-sm text-muted-foreground text-center py-6">
+            No users found
           </p>
-        ) : null}
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-6">
+            No suggestions available
+          </p>
+        )}
       </AnimatePresence>
     </div>
   );
 }
 
-function MutualFriendCard({
+function SnapchatStyleCard({
   user,
   onSelect,
-  showMutualBadge = true,
+  onDismiss,
 }: {
   user: UserWithMutualFriends;
   onSelect: (userId: string) => void;
-  showMutualBadge?: boolean;
+  onDismiss: (userId: string) => void;
 }) {
   const fullName = getFullName(user);
   const { data: friendship, isLoading: isLoadingStatus } = useFriendshipStatus(user.id);
   const sendRequest = useSendFriendRequest();
+  const [isAdded, setIsAdded] = useState(false);
   
   const isFriends = friendship?.status === 'friends';
-  const isPendingSent = friendship?.status === 'pending_sent';
+  const isPendingSent = friendship?.status === 'pending_sent' || isAdded;
   const isPendingReceived = friendship?.status === 'pending_received';
-  const canAdd = friendship?.status === 'none';
+  const canAdd = friendship?.status === 'none' && !isAdded;
 
-  // Get mutual friend names for tooltip
-  const getMutualFriendName = (mf: { first_name?: string | null; last_name?: string | null; username: string }) => {
-    if (mf.first_name) return mf.first_name;
-    return mf.username;
-  };
-
-  const handleAddFriend = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleAddFriend = () => {
     sendRequest.mutate(user.id, {
       onSuccess: () => {
-        toast.success(`Friend request sent to ${fullName}`);
+        setIsAdded(true);
+        toast.success(`Added ${fullName}!`);
       },
     });
+  };
+
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDismiss(user.id);
   };
 
   const handleMessageClick = () => {
@@ -294,80 +291,82 @@ function MutualFriendCard({
 
   return (
     <motion.div
+      layout
       variants={itemVariants}
-      whileHover={{ scale: 1.03 }}
-      whileTap={{ scale: 0.97 }}
-      className="relative bg-card border border-border rounded-lg p-2 flex items-center gap-2 hover:shadow-md transition-shadow group"
+      exit="exit"
+      className="relative bg-card border border-border rounded-2xl p-3 flex flex-col items-center text-center"
     >
-      {/* Avatar section */}
-      <div className="relative flex-shrink-0">
-        <Avatar className="h-9 w-9 ring-1 ring-background">
-          <AvatarImage src={user.avatar_url || undefined} />
-          <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-            {(user.first_name?.[0] || user.username[0]).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        
-        {/* Status indicator */}
-        {isFriends && (
-          <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 bg-emerald-500 rounded-full flex items-center justify-center">
-            <Check className="h-2.5 w-2.5 text-white" />
-          </div>
-        )}
-        {isPendingSent && (
-          <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 bg-amber-500 rounded-full flex items-center justify-center">
-            <Clock className="h-2.5 w-2.5 text-white" />
-          </div>
-        )}
-      </div>
-      
-      {/* Info section */}
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium truncate">{fullName}</p>
-        {user.mutual_friends_count > 0 ? (
-          <p className="text-[10px] text-muted-foreground">
-            {user.mutual_friends_count} mutual friend{user.mutual_friends_count > 1 ? 's' : ''}
-          </p>
-        ) : user.first_name ? (
-          <p className="text-[10px] text-muted-foreground truncate">@{user.username}</p>
-        ) : null}
-      </div>
+      {/* Dismiss X button - Snapchat style */}
+      <button
+        onClick={handleDismiss}
+        className="absolute top-2 right-2 h-5 w-5 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center transition-colors"
+      >
+        <X className="h-3 w-3 text-muted-foreground" />
+      </button>
 
-      {/* Action button */}
-      <div className="flex-shrink-0">
+      {/* Avatar */}
+      <Avatar className="h-14 w-14 mb-2">
+        <AvatarImage src={user.avatar_url || undefined} />
+        <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-lg font-bold">
+          {(user.first_name?.[0] || user.username[0]).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+
+      {/* Name */}
+      <p className="text-sm font-semibold truncate w-full px-1">{fullName}</p>
+      
+      {/* Username or Mutual friends */}
+      <p className="text-[11px] text-muted-foreground mb-2 truncate w-full">
+        {user.mutual_friends_count > 0 
+          ? `${user.mutual_friends_count} mutual friend${user.mutual_friends_count > 1 ? 's' : ''}`
+          : `@${user.username}`
+        }
+      </p>
+
+      {/* Action Button - Snapchat style */}
+      <div className="w-full">
         {isLoadingStatus ? (
-          <Skeleton className="h-6 w-6 rounded-full" />
+          <Skeleton className="h-8 w-full rounded-full" />
         ) : isFriends ? (
           <Button
-            size="icon"
-            variant="ghost"
+            size="sm"
+            variant="secondary"
             onClick={handleMessageClick}
-            className="h-6 w-6 rounded-full"
+            className="w-full h-8 rounded-full text-xs font-semibold gap-1.5"
           >
             <MessageCircle className="h-3.5 w-3.5" />
+            Message
           </Button>
         ) : isPendingSent ? (
-          <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
-            <Clock className="h-3 w-3 text-muted-foreground" />
-          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled
+            className="w-full h-8 rounded-full text-xs font-semibold gap-1.5 bg-muted/50"
+          >
+            <Clock className="h-3.5 w-3.5" />
+            Pending
+          </Button>
         ) : isPendingReceived ? (
           <Button
-            size="icon"
+            size="sm"
             variant="default"
             onClick={handleAddFriend}
-            className="h-6 w-6 rounded-full"
+            className="w-full h-8 rounded-full text-xs font-semibold gap-1.5"
           >
             <Check className="h-3.5 w-3.5" />
+            Accept
           </Button>
         ) : canAdd ? (
           <Button
-            size="icon"
+            size="sm"
             variant="default"
             onClick={handleAddFriend}
             disabled={sendRequest.isPending}
-            className="h-6 w-6 rounded-full"
+            className="w-full h-8 rounded-full text-xs font-semibold gap-1.5"
           >
             <UserPlus className="h-3.5 w-3.5" />
+            Add
           </Button>
         ) : null}
       </div>
