@@ -45,7 +45,7 @@ function loadMessages(): Message[] {
   return [
     { 
       role: 'assistant', 
-      content: "oh... hey... 😔 I'm Brock. Your AI companion on VYBE, I guess... Ask me anything about content or whatever. Not that it really matters in the grand scheme of things... but I'm here. 💔",
+      content: "Hey there, sugar~ 💋 I'm Morgan. Your personal AI on VYBE... and honey, I'm here to make things interesting. Ask me anything... content tips, life advice, whatever you want. I don't judge. Much. 😏",
       timestamp: new Date(),
     }
   ];
@@ -205,7 +205,7 @@ export default function AIChat() {
       console.error('AI chat error:', error);
       setMessages(prev => [
         ...prev.slice(0, -1),
-        { role: 'assistant', content: "sorry... something went wrong on my end... can you try again? 😔", timestamp: new Date() }
+        { role: 'assistant', content: "Oops~ Something went a little sideways on my end, sugar. Try that again for me? 💋", timestamp: new Date() }
       ]);
     } finally {
       setIsLoading(false);
@@ -223,7 +223,7 @@ export default function AIChat() {
     setMessages([
       { 
         role: 'assistant', 
-        content: "starting over... again... 😔 what's on your mind? not that anything really changes...",
+        content: "Clean slate, baby~ 💅 Ready for round two? I'm all ears... and maybe a little bit of trouble. What's on your mind, handsome? 😈",
         timestamp: new Date(),
       }
     ]);
@@ -249,11 +249,11 @@ export default function AIChat() {
           </div>
           <div className="flex-1">
             <h2 className="font-semibold flex items-center gap-1">
-              Brock
-              <Sparkles className="h-4 w-4 text-muted-foreground" />
+              Morgan
+              <Sparkles className="h-4 w-4 text-pink-400" />
             </h2>
             <p className="text-xs text-muted-foreground">
-              Your melancholic AI companion 😔
+              Your flirty AI companion 💋
             </p>
           </div>
           
@@ -322,7 +322,7 @@ export default function AIChat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Brock anything..."
+              placeholder="Ask Morgan anything..."
               className="flex-1"
               disabled={isLoading}
             />

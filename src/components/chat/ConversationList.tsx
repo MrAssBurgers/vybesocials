@@ -43,7 +43,7 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
         if (lastAssistant) return lastAssistant.content;
       }
     } catch {}
-    return "Tap to chat with me! 🦆";
+    return "Hey sugar~ Tap to chat 💋";
   }, []);
 
   return (
@@ -56,13 +56,13 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
           <Bot className="h-7 w-7 text-white" />
         </div>
       </div>
-      <div className="flex-1 min-w-0 py-1">
+      <div className="flex-1 min-w-0 py-1 overflow-hidden">
         <div className="flex items-center justify-between mb-1">
           <span className="font-semibold text-base flex items-center gap-1.5">
-            Brock
-            <Sparkles className="h-4 w-4 text-primary" />
+            Morgan
+            <Sparkles className="h-4 w-4 text-pink-400" />
           </span>
-          <span className="text-xs text-muted-foreground px-2 py-0.5 bg-primary/10 rounded-full">AI</span>
+          <span className="text-xs text-muted-foreground px-2 py-0.5 bg-pink-500/10 rounded-full">AI</span>
         </div>
         <p className="text-sm text-muted-foreground truncate">{lastAIMessage.slice(0, 50)}...</p>
       </div>
@@ -201,7 +201,7 @@ export function ConversationList() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden overflow-x-hidden">
+    <div className="flex flex-col h-full w-full max-w-full overflow-hidden">
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-4">
@@ -401,7 +401,8 @@ const ConversationItem = memo(function ConversationItem({
 
   return (
     <div 
-      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer overflow-hidden"
+      className="group relative w-full max-w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer"
+      style={{ overflow: 'hidden' }}
       onClick={menuOpen ? undefined : onClick}
     >
       <div className="relative flex-shrink-0">
@@ -439,10 +440,10 @@ const ConversationItem = memo(function ConversationItem({
         )}
       </div>
 
-      <div className="flex-1 min-w-0 overflow-hidden">
-        <div className="flex items-center justify-between mb-0.5">
-          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
-            <span className="font-semibold text-sm truncate">{displayName}</span>
+      <div className="flex-1 min-w-0" style={{ overflow: 'hidden' }}>
+        <div className="flex items-center justify-between mb-0.5 w-full">
+          <div className="flex items-center gap-1 min-w-0 flex-1" style={{ overflow: 'hidden' }}>
+            <span className="font-semibold text-sm truncate block" style={{ maxWidth: '100%' }}>{displayName}</span>
             {!conversation.is_group && userRole && <ModBadge role={userRole} />}
             {conversation.is_group && (
               <span className="text-[9px] text-muted-foreground bg-muted px-1 py-0.5 rounded-full flex-shrink-0">
