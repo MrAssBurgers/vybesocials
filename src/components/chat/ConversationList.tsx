@@ -429,7 +429,7 @@ const ConversationItem = memo(function ConversationItem({
               <AvatarImage src={avatarUrl || undefined} />
               <AvatarFallback className="text-base">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
-            <OnlineIndicator isOnline={isOnline} size="sm" className="bottom-0 right-0" />
+            <OnlineIndicator isOnline={isOnline} size="sm" className="-bottom-0.5 -right-0.5" />
           </>
         )}
         {isPinned && (
