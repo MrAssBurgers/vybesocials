@@ -91,27 +91,27 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+      {/* Header - hidden on mobile since channel is shown in tabs */}
+      <div className="hidden sm:flex items-center gap-2 px-4 py-3 border-b border-border">
         <Hash className="h-5 w-5 text-muted-foreground" />
         <h2 className="font-semibold">{channelName}</h2>
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 px-3 sm:px-4">
-        <div className="py-4">
+      <ScrollArea className="flex-1 px-2 sm:px-4">
+        <div className="py-3 sm:py-4">
           {groupedMessages.map((group) => (
             <div key={group.date}>
               {/* Date separator */}
-              <div className="flex items-center gap-3 my-5">
+              <div className="flex items-center gap-3 my-4 sm:my-5">
                 <div className="flex-1 h-px bg-border/50" />
-                <span className="text-[11px] text-muted-foreground/60 font-medium">
+                <span className="text-[10px] sm:text-[11px] text-muted-foreground/60 font-medium">
                   {formatDateHeader(group.date)}
                 </span>
                 <div className="flex-1 h-px bg-border/50" />
               </div>
 
-              {/* Messages for this date - tighter same-sender, looser different-sender */}
+              {/* Messages for this date */}
               <div className="flex flex-col">
                 {group.messages.map((message, index) => {
                   const prevMessage = index > 0 ? group.messages[index - 1] : null;
@@ -119,8 +119,7 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
                     prevMessage.sender_id !== message.sender_id ||
                     new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime() > 5 * 60 * 1000;
                   
-                  // Instagram-like spacing
-                  const spacingClass = showFullHeader ? 'pt-4' : 'pt-1';
+                  const spacingClass = showFullHeader ? 'pt-3 sm:pt-4' : 'pt-0.5 sm:pt-1';
 
                   return (
                     <div key={message.id} className={cn(spacingClass, index === 0 && 'pt-0')}>
@@ -138,12 +137,12 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
           ))}
 
           {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <Hash className="h-8 w-8 text-muted-foreground" />
+            <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-center px-4">
+              <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-muted flex items-center justify-center mb-3 sm:mb-4">
+                <Hash className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold mb-1">Welcome to #{channelName}</h3>
-              <p className="text-muted-foreground text-sm">
+              <h3 className="text-base sm:text-lg font-semibold mb-1">Welcome to #{channelName}</h3>
+              <p className="text-muted-foreground text-xs sm:text-sm">
                 This is the start of the channel. Send a message!
               </p>
             </div>
@@ -153,20 +152,21 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
         </div>
       </ScrollArea>
 
-      {/* Input */}
-      <div className="px-4 py-3 border-t border-border">
+      {/* Input - mobile optimized with safe area */}
+      <div className="px-3 sm:px-4 py-2 sm:py-3 border-t border-border bg-background/95 backdrop-blur-sm pb-safe">
         <div className="flex items-center gap-2">
           <Input
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder={`Message #${channelName}`}
-            className="flex-1"
+            className="flex-1 h-10 sm:h-10 text-[15px] sm:text-sm"
           />
           <Button
             size="icon"
             onClick={handleSend}
             disabled={!messageText.trim() || sendMessage.isPending}
+            className="h-10 w-10 flex-shrink-0"
           >
             {sendMessage.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -201,13 +201,13 @@ const MessageItem = memo(function MessageItem({
 
   return (
     <div className={cn(
-      "group flex gap-3 hover:bg-muted/20 -mx-2 px-3 py-1.5 rounded-xl transition-colors",
-      !showFullHeader && "pl-[52px] sm:pl-14"
+      "group flex gap-2 sm:gap-3 hover:bg-muted/20 -mx-1 sm:-mx-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl transition-colors active:bg-muted/30",
+      !showFullHeader && "pl-10 sm:pl-14"
     )}>
       {showFullHeader && (
-        <Avatar className="h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0 mt-0.5">
+        <Avatar className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 mt-0.5">
           <AvatarImage src={message.sender?.avatar_url || undefined} />
-          <AvatarFallback>
+          <AvatarFallback className="text-xs sm:text-sm">
             {(message.sender?.display_name || message.sender?.username)?.[0]?.toUpperCase()}
           </AvatarFallback>
         </Avatar>
@@ -215,49 +215,49 @@ const MessageItem = memo(function MessageItem({
 
       <div className="flex-1 min-w-0">
         {showFullHeader && (
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className="font-semibold text-[14px] sm:text-sm">
+          <div className="flex items-baseline gap-1.5 sm:gap-2 mb-0.5 sm:mb-1">
+            <span className="font-semibold text-[13px] sm:text-sm truncate max-w-[150px] sm:max-w-none">
               {message.sender?.display_name || message.sender?.username}
             </span>
-            <span className="text-[10px] text-muted-foreground/50 font-light">
+            <span className="text-[9px] sm:text-[10px] text-muted-foreground/50 font-light flex-shrink-0">
               {format(new Date(message.created_at), 'h:mm a')}
             </span>
           </div>
         )}
 
-        <div className="flex items-start gap-2">
-          <p className="text-[14px] sm:text-sm text-foreground break-words flex-1 leading-[1.4]">
+        <div className="flex items-start gap-1 sm:gap-2">
+          <p className="text-[13px] sm:text-sm text-foreground break-words flex-1 leading-[1.45] sm:leading-[1.4]">
             {message.content}
             {message.is_edited && (
-              <span className="text-[10px] text-muted-foreground/60 ml-1.5">(edited)</span>
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground/60 ml-1">(edited)</span>
             )}
           </p>
 
-          {/* Actions */}
+          {/* Actions - always visible on mobile via long press behavior handled by dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                className="h-6 w-6 sm:opacity-0 sm:group-hover:opacity-100 opacity-60 transition-opacity flex-shrink-0"
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <MoreHorizontal className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={copyToClipboard}>
-                <Copy className="h-4 w-4 mr-2" />
+            <DropdownMenuContent align="end" className="min-w-[140px]">
+              <DropdownMenuItem onClick={copyToClipboard} className="gap-2">
+                <Copy className="h-4 w-4" />
                 Copy
               </DropdownMenuItem>
               {isOwn && (
-                <DropdownMenuItem>
-                  <Edit3 className="h-4 w-4 mr-2" />
+                <DropdownMenuItem className="gap-2">
+                  <Edit3 className="h-4 w-4" />
                   Edit
                 </DropdownMenuItem>
               )}
               {(isOwn || canModerate) && (
-                <DropdownMenuItem className="text-destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
+                <DropdownMenuItem className="text-destructive gap-2">
+                  <Trash2 className="h-4 w-4" />
                   Delete
                 </DropdownMenuItem>
               )}
@@ -270,7 +270,7 @@ const MessageItem = memo(function MessageItem({
           <img
             src={message.media_url}
             alt=""
-            className="mt-2 max-w-sm rounded-lg"
+            className="mt-2 max-w-[85%] sm:max-w-sm rounded-lg"
           />
         )}
       </div>

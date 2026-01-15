@@ -197,9 +197,37 @@ export default function Spaces() {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="chat" className="h-full m-0 flex">
-                    {/* Channel list */}
-                    <div className="w-48 border-r border-border p-2 hidden sm:block">
+                  <TabsContent value="chat" className="h-full m-0 flex flex-col sm:flex-row">
+                    {/* Mobile channel selector */}
+                    <div className="sm:hidden border-b border-border">
+                      <ScrollArea className="w-full">
+                        <div className="flex gap-2 p-3">
+                          {channels.map((channel) => (
+                            <button
+                              key={channel.id}
+                              onClick={() => setSelectedChannelId(channel.id)}
+                              className={cn(
+                                "flex items-center gap-1.5 px-3 py-2 rounded-full text-sm whitespace-nowrap transition-all",
+                                selectedChannelId === channel.id
+                                  ? "bg-primary text-primary-foreground font-medium"
+                                  : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                              )}
+                            >
+                              <Hash className="h-3.5 w-3.5" />
+                              <span>{channel.name}</span>
+                              {(channelUnreads[channel.id] || 0) > 0 && (
+                                <span className="ml-1 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                                  {channelUnreads[channel.id]}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+
+                    {/* Desktop channel list */}
+                    <div className="w-48 border-r border-border p-2 hidden sm:block flex-shrink-0">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-2 mb-2">
                         Channels
                       </p>
@@ -226,7 +254,7 @@ export default function Spaces() {
                     </div>
 
                     {/* Chat area */}
-                    <div className="flex-1">
+                    <div className="flex-1 min-h-0">
                       {selectedChannel ? (
                         <ChannelChat
                           channelId={selectedChannelId!}
@@ -234,8 +262,11 @@ export default function Spaces() {
                           serverId={selectedSpaceId!}
                         />
                       ) : (
-                        <div className="h-full flex items-center justify-center text-muted-foreground">
-                          Select a channel
+                        <div className="h-full flex items-center justify-center text-muted-foreground p-4 text-center">
+                          <div>
+                            <Hash className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                            <p>Select a channel to start chatting</p>
+                          </div>
                         </div>
                       )}
                     </div>
