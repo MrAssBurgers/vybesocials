@@ -73,6 +73,10 @@ function preloadPostMedia(posts: Post[], priority: 'high' | 'low' = 'low') {
 
 export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Check if we have cached data from preloader
+  const cachedData = queryClient.getQueryData(['infinite-posts', type, authorId, profile?.id]);
 
   const query = useInfiniteQuery({
     queryKey: ['infinite-posts', type, authorId, profile?.id],
@@ -110,7 +114,12 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
     gcTime: GC_TIME,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
+    // Use cached data immediately - no loading state if we have data
     placeholderData: (previousData) => previousData,
+    // Skip initial fetch if we already have cached data
+    enabled: true,
+    // Return cached data instantly
+    initialData: cachedData as any,
   });
 
   return query;
