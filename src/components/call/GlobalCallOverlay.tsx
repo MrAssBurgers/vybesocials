@@ -1024,49 +1024,15 @@ export function GlobalCallOverlay() {
 
   return (
     <>
-      {/* CRITICAL: Always keep audio/video elements mounted during active call (even when minimized)
-          This ensures the call continues working in background - camera stays on for other person */}
+      {/* CRITICAL: Always keep audio element mounted during active call - even when minimized
+          This is separate from the video elements to ensure audio NEVER stops */}
       {isVisible && !isRinging && (
-        <div 
-          className="fixed pointer-events-none" 
-          style={{ 
-            opacity: isMinimized ? 0 : undefined, 
-            position: isMinimized ? 'fixed' : undefined, 
-            left: isMinimized ? -9999 : undefined, 
-            top: isMinimized ? -9999 : undefined,
-            zIndex: isMinimized ? -1 : undefined
-          }}
-        >
-          {/* Remote audio - ALWAYS mounted for audio to work */}
-          <audio 
-            ref={remoteAudioRef} 
-            autoPlay 
-            playsInline
-            style={{ display: 'none' }}
-          />
-          
-          {/* Hidden video elements that stay mounted when minimized - keeps camera active for other person */}
-          {isMinimized && isVideoCall && (
-            <div style={{ position: 'absolute', left: -9999, top: -9999, width: 1, height: 1, overflow: 'hidden' }}>
-              {/* Local video - keeps broadcasting to other person */}
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{ width: 1, height: 1 }}
-              />
-              {/* Remote video - keeps receiving from other person */}
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{ width: 1, height: 1 }}
-              />
-            </div>
-          )}
-        </div>
+        <audio 
+          ref={remoteAudioRef} 
+          autoPlay 
+          playsInline
+          style={{ position: 'fixed', left: -9999, top: -9999, width: 1, height: 1 }}
+        />
       )}
 
       {/* Minimized Call Bubble - shown when call is minimized */}
@@ -1083,19 +1049,18 @@ export function GlobalCallOverlay() {
         )}
       </AnimatePresence>
 
-      {/* Main Call UI (not ringing, not minimized) */}
-      <AnimatePresence>
-        {isVisible && !isRinging && !isMinimized && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-[9999]"
-            style={{
-              background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(240 10% 8%) 50%, hsl(280 20% 8%) 100%)'
-            }}
-          >
+      {/* Main Call UI - ALWAYS rendered when visible (not ringing), just hidden when minimized
+          This ensures video elements stay mounted and call continues */}
+      {isVisible && !isRinging && (
+        <div
+          className="fixed inset-0 z-[9999] transition-opacity duration-300"
+          style={{
+            opacity: isMinimized ? 0 : 1,
+            pointerEvents: isMinimized ? 'none' : 'auto',
+            visibility: isMinimized ? 'hidden' : 'visible',
+            background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(240 10% 8%) 50%, hsl(280 20% 8%) 100%)'
+          }}
+        >
             {/* Subtle static gradient background - no heavy animations for smooth video */}
             <div 
               className="absolute inset-0 overflow-hidden pointer-events-none opacity-20"
@@ -1588,9 +1553,8 @@ export function GlobalCallOverlay() {
                 </div>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Incoming call dialog */}
       <AnimatePresence>
