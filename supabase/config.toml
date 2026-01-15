@@ -33,3 +33,11 @@ verify_jwt = false
 [functions.generate-ai-video]
 verify_jwt = false
 
+[functions.send-sms-code]
+verify_jwt = false
+
+[functions.verify-sms-code]
+verify_jwt = false
+
+[functions.generate-background]
+verify_jwt = false
