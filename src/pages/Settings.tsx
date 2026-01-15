@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { haptics } from '@/lib/haptics';
+import { APP_VERSION } from '@/lib/constants';
 import { SettingsNav, SettingsNavVertical, SettingsCategory } from '@/components/settings/SettingsNav';
 import { ProfileSection } from '@/components/settings/ProfileSection';
 import { PrivacySection } from '@/components/settings/PrivacySection';
@@ -165,8 +166,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
                     </div>
                     <span className="font-display font-black text-lg gradient-text">VYBE</span>
                   </div>
-                  <p className="text-xs">Version 2.0.0</p>
-                  <p className="text-[10px] mt-1 opacity-60">{t('app.tagline')}</p>
+                  <p className="text-xs">v{APP_VERSION}</p>
                 </motion.div>
               </div>
             </motion.div>
@@ -233,8 +233,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
                     </div>
                     <span className="font-display font-black text-xl gradient-text">VYBE</span>
                   </div>
-                  <p className="text-sm">Version 2.0.0</p>
-                  <p className="text-xs mt-1 opacity-60">{t('app.tagline')}</p>
+                  <p className="text-sm">v{APP_VERSION}</p>
                 </motion.div>
               </motion.div>
             )}

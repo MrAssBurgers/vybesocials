@@ -106,6 +106,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
   const mainNavItems: NavItemData[] = [
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0, tutorialId: 'sidebar-home' },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0, tutorialId: 'sidebar-explore' },
+    { icon: Compass, label: 'Clips', path: '/clips', badge: 0, tutorialId: 'sidebar-clips' },
     { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages, tutorialId: 'sidebar-messages' },
     { icon: Users, label: 'Community', path: '/community', badge: 0, tutorialId: 'sidebar-community' },
     { icon: ShoppingBag, label: 'Market', path: '/market', badge: 0 },
@@ -251,6 +252,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
             <TooltipTrigger asChild>
               <Button 
                 onClick={handleCreateClick}
+                data-tutorial="sidebar-create"
                 className={cn(
                   "w-full gradient-animated text-primary-foreground font-semibold rounded-xl",
                   "shadow-lg shadow-primary/20 hover:shadow-primary/30",
@@ -344,9 +346,9 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         {!collapsed && (
           <div className="px-3 pb-3 pt-1">
             <div className="flex items-center justify-center gap-4 text-[10px] text-muted-foreground">
-              <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-              <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
-              <a href="#" className="hover:text-foreground transition-colors">Help</a>
+              <a href="/terms" className="hover:text-foreground transition-colors">Terms</a>
+              <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
+              <span className="text-muted-foreground/50">v1.2</span>
             </div>
           </div>
         )}

@@ -174,10 +174,10 @@ export function BottomNav() {
     lastTapTime.current = now;
   }, []);
 
-  // Updated nav order: Home | Explore | Upload | Messages | Settings
+  // Updated nav order: Home | Clips | Upload | Messages | Settings
   const navItems = [
     { icon: Home, path: '/home', badge: 0, tutorialId: 'home-nav' },
-    { icon: Compass, path: '/explore', badge: 0, tutorialId: 'explore-nav' },
+    { icon: Compass, path: '/clips', badge: 0, tutorialId: 'clips-nav' },
     { icon: PlusCircle, path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav' },
     { icon: MessageCircle, path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav' },
     { icon: Settings, path: '/settings', badge: 0, tutorialId: 'settings-nav' },
@@ -216,7 +216,7 @@ export function BottomNav() {
 
               if (item.isCreate) {
                 return (
-                  <div key={item.path} className="relative flex items-center justify-center">
+                  <div key={item.path} className="relative flex items-center justify-center" data-tutorial="create-nav">
                     <button
                       className="relative flex items-center justify-center min-h-[44px] min-w-[44px]"
                       onClick={handleCreateClick}

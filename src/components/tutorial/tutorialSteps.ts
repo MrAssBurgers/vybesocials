@@ -87,7 +87,7 @@ const mobileTabletSteps: TutorialStep[] = [
     id: 'settings',
     targetSelector: '[data-tutorial="settings-nav"]',
     title: '⚙️ Settings',
-    description: 'Manage your profile, privacy settings, notifications, and app preferences here. You can also restart this tutorial anytime!',
+    description: 'Manage your profile, privacy settings, notifications, and app preferences here. You can also restart this tutorial anytime from Help & Support!',
     position: 'top',
     requiresRoute: '/home',
   },

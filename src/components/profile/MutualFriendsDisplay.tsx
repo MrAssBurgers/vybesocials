@@ -103,6 +103,7 @@ export const MutualFriendsDisplay = memo(function MutualFriendsDisplay({
   const count = mutualFriends?.length || 0;
 
   if (variant === 'compact') {
+    // Always show something - never leave blank
     if (count === 0) {
       return (
         <div className={`flex items-center gap-1.5 text-xs text-muted-foreground ${className}`}>
@@ -112,6 +113,7 @@ export const MutualFriendsDisplay = memo(function MutualFriendsDisplay({
       );
     }
 
+    // Show up to 3 profile pictures + "+X"
     const displayFriends = mutualFriends?.slice(0, 3) || [];
     const remaining = count - 3;
 
@@ -139,7 +141,7 @@ export const MutualFriendsDisplay = memo(function MutualFriendsDisplay({
     );
   }
 
-  // Full variant
+  // Full variant - also always show something
   return (
     <div className={`space-y-3 ${className}`}>
       <div className="flex items-center gap-2">
