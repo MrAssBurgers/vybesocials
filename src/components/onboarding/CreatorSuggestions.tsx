@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Crown, UserPlus, Check } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Crown, UserPlus, Check, Users } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -11,9 +13,11 @@ import { toast } from 'sonner';
 // Owner username constant
 const OWNER_USERNAME = 'MrAssBurgers';
 
-// Fetch owner profile from profiles table with follower count
+// Fetch owner profile from profiles table with follower count (with realtime updates)
 function useOwnerProfile() {
-  return useQuery({
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
     queryKey: ['owner-profile'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -33,7 +37,36 @@ function useOwnerProfile() {
 
       return { ...data, follower_count: count || 0 };
     },
+    refetchInterval: 10000, // Refetch every 10 seconds for live updates
   });
+
+  // Subscribe to realtime follower changes
+  useEffect(() => {
+    if (!query.data?.id) return;
+
+    const channel = supabase
+      .channel(`owner-followers-${query.data.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'follows',
+          filter: `following_id=eq.${query.data.id}`,
+        },
+        () => {
+          // Refetch when followers change
+          queryClient.invalidateQueries({ queryKey: ['owner-profile'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [query.data?.id, queryClient]);
+
+  return query;
 }
 
 // Check if current user is following the owner
@@ -71,6 +104,7 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
     data: ownerProfile,
     isLoading,
     isError,
+    isFetching,
   } = useOwnerProfile();
   
   const { data: isFollowingOwner } = useIsFollowingOwner(ownerProfile?.id);
@@ -101,8 +135,24 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="space-y-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold gradient-text">Follow the Owner</h2>
+          <p className="text-muted-foreground mt-2">
+            Stay connected with the app owner for updates and announcements
+          </p>
+        </div>
+        <div className="bg-card rounded-2xl border border-border p-6">
+          <div className="flex flex-col items-center gap-4">
+            <Skeleton className="h-24 w-24 rounded-full" />
+            <div className="space-y-2 text-center">
+              <Skeleton className="h-6 w-32 mx-auto" />
+              <Skeleton className="h-4 w-24 mx-auto" />
+              <Skeleton className="h-4 w-20 mx-auto" />
+            </div>
+            <Skeleton className="h-10 w-28" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -132,6 +182,7 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
   }
 
   const alreadyFollowing = isFollowingOwner || following.includes(ownerProfile.id);
+  const followerCount = ownerProfile.follower_count;
 
   return (
     <div className="space-y-8">
@@ -165,9 +216,21 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
               {ownerProfile.display_name || ownerProfile.username}
             </h3>
             <p className="text-muted-foreground">@{ownerProfile.username}</p>
-            <p className="text-sm text-primary font-medium mt-1">
-              {ownerProfile.follower_count.toLocaleString()} followers
-            </p>
+            
+            {/* Live follower count with icon */}
+            <div className="flex items-center justify-center gap-1.5 mt-2">
+              <Users className="w-4 h-4 text-primary" />
+              <p className="text-sm text-primary font-medium">
+                {isFetching ? (
+                  <span className="inline-block w-12 h-4 bg-muted animate-pulse rounded" />
+                ) : (
+                  <>
+                    Join {followerCount.toLocaleString()} {followerCount === 1 ? 'person' : 'people'} following
+                  </>
+                )}
+              </p>
+            </div>
+
             {ownerProfile.bio && (
               <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto">
                 {ownerProfile.bio}
