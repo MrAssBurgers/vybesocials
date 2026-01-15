@@ -49,22 +49,22 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   return (
     <button
       onClick={() => navigate('/messages/ai-autisy')}
-      className="w-full flex items-center gap-4 p-4 rounded-2xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-2"
+      className="w-full max-w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 overflow-hidden"
     >
       <div className="relative flex-shrink-0">
-        <div className="h-14 w-14 rounded-full gradient-animated flex items-center justify-center shadow-md">
-          <Bot className="h-7 w-7 text-white" />
+        <div className="h-12 w-12 rounded-full gradient-animated flex items-center justify-center shadow-md">
+          <Bot className="h-6 w-6 text-white" />
         </div>
       </div>
-      <div className="flex-1 min-w-0 py-1 overflow-hidden">
-        <div className="flex items-center justify-between mb-1">
-          <span className="font-semibold text-base flex items-center gap-1.5">
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex items-center justify-between mb-0.5 gap-2">
+          <span className="font-semibold text-sm flex items-center gap-1.5 truncate">
             Morgan
-            <Sparkles className="h-4 w-4 text-pink-400" />
+            <Sparkles className="h-3.5 w-3.5 text-pink-400 flex-shrink-0" />
           </span>
-          <span className="text-xs text-muted-foreground px-2 py-0.5 bg-pink-500/10 rounded-full">AI</span>
+          <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-pink-500/10 rounded-full flex-shrink-0">AI</span>
         </div>
-        <p className="text-sm text-muted-foreground truncate">{lastAIMessage.slice(0, 50)}...</p>
+        <p className="text-xs text-muted-foreground truncate">{lastAIMessage.slice(0, 40)}...</p>
       </div>
     </button>
   );
@@ -280,8 +280,8 @@ export function ConversationList() {
       )}
 
       {/* Conversation List */}
-      <ScrollArea className="flex-1 pb-0">
-        <div className="p-3 pb-0 space-y-1">
+      <ScrollArea className="flex-1 overflow-x-hidden">
+        <div className="p-3 pb-0 space-y-1 w-full max-w-full overflow-hidden">
           <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
             <Users className="h-3.5 w-3.5" />
             Friends & AI
@@ -290,7 +290,7 @@ export function ConversationList() {
         </div>
 
         {pinnedConversations.length > 0 && (
-          <div className="p-3 space-y-1">
+          <div className="p-3 space-y-1 w-full max-w-full overflow-hidden">
             <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
               <Pin className="h-3.5 w-3.5" />
               {t('messages.pinned')}
@@ -312,7 +312,7 @@ export function ConversationList() {
           </div>
         )}
 
-        <div className="p-3 pb-2 space-y-1">
+        <div className="p-3 pb-2 space-y-1 w-full max-w-full overflow-hidden">
           {unpinnedConversations.length > 0 ? (
             <>
               <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
@@ -401,13 +401,11 @@ const ConversationItem = memo(function ConversationItem({
 
   return (
     <div 
-      className="group relative w-full max-w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer"
-      style={{ overflow: 'hidden' }}
+      className="group relative w-full max-w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer overflow-hidden"
       onClick={menuOpen ? undefined : onClick}
     >
       <div className="relative flex-shrink-0">
         {conversation.is_group ? (
-          // Group chat avatar with member count badge
           <div className="relative">
             <Avatar className="h-12 w-12 ring-2 ring-background shadow-md">
               {avatarUrl ? (
@@ -418,13 +416,11 @@ const ConversationItem = memo(function ConversationItem({
                 </AvatarFallback>
               )}
             </Avatar>
-            {/* Member count badge */}
             <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[9px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center border-2 border-background">
               {memberCount}
             </div>
           </div>
         ) : (
-          // DM avatar with online status
           <>
             <Avatar className="h-12 w-12 ring-2 ring-background shadow-md">
               <AvatarImage src={avatarUrl || undefined} />
@@ -440,10 +436,10 @@ const ConversationItem = memo(function ConversationItem({
         )}
       </div>
 
-      <div className="flex-1 min-w-0" style={{ overflow: 'hidden' }}>
-        <div className="flex items-center justify-between mb-0.5 w-full">
-          <div className="flex items-center gap-1 min-w-0 flex-1" style={{ overflow: 'hidden' }}>
-            <span className="font-semibold text-sm truncate block" style={{ maxWidth: '100%' }}>{displayName}</span>
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex items-center justify-between mb-0.5 gap-2">
+          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+            <span className="font-semibold text-sm truncate">{displayName}</span>
             {!conversation.is_group && userRole && <ModBadge role={userRole} />}
             {conversation.is_group && (
               <span className="text-[9px] text-muted-foreground bg-muted px-1 py-0.5 rounded-full flex-shrink-0">
@@ -453,7 +449,7 @@ const ConversationItem = memo(function ConversationItem({
             {!conversation.is_group && otherMember && isOwner(otherMember.username || '') && <OwnerBadge />}
             {!conversation.is_group && otherMember && isOwnerWife(otherMember.id) && <PrincessBadge />}
           </div>
-          <div className="flex items-center gap-0.5 flex-shrink-0 ml-1">
+          <div className="flex items-center gap-0.5 flex-shrink-0">
             {formattedTime && (
               <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                 {formattedTime.replace(' ago', '').replace('about ', '').replace('less than a minute', '1m')}
@@ -475,7 +471,7 @@ const ConversationItem = memo(function ConversationItem({
                     )}
                   </span>
                 )}
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">
                   {lastMessage.media_type === 'image' 
                     ? '📷 Photo' 
                     : lastMessage.media_type === 'audio'
@@ -493,18 +489,17 @@ const ConversationItem = memo(function ConversationItem({
 
           <div className="flex items-center gap-1 flex-shrink-0">
             {unreadCount > 0 && (
-              <span className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+              <span className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm flex-shrink-0">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
-            {/* Trash button - visible on hover */}
             {onTrash && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onTrash();
                 }}
-                className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all flex-shrink-0"
                 title="Move to trash"
               >
                 <Trash2 className="h-3.5 w-3.5" />
