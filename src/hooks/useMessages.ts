@@ -602,60 +602,92 @@ export function useTypingIndicator(conversationId: string | undefined) {
   return { typingUsers, setTyping };
 }
 
+type CaptureType = 'screenshot' | 'screen_recording_start' | 'screen_recording_stop' | 'possible_recording';
+
 export function useScreenshotNotification(conversationId: string | undefined) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [screenshotEvents, setScreenshotEvents] = useState<{ id: string; username: string; timestamp: string }[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
 
-  const notifyScreenshot = useCallback(async () => {
-    console.log('[Screenshot] notifyScreenshot called, conversationId:', conversationId, 'profile:', profile?.id);
+  const notifyCapture = useCallback(async (captureType: CaptureType) => {
+    console.log('[Capture] notifyCapture called, type:', captureType, 'conversationId:', conversationId);
     
     if (!conversationId || !profile?.id) {
-      console.log('[Screenshot] Missing conversationId or profile');
+      console.log('[Capture] Missing conversationId or profile');
       return;
     }
 
-    try {
-      // Insert screenshot notification
-      console.log('[Screenshot] Inserting to screenshot_notifications table...');
-      const { error } = await supabase
-        .from('screenshot_notifications')
-        .insert({
-          conversation_id: conversationId,
-          user_id: profile.id,
-        });
+    // Determine message content based on capture type
+    let content: string;
+    let messageType: string;
+    switch (captureType) {
+      case 'screenshot':
+        content = '📸 took a screenshot';
+        messageType = 'screenshot_notification';
+        break;
+      case 'screen_recording_start':
+        content = '🎥 started screen recording';
+        messageType = 'screen_recording_notification';
+        setIsRecording(true);
+        break;
+      case 'screen_recording_stop':
+        content = '🎥 stopped screen recording';
+        messageType = 'screen_recording_notification';
+        setIsRecording(false);
+        break;
+      case 'possible_recording':
+        content = '🎥 possible screen recording detected';
+        messageType = 'screen_recording_notification';
+        break;
+      default:
+        return;
+    }
 
-      if (error) {
-        console.error('[Screenshot] Failed to record screenshot:', error);
-        // Don't return - still try to insert the message
-      } else {
-        console.log('[Screenshot] Screenshot notification recorded successfully');
+    try {
+      // For screenshots, also insert into screenshot_notifications table
+      if (captureType === 'screenshot') {
+        console.log('[Capture] Inserting to screenshot_notifications table...');
+        const { error } = await supabase
+          .from('screenshot_notifications')
+          .insert({
+            conversation_id: conversationId,
+            user_id: profile.id,
+          });
+
+        if (error) {
+          console.error('[Capture] Failed to record screenshot:', error);
+        } else {
+          console.log('[Capture] Screenshot notification recorded successfully');
+        }
       }
 
-      // Also insert a system message so it shows in chat history
-      console.log('[Screenshot] Inserting system message...');
+      // Insert system message so it shows in chat history
+      console.log('[Capture] Inserting system message...');
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
           conversation_id: conversationId,
           sender_id: profile.id,
-          content: '📸 took a screenshot',
-          message_type: 'screenshot_notification',
+          content,
+          message_type: messageType,
         });
 
       if (msgError) {
-        console.error('[Screenshot] Failed to insert system message:', msgError);
+        console.error('[Capture] Failed to insert system message:', msgError);
       } else {
-        console.log('[Screenshot] System message inserted successfully');
-        toast.info('Screenshot detected and notified to chat members');
+        console.log('[Capture] System message inserted successfully');
       }
       
       // Invalidate messages to show the new system message
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
     } catch (err) {
-      console.error('[Screenshot] Screenshot notification error:', err);
+      console.error('[Capture] Capture notification error:', err);
     }
   }, [conversationId, profile?.id, queryClient]);
+
+  // Convenience wrapper for screenshot (backward compatible)
+  const notifyScreenshot = useCallback(() => notifyCapture('screenshot'), [notifyCapture]);
 
   // Listen for screenshot notifications in real-time
   useEffect(() => {
@@ -716,7 +748,7 @@ export function useScreenshotNotification(conversationId: string | undefined) {
     return () => clearTimeout(timer);
   }, [screenshotEvents]);
 
-  return { notifyScreenshot, screenshotEvents };
+  return { notifyScreenshot, notifyCapture, screenshotEvents, isRecording };
 }
 
 export function useStreaks() {

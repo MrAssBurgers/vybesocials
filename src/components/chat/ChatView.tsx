@@ -17,6 +17,7 @@ import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { useUnsendForEveryone, useDeleteForMe, useEditMessage } from '@/hooks/useMessageActions';
 import { useInstantReadClear } from '@/hooks/useMessageNotifications';
 import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
+import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -114,10 +115,21 @@ export function ChatView() {
   const editMessage = useEditMessage();
   // Use new presence hook for Snapchat-style presence + typing
   const { presentUsers, typingUsers, setTyping } = useChatPresence(conversationId);
-  const { notifyScreenshot, screenshotEvents } = useScreenshotNotification(conversationId);
+  const { notifyScreenshot, notifyCapture, screenshotEvents, isRecording } = useScreenshotNotification(conversationId);
   
   // v1.1: Instant read clear - marks as read immediately and clears badges
   useInstantReadClear(conversationId);
+  
+  // Snapchat-style screen capture detection
+  useScreenCapture({
+    enabled: !!conversationId,
+    onCapture: (event) => {
+      console.log('[ChatView] Capture detected:', event);
+      if (event.confidence !== 'low') {
+        notifyCapture(event.type);
+      }
+    }
+  });
   
   // v1.1: AI Smart Replies
   const { suggestions: smartReplies, generateReplies, clearSuggestions } = useAISmartReplies();
@@ -841,10 +853,15 @@ export function ChatView() {
               spacingClass = 'pt-4 sm:pt-5'; // Media transition (16-20px)
             }
             
-            // Check if this is a screenshot notification system message
+            // Check if this is a screenshot or screen recording notification system message
             const isScreenshotNotification = message.message_type === 'screenshot_notification';
+            const isRecordingNotification = message.message_type === 'screen_recording_notification';
+            const isCaptureNotification = isScreenshotNotification || isRecordingNotification;
             
-            if (isScreenshotNotification) {
+            if (isCaptureNotification) {
+              const isRecording = message.content?.includes('started') || message.content?.includes('possible');
+              const isStopped = message.content?.includes('stopped');
+              
               return (
                 <div key={message.id} className={cn(spacingClass, index === 0 && 'pt-0')}>
                   {showTimestamp && (
@@ -854,15 +871,45 @@ export function ChatView() {
                       </span>
                     </div>
                   )}
-                  {/* Screenshot notification - centered system message */}
-                  <div className="flex justify-center py-2">
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-medium">
-                      <Camera className="h-3.5 w-3.5" />
+                  {/* Capture notification - centered system message */}
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex justify-center py-2"
+                  >
+                    <div className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium backdrop-blur-sm border",
+                      isScreenshotNotification 
+                        ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
+                        : isRecording
+                          ? "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400"
+                          : isStopped
+                            ? "bg-muted/50 border-border/30 text-muted-foreground"
+                            : "bg-orange-500/10 border-orange-500/20 text-orange-600 dark:text-orange-400"
+                    )}>
+                      {isScreenshotNotification ? (
+                        <Camera className="h-3.5 w-3.5" />
+                      ) : (
+                        <span className={cn(
+                          "relative flex h-2 w-2",
+                          isRecording && "animate-pulse"
+                        )}>
+                          <span className={cn(
+                            "absolute inline-flex h-full w-full rounded-full opacity-75",
+                            isRecording ? "bg-red-500 animate-ping" : "bg-current"
+                          )}></span>
+                          <span className={cn(
+                            "relative inline-flex rounded-full h-2 w-2",
+                            isRecording ? "bg-red-500" : "bg-current"
+                          )}></span>
+                        </span>
+                      )}
                       <span>
                         {message.sender?.username || 'Someone'} {message.content}
                       </span>
                     </div>
-                  </div>
+                  </motion.div>
                 </div>
               );
             }
