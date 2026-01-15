@@ -31,28 +31,42 @@ export const MemeBanGifPicker = ({ selectedGifUrl, onSelectGif }: MemeBanGifPick
       return;
     }
 
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      toast.error('Please sign in again to upload');
+      return;
+    }
+
+    const userId = authData.user?.id;
+    if (!userId) {
+      toast.error('Please sign in to upload');
+      return;
+    }
+
     setIsUploading(true);
     try {
       const fileName = `meme-ban-${Date.now()}-${file.name}`;
+      const filePath = `${userId}/${fileName}`;
+
       const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file);
+        .from('media')
+        .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      
+      const { data } = supabase.storage.from('media').getPublicUrl(filePath);
+
       // Add to backgrounds library
-      await addBackground.mutateAsync({ 
-        name: file.name.replace(/\.[^/.]+$/, ''), 
-        gifUrl: data.publicUrl 
+      await addBackground.mutateAsync({
+        name: file.name.replace(/\.[^/.]+$/, ''),
+        gifUrl: data.publicUrl,
       });
-      
+
       // Select the newly uploaded GIF
       onSelectGif(data.publicUrl);
       toast.success('GIF uploaded and added to library!');
-    } catch (error) {
-      toast.error('Upload failed');
+    } catch (error: any) {
+      toast.error(error?.message || 'Upload failed');
       console.error(error);
     } finally {
       setIsUploading(false);
@@ -85,6 +99,8 @@ export const MemeBanGifPicker = ({ selectedGifUrl, onSelectGif }: MemeBanGifPick
     if (file) {
       handleFileUpload(file);
     }
+    // Allow selecting the same file again
+    e.target.value = '';
   };
 
   const handleAddFromUrl = async () => {

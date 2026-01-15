@@ -38,27 +38,38 @@ export const MemeBanManager = () => {
 
     if (!file.type.includes('gif') && !file.type.includes('image')) {
       toast.error('Please upload a GIF or image file');
+      e.target.value = '';
+      return;
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      toast.error('Please sign in to upload');
+      e.target.value = '';
       return;
     }
 
     setIsUploading(true);
     try {
       const fileName = `meme-ban-${Date.now()}-${file.name}`;
+      const filePath = `${authData.user.id}/${fileName}`;
+
       const { error: uploadError } = await supabase.storage
-        .from('avatars') // Reusing avatars bucket for now
-        .upload(fileName, file);
+        .from('media')
+        .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      const { data } = supabase.storage.from('media').getPublicUrl(filePath);
       setGifUrl(data.publicUrl);
       setPreviewUrl(data.publicUrl);
       toast.success('File uploaded!');
-    } catch (error) {
-      toast.error('Upload failed');
+    } catch (error: any) {
+      toast.error(error?.message || 'Upload failed');
       console.error(error);
     } finally {
       setIsUploading(false);
+      e.target.value = '';
     }
   };
 
