@@ -5,23 +5,30 @@ import { useMemo } from 'react';
 interface MemeBanScreenProps {
   reason?: string;
   expiresAt?: string | null;
+  customGifUrl?: string | null;
 }
 
 // Fallback GIF URL
 const FALLBACK_GIF_URL = 'https://media1.tenor.com/m/jUMex_rdqPwAAAAC/among-us-twerk.gif';
 
-export const MemeBanScreen = ({ reason, expiresAt }: MemeBanScreenProps) => {
+export const MemeBanScreen = ({ reason, expiresAt, customGifUrl }: MemeBanScreenProps) => {
   const { data: backgrounds } = useMemeBanBackgrounds();
   const expiresLabel = expiresAt ? new Date(expiresAt).toLocaleString() : null;
 
-  // Pick a random background once on mount
+  // Use custom GIF if provided, otherwise pick a random background
   const backgroundUrl = useMemo(() => {
+    // If a custom GIF was set for this ban, use it
+    if (customGifUrl) {
+      return customGifUrl;
+    }
+    
+    // Otherwise pick a random one from the library
     if (!backgrounds || backgrounds.length === 0) {
       return FALLBACK_GIF_URL;
     }
     const randomIndex = Math.floor(Math.random() * backgrounds.length);
     return backgrounds[randomIndex].gif_url;
-  }, [backgrounds]);
+  }, [backgrounds, customGifUrl]);
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-hidden bg-black">

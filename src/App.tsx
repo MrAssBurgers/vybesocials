@@ -118,7 +118,7 @@ function BanCheck() {
   if (!banData) return null;
   
   if (banData.is_meme_ban) {
-    return <MemeBanScreen reason={banData.reason} expiresAt={banData.expires_at} />;
+    return <MemeBanScreen reason={banData.reason} expiresAt={banData.expires_at} customGifUrl={banData.custom_gif_url} />;
   }
   
   return (
