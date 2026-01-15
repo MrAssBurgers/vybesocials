@@ -1,52 +1,18 @@
-import { memo, useState, useEffect } from 'react';
+import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface SplashScreenProps {
   isVisible: boolean;
+  status?: string;
+  progress?: number;
 }
 
-export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScreenProps) {
-  const [progress, setProgress] = useState(0);
-  const [showComplete, setShowComplete] = useState(false);
-
-  useEffect(() => {
-    if (!isVisible) return;
-
-    // Smooth progress animation with realistic pacing
-    const intervals = [
-      { target: 15, delay: 50, step: 3 },
-      { target: 35, delay: 40, step: 4 },
-      { target: 55, delay: 60, step: 3 },
-      { target: 75, delay: 50, step: 5 },
-      { target: 90, delay: 80, step: 2 },
-      { target: 100, delay: 30, step: 5 },
-    ];
-
-    let currentProgress = 0;
-    let intervalIndex = 0;
-    let timeoutId: NodeJS.Timeout;
-
-    const tick = () => {
-      if (intervalIndex >= intervals.length) {
-        setShowComplete(true);
-        return;
-      }
-
-      const { target, delay, step } = intervals[intervalIndex];
-      currentProgress = Math.min(currentProgress + step, target);
-      setProgress(currentProgress);
-
-      if (currentProgress >= target) {
-        intervalIndex++;
-      }
-
-      timeoutId = setTimeout(tick, delay);
-    };
-
-    timeoutId = setTimeout(tick, 100);
-
-    return () => clearTimeout(timeoutId);
-  }, [isVisible]);
+export const SplashScreen = memo(function SplashScreen({ 
+  isVisible, 
+  status = 'Loading...', 
+  progress = 0 
+}: SplashScreenProps) {
+  const showComplete = progress >= 100;
 
   return (
     <AnimatePresence>
@@ -230,7 +196,7 @@ export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScre
                   backgroundPosition: ['0% 0%', '100% 0%'],
                 }}
                 transition={{ 
-                  width: { duration: 0.1, ease: 'easeOut' },
+                  width: { duration: 0.3, ease: 'easeOut' },
                   backgroundPosition: { duration: 2, repeat: Infinity, ease: 'linear' }
                 }}
               />
@@ -247,23 +213,28 @@ export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScre
               />
             </div>
 
-            {/* Progress text */}
+            {/* Status text */}
             <motion.div
               className="flex justify-between items-center mt-3"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
             >
-              <span className="text-xs text-muted-foreground">
-                {showComplete ? 'Ready!' : 'Loading...'}
-              </span>
+              <motion.span 
+                key={status}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-xs text-muted-foreground truncate max-w-[140px]"
+              >
+                {status}
+              </motion.span>
               <motion.span
                 className="text-sm font-medium tabular-nums"
                 style={{ 
                   color: showComplete ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'
                 }}
               >
-                {progress}%
+                {Math.round(progress)}%
               </motion.span>
             </motion.div>
           </motion.div>
