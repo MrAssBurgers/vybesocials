@@ -23,10 +23,11 @@ interface Post {
   is_bookmarked: boolean;
 }
 
-// Consistent page size to avoid offset bugs
-const PAGE_SIZE = 20;
-const STALE_TIME = 2 * 60 * 1000; // 2 minutes
-const GC_TIME = 30 * 60 * 1000; // 30 minutes
+// Load ALL posts initially for instant experience
+const INITIAL_PAGE_SIZE = 100; // Load 100 posts on first load
+const PAGE_SIZE = 50; // Load 50 more when scrolling
+const STALE_TIME = 5 * 60 * 1000; // 5 minutes
+const GC_TIME = 60 * 60 * 1000; // 1 hour cache
 
 // Transform RPC result to Post format
 function transformPost(row: any): Post {
@@ -51,22 +52,17 @@ function transformPost(row: any): Post {
   };
 }
 
-// Preload images for upcoming posts
-function preloadPostMedia(posts: Post[], priority: 'high' | 'low' = 'low') {
-  const toPreload = priority === 'high' ? posts.slice(0, 6) : posts.slice(0, 4);
-  toPreload.forEach((post) => {
+// Preload images for posts - high priority batch loading
+function preloadPostMedia(posts: Post[]) {
+  posts.forEach((post) => {
     const url = post.thumbnail_url || post.media_url;
     if (url) {
-      if (priority === 'high' && typeof document !== 'undefined') {
-        const link = document.createElement('link');
-        link.rel = 'preload';
-        link.as = 'image';
-        link.href = url;
-        document.head.appendChild(link);
-      } else {
-        const img = new Image();
-        img.src = url;
-      }
+      const img = new Image();
+      img.src = url;
+    }
+    if (post.author?.avatar_url) {
+      const avatar = new Image();
+      avatar.src = post.author.avatar_url;
     }
   });
 }
@@ -76,40 +72,38 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
 
   const query = useInfiniteQuery({
     queryKey: ['infinite-posts', type, authorId, profile?.id],
-    queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
-      // Simple offset calculation - page number * page size
-      const offset = pageParam * PAGE_SIZE;
+    queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null; totalLoaded: number }> => {
+      const isFirstPage = pageParam === 0;
+      const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
+      const offset = isFirstPage ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
       
       const { data, error } = await supabase.rpc('get_posts_with_counts', {
         p_type: type || null,
         p_author_id: authorId || null,
         p_user_id: profile?.id || null,
         p_offset: offset,
-        p_limit: PAGE_SIZE,
+        p_limit: limit,
       });
 
       if (error) throw error;
 
       const posts = (data || []).map(transformPost);
-      
-      // Preload images
-      if (pageParam === 0) {
-        preloadPostMedia(posts, 'high');
-      } else {
-        preloadPostMedia(posts);
-      }
+      preloadPostMedia(posts);
 
+      const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       return {
         posts,
-        nextPage: posts.length === PAGE_SIZE ? pageParam + 1 : null,
+        nextPage: posts.length >= expectedSize ? pageParam + 1 : null,
+        totalLoaded: offset + posts.length,
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
-    refetchOnMount: true,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
   });
 
   return query;
@@ -123,29 +117,26 @@ export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       if (!profile) return { posts: [], nextPage: null };
 
-      // Simple offset calculation
-      const offset = pageParam * PAGE_SIZE;
+      const isFirstPage = pageParam === 0;
+      const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
+      const offset = isFirstPage ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
 
       const { data, error } = await supabase.rpc('get_following_posts_with_counts', {
         p_user_id: profile.id,
         p_type: type || null,
         p_offset: offset,
-        p_limit: PAGE_SIZE,
+        p_limit: limit,
       });
 
       if (error) throw error;
 
       const posts = (data || []).map(transformPost);
-      
-      if (pageParam === 0) {
-        preloadPostMedia(posts, 'high');
-      } else {
-        preloadPostMedia(posts);
-      }
+      preloadPostMedia(posts);
 
+      const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       return {
         posts,
-        nextPage: posts.length === PAGE_SIZE ? pageParam + 1 : null,
+        nextPage: posts.length >= expectedSize ? pageParam + 1 : null,
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
@@ -161,7 +152,6 @@ export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
   return query;
 }
 
-// Hook to prefetch posts before user navigates
 export function usePrefetchPosts() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -171,30 +161,30 @@ export function usePrefetchPosts() {
     if (!profile || hasPrefetched.current) return;
     hasPrefetched.current = true;
 
-    const prefetch = () => {
-      queryClient.prefetchInfiniteQuery({
-        queryKey: ['infinite-posts', undefined, undefined, profile.id],
-        queryFn: async () => {
-          const { data } = await supabase.rpc('get_posts_with_counts', {
-            p_type: null,
-            p_author_id: null,
-            p_user_id: profile.id,
-            p_offset: 0,
-            p_limit: PAGE_SIZE,
-          });
-          const posts = (data || []).map(transformPost);
-          preloadPostMedia(posts, 'high');
-          return { posts, nextPage: posts.length === PAGE_SIZE ? 1 : null };
-        },
-        initialPageParam: 0,
-        staleTime: STALE_TIME,
+    const prefetch = async () => {
+      const cached = queryClient.getQueryData(['infinite-posts', undefined, undefined, profile.id]);
+      if (cached) return;
+
+      const { data } = await supabase.rpc('get_posts_with_counts', {
+        p_type: null,
+        p_author_id: null,
+        p_user_id: profile.id,
+        p_offset: 0,
+        p_limit: INITIAL_PAGE_SIZE,
       });
+      
+      const posts = (data || []).map(transformPost);
+      preloadPostMedia(posts);
+      
+      queryClient.setQueryData(
+        ['infinite-posts', undefined, undefined, profile.id],
+        {
+          pages: [{ posts, nextPage: posts.length >= INITIAL_PAGE_SIZE ? 1 : null, totalLoaded: posts.length }],
+          pageParams: [0],
+        }
+      );
     };
 
-    if ('requestIdleCallback' in window) {
-      (window as any).requestIdleCallback(prefetch);
-    } else {
-      setTimeout(prefetch, 100);
-    }
+    prefetch();
   }, [profile, queryClient]);
 }
