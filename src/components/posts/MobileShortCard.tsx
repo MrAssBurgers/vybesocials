@@ -58,9 +58,34 @@ export const MobileShortCard = memo(function MobileShortCard({
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [viewCount, setViewCount] = useState(post.view_count || 0);
-  const hasCountedView = useRef(false);
+  const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
   const playAttemptRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Subscribe to realtime view count updates
+  useEffect(() => {
+    const channel = supabase
+      .channel(`post-views-mobile-${post.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'posts',
+          filter: `id=eq.${post.id}`,
+        },
+        (payload) => {
+          if (payload.new && typeof payload.new.view_count === 'number') {
+            setViewCount(payload.new.view_count);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [post.id]);
 
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
@@ -101,9 +126,9 @@ export const MobileShortCard = memo(function MobileShortCard({
                 video.muted = false;
                 setIsMuted(false);
               }
-              // Count view
-              if (!hasCountedView.current && profile) {
-                hasCountedView.current = true;
+              // Count initial view
+              if (!hasCountedInitialView.current && profile) {
+                hasCountedInitialView.current = true;
                 incrementViewCount();
               }
             })
@@ -116,7 +141,7 @@ export const MobileShortCard = memo(function MobileShortCard({
     } else {
       video.pause();
       video.currentTime = 0;
-      hasCountedView.current = false;
+      hasCountedInitialView.current = false;
       setIsPlaying(false);
     }
 
@@ -130,11 +155,18 @@ export const MobileShortCard = memo(function MobileShortCard({
   const incrementViewCount = async () => {
     try {
       await supabase.rpc('increment_view_count', { post_id_param: post.id });
-      setViewCount(prev => prev + 1);
+      // Don't update local state - let realtime handle it for live sync
     } catch (error) {
       console.error('Failed to increment view count:', error);
     }
   };
+
+  // Handle video loop/repeat - count each replay as a view
+  const handleVideoEnded = useCallback(() => {
+    if (profile && isActive) {
+      incrementViewCount();
+    }
+  }, [profile, isActive]);
 
   const handleTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
@@ -243,6 +275,7 @@ export const MobileShortCard = memo(function MobileShortCard({
             muted={isMuted}
             preload="metadata"
             onLoadedData={() => setIsLoading(false)}
+            onEnded={handleVideoEnded}
             onError={() => {
               setIsLoading(false);
               setHasError(true);
