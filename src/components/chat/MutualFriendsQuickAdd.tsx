@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useMutualFriends, UserWithMutualFriends } from '@/hooks/useMutualFriends';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -259,6 +260,7 @@ function SnapchatStyleCard({
   onSelect: (userId: string) => void;
   onDismiss: (userId: string) => void;
 }) {
+  const navigate = useNavigate();
   const fullName = getFullName(user);
   const { data: friendship, isLoading: isLoadingStatus } = useFriendshipStatus(user.id);
   const sendRequest = useSendFriendRequest();
@@ -317,13 +319,38 @@ function SnapchatStyleCard({
       {/* Name */}
       <p className="text-sm font-semibold truncate w-full px-1">{fullName}</p>
       
-      {/* Username or Mutual friends */}
-      <p className="text-[11px] text-muted-foreground mb-2 truncate w-full">
-        {user.mutual_friends_count > 0 
-          ? `${user.mutual_friends_count} mutual friend${user.mutual_friends_count > 1 ? 's' : ''}`
-          : `@${user.username}`
-        }
-      </p>
+      {/* Username or Mutual friends with clickable avatars */}
+      {user.mutual_friends_count > 0 && user.mutual_friends && user.mutual_friends.length > 0 ? (
+        <div className="flex items-center gap-1 mb-2">
+          <div className="flex -space-x-1">
+            {user.mutual_friends.slice(0, 2).map((friend) => (
+              <button
+                key={friend.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/u/${friend.username}`);
+                }}
+                className="relative hover:z-10 transition-transform hover:scale-110 rounded-full"
+                title={friend.first_name || friend.username}
+              >
+                <Avatar className="h-4 w-4 border border-background">
+                  <AvatarImage src={friend.avatar_url || undefined} />
+                  <AvatarFallback className="text-[6px] bg-primary/20">
+                    {friend.username?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            ))}
+          </div>
+          <span className="text-[10px] text-muted-foreground">
+            {user.mutual_friends_count} mutual
+          </span>
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground mb-2 truncate w-full">
+          @{user.username}
+        </p>
+      )}
 
       {/* Action Button - Snapchat style */}
       <div className="w-full">
