@@ -18,7 +18,7 @@ export default function Messages() {
         className={`
           ${hideNavOnMobile 
             ? 'h-[100dvh] fixed inset-0 z-50' 
-            : 'h-[calc(100dvh-5rem)] md:h-[calc(100dvh-2rem)] lg:h-screen'
+            : 'h-full'
           } 
           flex max-w-full bg-background
         `}
