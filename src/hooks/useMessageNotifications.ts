@@ -143,8 +143,8 @@ export function useMessageNotifications() {
           
           // If not viewing this conversation, show notifications
           if (!isViewingConvo || !isDocumentVisible) {
-            // Play premium message sound (auto-debounced for rapid messages)
-            premiumSounds.messageReceive();
+            // Play satisfying notification sound
+            premiumSounds.notification();
             
             // Show toast (clean, minimal)
             toast(senderName, {
