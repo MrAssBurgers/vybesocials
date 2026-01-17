@@ -1,5 +1,6 @@
 import { memo, useState, useEffect } from 'react';
-import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
+import { motion, AnimatePresence, useSpring } from 'framer-motion';
+import vybeLogo from '@/assets/vybe-logo.png';
 
 interface SplashScreenProps {
   isVisible: boolean;
@@ -35,6 +36,22 @@ export const SplashScreen = memo(function SplashScreen({
     springProgress.set(progress);
   }, [progress, springProgress]);
 
+  // Prevent body scroll when splash is visible
+  useEffect(() => {
+    if (isVisible) {
+      document.body.style.overflow = 'hidden';
+      // Hide bottom nav by adding a class
+      document.body.classList.add('splash-visible');
+    } else {
+      document.body.style.overflow = '';
+      document.body.classList.remove('splash-visible');
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.classList.remove('splash-visible');
+    };
+  }, [isVisible]);
+
   return (
     <AnimatePresence mode="wait">
       {isVisible && (
@@ -46,45 +63,65 @@ export const SplashScreen = memo(function SplashScreen({
             filter: 'blur(10px)',
           }}
           transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background overflow-hidden"
+          className="fixed inset-0 flex flex-col items-center justify-center bg-black overflow-hidden"
+          style={{
+            zIndex: 2147483647, // Maximum z-index to be above everything
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100dvh', // Dynamic viewport height for mobile (falls back to 100vh)
+          }}
         >
-          {/* Animated background gradients */}
+          {/* Animated background with neon glow */}
           <div className="absolute inset-0">
+            {/* Pink glow - left */}
             <motion.div 
-              className="absolute inset-0"
-              animate={{ 
-                background: [
-                  'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.12) 0%, transparent 50%)',
-                  'radial-gradient(circle at 70% 70%, hsl(var(--primary) / 0.12) 0%, transparent 50%)',
-                  'radial-gradient(circle at 70% 30%, hsl(var(--primary) / 0.12) 0%, transparent 50%)',
-                  'radial-gradient(circle at 30% 70%, hsl(var(--primary) / 0.12) 0%, transparent 50%)',
-                  'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.12) 0%, transparent 50%)',
-                ]
+              className="absolute top-1/2 left-1/4 w-64 h-64 rounded-full blur-[100px]"
+              style={{ background: '#ff006e' }}
+              animate={{
+                opacity: [0.3, 0.5, 0.3],
+                scale: [1, 1.2, 1],
+                x: [-20, 20, -20],
               }}
-              transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            
+            {/* Cyan glow - right */}
+            <motion.div 
+              className="absolute top-1/2 right-1/4 w-64 h-64 rounded-full blur-[100px]"
+              style={{ background: '#00f5d4' }}
+              animate={{
+                opacity: [0.3, 0.5, 0.3],
+                scale: [1.2, 1, 1.2],
+                x: [20, -20, 20],
+              }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
             />
             
             {/* Floating particles */}
-            {[...Array(8)].map((_, i) => (
+            {[...Array(6)].map((_, i) => (
               <motion.div
                 key={i}
-                className="absolute rounded-full bg-primary/15"
+                className="absolute rounded-full"
                 style={{
-                  width: 6 + (i % 3) * 4,
-                  height: 6 + (i % 3) * 4,
-                  left: `${10 + i * 11}%`,
-                  top: `${15 + (i % 4) * 20}%`,
+                  width: 4 + (i % 3) * 2,
+                  height: 4 + (i % 3) * 2,
+                  left: `${15 + i * 14}%`,
+                  top: `${20 + (i % 4) * 18}%`,
+                  background: i % 2 === 0 ? '#ff006e' : '#00f5d4',
                 }}
                 animate={{
-                  y: [0, -40, 0],
-                  x: [0, (i % 2 === 0 ? 15 : -15), 0],
-                  opacity: [0.2, 0.6, 0.2],
-                  scale: [1, 1.2, 1],
+                  y: [0, -30, 0],
+                  opacity: [0.3, 0.8, 0.3],
+                  scale: [1, 1.3, 1],
                 }}
                 transition={{
-                  duration: 3 + i * 0.4,
+                  duration: 2 + i * 0.3,
                   repeat: Infinity,
-                  delay: i * 0.3,
+                  delay: i * 0.2,
                   ease: 'easeInOut',
                 }}
               />
@@ -100,13 +137,13 @@ export const SplashScreen = memo(function SplashScreen({
               ease: [0.34, 1.56, 0.64, 1],
               delay: 0.1
             }}
-            className="relative mb-10"
+            className="relative mb-8 sm:mb-10"
           >
-            {/* Outer glow pulse */}
+            {/* Outer glow pulse - pink */}
             <motion.div
-              className="absolute -inset-12 rounded-full"
+              className="absolute -inset-16 sm:-inset-20 rounded-full"
               style={{
-                background: 'radial-gradient(circle, hsl(var(--primary) / 0.25) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(255, 0, 110, 0.3) 0%, transparent 70%)',
               }}
               animate={{
                 scale: [1, 1.3, 1],
@@ -115,99 +152,51 @@ export const SplashScreen = memo(function SplashScreen({
               transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
             />
             
-            {/* Inner glow */}
+            {/* Outer glow pulse - cyan */}
             <motion.div
-              className="absolute -inset-6 rounded-full"
+              className="absolute -inset-12 sm:-inset-16 rounded-full"
               style={{
-                background: 'radial-gradient(circle, hsl(var(--primary) / 0.4) 0%, transparent 60%)',
+                background: 'radial-gradient(circle, rgba(0, 245, 212, 0.25) 0%, transparent 60%)',
               }}
               animate={{
-                scale: [1.1, 1, 1.1],
-                opacity: [0.3, 0.5, 0.3],
+                scale: [1.2, 1, 1.2],
+                opacity: [0.3, 0.6, 0.3],
               }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
             />
             
             {/* Spinning ring */}
             <motion.div
-              className="absolute -inset-5 rounded-full border-2 border-primary/20"
-              style={{ borderTopColor: 'hsl(var(--primary) / 0.8)', borderRightColor: 'hsl(var(--primary) / 0.4)' }}
+              className="absolute -inset-6 sm:-inset-8 rounded-full"
+              style={{ 
+                border: '2px solid transparent',
+                borderTopColor: '#ff006e',
+                borderRightColor: 'rgba(0, 245, 212, 0.5)',
+              }}
               animate={{ rotate: 360 }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
             />
             
-            {/* Logo icon */}
-            <motion.div
-              className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl"
+            {/* Logo image with glow effect */}
+            <motion.img
+              src={vybeLogo}
+              alt="VYBE"
+              className="relative z-10 w-24 h-24 sm:w-32 sm:h-32 object-contain"
               animate={showComplete ? { 
                 scale: [1, 1.15, 1],
-                boxShadow: [
-                  '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                  '0 25px 50px -12px hsl(var(--primary) / 0.4)',
-                  '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                ]
-              } : {}}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
-            >
-              {/* Animated gradient background */}
-              <motion.div 
-                className="absolute inset-0"
-                animate={{
-                  background: [
-                    'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
-                    'linear-gradient(180deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
-                    'linear-gradient(225deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
-                    'linear-gradient(270deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
-                    'linear-gradient(315deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
-                    'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
-                  ]
-                }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
-              />
-              
-              {/* Glass overlay */}
-              <div className="absolute inset-0 bg-white/10 backdrop-blur-[1px]" />
-              
-              {/* V Logo */}
-              <svg viewBox="0 0 32 32" fill="none" className="relative z-10 w-12 h-12 sm:w-14 sm:h-14">
-                <motion.path
-                  d="M6 8L16 24L26 8"
-                  stroke="white"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ duration: 1, delay: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                />
-                <motion.path
-                  d="M10 6C10 6 12 10 16 10C20 10 22 6 22 6"
-                  stroke="white"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: 0.7 }}
-                  transition={{ duration: 0.8, delay: 0.7, ease: [0.4, 0, 0.2, 1] }}
-                />
-                <motion.circle
-                  cx="16"
-                  cy="24"
-                  r="2"
-                  fill="white"
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.4, delay: 1.1, ease: [0.34, 1.56, 0.64, 1] }}
-                />
-              </svg>
-              
-              {/* Shine sweep */}
-              <motion.div 
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
-                initial={{ x: '-100%' }}
-                animate={{ x: '200%' }}
-                transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 2, ease: 'easeInOut' }}
-              />
-            </motion.div>
+              } : {
+                filter: [
+                  'drop-shadow(0 0 20px rgba(255, 0, 110, 0.6)) drop-shadow(0 0 40px rgba(0, 245, 212, 0.4))',
+                  'drop-shadow(0 0 30px rgba(0, 245, 212, 0.6)) drop-shadow(0 0 50px rgba(255, 0, 110, 0.4))',
+                  'drop-shadow(0 0 20px rgba(255, 0, 110, 0.6)) drop-shadow(0 0 40px rgba(0, 245, 212, 0.4))',
+                ],
+              }}
+              transition={{ 
+                duration: showComplete ? 0.5 : 3, 
+                repeat: showComplete ? 0 : Infinity, 
+                ease: 'easeInOut' 
+              }}
+            />
           </motion.div>
 
           {/* Welcome to VYBE Text */}
@@ -215,13 +204,13 @@ export const SplashScreen = memo(function SplashScreen({
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
-            className="text-center mb-8"
+            className="text-center mb-6 sm:mb-8 px-4"
           >
             <motion.p
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4, duration: 0.5 }}
-              className="text-sm sm:text-base text-muted-foreground mb-2"
+              className="text-sm sm:text-base text-white/60 mb-2"
             >
               Welcome to
             </motion.p>
@@ -229,7 +218,13 @@ export const SplashScreen = memo(function SplashScreen({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.6, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-              className="text-4xl sm:text-5xl font-display font-black tracking-tight gradient-text"
+              className="text-4xl sm:text-5xl font-display font-black tracking-tight"
+              style={{
+                background: 'linear-gradient(135deg, #ff006e, #8338ec, #00f5d4)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
             >
               VYBE
             </motion.h1>
@@ -240,40 +235,33 @@ export const SplashScreen = memo(function SplashScreen({
             initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.5, ease: 'easeOut' }}
-            className="w-56 sm:w-64"
+            className="w-48 sm:w-64 px-4"
           >
             {/* Progress bar background */}
-            <div className="relative h-2 bg-muted/20 rounded-full overflow-hidden backdrop-blur-sm border border-white/5">
+            <div className="relative h-1.5 sm:h-2 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm">
               {/* Animated background shimmer */}
               <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
                 animate={{ x: ['-100%', '200%'] }}
                 transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
               />
               
-              {/* Progress fill - using spring animation */}
+              {/* Progress fill with neon gradient */}
               <motion.div
                 className="absolute inset-y-0 left-0 rounded-full"
                 style={{
                   width: `${displayProgress}%`,
-                  background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))',
-                  backgroundSize: '200% 100%',
-                }}
-                animate={{ 
-                  backgroundPosition: ['0% 0%', '100% 0%'],
-                }}
-                transition={{ 
-                  backgroundPosition: { duration: 2, repeat: Infinity, ease: 'linear' }
+                  background: 'linear-gradient(90deg, #ff006e, #8338ec, #00f5d4)',
                 }}
               />
               
               {/* Glow at progress tip */}
               <motion.div
-                className="absolute top-1/2 -translate-y-1/2 w-6 h-6 rounded-full blur-md pointer-events-none"
+                className="absolute top-1/2 -translate-y-1/2 w-4 h-4 sm:w-6 sm:h-6 rounded-full blur-md pointer-events-none"
                 style={{
                   left: `${displayProgress}%`,
-                  marginLeft: '-12px',
-                  background: 'hsl(var(--primary))',
+                  marginLeft: '-8px',
+                  background: '#00f5d4',
                 }}
                 animate={{
                   opacity: displayProgress > 0 && displayProgress < 100 ? [0.5, 0.9, 0.5] : 0,
@@ -283,7 +271,7 @@ export const SplashScreen = memo(function SplashScreen({
             </div>
 
             {/* Status text */}
-            <div className="flex justify-between items-center mt-3 h-5">
+            <div className="flex justify-between items-center mt-2 sm:mt-3 h-5">
               <AnimatePresence mode="wait">
                 <motion.span 
                   key={status}
@@ -291,15 +279,15 @@ export const SplashScreen = memo(function SplashScreen({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.25, ease: 'easeOut' }}
-                  className="text-xs text-muted-foreground truncate max-w-[140px]"
+                  className="text-[10px] sm:text-xs text-white/50 truncate max-w-[100px] sm:max-w-[140px]"
                 >
                   {status}
                 </motion.span>
               </AnimatePresence>
               <motion.span
-                className="text-sm font-medium tabular-nums transition-colors duration-300"
+                className="text-xs sm:text-sm font-medium tabular-nums transition-colors duration-300"
                 style={{ 
-                  color: showComplete ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'
+                  color: showComplete ? '#00f5d4' : 'rgba(255, 255, 255, 0.5)'
                 }}
               >
                 {displayProgress}%
@@ -310,9 +298,9 @@ export const SplashScreen = memo(function SplashScreen({
           {/* Tagline */}
           <motion.p
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.5 }}
+            animate={{ opacity: 0.4 }}
             transition={{ delay: 1, duration: 0.8 }}
-            className="absolute bottom-8 sm:bottom-12 text-xs text-muted-foreground tracking-wide"
+            className="absolute bottom-6 sm:bottom-12 text-[10px] sm:text-xs text-white/40 tracking-wide px-4 text-center"
           >
             The Next Generation Social Platform
           </motion.p>
