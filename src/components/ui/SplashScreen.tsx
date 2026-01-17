@@ -1,12 +1,84 @@
 import { memo, useState, useEffect } from 'react';
 import { motion, AnimatePresence, useSpring } from 'framer-motion';
-import vybeLogo from '@/assets/vybe-logo.png';
 
 interface SplashScreenProps {
   isVisible: boolean;
   status?: string;
   progress?: number;
 }
+
+// Neon V Logo Component for Splash Screen
+const NeonVLogo = memo(function NeonVLogo() {
+  return (
+    <motion.svg
+      viewBox="0 0 100 100"
+      fill="none"
+      className="w-28 h-28 sm:w-36 sm:h-36"
+      initial={{ scale: 0.5, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1], delay: 0.2 }}
+    >
+      <defs>
+        {/* Gradient for left stroke - pink to purple */}
+        <linearGradient id="splashLeftGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#ff006e" />
+          <stop offset="100%" stopColor="#8b5cf6" />
+        </linearGradient>
+        
+        {/* Gradient for right stroke - purple to cyan */}
+        <linearGradient id="splashRightGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#8b5cf6" />
+          <stop offset="100%" stopColor="#00f5d4" />
+        </linearGradient>
+        
+        {/* Glow filter */}
+        <filter id="splashGlow" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      
+      {/* Left leg of V - pink side */}
+      <motion.path
+        d="M20 15 L50 85"
+        stroke="url(#splashLeftGradient)"
+        strokeWidth="14"
+        strokeLinecap="round"
+        filter="url(#splashGlow)"
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 1, delay: 0.4, ease: 'easeOut' }}
+      />
+      
+      {/* Right leg of V - cyan side */}
+      <motion.path
+        d="M80 15 L50 85"
+        stroke="url(#splashRightGradient)"
+        strokeWidth="14"
+        strokeLinecap="round"
+        filter="url(#splashGlow)"
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 1, delay: 0.6, ease: 'easeOut' }}
+      />
+      
+      {/* Center bright point */}
+      <motion.circle
+        cx="50"
+        cy="85"
+        r="5"
+        fill="white"
+        filter="url(#splashGlow)"
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5, delay: 1.2, ease: [0.34, 1.56, 0.64, 1] }}
+      />
+    </motion.svg>
+  );
+});
 
 export const SplashScreen = memo(function SplashScreen({ 
   isVisible, 
@@ -36,11 +108,10 @@ export const SplashScreen = memo(function SplashScreen({
     springProgress.set(progress);
   }, [progress, springProgress]);
 
-  // Prevent body scroll when splash is visible
+  // Prevent body scroll and hide nav when splash is visible
   useEffect(() => {
     if (isVisible) {
       document.body.style.overflow = 'hidden';
-      // Hide bottom nav by adding a class
       document.body.classList.add('splash-visible');
     } else {
       document.body.style.overflow = '';
@@ -65,21 +136,21 @@ export const SplashScreen = memo(function SplashScreen({
           transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
           className="fixed inset-0 flex flex-col items-center justify-center bg-black overflow-hidden"
           style={{
-            zIndex: 2147483647, // Maximum z-index to be above everything
+            zIndex: 2147483647,
             position: 'fixed',
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
             width: '100vw',
-            height: '100dvh', // Dynamic viewport height for mobile (falls back to 100vh)
+            height: '100dvh',
           }}
         >
           {/* Animated background with neon glow */}
           <div className="absolute inset-0">
             {/* Pink glow - left */}
             <motion.div 
-              className="absolute top-1/2 left-1/4 w-64 h-64 rounded-full blur-[100px]"
+              className="absolute top-1/2 left-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2"
               style={{ background: '#ff006e' }}
               animate={{
                 opacity: [0.3, 0.5, 0.3],
@@ -91,7 +162,7 @@ export const SplashScreen = memo(function SplashScreen({
             
             {/* Cyan glow - right */}
             <motion.div 
-              className="absolute top-1/2 right-1/4 w-64 h-64 rounded-full blur-[100px]"
+              className="absolute top-1/2 right-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2"
               style={{ background: '#00f5d4' }}
               animate={{
                 opacity: [0.3, 0.5, 0.3],
@@ -100,50 +171,17 @@ export const SplashScreen = memo(function SplashScreen({
               }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
             />
-            
-            {/* Floating particles */}
-            {[...Array(6)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute rounded-full"
-                style={{
-                  width: 4 + (i % 3) * 2,
-                  height: 4 + (i % 3) * 2,
-                  left: `${15 + i * 14}%`,
-                  top: `${20 + (i % 4) * 18}%`,
-                  background: i % 2 === 0 ? '#ff006e' : '#00f5d4',
-                }}
-                animate={{
-                  y: [0, -30, 0],
-                  opacity: [0.3, 0.8, 0.3],
-                  scale: [1, 1.3, 1],
-                }}
-                transition={{
-                  duration: 2 + i * 0.3,
-                  repeat: Infinity,
-                  delay: i * 0.2,
-                  ease: 'easeInOut',
-                }}
-              />
-            ))}
           </div>
           
           {/* Logo container */}
           <motion.div
-            initial={{ scale: 0.3, opacity: 0, y: 30 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            transition={{ 
-              duration: 0.8, 
-              ease: [0.34, 1.56, 0.64, 1],
-              delay: 0.1
-            }}
-            className="relative mb-8 sm:mb-10"
+            className="relative mb-6 sm:mb-10"
           >
-            {/* Outer glow pulse - pink */}
+            {/* Outer glow pulse */}
             <motion.div
-              className="absolute -inset-16 sm:-inset-20 rounded-full"
+              className="absolute inset-0 -m-8 sm:-m-12 rounded-full"
               style={{
-                background: 'radial-gradient(circle, rgba(255, 0, 110, 0.3) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%)',
               }}
               animate={{
                 scale: [1, 1.3, 1],
@@ -152,22 +190,9 @@ export const SplashScreen = memo(function SplashScreen({
               transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
             />
             
-            {/* Outer glow pulse - cyan */}
-            <motion.div
-              className="absolute -inset-12 sm:-inset-16 rounded-full"
-              style={{
-                background: 'radial-gradient(circle, rgba(0, 245, 212, 0.25) 0%, transparent 60%)',
-              }}
-              animate={{
-                scale: [1.2, 1, 1.2],
-                opacity: [0.3, 0.6, 0.3],
-              }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
-            />
-            
             {/* Spinning ring */}
             <motion.div
-              className="absolute -inset-6 sm:-inset-8 rounded-full"
+              className="absolute inset-0 -m-4 sm:-m-6 rounded-full"
               style={{ 
                 border: '2px solid transparent',
                 borderTopColor: '#ff006e',
@@ -177,39 +202,28 @@ export const SplashScreen = memo(function SplashScreen({
               transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
             />
             
-            {/* Logo image with glow effect */}
-            <motion.img
-              src={vybeLogo}
-              alt="VYBE"
-              className="relative z-10 w-24 h-24 sm:w-32 sm:h-32 object-contain"
+            {/* Neon V Logo */}
+            <motion.div
               animate={showComplete ? { 
-                scale: [1, 1.15, 1],
-              } : {
-                filter: [
-                  'drop-shadow(0 0 20px rgba(255, 0, 110, 0.6)) drop-shadow(0 0 40px rgba(0, 245, 212, 0.4))',
-                  'drop-shadow(0 0 30px rgba(0, 245, 212, 0.6)) drop-shadow(0 0 50px rgba(255, 0, 110, 0.4))',
-                  'drop-shadow(0 0 20px rgba(255, 0, 110, 0.6)) drop-shadow(0 0 40px rgba(0, 245, 212, 0.4))',
-                ],
-              }}
-              transition={{ 
-                duration: showComplete ? 0.5 : 3, 
-                repeat: showComplete ? 0 : Infinity, 
-                ease: 'easeInOut' 
-              }}
-            />
+                scale: [1, 1.1, 1],
+              } : undefined}
+              transition={{ duration: 0.5 }}
+            >
+              <NeonVLogo />
+            </motion.div>
           </motion.div>
 
           {/* Welcome to VYBE Text */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+            transition={{ delay: 0.8, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
             className="text-center mb-6 sm:mb-8 px-4"
           >
             <motion.p
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.5 }}
+              transition={{ delay: 0.7, duration: 0.5 }}
               className="text-sm sm:text-base text-white/60 mb-2"
             >
               Welcome to
@@ -217,7 +231,7 @@ export const SplashScreen = memo(function SplashScreen({
             <motion.h1
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.6, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+              transition={{ delay: 0.9, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
               className="text-4xl sm:text-5xl font-display font-black tracking-tight"
               style={{
                 background: 'linear-gradient(135deg, #ff006e, #8338ec, #00f5d4)',
@@ -234,7 +248,7 @@ export const SplashScreen = memo(function SplashScreen({
           <motion.div
             initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.5, ease: 'easeOut' }}
+            transition={{ delay: 1, duration: 0.5, ease: 'easeOut' }}
             className="w-48 sm:w-64 px-4"
           >
             {/* Progress bar background */}
@@ -299,7 +313,7 @@ export const SplashScreen = memo(function SplashScreen({
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.4 }}
-            transition={{ delay: 1, duration: 0.8 }}
+            transition={{ delay: 1.2, duration: 0.8 }}
             className="absolute bottom-6 sm:bottom-12 text-[10px] sm:text-xs text-white/40 tracking-wide px-4 text-center"
           >
             The Next Generation Social Platform
