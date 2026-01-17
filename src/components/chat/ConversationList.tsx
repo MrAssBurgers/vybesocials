@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo, memo, useCallback } from 'react';
+import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { useConversations, useCreateConversation, Conversation } from '@/hooks/useMessages';
 import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useOnlineFriends } from '@/hooks/useOnlineFriends';
@@ -32,6 +33,7 @@ import { ModBadge } from '@/components/ui/ModBadge';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useUsersRoles } from '@/hooks/useUserRoleById';
 import { AvatarRing } from '@/components/ui/AvatarRing';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
@@ -456,76 +458,34 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
   );
 });
 
-// Memoized conversation item
-const ConversationItem = memo(function ConversationItem({ 
-  conversation, 
-  onClick,
+// Swipe threshold for delete action
+const SWIPE_THRESHOLD = -80;
+
+// Shared conversation content component
+const ConversationContent = memo(function ConversationContent({
+  conversation,
+  displayName,
+  avatarUrl,
+  lastMessage,
+  unreadCount,
+  isPinned,
+  memberCount,
+  formattedTime,
+  isMuted,
   isOnline,
   currentUserId,
   userRole,
   onTrash,
   hasStory,
   storyGroup,
-}: { 
-  conversation: Conversation; 
-  onClick: () => void;
-  isOnline?: boolean;
-  currentUserId?: string;
-  userRole?: 'admin' | 'moderator' | null;
-  onTrash?: () => void;
-  hasStory?: boolean;
-  storyGroup?: StoryGroup;
-}) {
-  const navigate = useNavigate();
-  const [menuOpen, setMenuOpen] = useState(false);
-  
-  const otherMembers = useMemo(() => 
-    conversation.members?.filter((m) => m.user_id !== currentUserId) || [],
-    [conversation.members, currentUserId]
-  );
-  const otherMember = otherMembers[0]?.profile;
-  
-  const displayName = conversation.is_group
-    ? conversation.name
-    : otherMember?.display_name || otherMember?.username || 'Unknown';
-  
-  const avatarUrl = conversation.is_group
-    ? conversation.avatar_url
-    : otherMember?.avatar_url;
-  
-  const lastMessage = conversation.last_message;
-  const unreadCount = conversation.unread_count || 0;
-  const isPinned = conversation.members?.find((m) => m.user_id === currentUserId)?.is_pinned;
-  
-  // Get member count for groups
-  const memberCount = conversation.is_group ? (conversation.members?.length || 0) : 0;
-
-  const formattedTime = useMemo(() => {
-    if (!lastMessage?.created_at) return null;
-    return formatDistanceToNow(new Date(lastMessage.created_at), { addSuffix: true });
-  }, [lastMessage?.created_at]);
-
-  const isMuted = conversation.members?.find((m) => m.user_id === currentUserId)?.is_muted;
-
-  // Handle avatar click - go to story if has one, otherwise profile
-  const handleAvatarClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!conversation.is_group && otherMember) {
-      if (hasStory && storyGroup) {
-        // Open story viewer - navigate to a story view
-        navigate(`/stories/${otherMember.username}`);
-      } else {
-        // Go to profile
-        navigate(`/u/${otherMember.username}`);
-      }
-    }
-  };
-
+  handleAvatarClick,
+  menuOpen,
+  setMenuOpen,
+  otherMember,
+  showTrashButton = true,
+}: any) {
   return (
-    <div 
-      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer box-border"
-      onClick={menuOpen ? undefined : onClick}
-    >
+    <>
       <div className="relative flex-shrink-0">
         {conversation.is_group ? (
           <div className="relative">
@@ -620,7 +580,7 @@ const ConversationItem = memo(function ConversationItem({
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
-            {onTrash && (
+            {showTrashButton && onTrash && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -642,6 +602,152 @@ const ConversationItem = memo(function ConversationItem({
           </div>
         </div>
       </div>
+    </>
+  );
+});
+
+// Memoized conversation item with swipe-to-delete on mobile
+const ConversationItem = memo(function ConversationItem({ 
+  conversation, 
+  onClick,
+  isOnline,
+  currentUserId,
+  userRole,
+  onTrash,
+  hasStory,
+  storyGroup,
+}: { 
+  conversation: Conversation; 
+  onClick: () => void;
+  isOnline?: boolean;
+  currentUserId?: string;
+  userRole?: 'admin' | 'moderator' | null;
+  onTrash?: () => void;
+  hasStory?: boolean;
+  storyGroup?: StoryGroup;
+}) {
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Swipe gesture handling
+  const x = useMotionValue(0);
+  const deleteOpacity = useTransform(x, [-100, -50, 0], [1, 0.5, 0]);
+  const deleteScale = useTransform(x, [-100, -50, 0], [1, 0.8, 0.5]);
+  
+  const handleDragEnd = useCallback((event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (info.offset.x < SWIPE_THRESHOLD && onTrash) {
+      setIsDeleting(true);
+      setTimeout(() => {
+        onTrash();
+      }, 200);
+    }
+  }, [onTrash]);
+  
+  const otherMembers = useMemo(() => 
+    conversation.members?.filter((m) => m.user_id !== currentUserId) || [],
+    [conversation.members, currentUserId]
+  );
+  const otherMember = otherMembers[0]?.profile;
+  
+  const displayName = conversation.is_group
+    ? conversation.name
+    : otherMember?.display_name || otherMember?.username || 'Unknown';
+  
+  const avatarUrl = conversation.is_group
+    ? conversation.avatar_url
+    : otherMember?.avatar_url;
+  
+  const lastMessage = conversation.last_message;
+  const unreadCount = conversation.unread_count || 0;
+  const isPinned = conversation.members?.find((m) => m.user_id === currentUserId)?.is_pinned;
+  const memberCount = conversation.is_group ? (conversation.members?.length || 0) : 0;
+
+  const formattedTime = useMemo(() => {
+    if (!lastMessage?.created_at) return null;
+    return formatDistanceToNow(new Date(lastMessage.created_at), { addSuffix: true });
+  }, [lastMessage?.created_at]);
+
+  const isMuted = conversation.members?.find((m) => m.user_id === currentUserId)?.is_muted;
+
+  const handleAvatarClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!conversation.is_group && otherMember) {
+      if (hasStory && storyGroup) {
+        navigate(`/stories/${otherMember.username}`);
+      } else {
+        navigate(`/u/${otherMember.username}`);
+      }
+    }
+  };
+
+  const sharedProps = {
+    conversation,
+    displayName,
+    avatarUrl,
+    lastMessage,
+    unreadCount,
+    isPinned,
+    memberCount,
+    formattedTime,
+    isMuted,
+    isOnline,
+    currentUserId,
+    userRole,
+    onTrash,
+    hasStory,
+    storyGroup,
+    handleAvatarClick,
+    menuOpen,
+    setMenuOpen,
+    otherMember,
+  };
+
+  // Mobile swipeable version
+  if (isMobile && onTrash) {
+    return (
+      <div className="relative overflow-hidden mb-1.5 rounded-xl">
+        {/* Delete indicator behind */}
+        <motion.div 
+          className="absolute inset-y-0 right-0 w-24 flex items-center justify-center bg-destructive rounded-r-xl"
+          style={{ opacity: deleteOpacity }}
+        >
+          <motion.div style={{ scale: deleteScale }} className="flex flex-col items-center gap-1 text-destructive-foreground">
+            <Trash2 className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Delete</span>
+          </motion.div>
+        </motion.div>
+        
+        {/* Swipeable item */}
+        <motion.div 
+          className="relative bg-background rounded-xl"
+          style={{ x }}
+          drag="x"
+          dragConstraints={{ left: -100, right: 0 }}
+          dragElastic={0.1}
+          onDragEnd={handleDragEnd}
+          animate={isDeleting ? { x: -300, opacity: 0 } : { x: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <div 
+            className="group w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 cursor-pointer box-border"
+            onClick={menuOpen ? undefined : onClick}
+          >
+            <ConversationContent {...sharedProps} showTrashButton={false} />
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Desktop version
+  return (
+    <div 
+      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer box-border"
+      onClick={menuOpen ? undefined : onClick}
+    >
+      <ConversationContent {...sharedProps} showTrashButton={true} />
     </div>
   );
 });

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useState, useEffect } from 'react';
 
 interface AcceptedFriendRequest {
   id: string;
@@ -15,6 +16,10 @@ interface AcceptedFriendRequest {
   };
 }
 
+// In-memory dismissed set for current session only
+// This allows the notification to appear again on new sessions
+const sessionDismissedRequests = new Set<string>();
+
 // Fetch recently accepted friend requests (where current user was the sender)
 export function useAcceptedFriendRequests() {
   const { profile } = useAuth();
@@ -24,13 +29,9 @@ export function useAcceptedFriendRequests() {
     queryFn: async (): Promise<AcceptedFriendRequest[]> => {
       if (!profile?.id) return [];
 
-      // Get dismissed IDs from localStorage
-      const dismissedKey = `vybe_dismissed_accepted_requests_${profile.id}`;
-      const dismissed = JSON.parse(localStorage.getItem(dismissedKey) || '[]');
-
-      // Get recently accepted requests where we were the sender (within last 7 days)
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      // Get recently accepted requests where we were the sender (within last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const { data, error } = await supabase
         .from('friend_requests')
@@ -43,7 +44,7 @@ export function useAcceptedFriendRequests() {
         `)
         .eq('sender_id', profile.id)
         .eq('status', 'accepted')
-        .gte('updated_at', sevenDaysAgo.toISOString())
+        .gte('updated_at', thirtyDaysAgo.toISOString())
         .order('updated_at', { ascending: false });
 
       if (error) {
@@ -51,13 +52,14 @@ export function useAcceptedFriendRequests() {
         return [];
       }
 
-      // Filter out dismissed ones
-      const filtered = (data || []).filter(r => !dismissed.includes(r.id));
+      // Filter out only session-dismissed ones (not localStorage)
+      const filtered = (data || []).filter(r => !sessionDismissedRequests.has(r.id));
 
       return filtered as AcceptedFriendRequest[];
     },
     enabled: !!profile?.id,
-    staleTime: 60000,
+    staleTime: 30000, // Refetch more often to catch new acceptances
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -69,10 +71,8 @@ export function useDismissAcceptedRequest() {
     mutationFn: async (requestId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const dismissedKey = `vybe_dismissed_accepted_requests_${profile.id}`;
-      const dismissed = JSON.parse(localStorage.getItem(dismissedKey) || '[]');
-      dismissed.push(requestId);
-      localStorage.setItem(dismissedKey, JSON.stringify(dismissed));
+      // Only dismiss for current session
+      sessionDismissedRequests.add(requestId);
 
       return requestId;
     },
@@ -80,4 +80,11 @@ export function useDismissAcceptedRequest() {
       queryClient.invalidateQueries({ queryKey: ['accepted-friend-requests'] });
     },
   });
+}
+
+// Hook to clear dismissed requests (call on logout or when appropriate)
+export function useClearDismissedRequests() {
+  return () => {
+    sessionDismissedRequests.clear();
+  };
 }

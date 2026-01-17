@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import vybeLogo from '@/assets/vybe-logo.png';
 
 interface VYBELogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
@@ -36,35 +35,96 @@ export function VYBELogo({
           'relative flex items-center justify-center'
         )}
       >
-        {/* Glow effect behind logo */}
+        {/* Animated glow effect */}
         {animated && (
-          <motion.div
-            className="absolute inset-0 rounded-full blur-lg"
-            style={{
-              background: 'linear-gradient(135deg, #ff006e 0%, #00f5d4 100%)',
-            }}
-            animate={{
-              opacity: [0.4, 0.7, 0.4],
-              scale: [1, 1.2, 1],
-            }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          />
+          <>
+            <motion.div
+              className="absolute inset-0 rounded-lg blur-md"
+              style={{
+                background: 'linear-gradient(135deg, #ff006e 0%, #00f5d4 100%)',
+              }}
+              animate={{
+                opacity: [0.5, 0.8, 0.5],
+                scale: [0.9, 1.1, 0.9],
+              }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          </>
         )}
         
-        {/* Logo image */}
-        <motion.img
-          src={vybeLogo}
-          alt="VYBE"
-          className={cn(icon, 'relative z-10 object-contain')}
+        {/* Neon V Logo SVG */}
+        <motion.svg
+          viewBox="0 0 100 100"
+          fill="none"
+          className={cn(icon, 'relative z-10')}
           animate={animated ? {
             filter: [
-              'drop-shadow(0 0 8px rgba(255, 0, 110, 0.5))',
-              'drop-shadow(0 0 16px rgba(0, 245, 212, 0.5))',
-              'drop-shadow(0 0 8px rgba(255, 0, 110, 0.5))',
+              'drop-shadow(0 0 8px rgba(255, 0, 110, 0.8)) drop-shadow(0 0 16px rgba(0, 245, 212, 0.6))',
+              'drop-shadow(0 0 12px rgba(0, 245, 212, 0.8)) drop-shadow(0 0 20px rgba(255, 0, 110, 0.6))',
+              'drop-shadow(0 0 8px rgba(255, 0, 110, 0.8)) drop-shadow(0 0 16px rgba(0, 245, 212, 0.6))',
             ],
           } : undefined}
-          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        />
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <defs>
+            {/* Gradient for left stroke - pink to purple */}
+            <linearGradient id="leftGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ff006e" />
+              <stop offset="100%" stopColor="#8b5cf6" />
+            </linearGradient>
+            
+            {/* Gradient for right stroke - purple to cyan */}
+            <linearGradient id="rightGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#8b5cf6" />
+              <stop offset="100%" stopColor="#00f5d4" />
+            </linearGradient>
+            
+            {/* Glow filters */}
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          
+          {/* Left leg of V - pink side */}
+          <motion.path
+            d="M20 15 L50 85"
+            stroke="url(#leftGradient)"
+            strokeWidth="14"
+            strokeLinecap="round"
+            filter="url(#glow)"
+            initial={animated ? { pathLength: 0, opacity: 0 } : undefined}
+            animate={animated ? { pathLength: 1, opacity: 1 } : undefined}
+            transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
+          />
+          
+          {/* Right leg of V - cyan side */}
+          <motion.path
+            d="M80 15 L50 85"
+            stroke="url(#rightGradient)"
+            strokeWidth="14"
+            strokeLinecap="round"
+            filter="url(#glow)"
+            initial={animated ? { pathLength: 0, opacity: 0 } : undefined}
+            animate={animated ? { pathLength: 1, opacity: 1 } : undefined}
+            transition={{ duration: 0.8, delay: 0.4, ease: 'easeOut' }}
+          />
+          
+          {/* Center highlight at the meeting point */}
+          <motion.circle
+            cx="50"
+            cy="85"
+            r="4"
+            fill="white"
+            filter="url(#glow)"
+            initial={animated ? { scale: 0, opacity: 0 } : undefined}
+            animate={animated ? { scale: 1, opacity: 0.8 } : undefined}
+            transition={{ duration: 0.4, delay: 0.8, ease: 'easeOut' }}
+          />
+        </motion.svg>
       </motion.div>
 
       {showText && (
