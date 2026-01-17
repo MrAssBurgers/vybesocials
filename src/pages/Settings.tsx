@@ -87,20 +87,20 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
 
   return (
     <AppLayout>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 py-3 sm:py-8 pb-24 sm:pb-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
+          className="mb-4 sm:mb-6"
         >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Settings className="w-5 h-5 text-primary" />
+          <div className="flex items-center gap-2.5 sm:gap-3 mb-2">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
             </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold">{t('settings.title')}</h1>
-              <p className="text-sm text-muted-foreground">Manage your account and preferences</p>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-bold truncate">{t('settings.title')}</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">Manage your account</p>
             </div>
           </div>
         </motion.div>
@@ -111,7 +111,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="mb-6 -mx-4 px-4"
+            className="mb-4 -mx-3 px-3 overflow-x-auto"
           >
             <SettingsNav 
               activeCategory={activeCategory} 
@@ -205,13 +205,13 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="mt-8 space-y-6"
+                className="mt-6 space-y-4 pb-4"
               >
                 <Separator />
                 
                 <Button
                   variant="outline"
-                  className="w-full justify-between text-sm border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  className="w-full justify-between text-sm border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground h-11"
                   onClick={handleSignOut}
                 >
                   <span className="flex items-center gap-2">
@@ -225,15 +225,15 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.3 }}
-                  className="text-center py-6 text-muted-foreground"
+                  className="text-center py-4 text-muted-foreground"
                 >
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <div className="gradient-static rounded-lg p-1.5">
-                      <Sparkles className="w-5 h-5 text-white" />
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <div className="gradient-static rounded-lg p-1">
+                      <Sparkles className="w-4 h-4 text-white" />
                     </div>
-                    <span className="font-display font-black text-xl gradient-text">VYBE</span>
+                    <span className="font-display font-black text-lg gradient-text">VYBE</span>
                   </div>
-                  <p className="text-sm">v{APP_VERSION}</p>
+                  <p className="text-xs">v{APP_VERSION}</p>
                 </motion.div>
               </motion.div>
             )}

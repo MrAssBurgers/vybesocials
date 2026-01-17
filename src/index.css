@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide bottom nav when splash screen is visible */
+body.splash-visible nav[aria-label="Bottom navigation"],
+body.splash-visible [data-tutorial-bottomnav] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* ========================================
    VYBE DESIGN SYSTEM
    Unified design tokens for consistent UI

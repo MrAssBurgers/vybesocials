@@ -131,10 +131,14 @@ function BanCheck() {
   );
 }
 
+// Track if initial load has completed (persists across navigations)
+let hasInitialLoadCompleted = false;
+
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
-  const [showSplash, setShowSplash] = useState(true);
+  // Only show splash on truly initial load, not on navigation
+  const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
   
   // Auto-update checker
   useAutoUpdate();
@@ -144,12 +148,15 @@ function AppWithPreloader() {
 
   useEffect(() => {
     // Only hide splash when preloading is truly complete
-    if (preloadStatus.isComplete) {
+    if (preloadStatus.isComplete && showSplash) {
       // Small delay for smooth transition
-      const timer = setTimeout(() => setShowSplash(false), 300);
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+        hasInitialLoadCompleted = true;
+      }, 300);
       return () => clearTimeout(timer);
     }
-  }, [preloadStatus.isComplete]);
+  }, [preloadStatus.isComplete, showSplash]);
 
   return (
     <>
