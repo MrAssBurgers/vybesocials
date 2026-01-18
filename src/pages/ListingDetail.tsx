@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useListing, useToggleFavorite, useListingFavorites, LISTING_CATEGORIES, LISTING_CONDITIONS, useDeleteListing, useSellerRating } from '@/hooks/useMarketplace';
+import { useUserRole } from '@/hooks/useModeration';
 import { useSellerPaymentMethods } from '@/hooks/useMarketplacePayments';
 import { PaymentSheet } from '@/components/marketplace/PaymentSheet';
 import { useAuth } from '@/lib/auth';
@@ -30,9 +31,13 @@ export default function ListingDetailPage() {
   const [currentImage, setCurrentImage] = useState(0);
   const [imageError, setImageError] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  
+  const { data: userRole } = useUserRole();
+  const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
 
   const isFavorite = favorites?.some(f => f.id === id) || false;
   const isOwner = profile?.id === listing?.seller_id;
+  const canDelete = isOwner || isAdminOrMod;
   const category = LISTING_CATEGORIES.find(c => c.value === listing?.category);
   const condition = LISTING_CONDITIONS.find(c => c.value === listing?.condition);
 
@@ -122,13 +127,13 @@ export default function ListingDetailPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {isOwner && (
+                {canDelete && (
                   <DropdownMenuItem onClick={handleDelete} className="text-destructive">
                     <Trash2 className="h-4 w-4 mr-2" />
                     Delete Listing
                   </DropdownMenuItem>
                 )}
-                {!isOwner && (
+                {!isOwner && !isAdminOrMod && (
                   <DropdownMenuItem className="text-destructive">
                     <Flag className="h-4 w-4 mr-2" />
                     Report Listing
