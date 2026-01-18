@@ -164,15 +164,20 @@ export function BottomNav() {
     triggerHaptic('medium');
     playSound('pop');
     
+    // Fast double tap opens the hub
     if (timeSinceLastTap < 300) {
       setIsCreateMenuOpen(false);
       setIsHubOpen(true);
+    } else if (isCreateMenuOpen) {
+      // Single tap when menu is open closes it
+      setIsCreateMenuOpen(false);
     } else {
+      // Single tap when menu is closed opens it
       setIsCreateMenuOpen(true);
     }
     
     lastTapTime.current = now;
-  }, []);
+  }, [isCreateMenuOpen]);
 
   // Nav order: Home | Explore | Upload | Messages | Settings
   const navItems = [
