@@ -9,12 +9,12 @@ interface VYBELogoProps {
 }
 
 const sizes = {
-  sm: { icon: 'w-7 h-7 sm:w-8 sm:h-8', text: 'text-sm', gap: 'gap-1.5' },
-  md: { icon: 'w-8 h-8 sm:w-9 sm:h-9', text: 'text-base', gap: 'gap-2' },
-  lg: { icon: 'w-10 h-10', text: 'text-xl', gap: 'gap-2' },
-  xl: { icon: 'w-12 h-12', text: 'text-2xl', gap: 'gap-3' },
-  '2xl': { icon: 'w-20 h-20 sm:w-24 sm:h-24', text: 'text-3xl', gap: 'gap-4' },
-  'splash': { icon: 'w-28 h-28 sm:w-36 sm:h-36', text: 'text-4xl', gap: 'gap-4' },
+  sm: { icon: 'w-5 h-5 sm:w-6 sm:h-6', text: 'text-sm', gap: 'gap-1' },
+  md: { icon: 'w-6 h-6 sm:w-7 sm:h-7', text: 'text-base', gap: 'gap-1.5' },
+  lg: { icon: 'w-8 h-8', text: 'text-lg', gap: 'gap-2' },
+  xl: { icon: 'w-10 h-10', text: 'text-xl', gap: 'gap-2' },
+  '2xl': { icon: 'w-16 h-16 sm:w-20 sm:h-20', text: 'text-2xl', gap: 'gap-3' },
+  'splash': { icon: 'w-24 h-24 sm:w-32 sm:h-32', text: 'text-3xl', gap: 'gap-4' },
 };
 
 // Generate unique IDs to avoid conflicts when multiple logos are rendered
@@ -43,92 +43,34 @@ export function VYBELogo({
         initial={isSplash ? { scale: 0.5, opacity: 0 } : undefined}
         animate={isSplash ? { scale: 1, opacity: 1 } : undefined}
       >
-        {/* Neon V Logo SVG - using theme colors with animated gradients */}
+        {/* Neon V Logo SVG - using theme colors */}
         <svg
           viewBox="0 0 100 100"
           fill="none"
-          className={cn(icon, 'relative z-10')}
+          className={cn(icon, 'relative z-10 vybe-logo-animated')}
         >
           <defs>
-            {/* Primary color gradient for left leg - animated colors */}
+            {/* Primary color gradient for left leg */}
             <linearGradient id={`${uniqueId}-primary`} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%">
-                <animate 
-                  attributeName="stop-color" 
-                  values="hsl(330, 100%, 60%); hsl(280, 100%, 65%); hsl(350, 100%, 55%); hsl(330, 100%, 60%)" 
-                  dur="4s" 
-                  repeatCount="indefinite" 
-                />
-              </stop>
-              <stop offset="50%">
-                <animate 
-                  attributeName="stop-color" 
-                  values="hsl(280, 100%, 60%); hsl(320, 100%, 55%); hsl(300, 100%, 65%); hsl(280, 100%, 60%)" 
-                  dur="4s" 
-                  repeatCount="indefinite" 
-                />
-              </stop>
-              <stop offset="100%">
-                <animate 
-                  attributeName="stop-color" 
-                  values="hsl(260, 100%, 65%); hsl(330, 100%, 60%); hsl(280, 100%, 60%); hsl(260, 100%, 65%)" 
-                  dur="4s" 
-                  repeatCount="indefinite" 
-                />
-              </stop>
+              <stop offset="0%" stopColor="hsl(var(--primary))" />
+              <stop offset="50%" stopColor="hsl(var(--neon-purple, var(--primary)))" />
+              <stop offset="100%" stopColor="hsl(var(--primary))" />
             </linearGradient>
             
-            {/* Accent color gradient for right leg - animated colors */}
+            {/* Accent color gradient for right leg */}
             <linearGradient id={`${uniqueId}-accent`} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%">
-                <animate 
-                  attributeName="stop-color" 
-                  values="hsl(185, 100%, 50%); hsl(200, 100%, 55%); hsl(170, 100%, 50%); hsl(185, 100%, 50%)" 
-                  dur="4s" 
-                  repeatCount="indefinite" 
-                />
-              </stop>
-              <stop offset="50%">
-                <animate 
-                  attributeName="stop-color" 
-                  values="hsl(175, 100%, 55%); hsl(185, 100%, 60%); hsl(195, 100%, 50%); hsl(175, 100%, 55%)" 
-                  dur="4s" 
-                  repeatCount="indefinite" 
-                />
-              </stop>
-              <stop offset="100%">
-                <animate 
-                  attributeName="stop-color" 
-                  values="hsl(160, 100%, 50%); hsl(180, 100%, 55%); hsl(200, 100%, 60%); hsl(160, 100%, 50%)" 
-                  dur="4s" 
-                  repeatCount="indefinite" 
-                />
-              </stop>
+              <stop offset="0%" stopColor="hsl(var(--accent))" />
+              <stop offset="50%" stopColor="hsl(var(--neon-cyan, var(--accent)))" />
+              <stop offset="100%" stopColor="hsl(var(--accent))" />
             </linearGradient>
             
-            {/* Intense glow filter */}
+            {/* Glow filter */}
             <filter id={`${uniqueId}-glow`} x="-100%" y="-100%" width="300%" height="300%">
               <feGaussianBlur stdDeviation={isSplash ? "4" : "2"} result="blur1"/>
-              <feGaussianBlur stdDeviation={isSplash ? "8" : "5"} result="blur2"/>
+              <feGaussianBlur stdDeviation={isSplash ? "8" : "4"} result="blur2"/>
               <feMerge>
                 <feMergeNode in="blur2"/>
                 <feMergeNode in="blur1"/>
-                <feMergeNode in="SourceGraphic"/>
-              </feMerge>
-            </filter>
-
-            {/* Animated glow intensity */}
-            <filter id={`${uniqueId}-pulse-glow`} x="-100%" y="-100%" width="300%" height="300%">
-              <feGaussianBlur result="blur">
-                <animate 
-                  attributeName="stdDeviation" 
-                  values={isSplash ? "3;6;3" : "2;4;2"}
-                  dur="2s" 
-                  repeatCount="indefinite" 
-                />
-              </feGaussianBlur>
-              <feMerge>
-                <feMergeNode in="blur"/>
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
@@ -140,7 +82,7 @@ export function VYBELogo({
             stroke={`url(#${uniqueId}-primary)`}
             strokeWidth={isSplash ? 14 : 12}
             strokeLinecap="round"
-            filter={`url(#${uniqueId}-pulse-glow)`}
+            filter={`url(#${uniqueId}-glow)`}
             initial={animated ? { pathLength: 0, opacity: 0 } : { pathLength: 1, opacity: 1 }}
             animate={{ pathLength: 1, opacity: 1 }}
             transition={{ duration: isSplash ? 1 : 0.6, delay: isSplash ? 0.4 : 0.1, ease: 'easeOut' }}
@@ -152,7 +94,7 @@ export function VYBELogo({
             stroke={`url(#${uniqueId}-accent)`}
             strokeWidth={isSplash ? 14 : 12}
             strokeLinecap="round"
-            filter={`url(#${uniqueId}-pulse-glow)`}
+            filter={`url(#${uniqueId}-glow)`}
             initial={animated ? { pathLength: 0, opacity: 0 } : { pathLength: 1, opacity: 1 }}
             animate={{ pathLength: 1, opacity: 1 }}
             transition={{ duration: isSplash ? 1 : 0.6, delay: isSplash ? 0.6 : 0.2, ease: 'easeOut' }}
@@ -163,7 +105,7 @@ export function VYBELogo({
             cx="50"
             cy="88"
             r={isSplash ? 5 : 4}
-            fill="white"
+            className="fill-foreground"
             filter={`url(#${uniqueId}-glow)`}
             initial={animated ? { scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
             animate={animated ? { 
@@ -187,12 +129,12 @@ export function VYBELogo({
             text
           )}
           style={{
-            background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--neon-purple)), hsl(var(--accent)))',
+            background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--neon-purple, var(--primary))), hsl(var(--accent)))',
             backgroundSize: '200% 200%',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
-            animation: 'gradient-shift 4s ease infinite',
+            animation: animated ? 'gradient-shift 4s ease infinite' : 'none',
           }}
         >
           VYBE
