@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { useListings, LISTING_CATEGORIES, LISTING_CONDITIONS, useToggleFavorite, useListingFavorites } from '@/hooks/useMarketplace';
+import { useRealtimeListings } from '@/hooks/useRealtimeListings';
 import { useAuth } from '@/lib/auth';
 import { triggerHaptic } from '@/lib/haptics';
 
@@ -191,6 +192,9 @@ export default function MarketPage() {
   const { data: listings, isLoading } = useListings(filters);
   const { data: favorites } = useListingFavorites();
   const toggleFavorite = useToggleFavorite();
+  
+  // Enable real-time updates for listings
+  useRealtimeListings();
 
   const favoriteIds = useMemo(() => 
     new Set(favorites?.map(f => f.id) || []), 
