@@ -65,10 +65,9 @@ export function useLiveMemberCount(serverId: string | undefined) {
  */
 export function useAllServerMemberCounts(serverIds: string[]) {
   const queryClient = useQueryClient();
-  const [counts, setCounts] = useState<Record<string, number>>({});
 
-  // Initial fetch
-  useQuery({
+  // Initial fetch with proper data return
+  const { data: counts = {} } = useQuery({
     queryKey: ['all-server-member-counts', serverIds],
     queryFn: async () => {
       if (serverIds.length === 0) return {};
@@ -87,10 +86,10 @@ export function useAllServerMemberCounts(serverIds: string[]) {
         })
       );
 
-      setCounts(countsMap);
       return countsMap;
     },
     enabled: serverIds.length > 0,
+    staleTime: 1000 * 30, // Cache for 30 seconds
   });
 
   // Set up realtime subscriptions for all servers
@@ -108,13 +107,9 @@ export function useAllServerMemberCounts(serverIds: string[]) {
             table: 'server_members',
             filter: `server_id=eq.${serverId}`,
           },
-          async () => {
-            const { count } = await supabase
-              .from('server_members')
-              .select('*', { count: 'exact', head: true })
-              .eq('server_id', serverId);
-            
-            setCounts(prev => ({ ...prev, [serverId]: count || 0 }));
+          () => {
+            // Invalidate query to refetch on any change
+            queryClient.invalidateQueries({ queryKey: ['all-server-member-counts', serverIds] });
           }
         )
         .subscribe();
@@ -123,7 +118,7 @@ export function useAllServerMemberCounts(serverIds: string[]) {
     return () => {
       channels.forEach(channel => supabase.removeChannel(channel));
     };
-  }, [serverIds.join(',')]);
+  }, [serverIds.join(','), queryClient]);
 
   return counts;
 }
