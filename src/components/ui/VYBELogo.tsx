@@ -9,12 +9,12 @@ interface VYBELogoProps {
 }
 
 const sizes = {
-  sm: { icon: 'w-5 h-5 sm:w-6 sm:h-6', text: 'text-sm', gap: 'gap-1' },
-  md: { icon: 'w-6 h-6 sm:w-7 sm:h-7', text: 'text-base', gap: 'gap-1.5' },
-  lg: { icon: 'w-8 h-8', text: 'text-lg', gap: 'gap-2' },
-  xl: { icon: 'w-10 h-10', text: 'text-xl', gap: 'gap-2' },
-  '2xl': { icon: 'w-16 h-16 sm:w-20 sm:h-20', text: 'text-2xl', gap: 'gap-3' },
-  'splash': { icon: 'w-24 h-24 sm:w-32 sm:h-32', text: 'text-3xl', gap: 'gap-4' },
+  sm: { icon: 'w-6 h-6 sm:w-7 sm:h-7', text: 'text-sm', gap: 'gap-1', strokeWidth: 16 },
+  md: { icon: 'w-7 h-7 sm:w-8 sm:h-8', text: 'text-base', gap: 'gap-1.5', strokeWidth: 14 },
+  lg: { icon: 'w-8 h-8', text: 'text-lg', gap: 'gap-2', strokeWidth: 13 },
+  xl: { icon: 'w-10 h-10', text: 'text-xl', gap: 'gap-2', strokeWidth: 12 },
+  '2xl': { icon: 'w-16 h-16 sm:w-20 sm:h-20', text: 'text-2xl', gap: 'gap-3', strokeWidth: 12 },
+  'splash': { icon: 'w-24 h-24 sm:w-32 sm:h-32', text: 'text-3xl', gap: 'gap-4', strokeWidth: 14 },
 };
 
 // Generate unique IDs to avoid conflicts when multiple logos are rendered
@@ -26,7 +26,7 @@ export function VYBELogo({
   className,
   animated = true 
 }: VYBELogoProps) {
-  const { icon, text, gap } = sizes[size];
+  const { icon, text, gap, strokeWidth } = sizes[size];
   const uniqueId = `vybe-logo-${++logoIdCounter}`;
   const isSplash = size === 'splash';
 
@@ -74,7 +74,7 @@ export function VYBELogo({
           <motion.path
             d="M18 12 L50 88"
             stroke={`url(#${uniqueId}-primary)`}
-            strokeWidth={isSplash ? 14 : 12}
+            strokeWidth={strokeWidth}
             strokeLinecap="round"
             initial={animated ? { pathLength: 0, opacity: 0 } : { pathLength: 1, opacity: 1 }}
             animate={{ pathLength: 1, opacity: 1 }}
@@ -85,7 +85,7 @@ export function VYBELogo({
           <motion.path
             d="M82 12 L50 88"
             stroke={`url(#${uniqueId}-accent)`}
-            strokeWidth={isSplash ? 14 : 12}
+            strokeWidth={strokeWidth}
             strokeLinecap="round"
             initial={animated ? { pathLength: 0, opacity: 0 } : { pathLength: 1, opacity: 1 }}
             animate={{ pathLength: 1, opacity: 1 }}
