@@ -39,21 +39,21 @@ function generateInviteCode(): string {
  * Get or create the user's invite link
  */
 export function useMyInvite() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   
   return useQuery({
-    queryKey: ['my-invite', profile?.id],
+    queryKey: ['my-invite', user?.id],
     queryFn: async () => {
-      if (!profile?.id) return null;
+      if (!user?.id) return null;
       
       // Check for existing invite
       const { data: existingInvite } = await supabase
         .from('invites')
         .select('*')
-        .eq('inviter_id', profile.id)
+        .eq('inviter_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       
       if (existingInvite) {
         return existingInvite as Invite;
@@ -64,7 +64,7 @@ export function useMyInvite() {
       const { data: newInvite, error } = await supabase
         .from('invites')
         .insert({
-          inviter_id: profile.id,
+          inviter_id: user.id,
           invite_code: inviteCode,
         })
         .select()
@@ -75,7 +75,7 @@ export function useMyInvite() {
       analytics.inviteLinkCreated();
       return newInvite as Invite;
     },
-    enabled: !!profile?.id,
+    enabled: !!user?.id,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }
@@ -84,18 +84,18 @@ export function useMyInvite() {
  * Get invite stats (redemptions count)
  */
 export function useInviteStats() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   
   return useQuery({
-    queryKey: ['invite-stats', profile?.id],
+    queryKey: ['invite-stats', user?.id],
     queryFn: async () => {
-      if (!profile?.id) return { totalRedemptions: 0, recentRedemptions: [] };
+      if (!user?.id) return { totalRedemptions: 0, recentRedemptions: [] };
       
       // Get all invites by this user
       const { data: invites } = await supabase
         .from('invites')
         .select('id')
-        .eq('inviter_id', profile.id);
+        .eq('inviter_id', user.id);
       
       if (!invites?.length) return { totalRedemptions: 0, recentRedemptions: [] };
       
@@ -140,7 +140,7 @@ export function useInviteStats() {
         recentRedemptions: redemptionsWithProfiles,
       };
     },
-    enabled: !!profile?.id,
+    enabled: !!user?.id,
   });
 }
 
@@ -149,11 +149,11 @@ export function useInviteStats() {
  */
 export function useRedeemInvite() {
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async (inviteCode: string) => {
-      if (!profile?.id) throw new Error('Must be logged in');
+      if (!user?.id) throw new Error('Must be logged in');
       
       // Find the invite
       const { data: invite, error: findError } = await supabase
@@ -171,7 +171,7 @@ export function useRedeemInvite() {
         .from('invite_redemptions')
         .select('id')
         .eq('invite_id', invite.id)
-        .eq('redeemer_id', profile.id)
+        .eq('redeemer_id', user.id)
         .single();
       
       if (existing) {
@@ -179,7 +179,7 @@ export function useRedeemInvite() {
       }
       
       // Check if own invite
-      if (invite.inviter_id === profile.id) {
+      if (invite.inviter_id === user.id) {
         throw new Error('You cannot use your own invite');
       }
       
@@ -188,7 +188,7 @@ export function useRedeemInvite() {
         .from('invite_redemptions')
         .insert({
           invite_id: invite.id,
-          redeemer_id: profile.id,
+          redeemer_id: user.id,
         });
       
       if (redeemError) throw redeemError;
@@ -200,10 +200,10 @@ export function useRedeemInvite() {
         .eq('id', invite.id);
       
       // Auto-follow the inviter
-      const { error: followError } = await supabase
+      await supabase
         .from('follows')
         .insert({
-          follower_id: profile.id,
+          follower_id: user.id,
           following_id: invite.inviter_id,
         });
       
@@ -211,7 +211,7 @@ export function useRedeemInvite() {
       await supabase
         .from('friend_requests')
         .insert({
-          sender_id: profile.id,
+          sender_id: user.id,
           receiver_id: invite.inviter_id,
           status: 'pending',
         });
