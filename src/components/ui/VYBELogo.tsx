@@ -16,6 +16,9 @@ const sizes = {
   '2xl': { icon: 'w-20 h-20 sm:w-24 sm:h-24', text: 'text-3xl', gap: 'gap-4' },
 };
 
+// Generate unique IDs to avoid conflicts when multiple logos are rendered
+let logoIdCounter = 0;
+
 export function VYBELogo({ 
   size = 'md', 
   showText = true, 
@@ -23,11 +26,12 @@ export function VYBELogo({
   animated = true 
 }: VYBELogoProps) {
   const { icon, text, gap } = sizes[size];
+  const uniqueId = `vybe-logo-${++logoIdCounter}`;
 
   return (
     <div className={cn('flex items-center', gap, className)}>
       <motion.div
-        whileHover={animated ? { scale: 1.1 } : undefined}
+        whileHover={animated ? { scale: 1.05 } : undefined}
         whileTap={animated ? { scale: 0.95 } : undefined}
         transition={{ type: 'spring', stiffness: 400, damping: 17 }}
         className={cn(
@@ -35,94 +39,84 @@ export function VYBELogo({
           'relative flex items-center justify-center'
         )}
       >
-        {/* Animated glow effect */}
-        {animated && (
-          <>
-            <motion.div
-              className="absolute inset-0 rounded-lg blur-md"
-              style={{
-                background: 'linear-gradient(135deg, #ff006e 0%, #00f5d4 100%)',
-              }}
-              animate={{
-                opacity: [0.5, 0.8, 0.5],
-                scale: [0.9, 1.1, 0.9],
-              }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            />
-          </>
-        )}
-        
-        {/* Neon V Logo SVG */}
+        {/* Neon V Logo SVG - matching the exact uploaded image */}
         <motion.svg
           viewBox="0 0 100 100"
           fill="none"
           className={cn(icon, 'relative z-10')}
+          style={{
+            filter: 'drop-shadow(0 0 10px rgba(255, 0, 110, 0.6)) drop-shadow(0 0 20px rgba(0, 245, 212, 0.4))',
+          }}
           animate={animated ? {
             filter: [
-              'drop-shadow(0 0 8px rgba(255, 0, 110, 0.8)) drop-shadow(0 0 16px rgba(0, 245, 212, 0.6))',
-              'drop-shadow(0 0 12px rgba(0, 245, 212, 0.8)) drop-shadow(0 0 20px rgba(255, 0, 110, 0.6))',
-              'drop-shadow(0 0 8px rgba(255, 0, 110, 0.8)) drop-shadow(0 0 16px rgba(0, 245, 212, 0.6))',
+              'drop-shadow(0 0 10px rgba(255, 0, 110, 0.6)) drop-shadow(0 0 20px rgba(0, 245, 212, 0.4))',
+              'drop-shadow(0 0 15px rgba(255, 0, 110, 0.8)) drop-shadow(0 0 30px rgba(0, 245, 212, 0.6))',
+              'drop-shadow(0 0 10px rgba(255, 0, 110, 0.6)) drop-shadow(0 0 20px rgba(0, 245, 212, 0.4))',
             ],
           } : undefined}
-          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
         >
           <defs>
-            {/* Gradient for left stroke - pink to purple */}
-            <linearGradient id="leftGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ff006e" />
-              <stop offset="100%" stopColor="#8b5cf6" />
+            {/* Hot pink/magenta for left leg */}
+            <linearGradient id={`${uniqueId}-pink`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#ff1493" />
+              <stop offset="50%" stopColor="#ff006e" />
+              <stop offset="100%" stopColor="#ff1493" />
             </linearGradient>
             
-            {/* Gradient for right stroke - purple to cyan */}
-            <linearGradient id="rightGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#8b5cf6" />
+            {/* Cyan/teal for right leg */}
+            <linearGradient id={`${uniqueId}-cyan`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#00f5d4" />
+              <stop offset="50%" stopColor="#00d4aa" />
               <stop offset="100%" stopColor="#00f5d4" />
             </linearGradient>
             
-            {/* Glow filters */}
-            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            {/* Intense glow filter */}
+            <filter id={`${uniqueId}-glow`} x="-100%" y="-100%" width="300%" height="300%">
+              <feGaussianBlur stdDeviation="2" result="blur1"/>
+              <feGaussianBlur stdDeviation="4" result="blur2"/>
               <feMerge>
-                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="blur2"/>
+                <feMergeNode in="blur1"/>
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
           </defs>
           
-          {/* Left leg of V - pink side */}
+          {/* Left leg of V - hot pink */}
           <motion.path
-            d="M20 15 L50 85"
-            stroke="url(#leftGradient)"
-            strokeWidth="14"
+            d="M18 12 L50 88"
+            stroke={`url(#${uniqueId}-pink)`}
+            strokeWidth="12"
             strokeLinecap="round"
-            filter="url(#glow)"
-            initial={animated ? { pathLength: 0, opacity: 0 } : undefined}
-            animate={animated ? { pathLength: 1, opacity: 1 } : undefined}
-            transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
+            filter={`url(#${uniqueId}-glow)`}
+            initial={animated ? { pathLength: 0, opacity: 0 } : { pathLength: 1, opacity: 1 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
           />
           
-          {/* Right leg of V - cyan side */}
+          {/* Right leg of V - cyan */}
           <motion.path
-            d="M80 15 L50 85"
-            stroke="url(#rightGradient)"
-            strokeWidth="14"
+            d="M82 12 L50 88"
+            stroke={`url(#${uniqueId}-cyan)`}
+            strokeWidth="12"
             strokeLinecap="round"
-            filter="url(#glow)"
-            initial={animated ? { pathLength: 0, opacity: 0 } : undefined}
-            animate={animated ? { pathLength: 1, opacity: 1 } : undefined}
-            transition={{ duration: 0.8, delay: 0.4, ease: 'easeOut' }}
+            filter={`url(#${uniqueId}-glow)`}
+            initial={animated ? { pathLength: 0, opacity: 0 } : { pathLength: 1, opacity: 1 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
           />
           
-          {/* Center highlight at the meeting point */}
+          {/* Bright center point where legs meet */}
           <motion.circle
             cx="50"
-            cy="85"
-            r="4"
+            cy="88"
+            r="3"
             fill="white"
-            filter="url(#glow)"
-            initial={animated ? { scale: 0, opacity: 0 } : undefined}
-            animate={animated ? { scale: 1, opacity: 0.8 } : undefined}
-            transition={{ duration: 0.4, delay: 0.8, ease: 'easeOut' }}
+            filter={`url(#${uniqueId}-glow)`}
+            initial={animated ? { scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.5, ease: 'easeOut' }}
           />
         </motion.svg>
       </motion.div>
