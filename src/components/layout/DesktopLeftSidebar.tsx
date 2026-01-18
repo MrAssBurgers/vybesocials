@@ -108,8 +108,8 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0, tutorialId: 'sidebar-explore' },
     { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages, tutorialId: 'sidebar-messages' },
     { icon: Users, label: 'Community', path: '/community', badge: 0, tutorialId: 'sidebar-community' },
-    { icon: ShoppingBag, label: 'Market', path: '/market', badge: 0 },
-    { icon: Calendar, label: 'Events', path: '/events', badge: 0 },
+    { icon: ShoppingBag, label: 'Market', path: '/market', badge: 0, tutorialId: 'sidebar-market' },
+    { icon: Calendar, label: 'Events', path: '/events', badge: 0, tutorialId: 'sidebar-events' },
   ];
 
   const handleSignOut = async () => {
@@ -179,7 +179,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
 
         {/* Profile Snapshot */}
         {!collapsed && profile && (
-          <div className="mx-3 mb-3 space-y-2">
+          <div className="mx-3 mb-3 space-y-2" data-tutorial="sidebar-profile">
             {/* Profile Link */}
             <Link 
               to={`/u/${profile.username}`} 
