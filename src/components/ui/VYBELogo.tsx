@@ -43,11 +43,16 @@ export function VYBELogo({
         initial={isSplash ? { scale: 0.5, opacity: 0 } : undefined}
         animate={isSplash ? { scale: 1, opacity: 1 } : undefined}
       >
-        {/* Neon V Logo SVG - using theme colors */}
+        {/* Neon V Logo SVG - using theme colors with CSS glow instead of SVG filter */}
         <svg
           viewBox="0 0 100 100"
           fill="none"
           className={cn(icon, 'relative z-10 vybe-logo-animated')}
+          style={{
+            filter: isSplash 
+              ? 'drop-shadow(0 0 8px hsl(var(--primary) / 0.6)) drop-shadow(0 0 20px hsl(var(--primary) / 0.4)) drop-shadow(0 0 40px hsl(var(--accent) / 0.3))'
+              : 'drop-shadow(0 0 4px hsl(var(--primary) / 0.5)) drop-shadow(0 0 10px hsl(var(--primary) / 0.3))',
+          }}
         >
           <defs>
             {/* Primary color gradient for left leg */}
@@ -63,19 +68,6 @@ export function VYBELogo({
               <stop offset="50%" stopColor="hsl(var(--neon-cyan, var(--accent)))" />
               <stop offset="100%" stopColor="hsl(var(--accent))" />
             </linearGradient>
-            
-            {/* Glow filter - smooth with proper color space */}
-            <filter id={`${uniqueId}-glow`} x="-150%" y="-150%" width="400%" height="400%" colorInterpolationFilters="sRGB">
-              <feGaussianBlur in="SourceGraphic" stdDeviation={isSplash ? "3" : "1.5"} result="blur1"/>
-              <feGaussianBlur in="SourceGraphic" stdDeviation={isSplash ? "6" : "3"} result="blur2"/>
-              <feGaussianBlur in="SourceGraphic" stdDeviation={isSplash ? "10" : "5"} result="blur3"/>
-              <feMerge>
-                <feMergeNode in="blur3"/>
-                <feMergeNode in="blur2"/>
-                <feMergeNode in="blur1"/>
-                <feMergeNode in="SourceGraphic"/>
-              </feMerge>
-            </filter>
           </defs>
           
           {/* Left leg of V - primary color */}
@@ -84,7 +76,6 @@ export function VYBELogo({
             stroke={`url(#${uniqueId}-primary)`}
             strokeWidth={isSplash ? 14 : 12}
             strokeLinecap="round"
-            filter={`url(#${uniqueId}-glow)`}
             initial={animated ? { pathLength: 0, opacity: 0 } : { pathLength: 1, opacity: 1 }}
             animate={{ pathLength: 1, opacity: 1 }}
             transition={{ duration: isSplash ? 1 : 0.6, delay: isSplash ? 0.4 : 0.1, ease: 'easeOut' }}
@@ -96,7 +87,6 @@ export function VYBELogo({
             stroke={`url(#${uniqueId}-accent)`}
             strokeWidth={isSplash ? 14 : 12}
             strokeLinecap="round"
-            filter={`url(#${uniqueId}-glow)`}
             initial={animated ? { pathLength: 0, opacity: 0 } : { pathLength: 1, opacity: 1 }}
             animate={{ pathLength: 1, opacity: 1 }}
             transition={{ duration: isSplash ? 1 : 0.6, delay: isSplash ? 0.6 : 0.2, ease: 'easeOut' }}
@@ -108,7 +98,6 @@ export function VYBELogo({
             cy="88"
             r={isSplash ? 5 : 4}
             className="fill-foreground"
-            filter={`url(#${uniqueId}-glow)`}
             initial={animated ? { scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
             animate={animated ? { 
               scale: [1, 1.3, 1], 
