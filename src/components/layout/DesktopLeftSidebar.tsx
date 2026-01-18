@@ -177,59 +177,55 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           </Link>
         </div>
 
-        {/* Profile Snapshot with action icons */}
+        {/* Profile Snapshot */}
         {!collapsed && profile && (
-          <div className="mx-3 mb-3 p-3 rounded-xl liquid-glass-subtle">
-            <div className="flex items-center gap-3">
-              <Link to={`/u/${profile.username}`} className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity">
-                <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                  <AvatarImage src={profile.avatar_url || undefined} />
-                  <AvatarFallback className="bg-secondary">
-                    {profile.username?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate flex items-center gap-1">
-                    {profile.username}
-                    {isOwner(profile.username) && <OwnerBadge />}
-                  </p>
-                  <p className="text-xs text-muted-foreground">@{profile.username}</p>
-                </div>
+          <div className="mx-3 mb-3 space-y-2">
+            {/* Profile Link */}
+            <Link 
+              to={`/u/${profile.username}`} 
+              className="flex items-center gap-3 p-3 rounded-xl liquid-glass-subtle hover:bg-white/10 transition-all group"
+            >
+              <Avatar className="h-10 w-10 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
+                <AvatarImage src={profile.avatar_url || undefined} />
+                <AvatarFallback className="bg-gradient-to-br from-primary/80 to-accent/80 text-primary-foreground font-semibold">
+                  {profile.username?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm truncate flex items-center gap-1.5">
+                  {profile.username}
+                  {isOwner(profile.username) && <OwnerBadge />}
+                </p>
+                <p className="text-xs text-muted-foreground">View profile</p>
+              </div>
+            </Link>
+            
+            {/* Quick Actions */}
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/30">
+              <Link
+                to="/notifications"
+                onClick={triggerNavFeedback}
+                className="relative flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+              >
+                <Bell className="h-4 w-4" />
+                <span className="text-xs font-medium">Alerts</span>
+                {unreadNotifications > 0 && (
+                  <span className="h-4 min-w-4 px-1 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold">
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                  </span>
+                )}
               </Link>
               
-              {/* Action icons */}
-              <div className="flex items-center gap-1">
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <Link
-                      to="/notifications"
-                      onClick={triggerNavFeedback}
-                      className="relative p-2 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all"
-                    >
-                      <Bell className="h-4 w-4" />
-                      {unreadNotifications > 0 && (
-                        <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 bg-destructive rounded-full flex items-center justify-center text-[8px] text-destructive-foreground font-bold">
-                          {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                        </span>
-                      )}
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Notifications</TooltipContent>
-                </Tooltip>
-                
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <Link
-                      to="/settings"
-                      onClick={triggerNavFeedback}
-                      className="p-2 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all"
-                    >
-                      <Settings className="h-4 w-4" />
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Settings</TooltipContent>
-                </Tooltip>
-              </div>
+              <div className="w-px h-5 bg-border/50" />
+              
+              <Link
+                to="/settings"
+                onClick={triggerNavFeedback}
+                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+              >
+                <Settings className="h-4 w-4" />
+                <span className="text-xs font-medium">Settings</span>
+              </Link>
             </div>
           </div>
         )}
@@ -241,13 +237,13 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         )}
 
         {collapsed && profile && (
-          <div className="flex flex-col items-center gap-2 mb-3 px-2">
+          <div className="flex flex-col items-center gap-1.5 mb-3 px-2">
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
-                <Link to={`/u/${profile.username}`}>
-                  <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                <Link to={`/u/${profile.username}`} className="group">
+                  <Avatar className="h-10 w-10 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
                     <AvatarImage src={profile.avatar_url || undefined} />
-                    <AvatarFallback className="bg-secondary text-sm">
+                    <AvatarFallback className="bg-gradient-to-br from-primary/80 to-accent/80 text-primary-foreground text-sm font-semibold">
                       {profile.username?.[0]?.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -256,37 +252,39 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               <TooltipContent side="right">View Profile</TooltipContent>
             </Tooltip>
             
-            {/* Collapsed notification & settings icons */}
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <Link
-                  to="/notifications"
-                  onClick={triggerNavFeedback}
-                  className="relative p-2 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all"
-                >
-                  <Bell className="h-4 w-4" />
-                  {unreadNotifications > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 bg-destructive rounded-full flex items-center justify-center text-[8px] text-destructive-foreground font-bold">
-                      {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                    </span>
-                  )}
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right">Notifications</TooltipContent>
-            </Tooltip>
-            
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <Link
-                  to="/settings"
-                  onClick={triggerNavFeedback}
-                  className="p-2 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all"
-                >
-                  <Settings className="h-4 w-4" />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right">Settings</TooltipContent>
-            </Tooltip>
+            {/* Collapsed action buttons */}
+            <div className="flex flex-col items-center gap-0.5 p-1 rounded-xl bg-muted/30">
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Link
+                    to="/notifications"
+                    onClick={triggerNavFeedback}
+                    className="relative p-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                  >
+                    <Bell className="h-4 w-4" />
+                    {unreadNotifications > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 bg-destructive rounded-full flex items-center justify-center text-[8px] text-destructive-foreground font-bold">
+                        {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                      </span>
+                    )}
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Notifications</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Link
+                    to="/settings"
+                    onClick={triggerNavFeedback}
+                    className="p-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Settings</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         )}
 
