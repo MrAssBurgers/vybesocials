@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Palette, Sparkles, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon, Share2, Zap, Timer } from 'lucide-react';
+import { VYBELogo } from '@/components/ui/VYBELogo';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -414,10 +415,20 @@ export function DesignYourVybe() {
               </div>
             </div>
 
-            {/* Animation Preview */}
-            <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
-              <p className="text-xs text-muted-foreground mb-2">Preview</p>
-              <div className="flex items-center gap-3">
+            {/* Animation Preview with Logo */}
+            <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
+              <p className="text-xs text-muted-foreground mb-3">Preview</p>
+              <div className="flex items-center gap-4">
+                {/* Animated VYBE Logo */}
+                <div className="flex-shrink-0">
+                  <VYBELogo size="xl" showText={false} animated={true} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium capitalize">{animationSpeed} + {animationStyle}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {ANIMATION_SPEEDS.find(s => s.value === animationSpeed)?.description}
+                  </p>
+                </div>
                 <motion.div
                   key={`${animationSpeed}-${animationStyle}`}
                   initial={{ scale: 0.8, opacity: 0 }}
@@ -428,12 +439,6 @@ export function DesignYourVybe() {
                   }}
                   className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent"
                 />
-                <div className="flex-1">
-                  <p className="text-sm font-medium capitalize">{animationSpeed} + {animationStyle}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {ANIMATION_SPEEDS.find(s => s.value === animationSpeed)?.description}
-                  </p>
-                </div>
               </div>
             </div>
           </div>
