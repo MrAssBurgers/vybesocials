@@ -1,4 +1,5 @@
 import { useState, useMemo, memo, useCallback } from 'react';
+import { toast } from 'sonner';
 import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, Eye, User, Search, TrendingUp, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,11 +30,13 @@ interface ThemeCardProps {
   isSaved: boolean;
   isOwn: boolean;
   isPopular?: boolean;
+  isEquipped?: boolean;
   onLike: () => void;
   onSave: () => void;
   onUnsave: () => void;
   onDelete?: () => void;
   onPreview: () => void;
+  onEquip: () => void;
 }
 
 // Memoized ThemeCard to prevent unnecessary re-renders
@@ -43,11 +46,13 @@ const ThemeCard = memo(function ThemeCard({
   isSaved, 
   isOwn,
   isPopular,
+  isEquipped,
   onLike, 
   onSave, 
   onUnsave, 
   onDelete,
-  onPreview 
+  onPreview,
+  onEquip
 }: ThemeCardProps) {
   const tokens = theme.theme_tokens;
 
@@ -55,15 +60,16 @@ const ThemeCard = memo(function ThemeCard({
     <div className="relative group">
       <div 
         className={cn(
-          "p-4 rounded-xl border-2 transition-colors cursor-pointer",
-          isPopular 
-            ? "border-primary/50 bg-primary/5 hover:border-primary" 
-            : "border-border hover:border-primary/50"
+          "p-3 rounded-xl border-2 transition-colors",
+          isEquipped
+            ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+            : isPopular 
+              ? "border-primary/50 bg-primary/5 hover:border-primary" 
+              : "border-border hover:border-primary/50"
         )}
-        onClick={onPreview}
       >
         {/* Popular badge */}
-        {isPopular && (
+        {isPopular && !isEquipped && (
           <div className="absolute -top-2 -right-2 z-10">
             <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
               <TrendingUp className="h-3 w-3" />
@@ -72,9 +78,19 @@ const ThemeCard = memo(function ThemeCard({
           </div>
         )}
 
-        {/* Theme Preview */}
+        {/* Equipped badge */}
+        {isEquipped && (
+          <div className="absolute -top-2 -right-2 z-10">
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500 text-white text-xs font-medium">
+              ✓ Equipped
+            </div>
+          </div>
+        )}
+
+        {/* Theme Preview - clickable for preview */}
         <div 
-          className="h-24 rounded-lg mb-3 relative overflow-hidden"
+          className="h-20 rounded-lg mb-2 relative overflow-hidden cursor-pointer"
+          onClick={onPreview}
           style={{ 
             background: `linear-gradient(135deg, hsl(${tokens.bgMain || '240 10% 4%'}), hsl(${tokens.bgCard || '240 10% 6%'}))` 
           }}
@@ -82,31 +98,31 @@ const ThemeCard = memo(function ThemeCard({
           {/* Accent colors */}
           <div className="absolute bottom-2 left-2 right-2 flex gap-1">
             <div 
-              className="h-3 flex-1 rounded-full"
+              className="h-2.5 flex-1 rounded-full"
               style={{ background: `hsl(${tokens.colorPrimary || '330 100% 60%'})` }}
             />
             <div 
-              className="h-3 flex-1 rounded-full"
+              className="h-2.5 flex-1 rounded-full"
               style={{ background: `hsl(${tokens.colorSecondary || '240 10% 12%'})` }}
             />
             <div 
-              className="h-3 flex-1 rounded-full"
+              className="h-2.5 flex-1 rounded-full"
               style={{ background: `hsl(${tokens.colorAccent || '185 100% 50%'})` }}
             />
           </div>
           
           {/* Preview overlay */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-            <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Eye className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         </div>
 
         {/* Theme Info */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-sm truncate">{theme.theme_name}</h3>
+          <div className="flex items-center justify-between gap-1">
+            <h3 className="font-semibold text-xs truncate flex-1">{theme.theme_name}</h3>
             <span className={cn(
-              "text-xs px-2 py-0.5 rounded-full",
+              "text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0",
               tokens.mode === 'dark' ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
             )}>
               {tokens.mode}
@@ -114,60 +130,68 @@ const ThemeCard = memo(function ThemeCard({
           </div>
 
           {theme.creator && (
-            <div className="flex items-center gap-2">
-              <Avatar className="h-5 w-5">
+            <div className="flex items-center gap-1.5">
+              <Avatar className="h-4 w-4">
                 <AvatarImage src={theme.creator.avatar_url || undefined} />
-                <AvatarFallback><User className="h-3 w-3" /></AvatarFallback>
+                <AvatarFallback className="text-[8px]"><User className="h-2.5 w-2.5" /></AvatarFallback>
               </Avatar>
-              <span className="text-xs text-muted-foreground truncate">
+              <span className="text-[10px] text-muted-foreground truncate">
                 {theme.creator.display_name || theme.creator.username || 'Anonymous'}
               </span>
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={(e) => { e.stopPropagation(); onLike(); }}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-              >
-                <Heart className={cn("h-4 w-4", isLiked && "fill-primary text-primary")} />
-                {theme.likes_count}
-              </button>
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Download className="h-4 w-4" />
-                {theme.downloads_count}
-              </span>
-            </div>
+          {/* Stats row */}
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <button
+              onClick={(e) => { e.stopPropagation(); onLike(); }}
+              className="flex items-center gap-0.5 hover:text-primary transition-colors"
+            >
+              <Heart className={cn("h-3 w-3", isLiked && "fill-primary text-primary")} />
+              {theme.likes_count}
+            </button>
+            <span className="flex items-center gap-0.5">
+              <Download className="h-3 w-3" />
+              {theme.downloads_count}
+            </span>
+          </div>
 
-            <div className="flex items-center gap-1">
-              {isOwn && onDelete && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+          {/* Action buttons */}
+          <div className="flex items-center gap-1.5 pt-1">
+            <Button
+              size="sm"
+              variant={isEquipped ? "secondary" : "default"}
+              className="flex-1 h-7 text-xs"
+              onClick={(e) => { e.stopPropagation(); onEquip(); }}
+              disabled={isEquipped}
+            >
+              {isEquipped ? '✓ Equipped' : 'Equip'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 flex-shrink-0"
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                isSaved ? onUnsave() : onSave(); 
+              }}
+            >
+              {isSaved ? (
+                <BookmarkCheck className="h-3.5 w-3.5 text-primary" />
+              ) : (
+                <Bookmark className="h-3.5 w-3.5" />
               )}
+            </Button>
+            {isOwn && onDelete && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  isSaved ? onUnsave() : onSave(); 
-                }}
+                className="h-7 w-7 flex-shrink-0"
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
               >
-                {isSaved ? (
-                  <BookmarkCheck className="h-4 w-4 text-primary" />
-                ) : (
-                  <Bookmark className="h-4 w-4" />
-                )}
+                <Trash2 className="h-3.5 w-3.5 text-destructive" />
               </Button>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -206,6 +230,9 @@ export function ThemeGallery() {
   const deleteTheme = useDeleteSharedTheme();
 
   const [previewingTheme, setPreviewingTheme] = useState<SharedTheme | null>(null);
+  const [equippedThemeId, setEquippedThemeId] = useState<string | null>(() => {
+    return localStorage.getItem('vybe-equipped-theme-id');
+  });
 
   // Get top 3 most liked themes as "popular"
   const popularThemeIds = useMemo(() => {
@@ -219,6 +246,20 @@ export function ThemeGallery() {
       applyThemeTokens(theme.theme_tokens);
     } catch (error) {
       console.error('Error previewing theme:', error);
+    }
+  }, []);
+
+  const handleEquip = useCallback((theme: SharedTheme) => {
+    try {
+      applyThemeTokens(theme.theme_tokens);
+      setEquippedThemeId(theme.id);
+      localStorage.setItem('vybe-equipped-theme-id', theme.id);
+      localStorage.setItem('vybe-custom-theme', JSON.stringify(theme.theme_tokens));
+      toast.success(`Theme "${theme.theme_name}" equipped!`);
+      setPreviewingTheme(null);
+    } catch (error) {
+      console.error('Error equipping theme:', error);
+      toast.error('Failed to equip theme');
     }
   }, []);
 
@@ -280,11 +321,13 @@ export function ThemeGallery() {
                     isSaved={savedThemeIds.includes(theme.id)}
                     isOwn={theme.creator_id === profile?.id}
                     isPopular={popularThemeIds.has(theme.id) && !searchQuery}
+                    isEquipped={equippedThemeId === theme.id}
                     onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
                     onSave={() => saveTheme.mutate(theme.id)}
                     onUnsave={() => unsaveTheme.mutate(theme.id)}
                     onDelete={theme.creator_id === profile?.id ? () => deleteTheme.mutate(theme.id) : undefined}
                     onPreview={() => handlePreview(theme)}
+                    onEquip={() => handleEquip(theme)}
                   />
                 ))}
               </div>
@@ -319,10 +362,12 @@ export function ThemeGallery() {
                     isLiked={likedIds?.includes(theme.id) || false}
                     isSaved={true}
                     isOwn={theme.creator_id === profile?.id}
+                    isEquipped={equippedThemeId === theme.id}
                     onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
                     onSave={() => {}}
                     onUnsave={() => unsaveTheme.mutate(theme.id)}
                     onPreview={() => handlePreview(theme)}
+                    onEquip={() => handleEquip(theme)}
                   />
                 ))}
               </div>
@@ -347,11 +392,13 @@ export function ThemeGallery() {
                     isLiked={likedIds?.includes(theme.id) || false}
                     isSaved={savedThemeIds.includes(theme.id)}
                     isOwn={true}
+                    isEquipped={equippedThemeId === theme.id}
                     onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
                     onSave={() => saveTheme.mutate(theme.id)}
                     onUnsave={() => unsaveTheme.mutate(theme.id)}
                     onDelete={() => deleteTheme.mutate(theme.id)}
                     onPreview={() => handlePreview(theme)}
+                    onEquip={() => handleEquip(theme)}
                   />
                 ))}
               </div>
