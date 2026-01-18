@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { useState, useEffect } from 'react';
 
 interface AcceptedFriendRequest {
   id: string;
@@ -16,11 +15,31 @@ interface AcceptedFriendRequest {
   };
 }
 
-// In-memory dismissed set for current session only
-// This allows the notification to appear again on new sessions
-const sessionDismissedRequests = new Set<string>();
+// Permanent localStorage key for dismissed requests
+const DISMISSED_STORAGE_KEY = 'vybe_dismissed_friend_requests';
+
+// Get permanently dismissed request IDs from localStorage
+function getDismissedRequests(): Set<string> {
+  try {
+    const stored = localStorage.getItem(DISMISSED_STORAGE_KEY);
+    if (stored) {
+      return new Set(JSON.parse(stored));
+    }
+  } catch {}
+  return new Set();
+}
+
+// Save dismissed request to localStorage permanently
+function saveDismissedRequest(requestId: string) {
+  try {
+    const dismissed = getDismissedRequests();
+    dismissed.add(requestId);
+    localStorage.setItem(DISMISSED_STORAGE_KEY, JSON.stringify([...dismissed]));
+  } catch {}
+}
 
 // Fetch recently accepted friend requests (where current user was the sender)
+// Shows only ONE request at a time
 export function useAcceptedFriendRequests() {
   const { profile } = useAuth();
 
@@ -52,13 +71,17 @@ export function useAcceptedFriendRequests() {
         return [];
       }
 
-      // Filter out only session-dismissed ones (not localStorage)
-      const filtered = (data || []).filter(r => !sessionDismissedRequests.has(r.id));
+      // Get dismissed IDs from localStorage
+      const dismissedIds = getDismissedRequests();
 
-      return filtered as AcceptedFriendRequest[];
+      // Filter out permanently dismissed ones and return only the first one
+      const filtered = (data || []).filter(r => !dismissedIds.has(r.id));
+
+      // Only show ONE friend request at a time
+      return filtered.slice(0, 1) as AcceptedFriendRequest[];
     },
     enabled: !!profile?.id,
-    staleTime: 30000, // Refetch more often to catch new acceptances
+    staleTime: 30000,
     refetchOnWindowFocus: true,
   });
 }
@@ -71,8 +94,8 @@ export function useDismissAcceptedRequest() {
     mutationFn: async (requestId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // Only dismiss for current session
-      sessionDismissedRequests.add(requestId);
+      // Permanently dismiss this request
+      saveDismissedRequest(requestId);
 
       return requestId;
     },
@@ -82,9 +105,9 @@ export function useDismissAcceptedRequest() {
   });
 }
 
-// Hook to clear dismissed requests (call on logout or when appropriate)
+// Hook to clear all dismissed requests (for testing or reset purposes)
 export function useClearDismissedRequests() {
   return () => {
-    sessionDismissedRequests.clear();
+    localStorage.removeItem(DISMISSED_STORAGE_KEY);
   };
 }

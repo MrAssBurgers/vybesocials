@@ -7,20 +7,33 @@ import {
   Loader2, 
   Bot,
   MoreVertical,
-  Sparkles
+  Sparkles,
+  Settings,
+  RotateCcw
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 import { cn } from '@/lib/utils';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useAIProfile } from '@/hooks/useAIProfile';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -42,13 +55,7 @@ function loadMessages(): Message[] {
       }));
     }
   } catch {}
-  return [
-    { 
-      role: 'assistant', 
-      content: "Hey there, sugar~ 💋 I'm Morgan. Your personal AI on VYBE... and honey, I'm here to make things interesting. Ask me anything... content tips, life advice, whatever you want. I don't judge. Much. 😏",
-      timestamp: new Date(),
-    }
-  ];
+  return [];
 }
 
 function saveMessages(messages: Message[]) {
@@ -59,9 +66,25 @@ function saveMessages(messages: Message[]) {
 
 export default function AIChat() {
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<Message[]>(loadMessages);
+  const { name: aiName, personality: aiPersonality, updateName, updatePersonality, resetToDefault } = useAIProfile();
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const loaded = loadMessages();
+    if (loaded.length === 0) {
+      return [
+        { 
+          role: 'assistant', 
+          content: `Hey there! I'm ${aiName}, your AI assistant on VYBE. I'm here to help you with content ideas, engagement tips, app features, and anything else you need. What can I help you with today? ✨`,
+          timestamp: new Date(),
+        }
+      ];
+    }
+    return loaded;
+  });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [editName, setEditName] = useState(aiName);
+  const [editPersonality, setEditPersonality] = useState(aiPersonality);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -75,10 +98,30 @@ export default function AIChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [messages]);
 
+  // Update edit fields when profile changes
+  useEffect(() => {
+    setEditName(aiName);
+    setEditPersonality(aiPersonality);
+  }, [aiName, aiPersonality]);
+
   // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  const handleSaveProfile = useCallback(() => {
+    updateName(editName);
+    updatePersonality(editPersonality);
+    setIsProfileOpen(false);
+    toast.success('AI profile updated!');
+  }, [editName, editPersonality, updateName, updatePersonality]);
+
+  const handleResetProfile = useCallback(() => {
+    resetToDefault();
+    setEditName('Morgan');
+    setEditPersonality('A friendly, helpful AI assistant who is approachable, supportive, and genuinely interested in helping users succeed.');
+    toast.success('AI profile reset to default');
+  }, [resetToDefault]);
 
   const sendMessage = useCallback(async () => {
     if (!input.trim() || isLoading) return;
@@ -104,7 +147,9 @@ export default function AIChat() {
           body: JSON.stringify({ 
             messages: messages.map(m => ({ role: m.role, content: m.content })).concat([
               { role: 'user', content: input.trim() }
-            ])
+            ]),
+            aiName,
+            aiPersonality,
           }),
         }
       );
@@ -205,12 +250,12 @@ export default function AIChat() {
       console.error('AI chat error:', error);
       setMessages(prev => [
         ...prev.slice(0, -1),
-        { role: 'assistant', content: "Oops~ Something went a little sideways on my end, sugar. Try that again for me? 💋", timestamp: new Date() }
+        { role: 'assistant', content: "Sorry, something went wrong. Please try again!", timestamp: new Date() }
       ]);
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages]);
+  }, [input, isLoading, messages, aiName, aiPersonality]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -223,11 +268,11 @@ export default function AIChat() {
     setMessages([
       { 
         role: 'assistant', 
-        content: "Clean slate, baby~ 💅 Ready for round two? I'm all ears... and maybe a little bit of trouble. What's on your mind, handsome? 😈",
+        content: `Chat cleared! I'm ${aiName}, ready to help. What would you like to talk about? ✨`,
         timestamp: new Date(),
       }
     ]);
-  }, []);
+  }, [aiName]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -241,21 +286,27 @@ export default function AIChat() {
           <Button variant="ghost" size="icon" onClick={() => navigate('/messages')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="relative">
+          <button 
+            className="relative"
+            onClick={() => setIsProfileOpen(true)}
+          >
             <div className="h-10 w-10 rounded-full gradient-animated flex items-center justify-center ring-2 ring-primary/20">
               <Bot className="h-5 w-5 text-white" />
             </div>
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
-          </div>
-          <div className="flex-1">
+          </button>
+          <button 
+            className="flex-1 text-left"
+            onClick={() => setIsProfileOpen(true)}
+          >
             <h2 className="font-semibold flex items-center gap-1">
-              Morgan
+              {aiName}
               <Sparkles className="h-4 w-4 text-pink-400" />
             </h2>
             <p className="text-xs text-muted-foreground">
-              Your flirty AI companion 💋
+              Tap to customize AI profile
             </p>
-          </div>
+          </button>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -263,7 +314,12 @@ export default function AIChat() {
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="bg-popover">
+              <DropdownMenuItem onClick={() => setIsProfileOpen(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Customize AI
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={clearChat}>
                 Clear Chat
               </DropdownMenuItem>
@@ -322,7 +378,7 @@ export default function AIChat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Morgan anything..."
+              placeholder={`Ask ${aiName} anything...`}
               className="flex-1"
               disabled={isLoading}
             />
@@ -340,6 +396,66 @@ export default function AIChat() {
           </div>
         </div>
       </div>
+
+      {/* AI Profile Settings Sheet */}
+      <Sheet open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+        <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
+          <SheetHeader className="text-left">
+            <SheetTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5" />
+              Customize Your AI
+            </SheetTitle>
+            <SheetDescription>
+              Give your AI assistant a custom name and personality
+            </SheetDescription>
+          </SheetHeader>
+          
+          <div className="mt-6 space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="ai-name">AI Name</Label>
+              <Input
+                id="ai-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="e.g., Morgan, Alex, Jamie..."
+                maxLength={20}
+              />
+              <p className="text-xs text-muted-foreground">
+                What would you like to call your AI assistant?
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ai-personality">Personality</Label>
+              <Textarea
+                id="ai-personality"
+                value={editPersonality}
+                onChange={(e) => setEditPersonality(e.target.value)}
+                placeholder="Describe how you want your AI to behave..."
+                rows={4}
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground">
+                Describe the personality and tone you want. Examples: "Professional and concise", "Friendly and encouraging", "Witty with a sense of humor"
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 pt-4">
+              <Button onClick={handleSaveProfile} className="w-full">
+                Save Changes
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleResetProfile}
+                className="w-full"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset to Default
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </AppLayout>
   );
 }
