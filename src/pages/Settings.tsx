@@ -105,13 +105,13 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
           </div>
         </motion.div>
 
-        {/* Mobile: Horizontal scrolling nav */}
+        {/* Mobile: Dropdown category selector */}
         {isMobile && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="mb-4 -mx-3 px-3 overflow-x-auto"
+            className="mb-4"
           >
             <SettingsNav 
               activeCategory={activeCategory} 
