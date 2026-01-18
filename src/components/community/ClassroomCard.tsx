@@ -3,11 +3,13 @@ import { motion } from 'framer-motion';
 import { Users, MessageSquare, Crown, Folder, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Server, ServerRole } from '@/hooks/useServers';
+import { useAllServerMemberCounts } from '@/hooks/useLiveMemberCount';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 
 interface ClassroomCardProps {
   server: Server & { myRole: ServerRole };
   unreadCount?: number;
+  memberCount?: number;
   onClick: () => void;
   isSelected?: boolean;
 }
@@ -35,10 +37,12 @@ function getCardColor(serverId: string) {
 
 export const ClassroomCard = memo(function ClassroomCard({ 
   server, 
-  unreadCount = 0, 
+  unreadCount = 0,
+  memberCount,
   onClick,
   isSelected = false 
 }: ClassroomCardProps) {
+  const resolvedMemberCount = typeof memberCount === 'number' ? memberCount : (server.member_count || 0);
   const cardColor = getCardColor(server.id);
   const isOwner = server.myRole === 'owner';
   const signedBanner = useSignedUrl(server.banner_url);
@@ -132,7 +136,7 @@ export const ClassroomCard = memo(function ClassroomCard({
         <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
           <div className="flex items-center gap-1.5">
             <Users className="h-4 w-4" />
-            <span>{server.member_count || 0} members</span>
+            <span>{resolvedMemberCount} members</span>
           </div>
         </div>
 
@@ -162,6 +166,9 @@ export const ClassroomGrid = memo(function ClassroomGrid({
   selectedServerId,
   onSelectServer
 }: ClassroomGridProps) {
+  const serverIds = servers.map((s) => s.id);
+  const liveMemberCounts = useAllServerMemberCounts(serverIds);
+
   if (servers.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -183,6 +190,7 @@ export const ClassroomGrid = memo(function ClassroomGrid({
           key={server.id}
           server={server}
           unreadCount={unreadCounts[server.id]}
+          memberCount={liveMemberCounts[server.id] ?? server.member_count ?? 0}
           onClick={() => onSelectServer(server.id)}
           isSelected={selectedServerId === server.id}
         />
