@@ -38,6 +38,18 @@ import { useIsMobile } from '@/hooks/use-mobile';
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
 
+  // Get AI name from localStorage
+  const aiName = useMemo(() => {
+    try {
+      const stored = localStorage.getItem('vybe_ai_profile');
+      if (stored) {
+        const profile = JSON.parse(stored);
+        return profile.name || 'Morgan';
+      }
+    } catch {}
+    return 'Morgan';
+  }, []);
+
   // Get last AI message from localStorage for preview
   const lastAIMessage = useMemo(() => {
     try {
@@ -48,7 +60,7 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
         if (lastAssistant) return lastAssistant.content;
       }
     } catch {}
-    return "Hey sugar~ Tap to chat 💋";
+    return "Hey! Tap to chat with me ✨";
   }, []);
 
   return (
@@ -64,7 +76,7 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5 gap-2">
           <span className="font-semibold text-sm flex items-center gap-1.5 min-w-0">
-            <span className="truncate">Morgan</span>
+            <span className="truncate">{aiName}</span>
             <Sparkles className="h-3.5 w-3.5 text-pink-400 flex-shrink-0" />
           </span>
           <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-pink-500/10 rounded-full flex-shrink-0">AI</span>
@@ -704,16 +716,22 @@ const ConversationItem = memo(function ConversationItem({
     otherMember,
   };
 
-  // Mobile swipeable version
+  // Mobile swipeable version - Instagram-style clean design
   if (isMobile && onTrash) {
     return (
-      <div className="relative overflow-hidden mb-1.5 rounded-xl">
-        {/* Delete indicator behind */}
+      <div className="relative mb-1.5">
+        {/* Delete indicator - positioned behind, full height */}
         <motion.div 
-          className="absolute inset-y-0 right-0 w-24 flex items-center justify-center bg-destructive rounded-r-xl"
-          style={{ opacity: deleteOpacity }}
+          className="absolute inset-0 flex items-center justify-end bg-destructive"
+          style={{ 
+            opacity: deleteOpacity,
+            borderRadius: '0.75rem',
+          }}
         >
-          <motion.div style={{ scale: deleteScale }} className="flex flex-col items-center gap-1 text-destructive-foreground">
+          <motion.div 
+            style={{ scale: deleteScale }} 
+            className="flex flex-col items-center gap-0.5 text-destructive-foreground pr-6"
+          >
             <Trash2 className="h-5 w-5" />
             <span className="text-[10px] font-medium">Delete</span>
           </motion.div>
@@ -724,8 +742,8 @@ const ConversationItem = memo(function ConversationItem({
           className="relative bg-background rounded-xl"
           style={{ x }}
           drag="x"
-          dragConstraints={{ left: -100, right: 0 }}
-          dragElastic={0.1}
+          dragConstraints={{ left: -80, right: 0 }}
+          dragElastic={0.05}
           onDragEnd={handleDragEnd}
           animate={isDeleting ? { x: -300, opacity: 0 } : { x: 0 }}
           transition={{ duration: 0.2 }}
