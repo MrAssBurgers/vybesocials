@@ -288,7 +288,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           </div>
         )}
 
-        <Separator className="mx-3 bg-border/50" />
+        <div className="mx-3 h-px" />
 
         {/* Primary Navigation */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
@@ -297,7 +297,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           {/* Moderation Section */}
           {showAdminLink && (
             <>
-              <Separator className="my-3 bg-border/50" />
+              <div className="my-3 h-px" />
               {!collapsed && (
                 <p className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Moderation
@@ -381,7 +381,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           </div>
         )}
 
-        <Separator className="mx-3 bg-border/50" />
+        <div className="mx-3 h-px" />
 
         {/* Collapse Control */}
         <div className={cn("py-3", collapsed ? "px-2" : "px-3")}>
