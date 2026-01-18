@@ -64,11 +64,13 @@ export function VYBELogo({
               <stop offset="100%" stopColor="hsl(var(--accent))" />
             </linearGradient>
             
-            {/* Glow filter */}
-            <filter id={`${uniqueId}-glow`} x="-100%" y="-100%" width="300%" height="300%">
-              <feGaussianBlur stdDeviation={isSplash ? "4" : "2"} result="blur1"/>
-              <feGaussianBlur stdDeviation={isSplash ? "8" : "4"} result="blur2"/>
+            {/* Glow filter - smooth with proper color space */}
+            <filter id={`${uniqueId}-glow`} x="-150%" y="-150%" width="400%" height="400%" colorInterpolationFilters="sRGB">
+              <feGaussianBlur in="SourceGraphic" stdDeviation={isSplash ? "3" : "1.5"} result="blur1"/>
+              <feGaussianBlur in="SourceGraphic" stdDeviation={isSplash ? "6" : "3"} result="blur2"/>
+              <feGaussianBlur in="SourceGraphic" stdDeviation={isSplash ? "10" : "5"} result="blur3"/>
               <feMerge>
+                <feMergeNode in="blur3"/>
                 <feMergeNode in="blur2"/>
                 <feMergeNode in="blur1"/>
                 <feMergeNode in="SourceGraphic"/>
