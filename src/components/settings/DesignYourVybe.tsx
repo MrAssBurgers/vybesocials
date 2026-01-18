@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Palette, Sparkles, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon, Share2, Zap, Timer } from 'lucide-react';
+import { ThemeWaveAnimation } from '@/components/effects/ThemeWaveAnimation';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -66,6 +67,7 @@ export function DesignYourVybe() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareDescription, setShareDescription] = useState('');
+  const [showWaveAnimation, setShowWaveAnimation] = useState(false);
   
   // Animation settings
   const [animationSpeed, setAnimationSpeed] = useState<'slow' | 'normal' | 'fast' | 'instant'>('normal');
@@ -213,6 +215,9 @@ export function DesignYourVybe() {
       animationStyle,
     };
     
+    // Show wave animation first
+    setShowWaveAnimation(true);
+    
     await saveTheme.mutateAsync({
       themeTokens: themeWithAnimations,
       themeName: generatedName,
@@ -221,6 +226,10 @@ export function DesignYourVybe() {
     setShowConfirmation(false);
     setPrompt('');
   };
+
+  const handleWaveComplete = useCallback(() => {
+    setShowWaveAnimation(false);
+  }, []);
 
   const handleTryAgain = () => {
     setShowConfirmation(false);
@@ -604,6 +613,14 @@ export function DesignYourVybe() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Theme Wave Animation */}
+      <ThemeWaveAnimation
+        isActive={showWaveAnimation}
+        primaryColor={previewTheme?.colorPrimary || '280 70% 50%'}
+        accentColor={previewTheme?.colorAccent || '330 80% 60%'}
+        onComplete={handleWaveComplete}
+      />
     </div>
   );
 }
