@@ -529,9 +529,19 @@ export function useApplyUserTheme() {
 
   useEffect(() => {
     try {
+      // First check for equipped community theme from localStorage
+      const equippedThemeTokens = localStorage.getItem('vybe-custom-theme');
+      if (equippedThemeTokens) {
+        const tokens = JSON.parse(equippedThemeTokens) as ThemeTokens;
+        if (tokens && typeof tokens === 'object' && tokens.colorPrimary) {
+          applyThemeTokens(tokens);
+          return; // Use equipped theme, don't override with user theme
+        }
+      }
+
+      // Fall back to user's saved theme from database
       if (userTheme?.is_active && userTheme.theme_tokens) {
         const tokens = userTheme.theme_tokens as unknown as ThemeTokens;
-        // Validate minimum required fields exist
         if (tokens && typeof tokens === 'object' && tokens.colorPrimary) {
           applyThemeTokens(tokens);
         }
