@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
 export interface ContentFlag {
@@ -127,22 +128,28 @@ export function useUpdateReport() {
 }
 
 export function useUserRole() {
+  const { profile } = useAuth();
+
   return useQuery({
-    queryKey: ['user-role'],
+    queryKey: ['user-role', profile?.id],
     queryFn: async () => {
+      if (!profile?.id) return null;
+
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
-        .order('role'); // This will return 'admin' before 'moderator' alphabetically
-      
-      if (error && error.code !== 'PGRST116') throw error;
-      
+        .eq('user_id', profile.id);
+
+      if (error) throw error;
+
       // Return highest role (admin > moderator > user)
       const roles = (data || []).map((r) => r.role);
       if (roles.includes('admin')) return 'admin';
       if (roles.includes('moderator')) return 'moderator';
       return null;
     },
+    enabled: !!profile?.id,
+    staleTime: 60 * 1000,
   });
 }
 
