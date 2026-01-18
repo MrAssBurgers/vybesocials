@@ -12,18 +12,21 @@ export interface TutorialStep {
   action?: 'openCreateMenu' | 'openVYBEHub' | 'closeMenus';
   // Skip if element not found (optional steps)
   optional?: boolean;
+  // Highlight a bottom nav item during this step
+  highlightNav?: string;
 }
 
 // Mobile/Tablet steps - uses bottom nav
 const mobileTabletSteps: TutorialStep[] = [
   {
     id: 'welcome',
-    targetSelector: '[data-tutorial="home-nav"]',
+    targetSelector: '[data-tutorial="tutorial-welcome-center"]', // Will be centered, no element
     title: '👋 Welcome to VYBE!',
     description: 'Let\'s take a quick tour! We\'ll show you all the key features to help you get started.',
-    position: 'top',
+    position: 'bottom',
     requiresRoute: '/home',
     action: 'closeMenus',
+    highlightNav: 'home-nav', // Highlight this nav item
   },
   {
     id: 'feed',
@@ -41,6 +44,7 @@ const mobileTabletSteps: TutorialStep[] = [
     description: 'Discover trending content, new creators, and find people to follow. Watch short clips and browse what\'s popular!',
     position: 'top',
     requiresRoute: '/home',
+    highlightNav: 'explore-nav',
   },
   {
     id: 'create-button',
@@ -49,6 +53,7 @@ const mobileTabletSteps: TutorialStep[] = [
     description: 'Tap to open the Create Menu. You can upload photos, videos, or use the camera to capture moments!',
     position: 'top',
     requiresRoute: '/home',
+    highlightNav: 'create-nav',
   },
   {
     id: 'create-menu',
@@ -57,6 +62,7 @@ const mobileTabletSteps: TutorialStep[] = [
     description: 'Create Post to upload content, Camera to capture instantly, or tap VYBE Hub for marketplace, events, and communities!',
     position: 'bottom',
     action: 'openCreateMenu',
+    highlightNav: 'create-nav',
   },
   {
     id: 'vybe-hub',
@@ -65,6 +71,7 @@ const mobileTabletSteps: TutorialStep[] = [
     description: 'Your one-stop shop! Access Marketplace to buy & sell, Events to see what\'s happening, and Communities for Discord-style servers.',
     position: 'bottom',
     action: 'openVYBEHub',
+    highlightNav: 'create-nav',
   },
   {
     id: 'messages',
@@ -74,6 +81,7 @@ const mobileTabletSteps: TutorialStep[] = [
     position: 'top',
     requiresRoute: '/home',
     action: 'closeMenus',
+    highlightNav: 'messages-nav',
   },
   {
     id: 'settings',
@@ -82,6 +90,7 @@ const mobileTabletSteps: TutorialStep[] = [
     description: 'Manage your profile, privacy, notifications, and themes. You can restart this tutorial anytime from Help & Support!',
     position: 'top',
     requiresRoute: '/home',
+    highlightNav: 'settings-nav',
   },
 ];
 

@@ -85,12 +85,14 @@ const NavItem = memo(({
   badge, 
   isActive,
   tutorialId,
+  isHighlighted,
 }: { 
   path: string; 
   icon: typeof Home; 
   badge: number; 
   isActive: boolean;
   tutorialId?: string;
+  isHighlighted?: boolean;
 }) => (
   <Link
     to={path}
@@ -107,10 +109,21 @@ const NavItem = memo(({
         />
       )}
       
+      {/* Tutorial highlight ring */}
+      {isHighlighted && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="absolute -inset-1 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background"
+          style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.5)' }}
+        />
+      )}
+      
       <Icon
         className={cn(
           "h-5 w-5 relative z-10",
-          isActive ? "text-primary" : "text-muted-foreground"
+          isActive ? "text-primary" : "text-muted-foreground",
+          isHighlighted && "text-primary"
         )}
       />
       
@@ -130,10 +143,11 @@ export function BottomNav() {
 
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);
+  const [highlightedNav, setHighlightedNav] = useState<string | null>(null);
   
   const lastTapTime = useRef(0);
 
-  // Tutorial event listeners for controlling menus
+  // Tutorial event listeners for controlling menus and highlighting
   useEffect(() => {
     const handleOpenCreateMenu = () => setIsCreateMenuOpen(true);
     const handleOpenVYBEHub = () => {
@@ -144,15 +158,20 @@ export function BottomNav() {
       setIsCreateMenuOpen(false);
       setIsHubOpen(false);
     };
+    const handleHighlightNav = (e: CustomEvent<{ navId: string | null }>) => {
+      setHighlightedNav(e.detail.navId);
+    };
 
     window.addEventListener('tutorial-open-create-menu', handleOpenCreateMenu);
     window.addEventListener('tutorial-open-vybe-hub', handleOpenVYBEHub);
     window.addEventListener('tutorial-close-menus', handleCloseMenus);
+    window.addEventListener('tutorial-highlight-nav', handleHighlightNav as EventListener);
 
     return () => {
       window.removeEventListener('tutorial-open-create-menu', handleOpenCreateMenu);
       window.removeEventListener('tutorial-open-vybe-hub', handleOpenVYBEHub);
       window.removeEventListener('tutorial-close-menus', handleCloseMenus);
+      window.removeEventListener('tutorial-highlight-nav', handleHighlightNav as EventListener);
     };
   }, []);
 
@@ -216,8 +235,9 @@ export function BottomNav() {
         {/* Compact glass bar */}
         <div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">
           <div className="grid grid-cols-5 h-14 px-1 relative z-10">
-            {navItems.map((item) => {
+          {navItems.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+              const isHighlighted = highlightedNav === item.tutorialId;
 
               if (item.isCreate) {
                 return (
@@ -226,6 +246,15 @@ export function BottomNav() {
                       className="relative flex items-center justify-center min-h-[44px] min-w-[44px]"
                       onClick={handleCreateClick}
                     >
+                      {/* Tutorial highlight ring for create button */}
+                      {isHighlighted && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="absolute inset-0 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background"
+                          style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.5)' }}
+                        />
+                      )}
                       <div className="gradient-animated rounded-xl p-2.5 shadow-lg shadow-primary/30 active:scale-90 transition-transform">
                         <PlusCircle className="h-5 w-5 text-primary-foreground" />
                       </div>
@@ -242,6 +271,7 @@ export function BottomNav() {
                   badge={item.badge}
                   isActive={isActive}
                   tutorialId={item.tutorialId}
+                  isHighlighted={isHighlighted}
                 />
               );
             })}

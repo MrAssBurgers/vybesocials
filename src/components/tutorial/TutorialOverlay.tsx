@@ -315,13 +315,27 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       setElementFound(true);
       calculateTooltipPosition(rect, currentStepData.position);
     } else {
-      // Element not found - show centered tooltip
+      // Element not found - show CENTERED tooltip (for welcome step etc)
       setSpotlight(null);
       setElementFound(false);
+      // Center the tooltip in the screen, above the bottom nav
+      const tooltipWidth = Math.min(320, window.innerWidth - 32);
+      const tooltipHeight = 280;
       setTooltipPos({
-        top: window.innerHeight / 2 - 100,
-        left: Math.max(16, window.innerWidth / 2 - 160),
+        top: (window.innerHeight - tooltipHeight) / 2 - 40, // Slightly above center to avoid bottom nav
+        left: Math.max(16, (window.innerWidth - tooltipWidth) / 2),
       });
+    }
+    
+    // Broadcast highlighted nav item for BottomNav to pick up
+    if (currentStepData?.highlightNav) {
+      window.dispatchEvent(new CustomEvent('tutorial-highlight-nav', { 
+        detail: { navId: currentStepData.highlightNav } 
+      }));
+    } else {
+      window.dispatchEvent(new CustomEvent('tutorial-highlight-nav', { 
+        detail: { navId: null } 
+      }));
     }
   }, [currentStepData, calculateTooltipPosition, scrollElementIntoView, isNavigating]);
 
@@ -363,6 +377,10 @@ export const TutorialOverlay = memo(function TutorialOverlay({
 
   const handleNext = () => {
     haptics.tap();
+    // Clear nav highlight when finishing tutorial
+    if (currentStep === totalSteps - 1) {
+      window.dispatchEvent(new CustomEvent('tutorial-highlight-nav', { detail: { navId: null } }));
+    }
     onNext();
   };
 
@@ -378,6 +396,8 @@ export const TutorialOverlay = memo(function TutorialOverlay({
   const handleSkip = () => {
     haptics.tap();
     closeAllMenus();
+    // Clear nav highlight
+    window.dispatchEvent(new CustomEvent('tutorial-highlight-nav', { detail: { navId: null } }));
     onSkip();
   };
 
@@ -525,8 +545,8 @@ export const TutorialOverlay = memo(function TutorialOverlay({
                 {currentStepData?.description}
               </p>
 
-              {/* Element not found warning */}
-              {!elementFound && (
+              {/* Element not found warning - only show if NOT welcome step */}
+              {!elementFound && currentStepData?.id !== 'welcome' && (
                 <div className="mb-4 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-2 text-xs text-amber-600">
                   <HelpCircle className="w-4 h-4 flex-shrink-0" />
                   <span>This feature may be available on a different screen or view.</span>
