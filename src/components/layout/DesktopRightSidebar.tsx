@@ -172,8 +172,10 @@ export function DesktopRightSidebar() {
   return (
     <aside 
       className={cn(
-        "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 liquid-glass z-40",
-        "w-[240px] 2xl:w-[280px] overflow-hidden"
+        "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-40",
+        "w-[240px] 2xl:w-[280px] overflow-hidden",
+        "bg-gradient-to-b from-background via-background/98 to-background",
+        "backdrop-blur-xl"
       )}
     >
       <ScrollArea className="flex-1 h-full">

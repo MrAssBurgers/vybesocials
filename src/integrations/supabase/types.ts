@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_events: {
+        Row: {
+          created_at: string
+          event_data: Json | null
+          event_name: string
+          id: string
+          session_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_data?: Json | null
+          event_name: string
+          id?: string
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_data?: Json | null
+          event_name?: string
+          id?: string
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       announcements: {
         Row: {
           author_id: string
@@ -561,6 +588,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      community_guidelines: {
+        Row: {
+          content: string
+          id: string
+          is_current: boolean | null
+          published_at: string
+          version: string
+        }
+        Insert: {
+          content: string
+          id?: string
+          is_current?: boolean | null
+          published_at?: string
+          version: string
+        }
+        Update: {
+          content?: string
+          id?: string
+          is_current?: boolean | null
+          published_at?: string
+          version?: string
+        }
+        Relationships: []
       }
       content_appeals: {
         Row: {
@@ -1407,6 +1458,65 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      invite_redemptions: {
+        Row: {
+          id: string
+          invite_id: string
+          redeemed_at: string
+          redeemer_id: string
+        }
+        Insert: {
+          id?: string
+          invite_id: string
+          redeemed_at?: string
+          redeemer_id: string
+        }
+        Update: {
+          id?: string
+          invite_id?: string
+          redeemed_at?: string
+          redeemer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invite_redemptions_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "invites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invites: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          invite_code: string
+          inviter_id: string
+          max_uses: number | null
+          use_count: number | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          invite_code: string
+          inviter_id: string
+          max_uses?: number | null
+          use_count?: number | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          invite_code?: string
+          inviter_id?: string
+          max_uses?: number | null
+          use_count?: number | null
+        }
+        Relationships: []
       }
       likes: {
         Row: {
@@ -3256,6 +3366,33 @@ export type Database = {
           },
         ]
       }
+      user_badges: {
+        Row: {
+          badge_name: string
+          badge_type: string
+          earned_at: string
+          id: string
+          metadata: Json | null
+          user_id: string
+        }
+        Insert: {
+          badge_name: string
+          badge_type: string
+          earned_at?: string
+          id?: string
+          metadata?: Json | null
+          user_id: string
+        }
+        Update: {
+          badge_name?: string
+          badge_type?: string
+          earned_at?: string
+          id?: string
+          metadata?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_bans: {
         Row: {
           banned_by: string
@@ -3808,6 +3945,7 @@ export type Database = {
       current_profile_id: { Args: never; Returns: string }
       ensure_profile: { Args: never; Returns: string }
       filter_profanity: { Args: { input_text: string }; Returns: string }
+      generate_invite_code: { Args: never; Returns: string }
       get_comment_count: { Args: { p_post_id: string }; Returns: number }
       get_follower_count: { Args: { profile_id: string }; Returns: number }
       get_following_count: { Args: { profile_id: string }; Returns: number }
