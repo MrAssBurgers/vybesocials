@@ -7,6 +7,7 @@ import { ClassroomGrid } from '@/components/community/ClassroomCard';
 import { CreateServerDialog } from '@/components/community/CreateServerDialog';
 import { JoinServerDialog } from '@/components/community/JoinServerDialog';
 import { useMyServers, useChannels, useServer, usePublicServers, useJoinServer } from '@/hooks/useServers';
+import { useLiveMemberCount } from '@/hooks/useLiveMemberCount';
 import { useUnreadCountPerServer } from '@/hooks/useServerNotifications';
 import { Plus, Users, ArrowLeft, Settings, UserPlus, Hash, Search, Globe, Folder, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ export default function Community() {
   const { data: servers = [], isLoading: serversLoading } = useMyServers();
   const { data: publicServers = [], isLoading: publicServersLoading } = usePublicServers(debouncedSearch);
   const { data: selectedServer } = useServer(selectedServerId || undefined);
+  const selectedServerLiveCount = useLiveMemberCount(selectedServerId || undefined);
   const { data: channels = [] } = useChannels(selectedServerId || undefined);
   const { data: unreadCounts = {} } = useUnreadCountPerServer();
   const joinServer = useJoinServer();
@@ -112,7 +114,7 @@ export default function Community() {
                 <div className="flex-1 min-w-0">
                   <h2 className="font-semibold truncate">{selectedServer.name}</h2>
                   <p className="text-xs text-muted-foreground">
-                    {selectedServer.member_count} members
+                    {selectedServerLiveCount} members
                   </p>
                 </div>
               </>
