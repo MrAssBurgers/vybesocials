@@ -110,43 +110,15 @@ export const SplashScreen = memo(function SplashScreen({
             />
           </div>
           
-          {/* Logo container */}
+          {/* Animated VYBE Logo - clean, no box */}
           <motion.div
-            className="relative mb-6 sm:mb-10"
+            className="mb-6 sm:mb-10"
+            animate={showComplete ? { 
+              scale: [1, 1.1, 1],
+            } : undefined}
+            transition={{ duration: 0.5 }}
           >
-            {/* Outer glow pulse */}
-            <motion.div
-              className="absolute inset-0 -m-8 sm:-m-12 rounded-full"
-              style={{
-                background: 'radial-gradient(circle, hsl(var(--neon-purple) / 0.3) 0%, transparent 70%)',
-              }}
-              animate={{
-                scale: [1, 1.3, 1],
-                opacity: [0.4, 0.7, 0.4],
-              }}
-              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-            />
-            
-            {/* Spinning ring */}
-            <motion.div
-              className="absolute inset-0 -m-4 sm:-m-6 rounded-full border-2 border-transparent"
-              style={{ 
-                borderTopColor: 'hsl(var(--primary))',
-                borderRightColor: 'hsl(var(--accent) / 0.5)',
-              }}
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-            />
-            
-            {/* Animated VYBE Logo */}
-            <motion.div
-              animate={showComplete ? { 
-                scale: [1, 1.1, 1],
-              } : undefined}
-              transition={{ duration: 0.5 }}
-            >
-              <VYBELogo size="splash" showText={false} animated={true} />
-            </motion.div>
+            <VYBELogo size="splash" showText={false} animated={true} />
           </motion.div>
 
           {/* Welcome to VYBE Text */}
