@@ -120,57 +120,27 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
           </motion.div>
         )}
 
-        {/* Desktop: Two-column layout */}
-        <div className="flex gap-8">
-          {/* Desktop sidebar nav */}
-          {!isMobile && (
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="w-64 flex-shrink-0"
-            >
-              <div className="sticky top-4 space-y-4">
-                <div className="liquid-glass-card p-2 overflow-hidden">
-                  <SettingsNavVertical 
-                    activeCategory={activeCategory} 
-                    onCategoryChange={setActiveCategory} 
-                  />
-                </div>
-
-                <Separator className="my-4" />
-
-                {/* Sign Out Button - Desktop */}
-                <Button
-                  variant="outline"
-                  className="w-full justify-between text-sm border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                  onClick={handleSignOut}
-                >
-                  <span className="flex items-center gap-2">
-                    <LogOut className="h-4 w-4" />
-                    {t('auth.logout')}
-                  </span>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-
-                {/* App Info - Desktop */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-center pt-4 text-muted-foreground"
-                >
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <div className="gradient-static rounded-lg p-1.5">
-                      <Sparkles className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="font-display font-black text-lg gradient-text">VYBE</span>
-                  </div>
-                  <p className="text-xs">v{APP_VERSION}</p>
-                </motion.div>
+        {/* Category selector for desktop (horizontal tabs style) */}
+        {!isMobile && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-6"
+          >
+            <div className="liquid-glass-card p-2 overflow-hidden">
+              <div className="flex flex-wrap gap-2">
+                <SettingsNavVertical 
+                  activeCategory={activeCategory} 
+                  onCategoryChange={setActiveCategory} 
+                />
               </div>
-            </motion.div>
-          )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Content layout */}
+        <div className="flex gap-8">
 
           {/* Main content area */}
           <div className="flex-1 min-w-0">
@@ -199,44 +169,42 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
               </motion.div>
             </AnimatePresence>
 
-            {/* Mobile: Sign Out & App Info */}
-            {isMobile && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="mt-6 space-y-4 pb-4"
+            {/* Sign Out & App Info */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mt-6 space-y-4 pb-4"
+            >
+              <Separator />
+              
+              <Button
+                variant="outline"
+                className="w-full justify-between text-sm border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground h-11"
+                onClick={handleSignOut}
               >
-                <Separator />
-                
-                <Button
-                  variant="outline"
-                  className="w-full justify-between text-sm border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground h-11"
-                  onClick={handleSignOut}
-                >
-                  <span className="flex items-center gap-2">
-                    <LogOut className="h-4 w-4" />
-                    {t('auth.logout')}
-                  </span>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                <span className="flex items-center gap-2">
+                  <LogOut className="h-4 w-4" />
+                  {t('auth.logout')}
+                </span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
 
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                  className="text-center py-4 text-muted-foreground"
-                >
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <div className="gradient-static rounded-lg p-1">
-                      <Sparkles className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="font-display font-black text-lg gradient-text">VYBE</span>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="text-center py-4 text-muted-foreground"
+              >
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <div className="gradient-static rounded-lg p-1">
+                    <Sparkles className="w-4 h-4 text-white" />
                   </div>
-                  <p className="text-xs">v{APP_VERSION}</p>
-                </motion.div>
+                  <span className="font-display font-black text-lg gradient-text">VYBE</span>
+                </div>
+                <p className="text-xs">v{APP_VERSION}</p>
               </motion.div>
-            )}
+            </motion.div>
           </div>
         </div>
       </div>

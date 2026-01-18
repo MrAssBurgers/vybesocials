@@ -143,10 +143,10 @@ export function SettingsNav({ activeCategory, onCategoryChange }: SettingsNavPro
   );
 }
 
-// Vertical nav for larger screens
+// Horizontal nav for desktop (fits within main content area)
 export function SettingsNavVertical({ activeCategory, onCategoryChange }: SettingsNavProps) {
   return (
-    <nav className="space-y-1">
+    <nav className="flex flex-wrap gap-2">
       {categories.map((cat) => (
         <button
           key={cat.id}
@@ -155,30 +155,15 @@ export function SettingsNavVertical({ activeCategory, onCategoryChange }: Settin
             onCategoryChange(cat.id);
           }}
           className={cn(
-            'w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-all duration-200',
-            'active:scale-[0.98] border',
+            'flex items-center gap-2 px-4 py-2.5 rounded-xl text-left transition-all duration-200',
+            'active:scale-[0.98] border whitespace-nowrap',
             activeCategory === cat.id
               ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20'
-              : 'bg-transparent border-transparent hover:bg-muted/50 text-foreground hover:border-border/50'
+              : 'bg-transparent border-border hover:bg-muted/50 text-foreground hover:border-primary/30'
           )}
         >
-          <div className={cn(
-            'w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors',
-            activeCategory === cat.id
-              ? 'bg-primary-foreground/20'
-              : 'bg-muted'
-          )}>
-            <cat.icon className="w-5 h-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold text-sm">{cat.label}</p>
-            <p className={cn(
-              'text-xs truncate',
-              activeCategory === cat.id ? 'text-primary-foreground/70' : 'text-muted-foreground'
-            )}>
-              {cat.description}
-            </p>
-          </div>
+          <cat.icon className="w-4 h-4 flex-shrink-0" />
+          <span className="font-medium text-sm">{cat.label}</span>
         </button>
       ))}
     </nav>
