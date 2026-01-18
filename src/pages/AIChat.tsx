@@ -9,8 +9,10 @@ import {
   MoreVertical,
   Sparkles,
   Settings,
-  RotateCcw
+  RotateCcw,
+  Check
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,6 +87,7 @@ export default function AIChat() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [editName, setEditName] = useState(aiName);
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
+  const [isSaving, setIsSaving] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -109,9 +112,13 @@ export default function AIChat() {
     inputRef.current?.focus();
   }, []);
 
-  const handleSaveProfile = useCallback(() => {
+  const handleSaveProfile = useCallback(async () => {
+    setIsSaving(true);
+    // Small delay for animation effect
+    await new Promise(resolve => setTimeout(resolve, 1200));
     updateName(editName);
     updatePersonality(editPersonality);
+    setIsSaving(false);
     setIsProfileOpen(false);
     toast.success('AI profile updated!');
   }, [editName, editPersonality, updateName, updatePersonality]);
@@ -441,13 +448,48 @@ export default function AIChat() {
             </div>
 
             <div className="flex flex-col gap-3 pt-4">
-              <Button onClick={handleSaveProfile} className="w-full">
-                Save Changes
-              </Button>
+              <AnimatePresence mode="wait">
+                {isSaving ? (
+                  <motion.div
+                    key="saving"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="w-full py-3 rounded-md bg-primary flex items-center justify-center gap-2"
+                  >
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    >
+                      <Sparkles className="h-5 w-5 text-primary-foreground" />
+                    </motion.div>
+                    <motion.span 
+                      className="text-primary-foreground font-medium"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      Updating your AI...
+                    </motion.span>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="save-button"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                  >
+                    <Button onClick={handleSaveProfile} className="w-full" disabled={isSaving}>
+                      <Check className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <Button 
                 variant="outline" 
                 onClick={handleResetProfile}
                 className="w-full"
+                disabled={isSaving}
               >
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Reset to Default
