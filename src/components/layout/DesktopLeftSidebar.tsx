@@ -110,8 +110,6 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
     { icon: Users, label: 'Community', path: '/community', badge: 0, tutorialId: 'sidebar-community' },
     { icon: ShoppingBag, label: 'Market', path: '/market', badge: 0 },
     { icon: Calendar, label: 'Events', path: '/events', badge: 0 },
-    { icon: Bell, labelKey: 'nav.notifications', path: '/notifications', badge: unreadNotifications, tutorialId: 'sidebar-notifications' },
-    { icon: Settings, labelKey: 'nav.settings', path: '/settings', badge: 0, tutorialId: 'sidebar-settings' },
   ];
 
   const handleSignOut = async () => {
@@ -179,28 +177,61 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           </Link>
         </div>
 
-        {/* Profile Snapshot */}
+        {/* Profile Snapshot with action icons */}
         {!collapsed && profile && (
-          <Link 
-            to={`/u/${profile.username}`}
-            className="mx-3 mb-3 p-3 rounded-xl liquid-glass-subtle hover:bg-sidebar-accent/30 transition-all"
-          >
+          <div className="mx-3 mb-3 p-3 rounded-xl liquid-glass-subtle">
             <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                <AvatarImage src={profile.avatar_url || undefined} />
-                <AvatarFallback className="bg-secondary">
-                  {profile.username?.[0]?.toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm truncate flex items-center gap-1">
-                  {profile.username}
-                  {isOwner(profile.username) && <OwnerBadge />}
-                </p>
-                <p className="text-xs text-muted-foreground">@{profile.username}</p>
+              <Link to={`/u/${profile.username}`} className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity">
+                <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                  <AvatarImage src={profile.avatar_url || undefined} />
+                  <AvatarFallback className="bg-secondary">
+                    {profile.username?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate flex items-center gap-1">
+                    {profile.username}
+                    {isOwner(profile.username) && <OwnerBadge />}
+                  </p>
+                  <p className="text-xs text-muted-foreground">@{profile.username}</p>
+                </div>
+              </Link>
+              
+              {/* Action icons */}
+              <div className="flex items-center gap-1">
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Link
+                      to="/notifications"
+                      onClick={triggerNavFeedback}
+                      className="relative p-2 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all"
+                    >
+                      <Bell className="h-4 w-4" />
+                      {unreadNotifications > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 bg-destructive rounded-full flex items-center justify-center text-[8px] text-destructive-foreground font-bold">
+                          {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                        </span>
+                      )}
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Notifications</TooltipContent>
+                </Tooltip>
+                
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Link
+                      to="/settings"
+                      onClick={triggerNavFeedback}
+                      className="p-2 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Settings</TooltipContent>
+                </Tooltip>
               </div>
             </div>
-          </Link>
+          </div>
         )}
 
         {!collapsed && !profile && (
@@ -210,19 +241,53 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         )}
 
         {collapsed && profile && (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <Link to={`/u/${profile.username}`} className="flex justify-center mb-3 px-2">
-                <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                  <AvatarImage src={profile.avatar_url || undefined} />
-                  <AvatarFallback className="bg-secondary text-sm">
-                    {profile.username?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="right">View Profile</TooltipContent>
-          </Tooltip>
+          <div className="flex flex-col items-center gap-2 mb-3 px-2">
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Link to={`/u/${profile.username}`}>
+                  <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                    <AvatarImage src={profile.avatar_url || undefined} />
+                    <AvatarFallback className="bg-secondary text-sm">
+                      {profile.username?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right">View Profile</TooltipContent>
+            </Tooltip>
+            
+            {/* Collapsed notification & settings icons */}
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Link
+                  to="/notifications"
+                  onClick={triggerNavFeedback}
+                  className="relative p-2 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all"
+                >
+                  <Bell className="h-4 w-4" />
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 bg-destructive rounded-full flex items-center justify-center text-[8px] text-destructive-foreground font-bold">
+                      {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                    </span>
+                  )}
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right">Notifications</TooltipContent>
+            </Tooltip>
+            
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Link
+                  to="/settings"
+                  onClick={triggerNavFeedback}
+                  className="p-2 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all"
+                >
+                  <Settings className="h-4 w-4" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right">Settings</TooltipContent>
+            </Tooltip>
+          </div>
         )}
 
         <Separator className="mx-3 bg-border/50" />

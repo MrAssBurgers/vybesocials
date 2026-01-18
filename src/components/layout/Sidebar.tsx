@@ -33,7 +33,6 @@ export function Sidebar() {
     { icon: Film, labelKey: 'nav.clips', path: '/clips', badge: 0 },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0 },
     { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages },
-    { icon: Bell, labelKey: 'nav.notifications', path: '/notifications', badge: unreadNotifications },
   ];
 
   const handleSignOut = async () => {
@@ -113,21 +112,55 @@ export function Sidebar() {
 
       {/* Bottom Section */}
       <div className="space-y-2 border-t border-white/10 pt-4">
-        <Link
-          to={profile ? `/u/${profile.username}` : '/profile'}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-white/5 hover:text-sidebar-foreground transition-all liquid-glass-subtle"
-        >
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={profile?.avatar_url || undefined} />
-            <AvatarFallback className="bg-secondary text-secondary-foreground">
-              {profile?.username?.[0]?.toUpperCase() || 'U'}
-            </AvatarFallback>
-          </Avatar>
-          <span className="font-medium flex items-center gap-1.5">
-            {profile?.username || t('nav.profile')}
-            {isOwner(profile?.username) && <OwnerBadge />}
-          </span>
-        </Link>
+        {/* Profile row with notification & settings icons */}
+        <div className="flex items-center gap-2 px-2">
+          <Link
+            to={profile ? `/u/${profile.username}` : '/profile'}
+            className="flex items-center gap-3 flex-1 px-2 py-2 rounded-xl text-muted-foreground hover:bg-white/5 hover:text-sidebar-foreground transition-all liquid-glass-subtle"
+          >
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-secondary text-secondary-foreground">
+                {profile?.username?.[0]?.toUpperCase() || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <span className="font-medium flex items-center gap-1.5 truncate">
+              {profile?.username || t('nav.profile')}
+              {isOwner(profile?.username) && <OwnerBadge />}
+            </span>
+          </Link>
+          
+          {/* Notification icon */}
+          <Link
+            to="/notifications"
+            onClick={triggerNavFeedback}
+            className="relative p-2 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-sidebar-foreground transition-all"
+          >
+            <Bell className="h-5 w-5" />
+            <AnimatePresence>
+              {unreadNotifications > 0 && (
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0 }}
+                  transition={{ type: 'spring', stiffness: 500 }}
+                  className="absolute -top-0.5 -right-0.5 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold"
+                >
+                  {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </Link>
+          
+          {/* Settings icon */}
+          <Link
+            to="/settings"
+            onClick={triggerNavFeedback}
+            className="p-2 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-sidebar-foreground transition-all"
+          >
+            <Settings className="h-5 w-5" />
+          </Link>
+        </div>
 
         <div className="px-4 py-2">
           <FeedbackButton />
@@ -142,14 +175,6 @@ export function Sidebar() {
             <span className="font-medium">Admin</span>
           </Link>
         )}
-
-        <Link
-          to="/settings"
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-white/5 hover:text-sidebar-foreground transition-all"
-        >
-          <Settings className="h-5 w-5" />
-          <span className="font-medium">{t('nav.settings')}</span>
-        </Link>
 
         <button
           onClick={handleSignOut}
