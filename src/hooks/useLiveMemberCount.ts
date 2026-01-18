@@ -65,31 +65,43 @@ export function useLiveMemberCount(serverId: string | undefined) {
  */
 export function useAllServerMemberCounts(serverIds: string[]) {
   const queryClient = useQueryClient();
+  const stableServerIds = serverIds.join(',');
 
   // Initial fetch with proper data return
   const { data: counts = {} } = useQuery({
-    queryKey: ['all-server-member-counts', serverIds],
+    queryKey: ['all-server-member-counts', stableServerIds],
     queryFn: async () => {
       if (serverIds.length === 0) return {};
 
       const countsMap: Record<string, number> = {};
       
       // Fetch counts for all servers in parallel
-      await Promise.all(
+      const results = await Promise.all(
         serverIds.map(async (serverId) => {
-          const { count } = await supabase
+          const { count, error } = await supabase
             .from('server_members')
             .select('*', { count: 'exact', head: true })
             .eq('server_id', serverId);
           
-          countsMap[serverId] = count || 0;
+          if (error) {
+            console.error('Error fetching member count for server:', serverId, error);
+            return { serverId, count: 0 };
+          }
+          
+          return { serverId, count: count || 0 };
         })
       );
+      
+      results.forEach(({ serverId, count }) => {
+        countsMap[serverId] = count;
+      });
 
       return countsMap;
     },
     enabled: serverIds.length > 0,
-    staleTime: 1000 * 30, // Cache for 30 seconds
+    staleTime: 1000 * 10, // Cache for 10 seconds
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
   // Set up realtime subscriptions for all servers
@@ -109,7 +121,7 @@ export function useAllServerMemberCounts(serverIds: string[]) {
           },
           () => {
             // Invalidate query to refetch on any change
-            queryClient.invalidateQueries({ queryKey: ['all-server-member-counts', serverIds] });
+            queryClient.invalidateQueries({ queryKey: ['all-server-member-counts', stableServerIds] });
           }
         )
         .subscribe();
@@ -118,7 +130,7 @@ export function useAllServerMemberCounts(serverIds: string[]) {
     return () => {
       channels.forEach(channel => supabase.removeChannel(channel));
     };
-  }, [serverIds.join(','), queryClient]);
+  }, [stableServerIds, queryClient, serverIds]);
 
   return counts;
 }

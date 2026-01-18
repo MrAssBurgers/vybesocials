@@ -148,7 +148,9 @@ export default function Spaces() {
                   const isSelected = selectedSpaceId === space.id;
                   const isExpanded = expandedSpace === space.id;
                   const unread = unreadCounts[space.id] || 0;
-                  const memberCount = liveMemberCounts[space.id] ?? space.member_count ?? 0;
+                  const memberCount = liveMemberCounts[space.id] !== undefined 
+                    ? liveMemberCounts[space.id] 
+                    : (members.length || 1);
 
                   return (
                     <motion.div
