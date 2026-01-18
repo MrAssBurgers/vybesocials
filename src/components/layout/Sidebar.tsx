@@ -111,32 +111,36 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom Section */}
-      <div className="space-y-2 border-t border-white/10 pt-4">
-        {/* Profile row with notification & settings icons */}
-        <div className="flex items-center gap-2 px-2">
-          <Link
-            to={profile ? `/u/${profile.username}` : '/profile'}
-            className="flex items-center gap-3 flex-1 px-2 py-2 rounded-xl text-muted-foreground hover:bg-white/5 hover:text-sidebar-foreground transition-all liquid-glass-subtle"
-          >
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="bg-secondary text-secondary-foreground">
-                {profile?.username?.[0]?.toUpperCase() || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <span className="font-medium flex items-center gap-1.5 truncate">
+      <div className="space-y-3 border-t border-white/10 pt-4">
+        {/* Profile Card */}
+        <Link
+          to={profile ? `/u/${profile.username}` : '/profile'}
+          className="flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl liquid-glass-subtle hover:bg-white/10 transition-all group"
+        >
+          <Avatar className="h-9 w-9 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
+            <AvatarImage src={profile?.avatar_url || undefined} />
+            <AvatarFallback className="bg-gradient-to-br from-primary/80 to-accent/80 text-primary-foreground font-semibold">
+              {profile?.username?.[0]?.toUpperCase() || 'U'}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <span className="font-semibold text-sm flex items-center gap-1.5 truncate text-foreground">
               {profile?.username || t('nav.profile')}
               {isOwner(profile?.username) && <OwnerBadge />}
             </span>
-          </Link>
-          
-          {/* Notification icon */}
+            <span className="text-xs text-muted-foreground">View profile</span>
+          </div>
+        </Link>
+        
+        {/* Quick Actions Row */}
+        <div className="flex items-center gap-1.5 mx-2 p-1 rounded-xl bg-muted/30">
           <Link
             to="/notifications"
             onClick={triggerNavFeedback}
-            className="relative p-2 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-sidebar-foreground transition-all"
+            className="relative flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
           >
-            <Bell className="h-5 w-5" />
+            <Bell className="h-4 w-4" />
+            <span className="text-xs font-medium">Alerts</span>
             <AnimatePresence>
               {unreadNotifications > 0 && (
                 <motion.span
@@ -144,7 +148,7 @@ export function Sidebar() {
                   animate={{ scale: 1 }}
                   exit={{ scale: 0 }}
                   transition={{ type: 'spring', stiffness: 500 }}
-                  className="absolute -top-0.5 -right-0.5 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold"
+                  className="absolute top-1 right-1 h-4 min-w-4 px-1 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold"
                 >
                   {unreadNotifications > 9 ? '9+' : unreadNotifications}
                 </motion.span>
@@ -152,13 +156,15 @@ export function Sidebar() {
             </AnimatePresence>
           </Link>
           
-          {/* Settings icon */}
+          <div className="w-px h-6 bg-border/50" />
+          
           <Link
             to="/settings"
             onClick={triggerNavFeedback}
-            className="p-2 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-sidebar-foreground transition-all"
+            className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
           >
-            <Settings className="h-5 w-5" />
+            <Settings className="h-4 w-4" />
+            <span className="text-xs font-medium">Settings</span>
           </Link>
         </div>
 
