@@ -39,36 +39,33 @@ export function VYBELogo({
           'relative flex items-center justify-center'
         )}
       >
-        {/* Neon V Logo SVG - matching the exact uploaded image */}
+        {/* Neon V Logo SVG - using theme colors */}
         <motion.svg
           viewBox="0 0 100 100"
           fill="none"
-          className={cn(icon, 'relative z-10')}
-          style={{
-            filter: 'drop-shadow(0 0 10px rgba(255, 0, 110, 0.6)) drop-shadow(0 0 20px rgba(0, 245, 212, 0.4))',
-          }}
+          className={cn(icon, 'relative z-10 vybe-logo-glow')}
           animate={animated ? {
             filter: [
-              'drop-shadow(0 0 10px rgba(255, 0, 110, 0.6)) drop-shadow(0 0 20px rgba(0, 245, 212, 0.4))',
-              'drop-shadow(0 0 15px rgba(255, 0, 110, 0.8)) drop-shadow(0 0 30px rgba(0, 245, 212, 0.6))',
-              'drop-shadow(0 0 10px rgba(255, 0, 110, 0.6)) drop-shadow(0 0 20px rgba(0, 245, 212, 0.4))',
+              'drop-shadow(0 0 8px hsl(var(--primary) / 0.6)) drop-shadow(0 0 16px hsl(var(--accent) / 0.4))',
+              'drop-shadow(0 0 12px hsl(var(--primary) / 0.8)) drop-shadow(0 0 24px hsl(var(--accent) / 0.6))',
+              'drop-shadow(0 0 8px hsl(var(--primary) / 0.6)) drop-shadow(0 0 16px hsl(var(--accent) / 0.4))',
             ],
           } : undefined}
           transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
         >
           <defs>
-            {/* Hot pink/magenta for left leg */}
-            <linearGradient id={`${uniqueId}-pink`} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#ff1493" />
-              <stop offset="50%" stopColor="#ff006e" />
-              <stop offset="100%" stopColor="#ff1493" />
+            {/* Primary color gradient for left leg */}
+            <linearGradient id={`${uniqueId}-primary`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" className="[stop-color:hsl(var(--primary))]" />
+              <stop offset="50%" className="[stop-color:hsl(var(--neon-purple))]" />
+              <stop offset="100%" className="[stop-color:hsl(var(--primary))]" />
             </linearGradient>
             
-            {/* Cyan/teal for right leg */}
-            <linearGradient id={`${uniqueId}-cyan`} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#00f5d4" />
-              <stop offset="50%" stopColor="#00d4aa" />
-              <stop offset="100%" stopColor="#00f5d4" />
+            {/* Accent color gradient for right leg */}
+            <linearGradient id={`${uniqueId}-accent`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" className="[stop-color:hsl(var(--accent))]" />
+              <stop offset="50%" className="[stop-color:hsl(var(--neon-cyan))]" />
+              <stop offset="100%" className="[stop-color:hsl(var(--accent))]" />
             </linearGradient>
             
             {/* Intense glow filter */}
@@ -83,10 +80,10 @@ export function VYBELogo({
             </filter>
           </defs>
           
-          {/* Left leg of V - hot pink */}
+          {/* Left leg of V - primary color */}
           <motion.path
             d="M18 12 L50 88"
-            stroke={`url(#${uniqueId}-pink)`}
+            stroke={`url(#${uniqueId}-primary)`}
             strokeWidth="12"
             strokeLinecap="round"
             filter={`url(#${uniqueId}-glow)`}
@@ -95,10 +92,10 @@ export function VYBELogo({
             transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
           />
           
-          {/* Right leg of V - cyan */}
+          {/* Right leg of V - accent color */}
           <motion.path
             d="M82 12 L50 88"
-            stroke={`url(#${uniqueId}-cyan)`}
+            stroke={`url(#${uniqueId}-accent)`}
             strokeWidth="12"
             strokeLinecap="round"
             filter={`url(#${uniqueId}-glow)`}
@@ -112,11 +109,19 @@ export function VYBELogo({
             cx="50"
             cy="88"
             r="3"
-            fill="white"
+            className="fill-foreground"
             filter={`url(#${uniqueId}-glow)`}
             initial={animated ? { scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.3, delay: 0.5, ease: 'easeOut' }}
+            animate={animated ? { 
+              scale: [1, 1.2, 1], 
+              opacity: [0.9, 1, 0.9] 
+            } : { scale: 1, opacity: 1 }}
+            transition={animated ? { 
+              duration: 1.5, 
+              repeat: Infinity, 
+              ease: 'easeInOut',
+              delay: 0.5 
+            } : { duration: 0.3, delay: 0.5, ease: 'easeOut' }}
           />
         </motion.svg>
       </motion.div>
