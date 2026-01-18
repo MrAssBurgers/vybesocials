@@ -226,7 +226,8 @@ export function DesktopRightSidebar() {
             )}
           </div>
 
-          <Separator className="bg-border/50" />
+          {/* Spacer instead of harsh line */}
+          <div className="h-px" />
 
           {/* Active Chats Preview */}
           <div>
@@ -286,7 +287,7 @@ export function DesktopRightSidebar() {
             )}
           </div>
 
-          <Separator className="bg-border/50" />
+          <div className="h-px" />
 
           {/* Trending Now */}
           <div>
@@ -306,7 +307,7 @@ export function DesktopRightSidebar() {
             </div>
           </div>
 
-          <Separator className="bg-border/50" />
+          <div className="h-px" />
 
           {/* Market Highlights */}
           <div>
@@ -356,7 +357,7 @@ export function DesktopRightSidebar() {
             )}
           </div>
 
-          <Separator className="bg-border/50" />
+          <div className="h-px" />
 
           {/* Upcoming Events */}
           <div>
@@ -401,7 +402,7 @@ export function DesktopRightSidebar() {
           {/* Context Card */}
           {contextCard && (
             <>
-              <Separator className="bg-border/50" />
+              <div className="h-px" />
               <div className="p-3 rounded-xl liquid-glass-subtle">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
