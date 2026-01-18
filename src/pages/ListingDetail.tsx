@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useListing, useToggleFavorite, useListingFavorites, LISTING_CATEGORIES, LISTING_CONDITIONS, useDeleteListing, useSellerRating } from '@/hooks/useMarketplace';
+import { useRealtimeListings } from '@/hooks/useRealtimeListings';
 import { useUserRole } from '@/hooks/useModeration';
 import { useSellerPaymentMethods } from '@/hooks/useMarketplacePayments';
 import { PaymentSheet } from '@/components/marketplace/PaymentSheet';
@@ -34,6 +35,9 @@ export default function ListingDetailPage() {
   
   const { data: userRole } = useUserRole();
   const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
+  
+  // Enable real-time updates
+  useRealtimeListings();
 
   const isFavorite = favorites?.some(f => f.id === id) || false;
   const isOwner = profile?.id === listing?.seller_id;
@@ -70,8 +74,10 @@ export default function ListingDetailPage() {
     try {
       await deleteListing.mutateAsync(id!);
       toast.success('Listing deleted');
-      navigate('/market');
-    } catch {
+      // Navigate immediately after successful delete
+      navigate('/market', { replace: true });
+    } catch (err) {
+      console.error('Delete error:', err);
       toast.error('Failed to delete listing');
     }
   };
