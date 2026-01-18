@@ -192,16 +192,25 @@ export function useDeleteListing() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('listings')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
       if (error) throw error;
+
+      // If RLS prevents deletion, PostgREST returns 204 and data will be empty.
+      if (!data || data.length === 0) {
+        throw new Error('Not allowed to delete this listing');
+      }
+
+      return data[0];
     },
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['listings'] });
       queryClient.invalidateQueries({ queryKey: ['my-listings'] });
+      queryClient.invalidateQueries({ queryKey: ['listing', id] });
     },
   });
 }
