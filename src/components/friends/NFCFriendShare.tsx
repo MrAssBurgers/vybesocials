@@ -106,6 +106,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
   }, [stopScan]);
 
   // Immediately activate NFC when button is clicked
+  // This makes the phone act like a physical NFC tag
   const handleNFCButtonClick = async () => {
     if (!profile?.id) {
       toast.error('Please log in first');
@@ -119,24 +120,23 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
 
     haptics.tap();
     setIsOpen(true);
-    
-    // Immediately start both sharing and receiving for seamless experience
-    // Start sharing your profile first
     setMode('sharing');
     
     try {
-      // Write your profile to NFC - this requests permission
+      // Write your profile to NFC - this makes the phone act like an NFC tag
+      // Other phones (even when locked with screen on) can read this
       const writeSuccess = await writeNFC(profile.id);
       
       if (writeSuccess) {
-        // Also start scanning for incoming NFC
+        // Also start scanning for incoming NFC (bidirectional)
         startScan(handleTagScanned);
-        toast.success('NFC activated! Tap phones together');
+        haptics.impact();
       } else {
         setMode('idle');
       }
     } catch (error) {
       console.error('NFC activation error:', error);
+      haptics.error();
       setMode('error');
     }
   };
@@ -402,12 +402,12 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                 </div>
 
                 <div>
-                  <p className="font-medium">NFC Active - Broadcasting</p>
+                  <p className="font-medium">📡 NFC Tag Mode Active</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Tap your phone against your friend's device
+                    Hold your phone against theirs - works even if their screen is locked!
                   </p>
-                  <p className="text-xs text-muted-foreground/70 mt-2">
-                    Also listening for incoming friend requests
+                  <p className="text-xs text-primary/70 mt-2 font-medium">
+                    ✓ Their phone will show a notification to add you
                   </p>
                 </div>
 
