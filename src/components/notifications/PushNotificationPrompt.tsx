@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { Bell, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useAuth } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function PushNotificationPrompt() {
+  const { user } = useAuth();
   const { 
     isSupported, 
     isLoading, 
@@ -42,6 +44,12 @@ export function PushNotificationPrompt() {
       return;
     }
 
+    // Don't show if user is not signed in
+    if (!user) {
+      setShouldShow(false);
+      return;
+    }
+
     // Don't show if not supported
     if (!isSupported) {
       setShouldShow(false);
@@ -61,7 +69,7 @@ export function PushNotificationPrompt() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [isSupported, isCheckingSubscription, browserPermission]);
+  }, [isSupported, isCheckingSubscription, browserPermission, user]);
 
   const handleDismiss = () => {
     // Dismiss for 24 hours, then show again if still not enabled
