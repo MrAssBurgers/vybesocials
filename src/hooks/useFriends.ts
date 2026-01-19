@@ -176,12 +176,63 @@ export function useSendFriendRequest() {
         type: 'friend_request',
       });
 
+      // Auto-create a conversation for instant chatting
+      // First check if a conversation already exists between the two users
+      const { data: existingConv } = await supabase
+        .from('conversation_members')
+        .select('conversation_id')
+        .eq('user_id', profile.id);
+
+      const { data: theirConvs } = await supabase
+        .from('conversation_members')
+        .select('conversation_id')
+        .eq('user_id', receiverId);
+
+      const myConvIds = (existingConv || []).map(c => c.conversation_id);
+      const theirConvIds = (theirConvs || []).map(c => c.conversation_id);
+      
+      // Find shared non-group conversations
+      const sharedConvIds = myConvIds.filter(id => theirConvIds.includes(id));
+      
+      let conversationExists = false;
+      if (sharedConvIds.length > 0) {
+        // Check if any are 1:1 (non-group) conversations
+        const { data: sharedConvs } = await supabase
+          .from('conversations')
+          .select('id, is_group')
+          .in('id', sharedConvIds)
+          .eq('is_group', false);
+        
+        conversationExists = (sharedConvs && sharedConvs.length > 0);
+      }
+
+      // If no conversation exists, create one
+      if (!conversationExists) {
+        const { data: newConv, error: convError } = await supabase
+          .from('conversations')
+          .insert({
+            is_group: false,
+            created_by: profile.id,
+          })
+          .select()
+          .single();
+
+        if (!convError && newConv) {
+          // Add both users as members
+          await supabase.from('conversation_members').insert([
+            { conversation_id: newConv.id, user_id: profile.id },
+            { conversation_id: newConv.id, user_id: receiverId },
+          ]);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
       queryClient.invalidateQueries({ queryKey: ['friendship-status'] });
-      toast.success('Friend request sent!');
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      toast.success('Friend request sent! Chat created.');
     },
     onError: () => {
       toast.error('Failed to send friend request');
