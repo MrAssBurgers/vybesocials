@@ -25,7 +25,7 @@ export default function Landing() {
   const [isLogin, setIsLogin] = useState(() => searchParams.get('signup') !== 'true');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(() => !hasSeenIntro());
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -143,13 +143,29 @@ export default function Landing() {
         className="relative z-10 w-full max-w-md mx-4"
       >
         <div className="glass-card rounded-3xl p-8 gradient-border">
-          {/* Logo */}
-          <div className="flex flex-col items-center mb-8">
-            <VYBELogo size="xl" showText={false} className="mb-4" />
-            <h1 className="text-2xl font-display font-bold gradient-text">
+          {/* Centered Logo with glow */}
+          <div className="flex flex-col items-center mb-8 relative">
+            {/* Animated glow behind logo */}
+            <motion.div
+              animate={{
+                scale: [1, 1.2, 1],
+                opacity: [0.3, 0.5, 0.3],
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            >
+              <div className="w-32 h-32 rounded-full bg-primary/30 blur-2xl" />
+            </motion.div>
+            
+            <VYBELogo size="xl" showText={false} className="mb-4 relative z-10" />
+            <h1 className="text-2xl font-display font-bold gradient-text relative z-10">
               Welcome to VYBE
             </h1>
-            <p className="text-sm text-muted-foreground mt-1 text-center">
+            <p className="text-sm text-muted-foreground mt-1 text-center relative z-10">
               Connect. Be present. Build community.
             </p>
           </div>

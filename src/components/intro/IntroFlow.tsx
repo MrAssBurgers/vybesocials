@@ -36,8 +36,8 @@ const slides = [
   },
   {
     id: 'community',
-    title: 'By the Community',
-    subtitle: 'Built for the community, by the community.',
+    title: 'Built for the Community',
+    subtitle: 'By the community.',
     description: 'No spam. No pressure. Just real connection.',
     icon: Heart,
   },
