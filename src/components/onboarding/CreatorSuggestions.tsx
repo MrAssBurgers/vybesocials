@@ -226,7 +226,7 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
                   <span className="inline-block w-12 h-4 bg-muted animate-pulse rounded" />
                 ) : (
                   <>
-                    Join {followerCount.toLocaleString()} {followerCount === 1 ? 'person' : 'people'} following
+                    {followerCount.toLocaleString()} {followerCount === 1 ? 'follower' : 'followers'}
                   </>
                 )}
               </p>
