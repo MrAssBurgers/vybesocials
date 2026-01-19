@@ -156,36 +156,9 @@ export function NanotechSwoosh({
     };
   }, [isActive, duration, onMidpoint, onComplete]);
 
-  // Reduced motion: instant transition
+  // Reduced motion: instant transition (no visual effect)
   if (prefersReducedMotion) {
-    return (
-      <AnimatePresence>
-        {isActive && (
-          <motion.div
-            className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <motion.div
-              className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-background/90 border border-primary/30 backdrop-blur-xl"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-            >
-              <div 
-                className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ background: `linear-gradient(135deg, hsl(${primaryColor}), hsl(${accentColor}))` }}
-              >
-                <Check className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-medium">Theme Applied</span>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    );
+    return null;
   }
 
   const isRadial = (animProps as any).isRadial;
@@ -367,83 +340,6 @@ export function NanotechSwoosh({
             )}
           </AnimatePresence>
 
-          {/* Success confirmation */}
-          <AnimatePresence>
-            {showSuccess && (
-              <motion.div
-                className="absolute inset-0 flex items-center justify-center"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <motion.div
-                  className="flex flex-col items-center gap-3 p-6 rounded-3xl"
-                  style={{
-                    background: `linear-gradient(135deg, 
-                      hsl(${primaryColor} / 0.15), 
-                      hsl(${accentColor} / 0.1)
-                    )`,
-                    backdropFilter: 'blur(24px) saturate(1.5)',
-                    WebkitBackdropFilter: 'blur(24px) saturate(1.5)',
-                    border: `1px solid hsl(${primaryColor} / 0.3)`,
-                    boxShadow: `
-                      0 0 40px hsl(${primaryColor} / 0.2),
-                      0 20px 40px -20px hsl(${primaryColor} / 0.3)
-                    `,
-                  }}
-                  initial={{ scale: 0.8, y: 20, opacity: 0 }}
-                  animate={{ 
-                    scale: 1, 
-                    y: 0, 
-                    opacity: 1,
-                  }}
-                  exit={{ scale: 0.9, opacity: 0 }}
-                  transition={{ 
-                    type: 'spring', 
-                    damping: 20, 
-                    stiffness: 300,
-                  }}
-                >
-                  {/* Success icon with micro-lift animation */}
-                  <motion.div
-                    className="w-14 h-14 rounded-full flex items-center justify-center"
-                    style={{
-                      background: `linear-gradient(135deg, hsl(${primaryColor}), hsl(${accentColor}))`,
-                      boxShadow: `0 0 30px hsl(${primaryColor} / 0.5)`,
-                    }}
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{ 
-                      scale: [0, 1.1, 1],
-                      rotate: 0,
-                    }}
-                    transition={{ 
-                      type: 'spring',
-                      damping: 12,
-                      delay: 0.1,
-                    }}
-                  >
-                    <Check className="w-7 h-7 text-white" strokeWidth={3} />
-                  </motion.div>
-
-                  <motion.div 
-                    className="text-center"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    <p className="text-lg font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-                      Theme Applied
-                    </p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1.5 justify-center mt-1">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Nanotech rebuild complete
-                    </p>
-                  </motion.div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>
