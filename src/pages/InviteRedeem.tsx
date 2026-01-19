@@ -3,23 +3,31 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { analytics } from '@/lib/analytics';
 import { setPendingReferral, clearPendingReferral, type PendingReferral } from '@/lib/referral';
-import Landing from '@/pages/Landing';
+import { useAuth } from '@/lib/auth';
+
+// Import inline components and types
+import Landing, { type InviteStage } from '@/pages/Landing';
+import CompleteProfile from '@/pages/CompleteProfile';
+import Onboarding from '@/pages/Onboarding';
+import Home from '@/pages/Home';
 
 /**
  * Persistent Invite Entry Mode
  * 
  * /invite/:username is NOT a redirect page.
- * It's the SAME app as /, just with invite context stored.
+ * It renders the ENTIRE app inline without changing the URL.
  * 
  * The user stays on /invite/:username through:
  * - Intro flow
  * - Signup/Login
+ * - Complete Profile
  * - Onboarding  
- * - Tutorial
+ * - Tutorial (on Home)
  * 
  * After tutorial → referral confirmation modal appears.
+ * After "Thanks!" → redirect to /home normally.
  * 
- * URL remains /invite/:username until natural navigation.
+ * URL remains /invite/:username until navigation after confirmation.
  */
 
 const ENTRY_MODE_KEY = 'vybe_entry_mode';
@@ -48,9 +56,13 @@ export function clearEntryMode(): void {
   }
 }
 
+// InviteStage type is imported from Landing.tsx
+
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
+  const { user, profile, loading: authLoading } = useAuth();
   const [inviteProcessed, setInviteProcessed] = useState(false);
+  const [currentStage, setCurrentStage] = useState<InviteStage>('loading');
   const processedRef = useRef(false);
   
   // Parse identifier - handles @username, username, or UUID
@@ -67,7 +79,7 @@ export default function InviteRedeem() {
     return { type: 'username', value: cleaned };
   };
   
-  // Process invite once on mount - store referral data, then render Landing
+  // Process invite once on mount - store referral data
   useEffect(() => {
     // Prevent double processing
     if (processedRef.current) return;
@@ -144,15 +156,83 @@ export default function InviteRedeem() {
     processInvite();
   }, [identifier]);
   
-  // Don't render anything until invite is processed
-  // This ensures referral data is stored before Landing mounts
-  if (!inviteProcessed) {
+  // Determine which stage to show based on auth state
+  useEffect(() => {
+    if (!inviteProcessed || authLoading) {
+      setCurrentStage('loading');
+      return;
+    }
+    
+    // Not authenticated - show landing page
+    if (!user) {
+      setCurrentStage('landing');
+      return;
+    }
+    
+    // Authenticated but no profile or no username - complete profile
+    if (!profile || !profile.username) {
+      setCurrentStage('complete-profile');
+      return;
+    }
+    
+    // Has profile but onboarding not complete
+    if (!profile.onboarding_completed) {
+      setCurrentStage('onboarding');
+      return;
+    }
+    
+    // Fully onboarded - show home (tutorial + invite popup will trigger there)
+    setCurrentStage('home');
+  }, [inviteProcessed, authLoading, user, profile]);
+  
+  // Handle stage transitions (called by child components instead of navigate())
+  const handleStageComplete = (nextStage: InviteStage) => {
+    console.log('[InviteRedeem] Stage transition:', currentStage, '->', nextStage);
+    setCurrentStage(nextStage);
+  };
+  
+  // Loading state - minimal blank screen
+  if (currentStage === 'loading') {
     return (
       <div className="min-h-screen bg-background" />
     );
   }
   
-  // Render the exact same Landing page
-  // User stays on /invite/:username but sees the full first-time experience
-  return <Landing />;
+  // Render appropriate component based on stage
+  // Pass onNavigate prop to suppress URL changes
+  switch (currentStage) {
+    case 'landing':
+      return (
+        <Landing 
+          onInviteNavigate={handleStageComplete}
+          isInviteMode={true}
+        />
+      );
+    
+    case 'complete-profile':
+      return (
+        <CompleteProfile 
+          onInviteNavigate={handleStageComplete}
+          isInviteMode={true}
+        />
+      );
+    
+    case 'onboarding':
+      return (
+        <Onboarding 
+          onInviteNavigate={handleStageComplete}
+          isInviteMode={true}
+        />
+      );
+    
+    case 'home':
+      return (
+        <Home 
+          isInviteMode={true}
+        />
+      );
+    
+    default:
+      return <Landing />;
+  }
 }

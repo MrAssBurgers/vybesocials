@@ -15,7 +15,15 @@ import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 
-export default function Landing() {
+// Invite mode stage type - shared between invite flow components
+export type InviteStage = 'loading' | 'landing' | 'complete-profile' | 'onboarding' | 'home';
+
+interface LandingProps {
+  onInviteNavigate?: (stage: InviteStage) => void;
+  isInviteMode?: boolean;
+}
+
+export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
   const { user, signIn, signUp } = useAuth();
   const navigate = useNavigate();
@@ -50,6 +58,7 @@ export default function Landing() {
   // Redirect if already logged in AND has completed onboarding
   // First-time users (even if authenticated) should see intro if not completed
   // IMPORTANT: Don't redirect if user entered via invite link - let them complete the flow
+  // When isInviteMode=true, this component is rendered inline from InviteRedeem
   const location = useLocation();
   const isInviteRoute = location.pathname.startsWith('/invite/');
   
@@ -57,7 +66,31 @@ export default function Landing() {
     async function checkAndRedirect() {
       if (!user) return;
       
-      // If on invite route or in invite mode, don't auto-redirect to home
+      // If in invite mode (rendered from InviteRedeem), NEVER redirect via navigate
+      // The InviteRedeem handles stage transitions via onInviteNavigate callback
+      if (isInviteMode) {
+        console.log('[Landing] In invite mode - skipping navigate redirects');
+        
+        // Instead, trigger stage transition via callback
+        if (onInviteNavigate) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username, onboarding_completed')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          
+          if (profile?.username && profile?.onboarding_completed !== false) {
+            onInviteNavigate('home');
+          } else if (!profile?.username) {
+            onInviteNavigate('complete-profile');
+          } else {
+            onInviteNavigate('onboarding');
+          }
+        }
+        return;
+      }
+      
+      // If on invite route or in invite entry mode, don't auto-redirect to home
       // Let the user complete the full first-time experience
       if (isInviteRoute || isInviteEntryMode()) {
         console.log('[Landing] In invite flow, skipping auto-redirect');
@@ -79,7 +112,7 @@ export default function Landing() {
     }
     
     checkAndRedirect();
-  }, [user, navigate, isInviteRoute]);
+  }, [user, navigate, isInviteRoute, isInviteMode, onInviteNavigate]);
 
   // Only hide the landing page if we're about to redirect (handled in useEffect)
   // Don't return null immediately - let the useEffect decide
@@ -87,6 +120,15 @@ export default function Landing() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    // Helper function for navigation - uses callback in invite mode
+    const navTo = (stage: InviteStage, fallbackPath: string) => {
+      if (isInviteMode && onInviteNavigate) {
+        onInviteNavigate(stage);
+      } else {
+        navigate(fallbackPath);
+      }
+    };
 
     try {
       if (isLogin) {
@@ -104,16 +146,16 @@ export default function Landing() {
             .maybeSingle();
           
           if (profile?.username && profile?.onboarding_completed !== false) {
-            navigate('/home');
+            navTo('home', '/home');
           } else if (!profile?.username) {
             // New user needs to complete profile
-            navigate('/complete-profile');
+            navTo('complete-profile', '/complete-profile');
           } else {
             // Has username but onboarding not complete
-            navigate('/onboarding');
+            navTo('onboarding', '/onboarding');
           }
         } else {
-          navigate('/home');
+          navTo('home', '/home');
         }
       } else {
         if (!formData.username.trim()) {
@@ -122,7 +164,7 @@ export default function Landing() {
         const { error } = await signUp(formData.email, formData.password, formData.username);
         if (error) throw error;
         toast.success('Welcome to VYBE! 🎉');
-        navigate('/onboarding');
+        navTo('onboarding', '/onboarding');
       }
     } catch (error: any) {
       toast.error(getUserFriendlyError(error));
@@ -133,7 +175,11 @@ export default function Landing() {
 
   const handleGuestBrowse = () => {
     // Navigate to home without signing in - guest mode
-    navigate('/home');
+    if (isInviteMode && onInviteNavigate) {
+      onInviteNavigate('home');
+    } else {
+      navigate('/home');
+    }
   };
 
   const handleIntroComplete = () => {
@@ -316,11 +362,18 @@ export default function Landing() {
               onClick={async () => {
                 setLoading(true);
                 try {
+                  // In invite mode, redirect back to current invite URL after OAuth
+                  // This preserves the invite URL through the OAuth flow
+                  // Note: OAuth is an external redirect, so we can't use internal callbacks
+                  // The user will return to the invite URL, and the useEffect will handle stage transition
+                  const redirectUrl = isInviteMode 
+                    ? window.location.href // Keep current invite URL
+                    : `${window.location.origin}/complete-profile`;
+                  
                   const { error } = await supabase.auth.signInWithOAuth({
                     provider: 'google',
                     options: {
-                      // Redirect to complete-profile which handles onboarding status check
-                      redirectTo: `${window.location.origin}/complete-profile`,
+                      redirectTo: redirectUrl,
                     },
                   });
                   if (error) throw error;

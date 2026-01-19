@@ -69,7 +69,11 @@ const PostList = memo(({
   );
 });
 
-export default function HomePage() {
+interface HomePageProps {
+  isInviteMode?: boolean;
+}
+
+export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const navigate = useNavigate();
   const { user, profile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('foryou');
@@ -187,8 +191,16 @@ export default function HomePage() {
 
   // Redirect first-time users to the intro/landing page
   // Also redirect users who don't have a profile/username yet
+  // IMPORTANT: When isInviteMode=true, this component is rendered inline on /invite/:username
+  // so we should NOT redirect - the InviteRedeem handles routing
   useEffect(() => {
     if (authLoading) return;
+    
+    // If in invite mode (rendered from InviteRedeem), never redirect
+    if (isInviteMode) {
+      console.log('[Home] In invite mode - skipping all redirects');
+      return;
+    }
     
     // For unauthenticated users, redirect to landing if they haven't seen intro
     // or if they're in invite mode (should be on /invite/:username)
@@ -213,7 +225,7 @@ export default function HomePage() {
       }
       navigate('/complete-profile');
     }
-  }, [authLoading, user, profile, navigate]);
+  }, [authLoading, user, profile, navigate, isInviteMode]);
 
   return (
     <AppLayout>
