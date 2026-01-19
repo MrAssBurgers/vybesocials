@@ -154,12 +154,11 @@ export function InvitePopup() {
   }, [user?.id, profile?.id, checkAndShowReferral]);
 
   /**
-   * Grant reward to inviter and send notification
+   * Call backend function to grant reward (uses service role for instant credit)
    */
-  const grantRewardAndNotify = useCallback(async (
+  const confirmReferralBackend = useCallback(async (
     inviterUserId: string, 
-    inviterProfileId: string,
-    redeemerProfileId: string
+    inviterProfileId: string
   ) => {
     if (rewardGrantedRef.current) {
       console.log('[InvitePopup] Reward already granted');
@@ -167,139 +166,45 @@ export function InvitePopup() {
     }
     
     try {
-      console.log('[InvitePopup] Granting reward to inviter');
+      console.log('[InvitePopup] Calling confirm-referral backend...');
       
-      // Check if already redeemed
-      const { data: existing } = await supabase
-        .from('invite_redemptions')
-        .select('id')
-        .eq('redeemer_id', redeemerProfileId)
-        .maybeSingle();
-      
-      if (existing) {
-        console.log('[InvitePopup] Already redeemed');
-        rewardGrantedRef.current = true;
-        return true;
-      }
-      
-      // Find or create invite record
-      const { data: existingInvite } = await supabase
-        .from('invites')
-        .select('id, use_count')
-        .eq('inviter_id', inviterUserId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      let inviteId: string;
-      let currentUseCount = 0;
-      
-      if (!existingInvite) {
-        const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-        const { data: newInvite, error: createError } = await supabase
-          .from('invites')
-          .insert({
-            inviter_id: inviterUserId,
-            invite_code: inviteCode,
-            use_count: 0,
-          })
-          .select('id, use_count')
-          .single();
-        
-        if (createError || !newInvite) {
-          console.error('[InvitePopup] Failed to create invite:', createError);
-          return false;
-        }
-        inviteId = newInvite.id;
-      } else {
-        inviteId = existingInvite.id;
-        currentUseCount = existingInvite.use_count || 0;
-      }
-      
-      // Create redemption
-      const { error: redemptionError } = await supabase
-        .from('invite_redemptions')
-        .insert({
-          invite_id: inviteId,
-          redeemer_id: redeemerProfileId,
-        });
-      
-      if (redemptionError && redemptionError.code !== '23505') {
-        console.error('[InvitePopup] Redemption error:', redemptionError);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.error('[InvitePopup] No session');
         return false;
       }
       
-      // Update use count
-      await supabase
-        .from('invites')
-        .update({ use_count: currentUseCount + 1 })
-        .eq('id', inviteId);
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-referral`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            inviterUserId,
+            inviterProfileId,
+          }),
+        }
+      );
       
-      // Send notification to inviter
-      await supabase
-        .from('notifications')
-        .insert({
-          user_id: inviterProfileId,
-          actor_id: redeemerProfileId,
-          type: 'invite_accepted',
-        });
+      const result = await response.json();
       
-      console.log('[InvitePopup] Reward granted and notification sent!');
+      if (!response.ok) {
+        console.error('[InvitePopup] Backend error:', result.error);
+        return false;
+      }
+      
+      console.log('[InvitePopup] Backend success:', result);
       rewardGrantedRef.current = true;
       return true;
     } catch (error) {
-      console.error('[InvitePopup] Error granting reward:', error);
+      console.error('[InvitePopup] Error calling backend:', error);
       return false;
     }
   }, []);
 
-  /**
-   * Auto-add inviter as friend (instant friendship, not just a request)
-   */
-  const autoAddFriend = async (inviterProfileId: string, userProfileId: string) => {
-    try {
-      // Check if already friends or request exists
-      const { data: existing } = await supabase
-        .from('friend_requests')
-        .select('id, status')
-        .or(`and(sender_id.eq.${userProfileId},receiver_id.eq.${inviterProfileId}),and(sender_id.eq.${inviterProfileId},receiver_id.eq.${userProfileId})`)
-        .maybeSingle();
-      
-      if (existing) {
-        // If pending, accept it
-        if (existing.status === 'pending') {
-          await supabase
-            .from('friend_requests')
-            .update({ status: 'accepted' })
-            .eq('id', existing.id);
-          console.log('[InvitePopup] Accepted existing friend request');
-        } else {
-          console.log('[InvitePopup] Already friends');
-        }
-        return true;
-      }
-      
-      // Create accepted friend request (instant friendship)
-      const { error } = await supabase
-        .from('friend_requests')
-        .insert({
-          sender_id: userProfileId,
-          receiver_id: inviterProfileId,
-          status: 'accepted',
-        });
-      
-      if (error) {
-        console.error('[InvitePopup] Failed to add friend:', error);
-        return false;
-      }
-      
-      console.log('[InvitePopup] Added as friends instantly');
-      return true;
-    } catch (error) {
-      console.error('[InvitePopup] Error adding friend:', error);
-      return false;
-    }
-  };
 
   const handleThankYou = async () => {
     if (!profile?.id || !referral || loading) return;
@@ -307,15 +212,11 @@ export function InvitePopup() {
     setLoading(true);
     
     try {
-      // Grant reward and notify inviter
-      await grantRewardAndNotify(
+      // Call backend to grant reward (uses service role - instant credit)
+      await confirmReferralBackend(
         referral.inviterUserId,
-        referral.inviterId,
-        profile.id
+        referral.inviterId
       );
-      
-      // Auto-add as friend (instant friendship)
-      await autoAddFriend(referral.inviterId, profile.id);
       
       // Mark as confirmed
       markReferralConfirmed();
