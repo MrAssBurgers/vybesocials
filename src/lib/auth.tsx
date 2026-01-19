@@ -163,31 +163,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // The invite popup will handle the friend request flow
-  // This function just validates the pending invite on first login
-  const validatePendingInvite = async (profileId: string) => {
-    const pendingInviterId = sessionStorage.getItem('pending_inviter_id');
-    if (!pendingInviterId) return;
-    
-    // Don't allow self-referral
-    if (pendingInviterId === profileId) {
-      sessionStorage.removeItem('pending_inviter_id');
-      return;
-    }
-    
-    // Validate inviter still exists
-    const { data: inviterProfile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', pendingInviterId)
-      .maybeSingle();
-    
-    if (!inviterProfile) {
-      // Invalid inviter, clear storage
-      sessionStorage.removeItem('pending_inviter_id');
-    }
-    // If valid, the InvitePopup component will handle the rest
-  };
+  // Note: Referral/invite popup is now handled entirely by InvitePopup component
+  // using the referral.ts utilities with localStorage persistence
 
   const fetchProfile = async (userId: string) => {
     // Prefer array result to avoid throwing when the row doesn't exist
@@ -202,8 +179,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check ban status and subscribe to realtime changes
       checkBanStatus(data[0].id);
       subscribeToBanChanges(data[0].id);
-      // Validate pending invite (InvitePopup handles the UI)
-      validatePendingInvite(data[0].id);
       return data[0];
     }
 
@@ -226,8 +201,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check ban status and subscribe to realtime changes
       checkBanStatus(afterEnsure[0].id);
       subscribeToBanChanges(afterEnsure[0].id);
-      // Validate pending invite (InvitePopup handles the UI)
-      validatePendingInvite(afterEnsure[0].id);
       return afterEnsure[0];
     }
 

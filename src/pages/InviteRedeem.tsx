@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { analytics } from '@/lib/analytics';
 import { VYBELogo } from '@/components/ui/VYBELogo';
+import { setPendingReferral, clearPendingReferral } from '@/lib/referral';
 
 interface InviterInfo {
   id: string;
@@ -15,17 +16,24 @@ interface InviterInfo {
   display_name: string | null;
 }
 
+/**
+ * Invite landing page - validates invite and stores referral for post-signup
+ * 
+ * URL formats:
+ * - /invite/@username
+ * - /invite/username
+ */
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const [inviter, setInviter] = useState<InviterInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [validated, setValidated] = useState(false);
   
   // Parse username from identifier (handles @username format)
   const getUsername = (id: string | undefined): string | null => {
     if (!id) return null;
-    // Remove @ prefix if present
     return id.startsWith('@') ? id.slice(1) : id;
   };
   
@@ -38,7 +46,7 @@ export default function InviteRedeem() {
     }
   }, [username]);
   
-  // Validate invite and get inviter info by username
+  // Validate invite and store for post-signup
   useEffect(() => {
     async function validateInvite() {
       if (!username) {
@@ -47,24 +55,27 @@ export default function InviteRedeem() {
       }
       
       try {
-        // Find inviter by username
+        // Find inviter by username using public_profiles for RLS compatibility
         const { data: inviterProfile, error } = await supabase
-          .from('profiles')
+          .from('public_profiles')
           .select('id, username, avatar_url, display_name')
-          .eq('username', username.toLowerCase())
+          .ilike('username', username.toLowerCase())
           .maybeSingle();
         
         if (error || !inviterProfile) {
           console.log('Inviter not found, continuing without referral');
+          clearPendingReferral();
           setLoading(false);
           return;
         }
         
         setInviter(inviterProfile);
-        // Store inviter profile ID for post-signup popup
-        sessionStorage.setItem('pending_inviter_id', inviterProfile.id);
+        // Store in localStorage for persistence across signup
+        setPendingReferral(inviterProfile.id);
+        setValidated(true);
       } catch (err) {
         console.error('Error validating invite:', err);
+        clearPendingReferral();
       } finally {
         setLoading(false);
       }
@@ -73,25 +84,28 @@ export default function InviteRedeem() {
     validateInvite();
   }, [username]);
   
-  // If user is already logged in, check if they're the inviter
+  // Handle already logged-in users
   useEffect(() => {
-    if (user?.id && profile?.id && inviter) {
-      if (inviter.id === profile.id) {
-        // Can't use own invite
-        navigate('/home');
-        return;
-      }
-      
-      // Already logged in - store inviter and redirect to home
-      // The InvitePopup will show after navigation
-      sessionStorage.setItem('pending_inviter_id', inviter.id);
+    if (!validated) return;
+    if (!user?.id || !profile?.id) return;
+    
+    if (inviter && inviter.id === profile.id) {
+      // Can't use own invite
+      clearPendingReferral();
+      navigate('/home');
+      return;
+    }
+    
+    // Already logged in with valid referral - go to home
+    // InvitePopup will show there
+    if (inviter) {
       navigate('/home');
     }
-  }, [user?.id, profile?.id, inviter, navigate]);
+  }, [user?.id, profile?.id, inviter, validated, navigate]);
   
   const handleJoin = () => {
     // Navigate to landing page with signup mode
-    // The inviter is already stored in sessionStorage
+    // Referral is already stored in localStorage
     navigate('/?signup=true');
   };
   
