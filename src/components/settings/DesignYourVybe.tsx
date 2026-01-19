@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Palette, Sparkles, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon, Share2, Zap, Timer } from 'lucide-react';
-import { ThemeWaveAnimation } from '@/components/effects/ThemeWaveAnimation';
+import { NanotechSwoosh } from '@/components/effects/NanotechSwoosh';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -206,6 +206,13 @@ export function DesignYourVybe() {
     }
   };
 
+  // Store theme to apply during swoosh midpoint
+  const [pendingTheme, setPendingTheme] = useState<{
+    tokens: typeof previewTheme;
+    name: string;
+    preset: string;
+  } | null>(null);
+
   const handleKeepTheme = async () => {
     if (!previewTheme) return;
     
@@ -215,20 +222,36 @@ export function DesignYourVybe() {
       animationStyle,
     };
     
-    // Show wave animation first
-    setShowWaveAnimation(true);
-    
-    await saveTheme.mutateAsync({
-      themeTokens: themeWithAnimations,
-      themeName: generatedName,
-      basePreset: selectedPreset,
+    // Store pending theme and show swoosh animation
+    setPendingTheme({
+      tokens: themeWithAnimations,
+      name: generatedName,
+      preset: selectedPreset,
     });
+    setShowWaveAnimation(true);
+  };
+
+  // Apply theme at swoosh midpoint (nanotech rebuild moment)
+  const handleSwooshMidpoint = useCallback(async () => {
+    if (!pendingTheme?.tokens) return;
+    
+    // Apply theme tokens NOW (behind the swoosh)
+    applyThemeTokens(pendingTheme.tokens);
+    
+    // Save to database
+    await saveTheme.mutateAsync({
+      themeTokens: pendingTheme.tokens,
+      themeName: pendingTheme.name,
+      basePreset: pendingTheme.preset,
+    });
+    
     setShowConfirmation(false);
     setPrompt('');
-  };
+  }, [pendingTheme, saveTheme]);
 
   const handleWaveComplete = useCallback(() => {
     setShowWaveAnimation(false);
+    setPendingTheme(null);
   }, []);
 
   const handleTryAgain = () => {
@@ -614,12 +637,14 @@ export function DesignYourVybe() {
         )}
       </AnimatePresence>
 
-      {/* Theme Wave Animation */}
-      <ThemeWaveAnimation
+      {/* Nanotech Swoosh Theme Transition */}
+      <NanotechSwoosh
         isActive={showWaveAnimation}
-        primaryColor={previewTheme?.colorPrimary || '280 70% 50%'}
-        accentColor={previewTheme?.colorAccent || '330 80% 60%'}
+        primaryColor={previewTheme?.colorPrimary || pendingTheme?.tokens?.colorPrimary || '280 70% 50%'}
+        accentColor={previewTheme?.colorAccent || pendingTheme?.tokens?.colorAccent || '330 80% 60%'}
+        onMidpoint={handleSwooshMidpoint}
         onComplete={handleWaveComplete}
+        duration={700}
       />
     </div>
   );
