@@ -92,11 +92,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if already redeemed
+    // Check if already redeemed (redeemer_id is the auth user id)
     const { data: existingRedemption } = await supabaseAdmin
       .from("invite_redemptions")
       .select("id")
-      .eq("redeemer_id", redeemerProfileId)
+      .eq("redeemer_id", user.id)
       .maybeSingle();
 
     if (existingRedemption) {
@@ -145,12 +145,12 @@ Deno.serve(async (req) => {
       inviteId = newInvite.id;
     }
 
-    // Create redemption record
+    // Create redemption record (redeemer_id is the auth user id)
     const { error: redemptionError } = await supabaseAdmin
       .from("invite_redemptions")
       .insert({
         invite_id: inviteId,
-        redeemer_id: redeemerProfileId,
+        redeemer_id: user.id,
       });
 
     if (redemptionError && redemptionError.code !== "23505") {

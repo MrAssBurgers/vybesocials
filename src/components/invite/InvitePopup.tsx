@@ -208,23 +208,28 @@ export function InvitePopup() {
 
   const handleThankYou = async () => {
     if (!profile?.id || !referral || loading) return;
-    
+
     setLoading(true);
-    
+
     try {
       // Call backend to grant reward (uses service role - instant credit)
-      await confirmReferralBackend(
+      const ok = await confirmReferralBackend(
         referral.inviterUserId,
         referral.inviterId
       );
-      
-      // Mark as confirmed
+
+      if (!ok) {
+        toast.error("Couldn't confirm the invite reward. Please try again.");
+        return;
+      }
+
+      // Mark as confirmed only after backend success
       markReferralConfirmed();
-      
+
       // Show success
       setSuccess(true);
       toast.success(`You and @${referral.inviterUsername} are now friends!`);
-      
+
       // Close after animation
       setTimeout(() => {
         setVisible(false);
@@ -232,10 +237,7 @@ export function InvitePopup() {
       }, 1500);
     } catch (error) {
       console.error('[InvitePopup] Error:', error);
-      // Still close on error - don't block user
-      markReferralConfirmed();
-      setVisible(false);
-      cleanupReferralStorage();
+      toast.error("Couldn't confirm the invite reward. Please try again.");
     } finally {
       setLoading(false);
     }
