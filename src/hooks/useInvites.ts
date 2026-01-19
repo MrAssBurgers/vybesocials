@@ -7,18 +7,11 @@ import { analytics } from '@/lib/analytics';
 interface Invite {
   id: string;
   invite_code: string;
-  inviter_id: string;
+  inviter_id: string; // This is auth user ID (user_id from auth.users)
   created_at: string;
   expires_at: string | null;
-  max_uses: number;
+  max_uses: number | null;
   use_count: number;
-}
-
-interface InviteRedemption {
-  id: string;
-  invite_id: string;
-  redeemer_id: string;
-  redeemed_at: string;
 }
 
 interface Badge {
@@ -37,11 +30,12 @@ function generateInviteCode(): string {
 
 /**
  * Get or create the user's invite link
+ * Uses user.id (auth user ID) as the inviter_id since invites table has FK to auth.users
  */
 export function useMyInvite() {
   const { user } = useAuth();
   
-  return useQuery({
+  const query = useQuery({
     queryKey: ['my-invite', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -59,15 +53,15 @@ export function useMyInvite() {
         return existingInvite as Invite;
       }
       
-      // Create new invite if none exists - no expiration by default
+      // Create new invite if none exists - never expires, unlimited uses
       const inviteCode = generateInviteCode();
       const { data: newInvite, error } = await supabase
         .from('invites')
         .insert({
           inviter_id: user.id,
           invite_code: inviteCode,
-          expires_at: null, // Never expires
-          max_uses: null, // Unlimited uses
+          expires_at: null,
+          max_uses: null,
         })
         .select()
         .single();
@@ -79,6 +73,74 @@ export function useMyInvite() {
     },
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  return query;
+}
+
+/**
+ * Regenerate invite code for the user
+ */
+export function useRegenerateInvite() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('Must be logged in');
+      
+      // Generate new unique code
+      const newCode = generateInviteCode();
+      
+      // Check if user has an existing invite
+      const { data: existingInvite } = await supabase
+        .from('invites')
+        .select('id')
+        .eq('inviter_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (existingInvite) {
+        // Update existing invite with new code
+        const { data, error } = await supabase
+          .from('invites')
+          .update({ 
+            invite_code: newCode,
+            use_count: 0, // Reset use count
+            expires_at: null,
+            max_uses: null,
+          })
+          .eq('id', existingInvite.id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data as Invite;
+      } else {
+        // Create new invite
+        const { data, error } = await supabase
+          .from('invites')
+          .insert({
+            inviter_id: user.id,
+            invite_code: newCode,
+            expires_at: null,
+            max_uses: null,
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data as Invite;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-invite'] });
+      toast.success('New invite link generated!');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to regenerate link');
+    },
   });
 }
 
@@ -124,7 +186,7 @@ export function useInviteStats() {
       // Fetch profiles for redeemers
       const redemptionsWithProfiles = await Promise.all(
         (recentRedemptions || []).map(async (r) => {
-          const { data: profile } = await supabase
+          const { data: redeemerProfile } = await supabase
             .from('profiles')
             .select('username, avatar_url')
             .eq('id', r.redeemer_id)
@@ -132,7 +194,7 @@ export function useInviteStats() {
           
           return {
             ...r,
-            profile,
+            profile: redeemerProfile,
           };
         })
       );
@@ -148,14 +210,16 @@ export function useInviteStats() {
 
 /**
  * Redeem an invite code
+ * Uses profile.id as the redeemer_id (for invite_redemptions, follows, friend_requests)
+ * But compares against inviter's auth user ID for self-invite check
  */
 export function useRedeemInvite() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   
   return useMutation({
     mutationFn: async (inviteCode: string) => {
-      if (!user?.id) throw new Error('Must be logged in');
+      if (!profile?.id || !user?.id) throw new Error('Must be logged in');
       
       // Find the invite
       const { data: invite, error: findError } = await supabase
@@ -168,21 +232,32 @@ export function useRedeemInvite() {
         throw new Error('Invalid invite code');
       }
       
-      // Check if already redeemed
+      // Check if own invite (inviter_id is auth user ID)
+      if (invite.inviter_id === user.id) {
+        throw new Error('You cannot use your own invite');
+      }
+      
+      // Check if already redeemed by this profile
       const { data: existing } = await supabase
         .from('invite_redemptions')
         .select('id')
         .eq('invite_id', invite.id)
-        .eq('redeemer_id', user.id)
-        .single();
+        .eq('redeemer_id', profile.id)
+        .maybeSingle();
       
       if (existing) {
         throw new Error('You have already used this invite');
       }
       
-      // Check if own invite
-      if (invite.inviter_id === user.id) {
-        throw new Error('You cannot use your own invite');
+      // Get inviter's profile ID for follows/friend requests
+      const { data: inviterProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', invite.inviter_id)
+        .single();
+      
+      if (!inviterProfile) {
+        throw new Error('Inviter not found');
       }
       
       // Redeem the invite
@@ -190,7 +265,7 @@ export function useRedeemInvite() {
         .from('invite_redemptions')
         .insert({
           invite_id: invite.id,
-          redeemer_id: user.id,
+          redeemer_id: profile.id,
         });
       
       if (redeemError) throw redeemError;
@@ -201,26 +276,34 @@ export function useRedeemInvite() {
         .update({ use_count: (invite.use_count || 0) + 1 })
         .eq('id', invite.id);
       
-      // Auto-follow the inviter
-      await supabase
-        .from('follows')
-        .insert({
-          follower_id: user.id,
-          following_id: invite.inviter_id,
-        });
+      // Auto-follow the inviter (use profile IDs)
+      try {
+        await supabase
+          .from('follows')
+          .insert({
+            follower_id: profile.id,
+            following_id: inviterProfile.id,
+          });
+      } catch {
+        // Ignore duplicate errors
+      }
       
-      // Send friend request
-      await supabase
-        .from('friend_requests')
-        .insert({
-          sender_id: user.id,
-          receiver_id: invite.inviter_id,
-          status: 'pending',
-        });
+      // Send friend request (use profile IDs)
+      try {
+        await supabase
+          .from('friend_requests')
+          .insert({
+            sender_id: profile.id,
+            receiver_id: inviterProfile.id,
+            status: 'pending',
+          });
+      } catch {
+        // Ignore duplicate errors
+      }
       
       analytics.inviteAccepted({ inviterId: invite.inviter_id });
       
-      return { inviterId: invite.inviter_id };
+      return { inviterId: invite.inviter_id, inviterProfileId: inviterProfile.id };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invite-stats'] });
@@ -261,6 +344,5 @@ export function useUserBadges(userId?: string) {
  * Get invite URL - uses official vybehub.app domain
  */
 export function getInviteUrl(inviteCode: string): string {
-  // Use official domain for production invite links
   return `https://vybehub.app/invite/${inviteCode}`;
 }

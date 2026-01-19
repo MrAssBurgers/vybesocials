@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Check, QrCode, Users, Gift, Star, Sparkles, Share2 } from 'lucide-react';
+import { Copy, Check, QrCode, Users, Gift, Star, Sparkles, Share2, RefreshCw } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useMyInvite, useInviteStats, useUserBadges, getInviteUrl } from '@/hooks/useInvites';
+import { useMyInvite, useInviteStats, useUserBadges, useRegenerateInvite, getInviteUrl } from '@/hooks/useInvites';
 import { analytics } from '@/lib/analytics';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -22,6 +22,7 @@ export default function InviteFriends() {
   const { data: invite, isLoading: inviteLoading } = useMyInvite();
   const { data: stats, isLoading: statsLoading } = useInviteStats();
   const { data: badges } = useUserBadges();
+  const regenerateInvite = useRegenerateInvite();
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   
@@ -132,9 +133,19 @@ export default function InviteFriends() {
                 </Button>
                 <Button 
                   variant="outline"
+                  size="icon"
                   onClick={() => setShowQR(!showQR)}
                 >
                   <QrCode className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="outline"
+                  size="icon"
+                  onClick={() => regenerateInvite.mutate()}
+                  disabled={regenerateInvite.isPending}
+                  title="Generate new link"
+                >
+                  <RefreshCw className={`h-4 w-4 ${regenerateInvite.isPending ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
               
