@@ -15,6 +15,16 @@ import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 
+// Hide bottom nav on landing page
+function useHideBottomNav() {
+  useEffect(() => {
+    document.body.classList.add('hide-bottom-nav');
+    return () => {
+      document.body.classList.remove('hide-bottom-nav');
+    };
+  }, []);
+}
+
 // Invite mode stage type - shared between invite flow components
 export type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
@@ -29,6 +39,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
+  
+  // Hide bottom nav while on landing page
+  useHideBottomNav();
   
   // Check URL params for mode (login vs signup) and intro reset
   const modeParam = searchParams.get('mode');

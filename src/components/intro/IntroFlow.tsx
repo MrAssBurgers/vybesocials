@@ -49,7 +49,11 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
   const { reduceMotion } = useAccessibility();
   
   // Wait for splash screen to be fully gone before showing intro
+  // Also hide bottom nav while intro is showing
   useEffect(() => {
+    // Hide bottom nav during intro
+    document.body.classList.add('hide-bottom-nav');
+    
     const startTime = Date.now();
     
     const checkSplashGone = () => {
@@ -67,6 +71,11 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
     };
     
     checkSplashGone();
+    
+    // Cleanup - show bottom nav when intro unmounts
+    return () => {
+      document.body.classList.remove('hide-bottom-nav');
+    };
   }, []);
   
   const isLastSlide = currentSlide === slides.length - 1;
