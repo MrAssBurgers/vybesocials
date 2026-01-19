@@ -28,6 +28,17 @@ export interface PendingReferral {
 /**
  * Store referral data for post-tutorial processing
  * Also resets intro so invited users get the full first-time experience
+ * 
+ * CRITICAL: This data persists through:
+ * - Page refreshes
+ * - Browser closes (localStorage)
+ * - Full onboarding flow
+ * - Tutorial flow
+ * 
+ * Only cleared when:
+ * - User explicitly confirms referral (cleanupReferralStorage)
+ * - Referral expires (7 days)
+ * - Self-referral detected
  */
 export function setPendingReferral(referral: PendingReferral): void {
   try {
