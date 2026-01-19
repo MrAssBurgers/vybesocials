@@ -884,6 +884,56 @@ export type Database = {
           },
         ]
       }
+      dismissed_profiles: {
+        Row: {
+          created_at: string
+          dismissed_user_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dismissed_user_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dismissed_user_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dismissed_profiles_dismissed_user_id_fkey"
+            columns: ["dismissed_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dismissed_profiles_dismissed_user_id_fkey"
+            columns: ["dismissed_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dismissed_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dismissed_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dm_settings: {
         Row: {
           chat_font: string | null

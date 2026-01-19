@@ -6,12 +6,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { UserPlus, Users, Search, X, Check, Clock, MessageCircle } from 'lucide-react';
+import { UserPlus, Users, Search, X, Check, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useFriendshipStatus, useSendFriendRequest, useFriends } from '@/hooks/useFriends';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDismissProfile } from '@/hooks/useDismissedProfiles';
+import { useHiddenFromDiscovery } from '@/hooks/useOutgoingRequests';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -45,23 +47,25 @@ function getFullName(user: { first_name?: string | null; last_name?: string | nu
   return user.display_name || user.username;
 }
 
-// Hook to get suggested users when no mutual friends exist
+// Hook to get suggested users when no mutual friends exist - with Snapchat-style filtering
 function useSuggestedUsers() {
   const { profile } = useAuth();
   const { data: friends } = useFriends();
+  const { data: hiddenIds } = useHiddenFromDiscovery();
   
   return useQuery({
-    queryKey: ['suggested-users', profile?.id, friends?.length],
+    queryKey: ['suggested-users', profile?.id, friends?.length, hiddenIds?.size],
     queryFn: async (): Promise<UserWithMutualFriends[]> => {
       if (!profile?.id) return [];
       
       const friendIds = friends?.map(f => f.id) || [];
+      const allHiddenIds = hiddenIds || new Set<string>();
       
       let query = supabase
         .from('profiles')
         .select('id, username, display_name, first_name, last_name, avatar_url')
         .neq('id', profile.id)
-        .limit(20);
+        .limit(30); // Fetch more to account for filtering
       
       if (friendIds.length > 0) {
         query = query.not('id', 'in', `(${friendIds.join(',')})`);
@@ -71,8 +75,11 @@ function useSuggestedUsers() {
       
       if (!users || users.length === 0) return [];
       
+      // Filter out hidden users (pending outgoing, dismissed, blocked)
+      const filteredUsers = users.filter(u => !allHiddenIds.has(u.id));
+      
       const usersWithFriendCount = await Promise.all(
-        users.slice(0, 10).map(async (user) => {
+        filteredUsers.slice(0, 10).map(async (user) => {
           const { count } = await supabase
             .from('friend_requests')
             .select('*', { count: 'exact', head: true })
@@ -102,30 +109,39 @@ function useSuggestedUsers() {
   });
 }
 
-import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
-
 export function MutualFriendsQuickAdd({ 
   onSelect 
 }: { 
   onSelect: (userId: string) => void;
 }) {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
   const { data: mutualSuggestions, isLoading: isLoadingMutual } = useMutualFriends();
   const { data: suggestedUsers, isLoading: isLoadingSuggested } = useSuggestedUsers();
+  const { data: hiddenIds } = useHiddenFromDiscovery();
+  const dismissProfile = useDismissProfile();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserWithMutualFriends[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  
-  // Use persistent dismissed state
-  const { dismissedIds, dismissUser, isDismissed } = useDismissedQuickAdd();
+  const [localDismissed, setLocalDismissed] = useState<Set<string>>(new Set());
 
   const suggestions = (mutualSuggestions?.length ?? 0) > 0 ? mutualSuggestions : suggestedUsers;
   const isLoading = isLoadingMutual || isLoadingSuggested;
-  const hasMutualFriends = (mutualSuggestions?.length ?? 0) > 0;
 
-  // Handle dismiss - now persists to localStorage
+  // Handle dismiss - persists to database (Snapchat-style permanent hide)
   const handleDismiss = (userId: string) => {
-    dismissUser(userId);
+    // Immediately hide locally for instant feedback
+    setLocalDismissed(prev => new Set([...prev, userId]));
+    
+    // Persist to database
+    dismissProfile.mutate(userId, {
+      onSuccess: () => {
+        // Invalidate queries to refresh lists
+        queryClient.invalidateQueries({ queryKey: ['suggested-with-mutuals'] });
+        queryClient.invalidateQueries({ queryKey: ['suggested-users'] });
+        queryClient.invalidateQueries({ queryKey: ['hidden-from-discovery'] });
+      }
+    });
   };
 
   const handleSearch = async (query: string) => {
@@ -143,10 +159,14 @@ export function MutualFriendsQuickAdd({
         .select('id, username, display_name, first_name, last_name, avatar_url')
         .neq('id', profile?.id || '')
         .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,display_name.ilike.%${query}%,username.ilike.%${query}%`)
-        .limit(10);
+        .limit(15);
 
       if (data) {
-        const results: UserWithMutualFriends[] = data.map(p => ({
+        // Filter out hidden users from search results (Snapchat-style)
+        const allHidden = hiddenIds || new Set<string>();
+        const filteredData = data.filter(p => !allHidden.has(p.id) && !localDismissed.has(p.id));
+        
+        const results: UserWithMutualFriends[] = filteredData.map(p => ({
           id: p.id,
           username: p.username,
           display_name: p.display_name,
@@ -170,8 +190,15 @@ export function MutualFriendsQuickAdd({
     setSearchResults([]);
   };
 
+  // Combine all filters: hidden from discovery + locally dismissed
+  const isUserHidden = (userId: string) => {
+    if (localDismissed.has(userId)) return true;
+    if (hiddenIds?.has(userId)) return true;
+    return false;
+  };
+
   const allUsers = searchQuery.length >= 2 ? searchResults : suggestions;
-  const displayUsers = allUsers?.filter(u => !isDismissed(u.id));
+  const displayUsers = allUsers?.filter(u => !isUserHidden(u.id));
 
   if (isLoading && !searchQuery) {
     return (
@@ -266,23 +293,28 @@ function SnapchatStyleCard({
   onDismiss: (userId: string) => void;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const fullName = getFullName(user);
   const { data: friendship, isLoading: isLoadingStatus } = useFriendshipStatus(user.id);
   const sendRequest = useSendFriendRequest();
-  const [isAdded, setIsAdded] = useState(false);
   
   const isFriends = friendship?.status === 'friends';
-  const isPendingSent = friendship?.status === 'pending_sent' || isAdded;
   const isPendingReceived = friendship?.status === 'pending_received';
-  const canAdd = friendship?.status === 'none' && !isAdded;
+  // Snapchat-style: if they already sent a request, this card shouldn't show at all
+  // But just in case, treat it as "can add" (Accept for incoming)
+  const canAdd = friendship?.status === 'none';
 
   const handleAddFriend = () => {
     sendRequest.mutate(user.id, {
       onSuccess: () => {
-        setIsAdded(true);
         toast.success(`Added ${fullName}!`);
-        // Auto-dismiss the card after adding
+        // Immediately dismiss the card (Snapchat behavior: sent = disappear)
         onDismiss(user.id);
+        // Invalidate queries to ensure this user is hidden everywhere
+        queryClient.invalidateQueries({ queryKey: ['hidden-from-discovery'] });
+        queryClient.invalidateQueries({ queryKey: ['suggested-with-mutuals'] });
+        queryClient.invalidateQueries({ queryKey: ['suggested-users'] });
+        queryClient.invalidateQueries({ queryKey: ['friendship-status'] });
       },
     });
   };
@@ -305,10 +337,11 @@ function SnapchatStyleCard({
       exit="exit"
       className="relative bg-card border border-border rounded-2xl p-3 flex flex-col items-center text-center"
     >
-      {/* Dismiss X button - Snapchat style */}
+      {/* Dismiss X button - Snapchat style (permanent hide) */}
       <button
         onClick={handleDismiss}
         className="absolute top-2 right-2 h-5 w-5 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center transition-colors"
+        title="Hide forever"
       >
         <X className="h-3 w-3 text-muted-foreground" />
       </button>
@@ -357,7 +390,7 @@ function SnapchatStyleCard({
         </p>
       )}
 
-      {/* Action Button - Snapchat style */}
+      {/* Action Button - Snapchat style (no "Pending" state - they disappear) */}
       <div className="w-full">
         {isLoadingStatus ? (
           <Skeleton className="h-8 w-full rounded-full" />
@@ -370,16 +403,6 @@ function SnapchatStyleCard({
           >
             <MessageCircle className="h-3.5 w-3.5" />
             Message
-          </Button>
-        ) : isPendingSent ? (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled
-            className="w-full h-8 rounded-full text-xs font-semibold gap-1.5 bg-muted/50"
-          >
-            <Clock className="h-3.5 w-3.5" />
-            Pending
           </Button>
         ) : isPendingReceived ? (
           <Button
