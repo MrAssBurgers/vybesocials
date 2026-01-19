@@ -146,6 +146,7 @@ export function useRegenerateInvite() {
 
 /**
  * Get invite stats (redemptions count)
+ * Refetches frequently to show new redemptions quickly
  */
 export function useInviteStats() {
   const { user } = useAuth();
@@ -158,18 +159,24 @@ export function useInviteStats() {
       // Get all invites by this user
       const { data: invites } = await supabase
         .from('invites')
-        .select('id')
+        .select('id, use_count')
         .eq('inviter_id', user.id);
       
       if (!invites?.length) return { totalRedemptions: 0, recentRedemptions: [] };
       
+      // Sum up use_count from all invites (more reliable than counting redemptions)
+      const totalFromInvites = invites.reduce((sum, inv) => sum + (inv.use_count || 0), 0);
+      
       const inviteIds = invites.map(i => i.id);
       
-      // Get redemption count
+      // Get redemption count as backup
       const { count } = await supabase
         .from('invite_redemptions')
         .select('*', { count: 'exact', head: true })
         .in('invite_id', inviteIds);
+      
+      // Use whichever is higher (handles edge cases)
+      const totalRedemptions = Math.max(totalFromInvites, count || 0);
       
       // Get recent redemptions with profiles
       const { data: recentRedemptions } = await supabase
@@ -200,11 +207,14 @@ export function useInviteStats() {
       );
       
       return {
-        totalRedemptions: count || 0,
+        totalRedemptions,
         recentRedemptions: redemptionsWithProfiles,
       };
     },
     enabled: !!user?.id,
+    // Refetch every 5 seconds when on the invite page to show new redemptions quickly
+    refetchInterval: 5000,
+    staleTime: 2000,
   });
 }
 
