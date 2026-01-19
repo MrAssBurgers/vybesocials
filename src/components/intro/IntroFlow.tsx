@@ -230,17 +230,19 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
               <Sparkles className="w-4 h-4 mr-2" />
               Create Account
             </Button>
-            <Button
-              variant="ghost"
-              className="w-full"
-              size="lg"
-              onClick={() => {
-                markIntroComplete();
-                onSkip();
-              }}
-            >
-              Log In
-            </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  markIntroComplete();
+                  onSkip();
+                }}
+                className="text-primary hover:underline font-medium"
+              >
+                Log In
+              </button>
+            </p>
           </div>
         ) : (
           <Button
