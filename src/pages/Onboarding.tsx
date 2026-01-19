@@ -14,7 +14,8 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import type { InviteStage } from '@/pages/Landing';
+// Invite mode stage type - must match InviteRedeem state machine
+type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
 const TOTAL_STEPS = 7;
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Heart, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -51,6 +52,8 @@ const STEP_INFO: Record<ConfirmStep, StepInfo> = {
  */
 export function InvitePopup() {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [referral, setReferral] = useState<PendingReferral | null>(null);
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState<ConfirmStep>('idle');
@@ -284,10 +287,15 @@ export function InvitePopup() {
       // Show success toast
       toast.success(`You and @${referral.inviterUsername} are now friends!`);
 
-      // Close after showing complete state
+      // Close after showing complete state, then navigate to /home if on invite route
       setTimeout(() => {
         setVisible(false);
         cleanupReferralStorage();
+        
+        // If we're on an invite route, navigate to /home
+        if (location.pathname.startsWith('/invite/')) {
+          navigate('/home');
+        }
       }, 1500);
     } catch (error) {
       console.error('[InvitePopup] Error:', error);

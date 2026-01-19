@@ -5,8 +5,8 @@ import { analytics } from '@/lib/analytics';
 import { setPendingReferral, clearPendingReferral, type PendingReferral } from '@/lib/referral';
 import { useAuth } from '@/lib/auth';
 
-// Import inline components and types
-import Landing, { type InviteStage } from '@/pages/Landing';
+// Import components for inline rendering
+import Landing from '@/pages/Landing';
 import CompleteProfile from '@/pages/CompleteProfile';
 import Onboarding from '@/pages/Onboarding';
 import Home from '@/pages/Home';
@@ -14,20 +14,17 @@ import Home from '@/pages/Home';
 /**
  * Persistent Invite Entry Mode
  * 
- * /invite/:username is NOT a redirect page.
- * It renders the ENTIRE app inline without changing the URL.
+ * /invite/:username is a URL ALIAS for / (not a separate page).
+ * It renders the SAME app experience as / but with invite context attached.
  * 
- * The user stays on /invite/:username through:
+ * The URL NEVER changes during:
  * - Intro flow
  * - Signup/Login
  * - Complete Profile
  * - Onboarding  
  * - Tutorial (on Home)
  * 
- * After tutorial → referral confirmation modal appears.
- * After "Thanks!" → redirect to /home normally.
- * 
- * URL remains /invite/:username until navigation after confirmation.
+ * After "Thanks!" in referral modal → redirect to /home.
  */
 
 const ENTRY_MODE_KEY = 'vybe_entry_mode';
@@ -56,13 +53,14 @@ export function clearEntryMode(): void {
   }
 }
 
-// InviteStage type is imported from Landing.tsx
+// Stage type for internal state machine
+type InviteFlowStage = 'loading' | 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
   const { user, profile, loading: authLoading } = useAuth();
   const [inviteProcessed, setInviteProcessed] = useState(false);
-  const [currentStage, setCurrentStage] = useState<InviteStage>('loading');
+  const [currentStage, setCurrentStage] = useState<InviteFlowStage>('loading');
   const processedRef = useRef(false);
   
   // Parse identifier - handles @username, username, or UUID
@@ -79,9 +77,8 @@ export default function InviteRedeem() {
     return { type: 'username', value: cleaned };
   };
   
-  // Process invite once on mount - store referral data
+  // Process invite ONCE on mount - store referral data
   useEffect(() => {
-    // Prevent double processing
     if (processedRef.current) return;
     processedRef.current = true;
     
@@ -107,7 +104,7 @@ export default function InviteRedeem() {
           user_id: string;
         } | null = null;
         
-        // Find inviter
+        // Find inviter by username or UUID
         if (parsed.type === 'uuid') {
           const { data } = await supabase
             .from('profiles')
@@ -140,7 +137,6 @@ export default function InviteRedeem() {
           setEntryMode('invite');
           
           console.log('[InviteRedeem] Stored referral for:', inviterProfile.username);
-          console.log('[InviteRedeem] Entry mode set to: invite');
         } else {
           console.log('[InviteRedeem] Inviter not found, proceeding as normal');
           clearPendingReferral();
@@ -157,6 +153,7 @@ export default function InviteRedeem() {
   }, [identifier]);
   
   // Determine which stage to show based on auth state
+  // This creates a state machine that prevents URL changes
   useEffect(() => {
     if (!inviteProcessed || authLoading) {
       setCurrentStage('loading');
@@ -186,20 +183,19 @@ export default function InviteRedeem() {
   }, [inviteProcessed, authLoading, user, profile]);
   
   // Handle stage transitions (called by child components instead of navigate())
-  const handleStageComplete = (nextStage: InviteStage) => {
+  const handleStageComplete = (nextStage: 'landing' | 'complete-profile' | 'onboarding' | 'home') => {
     console.log('[InviteRedeem] Stage transition:', currentStage, '->', nextStage);
     setCurrentStage(nextStage);
   };
   
-  // Loading state - minimal blank screen
+  // Loading state - minimal blank screen (matches normal app loading)
   if (currentStage === 'loading') {
-    return (
-      <div className="min-h-screen bg-background" />
-    );
+    return <div className="min-h-screen bg-background" />;
   }
   
   // Render appropriate component based on stage
-  // Pass onNavigate prop to suppress URL changes
+  // ALL components receive isInviteMode=true and onInviteNavigate callback
+  // This prevents them from calling navigate() and changing the URL
   switch (currentStage) {
     case 'landing':
       return (
@@ -233,6 +229,12 @@ export default function InviteRedeem() {
       );
     
     default:
-      return <Landing />;
+      // Fallback to landing
+      return (
+        <Landing 
+          onInviteNavigate={handleStageComplete}
+          isInviteMode={true}
+        />
+      );
   }
 }
