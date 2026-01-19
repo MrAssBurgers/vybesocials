@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserPlus, X, Loader2, Check } from 'lucide-react';
+import { Check, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,25 +8,29 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import {
   getPendingReferral,
-  clearPendingReferral,
-  markPopupDismissed,
-  wasPopupDismissed,
-  markReferralConsumed,
-  wasReferralConsumed,
+  wasReferralConfirmed,
+  markReferralConfirmed,
   cleanupReferralStorage,
   type PendingReferral,
 } from '@/lib/referral';
 
 /**
- * Post-signup popup that asks user if they want to add their inviter as friend.
+ * Professional Referral Confirmation Modal
  * 
- * Flow:
- * 1. User visits invite link → inviter data stored in localStorage
- * 2. User signs up and account creation completes
- * 3. This component detects the pending referral and shows modal
- * 4. User can add friend or dismiss
- * 5. Inviter reward is granted exactly once (tracked via invite_redemptions)
- * 6. Cleanup happens after flow completes
+ * Shows ONLY after account creation is complete:
+ * - Title: "@username invited you"
+ * - Body: "Thanks for joining VYBE through their invite."
+ * - Button: "Thanks!"
+ * 
+ * On button click:
+ * - Grant reward to inviter (once)
+ * - Send notification to inviter
+ * - Close modal permanently
+ * 
+ * Rules:
+ * - Modal shows ONCE
+ * - Dismissible only via button
+ * - Never blocks app if referral fails
  */
 export function InvitePopup() {
   const { user, profile } = useAuth();
@@ -37,20 +41,23 @@ export function InvitePopup() {
   const processedRef = useRef(false);
   const rewardGrantedRef = useRef(false);
 
-  // Process pending referral when auth is fully ready
+  // Check for pending referral after auth is ready
   useEffect(() => {
     // Wait for complete auth state
-    if (!user?.id || !profile?.id) {
-      console.log('[InvitePopup] Auth not ready yet');
-      return;
-    }
+    if (!user?.id || !profile?.id) return;
     
-    // Prevent multiple processing in same session
+    // Prevent multiple processing
     if (processedRef.current) return;
     
-    const processPendingReferral = async () => {
-      const pending = getPendingReferral();
+    const checkPendingReferral = async () => {
+      // Already confirmed?
+      if (wasReferralConfirmed()) {
+        console.log('[InvitePopup] Referral already confirmed');
+        cleanupReferralStorage();
+        return;
+      }
       
+      const pending = getPendingReferral();
       if (!pending) {
         console.log('[InvitePopup] No pending referral');
         return;
@@ -58,21 +65,14 @@ export function InvitePopup() {
       
       console.log('[InvitePopup] Found pending referral for:', pending.inviterUsername);
       
-      // Check if popup was already dismissed for this referral
-      if (wasPopupDismissed()) {
-        console.log('[InvitePopup] Popup was already dismissed');
-        cleanupReferralStorage();
-        return;
-      }
-      
-      // Don't allow self-referral - compare profile IDs
+      // Prevent self-referral
       if (pending.inviterId === profile.id) {
-        console.log('[InvitePopup] Self-referral, clearing');
+        console.log('[InvitePopup] Self-referral detected, clearing');
         cleanupReferralStorage();
         return;
       }
       
-      // Verify inviter still exists and get their user_id for invite lookup
+      // Verify inviter still exists
       const { data: inviterProfile, error } = await supabase
         .from('profiles')
         .select('id, user_id, username, avatar_url, display_name')
@@ -80,57 +80,51 @@ export function InvitePopup() {
         .maybeSingle();
       
       if (error || !inviterProfile) {
-        console.log('[InvitePopup] Inviter no longer exists, clearing');
+        console.log('[InvitePopup] Inviter no longer exists');
         cleanupReferralStorage();
         return;
       }
       
-      // Update referral with fresh data including user_id
-      const freshReferral: PendingReferral & { inviterUserId?: string } = {
+      // Update with fresh data
+      const freshReferral: PendingReferral = {
         inviterId: inviterProfile.id,
+        inviterUserId: inviterProfile.user_id,
         inviterUsername: inviterProfile.username,
         inviterDisplayName: inviterProfile.display_name,
         inviterAvatarUrl: inviterProfile.avatar_url,
         timestamp: pending.timestamp,
       };
       
-      // Store the auth user_id for reward lookup
-      (freshReferral as any).inviterUserId = inviterProfile.user_id;
-      
       setReferral(freshReferral);
       setVisible(true);
       processedRef.current = true;
       
-      console.log('[InvitePopup] Showing popup for:', inviterProfile.username, 'with user_id:', inviterProfile.user_id);
+      console.log('[InvitePopup] Showing confirmation modal');
     };
 
-    // Delay to ensure UI is settled and auth is fully ready
-    const timer = setTimeout(processPendingReferral, 800);
+    // Delay to ensure UI is settled
+    const timer = setTimeout(checkPendingReferral, 1000);
     return () => clearTimeout(timer);
   }, [user?.id, profile?.id]);
 
   /**
-   * Grant reward to inviter - happens ONCE per new user
-   * Uses invite_redemptions table to prevent duplicates
-   * IMPORTANT: Uses auth user_id (not profile.id) for invite lookup
+   * Grant reward to inviter and send notification
    */
-  const grantInviterReward = useCallback(async (inviterUserId: string, redeemerProfileId: string) => {
-    // Prevent duplicate calls in same session
+  const grantRewardAndNotify = useCallback(async (
+    inviterUserId: string, 
+    inviterProfileId: string,
+    redeemerProfileId: string,
+    redeemerUsername: string
+  ) => {
     if (rewardGrantedRef.current) {
-      console.log('[InvitePopup] Reward already granted this session');
-      return true;
-    }
-    
-    // Check local flag first (quick check)
-    if (wasReferralConsumed()) {
-      console.log('[InvitePopup] Referral already consumed (local)');
+      console.log('[InvitePopup] Reward already granted');
       return true;
     }
     
     try {
-      console.log('[InvitePopup] Granting reward - inviterUserId:', inviterUserId, 'redeemerProfileId:', redeemerProfileId);
+      console.log('[InvitePopup] Granting reward to inviter');
       
-      // Check if this user already has a redemption (server-side dedup)
+      // Check if already redeemed
       const { data: existing } = await supabase
         .from('invite_redemptions')
         .select('id')
@@ -138,12 +132,12 @@ export function InvitePopup() {
         .maybeSingle();
       
       if (existing) {
-        console.log('[InvitePopup] User already redeemed an invite');
-        markReferralConsumed();
+        console.log('[InvitePopup] Already redeemed');
+        rewardGrantedRef.current = true;
         return true;
       }
       
-      // Find the inviter's invite record using their auth user_id
+      // Find or create invite record
       const { data: existingInvite } = await supabase
         .from('invites')
         .select('id, use_count')
@@ -153,11 +147,9 @@ export function InvitePopup() {
         .maybeSingle();
       
       let inviteId: string;
-      let currentUseCount: number = 0;
+      let currentUseCount = 0;
       
       if (!existingInvite) {
-        // Create an invite record for the inviter if they don't have one
-        console.log('[InvitePopup] Creating new invite for inviter');
         const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
         const { data: newInvite, error: createError } = await supabase
           .from('invites')
@@ -170,18 +162,16 @@ export function InvitePopup() {
           .single();
         
         if (createError || !newInvite) {
-          console.log('[InvitePopup] Could not create invite for inviter:', createError);
+          console.error('[InvitePopup] Failed to create invite:', createError);
           return false;
         }
         inviteId = newInvite.id;
-        currentUseCount = newInvite.use_count || 0;
       } else {
         inviteId = existingInvite.id;
         currentUseCount = existingInvite.use_count || 0;
-        console.log('[InvitePopup] Found existing invite:', inviteId, 'current count:', currentUseCount);
       }
       
-      // Create redemption record
+      // Create redemption
       const { error: redemptionError } = await supabase
         .from('invite_redemptions')
         .insert({
@@ -189,34 +179,28 @@ export function InvitePopup() {
           redeemer_id: redeemerProfileId,
         });
       
-      if (redemptionError) {
-        // Unique constraint violation = already redeemed
-        if (redemptionError.code === '23505') {
-          console.log('[InvitePopup] Redemption already exists');
-          markReferralConsumed();
-          return true;
-        }
-        console.error('[InvitePopup] Failed to create redemption:', redemptionError);
+      if (redemptionError && redemptionError.code !== '23505') {
+        console.error('[InvitePopup] Redemption error:', redemptionError);
         return false;
       }
       
-      // Increment use count
-      const { error: updateError } = await supabase
+      // Update use count
+      await supabase
         .from('invites')
         .update({ use_count: currentUseCount + 1 })
         .eq('id', inviteId);
       
-      if (updateError) {
-        console.error('[InvitePopup] Failed to update use_count:', updateError);
-      } else {
-        console.log('[InvitePopup] Updated use_count to:', currentUseCount + 1);
-      }
+      // Send notification to inviter
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id: inviterProfileId,
+          actor_id: redeemerProfileId,
+          type: 'invite_accepted',
+        });
       
-      // Mark as consumed
-      markReferralConsumed();
+      console.log('[InvitePopup] Reward granted and notification sent!');
       rewardGrantedRef.current = true;
-      
-      console.log('[InvitePopup] Inviter reward granted successfully!');
       return true;
     } catch (error) {
       console.error('[InvitePopup] Error granting reward:', error);
@@ -224,100 +208,40 @@ export function InvitePopup() {
     }
   }, []);
 
-  const handleAddFriend = async () => {
-    if (!profile?.id || !referral || !user?.id) return;
+  const handleThanks = async () => {
+    if (!profile?.id || !referral || loading) return;
     
     setLoading(true);
     
     try {
-      // Get the inviter's auth user_id from the referral
-      const inviterUserId = (referral as any).inviterUserId;
-      
-      if (!inviterUserId) {
-        // Fallback: look up the user_id from profiles
-        const { data: inviterProfile } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .eq('id', referral.inviterId)
-          .single();
-        
-        if (inviterProfile?.user_id) {
-          (referral as any).inviterUserId = inviterProfile.user_id;
-        }
-      }
-      
-      // Grant reward to inviter FIRST using their auth user_id
-      const rewardSuccess = await grantInviterReward(
-        (referral as any).inviterUserId || referral.inviterId, 
-        profile.id
+      // Grant reward and notify inviter
+      await grantRewardAndNotify(
+        referral.inviterUserId,
+        referral.inviterId,
+        profile.id,
+        profile.username || 'someone'
       );
       
-      // Check for existing friend request in either direction
-      const { data: existingRequest } = await supabase
-        .from('friend_requests')
-        .select('id, status')
-        .or(`and(sender_id.eq.${profile.id},receiver_id.eq.${referral.inviterId}),and(sender_id.eq.${referral.inviterId},receiver_id.eq.${profile.id})`)
-        .maybeSingle();
+      // Mark as confirmed
+      markReferralConfirmed();
       
-      if (!existingRequest) {
-        // Send new friend request
-        const { error } = await supabase
-          .from('friend_requests')
-          .insert({
-            sender_id: profile.id,
-            receiver_id: referral.inviterId,
-            status: 'pending',
-          });
-        
-        if (!error) {
-          console.log('[InvitePopup] Friend request sent');
-        }
-      }
-      
-      // Also follow the inviter
-      await supabase
-        .from('follows')
-        .upsert({
-          follower_id: profile.id,
-          following_id: referral.inviterId,
-        }, { onConflict: 'follower_id,following_id' });
-      
-      // Show success state
+      // Show success
       setSuccess(true);
-      toast.success(`You're now connected with @${referral.inviterUsername}!`);
       
-      // Close after showing success
+      // Close after animation
       setTimeout(() => {
-        handleClose();
+        setVisible(false);
+        cleanupReferralStorage();
       }, 1500);
-    } catch (error: any) {
-      console.error('[InvitePopup] Failed to add friend:', error);
-      toast.error('Something went wrong');
-      handleClose();
+    } catch (error) {
+      console.error('[InvitePopup] Error:', error);
+      // Still close on error - don't block user
+      markReferralConfirmed();
+      setVisible(false);
+      cleanupReferralStorage();
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleNotNow = async () => {
-    if (profile?.id && referral) {
-      // Get the inviter's auth user_id
-      const inviterUserId = (referral as any).inviterUserId;
-      if (inviterUserId) {
-        // Grant reward even if user doesn't add as friend
-        await grantInviterReward(inviterUserId, profile.id);
-      }
-    }
-    handleClose();
-  };
-
-  const handleClose = () => {
-    setVisible(false);
-    markPopupDismissed();
-    // Full cleanup after a short delay for animation
-    setTimeout(() => {
-      cleanupReferralStorage();
-    }, 300);
   };
 
   if (!visible || !referral) return null;
@@ -325,13 +249,12 @@ export function InvitePopup() {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-        {/* Backdrop */}
+        {/* Backdrop - not dismissible */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          onClick={!loading && !success ? handleNotNow : undefined}
         />
         
         {/* Modal */}
@@ -341,21 +264,9 @@ export function InvitePopup() {
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           className="relative w-full max-w-sm liquid-glass-card rounded-2xl p-6 shadow-xl"
         >
-          {/* Close button */}
-          {!success && (
-            <button
-              onClick={handleNotNow}
-              className="absolute top-4 right-4 p-1 rounded-full hover:bg-muted/50 transition-colors"
-              disabled={loading}
-            >
-              <X className="h-5 w-5 text-muted-foreground" />
-            </button>
-          )}
-          
-          {/* Content */}
-          <div className="text-center space-y-4">
+          <div className="text-center space-y-5">
             {success ? (
-              // Success state with checkmark
+              // Success animation
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
@@ -373,16 +284,11 @@ export function InvitePopup() {
                     </motion.div>
                   </div>
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-green-500">Success!</h2>
-                  <p className="text-muted-foreground mt-2">
-                    Connected with @{referral.inviterUsername}
-                  </p>
-                </div>
+                <p className="text-lg font-medium">Welcome to VYBE!</p>
               </motion.div>
             ) : (
               <>
-                {/* Avatar */}
+                {/* Inviter Avatar */}
                 <div className="flex justify-center">
                   <Avatar className="h-20 w-20 ring-4 ring-primary/20">
                     <AvatarImage src={referral.inviterAvatarUrl || undefined} />
@@ -393,40 +299,33 @@ export function InvitePopup() {
                 </div>
                 
                 {/* Title */}
-                <div>
+                <div className="space-y-2">
                   <h2 className="text-xl font-bold">
-                    You joined using @{referral.inviterUsername}'s invite
+                    @{referral.inviterUsername} invited you
                   </h2>
-                  <p className="text-muted-foreground mt-2">
-                    Would you like to add them as a friend?
+                  <p className="text-muted-foreground">
+                    Thanks for joining VYBE through their invite.
                   </p>
                 </div>
                 
-                {/* Buttons */}
-                <div className="space-y-2 pt-2">
-                  <Button
-                    className="w-full gradient-animated"
-                    size="lg"
-                    onClick={handleAddFriend}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <UserPlus className="h-4 w-4 mr-2" />
-                    )}
-                    Accept & Add Friend
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full"
-                    size="lg"
-                    onClick={handleNotNow}
-                    disabled={loading}
-                  >
-                    Not Now
-                  </Button>
-                </div>
+                {/* Thanks Button */}
+                <Button
+                  className="w-full gradient-animated text-lg py-6"
+                  size="lg"
+                  onClick={handleThanks}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                    >
+                      <Sparkles className="h-5 w-5" />
+                    </motion.div>
+                  ) : (
+                    'Thanks!'
+                  )}
+                </Button>
               </>
             )}
           </div>

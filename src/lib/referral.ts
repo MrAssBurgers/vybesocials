@@ -1,18 +1,23 @@
 /**
- * Referral System - Persistent storage and utilities
+ * Professional Background Referral System
  * 
- * Uses localStorage for persistence across signup flow.
- * Keys:
- * - pending_referral: Full referral data (inviter ID, username, timestamp)
- * - referral_consumed: Flag to prevent reward duplication
+ * This system handles referrals completely in the background:
+ * 1. When user visits invite link → data stored silently
+ * 2. User gets full normal onboarding experience
+ * 3. After account creation → confirmation modal appears
+ * 4. User clicks "Thanks!" → reward granted, inviter notified
+ * 
+ * Storage keys:
+ * - pending_referral: Full referral data
+ * - referral_confirmed: Flag to prevent showing modal again
  */
 
 const PENDING_REFERRAL_KEY = 'pending_referral';
-const REFERRAL_CONSUMED_KEY = 'referral_consumed';
-const POPUP_DISMISSED_KEY = 'referral_popup_dismissed';
+const REFERRAL_CONFIRMED_KEY = 'referral_confirmed';
 
 export interface PendingReferral {
-  inviterId: string;
+  inviterId: string;        // Profile ID
+  inviterUserId: string;    // Auth user ID (for invites table lookup)
   inviterUsername: string;
   inviterDisplayName?: string | null;
   inviterAvatarUrl?: string | null;
@@ -20,14 +25,13 @@ export interface PendingReferral {
 }
 
 /**
- * Store the inviter's profile data for post-signup processing
+ * Store referral data for post-signup processing
  */
 export function setPendingReferral(referral: PendingReferral): void {
   try {
     localStorage.setItem(PENDING_REFERRAL_KEY, JSON.stringify(referral));
-    // Clear consumed/dismissed flags for fresh referral
-    localStorage.removeItem(REFERRAL_CONSUMED_KEY);
-    localStorage.removeItem(POPUP_DISMISSED_KEY);
+    // Clear confirmed flag for fresh referral
+    localStorage.removeItem(REFERRAL_CONFIRMED_KEY);
     console.log('[Referral] Stored pending referral:', referral.inviterUsername);
   } catch (e) {
     console.error('[Referral] Failed to store referral:', e);
@@ -35,7 +39,7 @@ export function setPendingReferral(referral: PendingReferral): void {
 }
 
 /**
- * Get the pending referral data
+ * Get pending referral if exists and not expired
  */
 export function getPendingReferral(): PendingReferral | null {
   try {
@@ -45,7 +49,7 @@ export function getPendingReferral(): PendingReferral | null {
     const referral = JSON.parse(stored) as PendingReferral;
     
     // Check if referral is too old (24 hours)
-    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    const maxAge = 24 * 60 * 60 * 1000;
     if (Date.now() - referral.timestamp > maxAge) {
       console.log('[Referral] Referral expired, clearing');
       clearPendingReferral();
@@ -60,7 +64,7 @@ export function getPendingReferral(): PendingReferral | null {
 }
 
 /**
- * Clear the pending referral
+ * Clear pending referral
  */
 export function clearPendingReferral(): void {
   try {
@@ -72,61 +76,40 @@ export function clearPendingReferral(): void {
 }
 
 /**
- * Check if popup has been dismissed for this referral
+ * Check if referral has already been confirmed
  */
-export function wasPopupDismissed(): boolean {
+export function wasReferralConfirmed(): boolean {
   try {
-    return localStorage.getItem(POPUP_DISMISSED_KEY) === 'true';
+    return localStorage.getItem(REFERRAL_CONFIRMED_KEY) === 'true';
   } catch {
     return false;
   }
 }
 
 /**
- * Mark popup as dismissed
+ * Mark referral as confirmed (modal shown, reward granted)
  */
-export function markPopupDismissed(): void {
+export function markReferralConfirmed(): void {
   try {
-    localStorage.setItem(POPUP_DISMISSED_KEY, 'true');
+    localStorage.setItem(REFERRAL_CONFIRMED_KEY, 'true');
+    console.log('[Referral] Marked as confirmed');
   } catch (e) {
-    console.error('[Referral] Failed to mark popup dismissed:', e);
+    console.error('[Referral] Failed to mark confirmed:', e);
   }
 }
 
 /**
- * Check if referral reward has been consumed
- */
-export function wasReferralConsumed(): boolean {
-  try {
-    return localStorage.getItem(REFERRAL_CONSUMED_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Mark referral reward as consumed
- */
-export function markReferralConsumed(): void {
-  try {
-    localStorage.setItem(REFERRAL_CONSUMED_KEY, 'true');
-    console.log('[Referral] Marked as consumed');
-  } catch (e) {
-    console.error('[Referral] Failed to mark consumed:', e);
-  }
-}
-
-/**
- * Clean up all referral storage after flow completes
+ * Full cleanup after referral flow completes
  */
 export function cleanupReferralStorage(): void {
   try {
     localStorage.removeItem(PENDING_REFERRAL_KEY);
-    localStorage.removeItem(REFERRAL_CONSUMED_KEY);
-    localStorage.removeItem(POPUP_DISMISSED_KEY);
-    // Also clean up legacy keys
+    localStorage.removeItem(REFERRAL_CONFIRMED_KEY);
+    // Clean up any legacy keys
     localStorage.removeItem('pending_referral_inviter');
     localStorage.removeItem('referral_popup_shown');
+    localStorage.removeItem('referral_popup_dismissed');
+    localStorage.removeItem('referral_consumed');
     sessionStorage.removeItem('pending_inviter_id');
     sessionStorage.removeItem('invite_popup_shown');
     console.log('[Referral] Storage cleaned up');
@@ -136,15 +119,18 @@ export function cleanupReferralStorage(): void {
 }
 
 /**
- * Check if we should show the referral popup
- * Requirements:
- * - Has pending referral
- * - Popup not dismissed
- * - Referral not yet consumed (no duplicate rewards)
+ * Check if we should show referral confirmation modal
+ * Only shows once after account creation
  */
-export function shouldShowReferralPopup(): boolean {
+export function shouldShowReferralModal(): boolean {
   const referral = getPendingReferral();
   if (!referral) return false;
-  if (wasPopupDismissed()) return false;
+  if (wasReferralConfirmed()) return false;
   return true;
 }
+
+// Legacy exports for backwards compatibility
+export const wasPopupDismissed = wasReferralConfirmed;
+export const markPopupDismissed = markReferralConfirmed;
+export const wasReferralConsumed = wasReferralConfirmed;
+export const markReferralConsumed = markReferralConfirmed;
