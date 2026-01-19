@@ -25,7 +25,7 @@ export default function Landing() {
   const [isLogin, setIsLogin] = useState(() => searchParams.get('signup') !== 'true');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showIntro, setShowIntro] = useState(() => !hasSeenIntro());
+  const [showIntro, setShowIntro] = useState(true);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
