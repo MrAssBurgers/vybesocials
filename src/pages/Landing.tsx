@@ -46,14 +46,31 @@ export default function Landing() {
     }
   }, [modeParam]);
 
-  // Redirect if already logged in
+  // Redirect if already logged in AND has completed onboarding
+  // First-time users (even if authenticated) should see intro if not completed
   useEffect(() => {
-    if (user) {
-      navigate('/home');
+    async function checkAndRedirect() {
+      if (!user) return;
+      
+      // Check if user has completed onboarding (has a username set)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, onboarding_completed')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      // If user has completed onboarding (has username), redirect to home
+      // Otherwise, let them stay on landing to go through the flow
+      if (profile?.username && profile?.onboarding_completed !== false) {
+        navigate('/home');
+      }
     }
+    
+    checkAndRedirect();
   }, [user, navigate]);
 
-  if (user) return null;
+  // Only hide the landing page if we're about to redirect (handled in useEffect)
+  // Don't return null immediately - let the useEffect decide
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +81,28 @@ export default function Landing() {
         const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
         toast.success('Welcome back! ✨');
-        navigate('/home');
+        
+        // Check if user has completed onboarding before redirecting
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username, onboarding_completed')
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
+          
+          if (profile?.username && profile?.onboarding_completed !== false) {
+            navigate('/home');
+          } else if (!profile?.username) {
+            // New user needs to complete profile
+            navigate('/complete-profile');
+          } else {
+            // Has username but onboarding not complete
+            navigate('/onboarding');
+          }
+        } else {
+          navigate('/home');
+        }
       } else {
         if (!formData.username.trim()) {
           throw new Error('Username is required');
@@ -269,7 +307,8 @@ export default function Landing() {
                   const { error } = await supabase.auth.signInWithOAuth({
                     provider: 'google',
                     options: {
-                      redirectTo: `${window.location.origin}/home`,
+                      // Redirect to complete-profile which handles onboarding status check
+                      redirectTo: `${window.location.origin}/complete-profile`,
                     },
                   });
                   if (error) throw error;

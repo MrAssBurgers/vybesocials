@@ -185,13 +185,25 @@ export default function HomePage() {
     }
   }, []);
 
-  // Redirect new Google users who don't have a profile/username yet.
-  // IMPORTANT: If the user has an active referral (invite flow), let that complete first
-  // before redirecting to profile completion.
+  // Redirect first-time users to the intro/landing page
+  // Also redirect users who don't have a profile/username yet
   useEffect(() => {
     if (authLoading) return;
-    if (!user) return;
+    
+    // For unauthenticated users, redirect to landing if they haven't seen intro
+    if (!user) {
+      // Check if intro was seen - if not, they should go to landing
+      const introSeen = localStorage.getItem('vybe_intro_completed') === 'true';
+      if (!introSeen) {
+        console.log('[Home] Unauthenticated user without intro - redirecting to /');
+        navigate('/');
+        return;
+      }
+      // Guest users who saw intro can browse
+      return;
+    }
 
+    // For authenticated users without a username
     if (!profile?.username) {
       // Don't redirect during active referral flow
       if (hasActiveReferral()) {
