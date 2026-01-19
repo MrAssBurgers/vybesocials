@@ -49,16 +49,23 @@ export function InvitePopup() {
       const pendingInviterId = getPendingReferral();
       
       // No pending referral
-      if (!pendingInviterId) return;
+      if (!pendingInviterId) {
+        console.log('[InvitePopup] No pending referral found');
+        return;
+      }
+      
+      console.log('[InvitePopup] Found pending referral:', pendingInviterId);
       
       // Already shown the popup for this referral
       if (wasPopupShown()) {
+        console.log('[InvitePopup] Popup already shown, clearing');
         clearPendingReferral();
         return;
       }
       
       // Don't allow self-referral
       if (pendingInviterId === profile.id) {
+        console.log('[InvitePopup] Self-referral, clearing');
         clearPendingReferral();
         return;
       }
@@ -72,23 +79,25 @@ export function InvitePopup() {
           .maybeSingle();
         
         if (error || !inviterProfile) {
-          console.log('Inviter not found, clearing referral');
+          console.log('[InvitePopup] Inviter not found, clearing referral');
           clearPendingReferral();
           return;
         }
+        
+        console.log('[InvitePopup] Showing popup for inviter:', inviterProfile.username);
         
         // Show the popup
         setInviter(inviterProfile);
         setVisible(true);
         setProcessed(true);
       } catch (err) {
-        console.error('Error processing referral:', err);
+        console.error('[InvitePopup] Error processing referral:', err);
         clearPendingReferral();
       }
     };
 
-    // Small delay to ensure UI is settled
-    const timer = setTimeout(processPendingReferral, 500);
+    // Small delay to ensure UI is settled and auth is fully ready
+    const timer = setTimeout(processPendingReferral, 1000);
     return () => clearTimeout(timer);
   }, [user?.id, profile?.id, processed]);
 
