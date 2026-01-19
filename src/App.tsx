@@ -8,6 +8,7 @@ import { BrowserRouter, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { CustomThemeProvider } from "@/providers/ThemeProvider";
+import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
 import { CallStoreProvider } from "@/lib/callStore";
 import { GlobalCallOverlay } from "@/components/call/GlobalCallOverlay";
@@ -127,27 +128,29 @@ function AppWithPreloader() {
       <GlobalErrorHandler />
       <AuthProvider>
         <CustomThemeProvider>
-          <EasterEggProvider>
-            <CallStoreProvider>
-              <TooltipProvider>
-                <Toaster />
-                <Sonner />
-                <BrowserRouter>
-                  <TutorialProvider>
-                    <ScrollRestoration />
-                    <AnimatedRoutes />
-                    <RootBottomNavMount />
-                    <PushNotificationPrompt />
-                    <GlobalMessageNotifications />
-                    <GlobalCallOverlay />
-                    <WarningPopup />
-                    <InvitePopup />
-                    <BanCheck />
-                  </TutorialProvider>
-                </BrowserRouter>
-              </TooltipProvider>
-            </CallStoreProvider>
-          </EasterEggProvider>
+          <ThemeTransitionProvider>
+            <EasterEggProvider>
+              <CallStoreProvider>
+                <TooltipProvider>
+                  <Toaster />
+                  <Sonner />
+                  <BrowserRouter>
+                    <TutorialProvider>
+                      <ScrollRestoration />
+                      <AnimatedRoutes />
+                      <RootBottomNavMount />
+                      <PushNotificationPrompt />
+                      <GlobalMessageNotifications />
+                      <GlobalCallOverlay />
+                      <WarningPopup />
+                      <InvitePopup />
+                      <BanCheck />
+                    </TutorialProvider>
+                  </BrowserRouter>
+                </TooltipProvider>
+              </CallStoreProvider>
+            </EasterEggProvider>
+          </ThemeTransitionProvider>
         </CustomThemeProvider>
       </AuthProvider>
     </>
