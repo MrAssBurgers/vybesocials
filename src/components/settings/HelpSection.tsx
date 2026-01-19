@@ -1,8 +1,11 @@
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { MessageSquareHeart, Sparkles, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { MessageSquareHeart, Sparkles, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { haptics } from '@/lib/haptics';
+import { resetIntro } from '@/components/intro/IntroFlow';
+import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth';
 
 export function HelpSection() {
   return (
@@ -40,6 +43,25 @@ export function HelpSection() {
             <div className="flex-1 text-left min-w-0">
               <p className="font-medium">Interactive Tutorial</p>
               <p className="text-sm text-muted-foreground">Learn how to use VYBE</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+          </button>
+
+          {/* About VYBE / View Intro */}
+          <button
+            onClick={() => {
+              haptics.tap();
+              resetIntro();
+              toast.success('Intro reset! Sign out to view it again.');
+            }}
+            className="w-full flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all active:scale-[0.98]"
+          >
+            <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
+              <Play className="w-5 h-5 text-secondary-foreground" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <p className="font-medium">About VYBE</p>
+              <p className="text-sm text-muted-foreground">View the intro again</p>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
           </button>

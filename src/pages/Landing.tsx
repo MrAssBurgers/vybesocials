@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -8,18 +8,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
-import { Sparkles, Zap, Users, Globe, MessageCircle, Chrome } from 'lucide-react';
+import { Sparkles, Chrome, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { VYBELogo } from '@/components/ui/VYBELogo';
+import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
+import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 
 export default function Landing() {
   const { t } = useTranslation();
   const { user, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { triggerTransition } = useThemeTransition();
   
   // Check if coming from invite link with signup=true
   const [isLogin, setIsLogin] = useState(() => searchParams.get('signup') !== 'true');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showIntro, setShowIntro] = useState(() => !hasSeenIntro());
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -27,10 +33,13 @@ export default function Landing() {
   });
 
   // Redirect if already logged in
-  if (user) {
-    navigate('/home');
-    return null;
-  }
+  useEffect(() => {
+    if (user) {
+      navigate('/home');
+    }
+  }, [user, navigate]);
+
+  if (user) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +49,7 @@ export default function Landing() {
       if (isLogin) {
         const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
-        toast.success(t('auth.login') + ' ✨');
+        toast.success('Welcome back! ✨');
         navigate('/home');
       } else {
         if (!formData.username.trim()) {
@@ -78,10 +87,28 @@ export default function Landing() {
     }
   };
 
+  const handleIntroComplete = () => {
+    triggerTransition('280 70% 50%', '330 80% 60%', () => {
+      setShowIntro(false);
+      setIsLogin(false); // Start on signup mode
+    });
+  };
+
+  const handleIntroSkip = () => {
+    triggerTransition('280 70% 50%', '330 80% 60%', () => {
+      setShowIntro(false);
+    });
+  };
+
+  // Show intro flow for first-time visitors
+  if (showIntro) {
+    return <IntroFlow onComplete={handleIntroComplete} onSkip={handleIntroSkip} />;
+  }
+
   return (
-    <div className="min-h-screen bg-background overflow-hidden relative">
+    <div className="min-h-screen bg-background overflow-hidden relative flex items-center justify-center">
       {/* Animated background */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           animate={{
             scale: [1, 1.2, 1],
@@ -92,7 +119,7 @@ export default function Landing() {
             repeat: Infinity,
             ease: "linear",
           }}
-          className="absolute -top-1/2 -left-1/2 w-full h-full gradient-animated opacity-20 blur-3xl"
+          className="absolute -top-1/2 -left-1/2 w-full h-full gradient-animated opacity-15 blur-3xl"
         />
         <motion.div
           animate={{
@@ -104,189 +131,176 @@ export default function Landing() {
             repeat: Infinity,
             ease: "linear",
           }}
-          className="absolute -bottom-1/2 -right-1/2 w-full h-full gradient-animated opacity-20 blur-3xl"
+          className="absolute -bottom-1/2 -right-1/2 w-full h-full gradient-animated opacity-15 blur-3xl"
         />
       </div>
 
-      <div className="relative z-10 min-h-screen flex flex-col lg:flex-row">
-        {/* Left side - Hero */}
-        <div className="flex-1 flex flex-col justify-center px-8 py-12 lg:px-16">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            {/* Logo */}
-            <div className="flex items-center gap-3 mb-8">
-              <motion.div 
-                className="gradient-animated rounded-2xl p-3 flex items-center justify-center"
-                whileHover={{ scale: 1.1, rotate: 5 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <span className="text-2xl font-black text-white">VYBE</span>
-              </motion.div>
-              <h1 className="font-display text-5xl font-black gradient-text">VYBE</h1>
-            </div>
-
-            {/* Tagline */}
-            <h2 className="text-4xl lg:text-6xl font-display font-bold mb-6 leading-tight">
-              {t('app.tagline').split(' ').map((word, i) => (
-                <span key={i} className={i % 2 === 1 ? 'gradient-text' : ''}>
-                  {word}{' '}
-                </span>
-              ))}
-            </h2>
-
-            <p className="text-xl text-muted-foreground mb-8 max-w-lg">
-              {t('app.description')}
+      {/* Main content - centered card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="relative z-10 w-full max-w-md mx-4"
+      >
+        <div className="glass-card rounded-3xl p-8 gradient-border">
+          {/* Logo */}
+          <div className="flex flex-col items-center mb-8">
+            <VYBELogo size="xl" showText={false} className="mb-4" />
+            <h1 className="text-2xl font-display font-bold gradient-text">
+              Welcome to VYBE
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1 text-center">
+              Connect. Be present. Build community.
             </p>
+          </div>
 
-            {/* Features */}
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              {[
-                { icon: Zap, label: 'Shorts & Reels' },
-                { icon: MessageCircle, label: 'DMs & Stories' },
-                { icon: Users, label: 'Communities' },
-                { icon: Globe, label: 'Global Reach' },
-              ].map((feature, index) => (
+          {/* Auth Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <AnimatePresence mode="wait">
+              {!isLogin && (
                 <motion.div
-                  key={feature.label}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 + index * 0.1 }}
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  className="glass-card rounded-xl p-4 flex items-center gap-3"
+                  key="username"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-2"
                 >
-                  <feature.icon className="w-6 h-6 text-primary" />
-                  <span className="font-medium">{feature.label}</span>
+                  <Label htmlFor="username">{t('auth.username')}</Label>
+                  <Input
+                    id="username"
+                    placeholder="Choose a username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    className="bg-secondary/50 border-border"
+                  />
                 </motion.div>
-              ))}
+              )}
+            </AnimatePresence>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">{t('auth.email')}</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="bg-secondary/50 border-border"
+                required
+              />
             </div>
-          </motion.div>
-        </div>
 
-        {/* Right side - Auth Form */}
-        <div className="lg:w-[480px] flex items-center justify-center px-8 py-12">
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="w-full max-w-sm"
-          >
-            <div className="glass-card rounded-2xl p-8 gradient-border">
-              <h3 className="text-2xl font-bold mb-6 text-center">
-                {isLogin ? t('auth.login') : t('auth.signup')}
-              </h3>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {!isLogin && (
-                  <div className="space-y-2">
-                    <Label htmlFor="username">{t('auth.username')}</Label>
-                    <Input
-                      id="username"
-                      placeholder="Choose a username"
-                      value={formData.username}
-                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                      className="bg-secondary border-border"
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">{t('auth.email')}</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="bg-secondary border-border"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password">{t('auth.password')}</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="bg-secondary border-border"
-                    required
-                    minLength={6}
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full gradient-animated text-white font-semibold"
-                  size="lg"
-                  disabled={loading}
-                >
-                  {loading ? 'Loading...' : isLogin ? t('auth.login') : t('auth.signup')}
-                </Button>
-              </form>
-
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">{t('auth.continueWith')}</span>
-                </div>
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full mb-2"
-                onClick={async () => {
-                  setLoading(true);
-                  try {
-                    const { error } = await supabase.auth.signInWithOAuth({
-                      provider: 'google',
-                      options: {
-                        redirectTo: `${window.location.origin}/home`,
-                      },
-                    });
-                    if (error) throw error;
-                  } catch (error: any) {
-                    toast.error(getUserFriendlyError(error));
-                    setLoading(false);
-                  }
-                }}
-                disabled={loading}
-              >
-                <Chrome className="w-4 h-4 mr-2" />
-                Continue with Google
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={handleDemoLogin}
-                disabled={loading}
-              >
-                🎭 {t('auth.demoAccount')}
-              </Button>
-
-              <p className="text-center text-sm text-muted-foreground mt-6">
-                {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}{' '}
+            <div className="space-y-2">
+              <Label htmlFor="password">{t('auth.password')}</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="bg-secondary/50 border-border pr-10"
+                  required
+                  minLength={6}
+                />
                 <button
                   type="button"
-                  onClick={() => setIsLogin(!isLogin)}
-                  className="text-primary hover:underline font-medium"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {isLogin ? t('auth.signup') : t('auth.login')}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
-              </p>
+              </div>
             </div>
-          </motion.div>
+
+            <Button
+              type="submit"
+              className="w-full gradient-animated text-white font-semibold"
+              size="lg"
+              disabled={loading}
+            >
+              {loading ? (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+                />
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  {isLogin ? t('auth.login') : t('auth.signup')}
+                </>
+              )}
+            </Button>
+          </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-3 text-muted-foreground">{t('auth.continueWith')}</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full bg-secondary/30"
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const { error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                      redirectTo: `${window.location.origin}/home`,
+                    },
+                  });
+                  if (error) throw error;
+                } catch (error: any) {
+                  toast.error(getUserFriendlyError(error));
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              <Chrome className="w-4 h-4 mr-2" />
+              Google
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full bg-secondary/30"
+              onClick={handleDemoLogin}
+              disabled={loading}
+            >
+              🎭 Demo Account
+            </Button>
+          </div>
+
+          <p className="text-center text-sm text-muted-foreground mt-6">
+            {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}{' '}
+            <button
+              type="button"
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-primary hover:underline font-medium"
+            >
+              {isLogin ? t('auth.signup') : t('auth.login')}
+            </button>
+          </p>
         </div>
-      </div>
+
+        {/* Footer links */}
+        <div className="flex justify-center gap-4 mt-4 text-xs text-muted-foreground">
+          <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
+          <span>•</span>
+          <a href="/terms" className="hover:text-foreground transition-colors">Terms</a>
+          <span>•</span>
+          <a href="/guidelines" className="hover:text-foreground transition-colors">Guidelines</a>
+        </div>
+      </motion.div>
     </div>
   );
 }
