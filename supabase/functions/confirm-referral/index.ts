@@ -76,10 +76,10 @@ Deno.serve(async (req) => {
     // Use service role for all operations (bypasses RLS)
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get redeemer's profile
+    // Get redeemer's profile including referral_inviter_id to enforce one-invite rule
     const { data: redeemerProfile, error: redeemerError } = await supabaseAdmin
       .from("profiles")
-      .select("id, username")
+      .select("id, username, referral_inviter_id")
       .eq("user_id", user.id)
       .single();
 
@@ -93,6 +93,21 @@ Deno.serve(async (req) => {
 
     const redeemerProfileId = redeemerProfile.id;
 
+    // CRITICAL: One-invite-per-user rule
+    // If user already has a referral_inviter_id set, treat as success but don't re-process
+    if (redeemerProfile.referral_inviter_id) {
+      console.log("[confirm-referral] User already accepted a referral, skipping:", redeemerProfile.referral_inviter_id);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Already accepted a referral",
+          alreadyReferred: true,
+          steps: { redemptionCreated: true, rewardGranted: true, notificationSent: true }
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Prevent self-referral
     if (redeemerProfileId === theInviterProfileId) {
       return new Response(
@@ -101,7 +116,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if already redeemed (redeemer_id is the auth user id)
+    // Check if already redeemed via invite_redemptions (backup check)
     const { data: existingRedemption } = await supabaseAdmin
       .from("invite_redemptions")
       .select("id")
@@ -109,7 +124,14 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (existingRedemption) {
-      console.log("[confirm-referral] Already redeemed");
+      console.log("[confirm-referral] Already redeemed via invite_redemptions");
+      // Still set referral_inviter_id if not set (migration backfill)
+      await supabaseAdmin
+        .from("profiles")
+        .update({ referral_inviter_id: theInviterProfileId })
+        .eq("id", redeemerProfileId)
+        .is("referral_inviter_id", null);
+      
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -174,8 +196,22 @@ Deno.serve(async (req) => {
       );
     }
 
+    // CRITICAL: Set referral_inviter_id on the profile (one-time, immutable)
+    const { error: setInviterError } = await supabaseAdmin
+      .from("profiles")
+      .update({ referral_inviter_id: theInviterProfileId })
+      .eq("id", redeemerProfileId)
+      .is("referral_inviter_id", null); // Only set if not already set
+
+    if (setInviterError) {
+      console.error("[confirm-referral] Failed to set referral_inviter_id:", setInviterError);
+      // Continue anyway - the redemption is recorded
+    } else {
+      console.log("[confirm-referral] Set referral_inviter_id:", theInviterProfileId);
+    }
+
     steps.redemptionCreated = true;
-    console.log("[confirm-referral] Step 1 complete: Redemption created");
+    console.log("[confirm-referral] Step 1 complete: Redemption created & inviter set");
 
     // ========== STEP 2: Grant reward (increment use_count + badges) ==========
     const newUseCount = currentUseCount + 1;
