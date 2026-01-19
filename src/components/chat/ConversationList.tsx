@@ -895,56 +895,7 @@ function NewChatDialog({
             <NFCFriendShare variant="icon" />
           </div>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-              autoFocus
-            />
-          </div>
-
           <MutualFriendsQuickAdd onSelect={handleSelect} />
-
-          <ScrollArea className="max-h-64">
-            {isSearching ? (
-              <div className="space-y-2">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 p-2">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <Skeleton className="h-4 w-32" />
-                  </div>
-                ))}
-              </div>
-            ) : searchResults && searchResults.length > 0 ? (
-              <div className="space-y-1">
-                {searchResults.map((user) => (
-                  <button
-                    key={user.id}
-                    onClick={() => handleSelect(user.id)}
-                    className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent transition-colors"
-                  >
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={user.avatar_url || undefined} />
-                      <AvatarFallback>{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <div className="text-left">
-                      <p className="font-medium">{user.display_name || user.username}</p>
-                      {user.display_name && (
-                        <p className="text-sm text-muted-foreground">@{user.username}</p>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : searchQuery.length >= 2 ? (
-              <p className="text-center text-muted-foreground py-4">No users found</p>
-            ) : (
-              <p className="text-center text-muted-foreground py-4 text-sm">Type to search or use NFC</p>
-            )}
-          </ScrollArea>
         </div>
       </DialogContent>
     </Dialog>
