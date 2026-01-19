@@ -88,16 +88,24 @@ export function InvitePopup() {
       return;
     }
     
-    // Check if onboarding AND tutorial are complete (query DB directly for reliability)
+    // Check if onboarding AND tutorial are complete, AND user hasn't already accepted a referral
     try {
       const { data: profileData, error } = await supabase
         .from('profiles')
-        .select('onboarding_completed, tutorial_completed, tutorial_skipped')
+        .select('onboarding_completed, tutorial_completed, tutorial_skipped, referral_inviter_id')
         .eq('id', profile.id)
         .single();
       
       if (error) {
         console.error('[InvitePopup] Error checking profile:', error);
+        return;
+      }
+      
+      // CRITICAL: One-invite-per-user rule
+      // If user already has a referral_inviter_id, they've already accepted a referral
+      if (profileData?.referral_inviter_id) {
+        console.log('[InvitePopup] User already accepted a referral, cleaning up');
+        cleanupReferralStorage();
         return;
       }
       

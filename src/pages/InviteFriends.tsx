@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useInviteStats, useUserBadges, getInviteUrl } from '@/hooks/useInvites';
+import { InviteLeaderboard } from '@/components/invite/InviteLeaderboard';
 import { useAuth } from '@/lib/auth';
 import { analytics } from '@/lib/analytics';
 import { toast } from 'sonner';
@@ -206,6 +207,9 @@ export default function InviteFriends() {
             })}
           </div>
         </motion.div>
+        
+        {/* Global Leaderboard */}
+        <InviteLeaderboard />
         
         {/* Badges Earned */}
         {badges && badges.length > 0 && (
