@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Heart } from 'lucide-react';
+import { Check, Heart, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,6 +13,22 @@ import {
   cleanupReferralStorage,
   type PendingReferral,
 } from '@/lib/referral';
+
+type ConfirmStep = 'idle' | 'confirming' | 'rewarding' | 'notifying' | 'complete' | 'error';
+
+interface StepInfo {
+  progress: number;
+  label: string;
+}
+
+const STEP_INFO: Record<ConfirmStep, StepInfo> = {
+  idle: { progress: 0, label: '' },
+  confirming: { progress: 25, label: 'Confirming invite…' },
+  rewarding: { progress: 50, label: 'Granting reward…' },
+  notifying: { progress: 75, label: 'Notifying friend…' },
+  complete: { progress: 100, label: 'Complete!' },
+  error: { progress: 0, label: 'Something went wrong' },
+};
 
 /**
  * Post-Tutorial/Onboarding Referral Confirmation Modal
@@ -28,15 +44,15 @@ import {
  * FLOW:
  * 1. Listen for 'tutorial-completed' event OR poll profile status
  * 2. When conditions met, show modal
- * 3. On "Thank You" click: add friend, grant reward, notify inviter
- * 4. Cleanup and close
+ * 3. On "Thank You" click: show event-driven progress bar
+ * 4. Backend processes: redemption → reward → notification
+ * 5. Cleanup and close
  */
 export function InvitePopup() {
   const { user, profile } = useAuth();
   const [referral, setReferral] = useState<PendingReferral | null>(null);
   const [visible, setVisible] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [step, setStep] = useState<ConfirmStep>('idle');
   const processedRef = useRef(false);
   const rewardGrantedRef = useRef(false);
 
@@ -154,15 +170,15 @@ export function InvitePopup() {
   }, [user?.id, profile?.id, checkAndShowReferral]);
 
   /**
-   * Call backend function to grant reward (uses service role for instant credit)
+   * Call backend function to grant reward with step-by-step progress
    */
-  const confirmReferralBackend = useCallback(async (
+  const confirmReferralWithProgress = useCallback(async (
     inviterUserId: string, 
     inviterProfileId: string
-  ) => {
+  ): Promise<{ success: boolean; steps?: { redemptionCreated: boolean; rewardGranted: boolean; notificationSent: boolean } }> => {
     if (rewardGrantedRef.current) {
       console.log('[InvitePopup] Reward already granted');
-      return true;
+      return { success: true, steps: { redemptionCreated: true, rewardGranted: true, notificationSent: true } };
     }
     
     try {
@@ -171,7 +187,7 @@ export function InvitePopup() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         console.error('[InvitePopup] No session');
-        return false;
+        return { success: false };
       }
       
       const response = await fetch(
@@ -193,57 +209,85 @@ export function InvitePopup() {
       
       if (!response.ok) {
         console.error('[InvitePopup] Backend error:', result.error);
-        return false;
+        return { success: false, steps: result.steps };
       }
       
       console.log('[InvitePopup] Backend success:', result);
       rewardGrantedRef.current = true;
-      return true;
+      return { success: true, steps: result.steps };
     } catch (error) {
       console.error('[InvitePopup] Error calling backend:', error);
-      return false;
+      return { success: false };
     }
   }, []);
 
-
   const handleThankYou = async () => {
-    if (!profile?.id || !referral || loading) return;
+    if (!profile?.id || !referral || step !== 'idle') return;
 
-    setLoading(true);
+    // Step 1: User clicked - start confirming
+    setStep('confirming');
 
     try {
-      // Call backend to grant reward (uses service role - instant credit)
-      const ok = await confirmReferralBackend(
+      // Call backend and get step-by-step results
+      const result = await confirmReferralWithProgress(
         referral.inviterUserId,
         referral.inviterId
       );
 
-      if (!ok) {
-        toast.error("Couldn't confirm the invite reward. Please try again.");
+      // Animate through steps based on actual backend response
+      if (!result.success) {
+        setStep('error');
+        toast.error("Couldn't confirm the invite. Please try again.");
         return;
       }
 
-      // Mark as confirmed only after backend success
+      const steps = result.steps;
+      
+      // Step 2: Redemption created → rewarding
+      if (steps?.redemptionCreated) {
+        setStep('rewarding');
+        await new Promise(r => setTimeout(r, 400)); // Brief pause for smooth animation
+      }
+
+      // Step 3: Reward granted → notifying
+      if (steps?.rewardGranted) {
+        setStep('notifying');
+        await new Promise(r => setTimeout(r, 400));
+      }
+
+      // Step 4: Notification sent → complete
+      if (steps?.notificationSent) {
+        setStep('complete');
+      }
+
+      // Mark as confirmed
       markReferralConfirmed();
 
-      // Show success
-      setSuccess(true);
+      // Show success toast
       toast.success(`You and @${referral.inviterUsername} are now friends!`);
 
-      // Close after animation
+      // Close after showing complete state
       setTimeout(() => {
         setVisible(false);
         cleanupReferralStorage();
       }, 1500);
     } catch (error) {
       console.error('[InvitePopup] Error:', error);
-      toast.error("Couldn't confirm the invite reward. Please try again.");
-    } finally {
-      setLoading(false);
+      setStep('error');
+      toast.error("Couldn't confirm the invite. Please try again.");
     }
   };
 
+  const handleRetry = () => {
+    setStep('idle');
+  };
+
   if (!visible || !referral) return null;
+
+  const currentStepInfo = STEP_INFO[step];
+  const isProcessing = step !== 'idle' && step !== 'error';
+  const isComplete = step === 'complete';
+  const isError = step === 'error';
 
   return (
     <AnimatePresence>
@@ -264,7 +308,7 @@ export function InvitePopup() {
           className="relative w-full max-w-sm liquid-glass-card rounded-2xl p-8 shadow-xl"
         >
           <div className="text-center space-y-6">
-            {success ? (
+            {isComplete ? (
               // Success animation
               <motion.div
                 initial={{ scale: 0 }}
@@ -313,29 +357,70 @@ export function InvitePopup() {
                     Thanks for joining VYBE!
                   </p>
                 </div>
-                
-                {/* Single Action Button */}
-                <div className="pt-2">
-                  <Button
-                    className="w-full gradient-animated text-lg py-6"
-                    size="lg"
-                    onClick={handleThankYou}
-                    disabled={loading}
+
+                {/* Progress bar (only show when processing) */}
+                {isProcessing && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-3 pt-2"
                   >
-                    {loading ? (
+                    {/* Progress bar container */}
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                        className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+                        className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full"
+                        initial={{ width: '0%' }}
+                        animate={{ width: `${currentStepInfo.progress}%` }}
+                        transition={{ duration: 0.5, ease: 'easeOut' }}
                       />
-                    ) : (
-                      <>
-                        <Heart className="h-5 w-5 mr-2" />
-                        Thank You
-                      </>
-                    )}
-                  </Button>
-                </div>
+                    </div>
+                    
+                    {/* Step label */}
+                    <motion.p
+                      key={step}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-sm text-muted-foreground"
+                    >
+                      {currentStepInfo.label}
+                    </motion.p>
+                  </motion.div>
+                )}
+
+                {/* Error state */}
+                {isError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-3 pt-2"
+                  >
+                    <p className="text-sm text-destructive">
+                      {currentStepInfo.label}
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={handleRetry}
+                      className="gap-2"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Retry
+                    </Button>
+                  </motion.div>
+                )}
+                
+                {/* Action Button (only show when idle) */}
+                {step === 'idle' && (
+                  <div className="pt-2">
+                    <Button
+                      className="w-full gradient-animated text-lg py-6"
+                      size="lg"
+                      onClick={handleThankYou}
+                    >
+                      <Heart className="h-5 w-5 mr-2" />
+                      Thank You
+                    </Button>
+                  </div>
+                )}
               </>
             )}
           </div>

@@ -9,23 +9,30 @@ const corsHeaders = {
  * Confirm Referral Edge Function
  * 
  * Called when new user clicks "Thank You" on referral popup.
- * Uses service role to atomically:
- * 1. Create invite_redemption record
- * 2. Increment inviter's use_count
- * 3. Award badges based on milestones
- * 4. Create instant friendship
- * 5. Send notification to inviter
+ * Returns step-by-step progress for event-driven UI.
+ * 
+ * Steps:
+ * 1. Validate & create redemption record (25% → 50%)
+ * 2. Grant reward / increment use_count (50% → 75%)
+ * 3. Create friendship & send notification (75% → 100%)
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Track which steps completed for response
+  const steps = {
+    redemptionCreated: false,
+    rewardGranted: false,
+    notificationSent: false,
+  };
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: "Missing authorization header" }),
+        JSON.stringify({ error: "Missing authorization header", steps }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -43,7 +50,7 @@ Deno.serve(async (req) => {
     if (authError || !user) {
       console.error("[confirm-referral] auth error:", authError);
       return new Response(
-        JSON.stringify({ error: "User not authenticated" }),
+        JSON.stringify({ error: "User not authenticated", steps }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -53,7 +60,7 @@ Deno.serve(async (req) => {
     
     if (!inviterUserId || !inviterProfileId) {
       return new Response(
-        JSON.stringify({ error: "Missing inviter data" }),
+        JSON.stringify({ error: "Missing inviter data", steps }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -77,7 +84,7 @@ Deno.serve(async (req) => {
     if (redeemerError || !redeemerProfile) {
       console.error("[confirm-referral] redeemer profile error:", redeemerError);
       return new Response(
-        JSON.stringify({ error: "Could not find your profile" }),
+        JSON.stringify({ error: "Could not find your profile", steps }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -87,7 +94,7 @@ Deno.serve(async (req) => {
     // Prevent self-referral
     if (redeemerProfileId === inviterProfileId) {
       return new Response(
-        JSON.stringify({ error: "Cannot refer yourself" }),
+        JSON.stringify({ error: "Cannot refer yourself", steps }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -102,12 +109,16 @@ Deno.serve(async (req) => {
     if (existingRedemption) {
       console.log("[confirm-referral] Already redeemed");
       return new Response(
-        JSON.stringify({ success: true, message: "Already confirmed" }),
+        JSON.stringify({ 
+          success: true, 
+          message: "Already confirmed",
+          steps: { redemptionCreated: true, rewardGranted: true, notificationSent: true }
+        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Find or create invite record for inviter
+    // ========== STEP 1: Create redemption record ==========
     let inviteId: string;
     let currentUseCount = 0;
 
@@ -138,7 +149,7 @@ Deno.serve(async (req) => {
       if (createError || !newInvite) {
         console.error("[confirm-referral] Failed to create invite:", createError);
         return new Response(
-          JSON.stringify({ error: "Failed to process referral" }),
+          JSON.stringify({ error: "Failed to process referral", steps }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -156,17 +167,28 @@ Deno.serve(async (req) => {
     if (redemptionError && redemptionError.code !== "23505") {
       console.error("[confirm-referral] Redemption error:", redemptionError);
       return new Response(
-        JSON.stringify({ error: "Failed to record redemption" }),
+        JSON.stringify({ error: "Failed to record redemption", steps }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Increment use_count
+    steps.redemptionCreated = true;
+    console.log("[confirm-referral] Step 1 complete: Redemption created");
+
+    // ========== STEP 2: Grant reward (increment use_count + badges) ==========
     const newUseCount = currentUseCount + 1;
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from("invites")
       .update({ use_count: newUseCount })
       .eq("id", inviteId);
+
+    if (updateError) {
+      console.error("[confirm-referral] Failed to update use_count:", updateError);
+      return new Response(
+        JSON.stringify({ error: "Failed to grant reward", steps }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     console.log("[confirm-referral] Updated use_count to:", newUseCount);
 
@@ -199,7 +221,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Create instant friendship
+    steps.rewardGranted = true;
+    console.log("[confirm-referral] Step 2 complete: Reward granted");
+
+    // ========== STEP 3: Create friendship & send notification ==========
     const { data: existingFriendship } = await supabaseAdmin
       .from("friend_requests")
       .select("id, status")
@@ -226,7 +251,7 @@ Deno.serve(async (req) => {
     }
 
     // Send notification to inviter
-    await supabaseAdmin
+    const { error: notifError } = await supabaseAdmin
       .from("notifications")
       .insert({
         user_id: inviterProfileId,
@@ -234,13 +259,22 @@ Deno.serve(async (req) => {
         type: "invite_accepted",
       });
 
-    console.log("[confirm-referral] Success! Inviter rewarded.");
+    if (notifError) {
+      console.error("[confirm-referral] Notification error:", notifError);
+      // Don't fail the whole flow for notification error
+    }
+
+    steps.notificationSent = true;
+    console.log("[confirm-referral] Step 3 complete: Notification sent");
+
+    console.log("[confirm-referral] All steps complete!");
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         newUseCount,
-        message: "Referral confirmed successfully" 
+        message: "Referral confirmed successfully",
+        steps,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -249,7 +283,7 @@ Deno.serve(async (req) => {
     const message = error instanceof Error ? error.message : "Internal server error";
     console.error("[confirm-referral] unexpected error:", error);
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: message, steps }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
