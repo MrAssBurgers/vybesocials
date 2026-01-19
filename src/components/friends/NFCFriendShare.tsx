@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Nfc, Smartphone, Loader2, Check, X, Settings, WifiOff, UserPlus, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useNFC } from '@/hooks/useNFC';
 import { useAuth } from '@/lib/auth';
@@ -25,7 +25,6 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
   const {
     isSupported,
     isEnabled,
-    isScanning,
     isNative,
     hasWebNFC,
     startScan,
@@ -106,6 +105,42 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
     stopScan();
   }, [stopScan]);
 
+  // Immediately activate NFC when button is clicked
+  const handleNFCButtonClick = async () => {
+    if (!profile?.id) {
+      toast.error('Please log in first');
+      return;
+    }
+
+    if (!hasWebNFC) {
+      toast.error('NFC is not available on this device. Try Chrome on Android.');
+      return;
+    }
+
+    haptics.tap();
+    setIsOpen(true);
+    
+    // Immediately start both sharing and receiving for seamless experience
+    // Start sharing your profile first
+    setMode('sharing');
+    
+    try {
+      // Write your profile to NFC - this requests permission
+      const writeSuccess = await writeNFC(profile.id);
+      
+      if (writeSuccess) {
+        // Also start scanning for incoming NFC
+        startScan(handleTagScanned);
+        toast.success('NFC activated! Tap phones together');
+      } else {
+        setMode('idle');
+      }
+    } catch (error) {
+      console.error('NFC activation error:', error);
+      setMode('error');
+    }
+  };
+
   // Start sharing your profile
   const handleStartSharing = async () => {
     if (!profile?.id) return;
@@ -115,11 +150,13 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
     
     if (hasWebNFC) {
       const success = await writeNFC(profile.id);
-      if (!success) {
+      if (success) {
+        // Also listen for incoming NFC while sharing
+        startScan(handleTagScanned);
+      } else {
         setMode('idle');
       }
     } else {
-      // For native without Web NFC, show instructions
       toast.success('Hold your phone near your friend\'s device');
     }
   };
@@ -171,35 +208,37 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
         onComplete={handleSwapComplete}
       />
 
-      <Sheet open={isOpen} onOpenChange={(open) => (open ? setIsOpen(true) : handleClose())}>
-        <SheetTrigger asChild>
-          {variant === 'icon' ? (
-            <Button
-              variant="outline"
-              size="icon"
-              className={cn('relative', className)}
-              disabled={!isSupported && !hasWebNFC}
-            >
-              <Nfc className="h-4 w-4" />
-              {!isEnabled && isSupported && (
-                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
-              )}
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              className={cn('gap-2', className)}
-              disabled={!isSupported && !hasWebNFC}
-            >
-              <Nfc className="h-4 w-4" />
-              <span>NFC Friend</span>
-              {!isEnabled && isSupported && (
-                <span className="h-2 w-2 rounded-full bg-destructive" />
-              )}
-            </Button>
+      {/* NFC Button - directly activates NFC on click */}
+      {variant === 'icon' ? (
+        <Button
+          variant="outline"
+          size="icon"
+          className={cn('relative', className)}
+          disabled={!isSupported && !hasWebNFC}
+          onClick={handleNFCButtonClick}
+        >
+          <Nfc className="h-4 w-4" />
+          {!isEnabled && isSupported && (
+            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
           )}
-        </SheetTrigger>
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          className={cn('gap-2', className)}
+          disabled={!isSupported && !hasWebNFC}
+          onClick={handleNFCButtonClick}
+        >
+          <Nfc className="h-4 w-4" />
+          <span>NFC Friend</span>
+          {!isEnabled && isSupported && (
+            <span className="h-2 w-2 rounded-full bg-destructive" />
+          )}
+        </Button>
+      )}
 
+      {/* Sheet for NFC interaction */}
+      <Sheet open={isOpen} onOpenChange={(open) => (open ? null : handleClose())}>
         <SheetContent side="bottom" className="rounded-t-3xl">
           <SheetHeader className="text-center pb-4">
             <SheetTitle className="flex items-center justify-center gap-2">
@@ -363,16 +402,16 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                 </div>
 
                 <div>
-                  <p className="font-medium">Broadcasting your profile</p>
+                  <p className="font-medium">NFC Active - Broadcasting</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Tap your phone against your friend's device
                   </p>
                   <p className="text-xs text-muted-foreground/70 mt-2">
-                    They'll receive a notification to add you
+                    Also listening for incoming friend requests
                   </p>
                 </div>
 
-                <Button variant="outline" onClick={() => setMode('idle')}>
+                <Button variant="outline" onClick={handleClose}>
                   Cancel
                 </Button>
               </motion.div>
@@ -423,10 +462,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
 
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    stopScan();
-                    setMode('idle');
-                  }}
+                  onClick={handleClose}
                 >
                   Cancel
                 </Button>
@@ -517,13 +553,18 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                 <div>
                   <p className="font-medium">Something went wrong</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Could not read NFC tag. Try again.
+                    Could not activate NFC. Make sure NFC is enabled on your device.
                   </p>
                 </div>
 
-                <Button variant="outline" onClick={() => setMode('idle')}>
-                  Try Again
-                </Button>
+                <div className="flex gap-2 justify-center">
+                  <Button variant="outline" onClick={handleClose}>
+                    Close
+                  </Button>
+                  <Button onClick={() => setMode('idle')}>
+                    Try Again
+                  </Button>
+                </div>
               </motion.div>
             )}
           </div>
