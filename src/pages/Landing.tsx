@@ -21,8 +21,9 @@ export default function Landing() {
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
   
-  // Check if coming from invite link with signup=true
-  const [isLogin, setIsLogin] = useState(() => searchParams.get('signup') !== 'true');
+  // Check URL params for mode (login vs signup) and intro reset
+  const modeParam = searchParams.get('mode');
+  const [isLogin, setIsLogin] = useState(() => modeParam === 'login' || searchParams.get('signup') !== 'true');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showIntro, setShowIntro] = useState(!hasSeenIntro());
@@ -34,10 +35,16 @@ export default function Landing() {
 
   // Re-check intro status on mount (in case it was reset by invite flow)
   useEffect(() => {
-    if (!hasSeenIntro()) {
+    const introNotSeen = !hasSeenIntro();
+    if (introNotSeen) {
       setShowIntro(true);
     }
-  }, []);
+    // If mode=login, skip intro and go straight to login
+    if (modeParam === 'login') {
+      setShowIntro(false);
+      setIsLogin(true);
+    }
+  }, [modeParam]);
 
   // Redirect if already logged in
   useEffect(() => {
