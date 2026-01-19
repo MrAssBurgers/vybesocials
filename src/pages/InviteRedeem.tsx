@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { analytics } from '@/lib/analytics';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { setPendingReferral, clearPendingReferral, type PendingReferral } from '@/lib/referral';
+import { resetIntro } from '@/components/intro/IntroFlow';
 
 interface InviterInfo {
   id: string;
@@ -146,9 +147,11 @@ export default function InviteRedeem() {
   }, [user?.id, profile?.id, inviter, validated, navigate]);
   
   const handleJoin = () => {
-    // Navigate to landing page with signup mode
-    // Referral is already stored in localStorage
-    navigate('/?signup=true');
+    // Reset intro so they get the full first-time experience
+    resetIntro();
+    // Navigate to landing page - they'll get the full intro experience
+    // Referral is already stored in localStorage and will be claimed after signup
+    navigate('/');
   };
   
   const handleLogin = () => {
