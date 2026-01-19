@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { UserPlus, Loader2, CheckCircle, XCircle, Sparkles } from 'lucide-react';
+import { UserPlus, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
-import { useRedeemInvite } from '@/hooks/useInvites';
 import { supabase } from '@/integrations/supabase/client';
 import { analytics } from '@/lib/analytics';
 import { VYBELogo } from '@/components/ui/VYBELogo';
+
+interface InviterInfo {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+  display_name: string | null;
+}
 
 export default function InviteRedeem() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const redeemInvite = useRedeemInvite();
-  const [inviteInfo, setInviteInfo] = useState<any>(null);
+  const [inviter, setInviter] = useState<InviterInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -25,115 +30,82 @@ export default function InviteRedeem() {
     }
   }, [code]);
   
-  // Fetch invite info
+  // Validate invite and get inviter info
   useEffect(() => {
-    async function fetchInvite() {
+    async function validateInvite() {
       if (!code) {
-        setError('Invalid invite link');
+        // No code = continue without referral
         setLoading(false);
         return;
       }
       
       try {
-        const { data, error: fetchError } = await supabase
+        // Find the invite by code
+        const { data: invite, error: inviteError } = await supabase
           .from('invites')
-          .select('*, profiles:inviter_id(username, avatar_url, display_name)')
+          .select('inviter_id')
           .eq('invite_code', code.toUpperCase())
+          .maybeSingle();
+        
+        if (inviteError || !invite) {
+          // Invalid invite - continue without referral (don't error)
+          console.log('Invite not found, continuing without referral');
+          setLoading(false);
+          return;
+        }
+        
+        // Get inviter's profile (inviter_id is auth user ID)
+        const { data: inviterProfile } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url, display_name')
+          .eq('user_id', invite.inviter_id)
           .single();
         
-        if (fetchError || !data) {
-          setError('This invite link is invalid or has expired');
-        } else {
-          setInviteInfo(data);
+        if (inviterProfile) {
+          setInviter(inviterProfile);
+          // Store inviter profile ID for post-signup popup
+          sessionStorage.setItem('pending_inviter_id', inviterProfile.id);
         }
-      } catch {
-        setError('Failed to load invite');
+      } catch (err) {
+        console.error('Error validating invite:', err);
+        // Continue without referral on any error
       } finally {
         setLoading(false);
       }
     }
     
-    fetchInvite();
+    validateInvite();
   }, [code]);
   
-  const handleAcceptInvite = async () => {
-    if (!code) return;
-    
-    try {
-      await redeemInvite.mutateAsync(code);
-      // Redirect to home after successful redemption
-      setTimeout(() => navigate('/home'), 1500);
-    } catch {
-      // Error handled by mutation
+  // If user is already logged in, check if they're the inviter
+  useEffect(() => {
+    if (user?.id && profile?.id && inviter) {
+      if (inviter.id === profile.id) {
+        // Can't use own invite
+        navigate('/home');
+        return;
+      }
+      
+      // Already logged in - store inviter and redirect to home
+      // The InvitePopup will show after navigation
+      sessionStorage.setItem('pending_inviter_id', inviter.id);
+      navigate('/home');
     }
+  }, [user?.id, profile?.id, inviter, navigate]);
+  
+  const handleJoin = () => {
+    // Navigate to onboarding/signup
+    navigate('/onboarding');
   };
   
-  const handleSignUp = () => {
-    // Store invite code in session storage for after signup
-    if (code) {
-      sessionStorage.setItem('pending_invite_code', code);
-    }
-    navigate('/auth?mode=signup');
+  const handleLogin = () => {
+    navigate('/');
   };
   
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-  
-  if (error || !inviteInfo) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center space-y-4"
-        >
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/20 mb-4">
-            <XCircle className="h-8 w-8 text-destructive" />
-          </div>
-          <h1 className="text-2xl font-bold">{error || 'Invalid Invite'}</h1>
-          <p className="text-muted-foreground max-w-sm">
-            This invite link may have expired or been used too many times.
-          </p>
-          <Button onClick={() => navigate('/')} variant="outline">
-            Go to VYBE
-          </Button>
-        </motion.div>
-      </div>
-    );
-  }
-  
-  const inviterProfile = inviteInfo.profiles;
-  
-  // If redeemed successfully
-  if (redeemInvite.isSuccess) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center space-y-4"
-        >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', delay: 0.2 }}
-            className="inline-flex items-center justify-center w-20 h-20 rounded-full gradient-animated mb-4"
-          >
-            <CheckCircle className="h-10 w-10 text-white" />
-          </motion.div>
-          <h1 className="text-2xl font-bold">You're Connected!</h1>
-          <p className="text-muted-foreground">
-            You're now connected with @{inviterProfile?.username}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Redirecting to VYBE...
-          </p>
-        </motion.div>
       </div>
     );
   }
@@ -172,69 +144,60 @@ export default function InviteRedeem() {
             <div>
               <h1 className="text-xl font-bold mb-2">You're Invited!</h1>
               <p className="text-muted-foreground">
-                <span className="font-semibold text-foreground">
-                  @{inviterProfile?.username || 'A friend'}
-                </span>
-                {' '}wants you to join VYBE
+                {inviter ? (
+                  <>
+                    <span className="font-semibold text-foreground">
+                      @{inviter.username}
+                    </span>
+                    {' '}wants you to join VYBE
+                  </>
+                ) : (
+                  'Join VYBE and connect with friends'
+                )}
               </p>
             </div>
             
             {/* Inviter preview */}
-            {inviterProfile && (
+            {inviter && (
               <div className="flex items-center justify-center gap-3 py-3 px-4 rounded-xl bg-muted/30">
-                <div className="w-12 h-12 rounded-full gradient-animated flex items-center justify-center text-white font-bold text-lg">
-                  {inviterProfile.username?.[0]?.toUpperCase()}
+                <div className="w-12 h-12 rounded-full gradient-animated flex items-center justify-center text-white font-bold text-lg overflow-hidden">
+                  {inviter.avatar_url ? (
+                    <img src={inviter.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    inviter.username?.[0]?.toUpperCase()
+                  )}
                 </div>
                 <div className="text-left">
                   <p className="font-semibold">
-                    {inviterProfile.display_name || inviterProfile.username}
+                    {inviter.display_name || inviter.username}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    @{inviterProfile.username}
+                    @{inviter.username}
                   </p>
                 </div>
               </div>
             )}
             
             {/* Action buttons */}
-            {user && profile ? (
+            <div className="space-y-3">
               <Button
                 className="w-full gradient-animated"
                 size="lg"
-                onClick={handleAcceptInvite}
-                disabled={redeemInvite.isPending}
+                onClick={handleJoin}
               >
-                {redeemInvite.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <UserPlus className="h-4 w-4 mr-2" />
-                )}
-                Accept Invite
+                <Sparkles className="h-4 w-4 mr-2" />
+                Join VYBE
               </Button>
-            ) : (
-              <div className="space-y-3">
-                <Button
-                  className="w-full gradient-animated"
-                  size="lg"
-                  onClick={handleSignUp}
+              <p className="text-xs text-muted-foreground">
+                Already have an account?{' '}
+                <button 
+                  onClick={handleLogin}
+                  className="text-primary hover:underline"
                 >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Join VYBE
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Already have an account?{' '}
-                  <button 
-                    onClick={() => {
-                      if (code) sessionStorage.setItem('pending_invite_code', code);
-                      navigate('/auth?mode=login');
-                    }}
-                    className="text-primary hover:underline"
-                  >
-                    Log in
-                  </button>
-                </p>
-              </div>
-            )}
+                  Log in
+                </button>
+              </p>
+            </div>
           </div>
           
           {/* Features preview */}
