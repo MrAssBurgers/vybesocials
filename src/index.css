@@ -2,9 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Hide bottom nav when splash screen is visible */
+/* Hide bottom nav on splash, landing, and intro pages */
 body.splash-visible nav[aria-label="Bottom navigation"],
-body.splash-visible [data-tutorial-bottomnav] {
+body.splash-visible [data-tutorial-bottomnav],
+body.hide-bottom-nav nav[aria-label="Bottom navigation"],
+body.hide-bottom-nav [data-tutorial-bottomnav] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
@@ -740,17 +742,19 @@ body.splash-visible [data-tutorial-bottomnav] {
       0 4px 12px hsl(var(--neon-purple) / 0.15);
   }
 
-  /* Animated gradient background - SLOW for performance */
+  /* Animated gradient background - smooth and fluid */
   .gradient-animated {
     background: linear-gradient(
       135deg,
-      hsl(var(--gradient-start)),
-      hsl(var(--gradient-mid)),
-      hsl(var(--gradient-end)),
-      hsl(var(--gradient-start))
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-mid)) 25%,
+      hsl(var(--gradient-end)) 50%,
+      hsl(var(--gradient-mid)) 75%,
+      hsl(var(--gradient-start)) 100%
     );
-    background-size: 300% 300%;
-    animation: gradient-shift 12s ease infinite;
+    background-size: 400% 400%;
+    animation: gradient-shift 10s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    border-radius: inherit;
   }
 
   /* Static gradient for non-critical elements */
@@ -1084,11 +1088,20 @@ body.splash-visible [data-tutorial-bottomnav] {
 
 /* Keyframe animations */
 @keyframes gradient-shift {
-  0%, 100% {
-    background-position: 0% 50%;
+  0% {
+    background-position: 0% 0%;
+  }
+  25% {
+    background-position: 50% 100%;
   }
   50% {
     background-position: 100% 50%;
+  }
+  75% {
+    background-position: 50% 0%;
+  }
+  100% {
+    background-position: 0% 0%;
   }
 }
 
