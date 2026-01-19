@@ -98,12 +98,38 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
     }
   }, [profile?.id]);
 
+  // Auto-add friend during animation
+  const handleAutoAdd = useCallback(async () => {
+    if (!receivedUser) return;
+    
+    // Check if already connected
+    const status = friendshipStatus?.status;
+    if (status === 'friends' || status === 'pending_sent') {
+      console.log('[NFCShare] Already connected, skipping auto-add');
+      return;
+    }
+
+    try {
+      console.log('[NFCShare] Auto-adding friend:', receivedUser.username);
+      await sendRequest.mutateAsync(receivedUser.id);
+      haptics.success();
+      toast.success(`Added @${receivedUser.username} as a friend!`);
+    } catch (error) {
+      console.error('[NFCShare] Auto-add failed:', error);
+      // Don't show error toast - the animation will still complete
+    }
+  }, [receivedUser, friendshipStatus?.status, sendRequest]);
+
   // Called when swap animation completes
   const handleSwapComplete = useCallback(() => {
     setShowSwapAnimation(false);
     setMode('success');
     stopScan();
-  }, [stopScan]);
+    // Close after a short delay since friend was already added
+    setTimeout(() => {
+      handleClose();
+    }, 500);
+  }, [stopScan, handleClose]);
 
   // Immediately activate NFC when button is clicked
   const handleNFCButtonClick = async () => {
@@ -192,6 +218,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
         myProfile={profile ? { username: profile.username || 'You', avatar_url: profile.avatar_url } : null}
         theirProfile={receivedUser}
         onComplete={handleSwapComplete}
+        onAutoAdd={handleAutoAdd}
       />
 
       {/* NFC Button - directly activates NFC on click */}
