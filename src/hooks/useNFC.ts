@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 
-type NfcStatus = 'enabled' | 'disabled' | 'none';
-
 interface NFCState {
   isSupported: boolean;
   isEnabled: boolean;
@@ -11,11 +9,36 @@ interface NFCState {
   error: string | null;
 }
 
-// Web NFC API types (for browsers that support it)
+// Web NFC API types (for browsers that support it - Chrome Android 89+)
 declare global {
   interface Window {
-    NDEFReader?: any;
-    NDEFMessage?: any;
+    NDEFReader?: new () => NDEFReader;
+  }
+  
+  interface NDEFReader {
+    scan(options?: { signal?: AbortSignal }): Promise<void>;
+    write(message: NDEFMessageInit, options?: { signal?: AbortSignal }): Promise<void>;
+    addEventListener(type: 'reading', listener: (event: NDEFReadingEvent) => void): void;
+    addEventListener(type: 'readingerror', listener: () => void): void;
+  }
+  
+  interface NDEFReadingEvent {
+    message: {
+      records: NDEFRecord[];
+    };
+  }
+  
+  interface NDEFRecord {
+    recordType: string;
+    data: ArrayBuffer;
+    encoding?: string;
+  }
+  
+  interface NDEFMessageInit {
+    records: Array<{
+      recordType: string;
+      data: string;
+    }>;
   }
 }
 
@@ -26,66 +49,46 @@ export function useNFC() {
     isScanning: false,
     error: null,
   });
-  const [nfcPlugin, setNfcPlugin] = useState<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const ndefReaderRef = useRef<NDEFReader | null>(null);
 
   const isNative = Capacitor.isNativePlatform();
   const hasWebNFC = typeof window !== 'undefined' && 'NDEFReader' in window;
 
   useEffect(() => {
-    const initNFC = async () => {
-      // Try native Capacitor plugin first
-      if (isNative) {
-        try {
-          const { NFC } = await import('capacitor-nfc');
-          setNfcPlugin(NFC);
-
-          const { status } = await NFC.getStatus();
-          setState(prev => ({
-            ...prev,
-            isSupported: status !== 'none',
-            isEnabled: status === 'enabled',
-          }));
-          return;
-        } catch (error) {
-          console.log('Native NFC plugin not available:', error);
-        }
-      }
-
-      // Fall back to Web NFC API (Chrome Android 89+)
-      if (hasWebNFC) {
-        setState(prev => ({
-          ...prev,
-          isSupported: true,
-          isEnabled: true, // Web NFC doesn't have a way to check if enabled
-        }));
-        return;
-      }
-
-      // NFC not supported
+    // Web NFC API is supported on Chrome Android 89+
+    if (hasWebNFC) {
+      setState(prev => ({
+        ...prev,
+        isSupported: true,
+        isEnabled: true, // Web NFC doesn't have a way to check if enabled beforehand
+      }));
+    } else {
       setState(prev => ({ ...prev, isSupported: false }));
-    };
-
-    initNFC();
-  }, [isNative, hasWebNFC]);
+    }
+  }, [hasWebNFC]);
 
   // Start scanning for NFC tags using Web NFC API
-  const startWebNFCScan = useCallback(async (onTagScanned: (data: string) => void): Promise<boolean> => {
-    if (!hasWebNFC) return false;
+  const startScan = useCallback(async (onTagScanned: (userId: string) => void): Promise<boolean> => {
+    if (!hasWebNFC || !window.NDEFReader) {
+      toast.error('NFC is not available on this device. Try Chrome on Android.');
+      return false;
+    }
 
     try {
       const ndef = new window.NDEFReader();
+      ndefReaderRef.current = ndef;
       abortControllerRef.current = new AbortController();
 
       await ndef.scan({ signal: abortControllerRef.current.signal });
-      setState(prev => ({ ...prev, isScanning: true }));
+      setState(prev => ({ ...prev, isScanning: true, error: null }));
 
-      ndef.addEventListener('reading', ({ message }: any) => {
-        for (const record of message.records) {
+      ndef.addEventListener('reading', (event: NDEFReadingEvent) => {
+        for (const record of event.message.records) {
           if (record.recordType === 'text') {
-            const decoder = new TextDecoder(record.encoding);
+            const decoder = new TextDecoder(record.encoding || 'utf-8');
             const text = decoder.decode(record.data);
-            
+
             if (text.startsWith('vybe:friend:')) {
               onTagScanned(text.replace('vybe:friend:', ''));
               return;
@@ -96,71 +99,26 @@ export function useNFC() {
 
       ndef.addEventListener('readingerror', () => {
         setState(prev => ({ ...prev, error: 'Cannot read from NFC tag' }));
+        toast.error('Failed to read NFC tag');
       });
 
       return true;
     } catch (error: any) {
+      setState(prev => ({ ...prev, isScanning: false }));
+      
       if (error.name === 'NotAllowedError') {
         toast.error('NFC permission denied. Please allow NFC access.');
       } else if (error.name === 'NotSupportedError') {
         toast.error('NFC not supported on this device.');
+      } else if (error.name === 'AbortError') {
+        // User or code cancelled - no error needed
+        return false;
+      } else {
+        toast.error('Failed to start NFC scan');
       }
       return false;
     }
   }, [hasWebNFC]);
-
-  // Start scanning for NFC tags using Capacitor plugin
-  const startNativeScan = useCallback(async (onTagScanned: (data: string) => void): Promise<boolean> => {
-    if (!nfcPlugin) return false;
-
-    try {
-      // Check status first
-      const { status } = await nfcPlugin.getStatus();
-      if (status !== 'enabled') {
-        toast.error('Please enable NFC in your device settings');
-        return false;
-      }
-
-      await nfcPlugin.startScanning({ ndefEnabled: true });
-      setState(prev => ({ ...prev, isScanning: true }));
-
-      // The plugin uses events - set up listener
-      // Note: This basic plugin doesn't support NDEF reading well,
-      // so we'll use the tag ID as a fallback mechanism
-      const tagInfo = await nfcPlugin.getTagInfo();
-      if (tagInfo?.tagId) {
-        // For basic NFC, we can't read custom data, but we can use tagId
-        onTagScanned(tagInfo.tagId);
-      }
-
-      return true;
-    } catch (error: any) {
-      console.error('Native NFC scan error:', error);
-      return false;
-    }
-  }, [nfcPlugin]);
-
-  // Main scan function
-  const startScan = useCallback(async (onTagScanned: (userId: string) => void): Promise<boolean> => {
-    if (!state.isSupported) {
-      toast.error('NFC is not available on this device');
-      return false;
-    }
-
-    setState(prev => ({ ...prev, error: null }));
-
-    // Prefer Web NFC if available (better NDEF support)
-    if (hasWebNFC) {
-      return startWebNFCScan(onTagScanned);
-    }
-
-    // Fall back to native plugin
-    if (nfcPlugin) {
-      return startNativeScan(onTagScanned);
-    }
-
-    return false;
-  }, [state.isSupported, hasWebNFC, nfcPlugin, startWebNFCScan, startNativeScan]);
 
   // Stop scanning
   const stopScan = useCallback(() => {
@@ -168,12 +126,13 @@ export function useNFC() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    ndefReaderRef.current = null;
     setState(prev => ({ ...prev, isScanning: false }));
   }, []);
 
   // Write NDEF message using Web NFC
   const writeNFC = useCallback(async (userId: string): Promise<boolean> => {
-    if (!hasWebNFC) {
+    if (!hasWebNFC || !window.NDEFReader) {
       toast.error('NFC writing not supported on this device');
       return false;
     }
@@ -209,16 +168,10 @@ export function useNFC() {
     }
   }, [hasWebNFC]);
 
-  // Open NFC settings (native only)
-  const openSettings = useCallback(async () => {
-    if (nfcPlugin) {
-      try {
-        await nfcPlugin.showSettings();
-      } catch (error) {
-        toast.error('Could not open NFC settings');
-      }
-    }
-  }, [nfcPlugin]);
+  // Open NFC settings - only works on some platforms
+  const openSettings = useCallback(() => {
+    toast.info('Please enable NFC in your device settings');
+  }, []);
 
   return {
     ...state,
