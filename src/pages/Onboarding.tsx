@@ -7,14 +7,15 @@ import { InterestPicker } from '@/components/onboarding/InterestPicker';
 import { CreatorSuggestions } from '@/components/onboarding/CreatorSuggestions';
 import { ProfileSetup } from '@/components/onboarding/ProfileSetup';
 import { SensitivitySettings } from '@/components/onboarding/SensitivitySettings';
-import { PhoneVerification } from '@/components/onboarding/PhoneVerification';
+import { EmailVerification } from '@/components/onboarding/EmailVerification';
+import { ContactDiscovery } from '@/components/onboarding/ContactDiscovery';
 import { PrivacySettings } from '@/components/onboarding/PrivacySettings';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 
 type SensitivityLevel = 'standard' | 'restricted' | 'open';
 
@@ -39,7 +40,6 @@ export default function Onboarding() {
   });
   const [sensitivity, setSensitivity] = useState<SensitivityLevel>('standard');
   const [isPrivate, setIsPrivate] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState('');
 
   const canProceed = () => {
     switch (step) {
@@ -48,7 +48,8 @@ export default function Onboarding() {
       case 3: return profileData.firstName.length > 0 && profileData.lastName.length > 0;
       case 4: return true;
       case 5: return true;
-      case 6: return true; // Phone is optional
+      case 6: return true; // Email verification is optional
+      case 7: return true; // Contact discovery is optional
       default: return true;
     }
   };
@@ -101,7 +102,6 @@ export default function Onboarding() {
           interests: interests,
           sensitivity_preference: sensitivity,
           is_private: isPrivate,
-          phone_number: phoneNumber || null,
           onboarding_completed: true,
         })
         .eq('id', profile.id);
@@ -197,7 +197,10 @@ export default function Onboarding() {
                 <PrivacySettings isPrivate={isPrivate} onChange={setIsPrivate} />
               )}
               {step === 6 && (
-                <PhoneVerification phoneNumber={phoneNumber} onChange={setPhoneNumber} />
+                <EmailVerification />
+              )}
+              {step === 7 && (
+                <ContactDiscovery onComplete={handleFinish} />
               )}
             </motion.div>
           </AnimatePresence>
