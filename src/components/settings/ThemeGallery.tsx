@@ -243,13 +243,20 @@ export function ThemeGallery() {
   }, [publicThemes]);
 
   const handlePreview = useCallback((theme: SharedTheme) => {
-    setPreviewingTheme(theme);
-    try {
-      applyThemeTokens(theme.theme_tokens);
-    } catch (error) {
-      console.error('Error previewing theme:', error);
-    }
-  }, []);
+    const primaryColor = theme.theme_tokens?.colorPrimary || '280 70% 50%';
+    const accentColor = theme.theme_tokens?.colorAccent || '330 80% 60%';
+    
+    // Trigger the fire transition animation on preview
+    triggerTransition(primaryColor, accentColor, () => {
+      // Apply theme at midpoint
+      try {
+        applyThemeTokens(theme.theme_tokens);
+        setPreviewingTheme(theme);
+      } catch (error) {
+        console.error('Error previewing theme:', error);
+      }
+    });
+  }, [triggerTransition]);
 
   const handleEquip = useCallback((theme: SharedTheme) => {
     const primaryColor = theme.theme_tokens?.colorPrimary || '280 70% 50%';
