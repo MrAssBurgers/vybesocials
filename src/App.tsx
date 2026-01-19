@@ -173,7 +173,6 @@ function AppWithPreloader() {
       <GlobalErrorHandler />
       <AuthProvider>
         <CustomThemeProvider>
-          <GlobalMessageNotifications />
           <EasterEggProvider>
           <CallStoreProvider>
             <TooltipProvider>
@@ -228,6 +227,7 @@ function AppWithPreloader() {
                   </Suspense>
                   <RootBottomNavMount />
                   <PushNotificationPrompt />
+                  <GlobalMessageNotifications />
                   <GlobalCallOverlay />
                   <WarningPopup />
                   <InvitePopup />
