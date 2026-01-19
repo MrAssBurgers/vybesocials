@@ -895,20 +895,10 @@ function NewChatDialog({
             <NFCFriendShare variant="icon" />
           </div>
 
-          {/* Go to Full Add Friends Page */}
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            onClick={handleGoToAddFriends}
-          >
-            <UserPlus className="h-4 w-4" />
-            Search & Add Friends
-          </Button>
-
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Quick search users..."
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
