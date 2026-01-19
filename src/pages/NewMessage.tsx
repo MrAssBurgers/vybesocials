@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ArrowLeft, Users, Check, Clock, UserPlus } from "lucide-react";
+import { Search, ArrowLeft, Users, Check, Clock, UserPlus, Nfc } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -13,11 +13,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAuth } from "@/lib/auth";
-import { pushRecentMessageUser, RecentMessageUser } from "@/lib/recentMessageUsers";
-import { useCreateConversation } from "@/hooks/useMessages";
-import { useFriendshipStatus, useSendFriendRequest, useFriends } from "@/hooks/useFriends";
+import { RecentMessageUser } from "@/lib/recentMessageUsers";
+import { useFriendshipStatus, useSendFriendRequest, useFriends, useRespondToFriendRequest } from "@/hooks/useFriends";
 import { cn } from "@/lib/utils";
-import { QuickAddRow } from "@/components/chat/QuickAddRow";
+import { NFCFriendShare } from "@/components/friends/NFCFriendShare";
 
 function FriendshipBadge({ userId }: { userId: string }) {
   const { data: friendship } = useFriendshipStatus(userId);
@@ -54,29 +53,28 @@ function FriendshipBadge({ userId }: { userId: string }) {
 function ResultRow({
   user,
   active,
-  onSelect,
   disabled,
   id,
 }: {
   user: RecentMessageUser;
   active: boolean;
-  onSelect: () => void;
   disabled: boolean;
   id: string;
 }) {
   const { data: friendship } = useFriendshipStatus(user.id);
   const sendRequest = useSendFriendRequest();
-  const isFriends = friendship?.status === 'friends';
+  const respondToRequest = useRespondToFriendRequest();
   
-  const handleClick = () => {
-    if (isFriends) {
-      onSelect();
-    }
-  };
-
   const handleAddFriend = (e: React.MouseEvent) => {
     e.stopPropagation();
     sendRequest.mutate(user.id);
+  };
+
+  const handleAcceptRequest = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (friendship?.requestId) {
+      respondToRequest.mutate({ requestId: friendship.requestId, action: 'accept' });
+    }
   };
 
   return (
@@ -84,16 +82,10 @@ function ResultRow({
       id={id}
       className={cn(
         "w-full flex items-center gap-3 p-3 text-left transition-colors rounded-lg",
-        active ? "bg-accent" : "hover:bg-accent/50",
-        !isFriends && "opacity-75"
+        active ? "bg-accent" : "hover:bg-accent/50"
       )}
     >
-      <button
-        type="button"
-        disabled={disabled || !isFriends}
-        onClick={handleClick}
-        className="flex items-center gap-3 flex-1 min-w-0"
-      >
+      <div className="flex items-center gap-3 flex-1 min-w-0">
         <Avatar className="h-10 w-10">
           <AvatarImage src={user.avatar_url || undefined} alt={user.username} />
           <AvatarFallback>{(user.display_name || user.username).charAt(0).toUpperCase()}</AvatarFallback>
@@ -105,19 +97,42 @@ function ResultRow({
           </div>
           <div className="text-sm text-muted-foreground truncate">@{user.username}</div>
         </div>
-      </button>
+      </div>
       
       {friendship?.status === 'none' && (
         <Button
           size="sm"
-          variant="outline"
           onClick={handleAddFriend}
-          disabled={sendRequest.isPending}
-          className="shrink-0"
+          disabled={sendRequest.isPending || disabled}
+          className="shrink-0 gap-1"
         >
-          <UserPlus className="h-4 w-4 mr-1" />
+          <UserPlus className="h-4 w-4" />
           Add
         </Button>
+      )}
+      
+      {friendship?.status === 'pending_received' && (
+        <Button
+          size="sm"
+          onClick={handleAcceptRequest}
+          disabled={respondToRequest.isPending || disabled}
+          className="shrink-0 gap-1"
+        >
+          <Check className="h-4 w-4" />
+          Accept
+        </Button>
+      )}
+      
+      {friendship?.status === 'friends' && (
+        <span className="text-xs text-muted-foreground px-2 py-1 rounded-full bg-muted">
+          Already friends
+        </span>
+      )}
+      
+      {friendship?.status === 'pending_sent' && (
+        <span className="text-xs text-muted-foreground px-2 py-1 rounded-full bg-muted">
+          Request sent
+        </span>
       )}
     </div>
   );
@@ -126,27 +141,12 @@ function ResultRow({
 export default function NewMessage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const createConversation = useCreateConversation();
-  const { data: friends, isLoading: friendsLoading } = useFriends();
 
   const [query, setQuery] = useState("");
   const debounced = useDebouncedValue(query.trim(), 250);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Convert friends to QuickAddRow format
-  const friendsForQuickAdd = useMemo(() => 
-    (friends || [])
-      .filter((f): f is NonNullable<typeof f> => f !== null && !!f.id)
-      .map(f => ({
-        id: f.id,
-        username: f.username,
-        avatar_url: f.avatar_url,
-        display_name: f.display_name,
-      })),
-    [friends]
-  );
 
   useEffect(() => {
     setActiveIndex(0);
@@ -157,7 +157,7 @@ export default function NewMessage() {
   }, []);
 
   const { data: results, isLoading } = useQuery({
-    queryKey: ["new-message-user-search", debounced, profile?.id],
+    queryKey: ["add-friend-user-search", debounced, profile?.id],
     queryFn: async () => {
       if (!debounced) return [] as RecentMessageUser[];
       if (!profile?.id) return [] as RecentMessageUser[];
@@ -178,25 +178,6 @@ export default function NewMessage() {
 
   const safeResults = results || [];
 
-  const selectUser = async (user: RecentMessageUser) => {
-    if (!profile?.id) {
-      toast.error("Please wait, loading your profile...");
-      return;
-    }
-    try {
-      pushRecentMessageUser(user);
-      const conversation = await createConversation.mutateAsync({
-        memberIds: [user.id],
-      });
-      navigate(`/messages/${conversation.id}`);
-    } catch (e: any) {
-      console.error("selectUser error:", e);
-      toast.error(e?.message || "Failed to start conversation");
-    }
-  };
-
-  const activeUser = useMemo(() => safeResults[activeIndex], [safeResults, activeIndex]);
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!safeResults.length) return;
 
@@ -211,15 +192,10 @@ export default function NewMessage() {
       setActiveIndex((i) => Math.max(i - 1, 0));
       return;
     }
-
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (activeUser) void selectUser(activeUser);
-    }
   };
 
   useEffect(() => {
-    const el = document.getElementById(`new-msg-row-${activeIndex}`);
+    const el = document.getElementById(`add-friend-row-${activeIndex}`);
     el?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
 
@@ -233,11 +209,24 @@ export default function NewMessage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-lg font-semibold">New Chat</h1>
+            <h1 className="text-lg font-semibold">Add Friends</h1>
           </div>
+          <NFCFriendShare variant="icon" />
         </header>
 
         <main className="p-4 space-y-4">
+          {/* NFC Banner */}
+          <div className="rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+              <Nfc className="h-6 w-6 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm">Quick Add with NFC</p>
+              <p className="text-xs text-muted-foreground">Tap phones together to instantly add friends</p>
+            </div>
+            <NFCFriendShare variant="button" className="shrink-0" />
+          </div>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -245,23 +234,11 @@ export default function NewMessage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Search by username"
+              placeholder="Search by username to add friends"
               className="pl-10"
               aria-label="Search users"
             />
           </div>
-
-          {/* Quick Add Friends - show when not searching */}
-          {!debounced && friendsForQuickAdd.length > 0 && (
-            <QuickAddRow
-              title="Friends"
-              users={friendsForQuickAdd.slice(0, 10)}
-              onSelect={(userId) => {
-                const user = friendsForQuickAdd.find(f => f.id === userId);
-                if (user) selectUser(user);
-              }}
-            />
-          )}
 
           <section className="rounded-xl border border-border overflow-hidden">
             {isLoading ? (
@@ -281,11 +258,10 @@ export default function NewMessage() {
                 {safeResults.map((u, idx) => (
                   <ResultRow
                     key={u.id}
-                    id={`new-msg-row-${idx}`}
+                    id={`add-friend-row-${idx}`}
                     user={u}
                     active={idx === activeIndex}
-                    disabled={createConversation.isPending}
-                    onSelect={() => selectUser(u)}
+                    disabled={false}
                   />
                 ))}
               </div>
@@ -293,13 +269,13 @@ export default function NewMessage() {
               <div className="p-8 text-center text-muted-foreground">
                 No users found.
               </div>
-            ) : friendsForQuickAdd.length === 0 && !friendsLoading ? (
+            ) : (
               <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2">
-                <Users className="h-8 w-8 opacity-50" />
-                <p>No friends yet</p>
-                <p className="text-xs">Add friends to start chatting</p>
+                <UserPlus className="h-8 w-8 opacity-50" />
+                <p>Search for friends to add</p>
+                <p className="text-xs">Or use NFC to add friends instantly</p>
               </div>
-            ) : null}
+            )}
           </section>
         </main>
       </div>
