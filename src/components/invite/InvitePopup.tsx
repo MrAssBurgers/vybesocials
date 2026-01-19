@@ -59,6 +59,8 @@ export function InvitePopup() {
   const [step, setStep] = useState<ConfirmStep>('idle');
   const processedRef = useRef(false);
   const rewardGrantedRef = useRef(false);
+  const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastProfileIdRef = useRef<string | null>(null);
 
   // Check for pending referral when conditions are met
   const checkAndShowReferral = useCallback(async () => {
@@ -69,6 +71,12 @@ export function InvitePopup() {
     if (!user?.id || !profile?.id) {
       console.log('[InvitePopup] Waiting for auth');
       return;
+    }
+
+    // Reset if profile changed
+    if (lastProfileIdRef.current !== profile.id) {
+      lastProfileIdRef.current = profile.id;
+      processedRef.current = false;
     }
     
     // Already confirmed?
@@ -119,6 +127,12 @@ export function InvitePopup() {
       if (profileData?.referral_inviter_id) {
         console.log('[InvitePopup] User already accepted a referral, cleaning up');
         cleanupReferralStorage();
+        
+        // Stop polling
+        if (checkIntervalRef.current) {
+          clearInterval(checkIntervalRef.current);
+          checkIntervalRef.current = null;
+        }
         return;
       }
       
@@ -138,6 +152,12 @@ export function InvitePopup() {
     }
     
     console.log('[InvitePopup] All conditions met, showing modal for:', pending.inviterUsername);
+    
+    // Stop polling since we're ready to show
+    if (checkIntervalRef.current) {
+      clearInterval(checkIntervalRef.current);
+      checkIntervalRef.current = null;
+    }
     
     // Verify inviter still exists
     const { data: inviterProfile, error: inviterError } = await supabase
@@ -169,12 +189,12 @@ export function InvitePopup() {
     console.log('[InvitePopup] Showing confirmation modal');
   }, [user?.id, profile?.id, visible]);
 
-  // Listen for tutorial-completed event
+  // Listen for tutorial-completed event - PRIMARY trigger
   useEffect(() => {
     const handleTutorialComplete = () => {
       console.log('[InvitePopup] Tutorial completed event received');
-      // Delay slightly to let state settle
-      setTimeout(() => checkAndShowReferral(), 500);
+      // Delay slightly to let DB persist
+      setTimeout(() => checkAndShowReferral(), 800);
     };
     
     window.addEventListener('tutorial-completed', handleTutorialComplete);
@@ -185,10 +205,48 @@ export function InvitePopup() {
   useEffect(() => {
     if (!user?.id || !profile?.id) return;
     
-    // Delay initial check to let app settle
+    // Initial check
     const timer = setTimeout(() => checkAndShowReferral(), 1500);
     return () => clearTimeout(timer);
   }, [user?.id, profile?.id, checkAndShowReferral]);
+
+  // CRITICAL: Set up polling to recheck for modal conditions
+  // This catches edge cases where the event wasn't received
+  useEffect(() => {
+    if (!user?.id || !profile?.id) return;
+    if (processedRef.current || visible) return;
+    
+    // Don't poll if no pending referral
+    const pending = getPendingReferral();
+    if (!pending) return;
+
+    console.log('[InvitePopup] Starting poll for tutorial completion');
+
+    // Poll every 2 seconds for up to 60 seconds
+    let attempts = 0;
+    const maxAttempts = 30;
+
+    checkIntervalRef.current = setInterval(() => {
+      attempts++;
+      console.log('[InvitePopup] Poll attempt', attempts);
+      
+      checkAndShowReferral();
+      
+      if (attempts >= maxAttempts || processedRef.current || visible) {
+        if (checkIntervalRef.current) {
+          clearInterval(checkIntervalRef.current);
+          checkIntervalRef.current = null;
+        }
+      }
+    }, 2000);
+
+    return () => {
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current);
+        checkIntervalRef.current = null;
+      }
+    };
+  }, [user?.id, profile?.id, visible, checkAndShowReferral]);
 
   /**
    * Call backend function to grant reward with step-by-step progress

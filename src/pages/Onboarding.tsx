@@ -115,6 +115,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
       if (error) throw error;
 
+      // CRITICAL: Emit event for TutorialProvider to trigger tutorial
+      console.log('[Onboarding] Completed, dispatching event');
+      window.dispatchEvent(new CustomEvent('onboarding-completed'));
+
       toast.success('Welcome to XD! 🎉');
       // Navigate to home (in invite mode, use callback)
       if (isInviteMode && onInviteNavigate) {
