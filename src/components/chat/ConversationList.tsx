@@ -471,8 +471,8 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
   );
 });
 
-// Swipe threshold for delete action
-const SWIPE_THRESHOLD = -80;
+// Swipe threshold for delete action - more generous for easier swiping
+const SWIPE_THRESHOLD = -60;
 
 // Shared conversation content component - simplified without the options menu
 const ConversationContent = memo(function ConversationContent({
@@ -622,10 +622,11 @@ const ConversationItem = memo(function ConversationItem({
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef(false);
   
-  // Swipe gesture handling
+  // Swipe gesture handling - more generous transforms for better UX
   const x = useMotionValue(0);
-  const deleteOpacity = useTransform(x, [-100, -50, 0], [1, 0.5, 0]);
-  const deleteScale = useTransform(x, [-100, -50, 0], [1, 0.8, 0.5]);
+  const deleteOpacity = useTransform(x, [-120, -30, 0], [1, 0.6, 0]);
+  const deleteScale = useTransform(x, [-120, -30, 0], [1, 0.9, 0.6]);
+  const backgroundColor = useTransform(x, [-60, 0], ['hsl(var(--destructive))', 'transparent']);
   
   const handleDragEnd = useCallback((event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.x < SWIPE_THRESHOLD && onTrash) {
@@ -744,16 +745,17 @@ const ConversationItem = memo(function ConversationItem({
             </motion.div>
           </motion.div>
           
-          {/* Swipeable item */}
+          {/* Swipeable item - more generous drag for easier swiping */}
           <motion.div 
-            className="relative bg-background rounded-xl"
+            className="relative bg-background rounded-xl overflow-hidden"
             style={{ x }}
             drag="x"
-            dragConstraints={{ left: -80, right: 0 }}
-            dragElastic={0.05}
+            dragConstraints={{ left: -120, right: 0 }}
+            dragElastic={0.1}
+            dragMomentum={false}
             onDragEnd={handleDragEnd}
-            animate={isDeleting ? { x: -300, opacity: 0 } : { x: 0 }}
-            transition={{ duration: 0.2 }}
+            animate={isDeleting ? { x: -400, opacity: 0 } : { x: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
           >
             <div 
               className="group w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 cursor-pointer box-border"
