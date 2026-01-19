@@ -197,187 +197,151 @@ export function NanotechSwoosh({
           className="fixed inset-0 z-[100] pointer-events-none overflow-hidden"
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.3 }}
         >
-          {/* Main Swoosh Layer - Frosted Glass with Gradient */}
-          {isRadial ? (
-            // Center burst animation
+          {/* Fire spread from all edges */}
+          
+          {/* Top edge fire */}
+          <motion.div
+            className="absolute top-0 left-0 right-0"
+            style={{
+              height: '100vh',
+              background: `linear-gradient(
+                to bottom,
+                hsl(${primaryColor} / 0.5) 0%,
+                hsl(${primaryColor} / 0.3) 10%,
+                hsl(${accentColor} / 0.2) 25%,
+                hsl(${primaryColor} / 0.1) 40%,
+                transparent 60%
+              )`,
+              filter: 'blur(30px)',
+            }}
+            initial={{ y: '-100%', opacity: 0 }}
+            animate={{ y: '0%', opacity: [0, 1, 1, 0] }}
+            transition={{
+              duration: swooshDuration,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+          />
+
+          {/* Bottom edge fire */}
+          <motion.div
+            className="absolute bottom-0 left-0 right-0"
+            style={{
+              height: '100vh',
+              background: `linear-gradient(
+                to top,
+                hsl(${accentColor} / 0.5) 0%,
+                hsl(${accentColor} / 0.3) 10%,
+                hsl(${primaryColor} / 0.2) 25%,
+                hsl(${accentColor} / 0.1) 40%,
+                transparent 60%
+              )`,
+              filter: 'blur(30px)',
+            }}
+            initial={{ y: '100%', opacity: 0 }}
+            animate={{ y: '0%', opacity: [0, 1, 1, 0] }}
+            transition={{
+              duration: swooshDuration,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+          />
+
+          {/* Left edge fire */}
+          <motion.div
+            className="absolute top-0 bottom-0 left-0"
+            style={{
+              width: '100vw',
+              background: `linear-gradient(
+                to right,
+                hsl(${primaryColor} / 0.5) 0%,
+                hsl(${accentColor} / 0.3) 10%,
+                hsl(${primaryColor} / 0.2) 25%,
+                hsl(${accentColor} / 0.1) 40%,
+                transparent 60%
+              )`,
+              filter: 'blur(30px)',
+            }}
+            initial={{ x: '-100%', opacity: 0 }}
+            animate={{ x: '0%', opacity: [0, 1, 1, 0] }}
+            transition={{
+              duration: swooshDuration,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+          />
+
+          {/* Right edge fire */}
+          <motion.div
+            className="absolute top-0 bottom-0 right-0"
+            style={{
+              width: '100vw',
+              background: `linear-gradient(
+                to left,
+                hsl(${accentColor} / 0.5) 0%,
+                hsl(${primaryColor} / 0.3) 10%,
+                hsl(${accentColor} / 0.2) 25%,
+                hsl(${primaryColor} / 0.1) 40%,
+                transparent 60%
+              )`,
+              filter: 'blur(30px)',
+            }}
+            initial={{ x: '100%', opacity: 0 }}
+            animate={{ x: '0%', opacity: [0, 1, 1, 0] }}
+            transition={{
+              duration: swooshDuration,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+          />
+
+          {/* Center convergence glow */}
+          <motion.div
+            className="absolute inset-0 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0, 1, 0] }}
+            transition={{
+              duration: swooshDuration,
+              times: [0, 0.3, 0.5, 1],
+              ease: 'easeOut',
+            }}
+          >
             <motion.div
-              className="absolute inset-0 flex items-center justify-center"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <motion.div
-                className="rounded-full"
-                style={{
-                  width: '200vmax',
-                  height: '200vmax',
-                  background: `radial-gradient(
-                    circle,
-                    hsl(${primaryColor} / 0.15) 0%,
-                    hsl(${accentColor} / 0.1) 30%,
-                    transparent 60%
-                  )`,
-                  backdropFilter: 'blur(20px) saturate(1.5)',
-                  WebkitBackdropFilter: 'blur(20px) saturate(1.5)',
-                }}
-                initial={animProps.initial}
-                animate={animProps.animate}
-                transition={{
-                  duration: swooshDuration,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-              />
-              {/* Glowing center ring */}
-              <motion.div
-                className="absolute rounded-full"
-                style={{
-                  width: '100vmax',
-                  height: '100vmax',
-                  background: `radial-gradient(
-                    circle,
-                    transparent 40%,
-                    hsl(${primaryColor} / 0.4) 45%,
-                    hsl(${primaryColor} / 0.6) 50%,
-                    hsl(${accentColor} / 0.4) 55%,
-                    transparent 60%
-                  )`,
-                  boxShadow: `0 0 100px 50px hsl(${primaryColor} / 0.3)`,
-                }}
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ 
-                  scale: [0, 2.5], 
-                  opacity: [0, 0.8, 0],
-                }}
-                transition={{
-                  duration: swooshDuration * 0.9,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-              />
-            </motion.div>
-          ) : (
-            // Directional swoosh animation - SMOOTH & FLUID
-            <>
-              {/* Soft ambient glow that precedes the main swoosh */}
-              <motion.div
-                className="absolute inset-0"
-                style={{
-                  background: `radial-gradient(
-                    ellipse 150% 100% at 50% 50%,
-                    hsl(${primaryColor} / 0.08) 0%,
-                    hsl(${accentColor} / 0.04) 40%,
-                    transparent 70%
-                  )`,
-                }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: [0, 0.6, 0] }}
-                transition={{
-                  duration: swooshDuration * 1.2,
-                  ease: [0.4, 0, 0.2, 1],
-                }}
-              />
+              style={{
+                width: '150vmax',
+                height: '150vmax',
+                background: `radial-gradient(
+                  circle,
+                  hsl(${primaryColor} / 0.15) 0%,
+                  hsl(${accentColor} / 0.1) 20%,
+                  transparent 50%
+                )`,
+                filter: 'blur(60px)',
+              }}
+              initial={{ scale: 0.3 }}
+              animate={{ scale: [0.3, 1.2] }}
+              transition={{
+                duration: swooshDuration * 0.8,
+                delay: swooshDuration * 0.2,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+            />
+          </motion.div>
 
-              {/* Main flowing wave - ultra smooth gradients */}
-              <motion.div
-                className="absolute"
-                style={{
-                  width: direction.includes('diagonal') ? '300%' : (direction === 'top' || direction === 'bottom') ? '100%' : '120%',
-                  height: direction.includes('diagonal') ? '300%' : (direction === 'left' || direction === 'right') ? '100%' : '120%',
-                  background: `linear-gradient(
-                    ${animProps.gradient},
-                    transparent 0%,
-                    hsl(${primaryColor} / 0.03) 10%,
-                    hsl(${primaryColor} / 0.12) 25%,
-                    hsl(${accentColor} / 0.18) 40%,
-                    hsl(${primaryColor} / 0.2) 50%,
-                    hsl(${accentColor} / 0.15) 60%,
-                    hsl(${primaryColor} / 0.08) 75%,
-                    hsl(${accentColor} / 0.02) 90%,
-                    transparent 100%
-                  )`,
-                  backdropFilter: 'blur(80px) saturate(1.3)',
-                  WebkitBackdropFilter: 'blur(80px) saturate(1.3)',
-                  borderRadius: '50%',
-                  ...(direction === 'top' || direction === 'bottom' 
-                    ? { left: '-10%', right: '-10%', top: direction === 'top' ? 0 : 'auto', bottom: direction === 'bottom' ? 0 : 'auto' }
-                    : { top: '-10%', bottom: '-10%', left: direction === 'left' ? 0 : 'auto', right: direction === 'right' ? 0 : 'auto' }
-                  ),
-                }}
-                initial={animProps.initial}
-                animate={animProps.animate}
-                transition={{
-                  duration: swooshDuration,
-                  ease: [0.25, 0.1, 0.25, 1],
-                }}
-              />
-
-              {/* Luminous leading edge - soft glow */}
-              <motion.div
-                className="absolute"
-                style={{
-                  width: direction.includes('diagonal') ? '300%' : (direction === 'top' || direction === 'bottom') ? '100%' : '60px',
-                  height: direction.includes('diagonal') ? '60px' : (direction === 'left' || direction === 'right') ? '100%' : '60px',
-                  background: `linear-gradient(
-                    ${animProps.gradient},
-                    transparent 0%,
-                    hsl(${primaryColor} / 0.4) 20%,
-                    hsl(${accentColor} / 0.6) 50%,
-                    hsl(${primaryColor} / 0.4) 80%,
-                    transparent 100%
-                  )`,
-                  boxShadow: `
-                    0 0 80px 40px hsl(${primaryColor} / 0.25),
-                    0 0 160px 80px hsl(${accentColor} / 0.15)
-                  `,
-                  filter: 'blur(12px)',
-                  borderRadius: '100%',
-                  ...(direction === 'top' || direction === 'bottom' 
-                    ? { left: 0, right: 0 }
-                    : { top: 0, bottom: 0 }
-                  ),
-                }}
-                initial={animProps.initial}
-                animate={animProps.animate}
-                transition={{
-                  duration: swooshDuration,
-                  ease: [0.25, 0.1, 0.25, 1],
-                }}
-              />
-
-              {/* Secondary flowing ribbon */}
-              <motion.div
-                className="absolute"
-                style={{
-                  width: direction.includes('diagonal') ? '250%' : (direction === 'top' || direction === 'bottom') ? '100%' : '50%',
-                  height: direction.includes('diagonal') ? '250%' : (direction === 'left' || direction === 'right') ? '100%' : '50%',
-                  background: `linear-gradient(
-                    ${animProps.gradient},
-                    transparent 0%,
-                    hsl(${accentColor} / 0.06) 20%,
-                    hsl(${primaryColor} / 0.1) 50%,
-                    hsl(${accentColor} / 0.06) 80%,
-                    transparent 100%
-                  )`,
-                  backdropFilter: 'blur(50px)',
-                  WebkitBackdropFilter: 'blur(50px)',
-                  borderRadius: '50%',
-                  ...(direction === 'top' || direction === 'bottom' 
-                    ? { left: 0, right: 0, top: direction === 'top' ? 0 : 'auto', bottom: direction === 'bottom' ? 0 : 'auto' }
-                    : { top: 0, bottom: 0, left: direction === 'left' ? 0 : 'auto', right: direction === 'right' ? 0 : 'auto' }
-                  ),
-                }}
-                initial={animProps.initial}
-                animate={animProps.animate}
-                transition={{
-                  duration: swooshDuration,
-                  ease: [0.25, 0.1, 0.25, 1],
-                  delay: swooshDuration * 0.08,
-                }}
-              />
-
-            </>
-          )}
+          {/* Outline glow ring that expands */}
+          <motion.div
+            className="absolute inset-0"
+            style={{
+              boxShadow: `
+                inset 0 0 100px 50px hsl(${primaryColor} / 0.3),
+                inset 0 0 200px 100px hsl(${accentColor} / 0.15)
+              `,
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 1, 0] }}
+            transition={{
+              duration: swooshDuration,
+              ease: 'easeOut',
+            }}
+          />
 
           {/* UI Settle Glow Effect */}
           <AnimatePresence>
