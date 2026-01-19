@@ -110,30 +110,30 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
   }
   
   return (
-    <div className="fixed inset-0 z-[200] bg-background flex flex-col">
-      {/* Animated background */}
+    <div className="fixed inset-0 z-[200] bg-background flex flex-col overflow-hidden">
+      {/* Smooth animated background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           animate={reduceMotion ? {} : { rotate: 360 }}
           transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-1/2 -left-1/2 w-full h-full opacity-20"
+          className="absolute -top-1/2 -left-1/2 w-[150%] h-[150%] opacity-20"
         >
-          <div className="w-full h-full gradient-animated rounded-full blur-3xl" />
+          <div className="w-full h-full bg-gradient-to-br from-primary/40 via-accent/30 to-primary/20 rounded-full blur-[100px]" />
         </motion.div>
         <motion.div
           animate={reduceMotion ? {} : { rotate: -360 }}
           transition={{ duration: 80, repeat: Infinity, ease: "linear" }}
-          className="absolute -bottom-1/2 -right-1/2 w-full h-full opacity-15"
+          className="absolute -bottom-1/2 -right-1/2 w-[150%] h-[150%] opacity-15"
         >
-          <div className="w-full h-full gradient-animated rounded-full blur-3xl" />
+          <div className="w-full h-full bg-gradient-to-tl from-accent/40 via-primary/30 to-accent/20 rounded-full blur-[100px]" />
         </motion.div>
       </div>
       
       {/* Skip button */}
-      <div className="relative z-10 flex justify-end p-4">
+      <div className="relative z-10 flex justify-end p-4 safe-area-top">
         <button
           onClick={handleSkip}
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1"
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-full hover:bg-muted/50"
         >
           Skip
         </button>
@@ -163,7 +163,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
                 transition={{ delay: 0.2, type: 'spring' }}
                 className="flex justify-center"
               >
-                <div className="w-24 h-24 rounded-full gradient-animated flex items-center justify-center">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary via-primary/80 to-accent flex items-center justify-center shadow-lg shadow-primary/25">
                   <slide.icon className="w-12 h-12 text-white" />
                 </div>
               </motion.div>
@@ -183,16 +183,16 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
             
             {/* Bullets */}
             {slide.bullets && (
-              <div className="space-y-4 text-left">
+              <div className="space-y-3 text-left">
                 {slide.bullets.map((bullet, index) => (
                   <motion.div
                     key={index}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1 + index * 0.1 }}
-                    className="flex items-center gap-4 p-3 rounded-xl bg-muted/30 backdrop-blur"
+                    className="flex items-center gap-4 p-3 rounded-2xl bg-card/50 backdrop-blur-sm border border-border/50"
                   >
-                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center flex-shrink-0">
                       <bullet.icon className="w-5 h-5 text-primary" />
                     </div>
                     <span className="text-foreground">{bullet.text}</span>
@@ -212,18 +212,19 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
       </div>
       
       {/* Bottom navigation */}
-      <div className="relative z-10 p-6 space-y-4">
-        {/* Progress dots */}
+      <div className="relative z-10 p-6 pb-8 safe-area-bottom space-y-5">
+        {/* Progress dots - pill style */}
         <div className="flex justify-center gap-2">
           {slides.map((_, index) => (
             <button
               key={index}
               onClick={() => setCurrentSlide(index)}
-              className={`w-2 h-2 rounded-full transition-all ${
+              className={`h-2 rounded-full transition-all duration-300 ${
                 index === currentSlide 
-                  ? 'w-6 bg-primary' 
-                  : 'bg-muted-foreground/30'
+                  ? 'w-8 bg-gradient-to-r from-primary to-accent' 
+                  : 'w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50'
               }`}
+              aria-label={`Go to slide ${index + 1}`}
             />
           ))}
         </div>
@@ -232,7 +233,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
         {isLastSlide ? (
           <div className="space-y-3">
             <Button
-              className="w-full gradient-animated text-white"
+              className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-white font-semibold rounded-xl shadow-lg shadow-primary/25"
               size="lg"
               onClick={onComplete}
             >
@@ -241,7 +242,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
             </Button>
             <Button
               variant="outline"
-              className="w-full"
+              className="w-full h-12 rounded-xl border-border/50 hover:bg-muted/50"
               size="lg"
               onClick={() => {
                 markIntroComplete();
@@ -253,7 +254,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
           </div>
         ) : (
           <Button
-            className="w-full gradient-animated text-white"
+            className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-white font-semibold rounded-xl shadow-lg shadow-primary/25"
             size="lg"
             onClick={handleNext}
           >
