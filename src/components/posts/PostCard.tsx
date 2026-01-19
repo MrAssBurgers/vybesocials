@@ -29,6 +29,7 @@ import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
+import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 
 // Video player component - maintains the video's native aspect ratio (no cropping)
 function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
@@ -237,6 +238,7 @@ interface PostCardProps {
 
 export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const { profile } = useAuth();
+  const { isGuest } = useIsGuest();
   const queryClient = useQueryClient();
   const togglePin = useTogglePin();
   const { data: userRole } = useUserRole();
@@ -253,6 +255,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [authPromptAction, setAuthPromptAction] = useState('');
 
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
@@ -290,6 +294,11 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   }, [togglePin, post.id, post.is_pinned]);
 
   const handleLike = useCallback(async () => {
+    if (isGuest) {
+      setAuthPromptAction('like posts');
+      setShowAuthPrompt(true);
+      return;
+    }
     if (!profile) return;
 
     const newIsLiked = !isLiked;
@@ -315,9 +324,14 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     } else {
       await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
     }
-  }, [profile, isLiked, post.id, post.author.id]);
+  }, [profile, isLiked, post.id, post.author.id, isGuest]);
 
   const handleBookmark = useCallback(async () => {
+    if (isGuest) {
+      setAuthPromptAction('save posts');
+      setShowAuthPrompt(true);
+      return;
+    }
     if (!profile) return;
 
     const newIsBookmarked = !isBookmarked;
@@ -328,7 +342,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     } else {
       await supabase.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
     }
-  }, [profile, isBookmarked, post.id]);
+  }, [profile, isBookmarked, post.id, isGuest]);
 
   const handleDoubleTap = useCallback(() => {
     if (!isLiked) {
@@ -599,6 +613,14 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           post={{ id: post.id, caption: post.caption, tags: post.tags }}
         />
       )}
+
+      {/* Guest Auth Prompt */}
+      <GuestAuthPrompt 
+        variant="modal"
+        action={authPromptAction}
+        open={showAuthPrompt}
+        onClose={() => setShowAuthPrompt(false)}
+      />
     </article>
   );
 });
