@@ -7,8 +7,10 @@ import { useAccessibility } from '@/providers/AccessibilityProvider';
 
 const INTRO_SHOWN_KEY = 'vybe_intro_completed';
 
-// Delay before showing intro to ensure splash screen completes first
-const INTRO_DELAY_MS = 800;
+// Poll interval to check if splash screen is gone
+const SPLASH_CHECK_INTERVAL = 50;
+const MAX_WAIT_TIME = 5000;
+const MIN_WAIT_TIME = 500; // Minimum wait to ensure smooth transition
 
 interface IntroFlowProps {
   onComplete: () => void;
@@ -46,12 +48,25 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
   const [isReady, setIsReady] = useState(false);
   const { reduceMotion } = useAccessibility();
   
-  // Delay intro appearance to ensure splash screen is fully gone
+  // Wait for splash screen to be fully gone before showing intro
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsReady(true);
-    }, INTRO_DELAY_MS);
-    return () => clearTimeout(timer);
+    const startTime = Date.now();
+    
+    const checkSplashGone = () => {
+      const elapsed = Date.now() - startTime;
+      const splashVisible = document.body.classList.contains('splash-visible');
+      
+      // Ready when: splash is gone AND minimum wait passed, OR max wait exceeded
+      if ((!splashVisible && elapsed >= MIN_WAIT_TIME) || elapsed >= MAX_WAIT_TIME) {
+        setIsReady(true);
+        return;
+      }
+      
+      // Keep checking
+      setTimeout(checkSplashGone, SPLASH_CHECK_INTERVAL);
+    };
+    
+    checkSplashGone();
   }, []);
   
   const isLastSlide = currentSlide === slides.length - 1;
