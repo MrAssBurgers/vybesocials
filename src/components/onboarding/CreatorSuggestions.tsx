@@ -20,8 +20,9 @@ function useOwnerProfile() {
   const query = useQuery({
     queryKey: ['owner-profile'],
     queryFn: async () => {
+      // Use public_profiles view which has proper RLS for all authenticated users
       const { data, error } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('id, username, display_name, avatar_url, bio')
         .ilike('username', OWNER_USERNAME)
         .maybeSingle();
