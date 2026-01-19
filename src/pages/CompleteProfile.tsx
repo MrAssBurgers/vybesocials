@@ -10,8 +10,14 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { Sparkles, User, Camera } from 'lucide-react';
+import type { InviteStage } from '@/pages/Landing';
 
-export default function CompleteProfile() {
+interface CompleteProfileProps {
+  onInviteNavigate?: (stage: InviteStage) => void;
+  isInviteMode?: boolean;
+}
+
+export default function CompleteProfile({ onInviteNavigate, isInviteMode = false }: CompleteProfileProps) {
   const navigate = useNavigate();
   const { user, profile, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -32,24 +38,33 @@ export default function CompleteProfile() {
     }
   }, [user]);
 
+  // Helper function for navigation - uses callback in invite mode
+  const navTo = (stage: InviteStage, fallbackPath: string) => {
+    if (isInviteMode && onInviteNavigate) {
+      onInviteNavigate(stage);
+    } else {
+      navigate(fallbackPath);
+    }
+  };
+
   useEffect(() => {
-    // If user already has a profile with a username, redirect to home
+    // If user already has a profile with a username, proceed to next step
     // New Google users without a profile will stay on this page
     if (!authLoading && user && profile?.username) {
       if (profile.onboarding_completed) {
-        navigate('/home');
+        navTo('home', '/home');
       } else {
-        navigate('/onboarding');
+        navTo('onboarding', '/onboarding');
       }
     }
-  }, [authLoading, user, profile, navigate]);
+  }, [authLoading, user, profile, navigate, isInviteMode, onInviteNavigate]);
 
   useEffect(() => {
     // Redirect if not authenticated
     if (!authLoading && !user) {
-      navigate('/');
+      navTo('landing', '/');
     }
-  }, [authLoading, user, navigate]);
+  }, [authLoading, user, navigate, isInviteMode, onInviteNavigate]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -156,7 +171,7 @@ export default function CompleteProfile() {
       if (error) throw error;
 
       toast.success('Profile created! 🎉');
-      navigate('/onboarding');
+      navTo('onboarding', '/onboarding');
     } catch (error: any) {
       console.error('Error creating profile:', error);
       toast.error('Failed to create profile. Please try again.');

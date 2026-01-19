@@ -14,12 +14,18 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import type { InviteStage } from '@/pages/Landing';
 
 const TOTAL_STEPS = 7;
 
 type SensitivityLevel = 'standard' | 'restricted' | 'open';
 
-export default function Onboarding() {
+interface OnboardingProps {
+  onInviteNavigate?: (stage: InviteStage) => void;
+  isInviteMode?: boolean;
+}
+
+export default function Onboarding({ onInviteNavigate, isInviteMode = false }: OnboardingProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -109,7 +115,12 @@ export default function Onboarding() {
       if (error) throw error;
 
       toast.success('Welcome to XD! 🎉');
-      navigate('/home');
+      // Navigate to home (in invite mode, use callback)
+      if (isInviteMode && onInviteNavigate) {
+        onInviteNavigate('home');
+      } else {
+        navigate('/home');
+      }
     } catch (error) {
       console.error('Onboarding error:', error);
       toast.error('Something went wrong. Please try again.');
@@ -119,7 +130,11 @@ export default function Onboarding() {
   };
 
   const handleSkip = () => {
-    navigate('/home');
+    if (isInviteMode && onInviteNavigate) {
+      onInviteNavigate('home');
+    } else {
+      navigate('/home');
+    }
   };
 
   return (
