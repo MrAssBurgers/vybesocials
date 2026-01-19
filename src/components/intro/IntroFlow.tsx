@@ -7,6 +7,9 @@ import { useAccessibility } from '@/providers/AccessibilityProvider';
 
 const INTRO_SHOWN_KEY = 'vybe_intro_completed';
 
+// Delay before showing intro to ensure splash screen completes first
+const INTRO_DELAY_MS = 800;
+
 interface IntroFlowProps {
   onComplete: () => void;
   onSkip: () => void;
@@ -40,7 +43,16 @@ const slides = [
 
 export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isReady, setIsReady] = useState(false);
   const { reduceMotion } = useAccessibility();
+  
+  // Delay intro appearance to ensure splash screen is fully gone
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, INTRO_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, []);
   
   const isLastSlide = currentSlide === slides.length - 1;
   
@@ -65,6 +77,13 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
     animate: { opacity: 1, x: 0 },
     exit: { opacity: 0, x: -50 },
   };
+  
+  // Show nothing until ready (splash screen complete)
+  if (!isReady) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-background" />
+    );
+  }
   
   return (
     <div className="fixed inset-0 z-[200] bg-background flex flex-col">
