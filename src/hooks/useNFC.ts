@@ -182,6 +182,8 @@ export function useNFC() {
   }, []);
 
   // Write NDEF message using Web NFC - uses URL record for better compatibility
+  // This creates an NDEF message that acts like a physical NFC tag
+  // Locked phones (with screen on) will show a notification when tapped
   const writeNFC = useCallback(async (userId: string): Promise<boolean> => {
     if (!hasWebNFC || !window.NDEFReader) {
       toast.error('NFC writing not supported on this device');
@@ -192,10 +194,24 @@ export function useNFC() {
       const ndef = new window.NDEFReader();
       abortControllerRef.current = new AbortController();
 
-      // Use URL record type - this triggers Android's intent system
-      // and will show a notification on the receiving device
+      // Use URL record type - this is the key to working like a physical NFC tag
+      // Android devices will show a notification even when locked (screen on)
+      // iOS requires the app to be open, but will handle the URL
       const friendUrl = generateFriendAddUrl(userId);
       
+      // First request permission by starting a scan (required for write access)
+      try {
+        await ndef.scan({ signal: abortControllerRef.current.signal });
+      } catch (scanError: any) {
+        // Permission denied or not supported
+        if (scanError.name === 'NotAllowedError') {
+          toast.error('NFC permission denied. Please allow NFC access.');
+          return false;
+        }
+      }
+
+      // Now write the NDEF message - this will be pushed when another device taps
+      // Using 'url' record type makes it work like a physical NFC tag
       await ndef.write(
         {
           records: [
@@ -209,7 +225,9 @@ export function useNFC() {
       );
 
       haptics.success();
-      toast.success('Ready to share! Tap phones together.');
+      toast.success('NFC ready! Hold phones together', {
+        description: 'Their phone will show a notification even if locked'
+      });
       return true;
     } catch (error: any) {
       if (error.name === 'NotAllowedError') {
@@ -217,9 +235,12 @@ export function useNFC() {
       } else if (error.name === 'AbortError') {
         // User cancelled
         return false;
+      } else if (error.name === 'NotSupportedError') {
+        toast.error('NFC not supported on this device');
       } else {
         haptics.error();
         toast.error('Failed to prepare NFC share');
+        console.error('NFC write error:', error);
       }
       return false;
     }
