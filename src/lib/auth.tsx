@@ -164,7 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Auto-redeem pending invite code after profile is fetched
-  const autoRedeemPendingInvite = async (profileId: string) => {
+  const autoRedeemPendingInvite = async (profileId: string, authUserId: string) => {
     const pendingCode = sessionStorage.getItem('pending_invite_code');
     if (!pendingCode) return;
     
@@ -184,18 +184,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       
+      // Don't allow self-invite (inviter_id is auth user ID)
+      if (invite.inviter_id === authUserId) {
+        console.log('Cannot use own invite');
+        return;
+      }
+      
       // Check if already redeemed
       const { data: existing } = await supabase
         .from('invite_redemptions')
         .select('id')
         .eq('invite_id', invite.id)
         .eq('redeemer_id', profileId)
+        .maybeSingle();
+      
+      if (existing) {
+        console.log('Already redeemed this invite');
+        return;
+      }
+      
+      // Get inviter's profile ID for follows/friend requests
+      const { data: inviterProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', invite.inviter_id)
         .single();
       
-      if (existing) return; // Already redeemed
-      
-      // Don't allow self-invite
-      if (invite.inviter_id === profileId) return;
+      if (!inviterProfile) {
+        console.log('Inviter profile not found');
+        return;
+      }
       
       // Redeem the invite
       await supabase
@@ -211,25 +229,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .update({ use_count: (invite.use_count || 0) + 1 })
         .eq('id', invite.id);
       
-      // Auto-follow the inviter (ignore if already following)
+      // Auto-follow the inviter (use profile IDs)
       try {
         await supabase
           .from('follows')
           .insert({
             follower_id: profileId,
-            following_id: invite.inviter_id,
+            following_id: inviterProfile.id,
           });
       } catch {
         // Ignore duplicate follow errors
       }
       
-      // Send friend request from new user to inviter (ignore if exists)
+      // Send friend request from new user to inviter (use profile IDs)
       try {
         await supabase
           .from('friend_requests')
           .insert({
             sender_id: profileId,
-            receiver_id: invite.inviter_id,
+            receiver_id: inviterProfile.id,
             status: 'pending',
           });
       } catch {
@@ -256,7 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       checkBanStatus(data[0].id);
       subscribeToBanChanges(data[0].id);
       // Auto-redeem pending invite after profile is ready
-      autoRedeemPendingInvite(data[0].id);
+      autoRedeemPendingInvite(data[0].id, userId);
       return data[0];
     }
 
@@ -280,7 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       checkBanStatus(afterEnsure[0].id);
       subscribeToBanChanges(afterEnsure[0].id);
       // Auto-redeem pending invite after profile is ready
-      autoRedeemPendingInvite(afterEnsure[0].id);
+      autoRedeemPendingInvite(afterEnsure[0].id, userId);
       return afterEnsure[0];
     }
 
