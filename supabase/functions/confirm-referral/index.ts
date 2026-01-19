@@ -55,10 +55,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse request
-    const { inviterUserId, inviterProfileId } = await req.json();
+    // Parse request - use distinct names to avoid SQL column conflicts
+    const body = await req.json();
+    const theInviterUserId = body.inviterUserId;
+    const theInviterProfileId = body.inviterProfileId;
     
-    if (!inviterUserId || !inviterProfileId) {
+    if (!theInviterUserId || !theInviterProfileId) {
       return new Response(
         JSON.stringify({ error: "Missing inviter data", steps }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -67,8 +69,8 @@ Deno.serve(async (req) => {
 
     console.log("[confirm-referral] Processing:", { 
       redeemerAuthId: user.id, 
-      inviterUserId, 
-      inviterProfileId 
+      theInviterUserId, 
+      theInviterProfileId 
     });
 
     // Use service role for all operations (bypasses RLS)
@@ -92,7 +94,7 @@ Deno.serve(async (req) => {
     const redeemerProfileId = redeemerProfile.id;
 
     // Prevent self-referral
-    if (redeemerProfileId === inviterProfileId) {
+    if (redeemerProfileId === theInviterProfileId) {
       return new Response(
         JSON.stringify({ error: "Cannot refer yourself", steps }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -125,7 +127,7 @@ Deno.serve(async (req) => {
     const { data: existingInvite } = await supabaseAdmin
       .from("invites")
       .select("id, use_count")
-      .eq("inviter_id", inviterUserId)
+      .eq("inviter_id", theInviterUserId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -139,7 +141,7 @@ Deno.serve(async (req) => {
       const { data: newInvite, error: createError } = await supabaseAdmin
         .from("invites")
         .insert({
-          inviter_id: inviterUserId,
+          inviter_id: theInviterUserId,
           invite_code: inviteCode,
           use_count: 0,
         })
@@ -204,7 +206,7 @@ Deno.serve(async (req) => {
         const { error: badgeError } = await supabaseAdmin
           .from("user_badges")
           .upsert({
-            user_id: inviterUserId,
+            user_id: theInviterUserId,
             badge_type: milestone.type,
             badge_name: milestone.name,
             metadata: { milestone: milestone.count },
@@ -228,7 +230,7 @@ Deno.serve(async (req) => {
     const { data: existingFriendship } = await supabaseAdmin
       .from("friend_requests")
       .select("id, status")
-      .or(`and(sender_id.eq.${redeemerProfileId},receiver_id.eq.${inviterProfileId}),and(sender_id.eq.${inviterProfileId},receiver_id.eq.${redeemerProfileId})`)
+      .or(`and(sender_id.eq.${redeemerProfileId},receiver_id.eq.${theInviterProfileId}),and(sender_id.eq.${theInviterProfileId},receiver_id.eq.${redeemerProfileId})`)
       .maybeSingle();
 
     if (existingFriendship) {
@@ -244,7 +246,7 @@ Deno.serve(async (req) => {
         .from("friend_requests")
         .insert({
           sender_id: redeemerProfileId,
-          receiver_id: inviterProfileId,
+          receiver_id: theInviterProfileId,
           status: "accepted",
         });
       console.log("[confirm-referral] Created instant friendship");
@@ -254,7 +256,7 @@ Deno.serve(async (req) => {
     const { error: notifError } = await supabaseAdmin
       .from("notifications")
       .insert({
-        user_id: inviterProfileId,
+        user_id: theInviterProfileId,
         actor_id: redeemerProfileId,
         type: "invite_accepted",
       });
