@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface TypingIndicatorProps {
@@ -9,7 +8,7 @@ interface TypingIndicatorProps {
 
 /**
  * Animated typing dots indicator (like iMessage/WhatsApp)
- * Shows 3 bouncing dots to indicate someone is typing
+ * Uses CSS animations for better performance (no flickering)
  */
 export const TypingIndicator = memo(function TypingIndicator({
   className,
@@ -21,19 +20,10 @@ export const TypingIndicator = memo(function TypingIndicator({
   return (
     <div className={cn('flex items-center', gap, className)}>
       {[0, 1, 2].map((i) => (
-        <motion.div
+        <span
           key={i}
-          className={cn(dotSize, 'rounded-full bg-muted-foreground/60')}
-          animate={{
-            y: [0, -4, 0],
-            opacity: [0.4, 1, 0.4],
-          }}
-          transition={{
-            duration: 0.8,
-            repeat: Infinity,
-            delay: i * 0.15,
-            ease: 'easeInOut',
-          }}
+          className={cn(dotSize, 'rounded-full bg-muted-foreground/60 typing-dot')}
+          style={{ animationDelay: `${i * 150}ms` }}
         />
       ))}
     </div>

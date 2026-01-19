@@ -1260,6 +1260,22 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   animation: ripple-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Typing indicator animation - CSS-based for better performance */
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+.typing-dot {
+  animation: typing-bounce 0.8s ease-in-out infinite;
+}
+
 /* Freeze dialogs completely - no animations or transforms */
 [data-state="open"][role="dialog"] .\!transform-none,
 .\!transform-none {
