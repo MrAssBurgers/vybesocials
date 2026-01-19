@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Check, QrCode, Users, Gift, Star, Sparkles, Share2, RefreshCw } from 'lucide-react';
+import { Copy, Check, QrCode, Users, Gift, Star, Sparkles, Share2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useMyInvite, useInviteStats, useUserBadges, useRegenerateInvite, getInviteUrl } from '@/hooks/useInvites';
+import { useInviteStats, useUserBadges, getInviteUrl } from '@/hooks/useInvites';
+import { useAuth } from '@/lib/auth';
 import { analytics } from '@/lib/analytics';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -19,14 +20,13 @@ const MILESTONES = [
 ];
 
 export default function InviteFriends() {
-  const { data: invite, isLoading: inviteLoading } = useMyInvite();
+  const { profile } = useAuth();
   const { data: stats, isLoading: statsLoading } = useInviteStats();
   const { data: badges } = useUserBadges();
-  const regenerateInvite = useRegenerateInvite();
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   
-  const inviteUrl = invite ? getInviteUrl(invite.invite_code) : '';
+  const inviteUrl = profile?.username ? getInviteUrl(profile.username) : '';
   
   const handleCopy = async () => {
     if (!inviteUrl) return;
@@ -101,7 +101,7 @@ export default function InviteFriends() {
             Your Invite Link
           </h2>
           
-          {inviteLoading ? (
+          {!profile?.username ? (
             <Skeleton className="h-12 w-full" />
           ) : (
             <>
@@ -137,15 +137,6 @@ export default function InviteFriends() {
                   onClick={() => setShowQR(!showQR)}
                 >
                   <QrCode className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="outline"
-                  size="icon"
-                  onClick={() => regenerateInvite.mutate()}
-                  disabled={regenerateInvite.isPending}
-                  title="Generate new link"
-                >
-                  <RefreshCw className={`h-4 w-4 ${regenerateInvite.isPending ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
               

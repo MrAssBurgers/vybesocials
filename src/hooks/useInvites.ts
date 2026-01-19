@@ -341,8 +341,8 @@ export function useUserBadges(userId?: string) {
 }
 
 /**
- * Get invite URL - uses official vybehub.app domain
+ * Get invite URL - uses username-based format for cleaner links
  */
-export function getInviteUrl(inviteCode: string): string {
-  return `https://vybehub.app/invite/${inviteCode}`;
+export function getInviteUrl(username: string): string {
+  return `https://vybehub.app/invite/@${username}`;
 }

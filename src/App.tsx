@@ -214,7 +214,7 @@ function AppWithPreloader() {
                       <Route path="/privacy" element={<Privacy />} />
                       <Route path="/terms" element={<Terms />} />
                       <Route path="/invite-friends" element={<InviteFriends />} />
-                      <Route path="/invite/:code" element={<InviteRedeem />} />
+                      <Route path="/invite/:identifier" element={<InviteRedeem />} />
                       <Route path="/guidelines" element={<CommunityGuidelines />} />
                       <Route path="/admin/metrics" element={<AdminMetrics />} />
                       <Route path="*" element={<NotFound />} />

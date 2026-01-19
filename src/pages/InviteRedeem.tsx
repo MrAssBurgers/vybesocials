@@ -16,66 +16,62 @@ interface InviterInfo {
 }
 
 export default function InviteRedeem() {
-  const { code } = useParams<{ code: string }>();
+  const { identifier } = useParams<{ identifier: string }>();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const [inviter, setInviter] = useState<InviterInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  
+  // Parse username from identifier (handles @username format)
+  const getUsername = (id: string | undefined): string | null => {
+    if (!id) return null;
+    // Remove @ prefix if present
+    return id.startsWith('@') ? id.slice(1) : id;
+  };
+  
+  const username = getUsername(identifier);
   
   // Track invite link opened
   useEffect(() => {
-    if (code) {
-      analytics.inviteLinkOpened({ inviteCode: code });
+    if (username) {
+      analytics.inviteLinkOpened({ inviteCode: username });
     }
-  }, [code]);
+  }, [username]);
   
-  // Validate invite and get inviter info
+  // Validate invite and get inviter info by username
   useEffect(() => {
     async function validateInvite() {
-      if (!code) {
-        // No code = continue without referral
+      if (!username) {
         setLoading(false);
         return;
       }
       
       try {
-        // Find the invite by code
-        const { data: invite, error: inviteError } = await supabase
-          .from('invites')
-          .select('inviter_id')
-          .eq('invite_code', code.toUpperCase())
+        // Find inviter by username
+        const { data: inviterProfile, error } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url, display_name')
+          .eq('username', username.toLowerCase())
           .maybeSingle();
         
-        if (inviteError || !invite) {
-          // Invalid invite - continue without referral (don't error)
-          console.log('Invite not found, continuing without referral');
+        if (error || !inviterProfile) {
+          console.log('Inviter not found, continuing without referral');
           setLoading(false);
           return;
         }
         
-        // Get inviter's profile (inviter_id is auth user ID)
-        const { data: inviterProfile } = await supabase
-          .from('profiles')
-          .select('id, username, avatar_url, display_name')
-          .eq('user_id', invite.inviter_id)
-          .single();
-        
-        if (inviterProfile) {
-          setInviter(inviterProfile);
-          // Store inviter profile ID for post-signup popup
-          sessionStorage.setItem('pending_inviter_id', inviterProfile.id);
-        }
+        setInviter(inviterProfile);
+        // Store inviter profile ID for post-signup popup
+        sessionStorage.setItem('pending_inviter_id', inviterProfile.id);
       } catch (err) {
         console.error('Error validating invite:', err);
-        // Continue without referral on any error
       } finally {
         setLoading(false);
       }
     }
     
     validateInvite();
-  }, [code]);
+  }, [username]);
   
   // If user is already logged in, check if they're the inviter
   useEffect(() => {
@@ -94,7 +90,6 @@ export default function InviteRedeem() {
   }, [user?.id, profile?.id, inviter, navigate]);
   
   const handleJoin = () => {
-    // Navigate to onboarding/signup
     navigate('/onboarding');
   };
   
