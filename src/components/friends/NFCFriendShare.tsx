@@ -27,9 +27,9 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
     isEnabled,
     isNative,
     hasWebNFC,
-    startScan,
+    isScanning,
+    shareProfile,
     stopScan,
-    writeNFC,
     openSettings,
   } = useNFC();
 
@@ -106,7 +106,6 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
   }, [stopScan]);
 
   // Immediately activate NFC when button is clicked
-  // This makes the phone act like a physical NFC tag
   const handleNFCButtonClick = async () => {
     if (!profile?.id) {
       toast.error('Please log in first');
@@ -114,7 +113,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
     }
 
     if (!hasWebNFC) {
-      toast.error('NFC is not available on this device. Try Chrome on Android.');
+      toast.error('NFC requires Chrome on Android with NFC enabled.');
       return;
     }
 
@@ -123,53 +122,40 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
     setMode('sharing');
     
     try {
-      // Write your profile to NFC - this makes the phone act like an NFC tag
-      // Other phones (even when locked with screen on) can read this
-      const writeSuccess = await writeNFC(profile.id);
+      console.log('[NFCShare] Starting bidirectional share...');
+      // Use shareProfile for bidirectional NFC - shares our profile AND listens for theirs
+      const success = await shareProfile(profile.id, handleTagScanned);
       
-      if (writeSuccess) {
-        // Also start scanning for incoming NFC (bidirectional)
-        startScan(handleTagScanned);
+      if (success) {
+        console.log('[NFCShare] NFC activated successfully');
         haptics.impact();
       } else {
+        console.log('[NFCShare] NFC activation failed');
         setMode('idle');
       }
     } catch (error) {
-      console.error('NFC activation error:', error);
+      console.error('[NFCShare] NFC activation error:', error);
       haptics.error();
       setMode('error');
     }
   };
 
-  // Start sharing your profile
+  // Start sharing your profile (same as button click)
   const handleStartSharing = async () => {
     if (!profile?.id) return;
 
     setMode('sharing');
     haptics.tap();
     
-    if (hasWebNFC) {
-      const success = await writeNFC(profile.id);
-      if (success) {
-        // Also listen for incoming NFC while sharing
-        startScan(handleTagScanned);
-      } else {
-        setMode('idle');
-      }
-    } else {
-      toast.success('Hold your phone near your friend\'s device');
-    }
-  };
-
-  // Start receiving (scanning for NFC tags)
-  const handleStartReceiving = async () => {
-    setMode('receiving');
-    haptics.tap();
-    const success = await startScan(handleTagScanned);
-
+    const success = await shareProfile(profile.id, handleTagScanned);
     if (!success) {
       setMode('idle');
     }
+  };
+
+  // Start receiving (same as sharing - it's bidirectional)
+  const handleStartReceiving = async () => {
+    handleStartSharing();
   };
 
   // Send friend request to received user
