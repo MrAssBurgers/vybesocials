@@ -335,31 +335,31 @@ function SnapchatStyleCard({
       layout
       variants={itemVariants}
       exit="exit"
-      className="relative bg-card border border-border rounded-2xl p-3 flex flex-col items-center text-center"
+      className="relative bg-card border border-border rounded-2xl p-2.5 sm:p-3 flex flex-col items-center text-center"
     >
       {/* Dismiss X button - Snapchat style (permanent hide) */}
       <button
         onClick={handleDismiss}
-        className="absolute top-2 right-2 h-5 w-5 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center transition-colors"
+        className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center transition-colors"
         title="Hide forever"
       >
-        <X className="h-3 w-3 text-muted-foreground" />
+        <X className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground" />
       </button>
 
       {/* Avatar */}
-      <Avatar className="h-14 w-14 mb-2">
+      <Avatar className="h-11 w-11 sm:h-14 sm:w-14 mb-1.5 sm:mb-2">
         <AvatarImage src={user.avatar_url || undefined} />
-        <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-lg font-bold">
+        <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-base sm:text-lg font-bold">
           {(user.first_name?.[0] || user.username[0]).toUpperCase()}
         </AvatarFallback>
       </Avatar>
 
       {/* Name */}
-      <p className="text-sm font-semibold truncate w-full px-1">{fullName}</p>
+      <p className="text-xs sm:text-sm font-semibold truncate w-full px-0.5">{fullName}</p>
       
       {/* Username or Mutual friends with clickable avatars */}
       {user.mutual_friends_count > 0 && user.mutual_friends && user.mutual_friends.length > 0 ? (
-        <div className="flex items-center gap-1 mb-2">
+        <div className="flex items-center gap-1 mb-1.5 sm:mb-2">
           <div className="flex -space-x-1">
             {user.mutual_friends.slice(0, 2).map((friend) => (
               <button
@@ -371,21 +371,21 @@ function SnapchatStyleCard({
                 className="relative hover:z-10 transition-transform hover:scale-110 rounded-full"
                 title={friend.first_name || friend.username}
               >
-                <Avatar className="h-4 w-4 border border-background">
+                <Avatar className="h-3.5 w-3.5 sm:h-4 sm:w-4 border border-background">
                   <AvatarImage src={friend.avatar_url || undefined} />
-                  <AvatarFallback className="text-[6px] bg-primary/20">
+                  <AvatarFallback className="text-[5px] sm:text-[6px] bg-primary/20">
                     {friend.username?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
               </button>
             ))}
           </div>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground">
             {user.mutual_friends_count} mutual
           </span>
         </div>
       ) : (
-        <p className="text-[11px] text-muted-foreground mb-2 truncate w-full">
+        <p className="text-[10px] sm:text-[11px] text-muted-foreground mb-1.5 sm:mb-2 truncate w-full">
           @{user.username}
         </p>
       )}
@@ -393,15 +393,15 @@ function SnapchatStyleCard({
       {/* Action Button - Snapchat style (no "Pending" state - they disappear) */}
       <div className="w-full">
         {isLoadingStatus ? (
-          <Skeleton className="h-8 w-full rounded-full" />
+          <Skeleton className="h-7 sm:h-8 w-full rounded-full" />
         ) : isFriends ? (
           <Button
             size="sm"
             variant="secondary"
             onClick={handleMessageClick}
-            className="w-full h-8 rounded-full text-xs font-semibold gap-1.5"
+            className="w-full h-7 sm:h-8 rounded-full text-[10px] sm:text-xs font-semibold gap-1"
           >
-            <MessageCircle className="h-3.5 w-3.5" />
+            <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             Message
           </Button>
         ) : isPendingReceived ? (
@@ -409,9 +409,9 @@ function SnapchatStyleCard({
             size="sm"
             variant="default"
             onClick={handleAddFriend}
-            className="w-full h-8 rounded-full text-xs font-semibold gap-1.5"
+            className="w-full h-7 sm:h-8 rounded-full text-[10px] sm:text-xs font-semibold gap-1"
           >
-            <Check className="h-3.5 w-3.5" />
+            <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             Accept
           </Button>
         ) : canAdd ? (
@@ -420,9 +420,9 @@ function SnapchatStyleCard({
             variant="default"
             onClick={handleAddFriend}
             disabled={sendRequest.isPending}
-            className="w-full h-8 rounded-full text-xs font-semibold gap-1.5"
+            className="w-full h-7 sm:h-8 rounded-full text-[10px] sm:text-xs font-semibold gap-1"
           >
-            <UserPlus className="h-3.5 w-3.5" />
+            <UserPlus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             Add
           </Button>
         ) : null}
