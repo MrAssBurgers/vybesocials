@@ -2,19 +2,26 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
 import { analytics } from '@/lib/analytics';
-import { setPendingReferral, clearPendingReferral, type PendingReferral } from '@/lib/referral';
+import { 
+  setPendingReferral, 
+  clearPendingReferral, 
+  getPendingReferral,
+  type PendingReferral 
+} from '@/lib/referral';
+import { ReferralWelcome } from '@/components/invite/ReferralWelcome';
 
 /**
- * Silent Invite Handler - Background Referral Processing
+ * Polished Invite Handler - Professional First-Time UX
  * 
- * This page runs SILENTLY in the background:
- * 1. Validates inviter exists
- * 2. Stores referral in persistent storage
- * 3. Redirects to normal app flow immediately
- * 
- * NO UI is shown to the user - they get the full first-time experience
- * just like any other user. The referral confirmation happens AFTER signup.
+ * Flow:
+ * 1. User opens /invite/:username
+ * 2. Validate inviter exists
+ * 3. Show premium welcome screen (not instant redirect)
+ * 4. User taps "Continue" → Full intro experience → Signup
+ * 5. User taps "Sign In" → Login flow
+ * 6. After account creation → Referral confirmation modal
  * 
  * URL formats supported:
  * - /invite/@username
@@ -24,7 +31,11 @@ import { setPendingReferral, clearPendingReferral, type PendingReferral } from '
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
   const navigate = useNavigate();
-  const [processing, setProcessing] = useState(true);
+  const { user } = useAuth();
+  
+  const [loading, setLoading] = useState(true);
+  const [referral, setReferral] = useState<PendingReferral | null>(null);
+  const [error, setError] = useState(false);
   
   // Parse identifier - handles @username, username, or UUID
   const parseIdentifier = (id: string | undefined): { type: 'username' | 'uuid'; value: string } | null => {
@@ -44,15 +55,26 @@ export default function InviteRedeem() {
   
   const parsed = parseIdentifier(identifier);
   
-  // Process invite silently and redirect
+  // If user is already logged in, redirect to home with referral stored
   useEffect(() => {
-    async function processInvite() {
+    if (user) {
+      // User already has account, just go home
+      // The InvitePopup will handle showing confirmation if there's a pending referral
+      navigate('/home', { replace: true });
+    }
+  }, [user, navigate]);
+  
+  // Fetch inviter data and prepare welcome screen
+  useEffect(() => {
+    if (user) return; // Skip if already logged in
+    
+    async function fetchInviter() {
       // Track invite link opened
       if (parsed) {
         analytics.inviteLinkOpened({ inviteCode: parsed.value });
       }
       
-      // If no valid identifier, go straight to normal flow
+      // If no valid identifier, redirect normally
       if (!parsed) {
         console.log('[InviteRedeem] No valid identifier, proceeding normally');
         navigate('/', { replace: true });
@@ -101,29 +123,43 @@ export default function InviteRedeem() {
             inviterAvatarUrl: inviterProfile.avatar_url,
             timestamp: Date.now(),
           };
+          
+          // Store immediately in case user refreshes
           setPendingReferral(referralData);
-          console.log('[InviteRedeem] Stored referral for:', inviterProfile.username);
+          setReferral(referralData);
+          
+          console.log('[InviteRedeem] Found inviter:', inviterProfile.username);
         } else {
-          // Invalid inviter - clear any existing referral and continue normally
-          console.log('[InviteRedeem] Inviter not found, continuing without referral');
+          // Invalid inviter - redirect normally
+          console.log('[InviteRedeem] Inviter not found');
+          setError(true);
           clearPendingReferral();
         }
       } catch (err) {
-        console.error('[InviteRedeem] Error processing invite:', err);
+        console.error('[InviteRedeem] Error fetching inviter:', err);
+        setError(true);
         clearPendingReferral();
       }
       
-      // Always redirect to normal app flow - user gets full experience
-      // Referral will be processed after account creation
-      setProcessing(false);
-      navigate('/', { replace: true });
+      setLoading(false);
     }
     
-    processInvite();
-  }, [parsed?.type, parsed?.value, navigate]);
+    fetchInviter();
+  }, [parsed?.type, parsed?.value, navigate, user]);
   
-  // Brief loading state while processing (usually < 1 second)
-  if (processing) {
+  // Handle continue button - go to landing with intro
+  const handleContinue = () => {
+    // Navigate to landing page - intro will show first, then auth
+    navigate('/', { replace: true });
+  };
+  
+  // Handle sign in button - go to landing in login mode
+  const handleSignIn = () => {
+    navigate('/?mode=login', { replace: true });
+  };
+  
+  // Loading state
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -131,5 +167,18 @@ export default function InviteRedeem() {
     );
   }
   
-  return null;
+  // Error state - redirect to normal flow
+  if (error || !referral) {
+    navigate('/', { replace: true });
+    return null;
+  }
+  
+  // Show premium welcome screen
+  return (
+    <ReferralWelcome
+      referral={referral}
+      onContinue={handleContinue}
+      onSignIn={handleSignIn}
+    />
+  );
 }
