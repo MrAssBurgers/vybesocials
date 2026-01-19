@@ -155,6 +155,8 @@ export default function InviteRedeem() {
   };
   
   const handleLogin = () => {
+    // Also reset intro for login - they get the full experience too
+    resetIntro();
     navigate('/');
   };
   
