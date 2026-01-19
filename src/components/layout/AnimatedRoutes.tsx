@@ -33,6 +33,7 @@ const Privacy = lazy(() => import("@/pages/Privacy"));
 const Terms = lazy(() => import("@/pages/Terms"));
 const InviteFriends = lazy(() => import("@/pages/InviteFriends"));
 const InviteRedeem = lazy(() => import("@/pages/InviteRedeem"));
+const AddFriend = lazy(() => import("@/pages/AddFriend"));
 const CommunityGuidelines = lazy(() => import("@/pages/CommunityGuidelines"));
 const AdminMetrics = lazy(() => import("@/pages/AdminMetrics"));
 
@@ -135,6 +136,7 @@ export function AnimatedRoutes() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/invite-friends" element={<InviteFriends />} />
             <Route path="/invite/:identifier" element={<InviteRedeem />} />
+            <Route path="/add-friend/:userId" element={<AddFriend />} />
             <Route path="/guidelines" element={<CommunityGuidelines />} />
             <Route path="/admin/metrics" element={<AdminMetrics />} />
             <Route path="*" element={<NotFound />} />
