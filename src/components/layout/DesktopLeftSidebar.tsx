@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   Home, Compass, MessageCircle, ShoppingBag, Calendar, Bell, Settings, 
-  LogOut, PlusCircle, Shield, ChevronLeft, ChevronRight, Users, LucideIcon
+  PlusCircle, Shield, Users, LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -293,7 +293,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         <div className="mx-3 h-px" />
 
         {/* Primary Navigation */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
+        <nav className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
           {mainNavItems.map(renderNavItem)}
 
           {/* Moderation Section */}
@@ -383,32 +383,9 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           </div>
         )}
 
-        <div className="mx-3 h-px" />
-
-        {/* Collapse Control */}
-        <div className={cn("py-3", collapsed ? "px-2" : "px-3")}>
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onCollapsedChange(!collapsed)}
-                className={cn(
-                  "w-full h-10 rounded-xl",
-                  collapsed ? "justify-center px-0 min-w-[48px]" : "justify-start gap-2 px-3"
-                )}
-              >
-                {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-                {!collapsed && <span className="text-sm">Collapse</span>}
-              </Button>
-            </TooltipTrigger>
-            {collapsed && <TooltipContent side="right">Expand sidebar</TooltipContent>}
-          </Tooltip>
-        </div>
-
         {/* Footer */}
         {!collapsed && (
-          <div className="px-3 pb-3 pt-1">
+          <div className="px-3 pb-4 pt-1">
             <div className="flex items-center justify-center gap-4 text-[10px] text-muted-foreground">
               <a href="/terms" className="hover:text-foreground transition-colors">Terms</a>
               <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
@@ -416,26 +393,6 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
             </div>
           </div>
         )}
-
-        {/* Logout Button */}
-        <div className={cn("pb-4", collapsed ? "px-2" : "px-3")}>
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <button
-                onClick={handleSignOut}
-                className={cn(
-                  "flex items-center gap-3 py-2.5 rounded-xl text-muted-foreground",
-                  "hover:bg-destructive/10 hover:text-destructive transition-all w-full",
-                  collapsed ? "justify-center px-0 min-w-[48px]" : "px-3"
-                )}
-              >
-                <LogOut className="h-5 w-5 flex-shrink-0" />
-                {!collapsed && <span className="font-medium">{t('auth.logout')}</span>}
-              </button>
-            </TooltipTrigger>
-            {collapsed && <TooltipContent side="right">Logout</TooltipContent>}
-          </Tooltip>
-        </div>
 
         <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
       </aside>
