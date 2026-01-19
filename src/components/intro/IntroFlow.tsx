@@ -221,7 +221,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
         
         {/* Action buttons */}
         {isLastSlide ? (
-          <div className="space-y-6">
+          <div className="space-y-3">
             <Button
               className="w-full gradient-animated text-white"
               size="lg"
@@ -230,19 +230,17 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
               <Sparkles className="w-4 h-4 mr-2" />
               Create Account
             </Button>
-            <p className="text-left text-sm text-muted-foreground pt-6">
-              Already have an account?{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  markIntroComplete();
-                  onSkip();
-                }}
-                className="text-primary hover:underline font-medium"
-              >
-                Log In
-              </button>
-            </p>
+            <Button
+              variant="outline"
+              className="w-full"
+              size="lg"
+              onClick={() => {
+                markIntroComplete();
+                onSkip();
+              }}
+            >
+              Log In
+            </Button>
           </div>
         ) : (
           <Button
