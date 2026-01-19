@@ -26,6 +26,7 @@ import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
 import { WarningPopup } from "@/components/moderation/WarningPopup";
 import { BannedScreen } from "@/components/auth/BannedScreen";
 import { MemeBanScreen } from "@/components/auth/MemeBanScreen";
+import { InvitePopup } from "@/components/invite/InvitePopup";
 import { useBanStatus } from "@/hooks/useBanStatus";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
@@ -229,6 +230,7 @@ function AppWithPreloader() {
                   <PushNotificationPrompt />
                   <GlobalCallOverlay />
                   <WarningPopup />
+                  <InvitePopup />
                   <BanCheck />
                 </TutorialProvider>
               </BrowserRouter>

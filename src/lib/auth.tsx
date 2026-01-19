@@ -163,101 +163,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Auto-redeem pending invite code after profile is fetched
-  const autoRedeemPendingInvite = async (profileId: string, authUserId: string) => {
-    const pendingCode = sessionStorage.getItem('pending_invite_code');
-    if (!pendingCode) return;
+  // The invite popup will handle the friend request flow
+  // This function just validates the pending invite on first login
+  const validatePendingInvite = async (profileId: string) => {
+    const pendingInviterId = sessionStorage.getItem('pending_inviter_id');
+    if (!pendingInviterId) return;
     
-    // Clear immediately to prevent duplicate attempts
-    sessionStorage.removeItem('pending_invite_code');
-    
-    try {
-      // Find the invite
-      const { data: invite, error: findError } = await supabase
-        .from('invites')
-        .select('*')
-        .eq('invite_code', pendingCode.toUpperCase())
-        .single();
-      
-      if (findError || !invite) {
-        console.log('Invite code not found:', pendingCode);
-        return;
-      }
-      
-      // Don't allow self-invite (inviter_id is auth user ID)
-      if (invite.inviter_id === authUserId) {
-        console.log('Cannot use own invite');
-        return;
-      }
-      
-      // Check if already redeemed
-      const { data: existing } = await supabase
-        .from('invite_redemptions')
-        .select('id')
-        .eq('invite_id', invite.id)
-        .eq('redeemer_id', profileId)
-        .maybeSingle();
-      
-      if (existing) {
-        console.log('Already redeemed this invite');
-        return;
-      }
-      
-      // Get inviter's profile ID for follows/friend requests
-      const { data: inviterProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', invite.inviter_id)
-        .single();
-      
-      if (!inviterProfile) {
-        console.log('Inviter profile not found');
-        return;
-      }
-      
-      // Redeem the invite
-      await supabase
-        .from('invite_redemptions')
-        .insert({
-          invite_id: invite.id,
-          redeemer_id: profileId,
-        });
-      
-      // Update use count
-      await supabase
-        .from('invites')
-        .update({ use_count: (invite.use_count || 0) + 1 })
-        .eq('id', invite.id);
-      
-      // Auto-follow the inviter (use profile IDs)
-      try {
-        await supabase
-          .from('follows')
-          .insert({
-            follower_id: profileId,
-            following_id: inviterProfile.id,
-          });
-      } catch {
-        // Ignore duplicate follow errors
-      }
-      
-      // Send friend request from new user to inviter (use profile IDs)
-      try {
-        await supabase
-          .from('friend_requests')
-          .insert({
-            sender_id: profileId,
-            receiver_id: inviterProfile.id,
-            status: 'pending',
-          });
-      } catch {
-        // Ignore duplicate friend request errors
-      }
-      
-      console.log('Invite auto-redeemed successfully for inviter:', invite.inviter_id);
-    } catch (error) {
-      console.error('Auto-redeem invite failed:', error);
+    // Don't allow self-referral
+    if (pendingInviterId === profileId) {
+      sessionStorage.removeItem('pending_inviter_id');
+      return;
     }
+    
+    // Validate inviter still exists
+    const { data: inviterProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', pendingInviterId)
+      .maybeSingle();
+    
+    if (!inviterProfile) {
+      // Invalid inviter, clear storage
+      sessionStorage.removeItem('pending_inviter_id');
+    }
+    // If valid, the InvitePopup component will handle the rest
   };
 
   const fetchProfile = async (userId: string) => {
@@ -273,8 +202,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check ban status and subscribe to realtime changes
       checkBanStatus(data[0].id);
       subscribeToBanChanges(data[0].id);
-      // Auto-redeem pending invite after profile is ready
-      autoRedeemPendingInvite(data[0].id, userId);
+      // Validate pending invite (InvitePopup handles the UI)
+      validatePendingInvite(data[0].id);
       return data[0];
     }
 
@@ -297,8 +226,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check ban status and subscribe to realtime changes
       checkBanStatus(afterEnsure[0].id);
       subscribeToBanChanges(afterEnsure[0].id);
-      // Auto-redeem pending invite after profile is ready
-      autoRedeemPendingInvite(afterEnsure[0].id, userId);
+      // Validate pending invite (InvitePopup handles the UI)
+      validatePendingInvite(afterEnsure[0].id);
       return afterEnsure[0];
     }
 
