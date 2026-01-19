@@ -7,6 +7,7 @@ interface AcceptedFriendRequest {
   sender_id: string;
   receiver_id: string;
   updated_at: string;
+  notified_at: string | null;
   sender?: {
     id: string;
     username: string;
@@ -15,31 +16,8 @@ interface AcceptedFriendRequest {
   };
 }
 
-// Permanent localStorage key for dismissed requests
-const DISMISSED_STORAGE_KEY = 'vybe_dismissed_friend_requests';
-
-// Get permanently dismissed request IDs from localStorage
-function getDismissedRequests(): Set<string> {
-  try {
-    const stored = localStorage.getItem(DISMISSED_STORAGE_KEY);
-    if (stored) {
-      return new Set(JSON.parse(stored));
-    }
-  } catch {}
-  return new Set();
-}
-
-// Save dismissed request to localStorage permanently
-function saveDismissedRequest(requestId: string) {
-  try {
-    const dismissed = getDismissedRequests();
-    dismissed.add(requestId);
-    localStorage.setItem(DISMISSED_STORAGE_KEY, JSON.stringify([...dismissed]));
-  } catch {}
-}
-
 // Fetch recently accepted friend requests (where current user was the sender)
-// Shows only ONE request at a time
+// Only shows requests that haven't been notified yet (notified_at IS NULL)
 export function useAcceptedFriendRequests() {
   const { profile } = useAuth();
 
@@ -48,10 +26,7 @@ export function useAcceptedFriendRequests() {
     queryFn: async (): Promise<AcceptedFriendRequest[]> => {
       if (!profile?.id) return [];
 
-      // Get recently accepted requests where we were the sender (within last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
+      // Only fetch accepted requests where notified_at is NULL (never shown before)
       const { data, error } = await supabase
         .from('friend_requests')
         .select(`
@@ -59,26 +34,21 @@ export function useAcceptedFriendRequests() {
           sender_id,
           receiver_id,
           updated_at,
+          notified_at,
           sender:profiles!friend_requests_receiver_id_fkey(id, username, avatar_url, display_name)
         `)
         .eq('sender_id', profile.id)
         .eq('status', 'accepted')
-        .gte('updated_at', thirtyDaysAgo.toISOString())
-        .order('updated_at', { ascending: false });
+        .is('notified_at', null)
+        .order('updated_at', { ascending: false })
+        .limit(1);
 
       if (error) {
         console.error('[AcceptedFriendRequests] Error:', error);
         return [];
       }
 
-      // Get dismissed IDs from localStorage
-      const dismissedIds = getDismissedRequests();
-
-      // Filter out permanently dismissed ones and return only the first one
-      const filtered = (data || []).filter(r => !dismissedIds.has(r.id));
-
-      // Only show ONE friend request at a time
-      return filtered.slice(0, 1) as AcceptedFriendRequest[];
+      return (data || []) as AcceptedFriendRequest[];
     },
     enabled: !!profile?.id,
     staleTime: 30000,
@@ -86,6 +56,7 @@ export function useAcceptedFriendRequests() {
   });
 }
 
+// Dismiss an accepted friend request - marks it as notified in the database permanently
 export function useDismissAcceptedRequest() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -94,8 +65,46 @@ export function useDismissAcceptedRequest() {
     mutationFn: async (requestId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // Permanently dismiss this request
-      saveDismissedRequest(requestId);
+      // Mark as notified in the database - this is permanent
+      const { error } = await supabase
+        .from('friend_requests')
+        .update({ notified_at: new Date().toISOString() })
+        .eq('id', requestId)
+        .eq('sender_id', profile.id);
+
+      if (error) {
+        console.error('[DismissAcceptedRequest] Error:', error);
+        throw error;
+      }
+
+      return requestId;
+    },
+    onSuccess: () => {
+      // Immediately remove from cache for instant UI feedback
+      queryClient.invalidateQueries({ queryKey: ['accepted-friend-requests'] });
+    },
+  });
+}
+
+// Hook to mark a request as notified when it's displayed (auto-dismiss after viewing)
+export function useMarkRequestAsNotified() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      if (!profile?.id) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('friend_requests')
+        .update({ notified_at: new Date().toISOString() })
+        .eq('id', requestId)
+        .eq('sender_id', profile.id);
+
+      if (error) {
+        console.error('[MarkRequestAsNotified] Error:', error);
+        throw error;
+      }
 
       return requestId;
     },
@@ -103,11 +112,4 @@ export function useDismissAcceptedRequest() {
       queryClient.invalidateQueries({ queryKey: ['accepted-friend-requests'] });
     },
   });
-}
-
-// Hook to clear all dismissed requests (for testing or reset purposes)
-export function useClearDismissedRequests() {
-  return () => {
-    localStorage.removeItem(DISMISSED_STORAGE_KEY);
-  };
 }

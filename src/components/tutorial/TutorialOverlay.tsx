@@ -131,7 +131,8 @@ export const TutorialOverlay = memo(function TutorialOverlay({
 
   const calculateTooltipPosition = useCallback((
     rect: DOMRect, 
-    preferredPosition: TutorialStep['position']
+    preferredPosition: TutorialStep['position'],
+    element?: Element | null
   ) => {
     const tooltipWidth = Math.min(320, window.innerWidth - 32);
     const tooltipHeight = 220;
@@ -140,6 +141,31 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       width: window.innerWidth,
       height: window.innerHeight,
     };
+
+    // Check if this is a bottom nav step on mobile/tablet
+    const isBottomNavStep = currentStepData?.highlightNav || 
+      element?.closest('[data-tutorial-bottomnav]') ||
+      element?.closest('nav[aria-label="Bottom navigation"]');
+    
+    const isMobileOrTablet = layoutMode === 'mobile' || layoutMode === 'tablet';
+
+    // Special positioning for bottom nav items on mobile/tablet
+    // Position tooltip just above the bottom nav bar
+    if (isBottomNavStep && isMobileOrTablet) {
+      const bottomNavHeight = 72; // Height of bottom nav bar
+      // Get safe area inset if available
+      const safeAreaBottom = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0'
+      ) || 0;
+      
+      const tooltipBottom = bottomNavHeight + safeAreaBottom + gap + 8;
+      
+      setTooltipPos({
+        bottom: tooltipBottom,
+        left: Math.max(16, (viewport.width - tooltipWidth) / 2),
+      });
+      return;
+    }
 
     let pos: TooltipPosition = {};
 
@@ -206,7 +232,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     }
 
     setTooltipPos(pos);
-  }, []);
+  }, [currentStepData?.highlightNav, layoutMode]);
 
   const scrollElementIntoView = useCallback((element: Element): Promise<void> => {
     return new Promise((resolve) => {
@@ -313,7 +339,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
         height: rect.height + padding * 2,
       });
       setElementFound(true);
-      calculateTooltipPosition(rect, currentStepData.position);
+      calculateTooltipPosition(rect, currentStepData.position, target);
     } else {
       // Element not found - show CENTERED tooltip (for welcome step etc)
       setSpotlight(null);
