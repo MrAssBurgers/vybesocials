@@ -1,19 +1,25 @@
 // VYBE Service Worker for Push Notifications
 // Version 2.0 - Enhanced for DM and Call notifications
 
-const CACHE_NAME = 'vybe-v2';
+const CACHE_NAME = 'vybe-v3';
 const APP_ICON = '/icons/icon-192x192.png';
 const BADGE_ICON = '/icons/icon-96x96.png';
 
+// Always bypass cache for PWA icons so updated PNGs are fetched immediately
+const FORCE_REFRESH_PATHS = new Set([
+  '/icons/vybe-192.png',
+  '/icons/vybe-512.png',
+]);
+
 // Install event - take control immediately
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing VYBE Service Worker v2');
+  console.log('[SW] Installing VYBE Service Worker v3');
   self.skipWaiting();
 });
 
 // Activate event - claim all clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating VYBE Service Worker v2');
+  console.log('[SW] Activating VYBE Service Worker v3');
   event.waitUntil(
     Promise.all([
       clients.claim(),
@@ -27,6 +33,20 @@ self.addEventListener('activate', (event) => {
       }),
     ])
   );
+});
+
+// Force-refresh updated PWA icons (prevents stale cached JPEG responses)
+self.addEventListener('fetch', (event) => {
+  try {
+    const url = new URL(event.request.url);
+    if (FORCE_REFRESH_PATHS.has(url.pathname)) {
+      event.respondWith(
+        fetch(event.request, { cache: 'no-store' }).catch(() => fetch(event.request))
+      );
+    }
+  } catch {
+    // Ignore URL parsing errors
+  }
 });
 
 // Push notification event - handle incoming push messages
