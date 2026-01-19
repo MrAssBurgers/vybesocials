@@ -1,5 +1,5 @@
-import { Home, Compass, PlusCircle, MessageCircle, Settings } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Home, Compass, PlusCircle, MessageCircle, Settings, User } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { triggerNavFeedback } from '@/lib/navFeedback';
@@ -9,6 +9,8 @@ import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { CreateMenu } from '@/components/hub/CreateMenu';
 import { VYBEHub } from '@/components/hub/VYBEHub';
+import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
+import { useAuth } from '@/lib/auth';
 
 // Singleton scroll direction detection to prevent duplicate listeners
 let scrollDirectionListener: (() => void) | null = null;
@@ -86,6 +88,7 @@ const NavItem = memo(({
   isActive,
   tutorialId,
   isHighlighted,
+  onClick,
 }: { 
   path: string; 
   icon: typeof Home; 
@@ -93,57 +96,73 @@ const NavItem = memo(({
   isActive: boolean;
   tutorialId?: string;
   isHighlighted?: boolean;
-}) => (
-  <Link
-    to={path}
-    className="relative flex items-center justify-center min-h-[44px] min-w-[44px]"
-    onClick={triggerNavFeedback}
-    data-tutorial={tutorialId}
-  >
-    <div className="relative p-2">
-      {isActive && (
-        <motion.div
-          layoutId="bottomNavPill"
-          className="absolute inset-0 rounded-xl bg-primary/15"
-          transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.8 }}
-        />
-      )}
-      
-      {/* Tutorial highlight ring */}
-      {isHighlighted && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="absolute -inset-1 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background"
-          style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.5)' }}
-        />
-      )}
-      
-      <Icon
-        className={cn(
-          "h-5 w-5 relative z-10",
-          isActive ? "text-primary" : "text-muted-foreground",
-          isHighlighted && "text-primary"
+  onClick?: (e: React.MouseEvent) => void;
+}) => {
+  const handleClick = (e: React.MouseEvent) => {
+    if (onClick) {
+      onClick(e);
+    } else {
+      triggerNavFeedback();
+    }
+  };
+
+  return (
+    <Link
+      to={path}
+      className="relative flex items-center justify-center min-h-[44px] min-w-[44px]"
+      onClick={handleClick}
+      data-tutorial={tutorialId}
+    >
+      <div className="relative p-2">
+        {isActive && (
+          <motion.div
+            layoutId="bottomNavPill"
+            className="absolute inset-0 rounded-xl bg-primary/15"
+            transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.8 }}
+          />
         )}
-      />
-      
-      {badge > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold shadow-md z-20">
-          {badge > 9 ? '9+' : badge}
-        </span>
-      )}
-    </div>
-  </Link>
-));
+        
+        {/* Tutorial highlight ring */}
+        {isHighlighted && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="absolute -inset-1 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background"
+            style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.5)' }}
+          />
+        )}
+        
+        <Icon
+          className={cn(
+            "h-5 w-5 relative z-10",
+            isActive ? "text-primary" : "text-muted-foreground",
+            isHighlighted && "text-primary"
+          )}
+        />
+        
+        {badge > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold shadow-md z-20">
+            {badge > 9 ? '9+' : badge}
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+});
 
 export function BottomNav() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { profile } = useAuth();
+  const { isGuest } = useIsGuest();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   const isVisible = useScrollDirection();
 
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);
   const [highlightedNav, setHighlightedNav] = useState<string | null>(null);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [authPromptAction, setAuthPromptAction] = useState('');
   
   const lastTapTime = useRef(0);
 
@@ -177,6 +196,14 @@ export function BottomNav() {
 
   const handleCreateClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    
+    // Guest users need to sign up to create content
+    if (isGuest) {
+      setAuthPromptAction('create posts');
+      setShowAuthPrompt(true);
+      return;
+    }
+
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
     
@@ -196,21 +223,38 @@ export function BottomNav() {
     }
     
     lastTapTime.current = now;
-  }, [isCreateMenuOpen]);
+  }, [isCreateMenuOpen, isGuest]);
 
-  // Nav order: Home | Explore | Upload | Messages | Settings
+  // Handle protected nav clicks for guests
+  const handleProtectedNavClick = useCallback((action: string) => (e: React.MouseEvent) => {
+    if (isGuest) {
+      e.preventDefault();
+      setAuthPromptAction(action);
+      setShowAuthPrompt(true);
+    } else {
+      triggerNavFeedback();
+    }
+  }, [isGuest]);
+
+  // Nav order: Home | Explore | Upload | Messages | Profile/Settings
   const navItems = [
-    { icon: Home, path: '/home', badge: 0, tutorialId: 'home-nav' },
-    { icon: Compass, path: '/explore', badge: 0, tutorialId: 'explore-nav' },
-    { icon: PlusCircle, path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav' },
-    { icon: MessageCircle, path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav' },
-    { icon: Settings, path: '/settings', badge: 0, tutorialId: 'settings-nav' },
+    { icon: Home, path: '/home', badge: 0, tutorialId: 'home-nav', requiresAuth: false },
+    { icon: Compass, path: '/explore', badge: 0, tutorialId: 'explore-nav', requiresAuth: false },
+    { icon: PlusCircle, path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav', requiresAuth: true },
+    { icon: MessageCircle, path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav', requiresAuth: true, authAction: 'send messages' },
+    { icon: isGuest ? User : Settings, path: isGuest ? '/' : (profile?.username ? `/u/${profile.username}` : '/settings'), badge: 0, tutorialId: 'settings-nav', requiresAuth: false, authAction: 'view your profile' },
   ];
 
   return (
     <>
       <CreateMenu isOpen={isCreateMenuOpen} onClose={() => setIsCreateMenuOpen(false)} />
       <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
+      <GuestAuthPrompt 
+        variant="modal"
+        action={authPromptAction}
+        open={showAuthPrompt}
+        onClose={() => setShowAuthPrompt(false)}
+      />
 
       <motion.nav 
         className="fixed bottom-0 left-0 right-0 z-[2147483647] w-full pointer-events-auto"
@@ -272,6 +316,7 @@ export function BottomNav() {
                   isActive={isActive}
                   tutorialId={item.tutorialId}
                   isHighlighted={isHighlighted}
+                  onClick={item.requiresAuth ? handleProtectedNavClick(item.authAction || 'use this feature') : undefined}
                 />
               );
             })}

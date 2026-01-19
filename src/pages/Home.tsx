@@ -189,10 +189,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     }
   }, []);
 
-  // Redirect first-time users to the intro/landing page
-  // Also redirect users who don't have a profile/username yet
-  // IMPORTANT: When isInviteMode=true, this component is rendered inline on /invite/:username
-  // so we should NOT redirect - the InviteRedeem handles routing
+  // Only redirect authenticated users without profile to complete-profile
+  // Guest users can browse freely
   useEffect(() => {
     if (authLoading) return;
     
@@ -202,17 +200,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       return;
     }
     
-    // For unauthenticated users, redirect to landing if they haven't seen intro
-    // or if they're in invite mode (should be on /invite/:username)
+    // Guest users can browse - no redirect needed
     if (!user) {
-      // Check if intro was seen - if not, they should go to landing
-      const introSeen = localStorage.getItem('vybe_intro_completed') === 'true';
-      if (!introSeen || isInviteEntryMode()) {
-        console.log('[Home] Unauthenticated user without intro or in invite mode - redirecting to /');
-        navigate('/');
-        return;
-      }
-      // Guest users who saw intro can browse
       return;
     }
 

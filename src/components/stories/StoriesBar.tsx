@@ -10,13 +10,16 @@ import { StoryViewer } from './StoryViewer';
 import { StoryCreator } from './StoryCreator';
 import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 
 export const StoriesBar = memo(function StoriesBar() {
   const { t } = useTranslation();
   const { profile } = useAuth();
+  const { isGuest } = useIsGuest();
   const { data: storyGroups, isLoading } = useStories();
   const [selectedGroupIndex, setSelectedGroupIndex] = useState<number | null>(null);
   const [showCreator, setShowCreator] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
   if (isLoading) {
     return (
@@ -39,14 +42,28 @@ export const StoriesBar = memo(function StoriesBar() {
       <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide" data-tutorial="stories">
         {/* Add Story Button / Own Story */}
         <StoryAvatar
-          avatarUrl={profile?.avatar_url}
-          username={profile?.username}
-          label={t('stories.yourStory')}
+          avatarUrl={isGuest ? undefined : profile?.avatar_url}
+          username={isGuest ? 'Guest' : profile?.username}
+          label={isGuest ? 'Add Story' : t('stories.yourStory')}
           hasUnviewed={ownStoryGroup?.hasUnviewed}
           hasStory={!!ownStoryGroup}
           showAddButton={true}
-          onClick={() => ownStoryGroup ? setSelectedGroupIndex(0) : setShowCreator(true)}
-          onAddClick={() => setShowCreator(true)}
+          onClick={() => {
+            if (isGuest) {
+              setShowAuthPrompt(true);
+            } else if (ownStoryGroup) {
+              setSelectedGroupIndex(0);
+            } else {
+              setShowCreator(true);
+            }
+          }}
+          onAddClick={() => {
+            if (isGuest) {
+              setShowAuthPrompt(true);
+            } else {
+              setShowCreator(true);
+            }
+          }}
         />
 
         {/* Other Users' Stories */}
@@ -80,6 +97,14 @@ export const StoriesBar = memo(function StoriesBar() {
           <StoryCreator onClose={() => setShowCreator(false)} />
         )}
       </AnimatePresence>
+
+      {/* Guest Auth Prompt */}
+      <GuestAuthPrompt 
+        variant="modal"
+        action="share stories"
+        open={showAuthPrompt}
+        onClose={() => setShowAuthPrompt(false)}
+      />
     </>
   );
 });

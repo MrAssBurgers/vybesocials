@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { UserPlus, UserMinus, Clock, Check, X, Loader2 } from 'lucide-react';
 import { 
@@ -14,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 
 interface FriendButtonProps {
   userId: string;
@@ -29,11 +31,35 @@ export function FriendButton({
   showText = true 
 }: FriendButtonProps) {
   const { t } = useTranslation();
+  const { isGuest } = useIsGuest();
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const { data: friendshipStatus, isLoading } = useFriendshipStatus(userId);
   const sendRequest = useSendFriendRequest();
   const respondToRequest = useRespondToFriendRequest();
   const cancelRequest = useCancelFriendRequest();
   const unfriend = useUnfriend();
+
+  // Show auth prompt for guests
+  if (isGuest) {
+    return (
+      <>
+        <Button 
+          variant={variant} 
+          size={size}
+          onClick={() => setShowAuthPrompt(true)}
+        >
+          <UserPlus className="h-4 w-4" />
+          {showText && <span className="ml-2">{t('friends.addFriend')}</span>}
+        </Button>
+        <GuestAuthPrompt 
+          variant="modal"
+          action="add friends"
+          open={showAuthPrompt}
+          onClose={() => setShowAuthPrompt(false)}
+        />
+      </>
+    );
+  }
 
   if (isLoading) {
     return (

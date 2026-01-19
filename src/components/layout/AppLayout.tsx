@@ -48,9 +48,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     );
   }
 
-  if (requireAuth && !user) {
-    return <Navigate to="/" replace />;
-  }
+  // Allow guest browsing - don't redirect if no user
+  // Individual components will show auth prompts as needed
 
   // Desktop layout with sidebars (lg+ only, NOT tablets or iPads)
   if (isDesktop) {
