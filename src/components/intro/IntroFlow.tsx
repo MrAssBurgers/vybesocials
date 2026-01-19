@@ -230,7 +230,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
               <Sparkles className="w-4 h-4 mr-2" />
               Create Account
             </Button>
-            <p className="text-center text-sm text-muted-foreground pt-2">
+            <p className="text-center text-sm text-muted-foreground pt-6">
               Already have an account?{' '}
               <button
                 type="button"
