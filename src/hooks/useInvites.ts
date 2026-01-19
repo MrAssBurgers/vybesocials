@@ -196,7 +196,7 @@ export function useInviteStats() {
           const { data: redeemerProfile } = await supabase
             .from('profiles')
             .select('username, avatar_url')
-            .eq('id', r.redeemer_id)
+            .eq('user_id', r.redeemer_id)
             .single();
           
           return {
@@ -212,9 +212,9 @@ export function useInviteStats() {
       };
     },
     enabled: !!user?.id,
-    // Refetch every 5 seconds when on the invite page to show new redemptions quickly
-    refetchInterval: 5000,
-    staleTime: 2000,
+    // Refetch frequently so inviter progress feels instant
+    refetchInterval: 1000,
+    staleTime: 0,
   });
 }
 
@@ -222,8 +222,8 @@ export function useInviteStats() {
  * Get user's badges
  */
 export function useUserBadges(userId?: string) {
-  const { profile } = useAuth();
-  const targetUserId = userId || profile?.id;
+  const { user } = useAuth();
+  const targetUserId = userId || user?.id;
   
   return useQuery({
     queryKey: ['user-badges', targetUserId],
