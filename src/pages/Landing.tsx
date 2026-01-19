@@ -64,31 +64,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   
   useEffect(() => {
     async function checkAndRedirect() {
-      if (!user) return;
-      
-      // If in invite mode (rendered from InviteRedeem), NEVER redirect via navigate
-      // The InviteRedeem handles stage transitions via onInviteNavigate callback
+      // In invite mode, auth check and redirects are handled by parent (InviteRedeem)
+      // The Landing component in invite mode ONLY shows intro, then signals completion
       if (isInviteMode) {
-        console.log('[Landing] In invite mode - skipping navigate redirects');
-        
-        // Instead, trigger stage transition via callback
-        if (onInviteNavigate) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('username, onboarding_completed')
-            .eq('user_id', user.id)
-            .maybeSingle();
-          
-          if (profile?.username && profile?.onboarding_completed !== false) {
-            onInviteNavigate('home');
-          } else if (!profile?.username) {
-            onInviteNavigate('complete-profile');
-          } else {
-            onInviteNavigate('onboarding');
-          }
-        }
+        console.log('[Landing] In invite mode - auth redirects handled by InviteRedeem');
         return;
       }
+      
+      if (!user) return;
       
       // If on invite route or in invite entry mode, don't auto-redirect to home
       // Let the user complete the full first-time experience
@@ -112,7 +95,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     }
     
     checkAndRedirect();
-  }, [user, navigate, isInviteRoute, isInviteMode, onInviteNavigate]);
+  }, [user, navigate, isInviteRoute, isInviteMode]);
 
   // Only hide the landing page if we're about to redirect (handled in useEffect)
   // Don't return null immediately - let the useEffect decide
@@ -148,10 +131,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           if (profile?.username && profile?.onboarding_completed !== false) {
             navTo('home', '/home');
           } else if (!profile?.username) {
-            // New user needs to complete profile
             navTo('complete-profile', '/complete-profile');
           } else {
-            // Has username but onboarding not complete
             navTo('onboarding', '/onboarding');
           }
         } else {

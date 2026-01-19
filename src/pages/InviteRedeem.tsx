@@ -54,13 +54,17 @@ export function clearEntryMode(): void {
 }
 
 // Stage type for internal state machine
+// CRITICAL: Always start at 'landing' to show intro - regardless of auth state
 type InviteFlowStage = 'loading' | 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
   const { user, profile, loading: authLoading } = useAuth();
   const [inviteProcessed, setInviteProcessed] = useState(false);
+  // CRITICAL: Start at 'landing' to always show intro first
   const [currentStage, setCurrentStage] = useState<InviteFlowStage>('loading');
+  // Track if user has completed the intro (landing stage)
+  const [introCompleted, setIntroCompleted] = useState(false);
   const processedRef = useRef(false);
   
   // Parse identifier - handles @username, username, or UUID
@@ -152,15 +156,29 @@ export default function InviteRedeem() {
     processInvite();
   }, [identifier]);
   
-  // Determine which stage to show based on auth state
-  // This creates a state machine that prevents URL changes
+  // Determine which stage to show
+  // CRITICAL: Always show landing FIRST (intro) regardless of auth state
+  // Only after introCompleted, check auth state to determine next stage
   useEffect(() => {
-    if (!inviteProcessed || authLoading) {
+    if (!inviteProcessed) {
       setCurrentStage('loading');
       return;
     }
     
-    // Not authenticated - show landing page
+    // ALWAYS show landing (intro) first for invite links
+    // This ensures invited users ALWAYS see the intro page first
+    if (!introCompleted) {
+      setCurrentStage('landing');
+      return;
+    }
+    
+    // After intro is done, wait for auth to settle
+    if (authLoading) {
+      return;
+    }
+    
+    // Intro completed - now check auth state for next stage
+    // Not authenticated - stay on landing for signup/login
     if (!user) {
       setCurrentStage('landing');
       return;
@@ -180,11 +198,17 @@ export default function InviteRedeem() {
     
     // Fully onboarded - show home (tutorial + invite popup will trigger there)
     setCurrentStage('home');
-  }, [inviteProcessed, authLoading, user, profile]);
+  }, [inviteProcessed, authLoading, user, profile, introCompleted]);
   
   // Handle stage transitions (called by child components instead of navigate())
   const handleStageComplete = (nextStage: 'landing' | 'complete-profile' | 'onboarding' | 'home') => {
     console.log('[InviteRedeem] Stage transition:', currentStage, '->', nextStage);
+    
+    // When leaving landing stage, mark intro as completed
+    if (currentStage === 'landing' && nextStage !== 'landing') {
+      setIntroCompleted(true);
+    }
+    
     setCurrentStage(nextStage);
   };
   
