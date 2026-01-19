@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserPlus, X } from 'lucide-react';
+import { UserPlus, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,102 +9,121 @@ import { toast } from 'sonner';
 import {
   getPendingReferral,
   clearPendingReferral,
-  markPopupShown,
-  wasPopupShown,
+  markPopupDismissed,
+  wasPopupDismissed,
+  markReferralConsumed,
+  wasReferralConsumed,
+  cleanupReferralStorage,
+  type PendingReferral,
 } from '@/lib/referral';
-
-interface InviterInfo {
-  id: string;
-  username: string;
-  avatar_url: string | null;
-  display_name: string | null;
-}
 
 /**
  * Post-signup popup that asks user if they want to add their inviter as friend.
  * 
  * Flow:
- * 1. User visits invite link → inviter ID stored in localStorage
- * 2. User signs up and completes onboarding
+ * 1. User visits invite link → inviter data stored in localStorage
+ * 2. User signs up and account creation completes
  * 3. This component detects the pending referral and shows modal
  * 4. User can add friend or dismiss
- * 5. Inviter reward is granted regardless of friend choice
+ * 5. Inviter reward is granted exactly once (tracked via invite_redemptions)
+ * 6. Cleanup happens after flow completes
  */
 export function InvitePopup() {
   const { user, profile } = useAuth();
-  const [inviter, setInviter] = useState<InviterInfo | null>(null);
+  const [referral, setReferral] = useState<PendingReferral | null>(null);
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [processed, setProcessed] = useState(false);
+  const processedRef = useRef(false);
+  const rewardGrantedRef = useRef(false);
 
-  // Process pending referral when user is authenticated
+  // Process pending referral when auth is fully ready
   useEffect(() => {
-    // Wait for full auth to be ready
-    if (!user?.id || !profile?.id) return;
+    // Wait for complete auth state
+    if (!user?.id || !profile?.id) {
+      console.log('[InvitePopup] Auth not ready yet');
+      return;
+    }
     
-    // Don't process more than once per session
-    if (processed) return;
-
+    // Prevent multiple processing in same session
+    if (processedRef.current) return;
+    
     const processPendingReferral = async () => {
-      const pendingInviterId = getPendingReferral();
+      const pending = getPendingReferral();
       
-      // No pending referral
-      if (!pendingInviterId) {
-        console.log('[InvitePopup] No pending referral found');
+      if (!pending) {
+        console.log('[InvitePopup] No pending referral');
         return;
       }
       
-      console.log('[InvitePopup] Found pending referral:', pendingInviterId);
+      console.log('[InvitePopup] Found pending referral for:', pending.inviterUsername);
       
-      // Already shown the popup for this referral
-      if (wasPopupShown()) {
-        console.log('[InvitePopup] Popup already shown, clearing');
-        clearPendingReferral();
+      // Check if popup was already dismissed for this referral
+      if (wasPopupDismissed()) {
+        console.log('[InvitePopup] Popup was already dismissed');
+        cleanupReferralStorage();
         return;
       }
       
       // Don't allow self-referral
-      if (pendingInviterId === profile.id) {
+      if (pending.inviterId === profile.id) {
         console.log('[InvitePopup] Self-referral, clearing');
-        clearPendingReferral();
+        cleanupReferralStorage();
         return;
       }
       
-      try {
-        // Validate inviter exists - use public_profiles for RLS compatibility
-        const { data: inviterProfile, error } = await supabase
-          .from('public_profiles')
-          .select('id, username, avatar_url, display_name')
-          .eq('id', pendingInviterId)
-          .maybeSingle();
-        
-        if (error || !inviterProfile) {
-          console.log('[InvitePopup] Inviter not found, clearing referral');
-          clearPendingReferral();
-          return;
-        }
-        
-        console.log('[InvitePopup] Showing popup for inviter:', inviterProfile.username);
-        
-        // Show the popup
-        setInviter(inviterProfile);
-        setVisible(true);
-        setProcessed(true);
-      } catch (err) {
-        console.error('[InvitePopup] Error processing referral:', err);
-        clearPendingReferral();
+      // Verify inviter still exists
+      const { data: inviterProfile, error } = await supabase
+        .from('public_profiles')
+        .select('id, username, avatar_url, display_name')
+        .eq('id', pending.inviterId)
+        .maybeSingle();
+      
+      if (error || !inviterProfile) {
+        console.log('[InvitePopup] Inviter no longer exists, clearing');
+        cleanupReferralStorage();
+        return;
       }
+      
+      // Update referral with fresh data
+      const freshReferral: PendingReferral = {
+        inviterId: inviterProfile.id,
+        inviterUsername: inviterProfile.username,
+        inviterDisplayName: inviterProfile.display_name,
+        inviterAvatarUrl: inviterProfile.avatar_url,
+        timestamp: pending.timestamp,
+      };
+      
+      setReferral(freshReferral);
+      setVisible(true);
+      processedRef.current = true;
+      
+      console.log('[InvitePopup] Showing popup for:', inviterProfile.username);
     };
 
-    // Small delay to ensure UI is settled and auth is fully ready
-    const timer = setTimeout(processPendingReferral, 1000);
+    // Delay to ensure UI is settled and auth is fully ready
+    const timer = setTimeout(processPendingReferral, 800);
     return () => clearTimeout(timer);
-  }, [user?.id, profile?.id, processed]);
+  }, [user?.id, profile?.id]);
 
-  // Grant reward to inviter (called once per new user)
+  /**
+   * Grant reward to inviter - happens ONCE per new user
+   * Uses invite_redemptions table to prevent duplicates
+   */
   const grantInviterReward = useCallback(async (inviterId: string, redeemerId: string) => {
+    // Prevent duplicate calls in same session
+    if (rewardGrantedRef.current) {
+      console.log('[InvitePopup] Reward already granted this session');
+      return;
+    }
+    
+    // Check local flag first (quick check)
+    if (wasReferralConsumed()) {
+      console.log('[InvitePopup] Referral already consumed (local)');
+      return;
+    }
+    
     try {
-      // Check if already redeemed by this user
+      // Check if this user already has a redemption (server-side dedup)
       const { data: existing } = await supabase
         .from('invite_redemptions')
         .select('id')
@@ -112,7 +131,8 @@ export function InvitePopup() {
         .maybeSingle();
       
       if (existing) {
-        console.log('Invite already redeemed by this user');
+        console.log('[InvitePopup] User already redeemed an invite');
+        markReferralConsumed();
         return;
       }
       
@@ -124,12 +144,12 @@ export function InvitePopup() {
         .single();
       
       if (!inviterProfile?.user_id) {
-        console.log('Could not find inviter user_id');
+        console.log('[InvitePopup] Could not find inviter user_id');
         return;
       }
       
       // Find the inviter's invite record
-      const { data: invite } = await supabase
+      const { data: existingInvite } = await supabase
         .from('invites')
         .select('id, use_count')
         .eq('inviter_id', inviterProfile.user_id)
@@ -137,39 +157,71 @@ export function InvitePopup() {
         .limit(1)
         .maybeSingle();
       
-      if (!invite) {
-        console.log('No invite found for inviter');
-        return;
+      let inviteId: string;
+      let currentUseCount: number = 0;
+      
+      if (!existingInvite) {
+        // Create an invite record for the inviter if they don't have one
+        const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        const { data: newInvite, error: createError } = await supabase
+          .from('invites')
+          .insert({
+            inviter_id: inviterProfile.user_id,
+            invite_code: inviteCode,
+            use_count: 0,
+          })
+          .select('id, use_count')
+          .single();
+        
+        if (createError || !newInvite) {
+          console.log('[InvitePopup] Could not create invite for inviter');
+          return;
+        }
+        inviteId = newInvite.id;
+        currentUseCount = newInvite.use_count || 0;
+      } else {
+        inviteId = existingInvite.id;
+        currentUseCount = existingInvite.use_count || 0;
       }
       
       // Create redemption record
       const { error: redemptionError } = await supabase
         .from('invite_redemptions')
         .insert({
-          invite_id: invite.id,
+          invite_id: inviteId,
           redeemer_id: redeemerId,
         });
       
       if (redemptionError) {
-        console.error('Failed to create redemption:', redemptionError);
+        // Unique constraint violation = already redeemed
+        if (redemptionError.code === '23505') {
+          console.log('[InvitePopup] Redemption already exists');
+          markReferralConsumed();
+          return;
+        }
+        console.error('[InvitePopup] Failed to create redemption:', redemptionError);
         return;
       }
       
       // Increment use count
       await supabase
         .from('invites')
-        .update({ use_count: (invite.use_count || 0) + 1 })
-        .eq('id', invite.id);
+        .update({ use_count: currentUseCount + 1 })
+        .eq('id', inviteId);
       
-      console.log('Inviter reward granted successfully');
+      // Mark as consumed
+      markReferralConsumed();
+      rewardGrantedRef.current = true;
+      
+      console.log('[InvitePopup] Inviter reward granted successfully');
     } catch (error) {
-      console.error('Failed to grant inviter reward:', error);
+      console.error('[InvitePopup] Error granting reward:', error);
       // Don't block user flow on reward failure
     }
   }, []);
 
   const handleAddFriend = async () => {
-    if (!profile?.id || !inviter?.id) return;
+    if (!profile?.id || !referral) return;
     
     setLoading(true);
     
@@ -178,18 +230,26 @@ export function InvitePopup() {
       const { data: existingRequest } = await supabase
         .from('friend_requests')
         .select('id, status')
-        .or(`and(sender_id.eq.${profile.id},receiver_id.eq.${inviter.id}),and(sender_id.eq.${inviter.id},receiver_id.eq.${profile.id})`)
+        .or(`and(sender_id.eq.${profile.id},receiver_id.eq.${referral.inviterId}),and(sender_id.eq.${referral.inviterId},receiver_id.eq.${profile.id})`)
         .maybeSingle();
       
       if (!existingRequest) {
         // Send new friend request
-        await supabase
+        const { error } = await supabase
           .from('friend_requests')
           .insert({
             sender_id: profile.id,
-            receiver_id: inviter.id,
+            receiver_id: referral.inviterId,
             status: 'pending',
           });
+        
+        if (!error) {
+          toast.success(`Friend request sent to @${referral.inviterUsername}!`);
+        }
+      } else if (existingRequest.status === 'pending') {
+        toast.info(`Friend request already pending with @${referral.inviterUsername}`);
+      } else if (existingRequest.status === 'accepted') {
+        toast.info(`You're already friends with @${referral.inviterUsername}!`);
       }
       
       // Also follow the inviter
@@ -197,18 +257,17 @@ export function InvitePopup() {
         .from('follows')
         .upsert({
           follower_id: profile.id,
-          following_id: inviter.id,
+          following_id: referral.inviterId,
         }, { onConflict: 'follower_id,following_id' });
       
       // Grant reward to inviter
-      await grantInviterReward(inviter.id, profile.id);
+      await grantInviterReward(referral.inviterId, profile.id);
       
-      toast.success(`Friend request sent to @${inviter.username}!`);
       handleClose();
     } catch (error: any) {
-      console.error('Failed to add friend:', error);
-      // Still close and grant reward even if friend request fails
-      await grantInviterReward(inviter.id, profile.id);
+      console.error('[InvitePopup] Failed to add friend:', error);
+      // Still grant reward and close even if friend request fails
+      await grantInviterReward(referral.inviterId, profile.id);
       handleClose();
     } finally {
       setLoading(false);
@@ -216,20 +275,23 @@ export function InvitePopup() {
   };
 
   const handleNotNow = async () => {
-    if (profile?.id && inviter?.id) {
+    if (profile?.id && referral) {
       // Grant reward even if user doesn't add as friend
-      await grantInviterReward(inviter.id, profile.id);
+      await grantInviterReward(referral.inviterId, profile.id);
     }
     handleClose();
   };
 
   const handleClose = () => {
     setVisible(false);
-    markPopupShown();
-    clearPendingReferral();
+    markPopupDismissed();
+    // Full cleanup after a short delay for animation
+    setTimeout(() => {
+      cleanupReferralStorage();
+    }, 300);
   };
 
-  if (!visible || !inviter) return null;
+  if (!visible || !referral) return null;
 
   return (
     <AnimatePresence>
@@ -254,6 +316,7 @@ export function InvitePopup() {
           <button
             onClick={handleNotNow}
             className="absolute top-4 right-4 p-1 rounded-full hover:bg-muted/50 transition-colors"
+            disabled={loading}
           >
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
@@ -263,9 +326,9 @@ export function InvitePopup() {
             {/* Avatar */}
             <div className="flex justify-center">
               <Avatar className="h-20 w-20 ring-4 ring-primary/20">
-                <AvatarImage src={inviter.avatar_url || undefined} />
+                <AvatarImage src={referral.inviterAvatarUrl || undefined} />
                 <AvatarFallback className="text-2xl gradient-animated text-white">
-                  {inviter.username?.[0]?.toUpperCase()}
+                  {referral.inviterUsername?.[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </div>
@@ -273,7 +336,7 @@ export function InvitePopup() {
             {/* Title */}
             <div>
               <h2 className="text-xl font-bold">
-                You joined using @{inviter.username}'s invite
+                You joined using @{referral.inviterUsername}'s invite
               </h2>
               <p className="text-muted-foreground mt-2">
                 Would you like to add them as a friend?
@@ -288,7 +351,11 @@ export function InvitePopup() {
                 onClick={handleAddFriend}
                 disabled={loading}
               >
-                <UserPlus className="h-4 w-4 mr-2" />
+                {loading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <UserPlus className="h-4 w-4 mr-2" />
+                )}
                 Add Friend
               </Button>
               <Button

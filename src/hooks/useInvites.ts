@@ -209,113 +209,6 @@ export function useInviteStats() {
 }
 
 /**
- * Redeem an invite code
- * Uses profile.id as the redeemer_id (for invite_redemptions, follows, friend_requests)
- * But compares against inviter's auth user ID for self-invite check
- */
-export function useRedeemInvite() {
-  const queryClient = useQueryClient();
-  const { user, profile } = useAuth();
-  
-  return useMutation({
-    mutationFn: async (inviteCode: string) => {
-      if (!profile?.id || !user?.id) throw new Error('Must be logged in');
-      
-      // Find the invite
-      const { data: invite, error: findError } = await supabase
-        .from('invites')
-        .select('*')
-        .eq('invite_code', inviteCode.toUpperCase())
-        .single();
-      
-      if (findError || !invite) {
-        throw new Error('Invalid invite code');
-      }
-      
-      // Check if own invite (inviter_id is auth user ID)
-      if (invite.inviter_id === user.id) {
-        throw new Error('You cannot use your own invite');
-      }
-      
-      // Check if already redeemed by this profile
-      const { data: existing } = await supabase
-        .from('invite_redemptions')
-        .select('id')
-        .eq('invite_id', invite.id)
-        .eq('redeemer_id', profile.id)
-        .maybeSingle();
-      
-      if (existing) {
-        throw new Error('You have already used this invite');
-      }
-      
-      // Get inviter's profile ID for follows/friend requests
-      const { data: inviterProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', invite.inviter_id)
-        .single();
-      
-      if (!inviterProfile) {
-        throw new Error('Inviter not found');
-      }
-      
-      // Redeem the invite
-      const { error: redeemError } = await supabase
-        .from('invite_redemptions')
-        .insert({
-          invite_id: invite.id,
-          redeemer_id: profile.id,
-        });
-      
-      if (redeemError) throw redeemError;
-      
-      // Update use count
-      await supabase
-        .from('invites')
-        .update({ use_count: (invite.use_count || 0) + 1 })
-        .eq('id', invite.id);
-      
-      // Auto-follow the inviter (use profile IDs)
-      try {
-        await supabase
-          .from('follows')
-          .insert({
-            follower_id: profile.id,
-            following_id: inviterProfile.id,
-          });
-      } catch {
-        // Ignore duplicate errors
-      }
-      
-      // Send friend request (use profile IDs)
-      try {
-        await supabase
-          .from('friend_requests')
-          .insert({
-            sender_id: profile.id,
-            receiver_id: inviterProfile.id,
-            status: 'pending',
-          });
-      } catch {
-        // Ignore duplicate errors
-      }
-      
-      analytics.inviteAccepted({ inviterId: invite.inviter_id });
-      
-      return { inviterId: invite.inviter_id, inviterProfileId: inviterProfile.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invite-stats'] });
-      toast.success('Invite accepted! You are now connected.');
-    },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to redeem invite');
-    },
-  });
-}
-
-/**
  * Get user's badges
  */
 export function useUserBadges(userId?: string) {
@@ -344,5 +237,7 @@ export function useUserBadges(userId?: string) {
  * Get invite URL - uses username-based format for cleaner links
  */
 export function getInviteUrl(username: string): string {
-  return `https://www.vybehub.app/invite/@${username}`;
+  // Use the published app URL
+  const baseUrl = 'https://vybeapp.lovable.app';
+  return `${baseUrl}/invite/@${username}`;
 }
