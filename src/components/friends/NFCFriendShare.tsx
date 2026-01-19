@@ -25,12 +25,12 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
   const {
     isSupported,
     isEnabled,
-    isNative,
     hasWebNFC,
     isScanning,
     shareProfile,
     stopScan,
     openSettings,
+    getStatusMessage,
   } = useNFC();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -174,7 +174,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
   };
 
   // Don't show if NFC not supported at all
-  if (!isSupported && !isNative && !hasWebNFC) {
+  if (!isSupported && !hasWebNFC) {
     return null;
   }
 
@@ -234,8 +234,8 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
           </SheetHeader>
 
           <div className="space-y-6 pb-safe">
-            {/* NFC Not Enabled (native only) */}
-            {isNative && !isEnabled && (
+            {/* NFC Not Supported Message */}
+            {!hasWebNFC && !isSupported && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -245,14 +245,13 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                   <WifiOff className="h-8 w-8 text-destructive" />
                 </div>
                 <div>
-                  <p className="font-medium">NFC is disabled</p>
+                  <p className="font-medium">NFC Not Available</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Enable NFC in your device settings to add friends by tapping phones
+                    {getStatusMessage()}
                   </p>
                 </div>
-                <Button onClick={openSettings} className="gap-2">
-                  <Settings className="h-4 w-4" />
-                  Open Settings
+                <Button variant="outline" onClick={handleClose}>
+                  Close
                 </Button>
               </motion.div>
             )}
@@ -278,48 +277,25 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                         ease: 'easeInOut',
                       }}
                     />
-                    <div className="absolute inset-0 rounded-2xl gradient-animated flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                       <Nfc className="h-10 w-10 text-white" />
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Tap phones together to quickly add friends
+                    Both phones need the app open and scanning
                   </p>
                   <p className="text-xs text-muted-foreground/70 mt-1">
-                    They'll get a notification to open the app
+                    Hold phones back-to-back
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    variant="outline"
-                    className="h-24 flex-col gap-2 relative overflow-hidden group"
-                    onClick={handleStartSharing}
-                  >
-                    <motion.div
-                      className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent"
-                      initial={{ x: '-100%' }}
-                      whileHover={{ x: '100%' }}
-                      transition={{ duration: 0.5 }}
-                    />
-                    <Smartphone className="h-6 w-6 relative z-10" />
-                    <span className="text-sm relative z-10">Share My Profile</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-24 flex-col gap-2 relative overflow-hidden group"
-                    onClick={handleStartReceiving}
-                  >
-                    <motion.div
-                      className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent"
-                      initial={{ x: '-100%' }}
-                      whileHover={{ x: '100%' }}
-                      transition={{ duration: 0.5 }}
-                    />
-                    <Nfc className="h-6 w-6 relative z-10" />
-                    <span className="text-sm relative z-10">Receive Friend</span>
-                  </Button>
-                </div>
+                <Button
+                  className="w-full h-14 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-white font-semibold rounded-xl"
+                  onClick={handleStartSharing}
+                >
+                  <Nfc className="h-5 w-5 mr-2" />
+                  Start NFC Sharing
+                </Button>
               </motion.div>
             )}
 
@@ -345,7 +321,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                     }}
                   />
                   <motion.div
-                    className="absolute inset-0 rounded-full bg-primary/30"
+                    className="absolute inset-0 rounded-full bg-accent/20"
                     animate={{
                       scale: [1, 1.3, 1],
                       opacity: [0.6, 0, 0.6],
@@ -381,23 +357,23 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                     </motion.div>
                   ))}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-20 h-20 rounded-full gradient-animated flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/30">
                       <Smartphone className="h-10 w-10 text-white" />
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <p className="font-medium">📡 NFC Tag Mode Active</p>
+                  <p className="font-medium">📡 NFC Scanning Active</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Hold your phone against theirs - works even if their screen is locked!
+                    Hold phones back-to-back (both need app open)
                   </p>
-                  <p className="text-xs text-primary/70 mt-2 font-medium">
-                    ✓ Their phone will show a notification to add you
+                  <p className="text-xs text-accent mt-2 font-medium">
+                    ✓ Ready to exchange profiles
                   </p>
                 </div>
 
-                <Button variant="outline" onClick={handleClose}>
+                <Button variant="outline" className="rounded-xl" onClick={handleClose}>
                   Cancel
                 </Button>
               </motion.div>

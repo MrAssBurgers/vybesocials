@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 
@@ -11,7 +10,7 @@ interface NFCState {
   error: string | null;
 }
 
-// Web NFC API types (for browsers that support it - Chrome Android 89+)
+// Web NFC API types (Chrome Android 89+)
 declare global {
   interface Window {
     NDEFReader?: new () => NDEFReader;
@@ -49,28 +48,40 @@ declare global {
   }
 }
 
-// Deep link / Universal link URL for the app
+// Deep link URL for the app
 const APP_DOMAIN = 'vybehub.app';
 const FRIEND_ADD_PATH = '/add-friend';
 
-// Generate a friend add URL that works as deep link or web fallback
 export function generateFriendAddUrl(userId: string): string {
   return `https://${APP_DOMAIN}${FRIEND_ADD_PATH}/${userId}`;
 }
 
-// Parse a friend add URL to extract user ID
 export function parseFriendAddUrl(url: string): string | null {
   try {
     const urlObj = new URL(url);
     const match = urlObj.pathname.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
     return match ? match[1] : null;
   } catch {
-    // Try legacy format
     if (url.startsWith('vybe:friend:')) {
       return url.replace('vybe:friend:', '');
     }
     return null;
   }
+}
+
+// Detect if running on Chrome Android (only platform supporting Web NFC)
+function isWebNFCSupported(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  // Check if NDEFReader exists
+  if (!('NDEFReader' in window)) return false;
+  
+  // Web NFC only works on Chrome Android
+  const ua = navigator.userAgent;
+  const isAndroid = /Android/i.test(ua);
+  const isChrome = /Chrome/i.test(ua) && !/Edge|Edg/i.test(ua);
+  
+  return isAndroid && isChrome;
 }
 
 export function useNFC() {
@@ -86,55 +97,60 @@ export function useNFC() {
   const ndefReaderRef = useRef<NDEFReader | null>(null);
   const pendingWriteRef = useRef<string | null>(null);
 
-  const isNative = Capacitor.isNativePlatform();
-  const hasWebNFC = typeof window !== 'undefined' && 'NDEFReader' in window;
+  const hasWebNFC = isWebNFCSupported();
 
   useEffect(() => {
-    console.log('[NFC] Checking Web NFC support...');
+    console.log('[NFC] Checking support...');
     console.log('[NFC] hasWebNFC:', hasWebNFC);
-    console.log('[NFC] isNative:', isNative);
     
     if (hasWebNFC) {
-      console.log('[NFC] Web NFC is supported!');
+      console.log('[NFC] Web NFC supported on Chrome Android');
       setState(prev => ({
         ...prev,
         isSupported: true,
         isEnabled: true,
       }));
     } else {
-      console.log('[NFC] Web NFC is NOT supported on this device/browser');
+      const ua = navigator.userAgent;
+      const isIOS = /iPhone|iPad|iPod/i.test(ua);
+      const isAndroid = /Android/i.test(ua);
+      
+      if (isIOS) {
+        console.log('[NFC] iOS detected - Web NFC not supported in browsers');
+      } else if (isAndroid) {
+        console.log('[NFC] Android detected but not Chrome - Web NFC requires Chrome');
+      } else {
+        console.log('[NFC] Desktop browser - Web NFC not supported');
+      }
+      
       setState(prev => ({ ...prev, isSupported: false }));
     }
-  }, [hasWebNFC, isNative]);
+  }, [hasWebNFC]);
 
-  // Request NFC permission by initiating a scan
+  // Request permission by starting a scan
   const requestPermission = useCallback(async (): Promise<boolean> => {
     if (!hasWebNFC || !window.NDEFReader) {
-      console.log('[NFC] Cannot request permission - Web NFC not available');
+      console.log('[NFC] Cannot request permission - not supported');
       return false;
     }
 
     try {
-      console.log('[NFC] Requesting NFC permission...');
+      console.log('[NFC] Requesting permission...');
       const ndef = new window.NDEFReader();
       const controller = new AbortController();
       
-      // This triggers the permission prompt
       await ndef.scan({ signal: controller.signal });
-      console.log('[NFC] Permission granted!');
-      
-      // Immediately abort - we just needed permission
+      console.log('[NFC] Permission granted');
       controller.abort();
       
       return true;
     } catch (error: any) {
-      console.error('[NFC] Permission request failed:', error);
+      console.error('[NFC] Permission failed:', error);
       if (error.name === 'NotAllowedError') {
-        toast.error('NFC permission denied. Please allow NFC access in your browser settings.');
+        toast.error('NFC permission denied. Allow NFC in browser settings.');
         return false;
       }
       if (error.name === 'AbortError') {
-        // This is expected since we abort immediately
         return true;
       }
       return false;
@@ -144,33 +160,39 @@ export function useNFC() {
   // Start scanning for NFC tags
   const startScan = useCallback(async (onTagScanned: (userId: string) => void): Promise<boolean> => {
     if (!hasWebNFC || !window.NDEFReader) {
-      console.log('[NFC] Scan failed - Web NFC not available');
-      toast.error('NFC is not available. Use Chrome on Android with NFC enabled.');
+      console.log('[NFC] Scan failed - not supported');
+      
+      const ua = navigator.userAgent;
+      if (/iPhone|iPad|iPod/i.test(ua)) {
+        toast.error('NFC not available in iOS browsers. Install the native app for NFC.');
+      } else if (/Android/i.test(ua)) {
+        toast.error('NFC requires Chrome browser on Android.');
+      } else {
+        toast.error('NFC is only available on Android with Chrome browser.');
+      }
       return false;
     }
 
-    // Stop any existing scan first
+    // Stop existing scan
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
 
     try {
-      console.log('[NFC] Starting NFC scan...');
+      console.log('[NFC] Starting scan...');
       const ndef = new window.NDEFReader();
       ndefReaderRef.current = ndef;
       abortControllerRef.current = new AbortController();
 
-      // Request permission and start scanning
       await ndef.scan({ signal: abortControllerRef.current.signal });
-      console.log('[NFC] Scan started successfully!');
+      console.log('[NFC] Scan active');
       
       setState(prev => ({ ...prev, isScanning: true, error: null }));
       haptics.tap();
-      toast.success('NFC is active! Ready to read tags.');
+      toast.success('NFC scanning! Hold phone near NFC tag or friend\'s phone.');
 
-      // Handle reading events
       const handleReading = (event: NDEFReadingEvent) => {
-        console.log('[NFC] Tag detected!', event.serialNumber);
+        console.log('[NFC] Tag detected:', event.serialNumber);
         haptics.success();
 
         for (const record of event.message.records) {
@@ -179,10 +201,9 @@ export function useNFC() {
           if (record.recordType === 'url') {
             const decoder = new TextDecoder();
             const url = decoder.decode(record.data);
-            console.log('[NFC] URL record:', url);
+            console.log('[NFC] URL:', url);
             const userId = parseFriendAddUrl(url);
             if (userId) {
-              console.log('[NFC] Extracted userId:', userId);
               onTagScanned(userId);
               return;
             }
@@ -191,7 +212,7 @@ export function useNFC() {
           if (record.recordType === 'text') {
             const decoder = new TextDecoder(record.encoding || 'utf-8');
             const text = decoder.decode(record.data);
-            console.log('[NFC] Text record:', text);
+            console.log('[NFC] Text:', text);
 
             const userId = parseFriendAddUrl(text);
             if (userId) {
@@ -206,15 +227,14 @@ export function useNFC() {
           }
         }
         
-        console.log('[NFC] No valid VYBE data found in tag');
-        toast.info('NFC tag read, but no VYBE friend data found');
+        toast.info('NFC tag read, but no VYBE data found');
       };
 
       const handleError = () => {
-        console.error('[NFC] Read error occurred');
-        setState(prev => ({ ...prev, error: 'Cannot read from NFC tag' }));
+        console.error('[NFC] Read error');
+        setState(prev => ({ ...prev, error: 'Cannot read NFC tag' }));
         haptics.error();
-        toast.error('Failed to read NFC tag. Try again.');
+        toast.error('Failed to read NFC tag');
       };
 
       ndef.addEventListener('reading', handleReading);
@@ -226,22 +246,20 @@ export function useNFC() {
       setState(prev => ({ ...prev, isScanning: false }));
       
       if (error.name === 'NotAllowedError') {
-        toast.error('NFC permission denied. Please allow NFC access.');
+        toast.error('NFC permission denied. Enable in browser settings.');
       } else if (error.name === 'NotSupportedError') {
         toast.error('NFC not supported on this device.');
       } else if (error.name === 'AbortError') {
-        console.log('[NFC] Scan was aborted');
         return false;
       } else {
-        toast.error('Failed to start NFC scan');
+        toast.error('Failed to start NFC');
       }
       return false;
     }
   }, [hasWebNFC]);
 
-  // Stop scanning
   const stopScan = useCallback(() => {
-    console.log('[NFC] Stopping scan...');
+    console.log('[NFC] Stopping scan');
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -251,42 +269,33 @@ export function useNFC() {
     setState(prev => ({ ...prev, isScanning: false, isWriteReady: false }));
   }, []);
 
-  // Write to NFC tag (requires user to tap a physical NFC tag)
+  // Write to NFC tag
   const writeNFC = useCallback(async (userId: string): Promise<boolean> => {
     if (!hasWebNFC || !window.NDEFReader) {
-      console.log('[NFC] Write failed - Web NFC not available');
-      toast.error('NFC writing not supported on this device');
+      toast.error('NFC not supported on this device');
       return false;
     }
 
     try {
-      console.log('[NFC] Preparing to write...', userId);
+      console.log('[NFC] Preparing write for:', userId);
       const ndef = new window.NDEFReader();
       
-      // Create new abort controller for write operation
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
       abortControllerRef.current = new AbortController();
 
       const friendUrl = generateFriendAddUrl(userId);
-      console.log('[NFC] Will write URL:', friendUrl);
+      console.log('[NFC] URL to write:', friendUrl);
       
-      // First scan to request permission
-      console.log('[NFC] Requesting permission via scan...');
       await ndef.scan({ signal: abortControllerRef.current.signal });
-      console.log('[NFC] Permission granted, ready to write');
       
       setState(prev => ({ ...prev, isScanning: true, isWriteReady: true }));
       pendingWriteRef.current = userId;
       
       haptics.tap();
-      toast.success('NFC active! Tap an NFC tag to write your profile', {
-        description: 'Or tap another phone running VYBE to share directly',
-        duration: 5000,
-      });
+      toast.success('NFC ready! Tap an NFC tag to write your profile.');
 
-      // Listen for tags and write to them
       ndef.addEventListener('reading', async () => {
         if (!pendingWriteRef.current) return;
         
@@ -295,26 +304,19 @@ export function useNFC() {
         
         try {
           await ndef.write({
-            records: [
-              {
-                recordType: 'url',
-                data: generateFriendAddUrl(pendingWriteRef.current),
-              },
-            ],
+            records: [{ recordType: 'url', data: generateFriendAddUrl(pendingWriteRef.current) }],
           });
           
-          console.log('[NFC] Write successful!');
+          console.log('[NFC] Write success');
           haptics.success();
-          toast.success('Profile written to NFC tag!', {
-            description: 'Anyone can tap this tag to add you as a friend',
-          });
+          toast.success('Profile written to NFC tag!');
           
           pendingWriteRef.current = null;
           setState(prev => ({ ...prev, isWriteReady: false }));
         } catch (writeError) {
           console.error('[NFC] Write failed:', writeError);
           haptics.error();
-          toast.error('Failed to write to tag. Make sure the tag is writable.');
+          toast.error('Failed to write to tag');
         }
       });
 
@@ -323,29 +325,31 @@ export function useNFC() {
       console.error('[NFC] Write setup failed:', error);
       
       if (error.name === 'NotAllowedError') {
-        toast.error('NFC permission denied. Please allow NFC in browser settings.');
-      } else if (error.name === 'AbortError') {
-        return false;
-      } else if (error.name === 'NotSupportedError') {
-        toast.error('NFC not supported on this device');
-      } else {
-        haptics.error();
-        toast.error('Failed to prepare NFC share');
+        toast.error('NFC permission denied');
+      } else if (error.name !== 'AbortError') {
+        toast.error('Failed to prepare NFC');
       }
       return false;
     }
   }, [hasWebNFC]);
 
-  // Share profile - starts scan and prepares for write
+  // Bidirectional share - scan and prepare to exchange
   const shareProfile = useCallback(async (userId: string, onReceive: (theirUserId: string) => void): Promise<boolean> => {
     if (!hasWebNFC || !window.NDEFReader) {
-      toast.error('NFC not available. Use Chrome on Android.');
+      const ua = navigator.userAgent;
+      if (/iPhone|iPad|iPod/i.test(ua)) {
+        toast.error('NFC not available in iOS browsers. Use the share link instead!', {
+          duration: 5000,
+        });
+      } else if (/Android/i.test(ua)) {
+        toast.error('NFC requires Chrome browser on Android.');
+      } else {
+        toast.error('NFC only works on Android with Chrome browser.');
+      }
       return false;
     }
 
-    console.log('[NFC] Starting bidirectional share for:', userId);
-    
-    // Stop any existing operations
+    console.log('[NFC] Starting bidirectional share:', userId);
     stopScan();
     
     try {
@@ -353,7 +357,6 @@ export function useNFC() {
       ndefReaderRef.current = ndef;
       abortControllerRef.current = new AbortController();
       
-      // Start scan to get permission and listen for tags
       await ndef.scan({ signal: abortControllerRef.current.signal });
       
       setState(prev => ({ ...prev, isScanning: true, isWriteReady: true, error: null }));
@@ -361,17 +364,16 @@ export function useNFC() {
       
       console.log('[NFC] Bidirectional share active');
       haptics.impact();
-      toast.success('NFC Ready!', {
-        description: 'Tap phones together or tap an NFC tag',
+      toast.success('NFC Ready! Both phones need the app open and scanning.', {
+        description: 'Hold phones together back-to-back',
         duration: 5000,
       });
 
-      // Handle incoming tags - read AND write
       ndef.addEventListener('reading', async (event: NDEFReadingEvent) => {
         console.log('[NFC] Device/tag detected');
         haptics.success();
         
-        // First, try to read their profile
+        // Try to read their profile
         let foundTheirProfile = false;
         for (const record of event.message.records) {
           if (record.recordType === 'url' || record.recordType === 'text') {
@@ -388,7 +390,7 @@ export function useNFC() {
           }
         }
         
-        // Then try to write our profile (for NFC tags)
+        // Try to write our profile (works with NFC tags)
         if (pendingWriteRef.current) {
           try {
             await ndef.write({
@@ -396,10 +398,10 @@ export function useNFC() {
             });
             console.log('[NFC] Wrote our profile');
             if (!foundTheirProfile) {
-              toast.success('Profile shared!');
+              toast.success('Profile shared via NFC!');
             }
-          } catch (e) {
-            // Write might fail if it's not a writable tag - that's OK
+          } catch {
+            // Write might fail for phone-to-phone - that's expected
             console.log('[NFC] Could not write (normal for phone-to-phone)');
           }
         }
@@ -410,24 +412,37 @@ export function useNFC() {
       console.error('[NFC] Share failed:', error);
       
       if (error.name === 'NotAllowedError') {
-        toast.error('NFC permission denied. Enable NFC in settings.');
+        toast.error('NFC permission denied. Enable in settings.');
       } else if (error.name !== 'AbortError') {
-        toast.error('Failed to start NFC sharing');
+        toast.error('Failed to start NFC');
       }
       return false;
     }
   }, [hasWebNFC, stopScan]);
 
-  // Open NFC settings
   const openSettings = useCallback(() => {
-    toast.info('Please enable NFC in your device settings', {
+    toast.info('Enable NFC in your device settings', {
       description: 'Settings → Connected devices → NFC',
     });
   }, []);
 
+  // Get a user-friendly status message
+  const getStatusMessage = useCallback((): string => {
+    if (!hasWebNFC) {
+      const ua = navigator.userAgent;
+      if (/iPhone|iPad|iPod/i.test(ua)) {
+        return 'NFC not available in iOS browsers';
+      }
+      if (/Android/i.test(ua)) {
+        return 'Use Chrome browser for NFC';
+      }
+      return 'NFC only works on Android + Chrome';
+    }
+    return 'NFC available';
+  }, [hasWebNFC]);
+
   return {
     ...state,
-    isNative,
     hasWebNFC,
     requestPermission,
     startScan,
@@ -435,6 +450,7 @@ export function useNFC() {
     writeNFC,
     shareProfile,
     openSettings,
+    getStatusMessage,
     generateFriendAddUrl,
     parseFriendAddUrl,
   };
