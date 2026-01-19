@@ -1,67 +1,27 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, UserPlus, UserCheck, Check, X, Users, PhoneMissed, Gem, Share2, Copy } from 'lucide-react';
+import { Heart, MessageCircle, UserPlus, UserCheck, Check, X, Users, PhoneMissed, Gem } from 'lucide-react';
 import { useNotifications, useMarkNotificationsRead, NotificationType } from '@/hooks/useNotifications';
 import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends';
-import { useMyInvite, getInviteUrl } from '@/hooks/useInvites';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+
 export default function NotificationsPage() {
+  const navigate = useNavigate();
   const { data: notifications, isLoading } = useNotifications();
   const { data: friendRequests } = useFriendRequests();
-  const { data: myInvite } = useMyInvite();
   const markRead = useMarkNotificationsRead();
   const respondToRequest = useRespondToFriendRequest();
-  const [activeTab, setActiveTab] = useState('all');
-  const [showShareDialog, setShowShareDialog] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = React.useState('all');
 
-  const inviteUrl = myInvite ? getInviteUrl(myInvite.invite_code) : '';
-  const qrCodeUrl = inviteUrl 
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(inviteUrl)}&bgcolor=1a1a1a&color=ffffff`
-    : '';
-
-  const handleCopyInvite = async () => {
-    if (!inviteUrl) return;
-    try {
-      await navigator.clipboard.writeText(inviteUrl);
-      setCopied(true);
-      toast.success('Invite link copied!');
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error('Failed to copy');
-    }
-  };
-
-  const handleShareInvite = async () => {
-    if (!inviteUrl) return;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Join me on VYBE',
-          text: 'Check out VYBE - the social app for creators!',
-          url: inviteUrl,
-        });
-      } catch (error) {
-        if ((error as Error).name !== 'AbortError') {
-          handleCopyInvite();
-        }
-      }
-    } else {
-      handleCopyInvite();
-    }
-  };
   // Mark notifications as read when viewing this page
   useEffect(() => {
-    // Small delay to ensure smooth page render first
     const timeout = setTimeout(() => {
       markRead.mutate();
     }, 500);
@@ -133,7 +93,7 @@ export default function NotificationsPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setShowShareDialog(true)}
+            onClick={() => navigate('/invite-friends')}
             className="relative group"
           >
             <Gem className="h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
@@ -141,70 +101,6 @@ export default function NotificationsPage() {
           </Button>
         </div>
 
-        {/* Share Invite Dialog */}
-        <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Gem className="h-5 w-5 text-primary" />
-                Invite Friends to VYBE
-              </DialogTitle>
-            </DialogHeader>
-            
-            <div className="space-y-4 py-4">
-              <p className="text-sm text-muted-foreground text-center">
-                Share your link and get rewards when friends join! They'll automatically become your friend.
-              </p>
-              
-              {/* QR Code */}
-              {qrCodeUrl && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="flex justify-center"
-                >
-                  <div className="p-4 bg-white rounded-xl shadow-lg">
-                    <img src={qrCodeUrl} alt="QR Code" className="w-40 h-40" />
-                  </div>
-                </motion.div>
-              )}
-              
-              {/* Invite Link */}
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-border">
-                <div className="flex-1 font-mono text-sm truncate text-muted-foreground">
-                  {inviteUrl || 'Loading...'}
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={handleCopyInvite}
-                  disabled={!inviteUrl}
-                >
-                  {copied ? (
-                    <Check className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-              
-              {/* Share Button */}
-              <Button 
-                className="w-full gradient-animated"
-                onClick={handleShareInvite}
-                disabled={!inviteUrl}
-              >
-                <Share2 className="h-4 w-4 mr-2" />
-                Share Invite Link
-              </Button>
-              
-              {/* Rewards hint */}
-              <p className="text-xs text-center text-muted-foreground">
-                ✨ Earn badges & unlock themes by inviting friends!
-              </p>
-            </div>
-          </DialogContent>
-        </Dialog>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full mb-4 bg-secondary">
             <TabsTrigger value="all" className="flex-1">All</TabsTrigger>

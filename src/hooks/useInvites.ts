@@ -59,13 +59,15 @@ export function useMyInvite() {
         return existingInvite as Invite;
       }
       
-      // Create new invite if none exists
+      // Create new invite if none exists - no expiration by default
       const inviteCode = generateInviteCode();
       const { data: newInvite, error } = await supabase
         .from('invites')
         .insert({
           inviter_id: user.id,
           invite_code: inviteCode,
+          expires_at: null, // Never expires
+          max_uses: null, // Unlimited uses
         })
         .select()
         .single();
