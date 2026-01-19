@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
+import { haptics } from '@/lib/haptics';
 
 interface NFCState {
   isSupported: boolean;
@@ -37,8 +38,34 @@ declare global {
   interface NDEFMessageInit {
     records: Array<{
       recordType: string;
-      data: string;
+      data?: string;
+      mediaType?: string;
+      id?: string;
     }>;
+  }
+}
+
+// Deep link / Universal link URL for the app
+const APP_DOMAIN = 'vybehub.app';
+const FRIEND_ADD_PATH = '/add-friend';
+
+// Generate a friend add URL that works as deep link or web fallback
+export function generateFriendAddUrl(userId: string): string {
+  return `https://${APP_DOMAIN}${FRIEND_ADD_PATH}/${userId}`;
+}
+
+// Parse a friend add URL to extract user ID
+export function parseFriendAddUrl(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    const match = urlObj.pathname.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
+    return match ? match[1] : null;
+  } catch {
+    // Try legacy format
+    if (url.startsWith('vybe:friend:')) {
+      return url.replace('vybe:friend:', '');
+    }
+    return null;
   }
 }
 
@@ -84,11 +111,34 @@ export function useNFC() {
       setState(prev => ({ ...prev, isScanning: true, error: null }));
 
       ndef.addEventListener('reading', (event: NDEFReadingEvent) => {
+        // Trigger haptic feedback when NFC is read
+        haptics.success();
+
         for (const record of event.message.records) {
+          // Handle URL records (new format)
+          if (record.recordType === 'url') {
+            const decoder = new TextDecoder();
+            const url = decoder.decode(record.data);
+            const userId = parseFriendAddUrl(url);
+            if (userId) {
+              onTagScanned(userId);
+              return;
+            }
+          }
+          
+          // Handle text records (legacy format)
           if (record.recordType === 'text') {
             const decoder = new TextDecoder(record.encoding || 'utf-8');
             const text = decoder.decode(record.data);
 
+            // Check for URL format first
+            const userId = parseFriendAddUrl(text);
+            if (userId) {
+              onTagScanned(userId);
+              return;
+            }
+            
+            // Legacy format
             if (text.startsWith('vybe:friend:')) {
               onTagScanned(text.replace('vybe:friend:', ''));
               return;
@@ -99,6 +149,7 @@ export function useNFC() {
 
       ndef.addEventListener('readingerror', () => {
         setState(prev => ({ ...prev, error: 'Cannot read from NFC tag' }));
+        haptics.error();
         toast.error('Failed to read NFC tag');
       });
 
@@ -130,7 +181,7 @@ export function useNFC() {
     setState(prev => ({ ...prev, isScanning: false }));
   }, []);
 
-  // Write NDEF message using Web NFC
+  // Write NDEF message using Web NFC - uses URL record for better compatibility
   const writeNFC = useCallback(async (userId: string): Promise<boolean> => {
     if (!hasWebNFC || !window.NDEFReader) {
       toast.error('NFC writing not supported on this device');
@@ -141,18 +192,23 @@ export function useNFC() {
       const ndef = new window.NDEFReader();
       abortControllerRef.current = new AbortController();
 
+      // Use URL record type - this triggers Android's intent system
+      // and will show a notification on the receiving device
+      const friendUrl = generateFriendAddUrl(userId);
+      
       await ndef.write(
         {
           records: [
             {
-              recordType: 'text',
-              data: `vybe:friend:${userId}`,
+              recordType: 'url',
+              data: friendUrl,
             },
           ],
         },
         { signal: abortControllerRef.current.signal }
       );
 
+      haptics.success();
       toast.success('Ready to share! Tap phones together.');
       return true;
     } catch (error: any) {
@@ -162,6 +218,7 @@ export function useNFC() {
         // User cancelled
         return false;
       } else {
+        haptics.error();
         toast.error('Failed to prepare NFC share');
       }
       return false;
@@ -181,5 +238,7 @@ export function useNFC() {
     stopScan,
     writeNFC,
     openSettings,
+    generateFriendAddUrl,
+    parseFriendAddUrl,
   };
 }
