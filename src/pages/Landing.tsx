@@ -12,13 +12,14 @@ import { Sparkles, Chrome, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
+import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 
 export default function Landing() {
   const { t } = useTranslation();
   const { user, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
+  const { triggerTransition } = useThemeTransition();
   
   // Check if coming from invite link with signup=true
   const [isLogin, setIsLogin] = useState(() => searchParams.get('signup') !== 'true');
@@ -87,12 +88,16 @@ export default function Landing() {
   };
 
   const handleIntroComplete = () => {
-    setShowIntro(false);
-    setIsLogin(false); // Start on signup mode
+    triggerTransition('280 70% 50%', '330 80% 60%', () => {
+      setShowIntro(false);
+      setIsLogin(false); // Start on signup mode
+    });
   };
 
   const handleIntroSkip = () => {
-    setShowIntro(false);
+    triggerTransition('280 70% 50%', '330 80% 60%', () => {
+      setShowIntro(false);
+    });
   };
 
   // Show intro flow for first-time visitors
