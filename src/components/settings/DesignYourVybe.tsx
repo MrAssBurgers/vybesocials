@@ -105,7 +105,6 @@ export function DesignYourVybe() {
 
   const handlePresetSelect = (presetKey: string) => {
     try {
-      setSelectedPreset(presetKey);
       const preset = THEME_PRESETS[presetKey];
       if (preset) {
         const themeWithAnimations = { 
@@ -113,10 +112,18 @@ export function DesignYourVybe() {
           animationSpeed, 
           animationStyle 
         };
-        setPreviewTheme(themeWithAnimations);
-        setGeneratedName(PRESET_INFO[presetKey]?.name || presetKey);
-        applyThemeTokens(themeWithAnimations);
-        setShowConfirmation(true);
+        
+        const primaryColor = preset.colorPrimary || '280 70% 50%';
+        const accentColor = preset.colorAccent || '330 80% 60%';
+        
+        // Trigger fire transition animation
+        triggerTransition(primaryColor, accentColor, () => {
+          setSelectedPreset(presetKey);
+          setPreviewTheme(themeWithAnimations);
+          setGeneratedName(PRESET_INFO[presetKey]?.name || presetKey);
+          applyThemeTokens(themeWithAnimations);
+          setShowConfirmation(true);
+        });
       }
     } catch (error) {
       console.error('Error selecting preset:', error);
