@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
 import { analytics } from '@/lib/analytics';
 import { setPendingReferral, clearPendingReferral, type PendingReferral } from '@/lib/referral';
 
@@ -11,15 +12,17 @@ import { setPendingReferral, clearPendingReferral, type PendingReferral } from '
  * User experience is IDENTICAL to non-referred users:
  * 1. Open invite link
  * 2. Brief loading (< 1 second)
- * 3. Redirect to normal app flow (splash → intro → signup → onboarding)
+ * 3. Redirect based on auth state:
+ *    - NOT logged in → `/` (splash → intro → signup → onboarding)
+ *    - Logged in → `/home` (InvitePopup will show there)
  * 4. Referral popup appears AFTER they're fully set up
  * 
  * NO special screens, NO interruptions, NO differences.
- * The invite is just waiting for them after they complete signup.
  */
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [processing, setProcessing] = useState(true);
   
   // Parse identifier - handles @username, username, or UUID
@@ -38,8 +41,11 @@ export default function InviteRedeem() {
   
   const parsed = parseIdentifier(identifier);
   
-  // Process invite silently in background, then redirect immediately
+  // Process invite silently in background, then redirect based on auth state
   useEffect(() => {
+    // Wait for auth to be determined
+    if (authLoading) return;
+    
     async function processInvite() {
       if (parsed) {
         analytics.inviteLinkOpened({ inviteCode: parsed.value });
@@ -47,7 +53,7 @@ export default function InviteRedeem() {
       
       if (!parsed) {
         console.log('[InviteRedeem] No valid identifier');
-        navigate('/', { replace: true });
+        navigate(user ? '/home' : '/', { replace: true });
         return;
       }
       
@@ -98,16 +104,25 @@ export default function InviteRedeem() {
         clearPendingReferral();
       }
       
-      // Redirect to normal flow - user gets EXACT same experience as everyone else
       setProcessing(false);
-      navigate('/', { replace: true });
+      
+      // Redirect based on whether user is already logged in
+      if (user) {
+        // Already logged in - go to home, InvitePopup will show there
+        console.log('[InviteRedeem] User logged in, going to /home');
+        navigate('/home', { replace: true });
+      } else {
+        // Not logged in - go to landing for normal first-time experience
+        console.log('[InviteRedeem] User not logged in, going to /');
+        navigate('/', { replace: true });
+      }
     }
     
     processInvite();
-  }, [parsed?.type, parsed?.value, navigate]);
+  }, [parsed?.type, parsed?.value, navigate, user, authLoading]);
   
-  // Brief loading while we store the referral (usually < 500ms)
-  if (processing) {
+  // Brief loading while we store the referral
+  if (processing || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
