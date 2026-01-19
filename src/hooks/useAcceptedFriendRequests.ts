@@ -8,7 +8,8 @@ interface AcceptedFriendRequest {
   receiver_id: string;
   updated_at: string;
   notified_at: string | null;
-  sender?: {
+  // The person who accepted the request (the receiver)
+  acceptedBy?: {
     id: string;
     username: string;
     avatar_url: string | null;
@@ -16,8 +17,11 @@ interface AcceptedFriendRequest {
   };
 }
 
-// Fetch recently accepted friend requests (where current user was the sender)
-// Only shows requests that haven't been notified yet (notified_at IS NULL)
+// Fetch recently accepted friend requests where:
+// - Current user was the SENDER (they sent the request)
+// - The request was ACCEPTED by the receiver
+// - The sender hasn't been notified yet (notified_at IS NULL)
+// This shows "X accepted your friend request!" notifications
 export function useAcceptedFriendRequests() {
   const { profile } = useAuth();
 
@@ -26,7 +30,8 @@ export function useAcceptedFriendRequests() {
     queryFn: async (): Promise<AcceptedFriendRequest[]> => {
       if (!profile?.id) return [];
 
-      // Only fetch accepted requests where notified_at is NULL (never shown before)
+      // Fetch accepted requests where current user is the sender
+      // and they haven't been notified yet
       const { data, error } = await supabase
         .from('friend_requests')
         .select(`
@@ -35,13 +40,13 @@ export function useAcceptedFriendRequests() {
           receiver_id,
           updated_at,
           notified_at,
-          sender:profiles!friend_requests_receiver_id_fkey(id, username, avatar_url, display_name)
+          acceptedBy:profiles!friend_requests_receiver_id_fkey(id, username, avatar_url, display_name)
         `)
         .eq('sender_id', profile.id)
         .eq('status', 'accepted')
         .is('notified_at', null)
         .order('updated_at', { ascending: false })
-        .limit(1);
+        .limit(5);
 
       if (error) {
         console.error('[AcceptedFriendRequests] Error:', error);
