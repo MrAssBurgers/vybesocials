@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Check, QrCode, Users, Gift, Star, Sparkles, Share2, Nfc } from 'lucide-react';
+import { Copy, Check, QrCode, Users, Gift, Star, Sparkles, Share2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useInviteStats, useUserBadges, getInviteUrl } from '@/hooks/useInvites';
 import { InviteLeaderboard } from '@/components/invite/InviteLeaderboard';
-import { NFCFriendShare } from '@/components/friends/NFCFriendShare';
+import { NFCInviteShare } from '@/components/invite/NFCInviteShare';
 import { useAuth } from '@/lib/auth';
 import { analytics } from '@/lib/analytics';
 import { toast } from 'sonner';
@@ -133,7 +133,7 @@ export default function InviteFriends() {
                   <Share2 className="h-4 w-4 mr-2" />
                   Share Link
                 </Button>
-                <NFCFriendShare variant="icon" />
+                <NFCInviteShare variant="icon" />
                 <Button 
                   variant="outline"
                   size="icon"
