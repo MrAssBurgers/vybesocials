@@ -39,7 +39,7 @@ function createSmoothTone(
   frequency: number,
   startTime: number,
   duration: number,
-  volume: number = 0.15,
+  volume: number = 0.35,
   type: OscillatorType = 'sine'
 ): { oscillator: OscillatorNode; gain: GainNode } {
   const oscillator = ctx.createOscillator();
@@ -88,7 +88,7 @@ function playBellTone(
   frequency: number,
   startTime: number,
   duration: number,
-  volume: number = 0.12
+  volume: number = 0.30
 ): void {
   // Fundamental
   createSmoothTone(ctx, frequency, startTime, duration, volume, 'sine');
@@ -109,7 +109,7 @@ function playPremiumRing(ctx: AudioContext, time: number): void {
   ];
   
   notes.forEach((note, i) => {
-    const vol = i === notes.length - 1 ? 0.14 : 0.10; // Last note louder
+    const vol = i === notes.length - 1 ? 0.35 : 0.28; // Last note louder
     playBellTone(ctx, note.freq, time + note.delay, note.duration, vol);
   });
   
@@ -117,7 +117,7 @@ function playPremiumRing(ctx: AudioContext, time: number): void {
   setTimeout(() => {
     const c = getAudioContext();
     if (c) {
-      createSmoothTone(c, 2217.46, c.currentTime, 0.25, 0.04, 'sine'); // C#7 shimmer
+      createSmoothTone(c, 2217.46, c.currentTime, 0.25, 0.12, 'sine'); // C#7 shimmer
     }
   }, 420);
 }
@@ -125,8 +125,8 @@ function playPremiumRing(ctx: AudioContext, time: number): void {
 // Smooth message notification - quick satisfying "ding"
 function playMessageNotif(ctx: AudioContext, time: number): void {
   // Two-note chime: soft pop + pleasant ding
-  playBellTone(ctx, 1318.51, time, 0.08, 0.10);        // E6 - soft attack
-  playBellTone(ctx, 1760.00, time + 0.06, 0.20, 0.12); // A6 - satisfying ring
+  playBellTone(ctx, 1318.51, time, 0.08, 0.28);        // E6 - soft attack
+  playBellTone(ctx, 1760.00, time + 0.06, 0.20, 0.32); // A6 - satisfying ring
 }
 
 // Outgoing ringback - gentle, non-intrusive pulse
@@ -155,8 +155,8 @@ function playRingbackPulse(ctx: AudioContext, time: number): void {
     // Very smooth envelope
     const t = time + pulse.delay;
     gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(0.08, t + 0.03);
-    gain.gain.setValueAtTime(0.08, t + pulse.duration - 0.05);
+    gain.gain.linearRampToValueAtTime(0.25, t + 0.03);
+    gain.gain.setValueAtTime(0.25, t + pulse.duration - 0.05);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + pulse.duration);
     
     osc.start(t);
@@ -179,7 +179,7 @@ function playConnectSound(ctx: AudioContext): void {
   ];
   
   notes.forEach((note, i) => {
-    playBellTone(ctx, note.freq, time + note.delay, note.duration, i === 2 ? 0.12 : 0.08);
+    playBellTone(ctx, note.freq, time + note.delay, note.duration, i === 2 ? 0.30 : 0.22);
   });
 }
 
@@ -188,8 +188,8 @@ function playEndSound(ctx: AudioContext): void {
   const time = ctx.currentTime;
   
   // Gentle descending two-note
-  createSmoothTone(ctx, 523.25, time, 0.12, 0.08, 'sine');       // C5
-  createSmoothTone(ctx, 392.00, time + 0.10, 0.18, 0.06, 'sine'); // G4
+  createSmoothTone(ctx, 523.25, time, 0.12, 0.22, 'sine');       // C5
+  createSmoothTone(ctx, 392.00, time + 0.10, 0.18, 0.18, 'sine'); // G4
 }
 
 // Stop all active sounds immediately (no glitches)
