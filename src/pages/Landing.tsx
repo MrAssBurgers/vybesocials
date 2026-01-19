@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth';
@@ -15,7 +15,10 @@ export default function Landing() {
   const { t } = useTranslation();
   const { user, signIn, signUp } = useAuth();
   const navigate = useNavigate();
-  const [isLogin, setIsLogin] = useState(true);
+  const [searchParams] = useSearchParams();
+  
+  // Check if coming from invite link with signup=true
+  const [isLogin, setIsLogin] = useState(() => searchParams.get('signup') !== 'true');
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
