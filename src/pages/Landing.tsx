@@ -81,24 +81,9 @@ export default function Landing() {
     }
   };
 
-  const handleDemoLogin = async () => {
-    setLoading(true);
-    try {
-      const { error } = await signIn('demo@vybe.app', 'demo123456');
-      if (error) {
-        const { error: signUpError } = await signUp('demo@vybe.app', 'demo123456', 'demouser');
-        if (signUpError && !signUpError.message.includes('already registered')) {
-          throw signUpError;
-        }
-        await signIn('demo@vybe.app', 'demo123456');
-      }
-      toast.success('Welcome to the demo! 🎭');
-      navigate('/home');
-    } catch (error: any) {
-      toast.error(getUserFriendlyError(error));
-    } finally {
-      setLoading(false);
-    }
+  const handleGuestBrowse = () => {
+    // Navigate to home without signing in - guest mode
+    navigate('/home');
   };
 
   const handleIntroComplete = () => {
@@ -303,10 +288,10 @@ export default function Landing() {
               type="button"
               variant="outline"
               className="w-full bg-secondary/30"
-              onClick={handleDemoLogin}
+              onClick={handleGuestBrowse}
               disabled={loading}
             >
-              🎭 Demo Account
+              👀 Browse as Guest
             </Button>
           </div>
 
