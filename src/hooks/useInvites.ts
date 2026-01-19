@@ -237,7 +237,6 @@ export function useUserBadges(userId?: string) {
  * Get invite URL - uses username-based format for cleaner links
  */
 export function getInviteUrl(username: string): string {
-  // Use the published app URL
-  const baseUrl = 'https://vybeapp.lovable.app';
+  const baseUrl = 'https://vybehub.app';
   return `${baseUrl}/invite/@${username}`;
 }
