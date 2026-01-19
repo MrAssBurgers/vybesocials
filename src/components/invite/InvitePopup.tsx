@@ -11,6 +11,7 @@ import {
   wasReferralConfirmed,
   markReferralConfirmed,
   cleanupReferralStorage,
+  isInviteEntryMode,
   type PendingReferral,
 } from '@/lib/referral';
 
@@ -74,10 +75,19 @@ export function InvitePopup() {
       return;
     }
     
-    // Check for pending referral
+    // Check for pending referral OR entry mode
     const pending = getPendingReferral();
+    const entryMode = isInviteEntryMode();
+    
+    if (!pending && !entryMode) {
+      console.log('[InvitePopup] No pending referral and not invite entry mode');
+      return;
+    }
+    
+    // If no pending referral but entry mode, something went wrong - cleanup
     if (!pending) {
-      console.log('[InvitePopup] No pending referral');
+      console.log('[InvitePopup] Entry mode but no pending referral, cleaning up');
+      cleanupReferralStorage();
       return;
     }
     

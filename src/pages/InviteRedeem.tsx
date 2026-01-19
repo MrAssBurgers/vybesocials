@@ -1,33 +1,57 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { analytics } from '@/lib/analytics';
 import { setPendingReferral, clearPendingReferral, type PendingReferral } from '@/lib/referral';
+import Landing from '@/pages/Landing';
 
 /**
- * Silent Invite Handler - Professional First-Time Experience
+ * Persistent Invite Entry Mode
  * 
- * When someone opens an invite link, they MUST get the same experience
- * as any first-time user:
+ * /invite/:username is NOT a redirect page.
+ * It's the SAME app as /, just with invite context stored.
  * 
- * 1. Open invite link
- * 2. Brief loading (validate inviter)
- * 3. Store referral silently (also resets intro)
- * 4. Redirect to / for FULL first-time experience:
- *    - Splash screen
- *    - Intro flow (3 slides)
- *    - Create Account / Log In
- *    - Onboarding
- *    - Tutorial
- * 5. AFTER tutorial → referral confirmation modal appears
+ * The user stays on /invite/:username through:
+ * - Intro flow
+ * - Signup/Login
+ * - Onboarding  
+ * - Tutorial
  * 
- * NO special screens. NO shortcuts. Identical to organic users.
+ * After tutorial → referral confirmation modal appears.
+ * 
+ * URL remains /invite/:username until natural navigation.
  */
+
+const ENTRY_MODE_KEY = 'vybe_entry_mode';
+
+export function setEntryMode(mode: 'invite' | 'normal'): void {
+  try {
+    localStorage.setItem(ENTRY_MODE_KEY, mode);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+export function getEntryMode(): string | null {
+  try {
+    return localStorage.getItem(ENTRY_MODE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearEntryMode(): void {
+  try {
+    localStorage.removeItem(ENTRY_MODE_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
-  const navigate = useNavigate();
-  const [processing, setProcessing] = useState(true);
+  const [inviteProcessed, setInviteProcessed] = useState(false);
+  const processedRef = useRef(false);
   
   // Parse identifier - handles @username, username, or UUID
   const parseIdentifier = (id: string | undefined): { type: 'username' | 'uuid'; value: string } | null => {
@@ -43,18 +67,22 @@ export default function InviteRedeem() {
     return { type: 'username', value: cleaned };
   };
   
-  const parsed = parseIdentifier(identifier);
-  
-  // Process invite silently, then redirect to landing for first-time experience
+  // Process invite once on mount - store referral data, then render Landing
   useEffect(() => {
+    // Prevent double processing
+    if (processedRef.current) return;
+    processedRef.current = true;
+    
     async function processInvite() {
+      const parsed = parseIdentifier(identifier);
+      
       if (parsed) {
         analytics.inviteLinkOpened({ inviteCode: parsed.value });
       }
       
       if (!parsed) {
-        console.log('[InviteRedeem] No valid identifier, going to landing');
-        navigate('/', { replace: true });
+        console.log('[InviteRedeem] No valid identifier, proceeding as normal');
+        setInviteProcessed(true);
         return;
       }
       
@@ -85,7 +113,7 @@ export default function InviteRedeem() {
         }
         
         if (inviterProfile) {
-          // Store referral silently - this also resets intro for first-time experience
+          // Store referral data - this also resets intro for first-time experience
           const referralData: PendingReferral = {
             inviterId: inviterProfile.id,
             inviterUserId: inviterProfile.user_id,
@@ -95,9 +123,14 @@ export default function InviteRedeem() {
             timestamp: Date.now(),
           };
           setPendingReferral(referralData);
+          
+          // Mark entry mode as invite
+          setEntryMode('invite');
+          
           console.log('[InviteRedeem] Stored referral for:', inviterProfile.username);
+          console.log('[InviteRedeem] Entry mode set to: invite');
         } else {
-          console.log('[InviteRedeem] Inviter not found, continuing normally');
+          console.log('[InviteRedeem] Inviter not found, proceeding as normal');
           clearPendingReferral();
         }
       } catch (err) {
@@ -105,25 +138,21 @@ export default function InviteRedeem() {
         clearPendingReferral();
       }
       
-      setProcessing(false);
-      
-      // ALWAYS redirect to landing for full first-time experience
-      // The setPendingReferral call already reset the intro
-      console.log('[InviteRedeem] Redirecting to / for first-time experience');
-      navigate('/', { replace: true });
+      setInviteProcessed(true);
     }
     
     processInvite();
-  }, [parsed?.type, parsed?.value, navigate]);
+  }, [identifier]);
   
-  // Brief loading while we validate and store the referral
-  if (processing) {
+  // Don't render anything until invite is processed
+  // This ensures referral data is stored before Landing mounts
+  if (!inviteProcessed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <div className="min-h-screen bg-background" />
     );
   }
   
-  return null;
+  // Render the exact same Landing page
+  // User stays on /invite/:username but sees the full first-time experience
+  return <Landing />;
 }
