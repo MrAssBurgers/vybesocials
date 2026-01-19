@@ -376,42 +376,6 @@ export function NanotechSwoosh({
                 }}
               />
 
-              {/* Soft floating orbs instead of harsh particles */}
-              {Array.from({ length: 8 }).map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute"
-                  style={{
-                    width: 40 + Math.random() * 60,
-                    height: 40 + Math.random() * 60,
-                    background: `radial-gradient(circle at 30% 30%, 
-                      hsl(${i % 2 === 0 ? primaryColor : accentColor} / 0.3) 0%,
-                      hsl(${i % 2 === 0 ? primaryColor : accentColor} / 0.1) 40%,
-                      transparent 70%
-                    )`,
-                    borderRadius: '50%',
-                    filter: 'blur(8px)',
-                    top: `${15 + Math.random() * 70}%`,
-                    left: `${15 + Math.random() * 70}%`,
-                  }}
-                  initial={{ 
-                    scale: 0, 
-                    opacity: 0,
-                    x: direction.includes('left') || direction.includes('tl') || direction.includes('bl') ? -100 : 100,
-                  }}
-                  animate={{ 
-                    scale: [0, 1.5, 0],
-                    opacity: [0, 0.8, 0],
-                    x: 0,
-                    y: [0, (Math.random() - 0.5) * 80],
-                  }}
-                  transition={{
-                    duration: swooshDuration * 0.8,
-                    delay: swooshDuration * 0.2 + i * 0.04,
-                    ease: [0.4, 0, 0.2, 1],
-                  }}
-                />
-              ))}
             </>
           )}
 
