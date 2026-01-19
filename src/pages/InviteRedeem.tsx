@@ -90,7 +90,9 @@ export default function InviteRedeem() {
   }, [user?.id, profile?.id, inviter, navigate]);
   
   const handleJoin = () => {
-    navigate('/onboarding');
+    // Navigate to landing page with signup mode
+    // The inviter is already stored in sessionStorage
+    navigate('/?signup=true');
   };
   
   const handleLogin = () => {
