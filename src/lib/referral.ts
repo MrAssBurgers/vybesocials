@@ -2,10 +2,10 @@
  * Professional Background Referral System
  * 
  * This system handles referrals completely in the background:
- * 1. When user visits invite link → data stored silently
- * 2. User gets full normal onboarding experience
- * 3. After account creation → confirmation modal appears
- * 4. User clicks "Thanks!" → reward granted, inviter notified
+ * 1. When user visits invite link → data stored silently, intro reset
+ * 2. User gets FULL normal first-time experience (intro → signup → onboarding → tutorial)
+ * 3. AFTER tutorial completion → confirmation modal appears
+ * 4. User clicks "Thank You" → friend added, reward granted, inviter notified
  * 
  * Storage keys:
  * - pending_referral: Full referral data
@@ -14,6 +14,7 @@
 
 const PENDING_REFERRAL_KEY = 'pending_referral';
 const REFERRAL_CONFIRMED_KEY = 'referral_confirmed';
+const INTRO_SHOWN_KEY = 'vybe_intro_completed';
 
 export interface PendingReferral {
   inviterId: string;        // Profile ID
@@ -25,14 +26,18 @@ export interface PendingReferral {
 }
 
 /**
- * Store referral data for post-signup processing
+ * Store referral data for post-tutorial processing
+ * Also resets intro so invited users get the full first-time experience
  */
 export function setPendingReferral(referral: PendingReferral): void {
   try {
     localStorage.setItem(PENDING_REFERRAL_KEY, JSON.stringify(referral));
     // Clear confirmed flag for fresh referral
     localStorage.removeItem(REFERRAL_CONFIRMED_KEY);
+    // Reset intro so invited user sees full first-time experience
+    localStorage.removeItem(INTRO_SHOWN_KEY);
     console.log('[Referral] Stored pending referral:', referral.inviterUsername);
+    console.log('[Referral] Reset intro for first-time experience');
   } catch (e) {
     console.error('[Referral] Failed to store referral:', e);
   }
@@ -48,8 +53,8 @@ export function getPendingReferral(): PendingReferral | null {
     
     const referral = JSON.parse(stored) as PendingReferral;
     
-    // Check if referral is too old (24 hours)
-    const maxAge = 24 * 60 * 60 * 1000;
+    // Check if referral is too old (7 days - generous window)
+    const maxAge = 7 * 24 * 60 * 60 * 1000;
     if (Date.now() - referral.timestamp > maxAge) {
       console.log('[Referral] Referral expired, clearing');
       clearPendingReferral();
@@ -60,6 +65,17 @@ export function getPendingReferral(): PendingReferral | null {
   } catch (e) {
     console.error('[Referral] Failed to get referral:', e);
     return null;
+  }
+}
+
+/**
+ * Check if there's a pending referral (without expiry check - for blocking redirects)
+ */
+export function hasPendingReferral(): boolean {
+  try {
+    return localStorage.getItem(PENDING_REFERRAL_KEY) !== null;
+  } catch {
+    return false;
   }
 }
 
@@ -120,13 +136,22 @@ export function cleanupReferralStorage(): void {
 
 /**
  * Check if we should show referral confirmation modal
- * Only shows once after account creation
+ * Only shows AFTER tutorial completion (or skip)
  */
 export function shouldShowReferralModal(): boolean {
   const referral = getPendingReferral();
   if (!referral) return false;
   if (wasReferralConfirmed()) return false;
   return true;
+}
+
+/**
+ * Check if we have an active referral that hasn't been processed yet
+ * Used to prevent interrupting referral flow with redirects
+ */
+export function hasActiveReferral(): boolean {
+  if (wasReferralConfirmed()) return false;
+  return hasPendingReferral();
 }
 
 // Legacy exports for backwards compatibility

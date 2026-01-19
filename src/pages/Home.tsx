@@ -9,7 +9,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { StoriesBar } from '@/components/stories/StoriesBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
-import { shouldShowReferralModal } from '@/lib/referral';
+import { hasActiveReferral } from '@/lib/referral';
 import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
@@ -186,14 +186,18 @@ export default function HomePage() {
   }, []);
 
   // Redirect new Google users who don't have a profile/username yet.
-  // IMPORTANT: If the user arrived via an invite link, we let the invite modal flow
-  // happen first (so they don't get yanked into /complete-profile immediately).
+  // IMPORTANT: If the user has an active referral (invite flow), let that complete first
+  // before redirecting to profile completion.
   useEffect(() => {
     if (authLoading) return;
     if (!user) return;
 
     if (!profile?.username) {
-      if (shouldShowReferralModal()) return;
+      // Don't redirect during active referral flow
+      if (hasActiveReferral()) {
+        console.log('[Home] Skipping profile redirect - active referral in progress');
+        return;
+      }
       navigate('/complete-profile');
     }
   }, [authLoading, user, profile, navigate]);

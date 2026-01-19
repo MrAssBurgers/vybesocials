@@ -2,27 +2,31 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
 import { analytics } from '@/lib/analytics';
 import { setPendingReferral, clearPendingReferral, type PendingReferral } from '@/lib/referral';
 
 /**
- * Silent Invite Handler - 100% Background Processing
+ * Silent Invite Handler - Professional First-Time Experience
  * 
- * User experience is IDENTICAL to non-referred users:
+ * When someone opens an invite link, they MUST get the same experience
+ * as any first-time user:
+ * 
  * 1. Open invite link
- * 2. Brief loading (< 1 second)
- * 3. Redirect based on auth state:
- *    - NOT logged in → `/` (splash → intro → signup → onboarding)
- *    - Logged in → `/home` (InvitePopup will show there)
- * 4. Referral popup appears AFTER they're fully set up
+ * 2. Brief loading (validate inviter)
+ * 3. Store referral silently (also resets intro)
+ * 4. Redirect to / for FULL first-time experience:
+ *    - Splash screen
+ *    - Intro flow (3 slides)
+ *    - Create Account / Log In
+ *    - Onboarding
+ *    - Tutorial
+ * 5. AFTER tutorial → referral confirmation modal appears
  * 
- * NO special screens, NO interruptions, NO differences.
+ * NO special screens. NO shortcuts. Identical to organic users.
  */
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
   const [processing, setProcessing] = useState(true);
   
   // Parse identifier - handles @username, username, or UUID
@@ -41,19 +45,16 @@ export default function InviteRedeem() {
   
   const parsed = parseIdentifier(identifier);
   
-  // Process invite silently in background, then redirect based on auth state
+  // Process invite silently, then redirect to landing for first-time experience
   useEffect(() => {
-    // Wait for auth to be determined
-    if (authLoading) return;
-    
     async function processInvite() {
       if (parsed) {
         analytics.inviteLinkOpened({ inviteCode: parsed.value });
       }
       
       if (!parsed) {
-        console.log('[InviteRedeem] No valid identifier');
-        navigate(user ? '/home' : '/', { replace: true });
+        console.log('[InviteRedeem] No valid identifier, going to landing');
+        navigate('/', { replace: true });
         return;
       }
       
@@ -84,7 +85,7 @@ export default function InviteRedeem() {
         }
         
         if (inviterProfile) {
-          // Store referral silently - user won't know until after signup
+          // Store referral silently - this also resets intro for first-time experience
           const referralData: PendingReferral = {
             inviterId: inviterProfile.id,
             inviterUserId: inviterProfile.user_id,
@@ -94,7 +95,7 @@ export default function InviteRedeem() {
             timestamp: Date.now(),
           };
           setPendingReferral(referralData);
-          console.log('[InviteRedeem] Stored referral silently:', inviterProfile.username);
+          console.log('[InviteRedeem] Stored referral for:', inviterProfile.username);
         } else {
           console.log('[InviteRedeem] Inviter not found, continuing normally');
           clearPendingReferral();
@@ -106,23 +107,17 @@ export default function InviteRedeem() {
       
       setProcessing(false);
       
-      // Redirect based on whether user is already logged in
-      if (user) {
-        // Already logged in - go to home, InvitePopup will show there
-        console.log('[InviteRedeem] User logged in, going to /home');
-        navigate('/home', { replace: true });
-      } else {
-        // Not logged in - go to landing for normal first-time experience
-        console.log('[InviteRedeem] User not logged in, going to /');
-        navigate('/', { replace: true });
-      }
+      // ALWAYS redirect to landing for full first-time experience
+      // The setPendingReferral call already reset the intro
+      console.log('[InviteRedeem] Redirecting to / for first-time experience');
+      navigate('/', { replace: true });
     }
     
     processInvite();
-  }, [parsed?.type, parsed?.value, navigate, user, authLoading]);
+  }, [parsed?.type, parsed?.value, navigate]);
   
-  // Brief loading while we store the referral
-  if (processing || authLoading) {
+  // Brief loading while we validate and store the referral
+  if (processing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

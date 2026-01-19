@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, UserPlus, X } from 'lucide-react';
+import { Check, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import { useTutorial } from '@/components/tutorial/TutorialProvider';
 import {
   getPendingReferral,
   wasReferralConfirmed,
@@ -15,26 +16,33 @@ import {
 } from '@/lib/referral';
 
 /**
- * Post-Signup Referral Confirmation Modal
+ * Post-Tutorial Referral Confirmation Modal
  * 
- * Shows ONLY after account creation is complete:
- * - Title: "You joined using @username's invite"
- * - Body: "Would you like to add them as a friend?"
- * - Buttons: "Add Friend" / "Not Now"
+ * Shows ONLY after:
+ * - Account is created
+ * - User is logged in  
+ * - Tutorial is complete (or skipped)
  * 
- * On Add Friend click:
+ * UI:
+ * - Title: "@username invited you"
+ * - Body: "Thanks for joining VYBE!"
+ * - Button: "Thank You" (single button, no pressure)
+ * 
+ * On "Thank You" click:
+ * - Auto-add inviter as friend (instant friendship)
  * - Grant reward to inviter (once)
- * - Send friend request
  * - Send notification to inviter
  * - Close modal permanently
  * 
  * Rules:
- * - Modal shows ONCE
- * - Dismissible via buttons only
- * - Never blocks app if referral fails
+ * - Modal shows ONCE after tutorial
+ * - Cannot be missed
+ * - Clean, premium styling
+ * - Never blocks app if anything fails
  */
 export function InvitePopup() {
   const { user, profile } = useAuth();
+  const tutorial = useTutorial();
   const [referral, setReferral] = useState<PendingReferral | null>(null);
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -42,10 +50,17 @@ export function InvitePopup() {
   const processedRef = useRef(false);
   const rewardGrantedRef = useRef(false);
 
-  // Check for pending referral after auth is ready
+  // Check for pending referral AFTER tutorial is complete
   useEffect(() => {
     // Wait for complete auth state
     if (!user?.id || !profile?.id) return;
+    
+    // Wait for tutorial to be complete (or skipped)
+    // If tutorial context isn't available, assume it's complete
+    if (tutorial && !tutorial.hasCompleted && !tutorial.isLoading) {
+      console.log('[InvitePopup] Waiting for tutorial to complete');
+      return;
+    }
     
     // Prevent multiple processing
     if (processedRef.current) return;
@@ -103,10 +118,10 @@ export function InvitePopup() {
       console.log('[InvitePopup] Showing confirmation modal');
     };
 
-    // Delay to ensure UI is settled after signup
-    const timer = setTimeout(checkPendingReferral, 1500);
+    // Delay to ensure UI is settled after tutorial
+    const timer = setTimeout(checkPendingReferral, 800);
     return () => clearTimeout(timer);
-  }, [user?.id, profile?.id]);
+  }, [user?.id, profile?.id, tutorial?.hasCompleted, tutorial?.isLoading]);
 
   /**
    * Grant reward to inviter and send notification
@@ -114,8 +129,7 @@ export function InvitePopup() {
   const grantRewardAndNotify = useCallback(async (
     inviterUserId: string, 
     inviterProfileId: string,
-    redeemerProfileId: string,
-    redeemerUsername: string
+    redeemerProfileId: string
   ) => {
     if (rewardGrantedRef.current) {
       console.log('[InvitePopup] Reward already granted');
@@ -210,45 +224,54 @@ export function InvitePopup() {
   }, []);
 
   /**
-   * Send friend request to inviter
+   * Auto-add inviter as friend (instant friendship, not just a request)
    */
-  const sendFriendRequest = async (inviterProfileId: string, senderProfileId: string) => {
+  const autoAddFriend = async (inviterProfileId: string, userProfileId: string) => {
     try {
-      // Check if request already exists
+      // Check if already friends or request exists
       const { data: existing } = await supabase
         .from('friend_requests')
-        .select('id')
-        .or(`and(sender_id.eq.${senderProfileId},receiver_id.eq.${inviterProfileId}),and(sender_id.eq.${inviterProfileId},receiver_id.eq.${senderProfileId})`)
+        .select('id, status')
+        .or(`and(sender_id.eq.${userProfileId},receiver_id.eq.${inviterProfileId}),and(sender_id.eq.${inviterProfileId},receiver_id.eq.${userProfileId})`)
         .maybeSingle();
       
       if (existing) {
-        console.log('[InvitePopup] Friend request already exists');
+        // If pending, accept it
+        if (existing.status === 'pending') {
+          await supabase
+            .from('friend_requests')
+            .update({ status: 'accepted' })
+            .eq('id', existing.id);
+          console.log('[InvitePopup] Accepted existing friend request');
+        } else {
+          console.log('[InvitePopup] Already friends');
+        }
         return true;
       }
       
-      // Create friend request
+      // Create accepted friend request (instant friendship)
       const { error } = await supabase
         .from('friend_requests')
         .insert({
-          sender_id: senderProfileId,
+          sender_id: userProfileId,
           receiver_id: inviterProfileId,
-          status: 'pending',
+          status: 'accepted',
         });
       
       if (error) {
-        console.error('[InvitePopup] Failed to send friend request:', error);
+        console.error('[InvitePopup] Failed to add friend:', error);
         return false;
       }
       
-      console.log('[InvitePopup] Friend request sent');
+      console.log('[InvitePopup] Added as friends instantly');
       return true;
     } catch (error) {
-      console.error('[InvitePopup] Error sending friend request:', error);
+      console.error('[InvitePopup] Error adding friend:', error);
       return false;
     }
   };
 
-  const handleAddFriend = async () => {
+  const handleThankYou = async () => {
     if (!profile?.id || !referral || loading) return;
     
     setLoading(true);
@@ -258,19 +281,18 @@ export function InvitePopup() {
       await grantRewardAndNotify(
         referral.inviterUserId,
         referral.inviterId,
-        profile.id,
-        profile.username || 'someone'
+        profile.id
       );
       
-      // Send friend request
-      await sendFriendRequest(referral.inviterId, profile.id);
+      // Auto-add as friend (instant friendship)
+      await autoAddFriend(referral.inviterId, profile.id);
       
       // Mark as confirmed
       markReferralConfirmed();
       
       // Show success
       setSuccess(true);
-      toast.success(`Friend request sent to @${referral.inviterUsername}!`);
+      toast.success(`You and @${referral.inviterUsername} are now friends!`);
       
       // Close after animation
       setTimeout(() => {
@@ -280,36 +302,6 @@ export function InvitePopup() {
     } catch (error) {
       console.error('[InvitePopup] Error:', error);
       // Still close on error - don't block user
-      markReferralConfirmed();
-      setVisible(false);
-      cleanupReferralStorage();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleNotNow = async () => {
-    if (!profile?.id || !referral || loading) return;
-    
-    setLoading(true);
-    
-    try {
-      // Still grant reward even if they don't add friend
-      await grantRewardAndNotify(
-        referral.inviterUserId,
-        referral.inviterId,
-        profile.id,
-        profile.username || 'someone'
-      );
-      
-      // Mark as confirmed
-      markReferralConfirmed();
-      
-      // Close immediately
-      setVisible(false);
-      cleanupReferralStorage();
-    } catch (error) {
-      console.error('[InvitePopup] Error:', error);
       markReferralConfirmed();
       setVisible(false);
       cleanupReferralStorage();
@@ -336,9 +328,9 @@ export function InvitePopup() {
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          className="relative w-full max-w-sm liquid-glass-card rounded-2xl p-6 shadow-xl"
+          className="relative w-full max-w-sm liquid-glass-card rounded-2xl p-8 shadow-xl"
         >
-          <div className="text-center space-y-5">
+          <div className="text-center space-y-6">
             {success ? (
               // Success animation
               <motion.div
@@ -362,32 +354,39 @@ export function InvitePopup() {
               </motion.div>
             ) : (
               <>
-                {/* Inviter Avatar */}
+                {/* Inviter Avatar with glow */}
                 <div className="flex justify-center">
-                  <Avatar className="h-20 w-20 ring-4 ring-primary/20">
-                    <AvatarImage src={referral.inviterAvatarUrl || undefined} />
-                    <AvatarFallback className="text-2xl gradient-animated text-white">
-                      {referral.inviterUsername?.[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.5, 0.3] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="absolute inset-0 rounded-full bg-primary/30 blur-xl"
+                    />
+                    <Avatar className="h-24 w-24 ring-4 ring-primary/20 relative z-10">
+                      <AvatarImage src={referral.inviterAvatarUrl || undefined} />
+                      <AvatarFallback className="text-3xl gradient-animated text-white">
+                        {referral.inviterUsername?.[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
                 </div>
                 
                 {/* Title */}
                 <div className="space-y-2">
-                  <h2 className="text-xl font-bold">
-                    You joined using @{referral.inviterUsername}'s invite
+                  <h2 className="text-2xl font-bold">
+                    @{referral.inviterUsername} invited you
                   </h2>
-                  <p className="text-muted-foreground">
-                    Would you like to add them as a friend?
+                  <p className="text-muted-foreground text-lg">
+                    Thanks for joining VYBE!
                   </p>
                 </div>
                 
-                {/* Action Buttons */}
-                <div className="space-y-3 pt-2">
+                {/* Single Action Button */}
+                <div className="pt-2">
                   <Button
                     className="w-full gradient-animated text-lg py-6"
                     size="lg"
-                    onClick={handleAddFriend}
+                    onClick={handleThankYou}
                     disabled={loading}
                   >
                     {loading ? (
@@ -398,19 +397,10 @@ export function InvitePopup() {
                       />
                     ) : (
                       <>
-                        <UserPlus className="h-5 w-5 mr-2" />
-                        Add Friend
+                        <Heart className="h-5 w-5 mr-2" />
+                        Thank You
                       </>
                     )}
-                  </Button>
-                  
-                  <Button
-                    variant="ghost"
-                    className="w-full text-muted-foreground"
-                    onClick={handleNotNow}
-                    disabled={loading}
-                  >
-                    Not Now
                   </Button>
                 </div>
               </>
