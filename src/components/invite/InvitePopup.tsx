@@ -6,7 +6,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { useTutorial } from '@/components/tutorial/TutorialProvider';
 import {
   getPendingReferral,
   wasReferralConfirmed,
@@ -16,33 +15,24 @@ import {
 } from '@/lib/referral';
 
 /**
- * Post-Tutorial Referral Confirmation Modal
+ * Post-Tutorial/Onboarding Referral Confirmation Modal
  * 
- * Shows ONLY after:
- * - Account is created
- * - User is logged in  
- * - Tutorial is complete (or skipped)
+ * TRIGGER CONDITIONS (ALL must be true):
+ * - User is authenticated (user.id exists)
+ * - User has a profile (profile.id exists)
+ * - Onboarding is complete (profile.onboarding_completed = true)
+ * - Tutorial is complete OR skipped (check DB directly for reliability)
+ * - Pending referral exists in localStorage
+ * - Referral not yet confirmed
  * 
- * UI:
- * - Title: "@username invited you"
- * - Body: "Thanks for joining VYBE!"
- * - Button: "Thank You" (single button, no pressure)
- * 
- * On "Thank You" click:
- * - Auto-add inviter as friend (instant friendship)
- * - Grant reward to inviter (once)
- * - Send notification to inviter
- * - Close modal permanently
- * 
- * Rules:
- * - Modal shows ONCE after tutorial
- * - Cannot be missed
- * - Clean, premium styling
- * - Never blocks app if anything fails
+ * FLOW:
+ * 1. Listen for 'tutorial-completed' event OR poll profile status
+ * 2. When conditions met, show modal
+ * 3. On "Thank You" click: add friend, grant reward, notify inviter
+ * 4. Cleanup and close
  */
 export function InvitePopup() {
   const { user, profile } = useAuth();
-  const tutorial = useTutorial();
   const [referral, setReferral] = useState<PendingReferral | null>(null);
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -50,78 +40,118 @@ export function InvitePopup() {
   const processedRef = useRef(false);
   const rewardGrantedRef = useRef(false);
 
-  // Check for pending referral AFTER tutorial is complete
-  useEffect(() => {
-    // Wait for complete auth state
-    if (!user?.id || !profile?.id) return;
+  // Check for pending referral when conditions are met
+  const checkAndShowReferral = useCallback(async () => {
+    // Already processed or visible
+    if (processedRef.current || visible) return;
     
-    // Wait for tutorial to be complete (or skipped)
-    // If tutorial context isn't available, assume it's complete
-    if (tutorial && !tutorial.hasCompleted && !tutorial.isLoading) {
-      console.log('[InvitePopup] Waiting for tutorial to complete');
+    // Require auth
+    if (!user?.id || !profile?.id) {
+      console.log('[InvitePopup] Waiting for auth');
       return;
     }
     
-    // Prevent multiple processing
-    if (processedRef.current) return;
+    // Already confirmed?
+    if (wasReferralConfirmed()) {
+      console.log('[InvitePopup] Referral already confirmed');
+      cleanupReferralStorage();
+      return;
+    }
     
-    const checkPendingReferral = async () => {
-      // Already confirmed?
-      if (wasReferralConfirmed()) {
-        console.log('[InvitePopup] Referral already confirmed');
-        cleanupReferralStorage();
-        return;
-      }
-      
-      const pending = getPendingReferral();
-      if (!pending) {
-        console.log('[InvitePopup] No pending referral');
-        return;
-      }
-      
-      console.log('[InvitePopup] Found pending referral for:', pending.inviterUsername);
-      
-      // Prevent self-referral
-      if (pending.inviterId === profile.id) {
-        console.log('[InvitePopup] Self-referral detected, clearing');
-        cleanupReferralStorage();
-        return;
-      }
-      
-      // Verify inviter still exists
-      const { data: inviterProfile, error } = await supabase
+    // Check for pending referral
+    const pending = getPendingReferral();
+    if (!pending) {
+      console.log('[InvitePopup] No pending referral');
+      return;
+    }
+    
+    // Prevent self-referral
+    if (pending.inviterId === profile.id) {
+      console.log('[InvitePopup] Self-referral detected, clearing');
+      cleanupReferralStorage();
+      return;
+    }
+    
+    // Check if onboarding AND tutorial are complete (query DB directly for reliability)
+    try {
+      const { data: profileData, error } = await supabase
         .from('profiles')
-        .select('id, user_id, username, avatar_url, display_name')
-        .eq('id', pending.inviterId)
-        .maybeSingle();
+        .select('onboarding_completed, tutorial_completed, tutorial_skipped')
+        .eq('id', profile.id)
+        .single();
       
-      if (error || !inviterProfile) {
-        console.log('[InvitePopup] Inviter no longer exists');
-        cleanupReferralStorage();
+      if (error) {
+        console.error('[InvitePopup] Error checking profile:', error);
         return;
       }
       
-      // Update with fresh data
-      const freshReferral: PendingReferral = {
-        inviterId: inviterProfile.id,
-        inviterUserId: inviterProfile.user_id,
-        inviterUsername: inviterProfile.username,
-        inviterDisplayName: inviterProfile.display_name,
-        inviterAvatarUrl: inviterProfile.avatar_url,
-        timestamp: pending.timestamp,
-      };
+      const onboardingDone = profileData?.onboarding_completed ?? false;
+      const tutorialDone = (profileData?.tutorial_completed ?? false) || (profileData?.tutorial_skipped ?? false);
       
-      setReferral(freshReferral);
-      setVisible(true);
-      processedRef.current = true;
+      console.log('[InvitePopup] Status check:', { onboardingDone, tutorialDone });
       
-      console.log('[InvitePopup] Showing confirmation modal');
+      // MUST have completed both onboarding AND tutorial
+      if (!onboardingDone || !tutorialDone) {
+        console.log('[InvitePopup] Waiting for onboarding/tutorial completion');
+        return;
+      }
+    } catch (e) {
+      console.error('[InvitePopup] Error:', e);
+      return;
+    }
+    
+    console.log('[InvitePopup] All conditions met, showing modal for:', pending.inviterUsername);
+    
+    // Verify inviter still exists
+    const { data: inviterProfile, error: inviterError } = await supabase
+      .from('profiles')
+      .select('id, user_id, username, avatar_url, display_name')
+      .eq('id', pending.inviterId)
+      .maybeSingle();
+    
+    if (inviterError || !inviterProfile) {
+      console.log('[InvitePopup] Inviter no longer exists');
+      cleanupReferralStorage();
+      return;
+    }
+    
+    // Update with fresh data
+    const freshReferral: PendingReferral = {
+      inviterId: inviterProfile.id,
+      inviterUserId: inviterProfile.user_id,
+      inviterUsername: inviterProfile.username,
+      inviterDisplayName: inviterProfile.display_name,
+      inviterAvatarUrl: inviterProfile.avatar_url,
+      timestamp: pending.timestamp,
     };
+    
+    setReferral(freshReferral);
+    setVisible(true);
+    processedRef.current = true;
+    
+    console.log('[InvitePopup] Showing confirmation modal');
+  }, [user?.id, profile?.id, visible]);
 
-    // Delay to ensure UI is settled after tutorial
-    const timer = setTimeout(checkPendingReferral, 800);
+  // Listen for tutorial-completed event
+  useEffect(() => {
+    const handleTutorialComplete = () => {
+      console.log('[InvitePopup] Tutorial completed event received');
+      // Delay slightly to let state settle
+      setTimeout(() => checkAndShowReferral(), 500);
+    };
+    
+    window.addEventListener('tutorial-completed', handleTutorialComplete);
+    return () => window.removeEventListener('tutorial-completed', handleTutorialComplete);
+  }, [checkAndShowReferral]);
+
+  // Also check on mount and when auth changes (for users who already completed tutorial)
+  useEffect(() => {
+    if (!user?.id || !profile?.id) return;
+    
+    // Delay initial check to let app settle
+    const timer = setTimeout(() => checkAndShowReferral(), 1500);
     return () => clearTimeout(timer);
-  }, [user?.id, profile?.id, tutorial?.hasCompleted, tutorial?.isLoading]);
+  }, [user?.id, profile?.id, checkAndShowReferral]);
 
   /**
    * Grant reward to inviter and send notification

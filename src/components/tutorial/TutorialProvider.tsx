@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useTutorialLayout, TutorialLayoutMode } from '@/hooks/useTutorialLayout';
@@ -36,8 +36,17 @@ export function useTutorial() {
   return useContext(TutorialContext);
 }
 
+/**
+ * TutorialProvider - Manages tutorial state for first-time users
+ * 
+ * CRITICAL RULES:
+ * 1. Tutorial shows ONCE on FIRST authenticated app load after onboarding
+ * 2. hasCompleted = false by default until user completes OR skips
+ * 3. Referral flows MUST NOT affect tutorial state
+ * 4. Tutorial triggers based on: onboarding_completed=true AND tutorial_completed=false AND tutorial_skipped=false
+ */
 export function TutorialProvider({ children }: { children: ReactNode }) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { layoutMode } = useTutorialLayout();
   
   const [isOpen, setIsOpen] = useState(false);
@@ -45,46 +54,71 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasCompleted, setHasCompleted] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const hasCheckedRef = useRef(false);
+  const hasTriggeredRef = useRef(false);
 
   // Get steps based on current layout
   const steps = getStepsForLayout(layoutMode);
 
-  // Check tutorial status on mount
+  // Check tutorial status on mount and when profile changes
   useEffect(() => {
     const checkTutorialStatus = async () => {
-      if (!profile?.id) {
+      // Wait for authenticated user with profile
+      if (!user?.id || !profile?.id) {
         setIsLoading(false);
         return;
       }
 
+      // Only check once per session to avoid race conditions
+      if (hasCheckedRef.current) return;
+      hasCheckedRef.current = true;
+
+      console.log('[Tutorial] Checking tutorial status for user:', profile.id);
+
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('profiles')
           .select('tutorial_completed, tutorial_skipped, onboarding_completed')
           .eq('id', profile.id)
           .single();
 
+        if (error) {
+          console.error('[Tutorial] Error fetching status:', error);
+          setIsLoading(false);
+          return;
+        }
+
         if (data) {
-          const tutorialCompleted = (data as any).tutorial_completed ?? false;
-          const tutorialSkipped = (data as any).tutorial_skipped ?? false;
+          const tutorialCompleted = data.tutorial_completed ?? false;
+          const tutorialSkipped = data.tutorial_skipped ?? false;
+          const onboardingCompleted = data.onboarding_completed ?? false;
           const completed = tutorialCompleted || tutorialSkipped;
+          
+          console.log('[Tutorial] Status:', { tutorialCompleted, tutorialSkipped, onboardingCompleted, completed });
+          
           setHasCompleted(completed);
 
-          // Auto-show tutorial after onboarding if not completed/skipped
-          if (data.onboarding_completed && !completed && !isManualOpen) {
-            // Delay to let the UI fully render
-            setTimeout(() => setIsOpen(true), 1500);
+          // CRITICAL: Auto-trigger tutorial for first-time users
+          // Conditions: onboarding done + tutorial not done + not manually opened + not already triggered
+          if (onboardingCompleted && !completed && !isManualOpen && !hasTriggeredRef.current) {
+            hasTriggeredRef.current = true;
+            console.log('[Tutorial] Auto-triggering tutorial for first-time user');
+            // Delay to let UI fully render after navigation
+            setTimeout(() => {
+              setIsOpen(true);
+              console.log('[Tutorial] Tutorial opened');
+            }, 1500);
           }
         }
       } catch (error) {
-        console.error('Error checking tutorial status:', error);
+        console.error('[Tutorial] Error checking status:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
     checkTutorialStatus();
-  }, [profile?.id, isManualOpen]);
+  }, [user?.id, profile?.id, isManualOpen]);
 
   const nextStep = useCallback(() => {
     if (currentStep < steps.length - 1) {
@@ -103,6 +137,8 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const skipTutorial = useCallback(async () => {
     if (!profile?.id) return;
 
+    console.log('[Tutorial] Skipping tutorial');
+    
     try {
       await supabase
         .from('profiles')
@@ -113,14 +149,20 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       setIsOpen(false);
       setCurrentStep(0);
       setIsManualOpen(false);
+      
+      // Emit event for referral popup to listen
+      window.dispatchEvent(new CustomEvent('tutorial-completed'));
+      console.log('[Tutorial] Tutorial skipped, event dispatched');
     } catch (error) {
-      console.error('Error skipping tutorial:', error);
+      console.error('[Tutorial] Error skipping:', error);
     }
   }, [profile?.id]);
 
   const completeTutorial = useCallback(async () => {
     if (!profile?.id) return;
 
+    console.log('[Tutorial] Completing tutorial');
+    
     try {
       await supabase
         .from('profiles')
@@ -131,8 +173,12 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       setIsOpen(false);
       setCurrentStep(0);
       setIsManualOpen(false);
+      
+      // Emit event for referral popup to listen
+      window.dispatchEvent(new CustomEvent('tutorial-completed'));
+      console.log('[Tutorial] Tutorial completed, event dispatched');
     } catch (error) {
-      console.error('Error completing tutorial:', error);
+      console.error('[Tutorial] Error completing:', error);
     }
   }, [profile?.id]);
 
