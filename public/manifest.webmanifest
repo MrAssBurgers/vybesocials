@@ -10,6 +10,7 @@
   "scope": "/",
   "lang": "en",
   "categories": ["social", "entertainment", "lifestyle"],
+  "iarc_rating_id": "REPLACE_WITH_YOUR_IARC_RATING_ID",
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
@@ -102,6 +103,33 @@
       "description": "Create a new post",
       "url": "/upload",
       "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Explore",
+      "short_name": "Explore",
+      "description": "Discover new content",
+      "url": "/explore",
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Notifications",
+      "short_name": "Alerts",
+      "description": "Check your notifications",
+      "url": "/notifications",
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Profile",
+      "short_name": "Me",
+      "description": "View your profile",
+      "url": "/profile",
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+vybe",
+      "url": "/%s"
     }
   ],
   "related_applications": [
