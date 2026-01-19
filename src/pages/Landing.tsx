@@ -16,7 +16,7 @@ import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 
 // Invite mode stage type - shared between invite flow components
-export type InviteStage = 'loading' | 'landing' | 'complete-profile' | 'onboarding' | 'home';
+export type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
 interface LandingProps {
   onInviteNavigate?: (stage: InviteStage) => void;

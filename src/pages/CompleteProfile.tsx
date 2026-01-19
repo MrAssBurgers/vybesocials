@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { Sparkles, User, Camera } from 'lucide-react';
-import type { InviteStage } from '@/pages/Landing';
+// Invite mode stage type - must match InviteRedeem state machine
+type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
 interface CompleteProfileProps {
   onInviteNavigate?: (stage: InviteStage) => void;
