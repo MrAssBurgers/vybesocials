@@ -18,13 +18,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Trash2, MoreVertical, UserCheck, X } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Trash2, Nfc, X, UserCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
 import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
 import { CreateGroupDialog } from './CreateGroupDialog';
-import { ConversationOptionsMenu } from './ConversationOptionsMenu';
+import { ConversationOptionsSheet } from './ConversationOptionsSheet';
 import { TrashBin } from './TrashBin';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
@@ -34,6 +34,7 @@ import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useUsersRoles } from '@/hooks/useUserRoleById';
 import { AvatarRing } from '@/components/ui/AvatarRing';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { NFCFriendShare } from '@/components/friends/NFCFriendShare';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
@@ -473,7 +474,7 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
 // Swipe threshold for delete action
 const SWIPE_THRESHOLD = -80;
 
-// Shared conversation content component
+// Shared conversation content component - simplified without the options menu
 const ConversationContent = memo(function ConversationContent({
   conversation,
   displayName,
@@ -483,18 +484,13 @@ const ConversationContent = memo(function ConversationContent({
   isPinned,
   memberCount,
   formattedTime,
-  isMuted,
   isOnline,
   currentUserId,
   userRole,
-  onTrash,
   hasStory,
   storyGroup,
   handleAvatarClick,
-  menuOpen,
-  setMenuOpen,
   otherMember,
-  showTrashButton = true,
 }: any) {
   return (
     <>
@@ -505,7 +501,7 @@ const ConversationContent = memo(function ConversationContent({
               {avatarUrl ? (
                 <AvatarImage src={avatarUrl} />
               ) : (
-                <AvatarFallback className="text-base bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                <AvatarFallback className="text-base bg-gradient-to-br from-primary to-primary/60 text-primary-foreground">
                   <Users className="h-5 w-5" />
                 </AvatarFallback>
               )}
@@ -518,7 +514,7 @@ const ConversationContent = memo(function ConversationContent({
           <button onClick={handleAvatarClick} className="block">
             <div className={`relative ${hasStory ? 'p-0.5' : ''}`}>
               {hasStory && (
-                <div className={`absolute inset-0 rounded-full ${storyGroup?.hasUnviewed ? 'bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500' : 'bg-muted-foreground/30'}`} />
+                <div className={`absolute inset-0 rounded-full ${storyGroup?.hasUnviewed ? 'bg-gradient-to-tr from-primary via-primary/80 to-primary/60' : 'bg-muted-foreground/30'}`} />
               )}
               <Avatar className={`h-12 w-12 ring-2 ring-background shadow-md ${hasStory ? 'relative' : ''}`}>
                 <AvatarImage src={avatarUrl || undefined} />
@@ -592,25 +588,6 @@ const ConversationContent = memo(function ConversationContent({
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
-            {showTrashButton && onTrash && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onTrash();
-                }}
-                className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all flex-shrink-0"
-                title="Move to trash"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            )}
-            <ConversationOptionsMenu
-              conversationId={conversation.id}
-              otherUserId={!conversation.is_group ? otherMember?.id : undefined}
-              otherUsername={!conversation.is_group ? otherMember?.username : undefined}
-              isMuted={isMuted}
-              onOpenChange={setMenuOpen}
-            />
           </div>
         </div>
       </div>
@@ -618,7 +595,7 @@ const ConversationContent = memo(function ConversationContent({
   );
 });
 
-// Memoized conversation item with swipe-to-delete on mobile
+// Memoized conversation item with swipe-to-delete on mobile and long-press for options
 const ConversationItem = memo(function ConversationItem({ 
   conversation, 
   onClick,
@@ -640,8 +617,10 @@ const ConversationItem = memo(function ConversationItem({
 }) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressRef = useRef(false);
   
   // Swipe gesture handling
   const x = useMotionValue(0);
@@ -656,6 +635,37 @@ const ConversationItem = memo(function ConversationItem({
       }, 200);
     }
   }, [onTrash]);
+  
+  // Long press handlers
+  const handleTouchStart = useCallback(() => {
+    isLongPressRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      setOptionsOpen(true);
+    }, 500);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handleClick = useCallback(() => {
+    if (!isLongPressRef.current) {
+      onClick();
+    }
+  }, [onClick]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
   
   const otherMembers = useMemo(() => 
     conversation.members?.filter((m) => m.user_id !== currentUserId) || [],
@@ -703,74 +713,114 @@ const ConversationItem = memo(function ConversationItem({
     isPinned,
     memberCount,
     formattedTime,
-    isMuted,
     isOnline,
     currentUserId,
     userRole,
-    onTrash,
     hasStory,
     storyGroup,
     handleAvatarClick,
-    menuOpen,
-    setMenuOpen,
     otherMember,
   };
 
-  // Mobile swipeable version - Instagram-style clean design
+  // Mobile swipeable version with long-press for options
   if (isMobile && onTrash) {
     return (
-      <div className="relative mb-1.5">
-        {/* Delete indicator - positioned behind, full height */}
-        <motion.div 
-          className="absolute inset-0 flex items-center justify-end bg-destructive"
-          style={{ 
-            opacity: deleteOpacity,
-            borderRadius: '0.75rem',
-          }}
-        >
+      <>
+        <div className="relative mb-1.5">
+          {/* Delete indicator - positioned behind, full height */}
           <motion.div 
-            style={{ scale: deleteScale }} 
-            className="flex flex-col items-center gap-0.5 text-destructive-foreground pr-6"
+            className="absolute inset-0 flex items-center justify-end bg-destructive"
+            style={{ 
+              opacity: deleteOpacity,
+              borderRadius: '0.75rem',
+            }}
           >
-            <Trash2 className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Delete</span>
+            <motion.div 
+              style={{ scale: deleteScale }} 
+              className="flex flex-col items-center gap-0.5 text-destructive-foreground pr-6"
+            >
+              <Trash2 className="h-5 w-5" />
+              <span className="text-[10px] font-medium">Delete</span>
+            </motion.div>
           </motion.div>
-        </motion.div>
-        
-        {/* Swipeable item */}
-        <motion.div 
-          className="relative bg-background rounded-xl"
-          style={{ x }}
-          drag="x"
-          dragConstraints={{ left: -80, right: 0 }}
-          dragElastic={0.05}
-          onDragEnd={handleDragEnd}
-          animate={isDeleting ? { x: -300, opacity: 0 } : { x: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <div 
-            className="group w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 cursor-pointer box-border"
-            onClick={menuOpen ? undefined : onClick}
+          
+          {/* Swipeable item */}
+          <motion.div 
+            className="relative bg-background rounded-xl"
+            style={{ x }}
+            drag="x"
+            dragConstraints={{ left: -80, right: 0 }}
+            dragElastic={0.05}
+            onDragEnd={handleDragEnd}
+            animate={isDeleting ? { x: -300, opacity: 0 } : { x: 0 }}
+            transition={{ duration: 0.2 }}
           >
-            <ConversationContent {...sharedProps} showTrashButton={false} />
-          </div>
-        </motion.div>
-      </div>
+            <div 
+              className="group w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 cursor-pointer box-border"
+              onClick={handleClick}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              onMouseDown={handleTouchStart}
+              onMouseUp={handleTouchEnd}
+              onMouseLeave={handleTouchEnd}
+            >
+              <ConversationContent {...sharedProps} />
+            </div>
+          </motion.div>
+        </div>
+        
+        {/* Options sheet for long press */}
+        <ConversationOptionsSheet
+          open={optionsOpen}
+          onOpenChange={setOptionsOpen}
+          conversationId={conversation.id}
+          otherUserId={!conversation.is_group ? otherMember?.id : undefined}
+          otherUsername={!conversation.is_group ? otherMember?.username : undefined}
+          otherDisplayName={displayName}
+          otherAvatarUrl={avatarUrl}
+          isMuted={isMuted}
+          isPinned={isPinned}
+        />
+      </>
     );
   }
 
-  // Desktop version
+  // Desktop version with long-press/right-click for options
   return (
-    <div 
-      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer box-border"
-      onClick={menuOpen ? undefined : onClick}
-    >
-      <ConversationContent {...sharedProps} showTrashButton={true} />
-    </div>
+    <>
+      <div 
+        className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer box-border"
+        onClick={handleClick}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleTouchStart}
+        onMouseUp={handleTouchEnd}
+        onMouseLeave={handleTouchEnd}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setOptionsOpen(true);
+        }}
+      >
+        <ConversationContent {...sharedProps} />
+      </div>
+      
+      {/* Options sheet for long press/right-click */}
+      <ConversationOptionsSheet
+        open={optionsOpen}
+        onOpenChange={setOptionsOpen}
+        conversationId={conversation.id}
+        otherUserId={!conversation.is_group ? otherMember?.id : undefined}
+        otherUsername={!conversation.is_group ? otherMember?.username : undefined}
+        otherDisplayName={displayName}
+        otherAvatarUrl={avatarUrl}
+        isMuted={isMuted}
+        isPinned={isPinned}
+      />
+    </>
   );
 });
 
-// New Chat Dialog
+// New Chat Dialog - now includes NFC option and links to Add Friends page
 function NewChatDialog({ 
   open, 
   onOpenChange,
@@ -781,6 +831,7 @@ function NewChatDialog({
   onSelectUser: (userId: string) => void;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -809,6 +860,11 @@ function NewChatDialog({
     setSearchQuery('');
   }, [onSelectUser, onOpenChange]);
 
+  const handleGoToAddFriends = () => {
+    onOpenChange(false);
+    navigate('/messages/new');
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
@@ -820,15 +876,37 @@ function NewChatDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
-            {t('messages.newChat')}
+            Add Friends
           </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
+          {/* NFC Quick Add Banner */}
+          <div className="rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-3 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+              <Nfc className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm">Quick Add with NFC</p>
+              <p className="text-xs text-muted-foreground">Tap phones to add friends</p>
+            </div>
+            <NFCFriendShare variant="icon" />
+          </div>
+
+          {/* Go to Full Add Friends Page */}
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-2"
+            onClick={handleGoToAddFriends}
+          >
+            <UserPlus className="h-4 w-4" />
+            Search & Add Friends
+          </Button>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search users..."
+              placeholder="Quick search users..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -872,7 +950,7 @@ function NewChatDialog({
             ) : searchQuery.length >= 2 ? (
               <p className="text-center text-muted-foreground py-4">No users found</p>
             ) : (
-              <p className="text-center text-muted-foreground py-4">Type to search for users</p>
+              <p className="text-center text-muted-foreground py-4 text-sm">Type to search or use NFC</p>
             )}
           </ScrollArea>
         </div>
