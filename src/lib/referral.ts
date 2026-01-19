@@ -10,11 +10,13 @@
  * Storage keys:
  * - pending_referral: Full referral data
  * - referral_confirmed: Flag to prevent showing modal again
+ * - vybe_entry_mode: Tracks if user entered via invite link
  */
 
 const PENDING_REFERRAL_KEY = 'pending_referral';
 const REFERRAL_CONFIRMED_KEY = 'referral_confirmed';
 const INTRO_SHOWN_KEY = 'vybe_intro_completed';
+const ENTRY_MODE_KEY = 'vybe_entry_mode';
 
 export interface PendingReferral {
   inviterId: string;        // Profile ID
@@ -132,6 +134,7 @@ export function cleanupReferralStorage(): void {
   try {
     localStorage.removeItem(PENDING_REFERRAL_KEY);
     localStorage.removeItem(REFERRAL_CONFIRMED_KEY);
+    localStorage.removeItem(ENTRY_MODE_KEY);
     // Clean up any legacy keys
     localStorage.removeItem('pending_referral_inviter');
     localStorage.removeItem('referral_popup_shown');
@@ -142,6 +145,17 @@ export function cleanupReferralStorage(): void {
     console.log('[Referral] Storage cleaned up');
   } catch (e) {
     console.error('[Referral] Failed to cleanup storage:', e);
+  }
+}
+
+/**
+ * Check if user entered via invite link
+ */
+export function isInviteEntryMode(): boolean {
+  try {
+    return localStorage.getItem(ENTRY_MODE_KEY) === 'invite';
+  } catch {
+    return false;
   }
 }
 

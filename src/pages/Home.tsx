@@ -9,7 +9,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { StoriesBar } from '@/components/stories/StoriesBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
-import { hasActiveReferral } from '@/lib/referral';
+import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
 import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
@@ -191,11 +191,12 @@ export default function HomePage() {
     if (authLoading) return;
     
     // For unauthenticated users, redirect to landing if they haven't seen intro
+    // or if they're in invite mode (should be on /invite/:username)
     if (!user) {
       // Check if intro was seen - if not, they should go to landing
       const introSeen = localStorage.getItem('vybe_intro_completed') === 'true';
-      if (!introSeen) {
-        console.log('[Home] Unauthenticated user without intro - redirecting to /');
+      if (!introSeen || isInviteEntryMode()) {
+        console.log('[Home] Unauthenticated user without intro or in invite mode - redirecting to /');
         navigate('/');
         return;
       }
@@ -205,9 +206,9 @@ export default function HomePage() {
 
     // For authenticated users without a username
     if (!profile?.username) {
-      // Don't redirect during active referral flow
-      if (hasActiveReferral()) {
-        console.log('[Home] Skipping profile redirect - active referral in progress');
+      // Don't redirect during active referral flow or invite mode
+      if (hasActiveReferral() || isInviteEntryMode()) {
+        console.log('[Home] Skipping profile redirect - active referral/invite in progress');
         return;
       }
       navigate('/complete-profile');

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth';
@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
+import { isInviteEntryMode } from '@/lib/referral';
 
 export default function Landing() {
   const { t } = useTranslation();
@@ -48,9 +49,20 @@ export default function Landing() {
 
   // Redirect if already logged in AND has completed onboarding
   // First-time users (even if authenticated) should see intro if not completed
+  // IMPORTANT: Don't redirect if user entered via invite link - let them complete the flow
+  const location = useLocation();
+  const isInviteRoute = location.pathname.startsWith('/invite/');
+  
   useEffect(() => {
     async function checkAndRedirect() {
       if (!user) return;
+      
+      // If on invite route or in invite mode, don't auto-redirect to home
+      // Let the user complete the full first-time experience
+      if (isInviteRoute || isInviteEntryMode()) {
+        console.log('[Landing] In invite flow, skipping auto-redirect');
+        return;
+      }
       
       // Check if user has completed onboarding (has a username set)
       const { data: profile } = await supabase
@@ -67,7 +79,7 @@ export default function Landing() {
     }
     
     checkAndRedirect();
-  }, [user, navigate]);
+  }, [user, navigate, isInviteRoute]);
 
   // Only hide the landing page if we're about to redirect (handled in useEffect)
   // Don't return null immediately - let the useEffect decide
