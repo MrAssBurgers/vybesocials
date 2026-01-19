@@ -257,63 +257,81 @@ export function NanotechSwoosh({
               />
             </motion.div>
           ) : (
-            // Directional swoosh animation - BOLD & VISIBLE
+            // Directional swoosh animation - SMOOTH & FLUID
             <>
-              {/* Main swoosh bar - very visible */}
+              {/* Soft ambient glow that precedes the main swoosh */}
+              <motion.div
+                className="absolute inset-0"
+                style={{
+                  background: `radial-gradient(
+                    ellipse 150% 100% at 50% 50%,
+                    hsl(${primaryColor} / 0.08) 0%,
+                    hsl(${accentColor} / 0.04) 40%,
+                    transparent 70%
+                  )`,
+                }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0, 0.6, 0] }}
+                transition={{
+                  duration: swooshDuration * 1.2,
+                  ease: [0.4, 0, 0.2, 1],
+                }}
+              />
+
+              {/* Main flowing wave - ultra smooth gradients */}
               <motion.div
                 className="absolute"
                 style={{
-                  width: direction.includes('diagonal') ? '250%' : (direction === 'top' || direction === 'bottom') ? '100%' : '80%',
-                  height: direction.includes('diagonal') ? '250%' : (direction === 'left' || direction === 'right') ? '100%' : '80%',
+                  width: direction.includes('diagonal') ? '300%' : (direction === 'top' || direction === 'bottom') ? '100%' : '120%',
+                  height: direction.includes('diagonal') ? '300%' : (direction === 'left' || direction === 'right') ? '100%' : '120%',
                   background: `linear-gradient(
                     ${animProps.gradient},
                     transparent 0%,
-                    hsl(${primaryColor} / 0.4) 15%,
-                    hsl(${primaryColor} / 0.6) 35%,
-                    hsl(${accentColor} / 0.5) 50%,
-                    hsl(${accentColor} / 0.4) 65%,
-                    hsl(${primaryColor} / 0.3) 85%,
+                    hsl(${primaryColor} / 0.03) 10%,
+                    hsl(${primaryColor} / 0.12) 25%,
+                    hsl(${accentColor} / 0.18) 40%,
+                    hsl(${primaryColor} / 0.2) 50%,
+                    hsl(${accentColor} / 0.15) 60%,
+                    hsl(${primaryColor} / 0.08) 75%,
+                    hsl(${accentColor} / 0.02) 90%,
                     transparent 100%
                   )`,
-                  backdropFilter: 'blur(60px) saturate(2) brightness(1.2)',
-                  WebkitBackdropFilter: 'blur(60px) saturate(2) brightness(1.2)',
-                  boxShadow: `
-                    inset 0 0 100px hsl(${primaryColor} / 0.3),
-                    0 0 80px 40px hsl(${primaryColor} / 0.2)
-                  `,
+                  backdropFilter: 'blur(80px) saturate(1.3)',
+                  WebkitBackdropFilter: 'blur(80px) saturate(1.3)',
+                  borderRadius: '50%',
                   ...(direction === 'top' || direction === 'bottom' 
-                    ? { left: 0, right: 0, top: direction === 'top' ? 0 : 'auto', bottom: direction === 'bottom' ? 0 : 'auto' }
-                    : { top: 0, bottom: 0, left: direction === 'left' ? 0 : 'auto', right: direction === 'right' ? 0 : 'auto' }
+                    ? { left: '-10%', right: '-10%', top: direction === 'top' ? 0 : 'auto', bottom: direction === 'bottom' ? 0 : 'auto' }
+                    : { top: '-10%', bottom: '-10%', left: direction === 'left' ? 0 : 'auto', right: direction === 'right' ? 0 : 'auto' }
                   ),
                 }}
                 initial={animProps.initial}
                 animate={animProps.animate}
                 transition={{
                   duration: swooshDuration,
-                  ease: [0.22, 1, 0.36, 1],
+                  ease: [0.25, 0.1, 0.25, 1],
                 }}
               />
 
-              {/* Bright glowing leading edge */}
+              {/* Luminous leading edge - soft glow */}
               <motion.div
                 className="absolute"
                 style={{
-                  width: direction.includes('diagonal') ? '250%' : (direction === 'top' || direction === 'bottom') ? '100%' : '12px',
-                  height: direction.includes('diagonal') ? '12px' : (direction === 'left' || direction === 'right') ? '100%' : '12px',
+                  width: direction.includes('diagonal') ? '300%' : (direction === 'top' || direction === 'bottom') ? '100%' : '60px',
+                  height: direction.includes('diagonal') ? '60px' : (direction === 'left' || direction === 'right') ? '100%' : '60px',
                   background: `linear-gradient(
                     ${animProps.gradient},
                     transparent 0%,
-                    hsl(${primaryColor}) 20%,
-                    hsl(${accentColor}) 50%,
-                    hsl(${primaryColor}) 80%,
+                    hsl(${primaryColor} / 0.4) 20%,
+                    hsl(${accentColor} / 0.6) 50%,
+                    hsl(${primaryColor} / 0.4) 80%,
                     transparent 100%
                   )`,
                   boxShadow: `
-                    0 0 60px 30px hsl(${primaryColor} / 0.8),
-                    0 0 120px 60px hsl(${accentColor} / 0.5),
-                    0 0 200px 100px hsl(${primaryColor} / 0.3)
+                    0 0 80px 40px hsl(${primaryColor} / 0.25),
+                    0 0 160px 80px hsl(${accentColor} / 0.15)
                   `,
-                  filter: 'blur(3px)',
+                  filter: 'blur(12px)',
+                  borderRadius: '100%',
                   ...(direction === 'top' || direction === 'bottom' 
                     ? { left: 0, right: 0 }
                     : { top: 0, bottom: 0 }
@@ -323,26 +341,27 @@ export function NanotechSwoosh({
                 animate={animProps.animate}
                 transition={{
                   duration: swooshDuration,
-                  ease: [0.22, 1, 0.36, 1],
+                  ease: [0.25, 0.1, 0.25, 1],
                 }}
               />
 
-              {/* Secondary glow wave following behind */}
+              {/* Secondary flowing ribbon */}
               <motion.div
                 className="absolute"
                 style={{
-                  width: direction.includes('diagonal') ? '200%' : (direction === 'top' || direction === 'bottom') ? '100%' : '40%',
-                  height: direction.includes('diagonal') ? '200%' : (direction === 'left' || direction === 'right') ? '100%' : '40%',
+                  width: direction.includes('diagonal') ? '250%' : (direction === 'top' || direction === 'bottom') ? '100%' : '50%',
+                  height: direction.includes('diagonal') ? '250%' : (direction === 'left' || direction === 'right') ? '100%' : '50%',
                   background: `linear-gradient(
                     ${animProps.gradient},
                     transparent 0%,
-                    hsl(${accentColor} / 0.2) 30%,
-                    hsl(${primaryColor} / 0.3) 50%,
-                    hsl(${accentColor} / 0.2) 70%,
+                    hsl(${accentColor} / 0.06) 20%,
+                    hsl(${primaryColor} / 0.1) 50%,
+                    hsl(${accentColor} / 0.06) 80%,
                     transparent 100%
                   )`,
-                  backdropFilter: 'blur(40px)',
-                  WebkitBackdropFilter: 'blur(40px)',
+                  backdropFilter: 'blur(50px)',
+                  WebkitBackdropFilter: 'blur(50px)',
+                  borderRadius: '50%',
                   ...(direction === 'top' || direction === 'bottom' 
                     ? { left: 0, right: 0, top: direction === 'top' ? 0 : 'auto', bottom: direction === 'bottom' ? 0 : 'auto' }
                     : { top: 0, bottom: 0, left: direction === 'left' ? 0 : 'auto', right: direction === 'right' ? 0 : 'auto' }
@@ -352,72 +371,44 @@ export function NanotechSwoosh({
                 animate={animProps.animate}
                 transition={{
                   duration: swooshDuration,
-                  ease: [0.22, 1, 0.36, 1],
-                  delay: swooshDuration * 0.1,
+                  ease: [0.25, 0.1, 0.25, 1],
+                  delay: swooshDuration * 0.08,
                 }}
               />
 
-              {/* Particle trail - larger and more visible */}
-              {Array.from({ length: 16 }).map((_, i) => (
+              {/* Soft floating orbs instead of harsh particles */}
+              {Array.from({ length: 8 }).map((_, i) => (
                 <motion.div
                   key={i}
-                  className="absolute rounded-full"
+                  className="absolute"
                   style={{
-                    width: 8 + Math.random() * 12,
-                    height: 8 + Math.random() * 12,
-                    background: `radial-gradient(circle, 
-                      ${i % 2 === 0 ? `hsl(${primaryColor})` : `hsl(${accentColor})`} 0%,
+                    width: 40 + Math.random() * 60,
+                    height: 40 + Math.random() * 60,
+                    background: `radial-gradient(circle at 30% 30%, 
+                      hsl(${i % 2 === 0 ? primaryColor : accentColor} / 0.3) 0%,
+                      hsl(${i % 2 === 0 ? primaryColor : accentColor} / 0.1) 40%,
                       transparent 70%
                     )`,
-                    boxShadow: `0 0 20px 10px hsl(${i % 2 === 0 ? primaryColor : accentColor} / 0.8)`,
-                    top: `${10 + Math.random() * 80}%`,
-                    left: `${10 + Math.random() * 80}%`,
+                    borderRadius: '50%',
+                    filter: 'blur(8px)',
+                    top: `${15 + Math.random() * 70}%`,
+                    left: `${15 + Math.random() * 70}%`,
                   }}
                   initial={{ 
                     scale: 0, 
                     opacity: 0,
-                    x: direction.includes('left') || direction.includes('tl') || direction.includes('bl') ? -200 : 200,
+                    x: direction.includes('left') || direction.includes('tl') || direction.includes('bl') ? -100 : 100,
                   }}
                   animate={{ 
-                    scale: [0, 2, 0],
-                    opacity: [0, 1, 0],
+                    scale: [0, 1.5, 0],
+                    opacity: [0, 0.8, 0],
                     x: 0,
-                    y: [0, (Math.random() - 0.5) * 150],
+                    y: [0, (Math.random() - 0.5) * 80],
                   }}
                   transition={{
-                    duration: swooshDuration * 0.7,
-                    delay: swooshDuration * 0.15 + i * 0.025,
-                    ease: 'easeOut',
-                  }}
-                />
-              ))}
-
-              {/* Sparkle bursts */}
-              {Array.from({ length: 6 }).map((_, i) => (
-                <motion.div
-                  key={`sparkle-${i}`}
-                  className="absolute"
-                  style={{
-                    width: 4,
-                    height: 4,
-                    background: `hsl(${i % 2 === 0 ? primaryColor : accentColor})`,
-                    borderRadius: '50%',
-                    top: `${20 + i * 12}%`,
-                    left: '50%',
-                    boxShadow: `
-                      0 0 10px 5px hsl(${i % 2 === 0 ? primaryColor : accentColor}),
-                      0 0 30px 15px hsl(${i % 2 === 0 ? primaryColor : accentColor} / 0.5)
-                    `,
-                  }}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ 
-                    scale: [0, 3, 0],
-                    opacity: [0, 1, 0],
-                  }}
-                  transition={{
-                    duration: 0.4,
-                    delay: swooshDuration * 0.3 + i * 0.05,
-                    ease: 'easeOut',
+                    duration: swooshDuration * 0.8,
+                    delay: swooshDuration * 0.2 + i * 0.04,
+                    ease: [0.4, 0, 0.2, 1],
                   }}
                 />
               ))}
