@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Palette, Sparkles, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon, Share2, Zap, Timer } from 'lucide-react';
-import { NanotechSwoosh } from '@/components/effects/NanotechSwoosh';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,6 +27,7 @@ import {
 } from '@/hooks/useCustomTheme';
 import { useShareTheme } from '@/hooks/useSharedThemes';
 import { cn } from '@/lib/utils';
+import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 
 const PRESET_INFO: Record<string, { name: string; description: string; icon: string }> = {
   classic: { name: 'Classic VYBE', description: 'Pink & cyan neon vibes', icon: '💜' },
@@ -58,6 +58,7 @@ export function DesignYourVybe() {
   const resetTheme = useResetTheme();
   const generateTheme = useGenerateTheme();
   const shareTheme = useShareTheme();
+  const { triggerTransition } = useThemeTransition();
 
   const [prompt, setPrompt] = useState('');
   const [selectedPreset, setSelectedPreset] = useState<string>('classic');
@@ -67,7 +68,6 @@ export function DesignYourVybe() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareDescription, setShareDescription] = useState('');
-  const [showWaveAnimation, setShowWaveAnimation] = useState(false);
   
   // Animation settings
   const [animationSpeed, setAnimationSpeed] = useState<'slow' | 'normal' | 'fast' | 'instant'>('normal');
@@ -222,37 +222,26 @@ export function DesignYourVybe() {
       animationStyle,
     };
     
-    // Store pending theme and show swoosh animation
-    setPendingTheme({
-      tokens: themeWithAnimations,
-      name: generatedName,
-      preset: selectedPreset,
+    const primaryColor = previewTheme.colorPrimary || '280 70% 50%';
+    const accentColor = previewTheme.colorAccent || '330 80% 60%';
+    
+    // Trigger global theme transition - apply theme at midpoint
+    triggerTransition(primaryColor, accentColor, async () => {
+      // Apply theme tokens NOW (behind the swoosh)
+      applyThemeTokens(themeWithAnimations);
+      
+      // Save to database
+      await saveTheme.mutateAsync({
+        themeTokens: themeWithAnimations,
+        themeName: generatedName,
+        basePreset: selectedPreset,
+      });
+      
+      setShowConfirmation(false);
+      setPrompt('');
+      setPendingTheme(null);
     });
-    setShowWaveAnimation(true);
   };
-
-  // Apply theme at swoosh midpoint (nanotech rebuild moment)
-  const handleSwooshMidpoint = useCallback(async () => {
-    if (!pendingTheme?.tokens) return;
-    
-    // Apply theme tokens NOW (behind the swoosh)
-    applyThemeTokens(pendingTheme.tokens);
-    
-    // Save to database
-    await saveTheme.mutateAsync({
-      themeTokens: pendingTheme.tokens,
-      themeName: pendingTheme.name,
-      basePreset: pendingTheme.preset,
-    });
-    
-    setShowConfirmation(false);
-    setPrompt('');
-  }, [pendingTheme, saveTheme]);
-
-  const handleWaveComplete = useCallback(() => {
-    setShowWaveAnimation(false);
-    setPendingTheme(null);
-  }, []);
 
   const handleTryAgain = () => {
     setShowConfirmation(false);
@@ -636,16 +625,6 @@ export function DesignYourVybe() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Nanotech Swoosh Theme Transition */}
-      <NanotechSwoosh
-        isActive={showWaveAnimation}
-        primaryColor={previewTheme?.colorPrimary || pendingTheme?.tokens?.colorPrimary || '280 70% 50%'}
-        accentColor={previewTheme?.colorAccent || pendingTheme?.tokens?.colorAccent || '330 80% 60%'}
-        onMidpoint={handleSwooshMidpoint}
-        onComplete={handleWaveComplete}
-        duration={700}
-      />
     </div>
   );
 }

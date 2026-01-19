@@ -7,7 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { NanotechSwoosh } from '@/components/effects/NanotechSwoosh';
 import {
   usePublicThemes,
   useSavedThemes,
@@ -24,6 +23,7 @@ import { applyThemeTokens } from '@/hooks/useCustomTheme';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 
 interface ThemeCardProps {
   theme: SharedTheme;
@@ -216,6 +216,7 @@ function ThemeGridSkeleton() {
 
 export function ThemeGallery() {
   const { profile } = useAuth();
+  const { triggerTransition } = useThemeTransition();
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
   
@@ -234,10 +235,6 @@ export function ThemeGallery() {
   const [equippedThemeId, setEquippedThemeId] = useState<string | null>(() => {
     return localStorage.getItem('vybe-equipped-theme-id');
   });
-  
-  // Nanotech swoosh state
-  const [showSwoosh, setShowSwoosh] = useState(false);
-  const [pendingEquipTheme, setPendingEquipTheme] = useState<SharedTheme | null>(null);
 
   // Get top 3 most liked themes as "popular"
   const popularThemeIds = useMemo(() => {
@@ -255,32 +252,24 @@ export function ThemeGallery() {
   }, []);
 
   const handleEquip = useCallback((theme: SharedTheme) => {
-    // Start swoosh animation - theme will be applied at midpoint
-    setPendingEquipTheme(theme);
-    setShowSwoosh(true);
-  }, []);
-
-  const handleSwooshMidpoint = useCallback(() => {
-    if (!pendingEquipTheme) return;
+    const primaryColor = theme.theme_tokens?.colorPrimary || '280 70% 50%';
+    const accentColor = theme.theme_tokens?.colorAccent || '330 80% 60%';
     
-    try {
-      applyThemeTokens(pendingEquipTheme.theme_tokens);
-      setEquippedThemeId(pendingEquipTheme.id);
-      localStorage.setItem('vybe-equipped-theme-id', pendingEquipTheme.id);
-      localStorage.setItem('vybe-custom-theme', JSON.stringify(pendingEquipTheme.theme_tokens));
-      setPreviewingTheme(null);
-    } catch (error) {
-      console.error('Error equipping theme:', error);
-    }
-  }, [pendingEquipTheme]);
-
-  const handleSwooshComplete = useCallback(() => {
-    if (pendingEquipTheme) {
-      toast.success(`Theme "${pendingEquipTheme.theme_name}" equipped!`);
-    }
-    setShowSwoosh(false);
-    setPendingEquipTheme(null);
-  }, [pendingEquipTheme]);
+    // Trigger global theme transition
+    triggerTransition(primaryColor, accentColor, () => {
+      // This runs at the midpoint of the animation
+      try {
+        applyThemeTokens(theme.theme_tokens);
+        setEquippedThemeId(theme.id);
+        localStorage.setItem('vybe-equipped-theme-id', theme.id);
+        localStorage.setItem('vybe-custom-theme', JSON.stringify(theme.theme_tokens));
+        setPreviewingTheme(null);
+        toast.success(`Theme "${theme.theme_name}" equipped!`);
+      } catch (error) {
+        console.error('Error equipping theme:', error);
+      }
+    });
+  }, [triggerTransition]);
 
   const handleLike = useCallback((themeId: string, isLiked: boolean) => {
     if (isLiked) {
@@ -446,16 +435,6 @@ export function ThemeGallery() {
             </div>
           </div>
         )}
-
-        {/* Nanotech Swoosh Theme Transition */}
-        <NanotechSwoosh
-          isActive={showSwoosh}
-          primaryColor={pendingEquipTheme?.theme_tokens?.colorPrimary || '280 70% 50%'}
-          accentColor={pendingEquipTheme?.theme_tokens?.colorAccent || '330 80% 60%'}
-          onMidpoint={handleSwooshMidpoint}
-          onComplete={handleSwooshComplete}
-          duration={700}
-        />
       </CardContent>
     </Card>
   );
