@@ -280,8 +280,8 @@ export default function Landing() {
             </Button>
           </div>
 
-          <p className="text-center text-sm text-muted-foreground mt-6 flex items-center justify-center gap-1">
-            <span>{isLogin ? t('auth.noAccount') : t('auth.hasAccount')}</span>
+          <p className="text-center text-sm text-muted-foreground mt-6">
+            {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}{' '}
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
