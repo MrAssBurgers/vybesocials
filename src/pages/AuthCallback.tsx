@@ -47,8 +47,9 @@ export default function AuthCallback() {
         // Ensure profile exists for first-time OAuth users
         await supabase.rpc("ensure_profile");
 
-        // Always go to /home after successful OAuth login
-        navigate("/home", { replace: true });
+        // IMPORTANT: do not navigate yet. The global app gate will rehydrate data
+        // and then route the user to the correct screen.
+        return;
       } catch (e: any) {
         if (cancelled) return;
         setError(getUserFriendlyError(e));
