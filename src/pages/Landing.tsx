@@ -297,14 +297,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               onClick={async () => {
                 setLoading(true);
                 try {
-                  // In invite mode, redirect back to current invite URL after OAuth
-                  // This preserves the invite URL through the OAuth flow
-                  // Note: OAuth is an external redirect, so we can't use internal callbacks
-                  // The user will return to the invite URL, and the useEffect will handle stage transition
-                  const redirectUrl = isInviteMode 
-                    ? window.location.href // Keep current invite URL
-                    : `${window.location.origin}/`;
-                  
+                  // Always return through a dedicated callback route so we can reliably
+                  // exchange the OAuth code + decide the post-login destination.
+                  const next = isInviteMode
+                    ? `${window.location.pathname}${window.location.search}`
+                    : '/';
+
+                  const redirectUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+
                   const { error } = await supabase.auth.signInWithOAuth({
                     provider: 'google',
                     options: {
