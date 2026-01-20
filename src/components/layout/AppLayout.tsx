@@ -17,6 +17,7 @@ interface AppLayoutProps {
   hideRightSidebar?: boolean;
   fullWidth?: boolean;
   hideNav?: boolean; // Hide bottom nav for immersive views like Clips
+  className?: string;
 }
 
 // Use forwardRef to avoid React ref warnings
@@ -25,7 +26,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   requireAuth = true, 
   hideRightSidebar = false,
   fullWidth = false,
-  hideNav = false 
+  hideNav = false,
+  className 
 }, ref) {
   const { user, loading } = useAuth();
   const { isDesktop, isTablet, isIPad } = useBreakpoint();
@@ -54,7 +56,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   // Desktop layout with sidebars (lg+ only, NOT tablets or iPads)
   if (isDesktop) {
     return (
-      <div ref={ref} className="h-screen w-full overflow-hidden relative">
+      <div ref={ref} className={cn("h-screen w-full overflow-hidden relative", className)}>
         <div className="flex h-screen w-full">
           {/* Left Sidebar */}
           <DesktopLeftSidebar 
@@ -92,7 +94,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   return (
     <div 
       ref={ref} 
-      className="min-h-screen w-full overflow-x-hidden"
+      className={cn("min-h-screen w-full overflow-x-hidden", className)}
       style={{
         overscrollBehavior: 'contain',
         WebkitOverflowScrolling: 'touch',
