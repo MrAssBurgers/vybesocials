@@ -292,7 +292,7 @@ export function AutoFriendDrop() {
 
       {/* Exchange Modal */}
       <Dialog open={isActive} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md p-0 border-0 bg-transparent overflow-hidden">
+        <DialogContent className="sm:max-w-md p-0 border-0 bg-transparent overflow-hidden [&>button]:hidden">
           <AnimatePresence mode="wait">
             {phase === 'activated' && (
               <motion.div
