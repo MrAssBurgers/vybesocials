@@ -47,22 +47,8 @@ export default function AuthCallback() {
         // Ensure profile exists for first-time OAuth users
         await supabase.rpc("ensure_profile");
 
-        // If we're returning to an invite route, let InviteRedeem own the flow.
-        if (nextPath.startsWith("/invite/")) {
-          navigate(nextPath, { replace: true });
-          return;
-        }
-
-        // Decide where to send the user
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("onboarding_completed")
-          .eq("user_id", session.user.id)
-          .maybeSingle();
-
-        if (profileError) throw profileError;
-
-        navigate(profile?.onboarding_completed ? "/home" : "/onboarding", { replace: true });
+        // Always go to /home after successful OAuth login
+        navigate("/home", { replace: true });
       } catch (e: any) {
         if (cancelled) return;
         setError(getUserFriendlyError(e));

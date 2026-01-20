@@ -123,7 +123,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
         toast.success('Welcome back! ✨');
-        // Auth state change will trigger redirect via useEffect
+        // Direct navigation to /home after successful login
+        if (isInviteMode && onInviteNavigate) {
+          onInviteNavigate('home');
+        } else {
+          navigate('/home', { replace: true });
+        }
       } else {
         if (!formData.username.trim()) {
           throw new Error('Username is required');
@@ -131,7 +136,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         const { error } = await signUp(formData.email, formData.password, formData.username);
         if (error) throw error;
         toast.success('Welcome to VYBE! 🎉');
-        navTo('onboarding', '/onboarding');
+        // Direct navigation to /home after successful signup
+        if (isInviteMode && onInviteNavigate) {
+          onInviteNavigate('home');
+        } else {
+          navigate('/home', { replace: true });
+        }
       }
     } catch (error: any) {
       toast.error(getUserFriendlyError(error));
