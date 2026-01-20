@@ -1,4 +1,4 @@
-import { useState, useEffect, memo } from 'react';
+import { useEffect, memo } from 'react';
 import './lib/i18n';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -12,7 +12,6 @@ import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
 import { CallStoreProvider } from "@/lib/callStore";
 import { GlobalCallOverlay } from "@/components/call/GlobalCallOverlay";
-import { SplashScreen } from "@/components/ui/SplashScreen";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
@@ -28,9 +27,9 @@ import { BannedScreen } from "@/components/auth/BannedScreen";
 import { MemeBanScreen } from "@/components/auth/MemeBanScreen";
 import { InvitePopup } from "@/components/invite/InvitePopup";
 import { useBanStatus } from "@/hooks/useBanStatus";
-import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
+import { AppReadinessGate } from "@/components/app/AppReadinessGate";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -93,40 +92,16 @@ function BanCheck() {
   );
 }
 
-// Track if initial load has completed (persists across navigations)
-let hasInitialLoadCompleted = false;
-
-// Preloader wrapper component - must be inside QueryClientProvider
-function AppWithPreloader() {
-  const preloadStatus = useAppPreloader();
-  // Only show splash on truly initial load, not on navigation
-  const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
-  
+// App shell - must be inside QueryClientProvider
+function AppShell() {
   // Auto-update checker
   useAutoUpdate();
-  
+
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
 
-  useEffect(() => {
-    // Only hide splash when preloading is truly complete
-    if (preloadStatus.isComplete && showSplash) {
-      // Small delay for smooth transition
-      const timer = setTimeout(() => {
-        setShowSplash(false);
-        hasInitialLoadCompleted = true;
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [preloadStatus.isComplete, showSplash]);
-
   return (
     <>
-      <SplashScreen 
-        isVisible={showSplash} 
-        status={preloadStatus.step}
-        progress={preloadStatus.progress}
-      />
       <GlobalErrorHandler />
       <AuthProvider>
         <CustomThemeProvider>
@@ -139,14 +114,16 @@ function AppWithPreloader() {
                   <BrowserRouter>
                     <TutorialProvider>
                       <ScrollRestoration />
-                      <AnimatedRoutes />
-                      <RootBottomNavMount />
-                      <PushNotificationPrompt />
-                      <GlobalMessageNotifications />
-                      <GlobalCallOverlay />
-                      <WarningPopup />
-                      <InvitePopup />
-                      <BanCheck />
+                      <AppReadinessGate>
+                        <AnimatedRoutes />
+                        <RootBottomNavMount />
+                        <PushNotificationPrompt />
+                        <GlobalMessageNotifications />
+                        <GlobalCallOverlay />
+                        <WarningPopup />
+                        <InvitePopup />
+                        <BanCheck />
+                      </AppReadinessGate>
                     </TutorialProvider>
                   </BrowserRouter>
                 </TooltipProvider>
@@ -166,7 +143,7 @@ const App = memo(() => {
         <ThemeProvider>
           <GlassIntensityProvider>
             <AccessibilityProvider>
-              <AppWithPreloader />
+              <AppShell />
             </AccessibilityProvider>
           </GlassIntensityProvider>
         </ThemeProvider>
