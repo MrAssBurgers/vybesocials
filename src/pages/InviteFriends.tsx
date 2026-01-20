@@ -11,6 +11,7 @@ import { useInviteStats, useUserBadges, getInviteUrl } from '@/hooks/useInvites'
 import { InviteLeaderboard } from '@/components/invite/InviteLeaderboard';
 import { NFCInviteShare } from '@/components/invite/NFCInviteShare';
 import { BumpToShare } from '@/components/invite/BumpToShare';
+import { PersonalQRCode } from '@/components/invite/PersonalQRCode';
 import { useAuth } from '@/lib/auth';
 import { analytics } from '@/lib/analytics';
 import { toast } from 'sonner';
@@ -69,10 +70,6 @@ export default function InviteFriends() {
   const nextMilestone = MILESTONES.find(m => m.count > currentCount) || MILESTONES[MILESTONES.length - 1];
   const progress = Math.min((currentCount / nextMilestone.count) * 100, 100);
   
-  // QR code URL
-  const qrCodeUrl = inviteUrl 
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(inviteUrl)}&bgcolor=1a1a1a&color=ffffff`
-    : '';
   
   return (
     <AppLayout>
@@ -145,15 +142,13 @@ export default function InviteFriends() {
                 </Button>
               </div>
               
-              {showQR && qrCodeUrl && (
+              {showQR && inviteUrl && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="flex justify-center pt-4"
+                  className="flex justify-center pt-6 pb-2"
                 >
-                  <div className="p-4 bg-white rounded-xl">
-                    <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48" />
-                  </div>
+                  <PersonalQRCode data={inviteUrl} size={220} />
                 </motion.div>
               )}
             </>
