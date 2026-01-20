@@ -146,15 +146,15 @@ export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center gap-6 py-8"
+            className="flex flex-col items-center gap-6 py-6"
           >
             <div className="relative">
               <motion.div 
-                className="w-32 h-32 rounded-full bg-primary/20 flex items-center justify-center"
+                className="w-28 h-28 rounded-full bg-primary/20 flex items-center justify-center"
                 animate={{ scale: [1, 1.05, 1] }}
                 transition={{ repeat: Infinity, duration: 2 }}
               >
-                <Nfc className="h-16 w-16 text-primary" />
+                <Nfc className="h-14 w-14 text-primary" />
               </motion.div>
               {/* NFC waves */}
               {[1, 2, 3].map((i) => (
@@ -174,9 +174,16 @@ export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
             </div>
             
             <div className="text-center space-y-2">
-              <h3 className="text-lg font-semibold">NFC Invite Sharing</h3>
+              <h3 className="text-lg font-semibold">Write to NFC Tag</h3>
               <p className="text-muted-foreground text-sm max-w-xs">
-                Turn your phone into an NFC tag! Anyone who taps their phone to yours will get your invite link.
+                Write your invite link to a <span className="font-medium text-foreground">physical NFC tag/sticker</span>. Anyone who taps it will get your link!
+              </p>
+            </div>
+            
+            {/* Important limitation notice */}
+            <div className="w-full p-3 rounded-xl bg-muted/50 border border-border">
+              <p className="text-xs text-muted-foreground text-center">
+                <span className="font-medium text-foreground">⚠️ Note:</span> NFC doesn't work phone-to-phone in browsers. Use <span className="font-medium">QR codes</span> to share with friends directly!
               </p>
             </div>
             
@@ -186,7 +193,7 @@ export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
               size="lg"
             >
               <Radio className="h-5 w-5" />
-              Start Broadcasting
+              Write to NFC Tag
             </Button>
           </motion.div>
         );
@@ -258,10 +265,10 @@ export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
                 animate={{ opacity: [1, 0.7, 1] }}
                 transition={{ repeat: Infinity, duration: 1 }}
               >
-                📡 Broadcasting...
+                📡 Ready to Write...
               </motion.h3>
               <p className="text-muted-foreground text-sm max-w-xs">
-                Your phone is now an NFC invite tag! Have friends tap their phone against yours.
+                Tap a <span className="font-medium text-foreground">physical NFC tag</span> to write your invite link to it.
               </p>
             </div>
             
