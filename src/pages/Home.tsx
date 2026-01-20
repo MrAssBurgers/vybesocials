@@ -76,7 +76,7 @@ interface HomePageProps {
 
 export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const navigate = useNavigate();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, authReady } = useAuth();
   const [activeTab, setActiveTab] = useState('foryou');
   
   const {
@@ -192,7 +192,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
   // Keep guests browsing, but never force "Complete Profile" for returning users.
   useEffect(() => {
-    if (authLoading) return;
+    // CRITICAL: Wait for authReady, not just authLoading
+    if (!authReady) return;
 
     // If in invite mode (rendered from InviteRedeem), never redirect
     if (isInviteMode) {
@@ -212,9 +213,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         console.log('[Home] Skipping onboarding redirect - active referral/invite in progress');
         return;
       }
-      navigate('/onboarding');
+      navigate('/onboarding', { replace: true });
     }
-  }, [authLoading, user, profile, navigate, isInviteMode]);
+  }, [authReady, user, profile, navigate, isInviteMode]);
 
   return (
     <AppLayout>

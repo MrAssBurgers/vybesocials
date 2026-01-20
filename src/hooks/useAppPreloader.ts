@@ -91,17 +91,20 @@ export function useAppPreloader() {
 
         const uid = session.user.id;
 
-        // Step 3: Load profile
+        // Step 3: Load profile by user_id (not id!)
         updateStatus('profile');
         const { data: profile } = await supabase
           .from('profiles')
-          .select('id, username, avatar_url, display_name, bio, is_verified')
-          .eq('id', uid)
+          .select('id, username, avatar_url, display_name, bio')
+          .eq('user_id', uid)
           .maybeSingle();
 
         if (profile) {
           queryClient.setQueryData(['profile', uid], profile);
         }
+        
+        // Use profile.id for queries that need profile id
+        const profileId = profile?.id;
 
         // Step 4: Load critical data in parallel for speed
         updateStatus('data');
@@ -114,7 +117,7 @@ export function useAppPreloader() {
               conversation:conversations!inner(id, name, is_group, avatar_url, updated_at),
               is_muted, is_pinned, last_read_at
             `)
-            .eq('user_id', uid)
+            .eq('user_id', profileId || uid)
             .order('conversation(updated_at)', { ascending: false })
             .limit(30),
           

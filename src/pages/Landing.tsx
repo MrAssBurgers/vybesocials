@@ -35,7 +35,7 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, signIn, signUp } = useAuth();
+  const { user, authReady, signIn, signUp, profile } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
@@ -68,45 +68,39 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     }
   }, [modeParam]);
 
-  // Redirect authenticated users:
-  // - Completed onboarding -> /home
-  // - Not completed -> /onboarding
-  // IMPORTANT: Don't redirect if user entered via invite link - let them complete the flow
-  // When isInviteMode=true, this component is rendered inline from InviteRedeem
+  // Redirect authenticated users ONLY after auth is fully ready
   const location = useLocation();
   const isInviteRoute = location.pathname.startsWith('/invite/');
 
   useEffect(() => {
-    async function checkAndRedirect() {
-      // In invite mode, auth check and redirects are handled by parent (InviteRedeem)
-      if (isInviteMode) {
-        console.log('[Landing] In invite mode - auth redirects handled by InviteRedeem');
-        return;
-      }
-
-      if (!user) return;
-
-      // If on invite route or in invite entry mode, don't auto-redirect
-      if (isInviteRoute || isInviteEntryMode()) {
-        console.log('[Landing] In invite flow, skipping auto-redirect');
-        return;
-      }
-
-      const { data: profileRow } = await supabase
-        .from('profiles')
-        .select('onboarding_completed')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (profileRow?.onboarding_completed) {
-        navigate('/home');
-      } else {
-        navigate('/onboarding');
-      }
+    // CRITICAL: Wait for authReady before any redirect logic
+    if (!authReady) return;
+    
+    // In invite mode, parent handles redirects
+    if (isInviteMode) {
+      console.log('[Landing] In invite mode - redirects handled by InviteRedeem');
+      return;
     }
 
-    checkAndRedirect();
-  }, [user, navigate, isInviteRoute, isInviteMode]);
+    // No user = stay on landing
+    if (!user) return;
+
+    // If on invite route or in invite entry mode, don't auto-redirect
+    if (isInviteRoute || isInviteEntryMode()) {
+      console.log('[Landing] In invite flow, skipping auto-redirect');
+      return;
+    }
+
+    // Wait for profile to load before deciding where to go
+    if (!profile) return;
+
+    // Redirect based on onboarding status
+    if (profile.onboarding_completed) {
+      navigate('/home', { replace: true });
+    } else {
+      navigate('/onboarding', { replace: true });
+    }
+  }, [authReady, user, profile, navigate, isInviteRoute, isInviteMode]);
 
   // Only hide the landing page if we're about to redirect (handled in useEffect)
   // Don't return null immediately - let the useEffect decide
@@ -129,24 +123,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
         toast.success('Welcome back! ✨');
-
-        // Never send users to CompleteProfile on login
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (currentUser) {
-          const { data: profileRow } = await supabase
-            .from('profiles')
-            .select('onboarding_completed')
-            .eq('user_id', currentUser.id)
-            .maybeSingle();
-
-          if (profileRow?.onboarding_completed) {
-            navTo('home', '/home');
-          } else {
-            navTo('onboarding', '/onboarding');
-          }
-        } else {
-          navTo('home', '/home');
-        }
+        // Auth state change will trigger redirect via useEffect
       } else {
         if (!formData.username.trim()) {
           throw new Error('Username is required');
