@@ -104,33 +104,8 @@ export function useConversations() {
     queryFn: async () => {
       if (!profile?.id) return [];
 
-      // First get the user's conversation IDs from both conversation_members AND group_members
-      const [dmMemberships, groupMemberships] = await Promise.all([
-        supabase
-          .from('conversation_members')
-          .select('conversation_id')
-          .eq('user_id', profile.id),
-        supabase
-          .from('group_members')
-          .select('conversation_id')
-          .eq('user_id', profile.id),
-      ]);
-
-      if (dmMemberships.error) throw dmMemberships.error;
-      if (groupMemberships.error) throw groupMemberships.error;
-
-      // Combine unique conversation IDs from both tables
-      const allMemberships = [
-        ...(dmMemberships.data || []),
-        ...(groupMemberships.data || []),
-      ];
-      
-      if (!allMemberships.length) return [];
-
-      const userConversationIds = [...new Set(allMemberships.map(m => m.conversation_id))];
-
       // Fetch hidden conversations and conversations in parallel
-      const [hiddenResult, conversationsResult, groupMembersResult] = await Promise.all([
+      const [hiddenResult, conversationsResult] = await Promise.all([
         supabase
           .from('hidden_conversations')
           .select('conversation_id')
@@ -148,19 +123,7 @@ export function useConversations() {
               profile:profiles(id, username, avatar_url, display_name)
             )
           `)
-          .in('id', userConversationIds)
           .order('updated_at', { ascending: false }),
-        // Also fetch group_members for group chats
-        supabase
-          .from('group_members')
-          .select(`
-            conversation_id,
-            user_id,
-            role,
-            is_muted,
-            profile:profiles(id, username, avatar_url, display_name)
-          `)
-          .in('conversation_id', userConversationIds),
       ]);
 
       const hiddenIds = new Set((hiddenResult.data || []).map(h => h.conversation_id));
@@ -168,37 +131,11 @@ export function useConversations() {
       if (conversationsResult.error) throw conversationsResult.error;
       if (!conversationsResult.data?.length) return [];
 
-      // Merge group_members into conversations that are groups
-      const groupMembersByConvId = new Map<string, any[]>();
-      (groupMembersResult.data || []).forEach(gm => {
-        const existing = groupMembersByConvId.get(gm.conversation_id) || [];
-        existing.push({
-          user_id: gm.user_id,
-          role: gm.role,
-          is_muted: gm.is_muted,
-          is_pinned: false,
-          last_read_at: null,
-          profile: gm.profile,
-        });
-        groupMembersByConvId.set(gm.conversation_id, existing);
-      });
-
-      // Enhance conversations with group members where applicable
-      const enhancedConversations = conversationsResult.data.map(conv => {
-        if (conv.is_group && groupMembersByConvId.has(conv.id)) {
-          // Use group_members for group chats
-          return {
-            ...conv,
-            members: groupMembersByConvId.get(conv.id),
-          };
-        }
-        return conv;
-      });
       // Filter out hidden conversations (unless there's a new message - handled below)
-      const conversations = enhancedConversations.filter(c => !hiddenIds.has(c.id));
+      const conversations = conversationsResult.data.filter(c => !hiddenIds.has(c.id));
 
       // Batch fetch last messages for all conversations
-      const convIds = enhancedConversations.map(c => c.id);
+      const convIds = conversations.map(c => c.id);
       const { data: allMessages } = await supabase
         .from('messages')
         .select('*')
@@ -215,7 +152,7 @@ export function useConversations() {
       });
 
       // Check if any hidden conversations have new messages - unhide them
-      const hiddenConvsWithNewMessages = enhancedConversations.filter(c => {
+      const hiddenConvsWithNewMessages = conversationsResult.data.filter(c => {
         if (!hiddenIds.has(c.id)) return false;
         const memberRecord = c.members?.find((m: any) => m.user_id === profile.id);
         const hiddenAt = hiddenResult.data?.find(h => h.conversation_id === c.id);
@@ -266,9 +203,9 @@ export function useConversations() {
       return result as Conversation[];
     },
     enabled: !!profile?.id,
-    staleTime: 10000, // 10 seconds cache for faster updates
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
+    staleTime: 30000, // 30 seconds cache
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Real-time subscription for conversations with notification sound

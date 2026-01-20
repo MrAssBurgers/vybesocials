@@ -286,8 +286,8 @@ export default function AIChat() {
   };
 
   return (
-    <AppLayout hideNav className="h-screen overflow-hidden">
-      <div className="flex flex-col h-[100dvh] bg-background overflow-hidden">
+    <AppLayout>
+      <div className="flex flex-col h-[calc(100vh-5rem)] md:h-screen bg-background">
         {/* Header */}
         <div className="p-4 border-b border-border flex items-center gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
           <Button variant="ghost" size="icon" onClick={() => navigate('/messages')}>
@@ -335,7 +335,7 @@ export default function AIChat() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((message, index) => (
             <div
               key={index}
