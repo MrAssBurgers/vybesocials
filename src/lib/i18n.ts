@@ -67,9 +67,12 @@ i18n
       escapeValue: false,
     },
     detection: {
-      order: ['localStorage', 'navigator', 'htmlTag'],
+      order: ['navigator', 'localStorage', 'htmlTag'],
+      lookupLocalStorage: 'i18nextLng',
       caches: ['localStorage'],
     },
+    supportedLngs: ['en', 'ko', 'es', 'ja', 'fr', 'de', 'pt', 'zh', 'hi', 'ar', 'ru', 'it', 'tr', 'id', 'th', 'vi'],
+    load: 'languageOnly',
   });
 
 export default i18n;
