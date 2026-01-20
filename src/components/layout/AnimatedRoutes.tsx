@@ -1,4 +1,4 @@
-import { lazy, Suspense, memo, useMemo } from 'react';
+import { lazy, Suspense, memo } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -6,6 +6,7 @@ import { isLowEndDevice } from '@/lib/performanceConfig';
 
 // Lazy load pages for code splitting with webpackPrefetch hints
 const Landing = lazy(() => import("@/pages/Landing"));
+const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 const Home = lazy(() => import(/* webpackPrefetch: true */ "@/pages/Home"));
 const Shorts = lazy(() => import("@/pages/Shorts"));
 const Explore = lazy(() => import(/* webpackPrefetch: true */ "@/pages/Explore"));
