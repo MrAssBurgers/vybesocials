@@ -182,64 +182,64 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const renderFinalImage = useCallback(async (): Promise<string> => {
     if (!capturedImage) throw new Error('No image captured');
 
+    // If no overlays, just return the captured image directly
+    if (textOverlays.length === 0) {
+      return capturedImage;
+    }
+
     return new Promise((resolve, reject) => {
       const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Canvas context failed'));
-          return;
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Canvas context failed'));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0);
+
+          textOverlays.forEach(overlay => {
+            ctx.save();
+            const x = (overlay.x / 100) * img.width;
+            const y = (overlay.y / 100) * img.height;
+            
+            ctx.translate(x, y);
+            ctx.rotate((overlay.rotation * Math.PI) / 180);
+            
+            ctx.font = `bold ${overlay.fontSize * (img.width / 400)}px sans-serif`;
+            ctx.fillStyle = overlay.color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(0,0,0,0.6)';
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+            
+            ctx.fillText(overlay.text, 0, 0);
+            ctx.restore();
+          });
+
+          resolve(canvas.toDataURL('image/jpeg', 0.9));
+        } catch (err) {
+          reject(err);
         }
-
-        ctx.drawImage(img, 0, 0);
-
-        textOverlays.forEach(overlay => {
-          ctx.save();
-          const x = (overlay.x / 100) * img.width;
-          const y = (overlay.y / 100) * img.height;
-          
-          ctx.translate(x, y);
-          ctx.rotate((overlay.rotation * Math.PI) / 180);
-          
-          ctx.font = `bold ${overlay.fontSize * (img.width / 400)}px sans-serif`;
-          ctx.fillStyle = overlay.color;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.shadowColor = 'rgba(0,0,0,0.6)';
-          ctx.shadowBlur = 6;
-          ctx.shadowOffsetX = 2;
-          ctx.shadowOffsetY = 2;
-          
-          ctx.fillText(overlay.text, 0, 0);
-          ctx.restore();
-        });
-
-        resolve(canvas.toDataURL('image/jpeg', 0.9));
       };
-      img.onerror = () => reject(new Error('Image load failed'));
+      
+      img.onerror = (e) => {
+        console.error('Image load error:', e);
+        // Fallback: return original image without overlays
+        resolve(capturedImage);
+      };
+      
       img.src = capturedImage;
     });
   }, [capturedImage, textOverlays]);
-
-  // Send the vybe
-  const handleSend = useCallback(async () => {
-    if (!capturedImage || isSending) return;
-
-    setIsSending(true);
-    haptics.success();
-
-    try {
-      const finalImage = await renderFinalImage();
-      await onSend(finalImage);
-      handleClose();
-    } catch (error) {
-      console.error('Failed to send vybe:', error);
-      setIsSending(false);
-    }
-  }, [capturedImage, isSending, renderFinalImage, onSend]);
 
   // Close and reset
   const handleClose = useCallback(() => {
@@ -252,6 +252,29 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     setCurrentText('');
     onClose();
   }, [stopCamera, onClose]);
+
+  // Send the vybe
+  const handleSend = useCallback(async () => {
+    if (!capturedImage || isSending) return;
+
+    setIsSending(true);
+    haptics.success();
+
+    try {
+      const finalImage = await renderFinalImage();
+      onSend(finalImage);
+      handleClose();
+    } catch (error) {
+      console.error('Failed to send vybe:', error);
+      // Try sending original image as fallback
+      try {
+        onSend(capturedImage);
+        handleClose();
+      } catch {
+        setIsSending(false);
+      }
+    }
+  }, [capturedImage, isSending, renderFinalImage, onSend, handleClose]);
 
   // Retake photo
   const handleRetake = () => {
