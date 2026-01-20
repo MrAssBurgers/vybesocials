@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ArrowLeft, Users, Check, Clock, UserPlus, Nfc } from "lucide-react";
+import { Search, ArrowLeft, Users, Check, Clock, UserPlus, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { RecentMessageUser } from "@/lib/recentMessageUsers";
 import { useFriendshipStatus, useSendFriendRequest, useFriends, useRespondToFriendRequest } from "@/hooks/useFriends";
 import { cn } from "@/lib/utils";
+import { FriendDrop } from "@/components/friends/FriendDrop";
 import { NFCFriendShare } from "@/components/friends/NFCFriendShare";
 
 function FriendshipBadge({ userId }: { userId: string }) {
@@ -211,21 +212,13 @@ export default function NewMessage() {
           <div className="flex-1">
             <h1 className="text-lg font-semibold">Add Friends</h1>
           </div>
+          <FriendDrop variant="icon" />
           <NFCFriendShare variant="icon" />
         </header>
 
         <main className="p-4 space-y-4">
-          {/* NFC Banner */}
-          <div className="rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-              <Nfc className="h-6 w-6 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm">Quick Add with NFC</p>
-              <p className="text-xs text-muted-foreground">Tap phones together to instantly add friends</p>
-            </div>
-            <NFCFriendShare variant="button" className="shrink-0" />
-          </div>
+          {/* FriendDrop Banner */}
+          <FriendDrop variant="banner" />
 
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
