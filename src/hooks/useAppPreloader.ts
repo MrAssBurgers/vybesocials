@@ -46,6 +46,22 @@ const preloadVideoMetadata = (url: string): Promise<void> => {
   });
 };
 
+type GetSessionResponse = Awaited<ReturnType<typeof supabase.auth.getSession>>;
+
+const getSessionSafe = async (): Promise<GetSessionResponse> => {
+  // If auth is blocked for any reason, never keep the splash screen stuck.
+  const TIMEOUT_MS = 4000;
+  return await Promise.race([
+    supabase.auth.getSession(),
+    new Promise<GetSessionResponse>((resolve) =>
+      setTimeout(
+        () => resolve({ data: { session: null }, error: null } as GetSessionResponse),
+        TIMEOUT_MS
+      )
+    ),
+  ]);
+};
+
 export function useAppPreloader() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<PreloadStatus>({
@@ -79,9 +95,9 @@ export function useAppPreloader() {
         // Step 1: Initialize
         updateStatus('init');
 
-        // Step 2: Check authentication
+        // Step 2: Check authentication (guarded with a timeout to avoid a stuck splash)
         updateStatus('auth');
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await getSessionSafe();
 
         if (!session?.user) {
           // Not logged in - minimal load, done instantly
