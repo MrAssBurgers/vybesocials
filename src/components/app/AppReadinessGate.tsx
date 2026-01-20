@@ -13,17 +13,31 @@ type GateState = {
   progress: number;
 };
 
-async function retryOnce<T>(fn: () => Promise<T>): Promise<T> {
+const DEFAULT_TIMEOUT_MS = 8000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      const id = setTimeout(() => {
+        clearTimeout(id);
+        reject(new Error(`${label} timed out after ${ms}ms`));
+      }, ms);
+    }),
+  ]);
+}
+
+async function retryOnce<T>(label: string, fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
-  } catch (e) {
+  } catch {
     return await fn();
   }
 }
 
-async function safe<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
+async function safe<T>(label: string, fn: () => Promise<T>, fallback: T, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<T> {
   try {
-    return await retryOnce(fn);
+    return await retryOnce(label, () => withTimeout(fn(), timeoutMs, label));
   } catch (e) {
     console.warn(`[AppGate] ${label} failed (using fallback):`, e);
     return fallback;
