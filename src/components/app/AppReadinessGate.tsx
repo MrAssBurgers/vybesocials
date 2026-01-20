@@ -57,13 +57,14 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const location = useLocation();
 
-  const [state, setState] = useState<GateState>({
-    authLoading: true,
+  // Start ready for guests; only block if we detect a user session
+  const [state, setState] = useState<GateState>(() => ({
+    authLoading: false,
     dataLoading: false,
-    appReady: false,
-    step: "Authenticating…",
-    progress: 0,
-  });
+    appReady: true,
+    step: "Ready",
+    progress: 100,
+  }));
 
   const inFlightRef = useRef<Promise<void> | null>(null);
   const bootstrappedUserIdRef = useRef<string | null>(null);
@@ -73,34 +74,38 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     return match?.[1] ?? null;
   }, [location.pathname]);
 
-  // A) + B) Auth loading gate
+  // A) + B) Auth loading gate - only show loading when there's a user session to bootstrap
   useEffect(() => {
+    // If auth not resolved yet but we already have cached user, start loading state
     if (!authReady) {
-      setState((s) => ({
-        ...s,
-        authLoading: true,
-        dataLoading: false,
-        appReady: false,
-        step: "Authenticating…",
-        progress: Math.min(s.progress, 20),
-      }));
+      // Don't block guests - only block if we know there's a user
       return;
     }
 
-    // Auth is resolved (either with or without a session)
-    setState((s) => ({
-      ...s,
-      authLoading: false,
-      // dataLoading/appReady handled below
-      step: user ? "Loading your session…" : s.step,
-      progress: user ? Math.max(s.progress, 25) : 100,
-      appReady: user ? s.appReady : true,
-      dataLoading: user ? s.dataLoading : false,
-    }));
-
+    // Auth resolved with no user = guest, stay ready
     if (!user) {
+      setState({
+        authLoading: false,
+        dataLoading: false,
+        appReady: true,
+        step: "Ready",
+        progress: 100,
+      });
       bootstrappedUserIdRef.current = null;
       inFlightRef.current = null;
+      return;
+    }
+
+    // Auth resolved with user - if not yet bootstrapped, start loading
+    if (bootstrappedUserIdRef.current !== user.id && !inFlightRef.current) {
+      setState((s) => ({
+        ...s,
+        authLoading: false,
+        dataLoading: true,
+        appReady: false,
+        step: "Loading your session…",
+        progress: 25,
+      }));
     }
   }, [authReady, user]);
 
