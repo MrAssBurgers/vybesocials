@@ -1,0 +1,438 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { QrCode, Camera, X, Check, Sparkles, Zap, ArrowDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { useAuth } from '@/lib/auth';
+import { getInviteUrl } from '@/hooks/useInvites';
+import { haptics } from '@/lib/haptics';
+import { toast } from 'sonner';
+
+interface BumpToShareProps {
+  variant?: 'button' | 'icon';
+}
+
+type SharePhase = 'idle' | 'showing-qr' | 'scanning' | 'success';
+
+export function BumpToShare({ variant = 'button' }: BumpToShareProps) {
+  const { profile } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+  const [phase, setPhase] = useState<SharePhase>('idle');
+  const [mode, setMode] = useState<'share' | 'receive'>('share');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const inviteUrl = profile?.username ? getInviteUrl(profile.username) : '';
+  
+  // Generate QR code URL
+  const qrCodeUrl = inviteUrl 
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(inviteUrl)}&bgcolor=000000&color=ffffff&format=svg`
+    : '';
+
+  const handleOpen = useCallback(() => {
+    if (!profile?.username) {
+      toast.error('Complete your profile first');
+      return;
+    }
+    setIsOpen(true);
+    setPhase('idle');
+    setMode('share');
+  }, [profile?.username]);
+
+  const showMyCode = useCallback(() => {
+    setMode('share');
+    setPhase('showing-qr');
+    haptics.tap();
+  }, []);
+
+  const startScanning = useCallback(async () => {
+    setMode('receive');
+    setPhase('scanning');
+    haptics.tap();
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+      streamRef.current = stream;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+
+      // Start QR code detection
+      // Note: Using BarcodeDetector API if available, otherwise manual detection
+      if ('BarcodeDetector' in window) {
+        const barcodeDetector = new (window as any).BarcodeDetector({
+          formats: ['qr_code']
+        });
+
+        scanIntervalRef.current = setInterval(async () => {
+          if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+            try {
+              const barcodes = await barcodeDetector.detect(videoRef.current);
+              if (barcodes.length > 0) {
+                const url = barcodes[0].rawValue;
+                if (url && url.includes('vybehub.app/invite/')) {
+                  handleScanSuccess(url);
+                }
+              }
+            } catch (e) {
+              // Detection failed, continue scanning
+            }
+          }
+        }, 200);
+      } else {
+        // Fallback: manual URL input or use a QR library
+        toast.info('QR scanning ready! Point at the code.', {
+          description: 'Tap the screen when aligned'
+        });
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      toast.error('Could not access camera');
+      setPhase('idle');
+    }
+  }, []);
+
+  const handleScanSuccess = useCallback((url: string) => {
+    // Stop scanning
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+
+    setPhase('success');
+    haptics.success();
+    
+    // Open the invite link
+    setTimeout(() => {
+      window.location.href = url;
+    }, 1500);
+  }, []);
+
+  const stopScanning = useCallback(() => {
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+    setPhase('idle');
+  }, []);
+
+  const handleClose = useCallback(() => {
+    stopScanning();
+    setIsOpen(false);
+    setPhase('idle');
+  }, [stopScanning]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const renderContent = () => {
+    if (phase === 'idle') {
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center gap-6 py-8"
+        >
+          <div className="relative">
+            <motion.div
+              className="w-24 h-24 rounded-2xl bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center"
+              animate={{ 
+                rotate: [0, 5, -5, 0],
+                scale: [1, 1.02, 1]
+              }}
+              transition={{ repeat: Infinity, duration: 3 }}
+            >
+              <Zap className="h-12 w-12 text-primary-foreground" />
+            </motion.div>
+            <motion.div
+              className="absolute -bottom-2 left-1/2 -translate-x-1/2"
+              animate={{ y: [0, 5, 0] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            >
+              <ArrowDown className="h-6 w-6 text-muted-foreground" />
+            </motion.div>
+          </div>
+
+          <div className="text-center space-y-2">
+            <h3 className="text-xl font-bold">Bump to Share</h3>
+            <p className="text-muted-foreground text-sm max-w-xs">
+              Instant QR sharing — just show your code or scan theirs!
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 w-full max-w-xs">
+            <Button 
+              onClick={showMyCode}
+              className="w-full gradient-animated gap-2"
+              size="lg"
+            >
+              <QrCode className="h-5 w-5" />
+              Show My Code
+            </Button>
+            <Button 
+              onClick={startScanning}
+              variant="outline"
+              className="w-full gap-2"
+              size="lg"
+            >
+              <Camera className="h-5 w-5" />
+              Scan Their Code
+            </Button>
+          </div>
+        </motion.div>
+      );
+    }
+
+    if (phase === 'showing-qr') {
+      return (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-6 py-4"
+        >
+          {/* Animated QR container */}
+          <div className="relative">
+            {/* Pulsing glow */}
+            <motion.div
+              className="absolute inset-0 rounded-3xl bg-primary/30 blur-xl"
+              animate={{ 
+                scale: [1, 1.1, 1],
+                opacity: [0.3, 0.5, 0.3]
+              }}
+              transition={{ repeat: Infinity, duration: 2 }}
+            />
+            
+            {/* QR Code */}
+            <motion.div 
+              className="relative p-6 rounded-3xl bg-black border-2 border-primary/50"
+              animate={{ 
+                boxShadow: [
+                  '0 0 20px hsl(var(--primary) / 0.3)',
+                  '0 0 40px hsl(var(--primary) / 0.5)',
+                  '0 0 20px hsl(var(--primary) / 0.3)'
+                ]
+              }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            >
+              <img 
+                src={qrCodeUrl} 
+                alt="Your invite QR code" 
+                className="w-56 h-56 sm:w-64 sm:h-64"
+              />
+              
+              {/* Corner accents */}
+              {[0, 1, 2, 3].map((i) => (
+                <motion.div
+                  key={i}
+                  className="absolute w-8 h-8 border-primary"
+                  style={{
+                    top: i < 2 ? -2 : 'auto',
+                    bottom: i >= 2 ? -2 : 'auto',
+                    left: i % 2 === 0 ? -2 : 'auto',
+                    right: i % 2 === 1 ? -2 : 'auto',
+                    borderTopWidth: i < 2 ? 3 : 0,
+                    borderBottomWidth: i >= 2 ? 3 : 0,
+                    borderLeftWidth: i % 2 === 0 ? 3 : 0,
+                    borderRightWidth: i % 2 === 1 ? 3 : 0,
+                    borderTopLeftRadius: i === 0 ? 12 : 0,
+                    borderTopRightRadius: i === 1 ? 12 : 0,
+                    borderBottomLeftRadius: i === 2 ? 12 : 0,
+                    borderBottomRightRadius: i === 3 ? 12 : 0,
+                  }}
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
+                />
+              ))}
+            </motion.div>
+
+            {/* Sparkles */}
+            <motion.div
+              className="absolute -top-3 -right-3"
+              animate={{ rotate: 360, scale: [1, 1.2, 1] }}
+              transition={{ rotate: { repeat: Infinity, duration: 4 }, scale: { repeat: Infinity, duration: 1 } }}
+            >
+              <Sparkles className="h-8 w-8 text-primary" />
+            </motion.div>
+          </div>
+
+          <div className="text-center space-y-1">
+            <p className="font-semibold">@{profile?.username}</p>
+            <p className="text-sm text-muted-foreground">
+              Have your friend scan this code
+            </p>
+          </div>
+
+          <Button 
+            variant="ghost" 
+            onClick={() => setPhase('idle')}
+            className="gap-2"
+          >
+            <Camera className="h-4 w-4" />
+            Switch to Scanner
+          </Button>
+        </motion.div>
+      );
+    }
+
+    if (phase === 'scanning') {
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col items-center gap-4 py-4"
+        >
+          {/* Camera viewfinder */}
+          <div className="relative w-full max-w-xs aspect-square rounded-2xl overflow-hidden bg-black">
+            <video 
+              ref={videoRef} 
+              className="w-full h-full object-cover"
+              playsInline
+              muted
+            />
+            <canvas ref={canvasRef} className="hidden" />
+            
+            {/* Scanning overlay */}
+            <div className="absolute inset-0 pointer-events-none">
+              {/* Corner brackets */}
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="absolute w-12 h-12 border-primary"
+                  style={{
+                    top: i < 2 ? 16 : 'auto',
+                    bottom: i >= 2 ? 16 : 'auto',
+                    left: i % 2 === 0 ? 16 : 'auto',
+                    right: i % 2 === 1 ? 16 : 'auto',
+                    borderTopWidth: i < 2 ? 3 : 0,
+                    borderBottomWidth: i >= 2 ? 3 : 0,
+                    borderLeftWidth: i % 2 === 0 ? 3 : 0,
+                    borderRightWidth: i % 2 === 1 ? 3 : 0,
+                  }}
+                />
+              ))}
+              
+              {/* Scanning line */}
+              <motion.div
+                className="absolute left-4 right-4 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent"
+                animate={{ top: ['15%', '85%', '15%'] }}
+                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+              />
+            </div>
+          </div>
+
+          <p className="text-sm text-muted-foreground text-center">
+            Point camera at their QR code
+          </p>
+
+          <Button 
+            variant="ghost" 
+            onClick={() => {
+              stopScanning();
+              setPhase('idle');
+            }}
+            className="gap-2"
+          >
+            <QrCode className="h-4 w-4" />
+            Show My Code Instead
+          </Button>
+        </motion.div>
+      );
+    }
+
+    if (phase === 'success') {
+      return (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-6 py-12"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", bounce: 0.5 }}
+            className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center"
+          >
+            <Check className="h-12 w-12 text-primary" />
+          </motion.div>
+          
+          <div className="text-center">
+            <h3 className="text-xl font-bold">Code Scanned!</h3>
+            <p className="text-muted-foreground text-sm mt-1">
+              Opening invite link...
+            </p>
+          </div>
+        </motion.div>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <>
+      {variant === 'icon' ? (
+        <Button 
+          variant="outline" 
+          size="icon" 
+          onClick={handleOpen}
+          title="Bump to Share"
+        >
+          <Zap className="h-4 w-4" />
+        </Button>
+      ) : (
+        <Button 
+          variant="outline" 
+          onClick={handleOpen}
+          className="gap-2"
+        >
+          <Zap className="h-4 w-4" />
+          Bump Share
+        </Button>
+      )}
+
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) handleClose();
+        else setIsOpen(open);
+      }}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+          <div className="relative">
+            {/* Close button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-3 right-3 z-10 h-8 w-8 rounded-full bg-background/80 backdrop-blur"
+              onClick={handleClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            
+            <div className="p-6">
+              <AnimatePresence mode="wait">
+                {renderContent()}
+              </AnimatePresence>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

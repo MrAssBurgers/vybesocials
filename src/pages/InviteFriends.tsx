@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useInviteStats, useUserBadges, getInviteUrl } from '@/hooks/useInvites';
 import { InviteLeaderboard } from '@/components/invite/InviteLeaderboard';
 import { NFCInviteShare } from '@/components/invite/NFCInviteShare';
+import { BumpToShare } from '@/components/invite/BumpToShare';
 import { useAuth } from '@/lib/auth';
 import { analytics } from '@/lib/analytics';
 import { toast } from 'sonner';
@@ -133,6 +134,7 @@ export default function InviteFriends() {
                   <Share2 className="h-4 w-4 mr-2" />
                   Share Link
                 </Button>
+                <BumpToShare variant="icon" />
                 <NFCInviteShare variant="icon" />
                 <Button 
                   variant="outline"
