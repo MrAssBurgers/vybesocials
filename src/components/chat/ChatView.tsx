@@ -1328,6 +1328,17 @@ const MessageInputArea = memo(function MessageInputArea({
 
             {!messageText.trim() ? (
               <div className="flex items-center gap-1">
+                {/* VYBE Camera button */}
+                {onOpenSnapCamera && (
+                  <Button 
+                    variant="ghost"
+                    size="icon"
+                    onClick={onOpenSnapCamera}
+                    className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 text-primary hover:bg-primary/10"
+                  >
+                    <Camera className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </Button>
+                )}
                 <Button 
                   variant="ghost"
                   size="icon"
@@ -1403,6 +1414,7 @@ const MessageBubble = memo(function MessageBubble({
   isEmojiOnly?: boolean;
 }) {
   const [isViewed, setIsViewed] = useState(false);
+  const [vybeViewed, setVybeViewed] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const longPressRef = useRef<NodeJS.Timeout | null>(null);
   const menuOpenedRef = useRef(false);
@@ -1506,6 +1518,7 @@ const MessageBubble = memo(function MessageBubble({
   // Check if this is an audio message for proper sizing
   const isAudioMessage = message.media_url && message.media_type === 'audio';
   const isMediaMessage = message.media_url && (message.media_type === 'image' || message.media_type === 'gif');
+  const isVybeMessage = message.media_url && message.media_type === 'vybe';
 
   return (
     <div className={cn(
@@ -1617,6 +1630,57 @@ const MessageBubble = memo(function MessageBubble({
                 className="rounded-xl max-w-full max-h-52 sm:max-h-64 object-cover"
                 loading="lazy"
               />
+            </div>
+          )}
+
+          {/* VYBE message - Snapchat style tap to view */}
+          {isVybeMessage && (
+            <div className={message.content ? "mb-2" : ""}>
+              {vybeViewed ? (
+                <motion.img
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  src={message.media_url}
+                  alt="VYBE"
+                  className="rounded-xl max-w-full max-h-52 sm:max-h-64 object-cover cursor-pointer"
+                  onClick={() => window.open(message.media_url, '_blank')}
+                />
+              ) : (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setVybeViewed(true);
+                    onView();
+                  }}
+                  className={cn(
+                    "relative w-32 h-44 sm:w-36 sm:h-48 rounded-xl overflow-hidden",
+                    "bg-gradient-to-br from-primary via-accent to-primary",
+                    "flex flex-col items-center justify-center gap-2",
+                    "shadow-lg border-2 border-primary/30"
+                  )}
+                >
+                  {/* Blurred preview background */}
+                  <div 
+                    className="absolute inset-0 bg-cover bg-center blur-xl opacity-40"
+                    style={{ backgroundImage: `url(${message.media_url})` }}
+                  />
+                  {/* Tap to view overlay */}
+                  <div className="relative z-10 flex flex-col items-center gap-2 text-white">
+                    <div className="p-3 rounded-full bg-white/20 backdrop-blur-sm">
+                      <Camera className="h-6 w-6" />
+                    </div>
+                    <span className="text-xs font-semibold tracking-wide">TAP TO VIEW</span>
+                    <span className="text-[10px] opacity-75">VYBE</span>
+                  </div>
+                  {/* Shimmer effect */}
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                    animate={{ x: ['-100%', '200%'] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                  />
+                </motion.button>
+              )}
             </div>
           )}
 
