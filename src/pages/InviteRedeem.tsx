@@ -59,9 +59,9 @@ type InviteFlowStage = 'loading' | 'landing' | 'complete-profile' | 'onboarding'
 
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, authReady } = useAuth();
   const [inviteProcessed, setInviteProcessed] = useState(false);
-  // CRITICAL: Start at 'landing' to always show intro first
+  // CRITICAL: Start at 'loading' to wait for auth before deciding stage
   const [currentStage, setCurrentStage] = useState<InviteFlowStage>('loading');
   // Track if user has completed the intro (landing stage)
   const [introCompleted, setIntroCompleted] = useState(false);
@@ -172,8 +172,8 @@ export default function InviteRedeem() {
       return;
     }
     
-    // After intro is done, wait for auth to settle
-    if (authLoading) {
+    // After intro is done, wait for authReady (not just authLoading)
+    if (!authReady) {
       return;
     }
     
@@ -204,7 +204,7 @@ export default function InviteRedeem() {
 
     // Fully onboarded - show home (tutorial + invite popup will trigger there)
     setCurrentStage('home');
-  }, [inviteProcessed, authLoading, user, profile, introCompleted]);
+  }, [inviteProcessed, authReady, user, profile, introCompleted]);
   
   // Handle stage transitions (called by child components instead of navigate())
   const handleStageComplete = (nextStage: 'landing' | 'complete-profile' | 'onboarding' | 'home') => {
