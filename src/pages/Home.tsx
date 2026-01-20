@@ -14,6 +14,7 @@ import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanne
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
+import { AutoFriendDrop } from '@/components/friends/AutoFriendDrop';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
@@ -218,6 +219,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
   return (
     <AppLayout>
+      {/* Auto FriendDrop - bump phones to add friends */}
+      <AutoFriendDrop />
+      
       {/* Pull to refresh indicator */}
       <PullToRefreshIndicator 
         pullDistance={pullDistance} 
