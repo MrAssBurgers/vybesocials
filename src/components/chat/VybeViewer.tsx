@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Reply, Camera } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface VybeViewerProps {
   mediaUrl: string;
@@ -101,7 +101,8 @@ export function VybeViewer({
     };
   }, [isOpen, onClose]);
 
-  return (
+  // Use portal to render at document body level
+  const viewerContent = (
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -109,7 +110,7 @@ export function VybeViewer({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
+          className="fixed inset-0 z-[9999] bg-black flex items-center justify-center"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onMouseDown={handleTouchStart}
@@ -189,4 +190,7 @@ export function VybeViewer({
       )}
     </AnimatePresence>
   );
+
+  // Render via portal to escape any parent overflow/z-index issues
+  return createPortal(viewerContent, document.body);
 }
