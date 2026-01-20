@@ -93,18 +93,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         return;
       }
       
-      // Check if user has completed onboarding (has a username set)
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('username, onboarding_completed')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      
-      // If user has completed onboarding (has username), redirect to home
-      // Otherwise, let them stay on landing to go through the flow
-      if (profile?.username && profile?.onboarding_completed !== false) {
-        navigate('/home');
-      }
+      // Logged in users always go to home - profile completion is optional
+      navigate('/home');
     }
     
     checkAndRedirect();
