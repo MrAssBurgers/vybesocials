@@ -29,8 +29,17 @@ export default defineConfig(({ mode }) => ({
     },
     // Enable minification optimizations
     minify: 'esbuild',
-    target: 'esnext',
+    // Target modern browsers only - no legacy polyfills needed
+    target: ['es2022', 'chrome100', 'safari15', 'firefox100', 'edge100'],
     chunkSizeWarningLimit: 1000,
+  },
+  esbuild: {
+    // Prevent legacy class transforms and polyfills
+    target: 'es2022',
+    supported: {
+      'class-fields': true,
+      'class-static-blocks': true,
+    },
   },
   // Optimize dependency pre-bundling
   optimizeDeps: {
