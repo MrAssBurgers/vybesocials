@@ -97,7 +97,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   // Flash effect state
   const [showFlash, setShowFlash] = useState(false);
 
-  // Capture photo with flash effect
+  // Capture photo with flash effect - crops to match the visible preview
   const handleCapture = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
 
@@ -112,9 +112,32 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
+    // Get the visible area dimensions (what the user sees with object-fit: cover)
+    const videoAspect = video.videoWidth / video.videoHeight;
+    const containerAspect = video.clientWidth / video.clientHeight;
+    
+    let sx = 0, sy = 0, sw = video.videoWidth, sh = video.videoHeight;
+    
+    // Calculate the crop to match object-fit: cover behavior
+    if (videoAspect > containerAspect) {
+      // Video is wider - crop sides
+      sw = video.videoHeight * containerAspect;
+      sx = (video.videoWidth - sw) / 2;
+    } else {
+      // Video is taller - crop top/bottom
+      sh = video.videoWidth / containerAspect;
+      sy = (video.videoHeight - sh) / 2;
+    }
+    
+    // Set canvas to match container aspect ratio for best quality
+    const outputWidth = Math.min(1920, sw);
+    const outputHeight = Math.round(outputWidth / containerAspect);
+    
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+    
+    // Draw the cropped portion to canvas
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
 
     const imageDataUrl = canvas.toDataURL('image/jpeg', 0.92);
     setCapturedImage(imageDataUrl);
