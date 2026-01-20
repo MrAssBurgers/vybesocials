@@ -95,6 +95,7 @@ export function AnimatedRoutes() {
         <Suspense fallback={<PageFallback />}>
           <Routes location={location}>
             <Route path="/" element={<Landing />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/home" element={<Home />} />
             <Route path="/clips" element={<Shorts />} />
             <Route path="/shorts" element={<Shorts />} />
