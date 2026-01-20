@@ -264,7 +264,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
             <div className="space-y-2">
               <Label htmlFor="password">{t('auth.password')}</Label>
-              <div className="relative">
+              <div className="relative flex items-center">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
@@ -278,7 +278,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-3 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors h-10"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
