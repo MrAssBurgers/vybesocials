@@ -242,7 +242,7 @@ export function BottomNav() {
     { icon: Compass, path: '/explore', badge: 0, tutorialId: 'explore-nav', requiresAuth: false },
     { icon: PlusCircle, path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav', requiresAuth: true },
     { icon: MessageCircle, path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav', requiresAuth: true, authAction: 'send messages' },
-    { icon: isGuest ? User : Settings, path: isGuest ? '/' : (profile?.username ? `/u/${profile.username}` : '/settings'), badge: 0, tutorialId: 'settings-nav', requiresAuth: false, authAction: 'view your profile' },
+    { icon: User, path: isGuest ? '/' : (profile?.username ? `/u/${profile.username}` : '/profile'), badge: 0, tutorialId: 'profile-nav', requiresAuth: false, authAction: 'view your profile' },
   ];
 
   return (
