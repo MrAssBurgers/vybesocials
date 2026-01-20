@@ -700,7 +700,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         if (!open) handleClose();
         else setIsOpen(open);
       }}>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden border-primary/20">
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden border-primary/20 [&>button]:hidden">
           <div className="relative min-h-[400px]">
             {/* Background gradient */}
             <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-accent/5" />
