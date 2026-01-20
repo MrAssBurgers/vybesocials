@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { getInviteUrl } from '@/hooks/useInvites';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
+import { PersonalQRCode } from './PersonalQRCode';
 
 interface BumpToShareProps {
   variant?: 'button' | 'icon';
@@ -25,11 +26,6 @@ export function BumpToShare({ variant = 'button' }: BumpToShareProps) {
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const inviteUrl = profile?.username ? getInviteUrl(profile.username) : '';
-  
-  // Generate QR code URL
-  const qrCodeUrl = inviteUrl 
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(inviteUrl)}&bgcolor=000000&color=ffffff&format=svg`
-    : '';
 
   const handleOpen = useCallback(() => {
     if (!profile?.username) {
@@ -207,79 +203,14 @@ export function BumpToShare({ variant = 'button' }: BumpToShareProps) {
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center gap-6 py-4"
+          className="flex flex-col items-center gap-4 py-4"
         >
-          {/* Animated QR container */}
-          <div className="relative">
-            {/* Pulsing glow */}
-            <motion.div
-              className="absolute inset-0 rounded-3xl bg-primary/30 blur-xl"
-              animate={{ 
-                scale: [1, 1.1, 1],
-                opacity: [0.3, 0.5, 0.3]
-              }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            />
-            
-            {/* QR Code */}
-            <motion.div 
-              className="relative p-6 rounded-3xl bg-black border-2 border-primary/50"
-              animate={{ 
-                boxShadow: [
-                  '0 0 20px hsl(var(--primary) / 0.3)',
-                  '0 0 40px hsl(var(--primary) / 0.5)',
-                  '0 0 20px hsl(var(--primary) / 0.3)'
-                ]
-              }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-            >
-              <img 
-                src={qrCodeUrl} 
-                alt="Your invite QR code" 
-                className="w-56 h-56 sm:w-64 sm:h-64"
-              />
-              
-              {/* Corner accents */}
-              {[0, 1, 2, 3].map((i) => (
-                <motion.div
-                  key={i}
-                  className="absolute w-8 h-8 border-primary"
-                  style={{
-                    top: i < 2 ? -2 : 'auto',
-                    bottom: i >= 2 ? -2 : 'auto',
-                    left: i % 2 === 0 ? -2 : 'auto',
-                    right: i % 2 === 1 ? -2 : 'auto',
-                    borderTopWidth: i < 2 ? 3 : 0,
-                    borderBottomWidth: i >= 2 ? 3 : 0,
-                    borderLeftWidth: i % 2 === 0 ? 3 : 0,
-                    borderRightWidth: i % 2 === 1 ? 3 : 0,
-                    borderTopLeftRadius: i === 0 ? 12 : 0,
-                    borderTopRightRadius: i === 1 ? 12 : 0,
-                    borderBottomLeftRadius: i === 2 ? 12 : 0,
-                    borderBottomRightRadius: i === 3 ? 12 : 0,
-                  }}
-                  animate={{ opacity: [0.5, 1, 0.5] }}
-                  transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
-                />
-              ))}
-            </motion.div>
+          {/* Personal QR Code with profile picture */}
+          <PersonalQRCode data={inviteUrl} size={240} />
 
-            {/* Sparkles */}
-            <motion.div
-              className="absolute -top-3 -right-3"
-              animate={{ rotate: 360, scale: [1, 1.2, 1] }}
-              transition={{ rotate: { repeat: Infinity, duration: 4 }, scale: { repeat: Infinity, duration: 1 } }}
-            >
-              <Sparkles className="h-8 w-8 text-primary" />
-            </motion.div>
-          </div>
-
-          <div className="text-center space-y-1">
-            <p className="font-semibold">@{profile?.username}</p>
-            <p className="text-sm text-muted-foreground">
-              Have your friend scan this code
-            </p>
-          </div>
+          <p className="text-sm text-muted-foreground text-center">
+            Have your friend scan this code
+          </p>
 
           <Button 
             variant="ghost" 
@@ -413,13 +344,13 @@ export function BumpToShare({ variant = 'button' }: BumpToShareProps) {
         if (!open) handleClose();
         else setIsOpen(open);
       }}>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden [&>button]:hidden">
           <div className="relative">
             {/* Close button */}
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-3 right-3 z-10 h-8 w-8 rounded-full bg-background/80 backdrop-blur"
+              className="absolute top-3 right-3 z-10 h-8 w-8 rounded-full bg-muted/80 backdrop-blur-sm hover:bg-muted"
               onClick={handleClose}
             >
               <X className="h-4 w-4" />
