@@ -76,6 +76,7 @@ import {
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { SnapCamera } from './SnapCamera';
+import { VybeViewer } from './VybeViewer';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
@@ -1415,6 +1416,7 @@ const MessageBubble = memo(function MessageBubble({
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const [vybeViewed, setVybeViewed] = useState(false);
+  const [showVybeViewer, setShowVybeViewer] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const longPressRef = useRef<NodeJS.Timeout | null>(null);
   const menuOpenedRef = useRef(false);
@@ -1633,25 +1635,31 @@ const MessageBubble = memo(function MessageBubble({
             </div>
           )}
 
-          {/* VYBE message - Snapchat style tap to view */}
+          {/* VYBE message - Snapchat style tap to view (view once) */}
           {isVybeMessage && (
             <div className={message.content ? "mb-2" : ""}>
               {vybeViewed ? (
-                <motion.img
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  src={message.media_url}
-                  alt="VYBE"
-                  className="rounded-xl max-w-full max-h-52 sm:max-h-64 object-cover cursor-pointer"
-                  onClick={() => window.open(message.media_url, '_blank')}
-                />
+                // After viewing - show "Opened" state like Snapchat
+                <div 
+                  className={cn(
+                    "relative w-32 h-20 sm:w-36 sm:h-24 rounded-xl overflow-hidden",
+                    "bg-muted/30 border border-border/50",
+                    "flex flex-col items-center justify-center gap-1"
+                  )}
+                >
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Eye className="h-4 w-4" />
+                    <span className="text-xs font-medium">Opened</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground/60">VYBE</span>
+                </div>
               ) : (
+                // Before viewing - tap to open fullscreen
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => {
-                    setVybeViewed(true);
-                    onView();
+                    setShowVybeViewer(true);
                   }}
                   className={cn(
                     "relative w-32 h-44 sm:w-36 sm:h-48 rounded-xl overflow-hidden",
@@ -1681,6 +1689,20 @@ const MessageBubble = memo(function MessageBubble({
                   />
                 </motion.button>
               )}
+              
+              {/* Fullscreen VYBE Viewer */}
+              <VybeViewer
+                mediaUrl={message.media_url || ''}
+                senderName={sender?.username || (isOwn ? 'You' : undefined)}
+                senderAvatar={sender?.avatar_url}
+                isOpen={showVybeViewer}
+                onClose={() => {
+                  setShowVybeViewer(false);
+                  setVybeViewed(true);
+                  onView();
+                }}
+                onReply={onReply}
+              />
             </div>
           )}
 
