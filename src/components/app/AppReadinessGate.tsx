@@ -130,6 +130,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     // No user session => app can render immediately
     if (!user?.id) {
       setState((s) => ({ ...s, dataLoading: false, appReady: true, progress: 100 }));
+      bootstrappedUserIdRef.current = null;
       return;
     }
 
@@ -639,12 +640,22 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
       }));
     };
 
-    const p = bootstrap().finally(() => {
+    const p = bootstrap().catch((err) => {
+      console.error("[AppGate] Bootstrap failed:", err);
+      // Don't brick the app - render anyway
+      setState((s) => ({
+        ...s,
+        dataLoading: false,
+        appReady: true,
+        step: "Ready (with errors)",
+        progress: 100,
+      }));
+    }).finally(() => {
       inFlightRef.current = null;
     });
 
     inFlightRef.current = p;
-  }, [authReady, user?.id, profile?.id, queryClient, profile, routeConversationId, state.appReady]);
+  }, [authReady, user?.id, profile?.id, queryClient, profile, routeConversationId]);
 
   const showLoading = state.authLoading || state.dataLoading || !state.appReady;
 
