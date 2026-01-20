@@ -10,6 +10,7 @@ import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { useTrashedConversationIds, useTrashConversation } from '@/hooks/useTrashedConversations';
 import { useStories, StoryGroup } from '@/hooks/useStories';
 import { useAcceptedFriendRequests, useDismissAcceptedRequest } from '@/hooks/useAcceptedFriendRequests';
+import { useStreakMap, Streak } from '@/hooks/useStreaks';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Trash2, Nfc, X, UserCheck } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Trash2, Nfc, X, UserCheck, Flame } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
@@ -26,6 +27,7 @@ import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { ConversationOptionsSheet } from './ConversationOptionsSheet';
 import { TrashBin } from './TrashBin';
+import { StreakIndicator } from './StreakIndicator';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
@@ -105,6 +107,7 @@ export function ConversationList() {
   const { data: storyGroups } = useStories();
   const { data: acceptedRequests } = useAcceptedFriendRequests();
   const dismissAccepted = useDismissAcceptedRequest();
+  const streakMap = useStreakMap();
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
@@ -329,6 +332,7 @@ export function ConversationList() {
               const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
               const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
               const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
+              const streak = otherMemberId ? streakMap.get(otherMemberId) : undefined;
               return (
                 <ConversationItem
                   key={conv.id}
@@ -340,6 +344,7 @@ export function ConversationList() {
                   onTrash={() => handleTrashConversation(conv.id)}
                   hasStory={hasStory}
                   storyGroup={storyGroup}
+                  streak={streak}
                 />
               );
             })}
@@ -371,6 +376,7 @@ export function ConversationList() {
                 const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
                 const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
                 const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
+                const streak = otherMemberId ? streakMap.get(otherMemberId) : undefined;
                 return (
                   <ConversationItem
                     key={conv.id}
@@ -382,6 +388,7 @@ export function ConversationList() {
                     onTrash={() => handleTrashConversation(conv.id)}
                     hasStory={hasStory}
                     storyGroup={storyGroup}
+                    streak={streak}
                   />
                 );
               })}
@@ -491,6 +498,7 @@ const ConversationContent = memo(function ConversationContent({
   storyGroup,
   handleAvatarClick,
   otherMember,
+  streak,
 }: any) {
   return (
     <>
@@ -543,6 +551,14 @@ const ConversationContent = memo(function ConversationContent({
             )}
             {!conversation.is_group && otherMember && isOwner(otherMember.username || '') && <OwnerBadge />}
             {!conversation.is_group && otherMember && isOwnerWife(otherMember.id) && <PrincessBadge />}
+            {/* Streak indicator - Snapchat style */}
+            {!conversation.is_group && streak && streak.streak_count > 0 && (
+              <StreakIndicator 
+                count={streak.streak_count} 
+                expiresAt={streak.expires_at}
+                size="sm"
+              />
+            )}
           </div>
           <div className="flex items-center gap-0.5 flex-shrink-0">
             {formattedTime && (
@@ -605,6 +621,7 @@ const ConversationItem = memo(function ConversationItem({
   onTrash,
   hasStory,
   storyGroup,
+  streak,
 }: { 
   conversation: Conversation; 
   onClick: () => void;
@@ -614,6 +631,7 @@ const ConversationItem = memo(function ConversationItem({
   onTrash?: () => void;
   hasStory?: boolean;
   storyGroup?: StoryGroup;
+  streak?: Streak;
 }) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -721,6 +739,7 @@ const ConversationItem = memo(function ConversationItem({
     storyGroup,
     handleAvatarClick,
     otherMember,
+    streak,
   };
 
   // Mobile swipeable version with long-press for options

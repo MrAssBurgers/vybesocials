@@ -83,6 +83,8 @@ import { DMSafetyGate } from './DMSafetyGate';
 import { GroupInfoSheet } from './GroupInfoSheet';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
+import { StreakIndicator } from './StreakIndicator';
+import { useStreakWithUser } from '@/hooks/useStreaks';
 
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
@@ -183,6 +185,9 @@ export function ChatView() {
     !isGroupChat ? otherMember?.id : undefined
   );
   const otherMemberOnline = presenceQuery.data?.is_online ?? false;
+  
+  // Get streak with the other user (for DMs)
+  const streak = useStreakWithUser(!isGroupChat ? otherMember?.id : undefined);
 
   // Clear message notifications + clear the unread badge when opening a conversation
   useEffect(() => {
@@ -717,6 +722,15 @@ export function ChatView() {
             {displayName}
             {!isGroupChat && otherMember?.id && isOwner(otherMember.username || '') && <OwnerBadge />}
             {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <PrincessBadge />}
+            {/* Streak indicator in header */}
+            {!isGroupChat && streak && streak.streak_count > 0 && (
+              <StreakIndicator 
+                count={streak.streak_count} 
+                expiresAt={streak.expires_at}
+                size="sm"
+                showExpiry
+              />
+            )}
           </h2>
           {isGroupChat ? (
             <button 
