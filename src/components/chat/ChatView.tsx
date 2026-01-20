@@ -72,8 +72,7 @@ import {
   Users,
   Settings,
   FileText,
-  Camera,
-  Aperture
+  Camera
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { SnapCamera } from './SnapCamera';
@@ -602,8 +601,8 @@ export function ChatView() {
     }
   }, [conversationId, profile?.id, profile?.user_id, compressImage, sendMediaMessage]);
 
-  // Handle snap camera send - uploads base64 image and sends as snap
-  const handleSnapSend = useCallback(async (imageDataUrl: string) => {
+  // Handle vybe camera send - uploads base64 image and sends as vybe
+  const handleVybeSend = useCallback(async (imageDataUrl: string) => {
     if (!conversationId || !profile?.id) return;
 
     setIsUploadingMedia(true);
@@ -613,7 +612,7 @@ export function ChatView() {
       const response = await fetch(imageDataUrl);
       const blob = await response.blob();
       
-      const fileName = `${profile.user_id}/${Date.now()}_snap.jpg`;
+      const fileName = `${profile.user_id}/${Date.now()}_vybe.jpg`;
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
@@ -628,13 +627,13 @@ export function ChatView() {
         .from('chat-media')
         .getPublicUrl(fileName);
 
-      // Send as 'snap' type for streak tracking
-      await sendMedia(publicUrl, 'snap', viewMode, replyingTo?.id);
+      // Send as 'vybe' type for streak tracking
+      await sendMedia(publicUrl, 'vybe', viewMode, replyingTo?.id);
       setReplyingTo(null);
-      toast.success('Snap sent! 📸');
+      toast.success('VYBE sent! ✨');
     } catch (error) {
-      console.error('Failed to send snap:', error);
-      toast.error('Failed to send snap');
+      console.error('Failed to send vybe:', error);
+      toast.error('Failed to send VYBE');
     } finally {
       setIsUploadingMedia(false);
     }
@@ -1076,11 +1075,11 @@ export function ChatView() {
         </div>
       </div>
 
-      {/* Snap Camera Modal */}
+      {/* VYBE Camera Modal */}
       <SnapCamera
         isOpen={showSnapCamera}
         onClose={() => setShowSnapCamera(false)}
-        onSend={handleSnapSend}
+        onSend={handleVybeSend}
       />
 
       {/* Input area - wrapped with DM safety for non-group chats */}
@@ -1322,15 +1321,15 @@ const MessageInputArea = memo(function MessageInputArea({
 
             {!messageText.trim() ? (
               <div className="flex items-center gap-1">
-                {/* Snap Camera button */}
+                {/* VYBE Camera button */}
                 {onOpenSnapCamera && (
                   <Button 
                     variant="ghost"
                     size="icon"
                     onClick={onOpenSnapCamera}
-                    className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 text-primary"
+                    className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 text-primary hover:bg-primary/10"
                   >
-                    <Aperture className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 )}
                 <Button 

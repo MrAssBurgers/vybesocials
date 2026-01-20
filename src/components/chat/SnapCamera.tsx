@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { 
-  X, Camera, SwitchCamera, Type, Check, 
-  Send, Smile, Pencil, Undo, Trash2, Zap
+  X, SwitchCamera, Type, Check, 
+  Send, Smile, Trash2, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,26 +16,28 @@ interface TextOverlay {
   y: number;
   color: string;
   fontSize: number;
+  rotation: number;
 }
 
-interface SnapCameraProps {
+interface VybeCameraProps {
   isOpen: boolean;
   onClose: () => void;
   onSend: (imageDataUrl: string) => void;
 }
 
-const COLORS = ['#ffffff', '#000000', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#af52de', '#ff2d92'];
-const STICKERS = ['😀', '😍', '🔥', '💯', '✨', '🎉', '❤️', '👍', '🙌', '💪', '🎵', '🌟'];
+const VYBE_COLORS = ['#ffffff', '#000000', '#8B5CF6', '#D946EF', '#F97316', '#10B981', '#3B82F6', '#EC4899', '#14B8A6'];
+const STICKERS = ['✨', '💜', '🔥', '💯', '⚡', '🎉', '💖', '🙌', '🌟', '💫', '🎵', '🦋'];
 
-export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
+export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const [phase, setPhase] = useState<'camera' | 'edit'>('camera');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
-  const [mode, setMode] = useState<'none' | 'text' | 'sticker' | 'draw'>('none');
+  const [mode, setMode] = useState<'none' | 'text' | 'sticker'>('none');
   const [textOverlays, setTextOverlays] = useState<TextOverlay[]>([]);
   const [currentText, setCurrentText] = useState('');
-  const [currentColor, setCurrentColor] = useState('#ffffff');
+  const [currentColor, setCurrentColor] = useState('#8B5CF6');
   const [isSending, setIsSending] = useState(false);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -102,14 +104,10 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size to match video
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-
-    // Draw the video frame
     ctx.drawImage(video, 0, 0);
 
-    // Get the image data URL
     const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
     setCapturedImage(imageDataUrl);
     setPhase('edit');
@@ -119,13 +117,15 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
   // Add text overlay
   const addText = () => {
     if (!currentText.trim()) return;
+    haptics.impact();
     setTextOverlays(prev => [...prev, {
       id: crypto.randomUUID(),
       text: currentText,
       x: 50,
-      y: 50,
+      y: 40,
       color: currentColor,
-      fontSize: 24,
+      fontSize: 28,
+      rotation: 0,
     }]);
     setCurrentText('');
     setMode('none');
@@ -133,23 +133,48 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
 
   // Add sticker
   const addSticker = (emoji: string) => {
+    haptics.impact();
     setTextOverlays(prev => [...prev, {
       id: crypto.randomUUID(),
       text: emoji,
       x: 50,
       y: 50,
       color: '#ffffff',
-      fontSize: 48,
+      fontSize: 56,
+      rotation: 0,
     }]);
   };
 
-  // Remove overlay
-  const removeOverlay = (id: string) => {
+  // Handle drag for overlays - using percentages
+  const handleDrag = useCallback((id: string, info: PanInfo) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    
+    setTextOverlays(prev => prev.map(overlay => {
+      if (overlay.id !== id) return overlay;
+      
+      // Calculate new position as percentage
+      const deltaXPercent = (info.delta.x / rect.width) * 100;
+      const deltaYPercent = (info.delta.y / rect.height) * 100;
+      
+      const newX = Math.min(95, Math.max(5, overlay.x + deltaXPercent));
+      const newY = Math.min(95, Math.max(5, overlay.y + deltaYPercent));
+      
+      return { ...overlay, x: newX, y: newY };
+    }));
+  }, []);
+
+  // Remove overlay on double tap
+  const handleDoubleTap = (id: string) => {
+    haptics.impact();
     setTextOverlays(prev => prev.filter(o => o.id !== id));
   };
 
   // Clear all
   const clearAll = () => {
+    haptics.impact();
     setTextOverlays([]);
   };
 
@@ -169,24 +194,26 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
           return;
         }
 
-        // Draw base image
         ctx.drawImage(img, 0, 0);
 
-        // Draw text overlays
         textOverlays.forEach(overlay => {
           ctx.save();
+          const x = (overlay.x / 100) * img.width;
+          const y = (overlay.y / 100) * img.height;
+          
+          ctx.translate(x, y);
+          ctx.rotate((overlay.rotation * Math.PI) / 180);
+          
           ctx.font = `bold ${overlay.fontSize * (img.width / 400)}px sans-serif`;
           ctx.fillStyle = overlay.color;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.shadowColor = 'rgba(0,0,0,0.5)';
-          ctx.shadowBlur = 4;
+          ctx.shadowColor = 'rgba(0,0,0,0.6)';
+          ctx.shadowBlur = 6;
           ctx.shadowOffsetX = 2;
           ctx.shadowOffsetY = 2;
           
-          const x = (overlay.x / 100) * img.width;
-          const y = (overlay.y / 100) * img.height;
-          ctx.fillText(overlay.text, x, y);
+          ctx.fillText(overlay.text, 0, 0);
           ctx.restore();
         });
 
@@ -197,8 +224,8 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
     });
   }, [capturedImage, textOverlays]);
 
-  // Send the snap
-  const handleSend = async () => {
+  // Send the vybe
+  const handleSend = useCallback(async () => {
     if (!capturedImage || isSending) return;
 
     setIsSending(true);
@@ -206,13 +233,13 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
 
     try {
       const finalImage = await renderFinalImage();
-      onSend(finalImage);
+      await onSend(finalImage);
       handleClose();
     } catch (error) {
-      console.error('Failed to send snap:', error);
+      console.error('Failed to send vybe:', error);
       setIsSending(false);
     }
-  };
+  }, [capturedImage, isSending, renderFinalImage, onSend]);
 
   // Close and reset
   const handleClose = useCallback(() => {
@@ -222,6 +249,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
     setTextOverlays([]);
     setMode('none');
     setIsSending(false);
+    setCurrentText('');
     onClose();
   }, [stopCamera, onClose]);
 
@@ -242,7 +270,6 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[200] bg-black flex flex-col"
     >
-      {/* Hidden canvas for capture */}
       <canvas ref={canvasRef} className="hidden" />
 
       <AnimatePresence mode="wait">
@@ -254,7 +281,6 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
             exit={{ opacity: 0 }}
             className="flex-1 relative"
           >
-            {/* Camera preview */}
             <video
               ref={videoRef}
               className="w-full h-full object-cover"
@@ -264,32 +290,44 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
             />
 
             {/* Header */}
-            <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between">
-              <Button variant="ghost" size="icon" onClick={handleClose} className="text-white bg-black/30 rounded-full">
+            <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between safe-area-inset-top">
+              <Button variant="ghost" size="icon" onClick={handleClose} className="text-white bg-black/40 rounded-full backdrop-blur-sm">
                 <X className="h-6 w-6" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={handleSwitchCamera} className="text-white bg-black/30 rounded-full">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary/30 to-accent/30 backdrop-blur-sm border border-white/20">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="text-xs text-white font-bold tracking-wide">VYBE</span>
+              </div>
+              <Button variant="ghost" size="icon" onClick={handleSwitchCamera} className="text-white bg-black/40 rounded-full backdrop-blur-sm">
                 <SwitchCamera className="h-6 w-6" />
               </Button>
             </div>
 
             {/* Capture button */}
-            <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+            <div className="absolute bottom-8 left-0 right-0 flex justify-center safe-area-inset-bottom">
               <motion.button
                 onClick={handleCapture}
-                className="w-20 h-20 rounded-full border-4 border-white bg-white/20 backdrop-blur-sm flex items-center justify-center"
+                className="w-20 h-20 rounded-full border-4 border-white bg-gradient-to-br from-primary/30 to-accent/30 backdrop-blur-sm flex items-center justify-center"
                 whileTap={{ scale: 0.9 }}
               >
-                <div className="w-16 h-16 rounded-full bg-white" />
+                <motion.div 
+                  className="w-16 h-16 rounded-full bg-white"
+                  whileTap={{ scale: 0.95 }}
+                />
               </motion.button>
             </div>
 
-            {/* Snap indicator */}
+            {/* Vybe streak indicator */}
             <div className="absolute bottom-32 left-0 right-0 flex justify-center">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/20 backdrop-blur-sm border border-primary/30">
-                <Zap className="h-4 w-4 text-primary" />
-                <span className="text-xs text-primary font-medium">Snap to start streak!</span>
-              </div>
+              <motion.div 
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-primary/40 to-accent/40 backdrop-blur-md border border-white/30"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                <Sparkles className="h-4 w-4 text-white" />
+                <span className="text-sm text-white font-semibold">Send a VYBE to keep the streak!</span>
+              </motion.div>
             </div>
           </motion.div>
         )}
@@ -300,14 +338,17 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex-1 relative"
+            className="flex-1 relative flex flex-col"
           >
-            {/* Captured image */}
-            <div ref={containerRef} className="flex-1 h-full relative">
+            {/* Captured image with overlays */}
+            <div 
+              ref={containerRef} 
+              className="flex-1 relative overflow-hidden touch-none"
+            >
               <img
                 src={capturedImage}
                 alt="Captured"
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain pointer-events-none select-none"
                 draggable={false}
               />
 
@@ -315,29 +356,28 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
               {textOverlays.map(overlay => (
                 <motion.div
                   key={overlay.id}
-                  drag
-                  dragMomentum={false}
-                  className="absolute cursor-move select-none"
+                  className={cn(
+                    "absolute touch-none select-none cursor-grab active:cursor-grabbing",
+                    draggedId === overlay.id && "z-50"
+                  )}
                   style={{
                     left: `${overlay.x}%`,
                     top: `${overlay.y}%`,
-                    transform: 'translate(-50%, -50%)',
+                    x: '-50%',
+                    y: '-50%',
                     color: overlay.color,
                     fontSize: overlay.fontSize,
-                    textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
+                    textShadow: '2px 2px 8px rgba(0,0,0,0.7)',
                     fontWeight: 'bold',
+                    rotate: overlay.rotation,
                   }}
-                  onDragEnd={(_, info) => {
-                    const rect = containerRef.current?.getBoundingClientRect();
-                    if (rect) {
-                      const newX = Math.min(95, Math.max(5, ((info.point.x - rect.left) / rect.width) * 100));
-                      const newY = Math.min(95, Math.max(5, ((info.point.y - rect.top) / rect.height) * 100));
-                      setTextOverlays(prev => prev.map(o => 
-                        o.id === overlay.id ? { ...o, x: newX, y: newY } : o
-                      ));
-                    }
-                  }}
-                  onClick={() => mode === 'none' && removeOverlay(overlay.id)}
+                  drag
+                  dragMomentum={false}
+                  dragElastic={0}
+                  onDragStart={() => setDraggedId(overlay.id)}
+                  onDrag={(_, info) => handleDrag(overlay.id, info)}
+                  onDragEnd={() => setDraggedId(null)}
+                  onDoubleClick={() => handleDoubleTap(overlay.id)}
                   whileTap={{ scale: 1.1 }}
                 >
                   {overlay.text}
@@ -346,13 +386,17 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
             </div>
 
             {/* Header */}
-            <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
-              <Button variant="ghost" size="icon" onClick={handleRetake} className="text-white">
+            <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent safe-area-inset-top">
+              <Button variant="ghost" size="icon" onClick={handleRetake} className="text-white hover:bg-white/20">
                 <X className="h-6 w-6" />
               </Button>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary/40 to-accent/40 backdrop-blur-sm">
+                <Sparkles className="h-4 w-4 text-white" />
+                <span className="text-xs text-white font-bold">VYBE</span>
+              </div>
               <div className="flex gap-2">
                 {textOverlays.length > 0 && (
-                  <Button variant="ghost" size="icon" onClick={clearAll} className="text-white">
+                  <Button variant="ghost" size="icon" onClick={clearAll} className="text-white hover:bg-white/20">
                     <Trash2 className="h-5 w-5" />
                   </Button>
                 )}
@@ -360,26 +404,41 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
             </div>
 
             {/* Tools Bar */}
-            <div className="absolute bottom-24 left-0 right-0 px-4">
+            <div className="absolute bottom-28 left-0 right-0 px-4 z-20">
               <AnimatePresence mode="wait">
                 {mode === 'text' && (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="flex gap-2 mb-4"
+                    className="space-y-3"
                   >
-                    <Input
-                      value={currentText}
-                      onChange={(e) => setCurrentText(e.target.value)}
-                      placeholder="Add text..."
-                      className="flex-1 bg-black/50 border-white/20 text-white placeholder:text-white/50"
-                      autoFocus
-                      onKeyDown={(e) => e.key === 'Enter' && addText()}
-                    />
-                    <Button onClick={addText} size="icon" className="bg-primary">
-                      <Check className="h-5 w-5" />
-                    </Button>
+                    <div className="flex gap-2">
+                      <Input
+                        value={currentText}
+                        onChange={(e) => setCurrentText(e.target.value)}
+                        placeholder="Add text..."
+                        className="flex-1 bg-black/60 border-white/30 text-white placeholder:text-white/50 backdrop-blur-sm"
+                        autoFocus
+                        onKeyDown={(e) => e.key === 'Enter' && addText()}
+                      />
+                      <Button onClick={addText} size="icon" className="bg-gradient-to-r from-primary to-accent text-white">
+                        <Check className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    <div className="flex gap-2 justify-center py-2">
+                      {VYBE_COLORS.map(color => (
+                        <button
+                          key={color}
+                          onClick={() => setCurrentColor(color)}
+                          className={cn(
+                            "w-8 h-8 rounded-full border-2 transition-all duration-200",
+                            currentColor === color ? "scale-125 border-white ring-2 ring-white/50" : "border-white/30 hover:scale-110"
+                          )}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
                   </motion.div>
                 )}
 
@@ -388,49 +447,33 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="flex gap-2 overflow-x-auto py-2 mb-4 scrollbar-hide"
+                    className="flex gap-3 overflow-x-auto py-3 px-2 scrollbar-hide bg-black/40 backdrop-blur-sm rounded-2xl"
                   >
                     {STICKERS.map(sticker => (
-                      <button
+                      <motion.button
                         key={sticker}
                         onClick={() => addSticker(sticker)}
-                        className="text-3xl p-2 hover:scale-125 transition-transform"
+                        className="text-4xl p-1 flex-shrink-0"
+                        whileHover={{ scale: 1.2 }}
+                        whileTap={{ scale: 0.9 }}
                       >
                         {sticker}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-
-                {mode === 'text' && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="flex gap-2 justify-center mb-4"
-                  >
-                    {COLORS.map(color => (
-                      <button
-                        key={color}
-                        onClick={() => setCurrentColor(color)}
-                        className={cn(
-                          "w-8 h-8 rounded-full border-2 transition-transform",
-                          currentColor === color ? "scale-125 border-white" : "border-white/30"
-                        )}
-                        style={{ backgroundColor: color }}
-                      />
+                      </motion.button>
                     ))}
                   </motion.div>
                 )}
               </AnimatePresence>
 
               {/* Mode Buttons */}
-              <div className="flex justify-center gap-4">
+              <div className="flex justify-center gap-4 mt-3">
                 <Button
                   variant={mode === 'text' ? 'default' : 'ghost'}
                   size="icon"
                   onClick={() => setMode(mode === 'text' ? 'none' : 'text')}
-                  className={cn("rounded-full", mode !== 'text' && "text-white")}
+                  className={cn(
+                    "rounded-full h-12 w-12 transition-all",
+                    mode === 'text' ? "bg-gradient-to-r from-primary to-accent" : "text-white bg-black/40 backdrop-blur-sm hover:bg-black/60"
+                  )}
                 >
                   <Type className="h-5 w-5" />
                 </Button>
@@ -438,33 +481,57 @@ export function SnapCamera({ isOpen, onClose, onSend }: SnapCameraProps) {
                   variant={mode === 'sticker' ? 'default' : 'ghost'}
                   size="icon"
                   onClick={() => setMode(mode === 'sticker' ? 'none' : 'sticker')}
-                  className={cn("rounded-full", mode !== 'sticker' && "text-white")}
+                  className={cn(
+                    "rounded-full h-12 w-12 transition-all",
+                    mode === 'sticker' ? "bg-gradient-to-r from-primary to-accent" : "text-white bg-black/40 backdrop-blur-sm hover:bg-black/60"
+                  )}
                 >
                   <Smile className="h-5 w-5" />
                 </Button>
               </div>
+              
+              {/* Tip */}
+              {textOverlays.length > 0 && mode === 'none' && (
+                <motion.p 
+                  className="text-center text-xs text-white/60 mt-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  Double-tap to remove • Drag to move
+                </motion.p>
+              )}
             </div>
 
             {/* Send Button */}
-            <div className="absolute bottom-4 left-0 right-0 px-4">
-              <Button 
-                onClick={handleSend} 
+            <div className="absolute bottom-4 left-4 right-4 safe-area-inset-bottom">
+              <motion.button
+                onClick={handleSend}
                 disabled={isSending}
-                className="w-full bg-gradient-to-r from-primary to-accent text-white font-semibold py-6 rounded-2xl gap-2"
+                className={cn(
+                  "w-full py-4 rounded-2xl font-bold text-white text-lg flex items-center justify-center gap-2",
+                  "bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%]",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                  "transition-all duration-300"
+                )}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                animate={!isSending ? { backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] } : {}}
+                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
               >
                 {isSending ? (
                   <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                    className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full"
+                    className="h-6 w-6 border-3 border-white/30 border-t-white rounded-full"
                   />
                 ) : (
                   <>
+                    <Sparkles className="h-5 w-5" />
+                    Send VYBE
                     <Send className="h-5 w-5" />
-                    Send Snap
                   </>
                 )}
-              </Button>
+              </motion.button>
             </div>
           </motion.div>
         )}
