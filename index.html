@@ -128,23 +128,23 @@
       }
     </style>
     
-    <!-- Make CSS non-blocking for faster FCP -->
+    <!-- Defer non-critical CSS for faster FCP - splash uses inline styles -->
     <script>
-      // Defer CSS loading to prevent render blocking - splash has inline styles
+      // Immediately mark future stylesheets as non-blocking
       (function(){
-        var observer = new MutationObserver(function(mutations) {
-          mutations.forEach(function(m) {
-            m.addedNodes.forEach(function(node) {
-              if (node.tagName === 'LINK' && node.rel === 'stylesheet' && !node.dataset.critical) {
-                node.media = 'print';
-                node.onload = function() { this.media = 'all'; };
-              }
-            });
-          });
+        var d=document,o=new MutationObserver(function(m){
+          m.forEach(function(x){x.addedNodes.forEach(function(n){
+            if(n.tagName==='LINK'&&n.rel==='stylesheet'){
+              n.media='print';n.onload=function(){this.media='all';this.onload=null;};
+            }
+          });});
         });
-        observer.observe(document.head, { childList: true });
-        // Stop observing after initial load
-        window.addEventListener('load', function() { observer.disconnect(); });
+        o.observe(d.head,{childList:true});
+        // Also defer any existing stylesheets added before script ran
+        d.querySelectorAll('link[rel="stylesheet"]').forEach(function(l){
+          if(!l.dataset.critical){l.media='print';l.onload=function(){this.media='all';};}
+        });
+        addEventListener('load',function(){o.disconnect();},{once:true});
       })();
     </script>
   </head>
