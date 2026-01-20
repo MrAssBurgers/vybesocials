@@ -1,7 +1,8 @@
-import { memo, useState, useEffect, useMemo } from 'react';
+import { memo, useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence, useSpring } from 'framer-motion';
 import { VYBELogo } from './VYBELogo';
 import { isLowEndDevice } from '@/lib/performanceConfig';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SplashScreenProps {
   isVisible: boolean;
@@ -14,6 +15,31 @@ export const SplashScreen = memo(function SplashScreen({
   status = 'Loading...', 
   progress = 0 
 }: SplashScreenProps) {
+  const [showDebug, setShowDebug] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
+
+  // Tap 5 times on logo to show debug button
+  const handleLogoTap = useCallback(() => {
+    setTapCount((c) => {
+      const next = c + 1;
+      if (next >= 5) setShowDebug(true);
+      return next;
+    });
+  }, []);
+
+  const handleResetSession = useCallback(async () => {
+    try {
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('Sign out error:', e);
+    }
+    // Clear all local storage
+    localStorage.clear();
+    sessionStorage.clear();
+    // Reload the page
+    window.location.href = '/';
+  }, []);
   const showComplete = progress >= 100;
   const isLowEnd = useMemo(() => isLowEndDevice(), []);
   
@@ -99,13 +125,14 @@ export const SplashScreen = memo(function SplashScreen({
             />
           </div>
           
-          {/* Animated VYBE Logo - clean, no box */}
+          {/* Animated VYBE Logo - clean, no box (tap 5x for debug) */}
           <motion.div
-            className="mb-6 sm:mb-10"
+            className="mb-6 sm:mb-10 cursor-pointer select-none"
             animate={showComplete ? { 
               scale: [1, 1.1, 1],
             } : undefined}
             transition={{ duration: 0.5 }}
+            onClick={handleLogoTap}
           >
             <VYBELogo size="splash" showText={false} animated={true} />
           </motion.div>
@@ -212,10 +239,25 @@ export const SplashScreen = memo(function SplashScreen({
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.4 }}
             transition={{ delay: 1.2, duration: 0.8 }}
-            className="absolute bottom-6 sm:bottom-12 text-[10px] sm:text-xs text-muted-foreground tracking-wide px-4 text-center"
+            className="absolute bottom-16 sm:bottom-20 text-[10px] sm:text-xs text-muted-foreground tracking-wide px-4 text-center"
           >
             The Next Generation Social Platform
           </motion.p>
+
+          {/* Debug reset button (tap logo 5x to reveal) */}
+          <AnimatePresence>
+            {showDebug && (
+              <motion.button
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                onClick={handleResetSession}
+                className="absolute bottom-4 sm:bottom-8 px-4 py-2 text-xs bg-destructive/80 text-destructive-foreground rounded-full font-medium"
+              >
+                Reset Session
+              </motion.button>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>
