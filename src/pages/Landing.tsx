@@ -48,7 +48,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [isLogin, setIsLogin] = useState(() => modeParam === 'login' || searchParams.get('signup') !== 'true');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showIntro, setShowIntro] = useState(!hasSeenIntro());
+  // Skip intro flow - go straight to landing page after splash screen
+  const [showIntro, setShowIntro] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
