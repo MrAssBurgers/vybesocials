@@ -1638,8 +1638,41 @@ const MessageBubble = memo(function MessageBubble({
           {/* VYBE message - Snapchat style tap to view (view once) */}
           {isVybeMessage && (
             <div className={message.content ? "mb-2" : ""}>
-              {vybeViewed ? (
-                // After viewing - show "Opened" state like Snapchat
+              {isOwn ? (
+                // Sender sees "Sent" state - cannot view their own VYBE
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={cn(
+                    "relative w-36 h-14 sm:w-40 sm:h-16 rounded-2xl overflow-hidden",
+                    vybeViewed 
+                      ? "bg-gradient-to-r from-muted/50 to-muted/30" 
+                      : "bg-gradient-to-r from-primary/20 to-accent/20",
+                    "border border-border/30",
+                    "flex items-center justify-center gap-2"
+                  )}
+                >
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className={cn(
+                      "p-1.5 rounded-full",
+                      vybeViewed ? "bg-muted/50" : "bg-primary/20"
+                    )}>
+                      {vybeViewed ? (
+                        <Eye className="h-3.5 w-3.5" />
+                      ) : (
+                        <Camera className="h-3.5 w-3.5 text-primary" />
+                      )}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium">
+                        {vybeViewed ? 'Opened' : 'Sent'}
+                      </span>
+                      <span className="text-[9px] opacity-60">VYBE</span>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : vybeViewed ? (
+                // Receiver after viewing - show "Opened" state like Snapchat
                 <motion.div 
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -1661,7 +1694,7 @@ const MessageBubble = memo(function MessageBubble({
                   </div>
                 </motion.div>
               ) : (
-                // Before viewing - tap to open fullscreen
+                // Receiver before viewing - tap to open fullscreen
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
@@ -1720,19 +1753,21 @@ const MessageBubble = memo(function MessageBubble({
                 </motion.button>
               )}
               
-              {/* Fullscreen VYBE Viewer */}
-              <VybeViewer
-                mediaUrl={message.media_url || ''}
-                senderName={sender?.username || (isOwn ? 'You' : undefined)}
-                senderAvatar={sender?.avatar_url}
-                isOpen={showVybeViewer}
-                onClose={() => {
-                  setShowVybeViewer(false);
-                  setVybeViewed(true);
-                  onView();
-                }}
-                onReply={onReply}
-              />
+              {/* Fullscreen VYBE Viewer - only for receiver */}
+              {!isOwn && (
+                <VybeViewer
+                  mediaUrl={message.media_url || ''}
+                  senderName={sender?.username}
+                  senderAvatar={sender?.avatar_url}
+                  isOpen={showVybeViewer}
+                  onClose={() => {
+                    setShowVybeViewer(false);
+                    setVybeViewed(true);
+                    onView();
+                  }}
+                  onReply={onReply}
+                />
+              )}
             </div>
           )}
 

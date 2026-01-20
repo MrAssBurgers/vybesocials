@@ -54,8 +54,9 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode,
-          width: { ideal: 1080 },
-          height: { ideal: 1920 }
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          aspectRatio: { ideal: 16/9 }
         },
         audio: false
       });
@@ -314,6 +315,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
             <video
               ref={videoRef}
               className="w-full h-full object-cover"
+              style={{ objectFit: 'cover' }}
               playsInline
               muted
               autoPlay
