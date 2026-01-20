@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
+import { AuthPhase, AuthState, INITIAL_AUTH_STATE } from '@/lib/authState';
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -33,7 +34,8 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  authReady: boolean; // Signals auth is fully resolved (not just loading=false)
+  authReady: boolean;
+  authPhase: AuthPhase; // Explicit phase for routing decisions
   banInfo: BanInfo | null;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -50,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
+  const [authPhase, setAuthPhase] = useState<AuthPhase>('initializing');
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
   
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -178,7 +181,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .replace(/^_+|_+$/g, "")
           .slice(0, 20);
 
-      // Prefer explicit username coming from email sign-up metadata
       if (typeof metadata.username === "string" && metadata.username.trim()) {
         const normalized = normalize(metadata.username);
         if (normalized.length >= 3) return normalized;
@@ -200,7 +202,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Fetch profile - deduplicated to prevent race conditions
   const fetchProfile = useCallback(async (userId: string, userMetadata?: Record<string, any>): Promise<Profile | null> => {
-    // Return existing promise if already fetching
     if (profileFetchRef.current) {
       return profileFetchRef.current;
     }
@@ -249,6 +250,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error: ensureError } = await supabase.rpc('ensure_profile');
         if (ensureError) {
           console.error('[Auth] ensure_profile failed:', ensureError);
+          // Don't crash - set null profile but keep user logged in
           setProfile(null);
           return null;
         }
@@ -263,7 +265,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!afterEnsureError && afterEnsure?.[0]) {
           let profileData = afterEnsure[0];
           
-          // Auto-generate username for new OAuth users
           if (!profileData.username && userMetadata) {
             const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
             const { error: updateError } = await supabase
@@ -295,6 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
       } catch (err) {
         console.error('[Auth] Profile fetch error:', err);
+        // CRITICAL: Don't crash - keep user logged in even if profile fails
         setProfile(null);
         return null;
       } finally {
@@ -309,7 +311,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Refresh profile (for external use)
   const refreshProfile = useCallback(async () => {
     if (user) {
-      profileFetchRef.current = null; // Clear cached promise
+      profileFetchRef.current = null;
       await fetchProfile(user.id, user.user_metadata);
     }
   }, [user, fetchProfile]);
@@ -327,6 +329,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearBanExpiryTimer();
   }, [clearBanExpiryTimer]);
 
+  // Resolve auth state with explicit phase
+  const resolveAuth = useCallback((newSession: Session | null, profileData: Profile | null) => {
+    if (newSession?.user) {
+      setAuthPhase('authenticated');
+    } else {
+      setAuthPhase('unauthenticated');
+    }
+    authResolvedRef.current = true;
+    setLoading(false);
+    setAuthReady(true);
+  }, []);
+
   // Handle session changes
   const handleSessionChange = useCallback(async (newSession: Session | null) => {
     setSession(newSession);
@@ -336,14 +350,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newSession.expires_at) {
         scheduleTokenRefresh(newSession.expires_at);
       }
-      // Await profile fetch to ensure profile is ready before auth is marked complete
-      await fetchProfile(newSession.user.id, newSession.user.user_metadata);
+      const profileData = await fetchProfile(newSession.user.id, newSession.user.user_metadata);
+      resolveAuth(newSession, profileData);
     } else {
       setProfile(null);
       setBanInfo(null);
       cleanup();
+      resolveAuth(null, null);
     }
-  }, [scheduleTokenRefresh, fetchProfile, cleanup]);
+  }, [scheduleTokenRefresh, fetchProfile, cleanup, resolveAuth]);
 
   // Initialize auth - runs exactly once
   useEffect(() => {
@@ -355,10 +370,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        // Set up auth state listener FIRST (per docs)
-        // IMPORTANT: do NOT "await" long work inside the auth callback.
-        // Supabase Auth waits for this callback to resolve; awaiting profile fetch here
-        // can block other auth calls like getSession() (used by the app preloader).
+        // Set up auth state listener FIRST (per Supabase docs)
         const { data } = supabase.auth.onAuthStateChange((event, newSession) => {
           if (!mounted) return;
 
@@ -371,25 +383,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setBanInfo(null);
             cleanup();
 
-            // Mark auth resolved so route guards can run
             if (!authResolvedRef.current) {
+              setAuthPhase('unauthenticated');
               authResolvedRef.current = true;
               setLoading(false);
               setAuthReady(true);
+            } else {
+              setAuthPhase('unauthenticated');
             }
             return;
           }
 
-          // Resolve session + profile async without blocking the auth system.
+          // Resolve session + profile async without blocking the auth system
           void (async () => {
             try {
               await handleSessionChange(newSession);
             } catch (err) {
               console.error('[Auth] handleSessionChange error:', err);
-            } finally {
-              if (!mounted) return;
-              // Mark auth resolved after first observed auth event
+              // FAILSAFE: Mark auth resolved even on error
               if (!authResolvedRef.current) {
+                setAuthPhase('error');
                 authResolvedRef.current = true;
                 setLoading(false);
                 setAuthReady(true);
@@ -401,18 +414,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         subscription = data.subscription;
 
         // THEN restore existing session from storage
-        const { data: sessionData } = await supabase.auth.getSession();
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         if (!mounted) return;
+
+        if (sessionError) {
+          console.error('[Auth] getSession error:', sessionError);
+          if (!authResolvedRef.current) {
+            setAuthPhase('error');
+            authResolvedRef.current = true;
+            setLoading(false);
+            setAuthReady(true);
+          }
+          return;
+        }
 
         if (!authResolvedRef.current) {
           await handleSessionChange(sessionData.session);
-          authResolvedRef.current = true;
-          setLoading(false);
-          setAuthReady(true);
         }
       } catch (err) {
         console.error('[Auth] Init error:', err);
         if (mounted && !authResolvedRef.current) {
+          setAuthPhase('error');
           authResolvedRef.current = true;
           setLoading(false);
           setAuthReady(true);
@@ -433,7 +455,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = useCallback(async (email: string, password: string, username: string) => {
     try {
-      // Store username in metadata so ensure_profile can use it
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -446,9 +467,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) throw error;
-
-      // Profile will be created via ensure_profile when session is established
-      // This avoids RLS issues with direct inserts before session is ready
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -464,7 +482,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
 
-      // Immediately fetch/ensure profile after successful sign in
       if (data.user) {
         await fetchProfile(data.user.id, data.user.user_metadata);
       }
@@ -479,6 +496,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setProfile(null);
     setBanInfo(null);
+    setAuthPhase('unauthenticated');
   }, []);
 
   const updateProfile = useCallback(async (updates: Partial<Profile>) => {
@@ -519,6 +537,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       loading,
       authReady,
+      authPhase,
       banInfo,
       signUp,
       signIn,
