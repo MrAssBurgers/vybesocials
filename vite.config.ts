@@ -53,8 +53,9 @@ export default defineConfig(({ mode }) => ({
     },
     // Enable minification optimizations
     minify: 'esbuild',
-    // Target modern browsers only - no legacy polyfills needed
-    target: 'esnext',
+    // Target modern browsers only - Chrome 110+, Firefox 115+, Safari 16+
+    // These all support ES2022+ features natively (classes, Promise.any, etc.)
+    target: ['chrome110', 'firefox115', 'safari16', 'edge110'],
     chunkSizeWarningLimit: 1000,
     // Reduce source map size in production
     sourcemap: false,
