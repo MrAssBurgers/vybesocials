@@ -86,10 +86,56 @@
         padding-right: env(safe-area-inset-right);
       }
       /* NOTE: Avoid transforms on #root — they break position:fixed (e.g., bottom nav) on some browsers */
+      
+      /* Static splash screen styles for immediate FCP */
+      .static-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #0B0B10;
+        z-index: 9999;
+      }
+      .static-splash-logo {
+        width: 80px;
+        height: 80px;
+        border-radius: 20px;
+        background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 50%, #C4B5FD 100%);
+        animation: pulse-glow 2s ease-in-out infinite;
+      }
+      .static-splash-text {
+        margin-top: 24px;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 28px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #8B5CF6, #A78BFA, #C4B5FD);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .static-splash-tagline {
+        margin-top: 8px;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 14px;
+        color: rgba(255,255,255,0.6);
+      }
+      @keyframes pulse-glow {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.8; transform: scale(1.05); }
+      }
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static splash for immediate FCP - replaced by React on hydration -->
+      <div class="static-splash" aria-label="Loading VYBE">
+        <div class="static-splash-logo"></div>
+        <div class="static-splash-text">VYBE</div>
+        <div class="static-splash-tagline">Your vibe, your world</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
