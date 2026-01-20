@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Check, Sparkles, Loader2, Smartphone, Zap,
-  ArrowLeftRight
+  ArrowLeftRight, Bluetooth, Wifi
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { supabase } from '@/integrations/supabase/client';
 import { useBumpDetection } from '@/hooks/useBumpDetection';
+import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 
@@ -32,8 +33,28 @@ export function AutoFriendDrop() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Native FriendDrop (Bluetooth/Nearby) - works on native apps
+  const nativeFriendDrop = useNativeFriendDrop({
+    enabled: isActive,
+    onPeerFound: (peer) => {
+      // Show found peer immediately - they're nearby!
+      setFoundUser({
+        id: peer.userId,
+        username: peer.username,
+        display_name: peer.displayName,
+        avatar_url: peer.avatarUrl,
+      });
+      setPhase('found');
+      stopScanning();
+    },
+    onPeerConnected: (peer) => {
+      // Auto-add when connection is confirmed (both devices detected each other)
+      handleAutoAdd(peer.userId);
+    },
+  });
 
-  // QR code for this user
+  // QR code for this user (fallback for web)
   const myProfileUrl = profile?.username 
     ? `https://vybehub.app/add-friend/${user?.id}`
     : '';
@@ -42,7 +63,27 @@ export function AutoFriendDrop() {
     ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(myProfileUrl)}&bgcolor=000000&color=ffffff&format=svg`
     : '';
 
-  const handleBump = useCallback(() => {
+  // Auto-add friend (for native peer-to-peer connection)
+  const handleAutoAdd = useCallback(async (userId: string) => {
+    if (phase === 'exchanging' || phase === 'success') return;
+    
+    setPhase('exchanging');
+    haptics.impact();
+    
+    try {
+      await sendRequest.mutateAsync(userId);
+      setPhase('success');
+      haptics.success();
+      setTimeout(handleClose, 2500);
+    } catch (error: any) {
+      if (error?.message?.includes('already')) {
+        setPhase('success');
+        setTimeout(handleClose, 1500);
+      }
+    }
+  }, [phase, sendRequest]);
+
+  const handleBump = useCallback(async () => {
     if (!profile?.username || !user) {
       return;
     }
@@ -52,9 +93,14 @@ export function AutoFriendDrop() {
     setPhase('activated');
     haptics.impact();
     
-    // Start scanning automatically
+    // Start native peer discovery if available
+    if (nativeFriendDrop.isAvailable) {
+      await nativeFriendDrop.startSession();
+    }
+    
+    // Also start QR scanning as fallback
     startScanning();
-  }, [profile?.username, user]);
+  }, [profile?.username, user, nativeFriendDrop]);
 
   // Bump detection - only when on home page and not already active
   useBumpDetection({
@@ -172,12 +218,16 @@ export function AutoFriendDrop() {
     }
   }, []);
 
-  const handleClose = useCallback(() => {
+  const handleClose = useCallback(async () => {
     stopScanning();
+    // Stop native session if active
+    if (nativeFriendDrop.isActive) {
+      await nativeFriendDrop.stopSession();
+    }
     setIsActive(false);
     setPhase('idle');
     setFoundUser(null);
-  }, [stopScanning]);
+  }, [stopScanning, nativeFriendDrop]);
 
   useEffect(() => {
     return () => {
@@ -213,10 +263,16 @@ export function AutoFriendDrop() {
                 animate={{ rotate: [0, 10, -10, 0] }}
                 transition={{ repeat: Infinity, duration: 2 }}
               >
-                <Smartphone className="h-4 w-4 text-primary" />
+                {nativeFriendDrop.isAvailable ? (
+                  <Bluetooth className="h-4 w-4 text-primary" />
+                ) : (
+                  <Smartphone className="h-4 w-4 text-primary" />
+                )}
               </motion.div>
               <span className="text-xs text-primary font-medium">
-                Bump phones to add friends
+                {nativeFriendDrop.isAvailable 
+                  ? 'Bring phones together to add friends'
+                  : 'Bump phones to add friends'}
               </span>
               <Zap className="h-3 w-3 text-primary" />
             </motion.div>
@@ -236,7 +292,7 @@ export function AutoFriendDrop() {
                 exit={{ opacity: 0, scale: 0.9 }}
                 className="bg-background/95 backdrop-blur-xl rounded-3xl p-6"
               >
-                {/* Split view - QR and Scanner */}
+                {/* Split view - Native discovery or QR fallback */}
                 <div className="flex flex-col gap-4">
                   {/* Header */}
                   <div className="flex items-center justify-between">
@@ -245,7 +301,11 @@ export function AutoFriendDrop() {
                         animate={{ rotate: 360 }}
                         transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
                       >
-                        <Sparkles className="h-5 w-5 text-primary" />
+                        {nativeFriendDrop.isAvailable ? (
+                          <Bluetooth className="h-5 w-5 text-primary" />
+                        ) : (
+                          <Sparkles className="h-5 w-5 text-primary" />
+                        )}
                       </motion.div>
                       <h3 className="font-bold text-lg">FriendDrop Active!</h3>
                     </div>
@@ -254,44 +314,115 @@ export function AutoFriendDrop() {
                     </Button>
                   </div>
 
-                  {/* My Profile QR */}
-                  <motion.div 
-                    className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-primary via-primary/80 to-accent p-4"
-                    animate={{
-                      boxShadow: [
-                        '0 0 20px hsl(var(--primary) / 0.3)',
-                        '0 0 40px hsl(var(--primary) / 0.5)',
-                        '0 0 20px hsl(var(--primary) / 0.3)'
-                      ]
-                    }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                  >
+                  {/* Native discovery - show nearby peers */}
+                  {nativeFriendDrop.isAvailable && nativeFriendDrop.nearbyPeers.length > 0 && (
                     <motion.div
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                      animate={{ x: ['-100%', '100%'] }}
-                      transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                    />
-                    
-                    <div className="relative flex items-center gap-4">
-                      <Avatar className="h-14 w-14 border-2 border-white/50">
-                        <AvatarImage src={profile?.avatar_url || ''} />
-                        <AvatarFallback className="bg-white/20 text-white">
-                          {profile?.username?.[0]?.toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      
-                      <div className="flex-1 text-white">
-                        <p className="font-bold">{profile?.username}</p>
-                        <p className="text-white/70 text-sm">Sharing your profile...</p>
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-2xl bg-accent/20 border border-accent/30 p-4"
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <Wifi className="h-4 w-4 text-accent" />
+                        <span className="text-sm font-medium">Nearby Friends</span>
                       </div>
-                      
-                      <img 
-                        src={qrCodeUrl} 
-                        alt="QR" 
-                        className="w-16 h-16 rounded-lg"
+                      <div className="space-y-2">
+                        {nativeFriendDrop.nearbyPeers.map((peer) => (
+                          <motion.button
+                            key={peer.peerId}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="w-full flex items-center gap-3 p-2 rounded-xl bg-background/50 hover:bg-background/80 transition-colors"
+                            onClick={() => {
+                              setFoundUser({
+                                id: peer.userId,
+                                username: peer.username,
+                                display_name: peer.displayName,
+                                avatar_url: peer.avatarUrl,
+                              });
+                              setPhase('found');
+                            }}
+                          >
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={peer.avatarUrl || ''} />
+                              <AvatarFallback>{peer.username[0]?.toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <div className="text-left flex-1">
+                              <p className="font-medium">{peer.displayName || peer.username}</p>
+                              <p className="text-xs text-muted-foreground">@{peer.username}</p>
+                            </div>
+                            <ArrowLeftRight className="h-4 w-4 text-primary" />
+                          </motion.button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Searching for peers indicator (native) */}
+                  {nativeFriendDrop.isAvailable && nativeFriendDrop.nearbyPeers.length === 0 && (
+                    <motion.div
+                      className="rounded-2xl bg-primary/10 border border-primary/20 p-6 flex flex-col items-center gap-3"
+                      animate={{ 
+                        boxShadow: [
+                          '0 0 20px hsl(var(--primary) / 0.1)',
+                          '0 0 40px hsl(var(--primary) / 0.2)',
+                          '0 0 20px hsl(var(--primary) / 0.1)'
+                        ]
+                      }}
+                      transition={{ repeat: Infinity, duration: 2 }}
+                    >
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ repeat: Infinity, duration: 1.5 }}
+                      >
+                        <Bluetooth className="h-12 w-12 text-primary" />
+                      </motion.div>
+                      <div className="text-center">
+                        <p className="font-medium">Searching nearby...</p>
+                        <p className="text-sm text-muted-foreground">Bring phones together</p>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* My Profile QR (fallback for web or additional option) */}
+                  {!nativeFriendDrop.isAvailable && (
+                    <motion.div 
+                      className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-primary via-primary/80 to-accent p-4"
+                      animate={{
+                        boxShadow: [
+                          '0 0 20px hsl(var(--primary) / 0.3)',
+                          '0 0 40px hsl(var(--primary) / 0.5)',
+                          '0 0 20px hsl(var(--primary) / 0.3)'
+                        ]
+                      }}
+                      transition={{ repeat: Infinity, duration: 2 }}
+                    >
+                      <motion.div
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                        animate={{ x: ['-100%', '100%'] }}
+                        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
                       />
-                    </div>
-                  </motion.div>
+                      
+                      <div className="relative flex items-center gap-4">
+                        <Avatar className="h-14 w-14 border-2 border-white/50">
+                          <AvatarImage src={profile?.avatar_url || ''} />
+                          <AvatarFallback className="bg-white/20 text-white">
+                            {profile?.username?.[0]?.toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        
+                        <div className="flex-1 text-white">
+                          <p className="font-bold">{profile?.username}</p>
+                          <p className="text-white/70 text-sm">Sharing your profile...</p>
+                        </div>
+                        
+                        <img 
+                          src={qrCodeUrl} 
+                          alt="QR" 
+                          className="w-16 h-16 rounded-lg"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
 
                   {/* Scanner */}
                   <div className="relative aspect-square rounded-2xl overflow-hidden bg-black">
