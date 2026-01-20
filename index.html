@@ -127,6 +127,26 @@
         50% { opacity: 0.8; transform: scale(1.05); }
       }
     </style>
+    
+    <!-- Make CSS non-blocking for faster FCP -->
+    <script>
+      // Defer CSS loading to prevent render blocking - splash has inline styles
+      (function(){
+        var observer = new MutationObserver(function(mutations) {
+          mutations.forEach(function(m) {
+            m.addedNodes.forEach(function(node) {
+              if (node.tagName === 'LINK' && node.rel === 'stylesheet' && !node.dataset.critical) {
+                node.media = 'print';
+                node.onload = function() { this.media = 'all'; };
+              }
+            });
+          });
+        });
+        observer.observe(document.head, { childList: true });
+        // Stop observing after initial load
+        window.addEventListener('load', function() { observer.disconnect(); });
+      })();
+    </script>
   </head>
   <body>
     <div id="root">
