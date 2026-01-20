@@ -51,6 +51,7 @@ interface ToyboxProps {
   onOpenScheduleMessage?: () => void;
   onOpenDMSettings?: () => void;
   onOpenAdminPanel?: () => void;
+  onOpenVybeCamera?: () => void;
 }
 
 const STICKERS = ['😀', '😂', '🥰', '😎', '🔥', '💯', '🎉', '❤️', '👍', '🙌', '💪', '✨'];
@@ -80,6 +81,7 @@ export const Toybox = memo(function Toybox({
   onOpenScheduleMessage,
   onOpenDMSettings,
   onOpenAdminPanel,
+  onOpenVybeCamera,
 }: ToyboxProps) {
   const { data: userRole } = useUserRole();
   const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
@@ -140,7 +142,21 @@ export const Toybox = memo(function Toybox({
     setIsOpen(false);
   }, []);
 
+  const handleVybeCameraClick = useCallback(() => {
+    onOpenVybeCamera?.();
+    setIsOpen(false);
+  }, [onOpenVybeCamera]);
+
   const mediaItems = [
+    // VYBE Camera - First item like Snapchat
+    ...(onOpenVybeCamera ? [{
+      icon: Sparkles, 
+      label: 'VYBE', 
+      onClick: handleVybeCameraClick,
+      color: 'text-primary',
+      bg: 'bg-primary/10',
+      featured: true,
+    }] : []),
     { 
       icon: Image, 
       label: 'Photo', 
@@ -395,7 +411,7 @@ export const Toybox = memo(function Toybox({
           >
             {/* Media Grid */}
             <div className="grid grid-cols-3 gap-3">
-              {mediaItems.map(({ icon: Icon, label, onClick, color, bg }) => (
+              {mediaItems.map(({ icon: Icon, label, onClick, color, bg, featured }) => (
                 <motion.button
                   key={label}
                   whileHover={{ scale: 1.05 }}
@@ -404,8 +420,11 @@ export const Toybox = memo(function Toybox({
                   disabled={isUploading}
                   className={cn(
                     "flex flex-col items-center gap-2 p-4 rounded-xl",
-                    "bg-muted/50 hover:bg-muted transition-colors",
-                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                    "transition-colors",
+                    "disabled:opacity-50 disabled:cursor-not-allowed",
+                    featured 
+                      ? "bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 hover:border-primary/50" 
+                      : "bg-muted/50 hover:bg-muted"
                   )}
                 >
                   {isUploading ? (
@@ -415,7 +434,7 @@ export const Toybox = memo(function Toybox({
                       <Icon className={cn("h-5 w-5", color)} />
                     </div>
                   )}
-                  <span className="text-xs font-medium">{label}</span>
+                  <span className={cn("text-xs font-medium", featured && "text-primary")}>{label}</span>
                 </motion.button>
               ))}
             </div>
