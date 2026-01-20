@@ -356,7 +356,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         // Set up auth state listener FIRST (per docs)
-        const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+        // IMPORTANT: do NOT "await" long work inside the auth callback.
+        // Supabase Auth waits for this callback to resolve; awaiting profile fetch here
+        // can block other auth calls like getSession() (used by the app preloader).
+        const { data } = supabase.auth.onAuthStateChange((event, newSession) => {
           if (!mounted) return;
 
           console.log('[Auth] State change:', event, !!newSession);
@@ -377,14 +380,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
           }
 
-          await handleSessionChange(newSession);
-
-          // Mark auth resolved after first observed auth event
-          if (!authResolvedRef.current) {
-            authResolvedRef.current = true;
-            setLoading(false);
-            setAuthReady(true);
-          }
+          // Resolve session + profile async without blocking the auth system.
+          void (async () => {
+            try {
+              await handleSessionChange(newSession);
+            } catch (err) {
+              console.error('[Auth] handleSessionChange error:', err);
+            } finally {
+              if (!mounted) return;
+              // Mark auth resolved after first observed auth event
+              if (!authResolvedRef.current) {
+                authResolvedRef.current = true;
+                setLoading(false);
+                setAuthReady(true);
+              }
+            }
+          })();
         });
 
         subscription = data.subscription;
