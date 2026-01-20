@@ -56,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const banExpiryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const banSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const initRef = useRef(false);
+  const authResolvedRef = useRef(false);
   const profileFetchRef = useRef<Promise<Profile | null> | null>(null);
 
   // Clear ban expiry timer
@@ -330,67 +331,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initRef.current = true;
 
     let mounted = true;
+    let subscription: { unsubscribe: () => void } | null = null;
 
-    const initAuth = async () => {
+    (async () => {
       try {
-        // Set up auth state listener FIRST (per Supabase docs)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, newSession) => {
-            if (!mounted) return;
-            
-            console.log('[Auth] State change:', event, !!newSession);
-            
-            // For SIGNED_OUT, immediately clear state
-            if (event === 'SIGNED_OUT') {
-              setSession(null);
-              setUser(null);
-              setProfile(null);
-              setBanInfo(null);
-              setLoading(false);
-              setAuthReady(true);
-              cleanup();
-              return;
-            }
+        // Set up auth state listener FIRST (per docs)
+        const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+          if (!mounted) return;
 
-            // For all other events, handle session
-            await handleSessionChange(newSession);
-            
-            // Auth is ready after first state change
-            if (!authReady) {
+          console.log('[Auth] State change:', event, !!newSession);
+
+          if (event === 'SIGNED_OUT') {
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+            setBanInfo(null);
+            cleanup();
+
+            // Mark auth resolved so route guards can run
+            if (!authResolvedRef.current) {
+              authResolvedRef.current = true;
               setLoading(false);
               setAuthReady(true);
             }
+            return;
           }
-        );
 
-        // THEN get existing session (restore from storage)
-        const { data: { session: existingSession } } = await supabase.auth.getSession();
-        
+          await handleSessionChange(newSession);
+
+          // Mark auth resolved after first observed auth event
+          if (!authResolvedRef.current) {
+            authResolvedRef.current = true;
+            setLoading(false);
+            setAuthReady(true);
+          }
+        });
+
+        subscription = data.subscription;
+
+        // THEN restore existing session from storage
+        const { data: sessionData } = await supabase.auth.getSession();
         if (!mounted) return;
-        
-        // Only use getSession result if no onAuthStateChange has fired yet
-        if (!authReady) {
-          await handleSessionChange(existingSession);
+
+        if (!authResolvedRef.current) {
+          await handleSessionChange(sessionData.session);
+          authResolvedRef.current = true;
           setLoading(false);
           setAuthReady(true);
         }
-
-        return () => {
-          mounted = false;
-          subscription.unsubscribe();
-          cleanup();
-        };
       } catch (err) {
         console.error('[Auth] Init error:', err);
-        if (mounted) {
+        if (mounted && !authResolvedRef.current) {
+          authResolvedRef.current = true;
           setLoading(false);
           setAuthReady(true);
         }
       }
-    };
+    })();
 
-    initAuth();
-  }, [handleSessionChange, cleanup, authReady]);
+    return () => {
+      mounted = false;
+      try {
+        subscription?.unsubscribe();
+      } catch {
+        // ignore
+      }
+      cleanup();
+    };
+  }, [handleSessionChange, cleanup]);
 
   const signUp = useCallback(async (email: string, password: string, username: string) => {
     try {
