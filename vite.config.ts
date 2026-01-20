@@ -58,6 +58,10 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 1000,
     // Reduce source map size in production
     sourcemap: false,
+    // Enable CSS code splitting for better loading
+    cssCodeSplit: true,
+    // Reduce CSS size
+    cssMinify: 'esbuild',
   },
   esbuild: {
     // Prevent legacy class transforms and polyfills
