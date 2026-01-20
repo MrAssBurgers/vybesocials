@@ -148,15 +148,6 @@ export const Toybox = memo(function Toybox({
   }, [onOpenVybeCamera]);
 
   const mediaItems = [
-    // VYBE Camera - First item like Snapchat
-    ...(onOpenVybeCamera ? [{
-      icon: Sparkles, 
-      label: 'VYBE', 
-      onClick: handleVybeCameraClick,
-      color: 'text-primary',
-      bg: 'bg-primary/10',
-      featured: true,
-    }] : []),
     { 
       icon: Image, 
       label: 'Photo', 
@@ -411,7 +402,7 @@ export const Toybox = memo(function Toybox({
           >
             {/* Media Grid */}
             <div className="grid grid-cols-3 gap-3">
-              {mediaItems.map(({ icon: Icon, label, onClick, color, bg, featured }) => (
+              {mediaItems.map(({ icon: Icon, label, onClick, color, bg }) => (
                 <motion.button
                   key={label}
                   whileHover={{ scale: 1.05 }}
@@ -420,11 +411,8 @@ export const Toybox = memo(function Toybox({
                   disabled={isUploading}
                   className={cn(
                     "flex flex-col items-center gap-2 p-4 rounded-xl",
-                    "transition-colors",
-                    "disabled:opacity-50 disabled:cursor-not-allowed",
-                    featured 
-                      ? "bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 hover:border-primary/50" 
-                      : "bg-muted/50 hover:bg-muted"
+                    "bg-muted/50 hover:bg-muted transition-colors",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
                   )}
                 >
                   {isUploading ? (
@@ -434,7 +422,7 @@ export const Toybox = memo(function Toybox({
                       <Icon className={cn("h-5 w-5", color)} />
                     </div>
                   )}
-                  <span className={cn("text-xs font-medium", featured && "text-primary")}>{label}</span>
+                  <span className="text-xs font-medium">{label}</span>
                 </motion.button>
               ))}
             </div>
