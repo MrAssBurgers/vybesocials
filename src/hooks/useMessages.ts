@@ -266,9 +266,9 @@ export function useConversations() {
       return result as Conversation[];
     },
     enabled: !!profile?.id,
-    staleTime: 30000, // 30 seconds cache
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    staleTime: 10000, // 10 seconds cache for faster updates
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   // Real-time subscription for conversations with notification sound

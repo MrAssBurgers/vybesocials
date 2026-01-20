@@ -191,11 +191,14 @@ export function ConversationList() {
       // Exclude trashed conversations
       if (trashedIds?.has(conv.id)) return false;
       
+      // If no search query, include all non-trashed conversations
+      if (!searchQuery.trim()) return true;
+      
       const otherMembers = conv.members?.filter((m) => m.user_id !== profile?.id) || [];
       const name = conv.is_group 
         ? conv.name 
         : otherMembers[0]?.profile?.display_name || otherMembers[0]?.profile?.username;
-      return name?.toLowerCase().includes(searchQuery.toLowerCase());
+      return name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false;
     }) || [];
 
     return {
