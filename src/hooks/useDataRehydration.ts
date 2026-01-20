@@ -1,7 +1,11 @@
 /**
  * Data Rehydration Hook
  * 
- * Handles loading all user data after authentication with:
+ * Utility hook for manually triggering data rehydration.
+ * Primary rehydration is handled by AppReadinessGate.
+ * This hook is for manual refresh scenarios.
+ * 
+ * Features:
  * - Per-request timeouts to prevent hangs
  * - Graceful fallbacks on failures
  * - No crashes or forced logouts on backend errors
@@ -88,6 +92,10 @@ export function useDataRehydration() {
   });
   const inFlightRef = useRef(false);
 
+  /**
+   * Rehydrate all user data for a given profile.
+   * Returns true on success, false on failure.
+   */
   const rehydrate = useCallback(async (
     userId: string,
     profileId: string,
@@ -200,6 +208,18 @@ export function useDataRehydration() {
             pageParams: [0],
           });
           return posts;
+        }, []),
+
+        // Stories
+        safe('stories', async () => {
+          const { data } = await supabase
+            .from('stories')
+            .select('*, author:profiles!author_id(id, username, avatar_url, display_name)')
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false })
+            .limit(50);
+          queryClient.setQueryData(['stories', profileId], data || []);
+          return data || [];
         }, []),
       ]);
 

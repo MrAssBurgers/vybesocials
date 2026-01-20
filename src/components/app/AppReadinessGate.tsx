@@ -3,15 +3,17 @@
  * 
  * Single global gate that blocks rendering until:
  * 1. Auth phase is resolved (not 'initializing')
- * 2. User data is rehydrated (for authenticated users)
+ * 2. Profile is guaranteed to exist (for authenticated users)
+ * 3. User data is rehydrated (for authenticated users)
  * 
  * Failsafes:
  * - Never crashes on backend errors
  * - Never logs user out on data fetch failures
  * - Always reaches a renderable state within timeout
+ * - Auto-creates profile if missing
  */
 
-import { ReactNode, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { ReactNode, useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,17 +22,17 @@ import { SplashScreen } from "@/components/ui/SplashScreen";
 import { DataLoadErrorState } from "@/components/app/DataLoadErrorState";
 
 type GateState = {
-  dataLoading: boolean;
-  appReady: boolean;
+  phase: 'auth' | 'profile' | 'data' | 'ready' | 'error';
   step: string;
   progress: number;
   error: string | null;
   retryCount: number;
 };
 
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 10000;
 const MAX_RETRIES = 2;
 
+// Wrap promise with timeout
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
     promise,
@@ -40,6 +42,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
+// Retry once on failure
 async function retryOnce<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
@@ -48,6 +51,7 @@ async function retryOnce<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+// Safe wrapper that never throws - always returns fallback on error
 async function safe<T>(
   label: string,
   fn: () => Promise<T>,
@@ -62,6 +66,7 @@ async function safe<T>(
   }
 }
 
+// Transform post data from RPC
 function transformPost(row: any) {
   return {
     id: row.id,
@@ -85,13 +90,12 @@ function transformPost(row: any) {
 }
 
 export function AppReadinessGate({ children }: { children: ReactNode }) {
-  const { authReady, authPhase, user, profile } = useAuth();
+  const { authReady, authPhase, user, profile, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
   const location = useLocation();
 
   const [state, setState] = useState<GateState>({
-    dataLoading: false,
-    appReady: false, // Start blocked until auth resolves
+    phase: 'auth',
     step: "Starting...",
     progress: 0,
     error: null,
@@ -101,16 +105,16 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
   const inFlightRef = useRef<Promise<void> | null>(null);
   const bootstrappedUserIdRef = useRef<string | null>(null);
 
-  const routeConversationId = useMemo(() => {
+  // Get conversation ID from route if on messages page
+  const routeConversationId = (() => {
     const match = location.pathname.match(/^\/messages\/([a-f0-9-]+)$/i);
     return match?.[1] ?? null;
-  }, [location.pathname]);
+  })();
 
   // PHASE A: Wait for auth to resolve
   useEffect(() => {
-    // Auth still initializing - stay blocked
     if (!authReady || authPhase === 'initializing') {
-      setState(s => ({ ...s, step: "Authenticating...", progress: 10 }));
+      setState(s => ({ ...s, phase: 'auth', step: "Authenticating...", progress: 10 }));
       return;
     }
 
@@ -118,8 +122,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     if (authPhase === 'error') {
       console.warn('[AppGate] Auth resolved with error, allowing app to render');
       setState({
-        dataLoading: false,
-        appReady: true,
+        phase: 'ready',
         step: "Ready",
         progress: 100,
         error: null,
@@ -132,8 +135,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     // Unauthenticated - guest mode, render immediately
     if (authPhase === 'unauthenticated' || !user) {
       setState({
-        dataLoading: false,
-        appReady: true,
+        phase: 'ready',
         step: "Ready",
         progress: 100,
         error: null,
@@ -148,62 +150,86 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     if (bootstrappedUserIdRef.current !== user.id && !inFlightRef.current) {
       setState(s => ({
         ...s,
-        dataLoading: true,
-        appReady: false,
-        step: "Loading your data...",
-        progress: 25,
+        phase: 'profile',
+        step: "Loading profile...",
+        progress: 20,
         error: null,
       }));
     }
   }, [authReady, authPhase, user]);
 
-  // PHASE B: Data rehydration for authenticated users
+  // PHASE B: Ensure profile exists + rehydrate data
   const bootstrap = useCallback(async () => {
     if (!user?.id) return;
 
     const uid = user.id;
     
-    setState(s => ({ ...s, step: "Loading profile...", progress: 35 }));
+    // Step 1: Ensure profile exists
+    setState(s => ({ ...s, phase: 'profile', step: "Loading profile...", progress: 25 }));
 
-    // 1) Ensure profile exists
-    const resolvedProfile = await safe(
-      "resolve profile",
-      async () => {
-        if (profile?.id) return profile;
-        await supabase.rpc("ensure_profile");
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, user_id, username, avatar_url, display_name, bio, onboarding_completed")
-          .eq("user_id", uid)
-          .maybeSingle();
-        if (error) throw error;
-        return data;
-      },
-      null as any
-    );
+    let profileId: string | null = profile?.id ?? null;
 
-    const profileId: string | null = resolvedProfile?.id ?? profile?.id ?? null;
-
+    // If no profile in context, ensure it exists
     if (!profileId) {
-      // No profile but user is logged in - allow app to render
-      console.warn('[AppGate] No profile found, continuing anyway');
+      const ensuredProfile = await safe(
+        "ensure-profile",
+        async () => {
+          // Call ensure_profile RPC to create if missing
+          await supabase.rpc("ensure_profile");
+          
+          // Fetch the profile
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("id, user_id, username, avatar_url, display_name, bio, onboarding_completed, tutorial_completed, created_at")
+            .eq("user_id", uid)
+            .maybeSingle();
+            
+          if (error) throw error;
+          return data;
+        },
+        null
+      );
+
+      if (ensuredProfile) {
+        profileId = ensuredProfile.id;
+        queryClient.setQueryData(["profile", uid], ensuredProfile);
+        
+        // Trigger auth context refresh to sync profile state
+        try {
+          await refreshProfile();
+        } catch {
+          // Non-critical - continue with local profile
+        }
+      }
+    } else {
+      // Cache existing profile
+      queryClient.setQueryData(["profile", uid], profile);
+    }
+
+    // If still no profile, allow app to render but show as error state
+    if (!profileId) {
+      console.error('[AppGate] Failed to ensure profile exists');
       setState({
-        dataLoading: false,
-        appReady: true,
-        step: "Ready",
-        progress: 100,
-        error: null,
-        retryCount: 0,
+        phase: 'error',
+        step: "Profile creation failed",
+        progress: 0,
+        error: "Could not create your profile. Please try again.",
+        retryCount: state.retryCount,
       });
       return;
     }
 
-    queryClient.setQueryData(["profile", uid], resolvedProfile ?? profile);
+    // Step 2: Load all user data in parallel
+    setState(s => ({ ...s, phase: 'data', step: "Loading your data...", progress: 40 }));
 
-    setState(s => ({ ...s, step: "Loading data...", progress: 50 }));
-
-    // 2) Fetch core data in parallel with safe fallbacks
-    await Promise.allSettled([
+    const [
+      friendsResult,
+      friendRequestsResult,
+      conversationsResult,
+      notificationsResult,
+      postsResult,
+      storiesResult,
+    ] = await Promise.allSettled([
       // Friends
       safe("friends", async () => {
         const [asSender, asReceiver] = await Promise.all([
@@ -226,7 +252,28 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         return friends;
       }, []),
 
-      // Conversations (simplified)
+      // Friend requests (incoming + outgoing)
+      safe("friend-requests", async () => {
+        const [incoming, outgoing] = await Promise.all([
+          supabase
+            .from("friend_requests")
+            .select("*, sender:profiles!sender_id(id, username, avatar_url, display_name)")
+            .eq("receiver_id", profileId)
+            .eq("status", "pending")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("friend_requests")
+            .select("*, receiver:profiles!receiver_id(id, username, avatar_url, display_name)")
+            .eq("sender_id", profileId)
+            .eq("status", "pending")
+            .order("created_at", { ascending: false }),
+        ]);
+        const payload = { incoming: incoming.data || [], outgoing: outgoing.data || [] };
+        queryClient.setQueryData(["friend-requests", profileId], payload);
+        return payload;
+      }, { incoming: [], outgoing: [] }),
+
+      // Conversations
       safe("conversations", async () => {
         const { data, error } = await supabase
           .from("conversations")
@@ -281,20 +328,20 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         queryClient.setQueryData(["stories", profileId], data || []);
         return data || [];
       }, []),
-
-      // Mark online
-      safe("presence", async () => {
-        await supabase.from("user_presence").upsert(
-          { user_id: profileId, is_online: true, last_seen_at: new Date().toISOString() },
-          { onConflict: "user_id" }
-        );
-        return true;
-      }, false),
     ]);
 
-    // 3) Messages prefetch (optional - if on a message route)
-    setState(s => ({ ...s, step: "Finishing up...", progress: 85 }));
+    // Step 3: Mark presence
+    setState(s => ({ ...s, step: "Finishing up...", progress: 80 }));
 
+    await safe("presence", async () => {
+      await supabase.from("user_presence").upsert(
+        { user_id: profileId, is_online: true, last_seen_at: new Date().toISOString() },
+        { onConflict: "user_id" }
+      );
+      return true;
+    }, false);
+
+    // Step 4: Prefetch messages for current/first conversation
     const conversations = queryClient.getQueryData<any[]>(["conversations", profileId]) || [];
     const firstConversationId = conversations?.[0]?.id ?? null;
     const convToPrefetch = routeConversationId || firstConversationId;
@@ -314,15 +361,15 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
       }, []);
     }
 
+    // Done!
     setState({
-      dataLoading: false,
-      appReady: true,
+      phase: 'ready',
       step: "Ready!",
       progress: 100,
       error: null,
       retryCount: 0,
     });
-  }, [user, profile, queryClient, routeConversationId]);
+  }, [user, profile, queryClient, routeConversationId, refreshProfile, state.retryCount]);
 
   // Trigger bootstrap when authenticated
   useEffect(() => {
@@ -337,14 +384,13 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     const p = bootstrap()
       .catch((err) => {
         console.error("[AppGate] Bootstrap failed:", err);
-        // FAILSAFE: Don't brick the app - render anyway
+        // FAILSAFE: Don't brick the app - render anyway with error
         setState(s => ({
           ...s,
-          dataLoading: false,
-          appReady: true,
-          step: "Ready (with errors)",
-          progress: 100,
-          error: err?.message || "Failed to load data",
+          phase: 'error',
+          step: "Failed to load data",
+          progress: 0,
+          error: err?.message || "Failed to load your data",
         }));
       })
       .finally(() => {
@@ -361,8 +407,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     inFlightRef.current = null;
     setState(s => ({
       ...s,
-      dataLoading: true,
-      appReady: false,
+      phase: 'profile',
       step: "Retrying...",
       progress: 0,
       error: null,
@@ -370,10 +415,10 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     }));
   }, [user]);
 
+  // Continue anyway (skip data loading)
   const handleContinueAnyway = useCallback(() => {
     setState({
-      dataLoading: false,
-      appReady: true,
+      phase: 'ready',
       step: "Ready",
       progress: 100,
       error: null,
@@ -382,8 +427,8 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
   }, []);
 
   // Render logic
-  const showLoading = !state.appReady || state.dataLoading;
-  const showError = state.error && !state.dataLoading && state.retryCount < MAX_RETRIES;
+  const isLoading = state.phase !== 'ready' && state.phase !== 'error';
+  const showError = state.phase === 'error' && state.retryCount < MAX_RETRIES;
 
   if (showError) {
     return (
@@ -395,7 +440,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     );
   }
 
-  if (showLoading) {
+  if (isLoading) {
     return <SplashScreen isVisible status={state.step} progress={state.progress} />;
   }
 
