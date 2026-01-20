@@ -1,6 +1,7 @@
-import { memo, useState, useEffect } from 'react';
+import { memo, useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, useSpring } from 'framer-motion';
 import { VYBELogo } from './VYBELogo';
+import { isLowEndDevice } from '@/lib/performanceConfig';
 
 interface SplashScreenProps {
   isVisible: boolean;
@@ -14,9 +15,10 @@ export const SplashScreen = memo(function SplashScreen({
   progress = 0 
 }: SplashScreenProps) {
   const showComplete = progress >= 100;
+  const isLowEnd = useMemo(() => isLowEndDevice(), []);
   
-  // Smooth spring animation for progress
-  const springProgress = useSpring(progress, {
+  // Smooth spring animation for progress (disabled on low-end devices)
+  const springProgress = useSpring(progress, isLowEnd ? { duration: 0 } : {
     stiffness: 100,
     damping: 30,
     mass: 1,
@@ -26,11 +28,15 @@ export const SplashScreen = memo(function SplashScreen({
   const [displayProgress, setDisplayProgress] = useState(0);
   
   useEffect(() => {
+    if (isLowEnd) {
+      setDisplayProgress(progress);
+      return;
+    }
     const unsubscribe = springProgress.on('change', (v) => {
       setDisplayProgress(Math.round(v));
     });
     return unsubscribe;
-  }, [springProgress]);
+  }, [springProgress, isLowEnd, progress]);
   
   useEffect(() => {
     springProgress.set(progress);
@@ -74,39 +80,22 @@ export const SplashScreen = memo(function SplashScreen({
             height: '100dvh',
           }}
         >
-          {/* Animated background with neon glow - using theme colors */}
-          <div className="absolute inset-0">
+          {/* Simplified background with static glows for better performance */}
+          <div className="absolute inset-0 pointer-events-none">
             {/* Primary glow - left */}
-            <motion.div 
-              className="absolute top-1/2 left-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2 bg-primary"
-              animate={{
-                opacity: [0.3, 0.5, 0.3],
-                scale: [1, 1.2, 1],
-                x: [-20, 20, -20],
-              }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            <div 
+              className="absolute top-1/2 left-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2 bg-primary opacity-40"
             />
             
             {/* Accent glow - right */}
-            <motion.div 
-              className="absolute top-1/2 right-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2 bg-accent"
-              animate={{
-                opacity: [0.3, 0.5, 0.3],
-                scale: [1.2, 1, 1.2],
-                x: [20, -20, 20],
-              }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
+            <div 
+              className="absolute top-1/2 right-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2 bg-accent opacity-40"
             />
 
             {/* Center purple glow */}
-            <motion.div 
-              className="absolute top-1/2 left-1/2 w-32 h-32 sm:w-48 sm:h-48 rounded-full blur-[60px] sm:blur-[80px] -translate-x-1/2 -translate-y-1/2"
+            <div 
+              className="absolute top-1/2 left-1/2 w-32 h-32 sm:w-48 sm:h-48 rounded-full blur-[60px] sm:blur-[80px] -translate-x-1/2 -translate-y-1/2 opacity-30"
               style={{ background: 'hsl(var(--neon-purple))' }}
-              animate={{
-                opacity: [0.2, 0.4, 0.2],
-                scale: [1, 1.3, 1],
-              }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
             />
           </div>
           

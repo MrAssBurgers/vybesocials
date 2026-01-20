@@ -1,20 +1,21 @@
-import { lazy, Suspense, memo } from 'react';
+import { lazy, Suspense, memo, useMemo } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
+import { isLowEndDevice } from '@/lib/performanceConfig';
 
-// Lazy load pages for code splitting
+// Lazy load pages for code splitting with webpackPrefetch hints
 const Landing = lazy(() => import("@/pages/Landing"));
-const Home = lazy(() => import("@/pages/Home"));
+const Home = lazy(() => import(/* webpackPrefetch: true */ "@/pages/Home"));
 const Shorts = lazy(() => import("@/pages/Shorts"));
-const Explore = lazy(() => import("@/pages/Explore"));
+const Explore = lazy(() => import(/* webpackPrefetch: true */ "@/pages/Explore"));
 const Upload = lazy(() => import("@/pages/Upload"));
 const PostDetail = lazy(() => import("@/pages/PostDetail"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const Notifications = lazy(() => import("@/pages/Notifications"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Onboarding = lazy(() => import("@/pages/Onboarding"));
-const Messages = lazy(() => import("@/pages/Messages"));
+const Messages = lazy(() => import(/* webpackPrefetch: true */ "@/pages/Messages"));
 const NewMessage = lazy(() => import("@/pages/NewMessage"));
 const AIChat = lazy(() => import("@/pages/AIChat"));
 const Feedback = lazy(() => import("@/pages/Feedback"));
@@ -50,30 +51,17 @@ const PageFallback = memo(() => (
   </div>
 ));
 
-// Page transition variants
+// Simplified page transition for better performance
 const pageVariants = {
-  initial: { 
-    opacity: 0, 
-    y: 8,
-    scale: 0.99,
-  },
-  animate: { 
-    opacity: 1, 
-    y: 0,
-    scale: 1,
-  },
-  exit: { 
-    opacity: 0, 
-    y: -4,
-    scale: 0.99,
-  },
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
 };
 
+// Faster transitions
 const pageTransition = {
-  type: 'spring' as const,
-  stiffness: 400,
-  damping: 35,
-  mass: 0.8,
+  duration: 0.15,
+  ease: 'easeOut' as const,
 };
 
 /**
