@@ -19,11 +19,35 @@ export default defineConfig(({ mode }) => ({
     // Optimize chunk splitting for faster loading
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-tooltip'],
-          'vendor-query': ['@tanstack/react-query'],
-          'vendor-motion': ['framer-motion'],
+        manualChunks(id) {
+          // Core React - loaded first
+          if (id.includes('react-dom') || id.includes('react/')) {
+            return 'vendor-react-core';
+          }
+          // React Router - needed for navigation
+          if (id.includes('react-router')) {
+            return 'vendor-router';
+          }
+          // Radix UI components - split into smaller chunks
+          if (id.includes('@radix-ui')) {
+            return 'vendor-ui';
+          }
+          // React Query
+          if (id.includes('@tanstack/react-query')) {
+            return 'vendor-query';
+          }
+          // Framer Motion - can be deferred
+          if (id.includes('framer-motion')) {
+            return 'vendor-motion';
+          }
+          // Supabase client
+          if (id.includes('@supabase')) {
+            return 'vendor-supabase';
+          }
+          // i18n
+          if (id.includes('i18next')) {
+            return 'vendor-i18n';
+          }
         },
       },
     },
@@ -32,13 +56,19 @@ export default defineConfig(({ mode }) => ({
     // Target modern browsers only - no legacy polyfills needed
     target: ['es2022', 'chrome100', 'safari15', 'firefox100', 'edge100'],
     chunkSizeWarningLimit: 1000,
+    // Reduce source map size in production
+    sourcemap: false,
   },
   esbuild: {
     // Prevent legacy class transforms and polyfills
     target: 'es2022',
+    // Drop console in production for smaller bundles
+    drop: ['debugger'],
   },
   // Optimize dependency pre-bundling
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query', 'framer-motion'],
+    include: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query'],
+    // Exclude heavy deps from pre-bundling to reduce initial load
+    exclude: ['framer-motion'],
   },
 }));
