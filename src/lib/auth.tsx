@@ -336,8 +336,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newSession.expires_at) {
         scheduleTokenRefresh(newSession.expires_at);
       }
-      // Fetch profile async to not block auth resolution
-      fetchProfile(newSession.user.id, newSession.user.user_metadata);
+      // Await profile fetch to ensure profile is ready before auth is marked complete
+      await fetchProfile(newSession.user.id, newSession.user.user_metadata);
     } else {
       setProfile(null);
       setBanInfo(null);
@@ -422,29 +422,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = useCallback(async (email: string, password: string, username: string) => {
     try {
+      // Store username in metadata so ensure_profile can use it
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: window.location.origin,
+          data: {
+            username: username.toLowerCase().replace(/\s+/g, ''),
+          },
         },
       });
 
       if (error) throw error;
 
-      if (data.user) {
-        // Create profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            user_id: data.user.id,
-            username: username.toLowerCase().replace(/\s+/g, ''),
-            bio: '',
-          });
-
-        if (profileError) throw profileError;
-      }
-
+      // Profile will be created via ensure_profile when session is established
+      // This avoids RLS issues with direct inserts before session is ready
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -453,17 +446,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
+
+      // Immediately fetch/ensure profile after successful sign in
+      if (data.user) {
+        await fetchProfile(data.user.id, data.user.user_metadata);
+      }
+
       return { error: null };
     } catch (error) {
       return { error: error as Error };
     }
-  }, []);
+  }, [fetchProfile]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
