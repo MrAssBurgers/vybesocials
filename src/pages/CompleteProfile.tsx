@@ -194,6 +194,11 @@ export default function CompleteProfile({ onInviteNavigate, isInviteMode = false
     );
   }
 
+  // If the profile is already set up, never show this screen (prevents flashes)
+  if (user && profile?.username) {
+    return <div className="min-h-screen bg-background" />;
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       {/* Animated background */}

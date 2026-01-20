@@ -184,18 +184,24 @@ export default function InviteRedeem() {
       return;
     }
     
-    // Authenticated but no profile or no username - complete profile
-    if (!profile || !profile.username) {
+    // Authenticated but profile not loaded yet - wait (prevents flashing CompleteProfile)
+    if (!profile) {
+      setCurrentStage('loading');
+      return;
+    }
+
+    // Authenticated but no username - complete profile
+    if (!profile.username) {
       setCurrentStage('complete-profile');
       return;
     }
-    
+
     // Has profile but onboarding not complete
     if (!profile.onboarding_completed) {
       setCurrentStage('onboarding');
       return;
     }
-    
+
     // Fully onboarded - show home (tutorial + invite popup will trigger there)
     setCurrentStage('home');
   }, [inviteProcessed, authLoading, user, profile, introCompleted]);

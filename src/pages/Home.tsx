@@ -190,30 +190,29 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     }
   }, []);
 
-  // Only redirect authenticated users without profile to complete-profile
-  // Guest users can browse freely
+  // Keep guests browsing, but never force "Complete Profile" for returning users.
   useEffect(() => {
     if (authLoading) return;
-    
+
     // If in invite mode (rendered from InviteRedeem), never redirect
     if (isInviteMode) {
       console.log('[Home] In invite mode - skipping all redirects');
       return;
     }
-    
-    // Guest users can browse - no redirect needed
-    if (!user) {
-      return;
-    }
 
-    // For authenticated users without a username
-    if (!profile?.username) {
-      // Don't redirect during active referral flow or invite mode
+    // Guest users can browse - no redirect needed
+    if (!user) return;
+
+    // Wait for profile to load (prevents wrong redirects right after auth)
+    if (!profile) return;
+
+    // If username is missing, send them to onboarding (not CompleteProfile)
+    if (!profile.username) {
       if (hasActiveReferral() || isInviteEntryMode()) {
-        console.log('[Home] Skipping profile redirect - active referral/invite in progress');
+        console.log('[Home] Skipping onboarding redirect - active referral/invite in progress');
         return;
       }
-      navigate('/complete-profile');
+      navigate('/onboarding');
     }
   }, [authLoading, user, profile, navigate, isInviteMode]);
 
