@@ -165,18 +165,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Generate a username from OAuth metadata
-  const generateUsernameFromMetadata = useCallback((metadata: Record<string, any>, odUserId: string): string => {
-    const name = metadata.full_name || metadata.name || '';
-    if (name) {
-      const base = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12);
-      if (base.length >= 3) {
-        const suffix = Math.random().toString(36).slice(2, 6);
-        return `${base}_${suffix}`;
+  // Generate a username from metadata (OAuth or email sign-up)
+  const generateUsernameFromMetadata = useCallback(
+    (metadata: Record<string, any>, odUserId: string): string => {
+      const normalize = (raw: string) =>
+        raw
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, "_")
+          .replace(/[^a-z0-9_]/g, "")
+          .replace(/_+/g, "_")
+          .replace(/^_+|_+$/g, "")
+          .slice(0, 20);
+
+      // Prefer explicit username coming from email sign-up metadata
+      if (typeof metadata.username === "string" && metadata.username.trim()) {
+        const normalized = normalize(metadata.username);
+        if (normalized.length >= 3) return normalized;
       }
-    }
-    return `user_${odUserId.slice(0, 8)}`;
-  }, []);
+
+      const name = metadata.full_name || metadata.name || "";
+      if (name) {
+        const base = normalize(String(name)).slice(0, 12);
+        if (base.length >= 3) {
+          const suffix = Math.random().toString(36).slice(2, 6);
+          return `${base}_${suffix}`;
+        }
+      }
+
+      return `user_${odUserId.slice(0, 8)}`;
+    },
+    []
+  );
 
   // Fetch profile - deduplicated to prevent race conditions
   const fetchProfile = useCallback(async (userId: string, userMetadata?: Record<string, any>): Promise<Profile | null> => {
