@@ -36,10 +36,6 @@ export default defineConfig(({ mode }) => ({
   esbuild: {
     // Prevent legacy class transforms and polyfills
     target: 'es2022',
-    supported: {
-      'class-fields': true,
-      'class-static-blocks': true,
-    },
   },
   // Optimize dependency pre-bundling
   optimizeDeps: {
