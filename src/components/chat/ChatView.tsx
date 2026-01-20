@@ -608,9 +608,15 @@ export function ChatView() {
     setIsUploadingMedia(true);
 
     try {
-      // Convert base64 to blob
-      const response = await fetch(imageDataUrl);
-      const blob = await response.blob();
+      // Properly convert base64 data URL to blob with correct mime type
+      const base64Data = imageDataUrl.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/jpeg' });
       
       const fileName = `${profile.user_id}/${Date.now()}_vybe.jpg`;
 
@@ -1280,6 +1286,7 @@ const MessageInputArea = memo(function MessageInputArea({
               onOpenScheduleMessage={onOpenScheduleMessage}
               onOpenDMSettings={onOpenDMSettings}
               onOpenAdminPanel={onOpenAdminPanel}
+              onOpenVybeCamera={onOpenSnapCamera}
             />
 
             <DropdownMenu open={showViewModeMenu} onOpenChange={setShowViewModeMenu}>
@@ -1321,17 +1328,6 @@ const MessageInputArea = memo(function MessageInputArea({
 
             {!messageText.trim() ? (
               <div className="flex items-center gap-1">
-                {/* VYBE Camera button */}
-                {onOpenSnapCamera && (
-                  <Button 
-                    variant="ghost"
-                    size="icon"
-                    onClick={onOpenSnapCamera}
-                    className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 text-primary hover:bg-primary/10"
-                  >
-                    <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </Button>
-                )}
                 <Button 
                   variant="ghost"
                   size="icon"
