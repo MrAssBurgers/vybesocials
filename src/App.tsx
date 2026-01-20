@@ -30,6 +30,7 @@ import { useBanStatus } from "@/hooks/useBanStatus";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { AppReadinessGate } from "@/components/app/AppReadinessGate";
+import { OfflineBanner } from "@/components/app/OfflineBanner";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -115,6 +116,7 @@ function AppShell() {
                     <TutorialProvider>
                       <ScrollRestoration />
                       <AppReadinessGate>
+                        <OfflineBanner />
                         <AnimatedRoutes />
                         <RootBottomNavMount />
                         <PushNotificationPrompt />
