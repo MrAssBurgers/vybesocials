@@ -132,25 +132,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         if (error) throw error;
         toast.success('Welcome back! ✨');
         
-        // Check if user has completed onboarding before redirecting
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (currentUser) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('username, onboarding_completed')
-            .eq('user_id', currentUser.id)
-            .maybeSingle();
-          
-          if (profile?.username && profile?.onboarding_completed !== false) {
-            navTo('home', '/home');
-          } else if (!profile?.username) {
-            navTo('complete-profile', '/complete-profile');
-          } else {
-            navTo('onboarding', '/onboarding');
-          }
-        } else {
-          navTo('home', '/home');
-        }
+        // Login always goes to home - profile completion is optional
+        navTo('home', '/home');
       } else {
         if (!formData.username.trim()) {
           throw new Error('Username is required');
@@ -330,7 +313,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   // The user will return to the invite URL, and the useEffect will handle stage transition
                   const redirectUrl = isInviteMode 
                     ? window.location.href // Keep current invite URL
-                    : `${window.location.origin}/complete-profile`;
+                    : `${window.location.origin}/home`;
                   
                   const { error } = await supabase.auth.signInWithOAuth({
                     provider: 'google',
