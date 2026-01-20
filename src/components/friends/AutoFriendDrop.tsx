@@ -29,6 +29,7 @@ export function AutoFriendDrop() {
   const sendRequest = useSendFriendRequest();
   const [isActive, setIsActive] = useState(false);
   const [phase, setPhase] = useState<DropPhase>('idle');
+  const [isDismissed, setIsDismissed] = useState(false);
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -244,7 +245,7 @@ export function AutoFriendDrop() {
     <>
       {/* Subtle indicator that bump detection is active */}
       <AnimatePresence>
-        {!isActive && (
+        {!isActive && !isDismissed && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -275,6 +276,15 @@ export function AutoFriendDrop() {
                   : 'Bump phones to add friends'}
               </span>
               <Zap className="h-3 w-3 text-primary" />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsDismissed(true);
+                }}
+                className="ml-1 p-0.5 rounded-full hover:bg-primary/20 transition-colors"
+              >
+                <X className="h-3 w-3 text-primary/70" />
+              </button>
             </motion.div>
           </motion.div>
         )}
