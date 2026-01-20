@@ -166,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Note: Referral/invite popup is now handled entirely by InvitePopup component
   // using the referral.ts utilities with localStorage persistence
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, userMetadata?: Record<string, any>) => {
     // Prefer array result to avoid throwing when the row doesn't exist
     const { data, error } = await supabase
       .from('profiles')
@@ -175,6 +175,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .limit(1);
 
     if (!error && data?.[0]) {
+      // If profile exists but has no username, auto-generate one for OAuth users
+      if (!data[0].username && userMetadata) {
+        const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            username: autoUsername,
+            display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+            avatar_url: data[0].avatar_url || userMetadata.avatar_url || userMetadata.picture,
+          })
+          .eq('id', data[0].id);
+        
+        if (!updateError) {
+          data[0].username = autoUsername;
+          data[0].display_name = userMetadata.full_name || userMetadata.name || autoUsername;
+          data[0].avatar_url = data[0].avatar_url || userMetadata.avatar_url || userMetadata.picture;
+        }
+      }
+      
       setProfile(data[0]);
       // Check ban status and subscribe to realtime changes
       checkBanStatus(data[0].id);
@@ -197,6 +216,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .limit(1);
 
     if (!afterEnsureError && afterEnsure?.[0]) {
+      // Auto-generate username for new OAuth users
+      if (!afterEnsure[0].username && userMetadata) {
+        const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            username: autoUsername,
+            display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+            avatar_url: afterEnsure[0].avatar_url || userMetadata.avatar_url || userMetadata.picture,
+          })
+          .eq('id', afterEnsure[0].id);
+        
+        if (!updateError) {
+          afterEnsure[0].username = autoUsername;
+          afterEnsure[0].display_name = userMetadata.full_name || userMetadata.name || autoUsername;
+          afterEnsure[0].avatar_url = afterEnsure[0].avatar_url || userMetadata.avatar_url || userMetadata.picture;
+        }
+      }
+      
       setProfile(afterEnsure[0]);
       // Check ban status and subscribe to realtime changes
       checkBanStatus(afterEnsure[0].id);
@@ -206,6 +244,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setProfile(null);
     return null;
+  };
+
+  // Generate a username from OAuth metadata
+  const generateUsernameFromMetadata = (metadata: Record<string, any>, odUserId: string): string => {
+    // Try to create username from name
+    const name = metadata.full_name || metadata.name || '';
+    if (name) {
+      // Remove special chars, lowercase, replace spaces with underscores
+      const base = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12);
+      if (base.length >= 3) {
+        // Add random suffix to avoid collisions
+        const suffix = Math.random().toString(36).slice(2, 6);
+        return `${base}_${suffix}`;
+      }
+    }
+    // Fallback: use part of user id
+    return `user_${odUserId.slice(0, 8)}`;
   };
 
   useEffect(() => {
@@ -223,7 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           // Use setTimeout to avoid Supabase auth deadlock
           setTimeout(() => {
-            fetchProfile(session.user.id);
+            fetchProfile(session.user.id, session.user.user_metadata);
           }, 0);
         } else {
           setProfile(null);
@@ -257,7 +312,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session.expires_at) {
           scheduleTokenRefresh(session.expires_at);
         }
-        fetchProfile(session.user.id);
+        fetchProfile(session.user.id, session.user.user_metadata);
       }
       
       setLoading(false);
