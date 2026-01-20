@@ -119,13 +119,13 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Already bootstrapped for this session
-    if (bootstrappedUserIdRef.current === user.id && state.appReady) return;
+    // Already bootstrapped for this user - skip
+    if (bootstrappedUserIdRef.current === user.id) return;
 
     // Avoid duplicate bootstraps (StrictMode double-invokes effects)
     if (inFlightRef.current) return;
 
-    // Mark that we are bootstrapping this user (even if data is cached)
+    // Mark that we are bootstrapping this user
     bootstrappedUserIdRef.current = user.id;
 
     const bootstrap = async () => {
