@@ -9,7 +9,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { StoriesBar } from '@/components/stories/StoriesBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
-import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
+import { hasActiveReferral } from '@/lib/referral';
 import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
@@ -209,8 +209,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
     // If username is missing, send them to onboarding (not CompleteProfile)
     if (!profile.username) {
-      if (hasActiveReferral() || isInviteEntryMode()) {
-        console.log('[Home] Skipping onboarding redirect - active referral/invite in progress');
+      if (hasActiveReferral()) {
+        console.log('[Home] Skipping onboarding redirect - active referral in progress');
         return;
       }
       navigate('/onboarding', { replace: true });

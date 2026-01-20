@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
-import { isInviteEntryMode } from '@/lib/referral';
+
 
 // Hide bottom nav on landing page
 function useHideBottomNav() {
@@ -85,9 +85,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     // No user = stay on landing
     if (!user) return;
 
-    // If on invite route or in invite entry mode, don't auto-redirect
-    if (isInviteRoute || isInviteEntryMode()) {
-      console.log('[Landing] In invite flow, skipping auto-redirect');
+    // If on invite route, don't auto-redirect (InviteRedeem owns the flow)
+    if (isInviteRoute) {
+      console.log('[Landing] On invite route, skipping auto-redirect');
       return;
     }
 
