@@ -19,71 +19,21 @@ export default defineConfig(({ mode }) => ({
     // Optimize chunk splitting for faster loading
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          // Core React - loaded first
-          if (id.includes('react-dom') || id.includes('react/')) {
-            return 'vendor-react-core';
-          }
-          // React Router - needed for navigation
-          if (id.includes('react-router')) {
-            return 'vendor-router';
-          }
-          // Radix UI components - split into smaller chunks
-          if (id.includes('@radix-ui')) {
-            return 'vendor-ui';
-          }
-          // React Query
-          if (id.includes('@tanstack/react-query')) {
-            return 'vendor-query';
-          }
-          // Framer Motion - can be deferred
-          if (id.includes('framer-motion')) {
-            return 'vendor-motion';
-          }
-          // Supabase client
-          if (id.includes('@supabase')) {
-            return 'vendor-supabase';
-          }
-          // i18n
-          if (id.includes('i18next')) {
-            return 'vendor-i18n';
-          }
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-tooltip'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-motion': ['framer-motion'],
         },
       },
     },
     // Enable minification optimizations
     minify: 'esbuild',
-    // Target modern browsers only - Chrome 110+, Firefox 115+, Safari 16+
-    // These all support ES2022+ features natively (classes, Promise.any, etc.)
-    target: ['chrome110', 'firefox115', 'safari16', 'edge110'],
-    chunkSizeWarningLimit: 1000,
-    // Reduce source map size in production
-    sourcemap: false,
-    // Enable CSS code splitting for better loading
-    cssCodeSplit: true,
-    // Reduce CSS size
-    cssMinify: 'esbuild',
-    // Disable module preload polyfill - modern browsers don't need it
-    modulePreload: {
-      polyfill: false,
-    },
-  },
-  esbuild: {
-    // Target latest JS features - no legacy transforms
     target: 'esnext',
-    // Drop console in production for smaller bundles
-    drop: ['debugger'],
-    // Ensure no legacy class syntax transforms
-    keepNames: false,
+    chunkSizeWarningLimit: 1000,
   },
   // Optimize dependency pre-bundling
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query'],
-    // Exclude heavy deps from pre-bundling to reduce initial load
-    exclude: ['framer-motion'],
-    // Use modern JS for deps
-    esbuildOptions: {
-      target: 'esnext',
-    },
+    include: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query', 'framer-motion'],
   },
 }));

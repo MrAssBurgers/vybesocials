@@ -8,17 +8,13 @@ interface PreloadStatus {
   isComplete: boolean;
 }
 
-// Comprehensive preload steps for a premium loading experience
+// Streamlined preload steps - reduced for faster startup
 const PRELOAD_STEPS = [
-  { key: 'init', label: 'Initializing...', weight: 5 },
-  { key: 'auth', label: 'Checking session...', weight: 10 },
-  { key: 'profile', label: 'Loading profile...', weight: 15 },
-  { key: 'conversations', label: 'Loading conversations...', weight: 15 },
-  { key: 'posts', label: 'Loading feed...', weight: 20 },
-  { key: 'notifications', label: 'Loading notifications...', weight: 10 },
-  { key: 'friends', label: 'Loading friends...', weight: 10 },
-  { key: 'assets', label: 'Preparing assets...', weight: 10 },
-  { key: 'ready', label: 'Ready!', weight: 5 },
+  { key: 'init', label: 'Starting...', weight: 10 },
+  { key: 'auth', label: 'Authenticating...', weight: 15 },
+  { key: 'profile', label: 'Loading profile...', weight: 20 },
+  { key: 'data', label: 'Loading content...', weight: 45 },
+  { key: 'ready', label: 'Ready!', weight: 10 },
 ];
 
 // Preload an image and return a promise
@@ -30,16 +26,25 @@ const preloadImage = (url: string): Promise<void> => {
     }
     const img = new Image();
     img.onload = () => resolve();
-    img.onerror = () => resolve();
+    img.onerror = () => resolve(); // Don't fail on image errors
     img.src = url;
   });
 };
 
-// Minimum display time for each step to feel premium
-const MIN_STEP_TIME = 150;
-
-// Delay helper
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// Preload video metadata
+const preloadVideoMetadata = (url: string): Promise<void> => {
+  return new Promise((resolve) => {
+    if (!url) {
+      resolve();
+      return;
+    }
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => resolve();
+    video.onerror = () => resolve();
+    video.src = url;
+  });
+};
 
 export function useAppPreloader() {
   const queryClient = useQueryClient();
@@ -73,44 +78,13 @@ export function useAppPreloader() {
       try {
         // Step 1: Initialize
         updateStatus('init');
-        await delay(MIN_STEP_TIME);
 
         // Step 2: Check authentication
         updateStatus('auth');
         const { data: { session } } = await supabase.auth.getSession();
-        await delay(MIN_STEP_TIME);
 
         if (!session?.user) {
-          // Not logged in - still show nice loading experience with public content
-          updateStatus('profile');
-          await delay(MIN_STEP_TIME);
-          
-          // Load trending/public posts for explore
-          updateStatus('posts');
-          const { data: publicPosts } = await supabase
-            .from('posts')
-            .select(`
-              id, type, media_url, thumbnail_url, caption, tags, created_at, is_pinned,
-              author:profiles!posts_author_id_fkey(id, username, avatar_url, is_verified)
-            `)
-            .order('created_at', { ascending: false })
-            .limit(30);
-
-          if (publicPosts) {
-            // Preload some thumbnails
-            const thumbnails = publicPosts
-              .slice(0, 6)
-              .map(p => p.thumbnail_url || p.media_url)
-              .filter(Boolean);
-            await Promise.all(thumbnails.map(url => preloadImage(url)));
-          }
-          await delay(MIN_STEP_TIME);
-
-          // Prepare assets
-          updateStatus('assets');
-          await delay(MIN_STEP_TIME * 2);
-
-          // Done
+          // Not logged in - minimal load, done instantly
           updateStatus('ready');
           return;
         }
@@ -127,47 +101,49 @@ export function useAppPreloader() {
 
         if (profile) {
           queryClient.setQueryData(['profile', uid], profile);
-          // Preload avatar
-          if (profile.avatar_url) {
-            preloadImage(profile.avatar_url);
-          }
         }
-        await delay(MIN_STEP_TIME);
 
-        // Step 4: Load conversations
-        updateStatus('conversations');
-        const { data: conversations } = await supabase
-          .from('conversation_members')
-          .select(`
-            conversation:conversations!inner(id, name, is_group, avatar_url, updated_at),
-            is_muted, is_pinned, last_read_at
-          `)
-          .eq('user_id', uid)
-          .order('conversation(updated_at)', { ascending: false })
-          .limit(30);
+        // Step 4: Load critical data in parallel for speed
+        updateStatus('data');
+        
+        const [conversationsResult, postsResult, notificationsResult] = await Promise.allSettled([
+          // Conversations - limit to 30 for faster load
+          supabase
+            .from('conversation_members')
+            .select(`
+              conversation:conversations!inner(id, name, is_group, avatar_url, updated_at),
+              is_muted, is_pinned, last_read_at
+            `)
+            .eq('user_id', uid)
+            .order('conversation(updated_at)', { ascending: false })
+            .limit(30),
+          
+          // Posts - limit to 50 for faster load
+          supabase.rpc('get_posts_with_counts', {
+            p_type: null,
+            p_author_id: null,
+            p_user_id: uid,
+            p_offset: 0,
+            p_limit: 50,
+          }),
+          
+          // Notifications - limit to 20
+          supabase
+            .from('notifications')
+            .select(`id, type, read, created_at, post_id, actor:profiles!notifications_actor_id_fkey(id, username, avatar_url)`)
+            .eq('user_id', uid)
+            .order('created_at', { ascending: false })
+            .limit(20),
+        ]);
 
-        if (conversations) {
-          queryClient.setQueryData(['conversations', uid], conversations);
-          // Preload conversation avatars
-          const avatars = conversations
-            .slice(0, 5)
-            .map((c: any) => c.conversation?.avatar_url)
-            .filter(Boolean);
-          await Promise.all(avatars.map(url => preloadImage(url)));
+        // Process conversations
+        if (conversationsResult.status === 'fulfilled' && conversationsResult.value.data) {
+          queryClient.setQueryData(['conversations', uid], conversationsResult.value.data);
         }
-        await delay(MIN_STEP_TIME);
 
-        // Step 5: Load posts
-        updateStatus('posts');
-        const { data: posts } = await supabase.rpc('get_posts_with_counts', {
-          p_type: null,
-          p_author_id: null,
-          p_user_id: uid,
-          p_offset: 0,
-          p_limit: 50,
-        });
-
-        if (posts) {
+        // Process posts
+        if (postsResult.status === 'fulfilled' && postsResult.value.data) {
+          const posts = postsResult.value.data;
           const transformedPosts = posts.map((row: any) => ({
             id: row.id,
             type: row.type,
@@ -195,59 +171,14 @@ export function useAppPreloader() {
               pageParams: [0],
             }
           );
-
-          // Preload first few post images/thumbnails
-          const mediaUrls = transformedPosts
-            .slice(0, 8)
-            .map((p: any) => p.thumbnail_url || p.media_url)
-            .filter(Boolean);
-          await Promise.all(mediaUrls.map(url => preloadImage(url)));
         }
-        await delay(MIN_STEP_TIME);
 
-        // Step 6: Load notifications
-        updateStatus('notifications');
-        const { data: notifications } = await supabase
-          .from('notifications')
-          .select(`id, type, read, created_at, post_id, actor:profiles!notifications_actor_id_fkey(id, username, avatar_url)`)
-          .eq('user_id', uid)
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        if (notifications) {
-          queryClient.setQueryData(['notifications', uid], notifications);
+        // Process notifications
+        if (notificationsResult.status === 'fulfilled' && notificationsResult.value.data) {
+          queryClient.setQueryData(['notifications', uid], notificationsResult.value.data);
         }
-        await delay(MIN_STEP_TIME);
 
-        // Step 7: Load friends
-        updateStatus('friends');
-        const { data: friendRequests } = await supabase
-          .from('friend_requests')
-          .select(`
-            id, status, created_at,
-            sender:profiles!friend_requests_sender_id_fkey(id, username, avatar_url, display_name),
-            receiver:profiles!friend_requests_receiver_id_fkey(id, username, avatar_url, display_name)
-          `)
-          .or(`sender_id.eq.${uid},receiver_id.eq.${uid}`)
-          .eq('status', 'accepted')
-          .limit(50);
-
-        if (friendRequests) {
-          queryClient.setQueryData(['accepted-friends', uid], friendRequests);
-          // Preload friend avatars
-          const friendAvatars = friendRequests
-            .slice(0, 10)
-            .flatMap((fr: any) => [fr.sender?.avatar_url, fr.receiver?.avatar_url])
-            .filter(Boolean);
-          await Promise.all(friendAvatars.map(url => preloadImage(url)));
-        }
-        await delay(MIN_STEP_TIME);
-
-        // Step 8: Prepare final assets
-        updateStatus('assets');
-        await delay(MIN_STEP_TIME * 2);
-
-        // Done!
+        // Done - skip media preloading during initial load for faster startup
         updateStatus('ready');
 
       } catch (error) {
