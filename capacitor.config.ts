@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 // Set to true for development (hot reload from preview URL)
 // Set to false for production builds (uses bundled assets)
-const IS_DEVELOPMENT = false;
+const IS_DEVELOPMENT = true;
 
 const config: CapacitorConfig = {
   appId: 'app.lovable.762a689eac3b48a59a179f1c2b5b3a2b',
