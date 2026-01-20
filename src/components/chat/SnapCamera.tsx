@@ -93,11 +93,18 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
   };
 
-  // Capture photo
+  // Flash effect state
+  const [showFlash, setShowFlash] = useState(false);
+
+  // Capture photo with flash effect
   const handleCapture = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
 
-    haptics.impact();
+    haptics.success();
+    
+    // Show flash effect
+    setShowFlash(true);
+    setTimeout(() => setShowFlash(false), 150);
     
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -108,7 +115,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0);
 
-    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.92);
     setCapturedImage(imageDataUrl);
     setPhase('edit');
     stopCamera();
@@ -312,43 +319,75 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
               autoPlay
             />
 
+            {/* Flash effect overlay */}
+            <AnimatePresence>
+              {showFlash && (
+                <motion.div
+                  initial={{ opacity: 1 }}
+                  animate={{ opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute inset-0 z-50 bg-white pointer-events-none"
+                />
+              )}
+            </AnimatePresence>
+
             {/* Header */}
-            <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between safe-area-inset-top">
-              <Button variant="ghost" size="icon" onClick={handleClose} className="text-white bg-black/40 rounded-full backdrop-blur-sm">
+            <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between safe-area-inset-top bg-gradient-to-b from-black/50 to-transparent">
+              <Button variant="ghost" size="icon" onClick={handleClose} className="text-white bg-black/40 rounded-full backdrop-blur-sm hover:bg-black/60">
                 <X className="h-6 w-6" />
               </Button>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary/30 to-accent/30 backdrop-blur-sm border border-white/20">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <span className="text-xs text-white font-bold tracking-wide">VYBE</span>
-              </div>
-              <Button variant="ghost" size="icon" onClick={handleSwitchCamera} className="text-white bg-black/40 rounded-full backdrop-blur-sm">
+              <motion.div 
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-primary/40 to-accent/40 backdrop-blur-md border border-white/30"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 500 }}
+              >
+                <Sparkles className="h-4 w-4 text-white" />
+                <span className="text-sm text-white font-bold tracking-wide">VYBE</span>
+              </motion.div>
+              <Button variant="ghost" size="icon" onClick={handleSwitchCamera} className="text-white bg-black/40 rounded-full backdrop-blur-sm hover:bg-black/60">
                 <SwitchCamera className="h-6 w-6" />
               </Button>
             </div>
 
-            {/* Capture button */}
-            <div className="absolute bottom-8 left-0 right-0 flex justify-center safe-area-inset-bottom">
+            {/* Capture button - enhanced */}
+            <div className="absolute bottom-10 left-0 right-0 flex justify-center safe-area-inset-bottom">
               <motion.button
                 onClick={handleCapture}
-                className="w-20 h-20 rounded-full border-4 border-white bg-gradient-to-br from-primary/30 to-accent/30 backdrop-blur-sm flex items-center justify-center"
+                className="relative w-20 h-20 rounded-full flex items-center justify-center"
                 whileTap={{ scale: 0.9 }}
               >
+                {/* Outer ring with gradient */}
+                <div className="absolute inset-0 rounded-full border-4 border-white/90 bg-gradient-to-br from-primary/20 to-accent/20 backdrop-blur-sm" />
+                {/* Inner button */}
                 <motion.div 
-                  className="w-16 h-16 rounded-full bg-white"
-                  whileTap={{ scale: 0.95 }}
+                  className="w-16 h-16 rounded-full bg-white shadow-lg"
+                  whileTap={{ scale: 0.9 }}
+                />
+                {/* Pulsing ring effect */}
+                <motion.div
+                  className="absolute inset-0 rounded-full border-2 border-white/50"
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                 />
               </motion.button>
             </div>
 
             {/* Vybe streak indicator */}
-            <div className="absolute bottom-32 left-0 right-0 flex justify-center">
+            <div className="absolute bottom-36 left-0 right-0 flex justify-center px-4">
               <motion.div 
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-primary/40 to-accent/40 backdrop-blur-md border border-white/30"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-primary/50 to-accent/50 backdrop-blur-xl border border-white/30 shadow-lg"
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3 }}
+                transition={{ delay: 0.3, type: 'spring' }}
               >
-                <Sparkles className="h-4 w-4 text-white" />
+                <motion.div
+                  animate={{ rotate: [0, 15, -15, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  <Sparkles className="h-4 w-4 text-white" />
+                </motion.div>
                 <span className="text-sm text-white font-semibold">Send a VYBE to keep the streak!</span>
               </motion.div>
             </div>

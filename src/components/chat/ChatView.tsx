@@ -1640,53 +1640,83 @@ const MessageBubble = memo(function MessageBubble({
             <div className={message.content ? "mb-2" : ""}>
               {vybeViewed ? (
                 // After viewing - show "Opened" state like Snapchat
-                <div 
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
                   className={cn(
-                    "relative w-32 h-20 sm:w-36 sm:h-24 rounded-xl overflow-hidden",
-                    "bg-muted/30 border border-border/50",
-                    "flex flex-col items-center justify-center gap-1"
+                    "relative w-36 h-14 sm:w-40 sm:h-16 rounded-2xl overflow-hidden",
+                    "bg-gradient-to-r from-muted/50 to-muted/30",
+                    "border border-border/30",
+                    "flex items-center justify-center gap-2"
                   )}
                 >
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Eye className="h-4 w-4" />
-                    <span className="text-xs font-medium">Opened</span>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="p-1.5 rounded-full bg-muted/50">
+                      <Eye className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium">Opened</span>
+                      <span className="text-[9px] opacity-60">VYBE</span>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-muted-foreground/60">VYBE</span>
-                </div>
+                </motion.div>
               ) : (
                 // Before viewing - tap to open fullscreen
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => {
                     setShowVybeViewer(true);
                   }}
                   className={cn(
-                    "relative w-32 h-44 sm:w-36 sm:h-48 rounded-xl overflow-hidden",
+                    "relative w-36 h-48 sm:w-40 sm:h-52 rounded-2xl overflow-hidden",
                     "bg-gradient-to-br from-primary via-accent to-primary",
-                    "flex flex-col items-center justify-center gap-2",
-                    "shadow-lg border-2 border-primary/30"
+                    "flex flex-col items-center justify-center gap-3",
+                    "shadow-xl shadow-primary/20 border border-white/20",
+                    "cursor-pointer"
                   )}
                 >
+                  {/* Animated gradient background */}
+                  <motion.div 
+                    className="absolute inset-0 bg-gradient-to-br from-primary via-accent to-primary bg-[length:200%_200%]"
+                    animate={{ backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+                  />
+                  
                   {/* Blurred preview background */}
                   <div 
-                    className="absolute inset-0 bg-cover bg-center blur-xl opacity-40"
+                    className="absolute inset-0 bg-cover bg-center blur-2xl opacity-30 scale-110"
                     style={{ backgroundImage: `url(${message.media_url})` }}
                   />
+                  
                   {/* Tap to view overlay */}
-                  <div className="relative z-10 flex flex-col items-center gap-2 text-white">
-                    <div className="p-3 rounded-full bg-white/20 backdrop-blur-sm">
-                      <Camera className="h-6 w-6" />
+                  <div className="relative z-10 flex flex-col items-center gap-3 text-white">
+                    <motion.div 
+                      className="p-4 rounded-full bg-white/20 backdrop-blur-md border border-white/30"
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                    >
+                      <Camera className="h-7 w-7" />
+                    </motion.div>
+                    <div className="flex flex-col items-center">
+                      <span className="text-sm font-bold tracking-wide">TAP TO VIEW</span>
+                      <div className="flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded-full bg-white/10">
+                        <Sparkles className="h-3 w-3" />
+                        <span className="text-[10px] font-semibold">VYBE</span>
+                      </div>
                     </div>
-                    <span className="text-xs font-semibold tracking-wide">TAP TO VIEW</span>
-                    <span className="text-[10px] opacity-75">VYBE</span>
                   </div>
-                  {/* Shimmer effect */}
+                  
+                  {/* Enhanced shimmer effect */}
                   <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                    animate={{ x: ['-100%', '200%'] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12"
+                    animate={{ x: ['-150%', '150%'] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', repeatDelay: 0.5 }}
                   />
+                  
+                  {/* Corner glow effects */}
+                  <div className="absolute top-0 left-0 w-20 h-20 bg-white/20 rounded-full blur-2xl -translate-x-1/2 -translate-y-1/2" />
+                  <div className="absolute bottom-0 right-0 w-20 h-20 bg-accent/30 rounded-full blur-2xl translate-x-1/2 translate-y-1/2" />
                 </motion.button>
               )}
               
