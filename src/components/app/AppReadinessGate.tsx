@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { DataLoadErrorState } from "@/components/app/DataLoadErrorState";
+import { toast } from "sonner";
 
 type GateState = {
   phase: 'auth' | 'profile' | 'data' | 'ready' | 'error';
@@ -32,7 +33,7 @@ type GateState = {
 
 const DEFAULT_TIMEOUT_MS = 8000;
 const MAX_RETRIES = 2;
-const MAX_TOTAL_WAIT_MS = 15000; // Maximum 15 seconds before forcing app ready
+const MAX_TOTAL_WAIT_MS = 8000; // Hard cap: never block longer than 8s
 
 // Wrap promise with timeout
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -107,6 +108,8 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
   const inFlightRef = useRef<Promise<void> | null>(null);
   const bootstrappedUserIdRef = useRef<string | null>(null);
   const startTimeRef = useRef<number>(Date.now());
+  const forcedReadyRef = useRef(false);
+  const phaseRef = useRef<GateState['phase']>('auth');
 
   // Get conversation ID from route if on messages page
   const routeConversationId = (() => {
@@ -114,11 +117,19 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     return match?.[1] ?? null;
   })();
 
-  // FAILSAFE: Force app ready after max wait time
+  // Keep a ref of the latest phase so our failsafe timer doesn't rely on stale closures
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (state.phase !== 'ready') {
+    phaseRef.current = state.phase;
+  }, [state.phase]);
+
+  // FAILSAFE: single hard cap timer (does NOT reset per-phase)
+  useEffect(() => {
+    forcedReadyRef.current = false;
+    const timer = window.setTimeout(() => {
+      if (phaseRef.current !== 'ready' && !forcedReadyRef.current) {
+        forcedReadyRef.current = true;
         console.warn('[AppGate] Maximum wait time exceeded, forcing app ready');
+        toast.message('Some data is still loading');
         setState({
           phase: 'ready',
           step: "Ready",
@@ -129,8 +140,8 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
       }
     }, MAX_TOTAL_WAIT_MS);
 
-    return () => clearTimeout(timer);
-  }, [state.phase]);
+    return () => window.clearTimeout(timer);
+  }, [user?.id, state.retryCount]);
 
   // PHASE A: Wait for auth to resolve
   useEffect(() => {
@@ -233,6 +244,10 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     // If still no profile after trying, continue anyway - user can retry later
     if (!profileId) {
       console.warn('[AppGate] No profile available, continuing with limited functionality');
+      if (!forcedReadyRef.current) {
+        forcedReadyRef.current = true;
+        toast.message('Some data is still loading');
+      }
       // Don't block the app - just continue
       setState({
         phase: 'ready',
@@ -430,6 +445,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     bootstrappedUserIdRef.current = null;
     inFlightRef.current = null;
     startTimeRef.current = Date.now();
+    forcedReadyRef.current = false;
     setState(s => ({
       ...s,
       phase: 'profile',

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -35,7 +35,7 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, authReady, signIn, signUp, profile } = useAuth();
+  const { user, authReady, signIn, signUp, profile, profileLoading, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
@@ -72,6 +72,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const location = useLocation();
   const isInviteRoute = location.pathname.startsWith('/invite/');
 
+  // Failsafe: never block on profile forever. If profile isn't available soon, enter the app anyway.
+  const fallbackRedirectRef = useRef<number | null>(null);
+
   useEffect(() => {
     // CRITICAL: Wait for authReady before any redirect logic
     if (!authReady) return;
@@ -91,8 +94,28 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       return;
     }
 
+    // If profile is missing, kick a refresh attempt (non-blocking)
+    if (!profile && !profileLoading) {
+      void refreshProfile();
+    }
+
+    // Start a hard fallback timer when logged-in but profile is still missing
+    if (!profile && fallbackRedirectRef.current === null) {
+      fallbackRedirectRef.current = window.setTimeout(() => {
+        console.warn('[Landing] Profile not ready, continuing with minimal state');
+        toast.message('Some data is still loading');
+        navigate('/home', { replace: true });
+      }, 7000);
+    }
+
     // Wait for profile to load before deciding where to go
     if (!profile) return;
+
+    // Profile is ready; clear fallback timer
+    if (fallbackRedirectRef.current !== null) {
+      window.clearTimeout(fallbackRedirectRef.current);
+      fallbackRedirectRef.current = null;
+    }
 
     // Redirect based on onboarding status
     if (profile.onboarding_completed) {
@@ -100,7 +123,18 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     } else {
       navigate('/onboarding', { replace: true });
     }
-  }, [authReady, user, profile, navigate, isInviteRoute, isInviteMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authReady, user, profile, profileLoading, refreshProfile, navigate, isInviteRoute, isInviteMode]);
+
+  // Clean up fallback timer
+  useEffect(() => {
+    return () => {
+      if (fallbackRedirectRef.current !== null) {
+        window.clearTimeout(fallbackRedirectRef.current);
+        fallbackRedirectRef.current = null;
+      }
+    };
+  }, []);
 
   // Only hide the landing page if we're about to redirect (handled in useEffect)
   // Don't return null immediately - let the useEffect decide
