@@ -92,14 +92,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       return;
     }
 
-    // User is authenticated - navigate IMMEDIATELY
-    // Profile loading continues in background, AppReadinessGate handles data
-    if (profile && !profile.onboarding_completed) {
-      navigate('/onboarding', { replace: true });
-    } else {
-      navigate('/home', { replace: true });
-    }
-  }, [authReady, user, profile, navigate, isInviteRoute, isInviteMode]);
+    // User is authenticated - navigate IMMEDIATELY to /home
+    // Profile loading and onboarding check happen AFTER in AppReadinessGate/Home
+    // NEVER wait for profile here - that causes login to hang
+    console.log('[Landing] User authenticated, navigating to /home immediately');
+    navigate('/home', { replace: true });
+  }, [authReady, user, navigate, isInviteRoute, isInviteMode]);
 
   // Only hide the landing page if we're about to redirect (handled in useEffect)
   // Don't return null immediately - let the useEffect decide
