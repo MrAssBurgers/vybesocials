@@ -9,13 +9,13 @@ export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
 
-  // Hard failsafe: never let OAuth callback hang forever
-  const MAX_CALLBACK_WAIT_MS = 8000;
+  // INSTANT callback - never hang more than 4 seconds
+  const MAX_CALLBACK_WAIT_MS = 4000;
 
   const nextPath = useMemo(() => {
-    const next = searchParams.get("next") || "/";
+    const next = searchParams.get("next") || "/home";
     // Only allow internal navigations
-    return next.startsWith("/") ? next : "/";
+    return next.startsWith("/") ? next : "/home";
   }, [searchParams]);
 
   useEffect(() => {
@@ -23,7 +23,8 @@ export default function AuthCallback() {
 
     const timeoutId = window.setTimeout(() => {
       if (cancelled) return;
-      // If we're still here, proceed into the app anyway.
+      // If we're still here, proceed into the app IMMEDIATELY
+      console.warn('[AuthCallback] Timeout, navigating to app');
       navigate(nextPath, { replace: true });
     }, MAX_CALLBACK_WAIT_MS);
 
@@ -53,16 +54,19 @@ export default function AuthCallback() {
           throw new Error("No session was created");
         }
 
-        // Ensure profile exists for first-time OAuth users
-        // IMPORTANT: do not block forever on profile creation.
-        await Promise.race([
-          supabase.rpc("ensure_profile"),
-          new Promise<void>((resolve) => window.setTimeout(resolve, 4000)),
-        ]);
+        // Fire-and-forget profile ensure - DON'T wait for it
+        void (async () => {
+          try {
+            await supabase.rpc("ensure_profile");
+          } catch (err) {
+            console.warn('[AuthCallback] Profile ensure failed (non-blocking):', err);
+          }
+        })();
 
         if (cancelled) return;
 
-        // Move out of the callback screen. The app gate will continue rehydration in the background.
+        // Navigate to app IMMEDIATELY - profile/data loads in background
+        console.log('[AuthCallback] Session ready, navigating immediately');
         navigate(nextPath, { replace: true });
       } catch (e: any) {
         if (cancelled) return;
@@ -83,7 +87,7 @@ export default function AuthCallback() {
       <section className="w-full max-w-md rounded-2xl border border-border bg-card p-6">
         <h1 className="text-lg font-semibold">Signing you in…</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Please wait while we finish authentication.
+          Just a moment...
         </p>
 
         {error ? (

@@ -31,9 +31,9 @@ type GateState = {
   retryCount: number;
 };
 
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 5000;
 const MAX_RETRIES = 2;
-const MAX_TOTAL_WAIT_MS = 8000; // Hard cap: never block longer than 8s
+const MAX_TOTAL_WAIT_MS = 6000; // Hard cap: never block longer than 6s
 
 // Wrap promise with timeout
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -143,15 +143,15 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [user?.id, state.retryCount]);
 
-  // PHASE A: Wait for auth to resolve
+  // PHASE A: Wait for auth to resolve - BUT DON'T BLOCK LONG
   useEffect(() => {
-    // Reset start time on each auth check
+    // Auth not ready yet - show brief loading
     if (!authReady || authPhase === 'initializing') {
-      setState(s => ({ ...s, phase: 'auth', step: "Authenticating...", progress: 10 }));
+      setState(s => ({ ...s, phase: 'auth', step: "Signing you in...", progress: 10 }));
       return;
     }
 
-    // Auth resolved with error - still let app render
+    // Auth resolved with error - render app anyway (don't brick)
     if (authPhase === 'error') {
       console.warn('[AppGate] Auth resolved with error, allowing app to render');
       setState({
@@ -165,7 +165,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Unauthenticated - guest mode, render immediately
+    // Unauthenticated - guest mode, render IMMEDIATELY
     if (authPhase === 'unauthenticated' || !user) {
       setState({
         phase: 'ready',
@@ -179,37 +179,36 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Authenticated - check if data bootstrap is needed
+    // Authenticated - start data bootstrap (profile loads in background)
     if (bootstrappedUserIdRef.current !== user.id && !inFlightRef.current) {
       setState(s => ({
         ...s,
-        phase: 'profile',
-        step: "Loading profile...",
-        progress: 20,
+        phase: 'data',
+        step: "Loading your data...",
+        progress: 30,
         error: null,
       }));
     }
   }, [authReady, authPhase, user]);
 
-  // PHASE B: Ensure profile exists + rehydrate data
+  // PHASE B: Load data in background (profile handled by AuthProvider)
   const bootstrap = useCallback(async () => {
     if (!user?.id) return;
 
     const uid = user.id;
     
-    // Step 1: Ensure profile exists
-    setState(s => ({ ...s, phase: 'profile', step: "Loading profile...", progress: 25 }));
-
+    // Get profile ID - if not available, try to fetch it quickly
     let profileId: string | null = profile?.id ?? null;
 
-    // If no profile in context OR profile is still loading, ensure it exists
+    // If no profile yet, try to get it with short timeout (don't block forever)
     if (!profileId) {
+      setState(s => ({ ...s, step: "Loading profile...", progress: 25 }));
+      
       const ensuredProfile = await safe(
         "ensure-profile",
         async () => {
-          // Call ensure_profile RPC to create if missing
-          const { data: ensuredId, error: ensureError } = await supabase.rpc("ensure_profile");
-          if (ensureError) throw ensureError;
+          // Ensure profile exists
+          await supabase.rpc("ensure_profile");
           
           // Fetch the profile
           const { data, error } = await supabase
@@ -222,33 +221,24 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
           return data;
         },
         null,
-        8000 // 8 second timeout for profile
+        4000 // 4 second timeout - short!
       );
 
       if (ensuredProfile) {
         profileId = ensuredProfile.id;
         queryClient.setQueryData(["profile", uid], ensuredProfile);
         
-        // Trigger auth context refresh to sync profile state
-        try {
-          await refreshProfile();
-        } catch {
-          // Non-critical - continue with local profile
-        }
+        // Trigger auth context refresh in background (don't wait)
+        refreshProfile().catch(() => {});
       }
     } else {
       // Cache existing profile
       queryClient.setQueryData(["profile", uid], profile);
     }
 
-    // If still no profile after trying, continue anyway - user can retry later
+    // If still no profile, render app anyway with limited functionality
     if (!profileId) {
-      console.warn('[AppGate] No profile available, continuing with limited functionality');
-      if (!forcedReadyRef.current) {
-        forcedReadyRef.current = true;
-        toast.message('Some data is still loading');
-      }
-      // Don't block the app - just continue
+      console.warn('[AppGate] No profile available, rendering app with limited functionality');
       setState({
         phase: 'ready',
         step: "Ready",
@@ -259,8 +249,8 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Step 2: Load all user data in parallel with short timeouts
-    setState(s => ({ ...s, phase: 'data', step: "Loading your data...", progress: 40 }));
+    // Load user data in parallel with SHORT timeouts
+    setState(s => ({ ...s, step: "Loading your data...", progress: 40 }));
 
     await Promise.allSettled([
       // Friends
@@ -283,7 +273,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         ];
         queryClient.setQueryData(["friends", profileId], friends);
         return friends;
-      }, [], 6000),
+      }, [], 4000),
 
       // Friend requests (incoming + outgoing)
       safe("friend-requests", async () => {
@@ -304,7 +294,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         const payload = { incoming: incoming.data || [], outgoing: outgoing.data || [] };
         queryClient.setQueryData(["friend-requests", profileId], payload);
         return payload;
-      }, { incoming: [], outgoing: [] }, 6000),
+      }, { incoming: [], outgoing: [] }, 4000),
 
       // Conversations
       safe("conversations", async () => {
@@ -316,7 +306,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         if (error) throw error;
         queryClient.setQueryData(["conversations", profileId], data || []);
         return data || [];
-      }, [], 6000),
+      }, [], 4000),
 
       // Notifications
       safe("notifications", async () => {
@@ -330,7 +320,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         const unread = (data || []).filter((n: any) => !n.read).length;
         queryClient.setQueryData(["unread-notifications", profileId], unread);
         return data || [];
-      }, [], 5000),
+      }, [], 3000),
 
       // Posts - with shorter timeout as it's less critical
       safe("posts", async () => {
@@ -348,7 +338,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
           pageParams: [0],
         });
         return posts;
-      }, [], 5000),
+      }, [], 4000),
 
       // Stories - non-critical
       safe("stories", async () => {
@@ -360,7 +350,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
           .limit(50);
         queryClient.setQueryData(["stories", profileId], data || []);
         return data || [];
-      }, [], 5000),
+      }, [], 3000),
     ]);
 
     // Step 3: Mark presence (fire and forget)
@@ -396,7 +386,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         if (error) throw error;
         queryClient.setQueryData(["messages", convToPrefetch], data || []);
         return data || [];
-      }, [], 5000);
+      }, [], 3000);
     }
 
     // Done!

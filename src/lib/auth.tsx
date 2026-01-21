@@ -9,7 +9,7 @@ import { AuthPhase, AuthState, INITIAL_AUTH_STATE } from '@/lib/authState';
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 // Maximum time to wait for profile before continuing anyway
-const PROFILE_TIMEOUT_MS = 8000;
+const PROFILE_TIMEOUT_MS = 5000;
 
 interface Profile {
   id: string;
@@ -353,8 +353,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearBanExpiryTimer();
   }, [clearBanExpiryTimer]);
 
-  // Resolve auth state with explicit phase
-  const resolveAuth = useCallback((newSession: Session | null, profileData: Profile | null) => {
+  // Resolve auth state with explicit phase - INSTANT, no profile dependency
+  const resolveAuthInstant = useCallback((newSession: Session | null) => {
     if (newSession?.user) {
       setAuthPhase('authenticated');
     } else {
@@ -365,7 +365,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthReady(true);
   }, []);
 
-  // Handle session changes
+  // Handle session changes - INSTANT auth resolution, profile loads in background
   const handleSessionChange = useCallback(async (newSession: Session | null) => {
     setSession(newSession);
     setUser(newSession?.user ?? null);
@@ -374,15 +374,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newSession.expires_at) {
         scheduleTokenRefresh(newSession.expires_at);
       }
-      const profileData = await fetchProfile(newSession.user.id, newSession.user.user_metadata);
-      resolveAuth(newSession, profileData);
+      
+      // CRITICAL: Resolve auth IMMEDIATELY - don't wait for profile
+      resolveAuthInstant(newSession);
+      
+      // Load profile in background - NEVER blocks auth resolution
+      setProfileLoading(true);
+      fetchProfile(newSession.user.id, newSession.user.user_metadata)
+        .catch((err) => {
+          console.warn('[Auth] Profile fetch failed (non-blocking):', err);
+        })
+        .finally(() => {
+          setProfileLoading(false);
+        });
     } else {
       setProfile(null);
       setBanInfo(null);
       cleanup();
-      resolveAuth(null, null);
+      resolveAuthInstant(null);
     }
-  }, [scheduleTokenRefresh, fetchProfile, cleanup, resolveAuth]);
+  }, [scheduleTokenRefresh, fetchProfile, cleanup, resolveAuthInstant]);
 
   // Initialize auth - runs exactly once
   useEffect(() => {
@@ -418,15 +429,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
           }
 
-          // Resolve session + profile async without blocking the auth system
+          // Handle session changes - INSTANT auth, profile in background
           void (async () => {
             try {
               await handleSessionChange(newSession);
             } catch (err) {
-              console.error('[Auth] handleSessionChange error:', err);
-              // FAILSAFE: Mark auth resolved even on error
+              console.error('[Auth] handleSessionChange error (non-blocking):', err);
+              // FAILSAFE: Mark auth resolved even on error - NEVER block login
               if (!authResolvedRef.current) {
-                setAuthPhase('error');
+                // Still mark as authenticated if we have a session
+                if (newSession?.user) {
+                  setAuthPhase('authenticated');
+                } else {
+                  setAuthPhase('unauthenticated');
+                }
                 authResolvedRef.current = true;
                 setLoading(false);
                 setAuthReady(true);
@@ -442,9 +458,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
 
         if (sessionError) {
-          console.error('[Auth] getSession error:', sessionError);
+          console.error('[Auth] getSession error (non-blocking):', sessionError);
+          // DON'T set error phase - just mark as unauthenticated
           if (!authResolvedRef.current) {
-            setAuthPhase('error');
+            setAuthPhase('unauthenticated');
             authResolvedRef.current = true;
             setLoading(false);
             setAuthReady(true);
@@ -456,9 +473,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await handleSessionChange(sessionData.session);
         }
       } catch (err) {
-        console.error('[Auth] Init error:', err);
+        console.error('[Auth] Init error (non-blocking):', err);
+        // DON'T brick the app - just mark as unauthenticated
         if (mounted && !authResolvedRef.current) {
-          setAuthPhase('error');
+          setAuthPhase('unauthenticated');
           authResolvedRef.current = true;
           setLoading(false);
           setAuthReady(true);
@@ -506,8 +524,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
 
+      // DON'T wait for profile - just trigger background fetch
       if (data.user) {
-        await fetchProfile(data.user.id, data.user.user_metadata);
+        setProfileLoading(true);
+        fetchProfile(data.user.id, data.user.user_metadata)
+          .catch((err) => {
+            console.warn('[Auth] Profile fetch after sign-in failed (non-blocking):', err);
+          })
+          .finally(() => {
+            setProfileLoading(false);
+          });
       }
 
       return { error: null };
