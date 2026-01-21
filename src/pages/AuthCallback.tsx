@@ -9,6 +9,9 @@ export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
 
+  // Hard failsafe: never let OAuth callback hang forever
+  const MAX_CALLBACK_WAIT_MS = 8000;
+
   const nextPath = useMemo(() => {
     const next = searchParams.get("next") || "/";
     // Only allow internal navigations
@@ -17,6 +20,12 @@ export default function AuthCallback() {
 
   useEffect(() => {
     let cancelled = false;
+
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) return;
+      // If we're still here, proceed into the app anyway.
+      navigate(nextPath, { replace: true });
+    }, MAX_CALLBACK_WAIT_MS);
 
     (async () => {
       try {
@@ -45,19 +54,27 @@ export default function AuthCallback() {
         }
 
         // Ensure profile exists for first-time OAuth users
-        await supabase.rpc("ensure_profile");
+        // IMPORTANT: do not block forever on profile creation.
+        await Promise.race([
+          supabase.rpc("ensure_profile"),
+          new Promise<void>((resolve) => window.setTimeout(resolve, 4000)),
+        ]);
 
-        // IMPORTANT: do not navigate yet. The global app gate will rehydrate data
-        // and then route the user to the correct screen.
-        return;
+        if (cancelled) return;
+
+        // Move out of the callback screen. The app gate will continue rehydration in the background.
+        navigate(nextPath, { replace: true });
       } catch (e: any) {
         if (cancelled) return;
         setError(getUserFriendlyError(e));
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     })();
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
     };
   }, [navigate, nextPath]);
 
