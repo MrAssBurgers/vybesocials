@@ -8,6 +8,9 @@ import { AuthPhase, AuthState, INITIAL_AUTH_STATE } from '@/lib/authState';
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
+// Maximum time to wait for profile before continuing anyway
+const PROFILE_TIMEOUT_MS = 8000;
+
 interface Profile {
   id: string;
   user_id: string;
@@ -36,6 +39,7 @@ interface AuthContextType {
   loading: boolean;
   authReady: boolean;
   authPhase: AuthPhase; // Explicit phase for routing decisions
+  profileLoading: boolean; // True while profile is still loading
   banInfo: BanInfo | null;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -53,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
   const [authPhase, setAuthPhase] = useState<AuthPhase>('initializing');
+  const [profileLoading, setProfileLoading] = useState(false);
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
   
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -200,112 +205,131 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  // Fetch profile - deduplicated to prevent race conditions
+  // Fetch profile with timeout - deduplicated to prevent race conditions
   const fetchProfile = useCallback(async (userId: string, userMetadata?: Record<string, any>): Promise<Profile | null> => {
     if (profileFetchRef.current) {
       return profileFetchRef.current;
     }
 
+    setProfileLoading(true);
+
     const fetchPromise = (async () => {
-      try {
-        // First try to get existing profile
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', userId)
-          .limit(1);
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => {
+          console.warn('[Auth] Profile fetch timed out, continuing without profile');
+          resolve(null);
+        }, PROFILE_TIMEOUT_MS);
+      });
 
-        if (!error && data?.[0]) {
-          let profileData = data[0];
-          
-          // If profile exists but has no username, auto-generate for OAuth users
-          if (!profileData.username && userMetadata) {
-            const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
-            const { error: updateError } = await supabase
-              .from('profiles')
-              .update({ 
-                username: autoUsername,
-                display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-              })
-              .eq('id', profileData.id);
+      const profilePromise = (async (): Promise<Profile | null> => {
+        try {
+          // First try to get existing profile
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', userId)
+            .limit(1);
+
+          if (!error && data?.[0]) {
+            let profileData = data[0];
             
-            if (!updateError) {
-              profileData = {
-                ...profileData,
-                username: autoUsername,
-                display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-              };
+            // If profile exists but has no username, auto-generate for OAuth users
+            if (!profileData.username && userMetadata) {
+              const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ 
+                  username: autoUsername,
+                  display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+                  avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+                })
+                .eq('id', profileData.id);
+              
+              if (!updateError) {
+                profileData = {
+                  ...profileData,
+                  username: autoUsername,
+                  display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+                  avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+                };
+              }
             }
+            
+            setProfile(profileData);
+            checkBanStatus(profileData.id);
+            subscribeToBanChanges(profileData.id);
+            return profileData;
           }
-          
-          setProfile(profileData);
-          checkBanStatus(profileData.id);
-          subscribeToBanChanges(profileData.id);
-          return profileData;
-        }
 
-        // If profile is missing, create it via ensure_profile RPC
-        const { error: ensureError } = await supabase.rpc('ensure_profile');
-        if (ensureError) {
-          console.error('[Auth] ensure_profile failed:', ensureError);
-          // Don't crash - set null profile but keep user logged in
+          // If profile is missing, create it via ensure_profile RPC
+          const { error: ensureError } = await supabase.rpc('ensure_profile');
+          if (ensureError) {
+            console.error('[Auth] ensure_profile failed:', ensureError);
+            // Don't crash - set null profile but keep user logged in
+            setProfile(null);
+            return null;
+          }
+
+          // Fetch the newly created profile
+          const { data: afterEnsure, error: afterEnsureError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', userId)
+            .limit(1);
+
+          if (!afterEnsureError && afterEnsure?.[0]) {
+            let profileData = afterEnsure[0];
+            
+            if (!profileData.username && userMetadata) {
+              const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ 
+                  username: autoUsername,
+                  display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+                  avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+                })
+                .eq('id', profileData.id);
+              
+              if (!updateError) {
+                profileData = {
+                  ...profileData,
+                  username: autoUsername,
+                  display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+                  avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+                };
+              }
+            }
+            
+            setProfile(profileData);
+            checkBanStatus(profileData.id);
+            subscribeToBanChanges(profileData.id);
+            return profileData;
+          }
+
+          setProfile(null);
+          return null;
+        } catch (err) {
+          console.error('[Auth] Profile fetch error:', err);
+          // CRITICAL: Don't crash - keep user logged in even if profile fails
           setProfile(null);
           return null;
         }
+      })();
 
-        // Fetch the newly created profile
-        const { data: afterEnsure, error: afterEnsureError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', userId)
-          .limit(1);
-
-        if (!afterEnsureError && afterEnsure?.[0]) {
-          let profileData = afterEnsure[0];
-          
-          if (!profileData.username && userMetadata) {
-            const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
-            const { error: updateError } = await supabase
-              .from('profiles')
-              .update({ 
-                username: autoUsername,
-                display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-              })
-              .eq('id', profileData.id);
-            
-            if (!updateError) {
-              profileData = {
-                ...profileData,
-                username: autoUsername,
-                display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-              };
-            }
-          }
-          
-          setProfile(profileData);
-          checkBanStatus(profileData.id);
-          subscribeToBanChanges(profileData.id);
-          return profileData;
-        }
-
-        setProfile(null);
-        return null;
-      } catch (err) {
-        console.error('[Auth] Profile fetch error:', err);
-        // CRITICAL: Don't crash - keep user logged in even if profile fails
-        setProfile(null);
-        return null;
-      } finally {
-        profileFetchRef.current = null;
-      }
+      // Race between profile fetch and timeout
+      const result = await Promise.race([profilePromise, timeoutPromise]);
+      return result;
     })();
 
     profileFetchRef.current = fetchPromise;
-    return fetchPromise;
+    
+    try {
+      return await fetchPromise;
+    } finally {
+      profileFetchRef.current = null;
+      setProfileLoading(false);
+    }
   }, [generateUsernameFromMetadata, checkBanStatus, subscribeToBanChanges]);
 
   // Refresh profile (for external use)
@@ -538,6 +562,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       authReady,
       authPhase,
+      profileLoading,
       banInfo,
       signUp,
       signIn,
