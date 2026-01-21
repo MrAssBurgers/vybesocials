@@ -16,7 +16,7 @@ import {
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
-export type RoomType = 'chat' | 'announcements' | 'media' | 'live' | 'qa';
+export type RoomType = 'chat' | 'announcements' | 'media' | 'live' | 'qa' | 'members';
 
 interface SpaceRoomTabsProps {
   activeRoom: RoomType;
@@ -51,6 +51,11 @@ const roomConfig: Record<RoomType, { icon: typeof MessageSquare; label: string; 
     icon: HelpCircle, 
     label: 'Q&A',
     color: 'from-cyan-500 to-cyan-400'
+  },
+  members: { 
+    icon: Hash, 
+    label: 'Members',
+    color: 'from-emerald-500 to-emerald-400'
   },
 };
 
