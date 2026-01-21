@@ -19,7 +19,7 @@ interface SpaceCardProps {
   memberCount: number;
   liveCount?: number;
   unreadCount?: number;
-  role?: 'owner' | 'admin' | 'member';
+  role?: 'owner' | 'moderator' | 'member';
   isSelected?: boolean;
   onEnter: () => void;
 }
@@ -138,7 +138,7 @@ export const SpaceCard = memo(function SpaceCard({
             {role && role !== 'member' && (
               <div className={cn(
                 "absolute -bottom-1 -right-1 h-6 w-6 rounded-full flex items-center justify-center shadow-md",
-                role === 'owner' ? "bg-yellow-500" : "bg-blue-500"
+                role === 'owner' ? "bg-yellow-500" : role === 'moderator' ? "bg-blue-500" : "bg-muted"
               )}>
                 {role === 'owner' ? (
                   <Crown className="h-3.5 w-3.5 text-white" />
