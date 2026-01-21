@@ -11,6 +11,7 @@
  * - Never logs user out on data fetch failures
  * - Always reaches a renderable state within timeout
  * - Auto-creates profile if missing
+ * - NEVER keeps loading screen forever
  */
 
 import { ReactNode, useEffect, useRef, useState, useCallback } from "react";
@@ -29,8 +30,9 @@ type GateState = {
   retryCount: number;
 };
 
-const DEFAULT_TIMEOUT_MS = 10000;
+const DEFAULT_TIMEOUT_MS = 8000;
 const MAX_RETRIES = 2;
+const MAX_TOTAL_WAIT_MS = 15000; // Maximum 15 seconds before forcing app ready
 
 // Wrap promise with timeout
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -90,7 +92,7 @@ function transformPost(row: any) {
 }
 
 export function AppReadinessGate({ children }: { children: ReactNode }) {
-  const { authReady, authPhase, user, profile, refreshProfile } = useAuth();
+  const { authReady, authPhase, user, profile, profileLoading, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
   const location = useLocation();
 
@@ -104,6 +106,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
 
   const inFlightRef = useRef<Promise<void> | null>(null);
   const bootstrappedUserIdRef = useRef<string | null>(null);
+  const startTimeRef = useRef<number>(Date.now());
 
   // Get conversation ID from route if on messages page
   const routeConversationId = (() => {
@@ -111,8 +114,27 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     return match?.[1] ?? null;
   })();
 
+  // FAILSAFE: Force app ready after max wait time
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (state.phase !== 'ready') {
+        console.warn('[AppGate] Maximum wait time exceeded, forcing app ready');
+        setState({
+          phase: 'ready',
+          step: "Ready",
+          progress: 100,
+          error: null,
+          retryCount: 0,
+        });
+      }
+    }, MAX_TOTAL_WAIT_MS);
+
+    return () => clearTimeout(timer);
+  }, [state.phase]);
+
   // PHASE A: Wait for auth to resolve
   useEffect(() => {
+    // Reset start time on each auth check
     if (!authReady || authPhase === 'initializing') {
       setState(s => ({ ...s, phase: 'auth', step: "Authenticating...", progress: 10 }));
       return;
@@ -169,13 +191,14 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
 
     let profileId: string | null = profile?.id ?? null;
 
-    // If no profile in context, ensure it exists
+    // If no profile in context OR profile is still loading, ensure it exists
     if (!profileId) {
       const ensuredProfile = await safe(
         "ensure-profile",
         async () => {
           // Call ensure_profile RPC to create if missing
-          await supabase.rpc("ensure_profile");
+          const { data: ensuredId, error: ensureError } = await supabase.rpc("ensure_profile");
+          if (ensureError) throw ensureError;
           
           // Fetch the profile
           const { data, error } = await supabase
@@ -187,7 +210,8 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
           if (error) throw error;
           return data;
         },
-        null
+        null,
+        8000 // 8 second timeout for profile
       );
 
       if (ensuredProfile) {
@@ -206,30 +230,24 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["profile", uid], profile);
     }
 
-    // If still no profile, allow app to render but show as error state
+    // If still no profile after trying, continue anyway - user can retry later
     if (!profileId) {
-      console.error('[AppGate] Failed to ensure profile exists');
+      console.warn('[AppGate] No profile available, continuing with limited functionality');
+      // Don't block the app - just continue
       setState({
-        phase: 'error',
-        step: "Profile creation failed",
-        progress: 0,
-        error: "Could not create your profile. Please try again.",
-        retryCount: state.retryCount,
+        phase: 'ready',
+        step: "Ready",
+        progress: 100,
+        error: null,
+        retryCount: 0,
       });
       return;
     }
 
-    // Step 2: Load all user data in parallel
+    // Step 2: Load all user data in parallel with short timeouts
     setState(s => ({ ...s, phase: 'data', step: "Loading your data...", progress: 40 }));
 
-    const [
-      friendsResult,
-      friendRequestsResult,
-      conversationsResult,
-      notificationsResult,
-      postsResult,
-      storiesResult,
-    ] = await Promise.allSettled([
+    await Promise.allSettled([
       // Friends
       safe("friends", async () => {
         const [asSender, asReceiver] = await Promise.all([
@@ -250,7 +268,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         ];
         queryClient.setQueryData(["friends", profileId], friends);
         return friends;
-      }, []),
+      }, [], 6000),
 
       // Friend requests (incoming + outgoing)
       safe("friend-requests", async () => {
@@ -271,7 +289,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         const payload = { incoming: incoming.data || [], outgoing: outgoing.data || [] };
         queryClient.setQueryData(["friend-requests", profileId], payload);
         return payload;
-      }, { incoming: [], outgoing: [] }),
+      }, { incoming: [], outgoing: [] }, 6000),
 
       // Conversations
       safe("conversations", async () => {
@@ -283,7 +301,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         if (error) throw error;
         queryClient.setQueryData(["conversations", profileId], data || []);
         return data || [];
-      }, []),
+      }, [], 6000),
 
       // Notifications
       safe("notifications", async () => {
@@ -297,9 +315,9 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         const unread = (data || []).filter((n: any) => !n.read).length;
         queryClient.setQueryData(["unread-notifications", profileId], unread);
         return data || [];
-      }, []),
+      }, [], 5000),
 
-      // Posts
+      // Posts - with shorter timeout as it's less critical
       safe("posts", async () => {
         const { data, error } = await supabase.rpc("get_posts_with_counts", {
           p_type: null,
@@ -315,9 +333,9 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
           pageParams: [0],
         });
         return posts;
-      }, []),
+      }, [], 5000),
 
-      // Stories
+      // Stories - non-critical
       safe("stories", async () => {
         const { data } = await supabase
           .from("stories")
@@ -327,27 +345,32 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
           .limit(50);
         queryClient.setQueryData(["stories", profileId], data || []);
         return data || [];
-      }, []),
+      }, [], 5000),
     ]);
 
-    // Step 3: Mark presence
-    setState(s => ({ ...s, step: "Finishing up...", progress: 80 }));
+    // Step 3: Mark presence (fire and forget)
+    setState(s => ({ ...s, step: "Finishing up...", progress: 85 }));
 
-    await safe("presence", async () => {
-      await supabase.from("user_presence").upsert(
-        { user_id: profileId, is_online: true, last_seen_at: new Date().toISOString() },
-        { onConflict: "user_id" }
-      );
-      return true;
-    }, false);
+    // Don't wait for presence - just fire it
+    void (async () => {
+      try {
+        await supabase.from("user_presence").upsert(
+          { user_id: profileId, is_online: true, last_seen_at: new Date().toISOString() },
+          { onConflict: "user_id" }
+        );
+      } catch {
+        // Ignore presence errors
+      }
+    })();
 
-    // Step 4: Prefetch messages for current/first conversation
+    // Step 4: Prefetch messages for current/first conversation (non-blocking)
     const conversations = queryClient.getQueryData<any[]>(["conversations", profileId]) || [];
     const firstConversationId = conversations?.[0]?.id ?? null;
     const convToPrefetch = routeConversationId || firstConversationId;
 
     if (convToPrefetch) {
-      await safe("messages", async () => {
+      // Fire and forget - don't block app ready
+      safe("messages", async () => {
         const { data, error } = await supabase
           .from("messages")
           .select("*, sender:profiles!sender_id(id, username, avatar_url, display_name)")
@@ -358,7 +381,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         if (error) throw error;
         queryClient.setQueryData(["messages", convToPrefetch], data || []);
         return data || [];
-      }, []);
+      }, [], 5000);
     }
 
     // Done!
@@ -369,7 +392,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
       error: null,
       retryCount: 0,
     });
-  }, [user, profile, queryClient, routeConversationId, refreshProfile, state.retryCount]);
+  }, [user, profile, queryClient, routeConversationId, refreshProfile]);
 
   // Trigger bootstrap when authenticated
   useEffect(() => {
@@ -379,19 +402,20 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     if (bootstrappedUserIdRef.current === user.id) return;
     if (inFlightRef.current) return;
 
+    // Don't wait for profile loading to complete - bootstrap can handle it
     bootstrappedUserIdRef.current = user.id;
 
     const p = bootstrap()
       .catch((err) => {
         console.error("[AppGate] Bootstrap failed:", err);
-        // FAILSAFE: Don't brick the app - render anyway with error
-        setState(s => ({
-          ...s,
-          phase: 'error',
-          step: "Failed to load data",
-          progress: 0,
-          error: err?.message || "Failed to load your data",
-        }));
+        // FAILSAFE: Don't brick the app - render anyway
+        setState({
+          phase: 'ready',
+          step: "Ready",
+          progress: 100,
+          error: null, // Don't show error - just continue
+          retryCount: 0,
+        });
       })
       .finally(() => {
         inFlightRef.current = null;
@@ -405,6 +429,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     if (!user?.id) return;
     bootstrappedUserIdRef.current = null;
     inFlightRef.current = null;
+    startTimeRef.current = Date.now();
     setState(s => ({
       ...s,
       phase: 'profile',
@@ -426,9 +451,9 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Render logic
+  // Render logic - only show error if explicitly set AND under retry limit
   const isLoading = state.phase !== 'ready' && state.phase !== 'error';
-  const showError = state.phase === 'error' && state.retryCount < MAX_RETRIES;
+  const showError = state.phase === 'error' && state.error && state.retryCount < MAX_RETRIES;
 
   if (showError) {
     return (
