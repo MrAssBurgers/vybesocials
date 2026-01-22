@@ -6,10 +6,6 @@ import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { AuthPhase } from '@/lib/authState';
 import { AUTH_ONLY_MODE } from '@/lib/authOnlyMode';
 
-// Maximum time to wait for profile before continuing anyway
-const PROFILE_TIMEOUT_MS = 6000;
-const PROFILE_RETRY_DELAYS = [1500, 3000, 5000]; // Exponential backoff delays
-
 interface Profile {
   id: string;
   user_id: string;
@@ -49,6 +45,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Generate temp username
+function generateTempUsername(userId: string): string {
+  return `user${userId.replace(/-/g, '').slice(0, 8)}`;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -59,60 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false);
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
 
-  // Tracks whether we've successfully resolved auth at least once.
-  // This avoids StrictMode double-effect edge cases causing permanent "Signing you in...".
   const resolvedRef = useRef(false);
-  const retryCountRef = useRef(0);
-  const profileFetchRef = useRef<Promise<Profile | null> | null>(null);
-  const profileRetryRef = useRef<string | null>(null);
+  const profileFetchRef = useRef<string | null>(null);
 
-  // Supabase query builders are thenable, but not typed as Promise<T> in our generated types.
-  // Use Promise.resolve(...) to safely treat them as promises for timeouts.
-  const withTimeout = useCallback(async <T,>(promiseLike: unknown, ms: number, label: string): Promise<T> => {
-    return await Promise.race([
-      Promise.resolve(promiseLike as any) as Promise<T>,
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
-      ),
-    ]);
-  }, []);
-
-  // Generate username from OAuth metadata
-  const generateUsernameFromMetadata = useCallback(
-    (metadata: Record<string, any>, odUserId: string): string => {
-      const normalize = (raw: string) =>
-        raw
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, "_")
-          .replace(/[^a-z0-9_]/g, "")
-          .replace(/_+/g, "_")
-          .replace(/^_+|_+$/g, "")
-          .slice(0, 20);
-
-      if (typeof metadata.username === "string" && metadata.username.trim()) {
-        const normalized = normalize(metadata.username);
-        if (normalized.length >= 3) return normalized;
-      }
-
-      const name = metadata.full_name || metadata.name || "";
-      if (name) {
-        const base = normalize(String(name)).slice(0, 12);
-        if (base.length >= 3) {
-          const suffix = Math.random().toString(36).slice(2, 6);
-          return `${base}_${suffix}`;
-        }
-      }
-
-      return `user_${odUserId.slice(0, 8)}`;
-    },
-    []
-  );
-
-  // Check ban status
+  // Check ban status (background, never blocks)
   const checkBanStatus = useCallback(async (profileId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('user_bans')
         .select('reason, expires_at, is_permanent, is_meme_ban, custom_gif_url')
         .eq('user_id', profileId)
@@ -121,189 +75,131 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .limit(1)
         .maybeSingle();
 
-      if (!error && data) {
-        setBanInfo(data);
-      } else {
-        setBanInfo(null);
-      }
-    } catch (err) {
-      console.error('[Auth] Ban check error:', err);
+      setBanInfo(data || null);
+    } catch {
+      // Ignore - ban check is non-critical
     }
   }, []);
 
-  // Fetch profile with timeout and robust retry - NEVER blocks auth
-  const fetchProfile = useCallback(async (userId: string, userMetadata?: Record<string, any>): Promise<Profile | null> => {
+  // CORE: Fetch or create profile - NEVER blocks auth, NEVER logs out
+  const fetchOrCreateProfile = useCallback(async (authUser: User): Promise<Profile | null> => {
     if (AUTH_ONLY_MODE) return null;
-    if (profileFetchRef.current) return profileFetchRef.current;
-
+    
+    const userId = authUser.id;
+    
+    // Prevent duplicate fetches for same user
+    if (profileFetchRef.current === userId) return profile;
+    profileFetchRef.current = userId;
+    
     setProfileLoading(true);
-    console.log('[Auth] fetchProfile starting for userId:', userId);
+    console.log('[Auth] fetchOrCreateProfile for:', userId);
 
-    const fetchPromise = (async () => {
-      // Helper to fetch and validate profile
-      const tryFetchProfile = async (): Promise<Profile | null> => {
-        try {
-          const result = await withTimeout(
-            supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
-            PROFILE_TIMEOUT_MS,
-            'profiles.select'
-          ) as { data: any; error: any };
+    try {
+      // Step 1: Try to get existing profile
+      const { data: existing, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-          if (result.error) {
-            console.warn('[Auth] profiles.select error:', result.error);
-            return null;
-          }
+      if (existing) {
+        console.log('[Auth] Profile found:', existing.id);
+        setProfile(existing);
+        checkBanStatus(existing.id);
+        return existing;
+      }
 
-          if (result.data) {
-            console.log('[Auth] Profile found:', result.data.id);
-            return result.data;
-          }
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.warn('[Auth] Profile fetch error:', fetchError);
+      }
 
-          return null;
-        } catch (e) {
-          console.warn('[Auth] profiles.select failed:', e);
-          return null;
-        }
-      };
+      // Step 2: No profile - create one immediately
+      console.log('[Auth] No profile, creating...');
+      
+      const metadata = authUser.user_metadata || {};
+      const tempUsername = generateTempUsername(userId);
+      const displayName = metadata.full_name || metadata.name || tempUsername;
+      const avatarUrl = metadata.avatar_url || metadata.picture || null;
 
-      // Helper to ensure profile is created
-      const tryEnsureProfile = async (): Promise<void> => {
-        try {
-          console.log('[Auth] Calling ensure_profile...');
-          await withTimeout(supabase.rpc('ensure_profile'), PROFILE_TIMEOUT_MS, 'ensure_profile');
-          // Wait for DB to settle after ensure_profile
-          await new Promise(resolve => setTimeout(resolve, 500));
-          console.log('[Auth] ensure_profile completed');
-        } catch (e) {
-          console.warn('[Auth] ensure_profile failed:', e);
-        }
-      };
+      // Use ensure_profile RPC (handles race conditions)
+      try {
+        await supabase.rpc('ensure_profile');
+      } catch (e) {
+        console.warn('[Auth] ensure_profile RPC failed, trying direct insert:', e);
+        
+        // Fallback: direct insert
+        await supabase.from('profiles').upsert({
+          user_id: userId,
+          username: tempUsername,
+          display_name: displayName,
+          avatar_url: avatarUrl,
+          bio: '',
+        }, { onConflict: 'user_id' });
+      }
 
-      // Helper to update profile with OAuth metadata
-      const updateProfileWithMetadata = async (profileData: Profile): Promise<Profile> => {
-        if (!userMetadata || profileData.username) return profileData;
+      // Step 3: Fetch the created profile
+      const { data: created, error: createdError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-        const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
-        try {
-          await withTimeout(
+      if (created) {
+        console.log('[Auth] Profile created:', created.id);
+        
+        // Update with OAuth metadata if username is still temp
+        if (created.username === tempUsername && displayName !== tempUsername) {
+          Promise.resolve(
             supabase
               .from('profiles')
-              .update({
-                username: autoUsername,
-                display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-              })
-              .eq('id', profileData.id),
-            PROFILE_TIMEOUT_MS,
-            'profiles.update'
-          );
-          console.log('[Auth] Profile updated with OAuth metadata');
-        } catch (e) {
-          console.warn('[Auth] profiles.update failed (non-blocking):', e);
+              .update({ display_name: displayName, avatar_url: avatarUrl })
+              .eq('id', created.id)
+          ).then(() => {
+            setProfile({ ...created, display_name: displayName, avatar_url: avatarUrl });
+          }).catch(() => {});
         }
-
-        return {
-          ...profileData,
-          username: autoUsername,
-          display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-          avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-        };
-      };
-
-      try {
-        // ATTEMPT 1: Direct fetch
-        let profileData = await tryFetchProfile();
-
-        // ATTEMPT 2: If no profile, ensure and retry
-        if (!profileData) {
-          console.log('[Auth] No profile found, attempting ensure_profile...');
-          await tryEnsureProfile();
-          profileData = await tryFetchProfile();
-        }
-
-        // ATTEMPT 3: One more retry with longer wait
-        if (!profileData) {
-          console.log('[Auth] Still no profile, final retry...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          profileData = await tryFetchProfile();
-        }
-
-        if (profileData) {
-          // Update with OAuth metadata if needed
-          profileData = await updateProfileWithMetadata(profileData);
-          setProfile(profileData);
-          checkBanStatus(profileData.id);
-          return profileData;
-        }
-
-        console.warn('[Auth] Profile fetch failed after all attempts');
-        setProfile(null);
-        return null;
-      } catch (err) {
-        console.warn('[Auth] Profile fetch error (non-blocking):', err);
-        setProfile(null);
-        return null;
+        
+        setProfile(created);
+        checkBanStatus(created.id);
+        return created;
       }
-    })();
 
-    profileFetchRef.current = fetchPromise;
-    
-    try {
-      return await fetchPromise;
+      console.warn('[Auth] Profile creation failed:', createdError);
+      return null;
+    } catch (err) {
+      console.error('[Auth] Profile fetch/create error:', err);
+      return null;
     } finally {
-      profileFetchRef.current = null;
       setProfileLoading(false);
     }
-  }, [generateUsernameFromMetadata, checkBanStatus, withTimeout]);
+  }, [profile, checkBanStatus]);
 
-  // Refresh profile
+  // Refresh profile (public API)
   const refreshProfile = useCallback(async () => {
     if (AUTH_ONLY_MODE || !user) return;
-    profileFetchRef.current = null;
-    await fetchProfile(user.id, user.user_metadata);
-  }, [user, fetchProfile]);
+    profileFetchRef.current = null; // Reset to allow re-fetch
+    await fetchOrCreateProfile(user);
+  }, [user, fetchOrCreateProfile]);
 
-  // If auth is valid but profile is still missing, retry with exponential backoff
+  // Retry profile if still missing (background)
   useEffect(() => {
     if (AUTH_ONLY_MODE) return;
-
-    if (!user?.id) {
-      profileRetryRef.current = null;
-      retryCountRef.current = 0;
-      return;
-    }
-
-    if (authPhase !== 'authenticated') return;
+    if (!user || authPhase !== 'authenticated') return;
     if (profile || profileLoading) return;
 
-    // Prevent duplicate retries for same user
-    if (profileRetryRef.current === user.id && retryCountRef.current >= PROFILE_RETRY_DELAYS.length) {
-      return;
-    }
+    // Retry once after 2 seconds if profile is still null
+    const timer = setTimeout(() => {
+      console.log('[Auth] Profile retry...');
+      profileFetchRef.current = null;
+      fetchOrCreateProfile(user).catch(() => {});
+    }, 2000);
 
-    // First time seeing this user without profile
-    if (profileRetryRef.current !== user.id) {
-      profileRetryRef.current = user.id;
-      retryCountRef.current = 0;
-    }
+    return () => clearTimeout(timer);
+  }, [user, authPhase, profile, profileLoading, fetchOrCreateProfile]);
 
-    const currentRetry = retryCountRef.current;
-    if (currentRetry >= PROFILE_RETRY_DELAYS.length) return;
-
-    const delay = PROFILE_RETRY_DELAYS[currentRetry];
-    console.log(`[Auth] Profile retry ${currentRetry + 1}/${PROFILE_RETRY_DELAYS.length} in ${delay}ms`);
-
-    const t = setTimeout(() => {
-      retryCountRef.current = currentRetry + 1;
-      refreshProfile().catch(() => {});
-    }, delay);
-
-    return () => clearTimeout(t);
-  }, [user?.id, authPhase, profile, profileLoading, refreshProfile]);
-
-  // CORE: Handle session changes - INSTANT auth resolution
+  // CORE: Handle session changes - INSTANT auth, profile is background
   const handleSessionChange = useCallback((newSession: Session | null) => {
-    console.log('[Auth] handleSessionChange:', !!newSession);
+    console.log('[Auth] Session change:', !!newSession);
 
     resolvedRef.current = true;
     
@@ -311,40 +207,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(newSession?.user ?? null);
 
     if (newSession?.user) {
-      // AUTHENTICATED - resolve IMMEDIATELY
+      // AUTHENTICATED INSTANTLY
       setAuthPhase('authenticated');
       setLoading(false);
       setAuthReady(true);
 
-      // Fetch profile in background - NEVER blocks
-      if (!AUTH_ONLY_MODE) {
-        fetchProfile(newSession.user.id, newSession.user.user_metadata).catch(() => {});
-      }
+      // Fetch/create profile in BACKGROUND - never blocks
+      fetchOrCreateProfile(newSession.user).catch(() => {});
     } else {
       // UNAUTHENTICATED
       setProfile(null);
       setBanInfo(null);
+      profileFetchRef.current = null;
       setAuthPhase('unauthenticated');
       setLoading(false);
       setAuthReady(true);
     }
-  }, [fetchProfile]);
+  }, [fetchOrCreateProfile]);
 
-  // Initialize auth - runs exactly once
+  // Initialize auth
   useEffect(() => {
     let mounted = true;
 
     console.log('[Auth] Initializing...');
 
-    // Set up auth state listener FIRST
+    // Listen for auth changes FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mounted) return;
-      console.log('[Auth] State change:', event, !!newSession);
+      console.log('[Auth] Event:', event);
       handleSessionChange(newSession);
     });
 
-    // THEN get existing session
-    supabase.auth.getSession().then(async ({ data, error }) => {
+    // Get existing session
+    supabase.auth.getSession().then(({ data, error }) => {
       if (!mounted) return;
       
       if (error) {
@@ -355,33 +250,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // If we have a session but it looks stale, try refreshing
-      if (data.session && !data.session.access_token) {
-        console.log('[Auth] Session exists but no access_token, attempting refresh...');
-        try {
-          const { data: refreshed } = await supabase.auth.refreshSession();
-          if (refreshed.session) {
-            handleSessionChange(refreshed.session);
-            return;
-          }
-        } catch (e) {
-          console.warn('[Auth] Session refresh failed:', e);
-        }
-      }
-
-      // Always apply the session snapshot; handleSessionChange is idempotent.
       handleSessionChange(data.session);
     });
 
-    // Hard failsafe - NEVER stay loading forever
+    // Hard failsafe - NEVER block forever
     const failsafe = setTimeout(() => {
       if (mounted && !resolvedRef.current) {
-        console.warn('[Auth] Failsafe timeout - forcing ready');
+        console.warn('[Auth] Failsafe timeout');
         setAuthPhase('unauthenticated');
         setLoading(false);
         setAuthReady(true);
       }
-    }, 5000);
+    }, 4000);
 
     return () => {
       mounted = false;
@@ -424,6 +304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setBanInfo(null);
+    profileFetchRef.current = null;
     setAuthPhase('unauthenticated');
   }, []);
 
@@ -444,7 +325,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [profile]);
 
-  // Show banned screen if user is banned
+  // Show banned screen
   if (banInfo) {
     return banInfo.is_meme_ban ? (
       <MemeBanScreen reason={banInfo.reason} expiresAt={banInfo.expires_at} customGifUrl={banInfo.custom_gif_url} />
