@@ -75,18 +75,17 @@ export function useProfileByUsername(username: string) {
   return useQuery({
     queryKey: ['profile', username, currentProfile?.id],
     queryFn: async (): Promise<Profile | null> => {
-      // Use case-insensitive lookup directly on profiles table
-      // RLS now allows authenticated users to view all profiles
+      // Trim the username to handle trailing/leading spaces
+      const trimmedUsername = username.trim();
+      
+      // Use SECURITY DEFINER function for reliable lookup (bypasses RLS)
       const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .ilike('username', username)
-        .limit(1);
+        .rpc('get_profile_by_username', { target_username: trimmedUsername });
 
       const profile = profiles?.[0];
       
       if (error || !profile) {
-        console.warn('[useProfile] Profile not found for username:', username, error?.message);
+        console.warn('[useProfile] Profile not found for username:', trimmedUsername, error?.message);
         return null;
       }
 
