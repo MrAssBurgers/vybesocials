@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { VYBELogo } from '@/components/ui/VYBELogo';
+import { UsernameSetup } from '@/components/onboarding/UsernameSetup';
 import { InterestPicker } from '@/components/onboarding/InterestPicker';
 import { CreatorSuggestions } from '@/components/onboarding/CreatorSuggestions';
 import { ProfileSetup } from '@/components/onboarding/ProfileSetup';
@@ -18,8 +19,6 @@ import { toast } from 'sonner';
 // Invite mode stage type - must match InviteRedeem state machine
 type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
-const TOTAL_STEPS = 7;
-
 type SensitivityLevel = 'standard' | 'restricted' | 'open';
 
 interface OnboardingProps {
@@ -30,17 +29,24 @@ interface OnboardingProps {
 export default function Onboarding({ onInviteNavigate, isInviteMode = false }: OnboardingProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  
+  // Check if user needs to set username (Google OAuth users without profile)
+  const needsUsername = !profile?.username;
+  const TOTAL_STEPS = needsUsername ? 8 : 7;
+  
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [usernameValid, setUsernameValid] = useState(false);
 
   // State for each step
+  const [username, setUsername] = useState('');
   const [interests, setInterests] = useState<string[]>([]);
   const [following, setFollowing] = useState<string[]>([]);
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
-    displayName: profile?.username || '',
+    displayName: '',
     bio: '',
     linkUrl: '',
     avatarPreview: null as string | null,
@@ -49,8 +55,37 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const [sensitivity, setSensitivity] = useState<SensitivityLevel>('standard');
   const [isPrivate, setIsPrivate] = useState(false);
 
+  // Initialize displayName from username when available
+  useEffect(() => {
+    if (profile?.username && !profileData.displayName) {
+      setProfileData(prev => ({ ...prev, displayName: profile.username }));
+    }
+  }, [profile?.username]);
+
+  // Update displayName when username changes (for new users)
+  useEffect(() => {
+    if (needsUsername && username && !profileData.displayName) {
+      setProfileData(prev => ({ ...prev, displayName: username }));
+    }
+  }, [username, needsUsername]);
+
+  // Get the actual step content based on whether username is needed
+  const getStepContent = () => {
+    if (needsUsername) {
+      // Username step is step 1
+      return step;
+    }
+    // No username step, so actual steps are shifted
+    return step;
+  };
+
   const canProceed = () => {
-    switch (step) {
+    if (needsUsername && step === 1) {
+      return usernameValid;
+    }
+    
+    const actualStep = needsUsername ? step - 1 : step;
+    switch (actualStep) {
       case 1: return interests.length >= 3;
       case 2: return true; // Can skip following
       case 3: return profileData.firstName.length > 0 && profileData.lastName.length > 0;
@@ -75,15 +110,15 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   };
 
   const handleFinish = async () => {
-    if (!profile) return;
+    if (!user) return;
     
     setLoading(true);
     try {
       // Upload avatar if changed
-      let avatarUrl = profile.avatar_url;
+      let avatarUrl = profile?.avatar_url || null;
       if (profileData.avatarFile) {
         const fileExt = profileData.avatarFile.name.split('.').pop();
-        const fileName = `${profile.id}-${Date.now()}.${fileExt}`;
+        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
         
         const { error: uploadError } = await supabase.storage
           .from('media')
@@ -97,13 +132,19 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         }
       }
 
-      // Update profile with all onboarding data
+      // Determine the final username
+      const finalUsername = needsUsername ? username : profile?.username;
+      const finalDisplayName = profileData.displayName || finalUsername || `${profileData.firstName} ${profileData.lastName}`.trim();
+
+      // Upsert profile with all onboarding data (handles both new and existing profiles)
       const { error } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          user_id: user.id,
+          username: finalUsername?.toLowerCase(),
           first_name: profileData.firstName,
           last_name: profileData.lastName,
-          display_name: profileData.displayName || `${profileData.firstName} ${profileData.lastName}`.trim(),
+          display_name: finalDisplayName,
           bio: profileData.bio,
           link_url: profileData.linkUrl,
           avatar_url: avatarUrl,
@@ -111,8 +152,9 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           sensitivity_preference: sensitivity,
           is_private: isPrivate,
           onboarding_completed: true,
-        })
-        .eq('id', profile.id);
+        }, {
+          onConflict: 'user_id',
+        });
 
       if (error) throw error;
 
@@ -189,33 +231,42 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
             >
-              {step === 1 && (
+              {/* Username step for new users (Google OAuth) */}
+              {needsUsername && step === 1 && (
+                <UsernameSetup
+                  username={username}
+                  onChange={setUsername}
+                  onValidChange={setUsernameValid}
+                />
+              )}
+              {/* Regular steps - offset by 1 if username step exists */}
+              {(needsUsername ? step === 2 : step === 1) && (
                 <InterestPicker selected={interests} onChange={setInterests} />
               )}
-              {step === 2 && (
+              {(needsUsername ? step === 3 : step === 2) && (
                 <CreatorSuggestions
                   interests={interests}
                   following={following}
                   onChange={setFollowing}
                 />
               )}
-              {step === 3 && (
+              {(needsUsername ? step === 4 : step === 3) && (
                 <ProfileSetup
                   data={profileData}
                   onChange={setProfileData}
-                  username={profile?.username || ''}
+                  username={needsUsername ? username : (profile?.username || '')}
                 />
               )}
-              {step === 4 && (
+              {(needsUsername ? step === 5 : step === 4) && (
                 <SensitivitySettings value={sensitivity} onChange={setSensitivity} />
               )}
-              {step === 5 && (
+              {(needsUsername ? step === 6 : step === 5) && (
                 <PrivacySettings isPrivate={isPrivate} onChange={setIsPrivate} />
               )}
-              {step === 6 && (
+              {(needsUsername ? step === 7 : step === 6) && (
                 <EmailVerification />
               )}
-              {step === 7 && (
+              {(needsUsername ? step === 8 : step === 7) && (
                 <ContactDiscovery onComplete={handleFinish} />
               )}
             </motion.div>

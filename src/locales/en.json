@@ -167,6 +167,8 @@
     "back": "Back",
     "skip": "Skip",
     "finish": "Let's Go!",
+    "chooseUsername": "Choose your username",
+    "usernameSubtitle": "This will be your unique @handle on VYBE",
     "displayName": "Display Name",
     "bio": "Bio",
     "linkInBio": "Link in Bio",
