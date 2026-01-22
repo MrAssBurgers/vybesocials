@@ -177,11 +177,52 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     }
   };
 
-  const handleSkip = () => {
-    if (isInviteMode && onInviteNavigate) {
-      onInviteNavigate('home');
-    } else {
-      navigate('/home');
+  const handleSkip = async () => {
+    if (!user) {
+      // Guest user - just go home
+      if (isInviteMode && onInviteNavigate) {
+        onInviteNavigate('home');
+      } else {
+        navigate('/home');
+      }
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Determine the username to use
+      const finalUsername = needsUsername && username 
+        ? username.toLowerCase() 
+        : profile?.username || `user_${user.id.substring(0, 8)}`;
+
+      // Save minimal profile with onboarding_completed so Home doesn't redirect back
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          user_id: user.id,
+          username: finalUsername,
+          onboarding_completed: true,
+        }, {
+          onConflict: 'user_id',
+        });
+
+      if (error) {
+        console.error('Skip save error:', error);
+        toast.error('Could not save profile. Please try again.');
+        return;
+      }
+
+      // Navigate to home
+      if (isInviteMode && onInviteNavigate) {
+        onInviteNavigate('home');
+      } else {
+        navigate('/home');
+      }
+    } catch (err) {
+      console.error('Skip error:', err);
+      toast.error('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -201,7 +242,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       {/* Header */}
       <header className="relative z-10 p-3 sm:p-4 flex items-center justify-between">
         <VYBELogo size="md" />
-        <Button variant="ghost" onClick={handleSkip} className="text-muted-foreground text-sm sm:text-base">
+        <Button variant="ghost" onClick={handleSkip} disabled={loading} className="text-muted-foreground text-sm sm:text-base">
           {t('onboarding.skip')}
         </Button>
       </header>
