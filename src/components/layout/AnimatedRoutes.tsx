@@ -38,6 +38,7 @@ const InviteRedeem = lazy(() => import("@/pages/InviteRedeem"));
 const AddFriend = lazy(() => import("@/pages/AddFriend"));
 const CommunityGuidelines = lazy(() => import("@/pages/CommunityGuidelines"));
 const AdminMetrics = lazy(() => import("@/pages/AdminMetrics"));
+const DebugAuth = lazy(() => import("@/pages/DebugAuth"));
 
 // Debug panel - only loaded in dev mode
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -129,6 +130,7 @@ export function AnimatedRoutes() {
             <Route path="/add-friend/:userId" element={<AddFriend />} />
             <Route path="/guidelines" element={<CommunityGuidelines />} />
             <Route path="/admin/metrics" element={<AdminMetrics />} />
+            <Route path="/debug/auth" element={<DebugAuth />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           {/* Debug panel - only in dev mode */}
