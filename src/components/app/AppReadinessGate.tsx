@@ -22,6 +22,7 @@ import { useAuth } from "@/lib/auth";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { DataLoadErrorState } from "@/components/app/DataLoadErrorState";
 import { toast } from "sonner";
+import { AUTH_ONLY_MODE } from "@/lib/authOnlyMode";
 
 type GateState = {
   phase: 'auth' | 'profile' | 'data' | 'ready' | 'error';
@@ -92,17 +93,43 @@ function transformPost(row: any) {
   };
 }
 
+function AuthOnlyBanner({ authReady, authPhase }: { authReady: boolean; authPhase: string }) {
+  const text = !authReady || authPhase === 'initializing'
+    ? 'Auth in fallback mode — auth still initializing'
+    : 'Auth-only mode enabled — profile & data loading disabled';
+
+  return (
+    <div className="fixed top-0 inset-x-0 z-[100] border-b border-border bg-muted/80 backdrop-blur supports-[backdrop-filter]:bg-muted/70">
+      <div className="mx-auto max-w-3xl px-3 py-2 text-xs text-foreground">
+        <span className="font-medium">{text}</span>
+      </div>
+    </div>
+  );
+}
+
 export function AppReadinessGate({ children }: { children: ReactNode }) {
   const { authReady, authPhase, user, profile, profileLoading, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
   const location = useLocation();
 
-  const [state, setState] = useState<GateState>({
-    phase: 'auth',
-    step: "Starting...",
-    progress: 0,
-    error: null,
-    retryCount: 0,
+  const [state, setState] = useState<GateState>(() => {
+    if (AUTH_ONLY_MODE) {
+      return {
+        phase: 'ready',
+        step: 'Ready',
+        progress: 100,
+        error: null,
+        retryCount: 0,
+      };
+    }
+
+    return {
+      phase: 'auth',
+      step: "Starting...",
+      progress: 0,
+      error: null,
+      retryCount: 0,
+    };
   });
 
   const inFlightRef = useRef<Promise<void> | null>(null);
@@ -124,6 +151,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
 
   // FAILSAFE: single hard cap timer (does NOT reset per-phase)
   useEffect(() => {
+    if (AUTH_ONLY_MODE) return;
     forcedReadyRef.current = false;
     const timer = window.setTimeout(() => {
       if (phaseRef.current !== 'ready' && !forcedReadyRef.current) {
@@ -145,6 +173,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
 
   // PHASE A: Wait for auth to resolve - BUT DON'T BLOCK LONG
   useEffect(() => {
+    if (AUTH_ONLY_MODE) return;
     // Auth not ready yet - show brief loading
     if (!authReady || authPhase === 'initializing') {
       setState(s => ({ ...s, phase: 'auth', step: "Signing you in...", progress: 10 }));
@@ -193,6 +222,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
 
   // PHASE B: Load data in background (profile handled by AuthProvider)
   const bootstrap = useCallback(async () => {
+    if (AUTH_ONLY_MODE) return;
     if (!user?.id) return;
 
     const uid = user.id;
@@ -401,6 +431,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
 
   // Trigger bootstrap when authenticated
   useEffect(() => {
+    if (AUTH_ONLY_MODE) return;
     if (!authReady) return;
     if (authPhase !== 'authenticated') return;
     if (!user?.id) return;
@@ -431,6 +462,7 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
 
   // Retry handler
   const handleRetry = useCallback(() => {
+    if (AUTH_ONLY_MODE) return;
     if (!user?.id) return;
     bootstrappedUserIdRef.current = null;
     inFlightRef.current = null;
@@ -475,5 +507,10 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
     return <SplashScreen isVisible status={state.step} progress={state.progress} />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {AUTH_ONLY_MODE && <AuthOnlyBanner authReady={authReady} authPhase={authPhase} />}
+      {children}
+    </>
+  );
 }

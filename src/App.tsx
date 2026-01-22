@@ -32,6 +32,7 @@ import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { AppReadinessGate } from "@/components/app/AppReadinessGate";
 import { OfflineBanner } from "@/components/app/OfflineBanner";
 import { ServerStatusBanner } from "@/components/app/ServerStatusBanner";
+import { AUTH_ONLY_MODE } from "@/lib/authOnlyMode";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -94,13 +95,17 @@ function BanCheck() {
   );
 }
 
+function RealtimeProfilesBootstrap() {
+  useRealtimeProfiles();
+  return null;
+}
+
 // App shell - must be inside QueryClientProvider
 function AppShell() {
   // Auto-update checker
   useAutoUpdate();
 
-  // Real-time profile sync - updates propagate instantly to all users
-  useRealtimeProfiles();
+  // Real-time profile sync - disabled in AUTH-ONLY mode
 
   return (
     <>
@@ -114,21 +119,41 @@ function AppShell() {
                   <Toaster />
                   <Sonner />
                   <BrowserRouter>
-                    <TutorialProvider>
-                      <ScrollRestoration />
-                      <AppReadinessGate>
-                        <ServerStatusBanner />
-                        <OfflineBanner />
-                        <AnimatedRoutes />
-                        <RootBottomNavMount />
-                        <PushNotificationPrompt />
-                        <GlobalMessageNotifications />
-                        <GlobalCallOverlay />
-                        <WarningPopup />
-                        <InvitePopup />
-                        <BanCheck />
-                      </AppReadinessGate>
-                    </TutorialProvider>
+                    {!AUTH_ONLY_MODE && <RealtimeProfilesBootstrap />}
+
+                    {AUTH_ONLY_MODE ? (
+                      <>
+                        <ScrollRestoration />
+                        <AppReadinessGate>
+                          <ServerStatusBanner />
+                          <OfflineBanner />
+                          <AnimatedRoutes />
+                          <RootBottomNavMount />
+                          <PushNotificationPrompt />
+                          <GlobalMessageNotifications />
+                          <GlobalCallOverlay />
+                          <WarningPopup />
+                          <InvitePopup />
+                          {/* Ban checks disabled in auth-only mode */}
+                        </AppReadinessGate>
+                      </>
+                    ) : (
+                      <TutorialProvider>
+                        <ScrollRestoration />
+                        <AppReadinessGate>
+                          <ServerStatusBanner />
+                          <OfflineBanner />
+                          <AnimatedRoutes />
+                          <RootBottomNavMount />
+                          <PushNotificationPrompt />
+                          <GlobalMessageNotifications />
+                          <GlobalCallOverlay />
+                          <WarningPopup />
+                          <InvitePopup />
+                          <BanCheck />
+                        </AppReadinessGate>
+                      </TutorialProvider>
+                    )}
                   </BrowserRouter>
                 </TooltipProvider>
               </CallStoreProvider>

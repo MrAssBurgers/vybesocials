@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
+import { AUTH_ONLY_MODE } from '@/lib/authOnlyMode';
 
 
 // Hide bottom nav on landing page
@@ -120,8 +121,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
         toast.success('Welcome back! ✨');
-        // IMPORTANT: do not navigate yet. Global app gate will rehydrate data first,
-        // then route the user to the correct screen.
+        // AUTH-ONLY MODE: enter app immediately.
+        if (AUTH_ONLY_MODE) {
+          navTo('home', '/home');
+        }
       } else {
         if (!formData.username.trim()) {
           throw new Error('Username is required');
@@ -129,8 +132,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         const { error } = await signUp(formData.email, formData.password, formData.username);
         if (error) throw error;
         toast.success('Welcome to VYBE! 🎉');
-        // IMPORTANT: do not navigate yet. Global app gate will rehydrate data first,
-        // then route the user to the correct screen.
+        // AUTH-ONLY MODE: enter app immediately.
+        if (AUTH_ONLY_MODE) {
+          navTo('home', '/home');
+        }
       }
     } catch (error: any) {
       toast.error(getUserFriendlyError(error));
