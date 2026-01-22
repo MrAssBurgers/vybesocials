@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { AuthPhase, AuthState, INITIAL_AUTH_STATE } from '@/lib/authState';
+import { AUTH_ONLY_MODE } from '@/lib/authOnlyMode';
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -334,6 +335,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Refresh profile (for external use)
   const refreshProfile = useCallback(async () => {
+    if (AUTH_ONLY_MODE) return;
     if (user) {
       profileFetchRef.current = null;
       await fetchProfile(user.id, user.user_metadata);
@@ -377,6 +379,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // CRITICAL: Resolve auth IMMEDIATELY - don't wait for profile
       resolveAuthInstant(newSession);
+
+      // AUTH-ONLY MODE: do NOT fetch/create profile or any user data.
+      if (AUTH_ONLY_MODE) {
+        setProfile(null);
+        setBanInfo(null);
+        setProfileLoading(false);
+        return;
+      }
       
       // Load profile in background - NEVER blocks auth resolution
       setProfileLoading(true);
@@ -524,16 +534,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
 
-      // DON'T wait for profile - just trigger background fetch
-      if (data.user) {
-        setProfileLoading(true);
-        fetchProfile(data.user.id, data.user.user_metadata)
-          .catch((err) => {
-            console.warn('[Auth] Profile fetch after sign-in failed (non-blocking):', err);
-          })
-          .finally(() => {
-            setProfileLoading(false);
-          });
+      // AUTH-ONLY MODE: do NOT fetch/create profile.
+      if (!AUTH_ONLY_MODE) {
+        // DON'T wait for profile - just trigger background fetch
+        if (data.user) {
+          setProfileLoading(true);
+          fetchProfile(data.user.id, data.user.user_metadata)
+            .catch((err) => {
+              console.warn('[Auth] Profile fetch after sign-in failed (non-blocking):', err);
+            })
+            .finally(() => {
+              setProfileLoading(false);
+            });
+        }
       }
 
       return { error: null };
