@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   UserPlus, X, Check, Sparkles, QrCode, Camera, 
-  ArrowLeftRight, Loader2, Heart, ZoomIn, Copy, Share2, Maximize2
+  ArrowLeftRight, Loader2, Heart, ZoomIn, Copy, Share2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -29,79 +29,84 @@ interface FoundUser {
   bio: string | null;
 }
 
-// QR Fullscreen Lightbox Component
-const QRLightbox = memo(function QRLightbox({
-  isOpen,
-  onClose,
+// Inline expandable QR component with tap-to-toggle
+const ExpandableQR = memo(function ExpandableQR({
   qrCodeUrl,
-  username,
-  onScanned,
+  isExpanded,
+  onToggle,
 }: {
-  isOpen: boolean;
-  onClose: () => void;
   qrCodeUrl: string;
-  username: string;
-  onScanned?: () => void;
+  isExpanded: boolean;
+  onToggle: () => void;
 }) {
-  // Auto-close when scanned
-  useEffect(() => {
-    if (onScanned) {
-      onScanned();
-    }
-  }, [onScanned]);
-
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-lg"
-          onClick={onClose}
-        >
+    <motion.button
+      className="relative cursor-pointer overflow-hidden"
+      onClick={onToggle}
+      layout
+      initial={false}
+      animate={{
+        width: isExpanded ? 256 : 128,
+        height: isExpanded ? 256 : 128,
+        padding: isExpanded ? 16 : 12,
+      }}
+      transition={{
+        type: "spring",
+        stiffness: 400,
+        damping: 30,
+        duration: 0.25,
+      }}
+      style={{
+        borderRadius: 16,
+        background: 'rgba(0, 0, 0, 0.2)',
+        backdropFilter: 'blur(8px)',
+      }}
+      whileTap={{ scale: 0.98 }}
+    >
+      <motion.img
+        src={qrCodeUrl}
+        alt="QR Code"
+        className="w-full h-full rounded-lg"
+        layout
+        transition={{
+          type: "spring",
+          stiffness: 400,
+          damping: 30,
+        }}
+      />
+      
+      {/* Expand/shrink indicator */}
+      <AnimatePresence mode="wait">
+        {!isExpanded && (
           <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ type: 'spring', damping: 20 }}
-            className="relative p-8 bg-gradient-to-br from-primary via-primary/80 to-accent rounded-3xl shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-2xl opacity-0 hover:opacity-100 transition-opacity duration-200"
           >
-            <motion.div
-              className="absolute inset-0 rounded-3xl"
-              animate={{
-                boxShadow: [
-                  '0 0 40px hsl(var(--primary) / 0.4)',
-                  '0 0 80px hsl(var(--primary) / 0.6)',
-                  '0 0 40px hsl(var(--primary) / 0.4)',
-                ],
-              }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            />
-            
-            <div className="relative flex flex-col items-center gap-4">
-              <p className="text-white font-semibold text-lg">@{username?.trim()}</p>
-              <img 
-                src={qrCodeUrl} 
-                alt="QR Code" 
-                className="w-64 h-64 rounded-2xl bg-white p-2"
-              />
-              <p className="text-white/70 text-sm">Have them scan this code</p>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={onClose}
-                className="text-white/80 hover:text-white hover:bg-white/10"
-              >
-                <X className="h-4 w-4 mr-2" />
-                Close
-              </Button>
-            </div>
+            <ZoomIn className="h-6 w-6 text-white" />
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+      
+      {/* Shrink hint when expanded */}
+      <AnimatePresence mode="wait">
+        {isExpanded && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.2, delay: 0.1 }}
+            className="absolute bottom-2 left-0 right-0 text-center"
+          >
+            <span className="text-xs text-white/60 bg-black/40 px-2 py-1 rounded-full">
+              Tap to shrink
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.button>
   );
 });
 
@@ -111,7 +116,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [phase, setPhase] = useState<DropPhase>('idle');
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
-  const [qrLightboxOpen, setQrLightboxOpen] = useState(false);
+  const [isQrExpanded, setIsQrExpanded] = useState(false);
   const [wasScanned, setWasScanned] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -124,7 +129,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     onScanned: (drop) => {
       // QR owner sees this when their QR is scanned
       setWasScanned(true);
-      setQrLightboxOpen(false); // Auto-close lightbox
+      setIsQrExpanded(false); // Auto-shrink QR when scanned
       haptics.success();
       
       // Fetch the scanner's profile
@@ -184,7 +189,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setPhase('idle');
     setFoundUser(null);
     setWasScanned(false);
-    setQrLightboxOpen(false);
+    setIsQrExpanded(false);
     
     // Create a drop session for realtime sync
     const drop = await friendDropSync.createDrop();
@@ -198,8 +203,8 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     haptics.impact();
   }, []);
 
-  const openQrLightbox = useCallback(() => {
-    setQrLightboxOpen(true);
+  const toggleQrExpand = useCallback(() => {
+    setIsQrExpanded(prev => !prev);
     haptics.tap();
   }, []);
 
@@ -376,7 +381,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setIsOpen(false);
     setPhase('idle');
     setFoundUser(null);
-    setQrLightboxOpen(false);
+    setIsQrExpanded(false);
     setWasScanned(false);
     setActiveDropId(null);
   }, [stopScanning, activeDropId, friendDropSync]);
@@ -547,26 +552,25 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
             <p className="text-white/80 text-sm">@{profile?.username?.trim()}</p>
           </div>
               
-              {/* Tap-to-enlarge QR Code */}
-              <motion.button 
-                className="p-3 rounded-2xl bg-black/20 backdrop-blur cursor-pointer relative group"
-                onClick={openQrLightbox}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <img 
-                  src={qrCodeUrl} 
-                  alt="QR Code" 
-                  className="w-32 h-32 rounded-lg"
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Maximize2 className="h-8 w-8 text-white" />
-                </div>
-              </motion.button>
+              {/* Inline Tap-to-expand QR Code */}
+              <ExpandableQR
+                qrCodeUrl={qrCodeUrl}
+                isExpanded={isQrExpanded}
+                onToggle={toggleQrExpand}
+              />
               
-              <p className="text-white/70 text-xs">
-                Tap QR to enlarge
-              </p>
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={isQrExpanded ? 'shrink' : 'expand'}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-primary-foreground/70 text-xs"
+                >
+                  {isQrExpanded ? 'Tap to shrink' : 'Tap QR to enlarge'}
+                </motion.p>
+              </AnimatePresence>
               
               {/* Share actions */}
               <div className="flex gap-2">
@@ -954,18 +958,6 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   return (
     <>
       {renderTrigger()}
-      
-      {/* QR Lightbox */}
-      <QRLightbox
-        isOpen={qrLightboxOpen}
-        onClose={() => setQrLightboxOpen(false)}
-        qrCodeUrl={qrCodeUrl}
-        username={profile?.username || ''}
-        onScanned={wasScanned ? () => {
-          setQrLightboxOpen(false);
-          haptics.success();
-        } : undefined}
-      />
 
       {/* Main Dialog */}
       <Dialog open={isOpen} onOpenChange={handleClose}>
