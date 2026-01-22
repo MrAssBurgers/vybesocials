@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, storageStatus } from "@/integrations/supabase/client";
 import { getUserFriendlyError } from "@/lib/errorUtils";
 import { Button } from "@/components/ui/button";
+
+const AUTH_STORAGE_KEY = 'vybe-auth-token';
+
+// Verify session is actually persisted to storage
+function verifySessionPersisted(): boolean {
+  try {
+    const storage = storageStatus.localStorageAvailable ? localStorage : sessionStorage;
+    const stored = storage.getItem(AUTH_STORAGE_KEY);
+    return !!stored && stored.length > 10;
+  } catch {
+    return false;
+  }
+}
 
 // Ensure profile exists with retry logic
 async function ensureProfileWithRetry(maxAttempts = 3): Promise<boolean> {
@@ -84,6 +97,22 @@ export default function AuthCallback() {
         
         if (!session?.user) {
           throw new Error("No session was created");
+        }
+
+        // CRITICAL: Verify the session was actually persisted to storage
+        setStatus("Verifying session...");
+        await new Promise(resolve => setTimeout(resolve, 100)); // Let storage settle
+        
+        const isPersisted = verifySessionPersisted();
+        console.log('[AuthCallback] Session persisted:', isPersisted, 'Storage status:', storageStatus);
+        
+        if (!isPersisted) {
+          // Session exists in memory but not in storage - this is the bug!
+          if (!storageStatus.localStorageAvailable) {
+            console.warn('[AuthCallback] Using sessionStorage fallback - session won\'t persist across tabs');
+          } else {
+            console.error('[AuthCallback] Session not persisted despite localStorage being available');
+          }
         }
 
         // CRITICAL: Wait for profile to be created/confirmed before navigating

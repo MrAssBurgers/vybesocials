@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, storageStatus } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, XCircle, Loader2, Copy, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+
+const AUTH_STORAGE_KEY = 'vybe-auth-token';
 
 interface TestResult {
   name: string;
@@ -169,13 +171,34 @@ export default function DebugAuth() {
   const hardResetAuth = async () => {
     try {
       await supabase.auth.signOut();
-      localStorage.removeItem("sb-szthqtnbepupjqjxaduu-auth-token");
+      // Clear the CORRECT storage key
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      sessionStorage.removeItem(AUTH_STORAGE_KEY);
       sessionStorage.clear();
-      toast.success("Signed out and cleared auth storage. Reloading...");
+      localStorage.clear();
+      toast.success("Signed out and cleared all storage. Reloading...");
       setTimeout(() => window.location.href = "/", 1000);
     } catch (e: any) {
       toast.error(e.message);
     }
+  };
+
+  // Storage diagnostics
+  const storageDiagnostics = {
+    localStorageAvailable: storageStatus.localStorageAvailable,
+    usingFallback: storageStatus.usingFallback,
+    authTokenPresent: (() => {
+      try {
+        const storage = storageStatus.localStorageAvailable ? localStorage : sessionStorage;
+        return !!storage.getItem(AUTH_STORAGE_KEY);
+      } catch { return false; }
+    })(),
+    authTokenLength: (() => {
+      try {
+        const storage = storageStatus.localStorageAvailable ? localStorage : sessionStorage;
+        return storage.getItem(AUTH_STORAGE_KEY)?.length ?? 0;
+      } catch { return 0; }
+    })(),
   };
 
   return (
@@ -205,6 +228,11 @@ export default function DebugAuth() {
           <div><strong>Token Expires:</strong> {session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : "N/A"}</div>
           <div><strong>Profile ID (context):</strong> {profile?.id ?? "null"}</div>
           <div><strong>Profile Username:</strong> {profile?.username ?? "null"}</div>
+          <div className="border-t pt-2 mt-2">
+            <div><strong>localStorage Available:</strong> {storageDiagnostics.localStorageAvailable ? "✅ Yes" : "❌ No (using sessionStorage)"}</div>
+            <div><strong>Auth Token Present:</strong> {storageDiagnostics.authTokenPresent ? `✅ Yes (${storageDiagnostics.authTokenLength} chars)` : "❌ No"}</div>
+            <div><strong>Storage Key:</strong> {AUTH_STORAGE_KEY}</div>
+          </div>
         </CardContent>
       </Card>
 
