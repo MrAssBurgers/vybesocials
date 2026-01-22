@@ -6,7 +6,7 @@ interface OwnerBadgeProps {
   className?: string;
 }
 
-// The owner username - mrassburgers
+// The owner username - MrAssBurgers
 const OWNER_USERNAME = 'mrassburgers';
 
 export function isOwner(username: string | null | undefined): boolean {

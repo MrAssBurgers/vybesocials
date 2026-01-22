@@ -23,6 +23,7 @@ import { ModBadge } from '@/components/ui/ModBadge';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { useLiveFollowerCount } from '@/hooks/useLiveFollowerCount';
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -40,6 +41,9 @@ export default function ProfilePage() {
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
+  
+  // Live follower count for real-time updates
+  const liveFollowerCount = useLiveFollowerCount(profile?.id);
 
   const isOwnProfile = currentProfile?.username === username;
 
@@ -258,7 +262,14 @@ export default function ProfilePage() {
                 <p className="text-sm text-muted-foreground">posts</p>
               </div>
               <div className="text-center">
-                <p className="font-bold text-xl">{profile.follower_count}</p>
+                <motion.p 
+                  key={liveFollowerCount}
+                  initial={{ scale: 1.2, color: 'hsl(var(--primary))' }}
+                  animate={{ scale: 1, color: 'hsl(var(--foreground))' }}
+                  className="font-bold text-xl"
+                >
+                  {liveFollowerCount}
+                </motion.p>
                 <p className="text-sm text-muted-foreground">followers</p>
               </div>
               <div className="text-center">
