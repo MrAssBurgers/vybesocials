@@ -1,5 +1,5 @@
 import { lazy, Suspense, memo, useMemo } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isLowEndDevice } from '@/lib/performanceConfig';
@@ -19,7 +19,6 @@ const Messages = lazy(() => import(/* webpackPrefetch: true */ "@/pages/Messages
 const NewMessage = lazy(() => import("@/pages/NewMessage"));
 const AIChat = lazy(() => import("@/pages/AIChat"));
 const Feedback = lazy(() => import("@/pages/Feedback"));
-const CompleteProfile = lazy(() => import("@/pages/CompleteProfile"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const Market = lazy(() => import("@/pages/Market"));
 const CreateListing = lazy(() => import("@/pages/CreateListing"));
@@ -105,7 +104,7 @@ export function AnimatedRoutes() {
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/complete-profile" element={<CompleteProfile />} />
+            <Route path="/complete-profile" element={<Navigate to="/onboarding" replace />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/messages/new" element={<NewMessage />} />
             <Route path="/messages/ai-autisy" element={<AIChat />} />
