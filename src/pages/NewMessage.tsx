@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ArrowLeft, Users, Check, Clock, UserPlus, ArrowLeftRight } from "lucide-react";
+import { Search, ArrowLeft, Users, Check, Clock, UserPlus, ArrowLeftRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -157,12 +157,13 @@ export default function NewMessage() {
     inputRef.current?.focus();
   }, []);
 
-  const { data: results, isLoading } = useQuery({
+  const { data: results, isLoading, isFetching } = useQuery({
     queryKey: ["add-friend-user-search", debounced, profile?.id],
     queryFn: async () => {
       if (!debounced) return [] as RecentMessageUser[];
       if (!profile?.id) return [] as RecentMessageUser[];
 
+      // Search profiles with case-insensitive matching
       const { data, error } = await supabase
         .from("profiles")
         .select("id, username, avatar_url, display_name")
@@ -172,10 +173,23 @@ export default function NewMessage() {
         .limit(25);
 
       if (error) throw error;
-      return (data || []) as RecentMessageUser[];
+      
+      // Sort results: exact username matches first
+      const sortedData = (data || []).sort((a, b) => {
+        const aExact = a.username.toLowerCase() === debounced.toLowerCase();
+        const bExact = b.username.toLowerCase() === debounced.toLowerCase();
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+        return 0;
+      });
+      
+      return sortedData as RecentMessageUser[];
     },
     enabled: debounced.length > 0,
+    staleTime: 30000, // Cache for 30 seconds
   });
+
+  const showLoading = isLoading || isFetching;
 
   const safeResults = results || [];
 
@@ -234,9 +248,13 @@ export default function NewMessage() {
           </div>
 
           <section className="rounded-xl border border-border overflow-hidden">
-            {isLoading ? (
+            {showLoading ? (
               <div className="p-2 space-y-2">
-                {Array.from({ length: 6 }).map((_, i) => (
+                <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Searching...
+                </div>
+                {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-3 p-3">
                     <Skeleton className="h-10 w-10 rounded-full" />
                     <div className="flex-1 space-y-2">

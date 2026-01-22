@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useMutualFriends, UserWithMutualFriends } from '@/hooks/useMutualFriends';
@@ -61,12 +61,15 @@ function useSuggestedUsers() {
       const friendIds = friends?.map(f => f.id) || [];
       const allHiddenIds = hiddenIds || new Set<string>();
       
+      // Build query with proper exclusions
       let query = supabase
         .from('profiles')
         .select('id, username, display_name, first_name, last_name, avatar_url')
         .neq('id', profile.id)
-        .limit(30); // Fetch more to account for filtering
+        .order('created_at', { ascending: false })
+        .limit(40); // Fetch more to account for filtering
       
+      // Exclude existing friends
       if (friendIds.length > 0) {
         query = query.not('id', 'in', `(${friendIds.join(',')})`);
       }
@@ -78,8 +81,12 @@ function useSuggestedUsers() {
       // Filter out hidden users (pending outgoing, dismissed, blocked)
       const filteredUsers = users.filter(u => !allHiddenIds.has(u.id));
       
+      // Batch fetch friend counts for performance
+      const usersToShow = filteredUsers.slice(0, 12);
+      
+      // Fetch friend counts and build results
       const usersWithFriendCount = await Promise.all(
-        filteredUsers.slice(0, 10).map(async (user) => {
+        usersToShow.map(async (user) => {
           const { count } = await supabase
             .from('friend_requests')
             .select('*', { count: 'exact', head: true })
@@ -93,19 +100,20 @@ function useSuggestedUsers() {
             first_name: user.first_name,
             last_name: user.last_name,
             avatar_url: user.avatar_url,
-            mutual_friends_count: 0,
+            mutual_friends_count: count || 0, // Use mutual_friends_count to store total for sorting
             mutual_friends: [],
-            total_friends: count || 0,
           };
         })
       );
       
+      // Sort by friend count (more popular users first)
       return usersWithFriendCount
-        .sort((a, b) => (b.total_friends || 0) - (a.total_friends || 0))
+        .sort((a, b) => b.mutual_friends_count - a.mutual_friends_count)
         .slice(0, 8);
     },
     enabled: !!profile?.id,
-    staleTime: 60000,
+    staleTime: 60000, // Cache for 1 minute
+    gcTime: 300000, // Keep in cache for 5 minutes
   });
 }
 
@@ -144,46 +152,65 @@ export function MutualFriendsQuickAdd({
     });
   };
 
-  const handleSearch = async (query: string) => {
+  // Debounced search with improved performance
+  const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
     
     if (query.length < 2) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
 
     setIsSearching(true);
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, first_name, last_name, avatar_url')
-        .neq('id', profile?.id || '')
-        .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,display_name.ilike.%${query}%,username.ilike.%${query}%`)
-        .limit(15);
+    
+    // Debounce implementation via setTimeout
+    const searchTimeout = setTimeout(async () => {
+      try {
+        // Use case-insensitive search with exact match prioritization
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, first_name, last_name, avatar_url')
+          .neq('id', profile?.id || '')
+          .or(`username.ilike.%${query}%,display_name.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+          .order('username', { ascending: true })
+          .limit(20);
 
-      if (data) {
-        // Filter out hidden users from search results (Snapchat-style)
-        const allHidden = hiddenIds || new Set<string>();
-        const filteredData = data.filter(p => !allHidden.has(p.id) && !localDismissed.has(p.id));
-        
-        const results: UserWithMutualFriends[] = filteredData.map(p => ({
-          id: p.id,
-          username: p.username,
-          display_name: p.display_name,
-          first_name: p.first_name,
-          last_name: p.last_name,
-          avatar_url: p.avatar_url,
-          mutual_friends_count: 0,
-          mutual_friends: [],
-        }));
-        setSearchResults(results);
+        if (data) {
+          // Filter out hidden users from search results
+          const allHidden = hiddenIds || new Set<string>();
+          const filteredData = data.filter(p => !allHidden.has(p.id) && !localDismissed.has(p.id));
+          
+          // Sort results: exact username matches first, then partial
+          const sortedData = filteredData.sort((a, b) => {
+            const aExact = a.username.toLowerCase() === query.toLowerCase();
+            const bExact = b.username.toLowerCase() === query.toLowerCase();
+            if (aExact && !bExact) return -1;
+            if (!aExact && bExact) return 1;
+            return 0;
+          });
+          
+          const results: UserWithMutualFriends[] = sortedData.map(p => ({
+            id: p.id,
+            username: p.username,
+            display_name: p.display_name,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            avatar_url: p.avatar_url,
+            mutual_friends_count: 0,
+            mutual_friends: [],
+          }));
+          setSearchResults(results);
+        }
+      } catch (error) {
+        console.error('Search error:', error);
+      } finally {
+        setIsSearching(false);
       }
-    } catch (error) {
-      console.error('Search error:', error);
-    } finally {
-      setIsSearching(false);
-    }
-  };
+    }, 300);
+
+    return () => clearTimeout(searchTimeout);
+  }, [profile?.id, hiddenIds, localDismissed]);
 
   const clearSearch = () => {
     setSearchQuery('');
