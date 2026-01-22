@@ -190,7 +190,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     }
   }, []);
 
-  // Only redirect authenticated users without profile to onboarding
+  // Only redirect authenticated users to onboarding ONCE (when onboarding_completed !== true)
   // Guest users can browse freely
   useEffect(() => {
     if (authLoading) return;
@@ -206,8 +206,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       return;
     }
 
-    // For authenticated users without a username or incomplete onboarding
-    if (!profile?.username || profile?.onboarding_completed === false) {
+    // Only redirect if onboarding has NOT been completed
+    // Once onboarding_completed is true, user will never see onboarding again
+    if (profile?.onboarding_completed !== true) {
       // Don't redirect during active referral flow or invite mode
       if (hasActiveReferral() || isInviteEntryMode()) {
         console.log('[Home] Skipping profile redirect - active referral/invite in progress');

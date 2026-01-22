@@ -163,11 +163,11 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       window.dispatchEvent(new CustomEvent('onboarding-completed'));
 
       toast.success('Welcome to VYBE! 🎉');
-      // Navigate to home (in invite mode, use callback)
+      // Force full page reload to ensure auth context gets fresh profile data
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate('home');
       } else {
-        navigate('/home');
+        window.location.href = '/home';
       }
     } catch (error) {
       console.error('Onboarding error:', error);
@@ -212,11 +212,11 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         return;
       }
 
-      // Navigate to home
+      // Force full page reload to ensure auth context gets fresh profile data
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate('home');
       } else {
-        navigate('/home');
+        window.location.href = '/home';
       }
     } catch (err) {
       console.error('Skip error:', err);
