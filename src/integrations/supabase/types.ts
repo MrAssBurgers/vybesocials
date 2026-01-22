@@ -440,6 +440,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "channel_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "channel_messages_reply_to_id_fkey"
             columns: ["reply_to_id"]
             isOneToOne: false
@@ -477,6 +484,7 @@ export type Database = {
           is_private: boolean | null
           name: string
           position: number | null
+          room_type: string | null
           server_id: string
           type: string
         }
@@ -487,6 +495,7 @@ export type Database = {
           is_private?: boolean | null
           name: string
           position?: number | null
+          room_type?: string | null
           server_id: string
           type?: string
         }
@@ -497,10 +506,18 @@ export type Database = {
           is_private?: boolean | null
           name?: string
           position?: number | null
+          room_type?: string | null
           server_id?: string
           type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "channels_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "channels_server_id_fkey"
             columns: ["server_id"]
@@ -1979,6 +1996,65 @@ export type Database = {
           },
         ]
       }
+      live_activity: {
+        Row: {
+          activity_type: string
+          community_id: string
+          id: string
+          last_seen_at: string | null
+          room_id: string | null
+          started_at: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_type: string
+          community_id: string
+          id?: string
+          last_seen_at?: string | null
+          room_id?: string | null
+          started_at?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_type?: string
+          community_id?: string
+          id?: string
+          last_seen_at?: string | null
+          room_id?: string | null
+          started_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_activity_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_activity_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_activity_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_activity_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meme_ban_backgrounds: {
         Row: {
           created_at: string
@@ -3307,6 +3383,13 @@ export type Database = {
             foreignKeyName: "server_members_server_id_fkey"
             columns: ["server_id"]
             isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "server_members_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
             referencedRelation: "servers"
             referencedColumns: ["id"]
           },
@@ -3373,6 +3456,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "server_notifications_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "server_notifications_message_id_fkey"
             columns: ["message_id"]
             isOneToOne: false
@@ -3398,6 +3488,13 @@ export type Database = {
             columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "server_notifications_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
             referencedColumns: ["id"]
           },
           {
@@ -3432,7 +3529,9 @@ export type Database = {
       }
       servers: {
         Row: {
+          active_now_count: number | null
           banner_url: string | null
+          cover_url: string | null
           created_at: string
           description: string | null
           icon_url: string | null
@@ -3445,7 +3544,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_now_count?: number | null
           banner_url?: string | null
+          cover_url?: string | null
           created_at?: string
           description?: string | null
           icon_url?: string | null
@@ -3458,7 +3559,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_now_count?: number | null
           banner_url?: string | null
+          cover_url?: string | null
           created_at?: string
           description?: string | null
           icon_url?: string | null
@@ -4545,6 +4648,136 @@ export type Database = {
       }
     }
     Views: {
+      communities: {
+        Row: {
+          active_now_count: number | null
+          banner_url: string | null
+          cover_url: string | null
+          created_at: string | null
+          description: string | null
+          icon_url: string | null
+          id: string | null
+          invite_code: string | null
+          is_public: boolean | null
+          member_count: number | null
+          name: string | null
+          owner_id: string | null
+        }
+        Insert: {
+          active_now_count?: number | null
+          banner_url?: string | null
+          cover_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon_url?: string | null
+          id?: string | null
+          invite_code?: string | null
+          is_public?: boolean | null
+          member_count?: number | null
+          name?: string | null
+          owner_id?: string | null
+        }
+        Update: {
+          active_now_count?: number | null
+          banner_url?: string | null
+          cover_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon_url?: string | null
+          id?: string | null
+          invite_code?: string | null
+          is_public?: boolean | null
+          member_count?: number | null
+          name?: string | null
+          owner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "servers_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "servers_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servers_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_members: {
+        Row: {
+          community_id: string | null
+          id: string | null
+          joined_at: string | null
+          nickname: string | null
+          role: string | null
+          user_id: string | null
+        }
+        Insert: {
+          community_id?: string | null
+          id?: string | null
+          joined_at?: string | null
+          nickname?: string | null
+          role?: never
+          user_id?: string | null
+        }
+        Update: {
+          community_id?: string | null
+          id?: string | null
+          joined_at?: string | null
+          nickname?: string | null
+          role?: never
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "server_members_server_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "server_members_server_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "server_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "server_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "server_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invite_leaderboard: {
         Row: {
           avatar_url: string | null
@@ -4595,8 +4828,63 @@ export type Database = {
         }
         Relationships: []
       }
+      rooms: {
+        Row: {
+          community_id: string | null
+          created_at: string | null
+          description: string | null
+          id: string | null
+          is_private: boolean | null
+          name: string | null
+          position: number | null
+          room_type: string | null
+          type: string | null
+        }
+        Insert: {
+          community_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_private?: boolean | null
+          name?: string | null
+          position?: number | null
+          room_type?: string | null
+          type?: string | null
+        }
+        Update: {
+          community_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_private?: boolean | null
+          name?: string | null
+          position?: number | null
+          room_type?: string | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channels_server_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channels_server_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      create_default_rooms: {
+        Args: { p_server_id: string }
+        Returns: undefined
+      }
       create_dm_conversation: {
         Args: { other_profile_id: string }
         Returns: string
