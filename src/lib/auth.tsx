@@ -185,9 +185,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return data[0];
       }
 
-      // If profile is missing, create it server-side (required for messaging/RLS)
-      console.log('[Auth] Profile not found, calling ensure_profile...');
-      const { data: profileId, error: ensureError } = await supabase.rpc('ensure_profile');
+      // If profile is missing, try to claim an unclaimed profile or create new one
+      console.log('[Auth] Profile not found, calling claim_profile_by_email...');
+      const { data: profileId, error: ensureError } = await supabase.rpc('claim_profile_by_email');
       
       if (ensureError) {
         console.error('[Auth] ensure_profile failed:', ensureError);
