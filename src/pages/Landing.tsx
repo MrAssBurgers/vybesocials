@@ -6,9 +6,10 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
-import { Sparkles, Chrome, Eye, EyeOff } from 'lucide-react';
+import { Sparkles, Chrome, Eye, EyeOff, AlertTriangle, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
@@ -49,6 +50,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showIntro, setShowIntro] = useState(!hasSeenIntro());
+  const [showDbNotice, setShowDbNotice] = useState(true);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -209,6 +211,31 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         className="relative z-10 w-full max-w-md mx-4"
       >
         <div className="glass-card rounded-3xl p-8 gradient-border">
+          {/* Database Reset Notice */}
+          <AnimatePresence>
+            {showDbNotice && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-6"
+              >
+                <Alert className="bg-red-500/15 border-red-500/50 text-red-400">
+                  <AlertTriangle className="h-4 w-4 text-red-400" />
+                  <AlertDescription className="text-red-300 text-sm pr-6">
+                    Please create a new account — the old database got corrupted so it had to be deleted. Thank you so much for your patience! 💜
+                  </AlertDescription>
+                  <button 
+                    onClick={() => setShowDbNotice(false)}
+                    className="absolute top-3 right-3 text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </Alert>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Centered Logo with subtle glow */}
           <div className="flex flex-col items-center mb-8 relative">
             {/* Static glow behind logo for better performance */}
