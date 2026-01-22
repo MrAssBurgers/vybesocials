@@ -97,9 +97,8 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
   const [isHubOpen, setIsHubOpen] = useState(false);
   const lastTapTime = useRef(0);
 
-  const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
-  const isMrassburgers = profile?.username?.toLowerCase() === 'mrassburgers';
-  const showAdminLink = isAdminOrMod || isMrassburgers;
+  // Check if user is admin or moderator
+  const showAdminLink = userRole === 'admin' || userRole === 'moderator';
 
   const { data: myServers = [] } = useMyServers();
 

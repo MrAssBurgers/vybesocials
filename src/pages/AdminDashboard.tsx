@@ -160,9 +160,8 @@ export default function AdminDashboard() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const { data: searchResults = [] } = useSearchUsers(searchTerm);
 
+  const isAdmin = userRole === 'admin';
   const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
-  const isMrassburgers = profile?.username?.toLowerCase() === 'mrassburgers';
-  const isOwner = isMrassburgers; // Owner can manage all roles
 
   if (roleLoading) {
     return (
@@ -174,7 +173,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!isModOrAdmin && !isMrassburgers) {
+  if (!isModOrAdmin) {
     return <Navigate to="/home" replace />;
   }
 
@@ -249,9 +248,9 @@ export default function AdminDashboard() {
             <h1 className="text-xl sm:text-2xl font-bold truncate">Admin Panel</h1>
             <p className="text-muted-foreground text-xs sm:text-sm truncate">Manage users, reports, and content</p>
           </div>
-          {isOwner && (
+          {isAdmin && (
             <Badge className="bg-gradient-to-r from-yellow-500 to-amber-500 text-black text-xs flex-shrink-0">
-              <Crown className="h-3 w-3 mr-1" /> Owner
+              <Crown className="h-3 w-3 mr-1" /> Admin
             </Badge>
           )}
         </div>
@@ -748,8 +747,8 @@ export default function AdminDashboard() {
                 <CardDescription>Admins and moderators</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Add Role Section - Only for Owner - Mobile Responsive */}
-                {isOwner && (
+                {/* Add Role Section - Only for Admins - Mobile Responsive */}
+                {isAdmin && (
                   <div className="p-3 sm:p-4 rounded-lg bg-muted/20 border border-primary/20 space-y-3 sm:space-y-4">
                     <h3 className="font-semibold flex items-center gap-2 text-sm sm:text-base">
                       <UserPlus className="h-4 w-4" />
@@ -833,7 +832,7 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            {isOwner && (
+                            {isAdmin && (
                               <Button
                                 size="sm"
                                 variant="ghost"

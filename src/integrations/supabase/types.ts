@@ -4978,6 +4978,10 @@ export type Database = {
         }[]
       }
       current_profile_id: { Args: never; Returns: string }
+      current_user_has_role: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: boolean
+      }
       ensure_profile: { Args: never; Returns: string }
       filter_profanity: { Args: { input_text: string }; Returns: string }
       generate_invite_code: { Args: never; Returns: string }

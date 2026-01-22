@@ -23,10 +23,8 @@ export function Sidebar() {
   const { data: unreadNotifications = 0 } = useUnreadCount();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
 
-  // Check if user is admin or moderator OR is mrassburgers
-  const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
-  const isMrassburgers = profile?.username?.toLowerCase() === 'mrassburgers';
-  const showAdminLink = isAdminOrMod || isMrassburgers;
+  // Check if user is admin or moderator
+  const showAdminLink = userRole === 'admin' || userRole === 'moderator';
 
   const mainNavItems = [
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0 },
