@@ -2947,6 +2947,7 @@ export type Database = {
           coins_balance: number | null
           created_at: string
           display_name: string | null
+          email: string | null
           first_name: string | null
           id: string
           interests: string[] | null
@@ -2965,7 +2966,7 @@ export type Database = {
           timezone: string | null
           tutorial_completed: boolean | null
           tutorial_skipped: boolean | null
-          user_id: string
+          user_id: string | null
           username: string
         }
         Insert: {
@@ -2974,6 +2975,7 @@ export type Database = {
           coins_balance?: number | null
           created_at?: string
           display_name?: string | null
+          email?: string | null
           first_name?: string | null
           id?: string
           interests?: string[] | null
@@ -2992,7 +2994,7 @@ export type Database = {
           timezone?: string | null
           tutorial_completed?: boolean | null
           tutorial_skipped?: boolean | null
-          user_id: string
+          user_id?: string | null
           username: string
         }
         Update: {
@@ -3001,6 +3003,7 @@ export type Database = {
           coins_balance?: number | null
           created_at?: string
           display_name?: string | null
+          email?: string | null
           first_name?: string | null
           id?: string
           interests?: string[] | null
@@ -3019,7 +3022,7 @@ export type Database = {
           timezone?: string | null
           tutorial_completed?: boolean | null
           tutorial_skipped?: boolean | null
-          user_id?: string
+          user_id?: string | null
           username?: string
         }
         Relationships: [
@@ -4957,6 +4960,7 @@ export type Database = {
       }
     }
     Functions: {
+      claim_profile_by_email: { Args: never; Returns: string }
       cleanup_old_friend_drops: { Args: never; Returns: undefined }
       create_default_rooms: {
         Args: { p_server_id: string }
