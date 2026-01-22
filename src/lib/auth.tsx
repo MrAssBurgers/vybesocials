@@ -7,7 +7,8 @@ import { AuthPhase } from '@/lib/authState';
 import { AUTH_ONLY_MODE } from '@/lib/authOnlyMode';
 
 // Maximum time to wait for profile before continuing anyway
-const PROFILE_TIMEOUT_MS = 4000;
+const PROFILE_TIMEOUT_MS = 6000;
+const PROFILE_RETRY_DELAYS = [1500, 3000, 5000]; // Exponential backoff delays
 
 interface Profile {
   id: string;
@@ -61,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Tracks whether we've successfully resolved auth at least once.
   // This avoids StrictMode double-effect edge cases causing permanent "Signing you in...".
   const resolvedRef = useRef(false);
+  const retryCountRef = useRef(0);
   const profileFetchRef = useRef<Promise<Profile | null> | null>(null);
   const profileRetryRef = useRef<string | null>(null);
 
@@ -190,6 +192,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Profile missing - try to create via ensure_profile
         try {
           await withTimeout(supabase.rpc('ensure_profile'), PROFILE_TIMEOUT_MS, 'ensure_profile');
+          // Wait for DB to settle after ensure_profile
+          await new Promise(resolve => setTimeout(resolve, 300));
         } catch (e) {
           console.warn('[Auth] ensure_profile failed:', e);
         }
@@ -267,24 +271,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchProfile(user.id, user.user_metadata);
   }, [user, fetchProfile]);
 
-  // If auth is valid but profile is still missing, retry once (handles transient backend hiccups)
+  // If auth is valid but profile is still missing, retry with exponential backoff
   useEffect(() => {
     if (AUTH_ONLY_MODE) return;
 
     if (!user?.id) {
       profileRetryRef.current = null;
+      retryCountRef.current = 0;
       return;
     }
 
     if (authPhase !== 'authenticated') return;
     if (profile || profileLoading) return;
 
-    if (profileRetryRef.current === user.id) return;
-    profileRetryRef.current = user.id;
+    // Prevent duplicate retries for same user
+    if (profileRetryRef.current === user.id && retryCountRef.current >= PROFILE_RETRY_DELAYS.length) {
+      return;
+    }
+
+    // First time seeing this user without profile
+    if (profileRetryRef.current !== user.id) {
+      profileRetryRef.current = user.id;
+      retryCountRef.current = 0;
+    }
+
+    const currentRetry = retryCountRef.current;
+    if (currentRetry >= PROFILE_RETRY_DELAYS.length) return;
+
+    const delay = PROFILE_RETRY_DELAYS[currentRetry];
+    console.log(`[Auth] Profile retry ${currentRetry + 1}/${PROFILE_RETRY_DELAYS.length} in ${delay}ms`);
 
     const t = setTimeout(() => {
+      retryCountRef.current = currentRetry + 1;
       refreshProfile().catch(() => {});
-    }, 1200);
+    }, delay);
 
     return () => clearTimeout(t);
   }, [user?.id, authPhase, profile, profileLoading, refreshProfile]);
