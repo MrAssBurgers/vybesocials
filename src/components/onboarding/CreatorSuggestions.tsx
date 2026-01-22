@@ -20,14 +20,12 @@ function useOwnerProfile() {
   const query = useQuery({
     queryKey: ['owner-profile'],
     queryFn: async () => {
-      // Use public_profiles view which has proper RLS for all authenticated users
-      const { data, error } = await supabase
-        .from('public_profiles')
-        .select('id, username, display_name, avatar_url, bio')
-        .ilike('username', OWNER_USERNAME)
-        .maybeSingle();
+      // Robust lookup (handles case + accidental whitespace in stored usernames)
+      const { data: rows, error } = await supabase
+        .rpc('get_profile_by_username', { target_username: OWNER_USERNAME });
 
       if (error) throw error;
+      const data = rows?.[0];
       if (!data?.id) return null;
 
       // Get follower count
@@ -184,6 +182,7 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
 
   const alreadyFollowing = isFollowingOwner || following.includes(ownerProfile.id);
   const followerCount = ownerProfile.follower_count;
+  const ownerUsername = (ownerProfile.username || OWNER_USERNAME).trim();
 
   return (
     <div className="space-y-8">
@@ -214,9 +213,9 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
 
           <div>
             <h3 className="text-xl font-bold flex items-center justify-center gap-2">
-              {ownerProfile.display_name || ownerProfile.username}
+              {ownerProfile.display_name || ownerUsername}
             </h3>
-            <p className="text-muted-foreground">@{ownerProfile.username}</p>
+            <p className="text-muted-foreground">@{ownerUsername}</p>
             
             {/* Live follower count with icon */}
             <div className="flex items-center justify-center gap-1.5 mt-2">
