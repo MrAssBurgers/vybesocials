@@ -5089,6 +5089,7 @@ export type Database = {
         Args: { post_id_param: string }
         Returns: undefined
       }
+      is_conversation_member: { Args: { conv_id: string }; Returns: boolean }
       is_member_of_conversation: {
         Args: { _conversation_id: string }
         Returns: boolean
