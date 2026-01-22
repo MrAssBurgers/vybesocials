@@ -45,7 +45,8 @@ export default function ProfilePage() {
   // Live follower count for real-time updates
   const liveFollowerCount = useLiveFollowerCount(profile?.id);
 
-  const isOwnProfile = currentProfile?.username === username;
+  // Case-insensitive comparison for own profile check
+  const isOwnProfile = currentProfile?.username?.toLowerCase() === username?.toLowerCase();
 
   const handleFollow = async () => {
     if (!profile) return;
