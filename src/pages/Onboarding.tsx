@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import { VYBELogo } from '@/components/ui/VYBELogo';
 import { InterestPicker } from '@/components/onboarding/InterestPicker';
 import { CreatorSuggestions } from '@/components/onboarding/CreatorSuggestions';
 import { ProfileSetup } from '@/components/onboarding/ProfileSetup';
@@ -119,7 +120,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       console.log('[Onboarding] Completed, dispatching event');
       window.dispatchEvent(new CustomEvent('onboarding-completed'));
 
-      toast.success('Welcome to XD! 🎉');
+      toast.success('Welcome to VYBE! 🎉');
       // Navigate to home (in invite mode, use callback)
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate('home');
@@ -157,12 +158,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
       {/* Header */}
       <header className="relative z-10 p-3 sm:p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="gradient-animated rounded-xl p-1.5 sm:p-2">
-            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-          </div>
-          <span className="text-lg sm:text-xl font-bold gradient-text">XD</span>
-        </div>
+        <VYBELogo size="md" />
         <Button variant="ghost" onClick={handleSkip} className="text-muted-foreground text-sm sm:text-base">
           {t('onboarding.skip')}
         </Button>
