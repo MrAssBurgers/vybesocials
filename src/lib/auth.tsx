@@ -166,46 +166,85 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Note: Referral/invite popup is now handled entirely by InvitePopup component
   // using the referral.ts utilities with localStorage persistence
 
-  const fetchProfile = async (userId: string) => {
-    // Prefer array result to avoid throwing when the row doesn't exist
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .limit(1);
+  const fetchProfile = async (userId: string, retryCount = 0) => {
+    const maxRetries = 2;
+    
+    try {
+      // Prefer array result to avoid throwing when the row doesn't exist
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .limit(1);
 
-    if (!error && data?.[0]) {
-      setProfile(data[0]);
-      // Check ban status and subscribe to realtime changes
-      checkBanStatus(data[0].id);
-      subscribeToBanChanges(data[0].id);
-      return data[0];
-    }
+      if (!error && data?.[0]) {
+        setProfile(data[0]);
+        // Check ban status and subscribe to realtime changes
+        checkBanStatus(data[0].id);
+        subscribeToBanChanges(data[0].id);
+        return data[0];
+      }
 
-    // If profile is missing, create it server-side (required for messaging/RLS)
-    const { error: ensureError } = await supabase.rpc('ensure_profile');
-    if (ensureError) {
-      console.error('ensure_profile failed:', ensureError);
+      // If profile is missing, create it server-side (required for messaging/RLS)
+      console.log('[Auth] Profile not found, calling ensure_profile...');
+      const { data: profileId, error: ensureError } = await supabase.rpc('ensure_profile');
+      
+      if (ensureError) {
+        console.error('[Auth] ensure_profile failed:', ensureError);
+        
+        // Retry on failure
+        if (retryCount < maxRetries) {
+          console.log(`[Auth] Retrying fetchProfile (${retryCount + 1}/${maxRetries})...`);
+          await new Promise(r => setTimeout(r, 500 * (retryCount + 1)));
+          return fetchProfile(userId, retryCount + 1);
+        }
+        
+        // Create fallback profile state (don't block app)
+        const fallbackProfile = {
+          id: userId,
+          user_id: userId,
+          username: 'user_' + userId.substring(0, 8),
+          avatar_url: null,
+          bio: '',
+          created_at: new Date().toISOString(),
+          onboarding_completed: false,
+        };
+        setProfile(fallbackProfile as any);
+        console.warn('[Auth] Using fallback profile, app may have limited functionality');
+        return fallbackProfile;
+      }
+
+      // Fetch the newly created profile
+      const { data: afterEnsure, error: afterEnsureError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .limit(1);
+
+      if (!afterEnsureError && afterEnsure?.[0]) {
+        setProfile(afterEnsure[0]);
+        // Check ban status and subscribe to realtime changes
+        checkBanStatus(afterEnsure[0].id);
+        subscribeToBanChanges(afterEnsure[0].id);
+        return afterEnsure[0];
+      }
+
+      console.error('[Auth] Could not fetch profile after ensure_profile');
+      setProfile(null);
+      return null;
+    } catch (err) {
+      console.error('[Auth] fetchProfile error:', err);
+      
+      // Retry on exception
+      if (retryCount < maxRetries) {
+        console.log(`[Auth] Retrying fetchProfile after exception (${retryCount + 1}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, 500 * (retryCount + 1)));
+        return fetchProfile(userId, retryCount + 1);
+      }
+      
       setProfile(null);
       return null;
     }
-
-    const { data: afterEnsure, error: afterEnsureError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .limit(1);
-
-    if (!afterEnsureError && afterEnsure?.[0]) {
-      setProfile(afterEnsure[0]);
-      // Check ban status and subscribe to realtime changes
-      checkBanStatus(afterEnsure[0].id);
-      subscribeToBanChanges(afterEnsure[0].id);
-      return afterEnsure[0];
-    }
-
-    setProfile(null);
-    return null;
   };
 
   useEffect(() => {

@@ -110,9 +110,14 @@ export default function ProfilePage() {
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row items-center gap-8 mb-8">
             <Skeleton className="h-32 w-32 rounded-full" />
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1">
               <Skeleton className="h-8 w-48" />
               <Skeleton className="h-4 w-64" />
+              <div className="flex gap-8">
+                <Skeleton className="h-12 w-16" />
+                <Skeleton className="h-12 w-16" />
+                <Skeleton className="h-12 w-16" />
+              </div>
             </div>
           </div>
         </div>
@@ -123,9 +128,20 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <AppLayout>
-        <div className="flex flex-col items-center justify-center h-96">
-          <p className="text-4xl mb-4">😕</p>
-          <p className="text-muted-foreground">User not found</p>
+        <div className="flex flex-col items-center justify-center h-96 space-y-4">
+          <p className="text-6xl mb-2">😕</p>
+          <h2 className="text-xl font-semibold">Profile not found</h2>
+          <p className="text-muted-foreground text-center max-w-sm">
+            This user doesn't exist or their profile is unavailable.
+          </p>
+          <div className="flex gap-3 mt-4">
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              Go Back
+            </Button>
+            <Button onClick={() => navigate('/home')}>
+              Go Home
+            </Button>
+          </div>
         </div>
       </AppLayout>
     );
