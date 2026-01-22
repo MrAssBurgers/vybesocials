@@ -131,120 +131,112 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Fetch profile with timeout - NEVER blocks auth
+  // Fetch profile with timeout and robust retry - NEVER blocks auth
   const fetchProfile = useCallback(async (userId: string, userMetadata?: Record<string, any>): Promise<Profile | null> => {
     if (AUTH_ONLY_MODE) return null;
     if (profileFetchRef.current) return profileFetchRef.current;
 
     setProfileLoading(true);
+    console.log('[Auth] fetchProfile starting for userId:', userId);
 
     const fetchPromise = (async () => {
-      try {
-        // Try to get existing profile
-        let existing: { data: any; error: any } | null = null;
+      // Helper to fetch and validate profile
+      const tryFetchProfile = async (): Promise<Profile | null> => {
         try {
-          existing = await withTimeout(
+          const result = await withTimeout(
             supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
             PROFILE_TIMEOUT_MS,
             'profiles.select'
-          );
-        } catch (e) {
-          console.warn('[Auth] profiles.select failed (non-blocking):', e);
-        }
+          ) as { data: any; error: any };
 
-        if (existing && !existing.error && existing.data) {
-          const data = existing.data;
-          let profileData = data;
-          
-          // Auto-generate username for OAuth users if missing
-          if (!profileData.username && userMetadata) {
-            const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
-            try {
-              await withTimeout(
-                supabase
-                  .from('profiles')
-                  .update({
-                    username: autoUsername,
-                    display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                    avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-                  })
-                  .eq('id', profileData.id),
-                PROFILE_TIMEOUT_MS,
-                'profiles.update'
-              );
-            } catch (e) {
-              console.warn('[Auth] profiles.update failed (non-blocking):', e);
-            }
-            
-            profileData = {
-              ...profileData,
-              username: autoUsername,
-              display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-              avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-            };
+          if (result.error) {
+            console.warn('[Auth] profiles.select error:', result.error);
+            return null;
           }
-          
-          setProfile(profileData);
-          checkBanStatus(profileData.id);
-          return profileData;
-        }
 
-        // Profile missing - try to create via ensure_profile
+          if (result.data) {
+            console.log('[Auth] Profile found:', result.data.id);
+            return result.data;
+          }
+
+          return null;
+        } catch (e) {
+          console.warn('[Auth] profiles.select failed:', e);
+          return null;
+        }
+      };
+
+      // Helper to ensure profile is created
+      const tryEnsureProfile = async (): Promise<void> => {
         try {
+          console.log('[Auth] Calling ensure_profile...');
           await withTimeout(supabase.rpc('ensure_profile'), PROFILE_TIMEOUT_MS, 'ensure_profile');
           // Wait for DB to settle after ensure_profile
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise(resolve => setTimeout(resolve, 500));
+          console.log('[Auth] ensure_profile completed');
         } catch (e) {
           console.warn('[Auth] ensure_profile failed:', e);
         }
+      };
 
-        // Fetch newly created profile
-        let created: { data: any; error: any } | null = null;
+      // Helper to update profile with OAuth metadata
+      const updateProfileWithMetadata = async (profileData: Profile): Promise<Profile> => {
+        if (!userMetadata || profileData.username) return profileData;
+
+        const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
         try {
-          created = await withTimeout(
-            supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
+          await withTimeout(
+            supabase
+              .from('profiles')
+              .update({
+                username: autoUsername,
+                display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+                avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+              })
+              .eq('id', profileData.id),
             PROFILE_TIMEOUT_MS,
-            'profiles.select.after_ensure'
+            'profiles.update'
           );
+          console.log('[Auth] Profile updated with OAuth metadata');
         } catch (e) {
-          console.warn('[Auth] profiles.select(after ensure) failed (non-blocking):', e);
+          console.warn('[Auth] profiles.update failed (non-blocking):', e);
         }
 
-        if (created && !created.error && created.data) {
-          let profileData = created.data;
-          
-          if (!profileData.username && userMetadata) {
-            const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
-            try {
-              await withTimeout(
-                supabase
-                  .from('profiles')
-                  .update({
-                    username: autoUsername,
-                    display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                    avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-                  })
-                  .eq('id', profileData.id),
-                PROFILE_TIMEOUT_MS,
-                'profiles.update.after_ensure'
-              );
-            } catch (e) {
-              console.warn('[Auth] profiles.update(after ensure) failed (non-blocking):', e);
-            }
-            
-            profileData = {
-              ...profileData,
-              username: autoUsername,
-              display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-              avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-            };
-          }
-          
+        return {
+          ...profileData,
+          username: autoUsername,
+          display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+          avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+        };
+      };
+
+      try {
+        // ATTEMPT 1: Direct fetch
+        let profileData = await tryFetchProfile();
+
+        // ATTEMPT 2: If no profile, ensure and retry
+        if (!profileData) {
+          console.log('[Auth] No profile found, attempting ensure_profile...');
+          await tryEnsureProfile();
+          profileData = await tryFetchProfile();
+        }
+
+        // ATTEMPT 3: One more retry with longer wait
+        if (!profileData) {
+          console.log('[Auth] Still no profile, final retry...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          profileData = await tryFetchProfile();
+        }
+
+        if (profileData) {
+          // Update with OAuth metadata if needed
+          profileData = await updateProfileWithMetadata(profileData);
           setProfile(profileData);
           checkBanStatus(profileData.id);
           return profileData;
         }
 
+        console.warn('[Auth] Profile fetch failed after all attempts');
         setProfile(null);
         return null;
       } catch (err) {
@@ -262,7 +254,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileFetchRef.current = null;
       setProfileLoading(false);
     }
-  }, [generateUsernameFromMetadata, checkBanStatus]);
+  }, [generateUsernameFromMetadata, checkBanStatus, withTimeout]);
 
   // Refresh profile
   const refreshProfile = useCallback(async () => {
