@@ -7,7 +7,6 @@ import { useAuth } from '@/lib/auth';
 
 // Import components for inline rendering
 import Landing from '@/pages/Landing';
-import CompleteProfile from '@/pages/CompleteProfile';
 import Onboarding from '@/pages/Onboarding';
 import Home from '@/pages/Home';
 
@@ -55,7 +54,7 @@ export function clearEntryMode(): void {
 
 // Stage type for internal state machine
 // CRITICAL: Always start at 'landing' to show intro - regardless of auth state
-type InviteFlowStage = 'loading' | 'landing' | 'complete-profile' | 'onboarding' | 'home';
+type InviteFlowStage = 'loading' | 'landing' | 'onboarding' | 'home';
 
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
@@ -201,7 +200,7 @@ export default function InviteRedeem() {
   }, [inviteProcessed, authLoading, user, profile, introCompleted]);
   
   // Handle stage transitions (called by child components instead of navigate())
-  const handleStageComplete = (nextStage: 'landing' | 'complete-profile' | 'onboarding' | 'home') => {
+  const handleStageComplete = (nextStage: 'landing' | 'onboarding' | 'home') => {
     console.log('[InviteRedeem] Stage transition:', currentStage, '->', nextStage);
     
     // When leaving landing stage, mark intro as completed
