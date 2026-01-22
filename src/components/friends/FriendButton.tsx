@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { UserPlus, UserMinus, Clock, Check, X, Loader2 } from 'lucide-react';
 import { 
@@ -8,6 +8,7 @@ import {
   useCancelFriendRequest,
   useUnfriend 
 } from '@/hooks/useFriends';
+import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -24,13 +25,14 @@ interface FriendButtonProps {
   showText?: boolean;
 }
 
-export function FriendButton({ 
+export const FriendButton = memo(function FriendButton({ 
   userId, 
   variant = 'default',
   size = 'default',
   showText = true 
 }: FriendButtonProps) {
   const { t } = useTranslation();
+  const { profile } = useAuth();
   const { isGuest } = useIsGuest();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const { data: friendshipStatus, isLoading } = useFriendshipStatus(userId);
@@ -38,6 +40,11 @@ export function FriendButton({
   const respondToRequest = useRespondToFriendRequest();
   const cancelRequest = useCancelFriendRequest();
   const unfriend = useUnfriend();
+
+  // CRITICAL: Don't show friend button for own profile
+  if (profile?.id === userId) {
+    return null;
+  }
 
   // Show auth prompt for guests
   if (isGuest) {
@@ -151,4 +158,4 @@ export function FriendButton({
       {showText && <span className="ml-2">{t('friends.addFriend')}</span>}
     </Button>
   );
-}
+});

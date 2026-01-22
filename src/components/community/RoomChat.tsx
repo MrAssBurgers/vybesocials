@@ -16,6 +16,7 @@ import { useAuth } from '@/lib/auth';
 import { format, isToday, isYesterday } from 'date-fns';
 import { toast } from 'sonner';
 import { RoomType } from '@/hooks/useCommunities';
+import { navVisibility } from '@/lib/navVisibility';
 
 interface RoomChatProps {
   roomId: string;
@@ -41,6 +42,23 @@ export const RoomChat = memo(function RoomChat({
   const canModerate = myRole === 'owner' || myRole === 'admin' || myRole === 'moderator';
   const isAnnouncement = roomType === 'announcements';
   const canPost = !isAnnouncement || canModerate;
+
+  // Hide bottom nav when inside community chat
+  useEffect(() => {
+    navVisibility.setInCommunityChat(true);
+    return () => {
+      navVisibility.setInCommunityChat(false);
+    };
+  }, []);
+
+  // Handle input focus to hide nav on mobile keyboard
+  const handleInputFocus = useCallback(() => {
+    navVisibility.setCommunityInputFocused(true);
+  }, []);
+
+  const handleInputBlur = useCallback(() => {
+    navVisibility.setCommunityInputFocused(false);
+  }, []);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -166,6 +184,8 @@ export const RoomChat = memo(function RoomChat({
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               onKeyPress={handleKeyPress}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
               placeholder={`Message ${roomName}...`}
               className="flex-1 h-11 rounded-full bg-foreground/5 border-0 px-4"
             />
