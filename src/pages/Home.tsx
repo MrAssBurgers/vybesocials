@@ -190,7 +190,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     }
   }, []);
 
-  // Only redirect authenticated users without profile to complete-profile
+  // Only redirect authenticated users without profile to onboarding
   // Guest users can browse freely
   useEffect(() => {
     if (authLoading) return;
@@ -206,14 +206,14 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       return;
     }
 
-    // For authenticated users without a username
-    if (!profile?.username) {
+    // For authenticated users without a username or incomplete onboarding
+    if (!profile?.username || profile?.onboarding_completed === false) {
       // Don't redirect during active referral flow or invite mode
       if (hasActiveReferral() || isInviteEntryMode()) {
         console.log('[Home] Skipping profile redirect - active referral/invite in progress');
         return;
       }
-      navigate('/complete-profile');
+      navigate('/onboarding');
     }
   }, [authLoading, user, profile, navigate, isInviteMode]);
 

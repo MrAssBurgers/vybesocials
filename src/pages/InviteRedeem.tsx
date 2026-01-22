@@ -184,9 +184,9 @@ export default function InviteRedeem() {
       return;
     }
     
-    // Authenticated but no profile or no username - complete profile
+    // Authenticated but no profile or no username - go to onboarding
     if (!profile || !profile.username) {
-      setCurrentStage('complete-profile');
+      setCurrentStage('onboarding');
       return;
     }
     
@@ -224,14 +224,6 @@ export default function InviteRedeem() {
     case 'landing':
       return (
         <Landing 
-          onInviteNavigate={handleStageComplete}
-          isInviteMode={true}
-        />
-      );
-    
-    case 'complete-profile':
-      return (
-        <CompleteProfile 
           onInviteNavigate={handleStageComplete}
           isInviteMode={true}
         />
