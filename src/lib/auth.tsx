@@ -123,6 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileLoading(true);
 
     const fetchPromise = (async () => {
+      // IMPORTANT: abortSignal is the only way to ensure we never keep a stuck promise forever.
+      // If a request hangs and we keep profileFetchRef.current set, profile/userdata will NEVER load.
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), PROFILE_TIMEOUT_MS);
 
@@ -132,12 +134,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from('profiles')
           .select('*')
           .eq('user_id', userId)
-          .limit(1);
+          .maybeSingle()
+          .abortSignal(controller.signal);
 
         clearTimeout(timeoutId);
 
-        if (!error && data?.[0]) {
-          let profileData = data[0];
+        if (!error && data) {
+          let profileData = data;
           
           // Auto-generate username for OAuth users if missing
           if (!profileData.username && userMetadata) {
@@ -149,7 +152,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 display_name: userMetadata.full_name || userMetadata.name || autoUsername,
                 avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
               })
-              .eq('id', profileData.id);
+              .eq('id', profileData.id)
+              .abortSignal(controller.signal);
             
             profileData = {
               ...profileData,
@@ -166,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Profile missing - try to create via ensure_profile
         try {
-          await supabase.rpc('ensure_profile');
+          await supabase.rpc('ensure_profile').abortSignal(controller.signal);
         } catch (e) {
           console.warn('[Auth] ensure_profile failed:', e);
         }
@@ -176,10 +180,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from('profiles')
           .select('*')
           .eq('user_id', userId)
-          .limit(1);
+          .maybeSingle()
+          .abortSignal(controller.signal);
 
-        if (newProfile?.[0]) {
-          let profileData = newProfile[0];
+        if (newProfile) {
+          let profileData = newProfile;
           
           if (!profileData.username && userMetadata) {
             const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
@@ -190,7 +195,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 display_name: userMetadata.full_name || userMetadata.name || autoUsername,
                 avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
               })
-              .eq('id', profileData.id);
+              .eq('id', profileData.id)
+              .abortSignal(controller.signal);
             
             profileData = {
               ...profileData,
