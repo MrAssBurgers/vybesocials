@@ -1,11 +1,7 @@
 /**
- * AUTH-ONLY MODE (TEMPORARY)
+ * AUTH-ONLY MODE
  *
- * Emergency switch to prove authentication works by bypassing:
- * - profile fetching/creation
- * - global data rehydration/bootstrap
- * - startup loading gates
- *
- * Set to `false` to restore the normal app flow.
+ * Set to `true` to bypass profile fetching/creation for debugging.
+ * Set to `false` for normal app operation.
  */
-export const AUTH_ONLY_MODE = true;
+export const AUTH_ONLY_MODE = false;

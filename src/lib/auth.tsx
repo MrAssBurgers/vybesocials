@@ -3,14 +3,11 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
-import { AuthPhase, AuthState, INITIAL_AUTH_STATE } from '@/lib/authState';
+import { AuthPhase } from '@/lib/authState';
 import { AUTH_ONLY_MODE } from '@/lib/authOnlyMode';
 
-// Token refresh interval - refresh 5 minutes before expiry
-const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
-
 // Maximum time to wait for profile before continuing anyway
-const PROFILE_TIMEOUT_MS = 5000;
+const PROFILE_TIMEOUT_MS = 4000;
 
 interface Profile {
   id: string;
@@ -39,8 +36,8 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   authReady: boolean;
-  authPhase: AuthPhase; // Explicit phase for routing decisions
-  profileLoading: boolean; // True while profile is still loading
+  authPhase: AuthPhase;
+  profileLoading: boolean;
   banInfo: BanInfo | null;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -61,120 +58,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false);
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
   
-  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const banExpiryTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const banSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const initRef = useRef(false);
-  const authResolvedRef = useRef(false);
   const profileFetchRef = useRef<Promise<Profile | null> | null>(null);
 
-  // Clear ban expiry timer
-  const clearBanExpiryTimer = useCallback(() => {
-    if (banExpiryTimerRef.current) {
-      clearTimeout(banExpiryTimerRef.current);
-      banExpiryTimerRef.current = null;
-    }
-  }, []);
-
-  // Schedule auto-unban when ban expires
-  const scheduleBanExpiry = useCallback((expiresAt: string | null, isPermanent: boolean) => {
-    clearBanExpiryTimer();
-    
-    if (isPermanent || !expiresAt) return;
-    
-    const expiryTime = new Date(expiresAt).getTime();
-    const now = Date.now();
-    const timeUntilExpiry = expiryTime - now;
-    
-    if (timeUntilExpiry <= 0) {
-      setBanInfo(null);
-      return;
-    }
-    
-    banExpiryTimerRef.current = setTimeout(() => {
-      setBanInfo(null);
-    }, timeUntilExpiry);
-  }, [clearBanExpiryTimer]);
-
-  // Check if user is banned
-  const checkBanStatus = useCallback(async (profileId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('user_bans')
-        .select('reason, expires_at, is_permanent, is_meme_ban')
-        .eq('user_id', profileId)
-        .or(`is_permanent.eq.true,expires_at.gt.${new Date().toISOString()}`)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!error && data) {
-        setBanInfo(data);
-        scheduleBanExpiry(data.expires_at, data.is_permanent);
-      } else {
-        setBanInfo(null);
-        clearBanExpiryTimer();
-      }
-    } catch (err) {
-      console.error('[Auth] Ban check error:', err);
-    }
-  }, [scheduleBanExpiry, clearBanExpiryTimer]);
-
-  // Subscribe to realtime ban changes
-  const subscribeToBanChanges = useCallback((profileId: string) => {
-    if (banSubscriptionRef.current) {
-      supabase.removeChannel(banSubscriptionRef.current);
-      banSubscriptionRef.current = null;
-    }
-
-    const channel = supabase
-      .channel(`ban-status-${profileId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_bans',
-          filter: `user_id=eq.${profileId}`,
-        },
-        () => {
-          checkBanStatus(profileId);
-        }
-      )
-      .subscribe();
-
-    banSubscriptionRef.current = channel;
-  }, [checkBanStatus]);
-
-  // Schedule token refresh before expiry
-  const scheduleTokenRefresh = useCallback((expiresAt: number) => {
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-    }
-
-    const expiresAtMs = expiresAt * 1000;
-    const now = Date.now();
-    const refreshAt = expiresAtMs - TOKEN_REFRESH_MARGIN_MS;
-    const delay = Math.max(refreshAt - now, 1000);
-
-    if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
-      refreshTimerRef.current = setTimeout(async () => {
-        try {
-          const { data, error } = await supabase.auth.refreshSession();
-          if (error) {
-            console.error('[Auth] Token refresh failed:', error);
-          } else if (data.session?.expires_at) {
-            scheduleTokenRefresh(data.session.expires_at);
-          }
-        } catch (err) {
-          console.error('[Auth] Token refresh error:', err);
-        }
-      }, delay);
-    }
-  }, []);
-
-  // Generate a username from metadata (OAuth or email sign-up)
+  // Generate username from OAuth metadata
   const generateUsernameFromMetadata = useCallback(
     (metadata: Record<string, any>, odUserId: string): string => {
       const normalize = (raw: string) =>
@@ -206,121 +93,125 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  // Fetch profile with timeout - deduplicated to prevent race conditions
-  const fetchProfile = useCallback(async (userId: string, userMetadata?: Record<string, any>): Promise<Profile | null> => {
-    if (profileFetchRef.current) {
-      return profileFetchRef.current;
+  // Check ban status
+  const checkBanStatus = useCallback(async (profileId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_bans')
+        .select('reason, expires_at, is_permanent, is_meme_ban, custom_gif_url')
+        .eq('user_id', profileId)
+        .or(`is_permanent.eq.true,expires_at.gt.${new Date().toISOString()}`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        setBanInfo(data);
+      } else {
+        setBanInfo(null);
+      }
+    } catch (err) {
+      console.error('[Auth] Ban check error:', err);
     }
+  }, []);
+
+  // Fetch profile with timeout - NEVER blocks auth
+  const fetchProfile = useCallback(async (userId: string, userMetadata?: Record<string, any>): Promise<Profile | null> => {
+    if (AUTH_ONLY_MODE) return null;
+    if (profileFetchRef.current) return profileFetchRef.current;
 
     setProfileLoading(true);
 
     const fetchPromise = (async () => {
-      const timeoutPromise = new Promise<null>((resolve) => {
-        setTimeout(() => {
-          console.warn('[Auth] Profile fetch timed out, continuing without profile');
-          resolve(null);
-        }, PROFILE_TIMEOUT_MS);
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), PROFILE_TIMEOUT_MS);
 
-      const profilePromise = (async (): Promise<Profile | null> => {
-        try {
-          // First try to get existing profile
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', userId)
-            .limit(1);
+      try {
+        // Try to get existing profile
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .limit(1);
 
-          if (!error && data?.[0]) {
-            let profileData = data[0];
+        clearTimeout(timeoutId);
+
+        if (!error && data?.[0]) {
+          let profileData = data[0];
+          
+          // Auto-generate username for OAuth users if missing
+          if (!profileData.username && userMetadata) {
+            const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
+            await supabase
+              .from('profiles')
+              .update({ 
+                username: autoUsername,
+                display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+                avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+              })
+              .eq('id', profileData.id);
             
-            // If profile exists but has no username, auto-generate for OAuth users
-            if (!profileData.username && userMetadata) {
-              const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
-              const { error: updateError } = await supabase
-                .from('profiles')
-                .update({ 
-                  username: autoUsername,
-                  display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                  avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-                })
-                .eq('id', profileData.id);
-              
-              if (!updateError) {
-                profileData = {
-                  ...profileData,
-                  username: autoUsername,
-                  display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                  avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-                };
-              }
-            }
-            
-            setProfile(profileData);
-            checkBanStatus(profileData.id);
-            subscribeToBanChanges(profileData.id);
-            return profileData;
+            profileData = {
+              ...profileData,
+              username: autoUsername,
+              display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+              avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+            };
           }
-
-          // If profile is missing, create it via ensure_profile RPC
-          const { error: ensureError } = await supabase.rpc('ensure_profile');
-          if (ensureError) {
-            console.error('[Auth] ensure_profile failed:', ensureError);
-            // Don't crash - set null profile but keep user logged in
-            setProfile(null);
-            return null;
-          }
-
-          // Fetch the newly created profile
-          const { data: afterEnsure, error: afterEnsureError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', userId)
-            .limit(1);
-
-          if (!afterEnsureError && afterEnsure?.[0]) {
-            let profileData = afterEnsure[0];
-            
-            if (!profileData.username && userMetadata) {
-              const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
-              const { error: updateError } = await supabase
-                .from('profiles')
-                .update({ 
-                  username: autoUsername,
-                  display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                  avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-                })
-                .eq('id', profileData.id);
-              
-              if (!updateError) {
-                profileData = {
-                  ...profileData,
-                  username: autoUsername,
-                  display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                  avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-                };
-              }
-            }
-            
-            setProfile(profileData);
-            checkBanStatus(profileData.id);
-            subscribeToBanChanges(profileData.id);
-            return profileData;
-          }
-
-          setProfile(null);
-          return null;
-        } catch (err) {
-          console.error('[Auth] Profile fetch error:', err);
-          // CRITICAL: Don't crash - keep user logged in even if profile fails
-          setProfile(null);
-          return null;
+          
+          setProfile(profileData);
+          checkBanStatus(profileData.id);
+          return profileData;
         }
-      })();
 
-      // Race between profile fetch and timeout
-      const result = await Promise.race([profilePromise, timeoutPromise]);
-      return result;
+        // Profile missing - try to create via ensure_profile
+        try {
+          await supabase.rpc('ensure_profile');
+        } catch (e) {
+          console.warn('[Auth] ensure_profile failed:', e);
+        }
+
+        // Fetch newly created profile
+        const { data: newProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .limit(1);
+
+        if (newProfile?.[0]) {
+          let profileData = newProfile[0];
+          
+          if (!profileData.username && userMetadata) {
+            const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
+            await supabase
+              .from('profiles')
+              .update({ 
+                username: autoUsername,
+                display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+                avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+              })
+              .eq('id', profileData.id);
+            
+            profileData = {
+              ...profileData,
+              username: autoUsername,
+              display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+              avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+            };
+          }
+          
+          setProfile(profileData);
+          checkBanStatus(profileData.id);
+          return profileData;
+        }
+
+        setProfile(null);
+        return null;
+      } catch (err) {
+        console.warn('[Auth] Profile fetch error (non-blocking):', err);
+        setProfile(null);
+        return null;
+      }
     })();
 
     profileFetchRef.current = fetchPromise;
@@ -331,79 +222,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileFetchRef.current = null;
       setProfileLoading(false);
     }
-  }, [generateUsernameFromMetadata, checkBanStatus, subscribeToBanChanges]);
+  }, [generateUsernameFromMetadata, checkBanStatus]);
 
-  // Refresh profile (for external use)
+  // Refresh profile
   const refreshProfile = useCallback(async () => {
-    if (AUTH_ONLY_MODE) return;
-    if (user) {
-      profileFetchRef.current = null;
-      await fetchProfile(user.id, user.user_metadata);
-    }
+    if (AUTH_ONLY_MODE || !user) return;
+    profileFetchRef.current = null;
+    await fetchProfile(user.id, user.user_metadata);
   }, [user, fetchProfile]);
 
-  // Clean up all timers and subscriptions
-  const cleanup = useCallback(() => {
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-    }
-    if (banSubscriptionRef.current) {
-      supabase.removeChannel(banSubscriptionRef.current);
-      banSubscriptionRef.current = null;
-    }
-    clearBanExpiryTimer();
-  }, [clearBanExpiryTimer]);
-
-  // Resolve auth state with explicit phase - INSTANT, no profile dependency
-  const resolveAuthInstant = useCallback((newSession: Session | null) => {
-    if (newSession?.user) {
-      setAuthPhase('authenticated');
-    } else {
-      setAuthPhase('unauthenticated');
-    }
-    authResolvedRef.current = true;
-    setLoading(false);
-    setAuthReady(true);
-  }, []);
-
-  // Handle session changes - INSTANT auth resolution, profile loads in background
-  const handleSessionChange = useCallback(async (newSession: Session | null) => {
+  // CORE: Handle session changes - INSTANT auth resolution
+  const handleSessionChange = useCallback((newSession: Session | null) => {
+    console.log('[Auth] handleSessionChange:', !!newSession);
+    
     setSession(newSession);
     setUser(newSession?.user ?? null);
 
     if (newSession?.user) {
-      if (newSession.expires_at) {
-        scheduleTokenRefresh(newSession.expires_at);
-      }
-      
-      // CRITICAL: Resolve auth IMMEDIATELY - don't wait for profile
-      resolveAuthInstant(newSession);
+      // AUTHENTICATED - resolve IMMEDIATELY
+      setAuthPhase('authenticated');
+      setLoading(false);
+      setAuthReady(true);
 
-      // AUTH-ONLY MODE: do NOT fetch/create profile or any user data.
-      if (AUTH_ONLY_MODE) {
-        setProfile(null);
-        setBanInfo(null);
-        setProfileLoading(false);
-        return;
+      // Fetch profile in background - NEVER blocks
+      if (!AUTH_ONLY_MODE) {
+        fetchProfile(newSession.user.id, newSession.user.user_metadata).catch(() => {});
       }
-      
-      // Load profile in background - NEVER blocks auth resolution
-      setProfileLoading(true);
-      fetchProfile(newSession.user.id, newSession.user.user_metadata)
-        .catch((err) => {
-          console.warn('[Auth] Profile fetch failed (non-blocking):', err);
-        })
-        .finally(() => {
-          setProfileLoading(false);
-        });
     } else {
+      // UNAUTHENTICATED
       setProfile(null);
       setBanInfo(null);
-      cleanup();
-      resolveAuthInstant(null);
+      setAuthPhase('unauthenticated');
+      setLoading(false);
+      setAuthReady(true);
     }
-  }, [scheduleTokenRefresh, fetchProfile, cleanup, resolveAuthInstant]);
+  }, [fetchProfile]);
 
   // Initialize auth - runs exactly once
   useEffect(() => {
@@ -411,110 +264,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initRef.current = true;
 
     let mounted = true;
-    let subscription: { unsubscribe: () => void } | null = null;
 
-    (async () => {
-      try {
-        // Set up auth state listener FIRST (per Supabase docs)
-        const { data } = supabase.auth.onAuthStateChange((event, newSession) => {
-          if (!mounted) return;
+    console.log('[Auth] Initializing...');
 
-          console.log('[Auth] State change:', event, !!newSession);
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (!mounted) return;
+      console.log('[Auth] State change:', event, !!newSession);
+      handleSessionChange(newSession);
+    });
 
-          if (event === 'SIGNED_OUT') {
-            setSession(null);
-            setUser(null);
-            setProfile(null);
-            setBanInfo(null);
-            cleanup();
-
-            if (!authResolvedRef.current) {
-              setAuthPhase('unauthenticated');
-              authResolvedRef.current = true;
-              setLoading(false);
-              setAuthReady(true);
-            } else {
-              setAuthPhase('unauthenticated');
-            }
-            return;
-          }
-
-          // Handle session changes - INSTANT auth, profile in background
-          void (async () => {
-            try {
-              await handleSessionChange(newSession);
-            } catch (err) {
-              console.error('[Auth] handleSessionChange error (non-blocking):', err);
-              // FAILSAFE: Mark auth resolved even on error - NEVER block login
-              if (!authResolvedRef.current) {
-                // Still mark as authenticated if we have a session
-                if (newSession?.user) {
-                  setAuthPhase('authenticated');
-                } else {
-                  setAuthPhase('unauthenticated');
-                }
-                authResolvedRef.current = true;
-                setLoading(false);
-                setAuthReady(true);
-              }
-            }
-          })();
-        });
-
-        subscription = data.subscription;
-
-        // THEN restore existing session from storage
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (!mounted) return;
-
-        if (sessionError) {
-          console.error('[Auth] getSession error (non-blocking):', sessionError);
-          // DON'T set error phase - just mark as unauthenticated
-          if (!authResolvedRef.current) {
-            setAuthPhase('unauthenticated');
-            authResolvedRef.current = true;
-            setLoading(false);
-            setAuthReady(true);
-          }
-          return;
-        }
-
-        if (!authResolvedRef.current) {
-          await handleSessionChange(sessionData.session);
-        }
-      } catch (err) {
-        console.error('[Auth] Init error (non-blocking):', err);
-        // DON'T brick the app - just mark as unauthenticated
-        if (mounted && !authResolvedRef.current) {
-          setAuthPhase('unauthenticated');
-          authResolvedRef.current = true;
-          setLoading(false);
-          setAuthReady(true);
-        }
+    // THEN get existing session
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!mounted) return;
+      
+      if (error) {
+        console.error('[Auth] getSession error:', error);
+        setAuthPhase('unauthenticated');
+        setLoading(false);
+        setAuthReady(true);
+        return;
       }
-    })();
+
+      // Only process if we haven't already via onAuthStateChange
+      if (!authReady) {
+        handleSessionChange(data.session);
+      }
+    });
+
+    // Hard failsafe - NEVER stay loading forever
+    const failsafe = setTimeout(() => {
+      if (mounted && !authReady) {
+        console.warn('[Auth] Failsafe timeout - forcing ready');
+        setAuthPhase('unauthenticated');
+        setLoading(false);
+        setAuthReady(true);
+      }
+    }, 5000);
 
     return () => {
       mounted = false;
-      try {
-        subscription?.unsubscribe();
-      } catch {
-        // ignore
-      }
-      cleanup();
+      clearTimeout(failsafe);
+      subscription.unsubscribe();
     };
-  }, [handleSessionChange, cleanup]);
+  }, [handleSessionChange, authReady]);
 
   const signUp = useCallback(async (email: string, password: string, username: string) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: window.location.origin,
-          data: {
-            username: username.toLowerCase().replace(/\s+/g, ''),
-          },
+          data: { username: username.toLowerCase().replace(/\s+/g, '') },
         },
       });
 
@@ -527,36 +329,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-
-      // AUTH-ONLY MODE: do NOT fetch/create profile.
-      if (!AUTH_ONLY_MODE) {
-        // DON'T wait for profile - just trigger background fetch
-        if (data.user) {
-          setProfileLoading(true);
-          fetchProfile(data.user.id, data.user.user_metadata)
-            .catch((err) => {
-              console.warn('[Auth] Profile fetch after sign-in failed (non-blocking):', err);
-            })
-            .finally(() => {
-              setProfileLoading(false);
-            });
-        }
-      }
-
       return { error: null };
     } catch (error) {
       return { error: error as Error };
     }
-  }, [fetchProfile]);
+  }, []);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
     setProfile(null);
     setBanInfo(null);
     setAuthPhase('unauthenticated');
@@ -572,7 +356,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', profile.id);
 
       if (error) throw error;
-
       setProfile({ ...profile, ...updates });
       return { error: null };
     } catch (error) {
@@ -585,11 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return banInfo.is_meme_ban ? (
       <MemeBanScreen reason={banInfo.reason} expiresAt={banInfo.expires_at} customGifUrl={banInfo.custom_gif_url} />
     ) : (
-      <BannedScreen
-        reason={banInfo.reason}
-        expiresAt={banInfo.expires_at}
-        isPermanent={banInfo.is_permanent}
-      />
+      <BannedScreen reason={banInfo.reason} expiresAt={banInfo.expires_at} isPermanent={banInfo.is_permanent} />
     );
   }
 

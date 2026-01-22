@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -13,20 +13,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
-import { AUTH_ONLY_MODE } from '@/lib/authOnlyMode';
-
 
 // Hide bottom nav on landing page
 function useHideBottomNav() {
   useEffect(() => {
     document.body.classList.add('hide-bottom-nav');
-    return () => {
-      document.body.classList.remove('hide-bottom-nav');
-    };
+    return () => document.body.classList.remove('hide-bottom-nav');
   }, []);
 }
 
-// Invite mode stage type - shared between invite flow components
 export type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
 interface LandingProps {
@@ -36,106 +31,78 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, authReady, signIn, signUp, profile, profileLoading, refreshProfile } = useAuth();
+  const { user, authReady } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { triggerTransition } = useThemeTransition();
   
-  // Hide bottom nav while on landing page
   useHideBottomNav();
   
-  // Check URL params for mode (login vs signup) and intro reset
   const modeParam = searchParams.get('mode');
   const [isLogin, setIsLogin] = useState(() => modeParam === 'login' || searchParams.get('signup') !== 'true');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showIntro, setShowIntro] = useState(!hasSeenIntro());
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    username: '',
-  });
+  const [formData, setFormData] = useState({ email: '', password: '', username: '' });
 
-  // Re-check intro status on mount (in case it was reset by invite flow)
+  // Handle intro/mode param
   useEffect(() => {
-    const introNotSeen = !hasSeenIntro();
-    if (introNotSeen) {
-      setShowIntro(true);
-    }
-    // If mode=login, skip intro and go straight to login
+    if (!hasSeenIntro()) setShowIntro(true);
     if (modeParam === 'login') {
       setShowIntro(false);
       setIsLogin(true);
     }
   }, [modeParam]);
 
-  // Redirect authenticated users ONLY after auth is fully ready
-  const location = useLocation();
+  // CRITICAL: Redirect authenticated users IMMEDIATELY
   const isInviteRoute = location.pathname.startsWith('/invite/');
-
-  // INSTANT REDIRECT: Navigate IMMEDIATELY when user exists
+  
   useEffect(() => {
-    // Wait for auth to be ready
     if (!authReady) return;
+    if (isInviteMode || isInviteRoute) return;
     
-    // In invite mode, parent handles redirects
-    if (isInviteMode) {
-      console.log('[Landing] In invite mode - redirects handled by InviteRedeem');
-      return;
+    if (user) {
+      console.log('[Landing] User authenticated, redirecting to /home');
+      navigate('/home', { replace: true });
     }
-
-    // No user = stay on landing
-    if (!user) return;
-
-    // If on invite route, don't auto-redirect
-    if (isInviteRoute) {
-      console.log('[Landing] On invite route, skipping auto-redirect');
-      return;
-    }
-
-    // User is authenticated - navigate IMMEDIATELY to /home
-    // Profile loading and onboarding check happen AFTER in AppReadinessGate/Home
-    // NEVER wait for profile here - that causes login to hang
-    console.log('[Landing] User authenticated, navigating to /home immediately');
-    navigate('/home', { replace: true });
-  }, [authReady, user, navigate, isInviteRoute, isInviteMode]);
-
-  // Only hide the landing page if we're about to redirect (handled in useEffect)
-  // Don't return null immediately - let the useEffect decide
+  }, [authReady, user, navigate, isInviteMode, isInviteRoute]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    // Helper function for navigation - uses callback in invite mode
     const navTo = (stage: InviteStage, fallbackPath: string) => {
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate(stage);
       } else {
-        navigate(fallbackPath);
+        navigate(fallbackPath, { replace: true });
       }
     };
 
     try {
       if (isLogin) {
-        const { error } = await signIn(formData.email, formData.password);
+        const { error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
         if (error) throw error;
         toast.success('Welcome back! ✨');
-        // AUTH-ONLY MODE: enter app immediately.
-        if (AUTH_ONLY_MODE) {
-          navTo('home', '/home');
-        }
+        navTo('home', '/home');
       } else {
-        if (!formData.username.trim()) {
-          throw new Error('Username is required');
-        }
-        const { error } = await signUp(formData.email, formData.password, formData.username);
+        if (!formData.username.trim()) throw new Error('Username is required');
+        
+        const { error } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: { username: formData.username.toLowerCase().replace(/\s+/g, '') },
+          },
+        });
         if (error) throw error;
         toast.success('Welcome to VYBE! 🎉');
-        // AUTH-ONLY MODE: enter app immediately.
-        if (AUTH_ONLY_MODE) {
-          navTo('home', '/home');
-        }
+        navTo('home', '/home');
       }
     } catch (error: any) {
       toast.error(getUserFriendlyError(error));
@@ -144,8 +111,26 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      const next = isInviteMode
+        ? `${window.location.pathname}${window.location.search}`
+        : '/';
+      const redirectUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: redirectUrl },
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      toast.error(getUserFriendlyError(error));
+      setLoading(false);
+    }
+  };
+
   const handleGuestBrowse = () => {
-    // Navigate to home without signing in - guest mode
     if (isInviteMode && onInviteNavigate) {
       onInviteNavigate('home');
     } else {
@@ -156,30 +141,25 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const handleIntroComplete = () => {
     triggerTransition('280 70% 50%', '330 80% 60%', () => {
       setShowIntro(false);
-      setIsLogin(false); // Start on signup mode
+      setIsLogin(false);
     });
   };
 
   const handleIntroSkip = () => {
-    triggerTransition('280 70% 50%', '330 80% 60%', () => {
-      setShowIntro(false);
-    });
+    triggerTransition('280 70% 50%', '330 80% 60%', () => setShowIntro(false));
   };
 
-  // Show intro flow for first-time visitors
   if (showIntro) {
     return <IntroFlow onComplete={handleIntroComplete} onSkip={handleIntroSkip} />;
   }
 
   return (
     <div className="min-h-screen bg-background overflow-hidden relative flex items-center justify-center">
-      {/* Simplified static background for better performance */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/2 -left-1/2 w-full h-full gradient-animated opacity-10 blur-3xl" />
         <div className="absolute -bottom-1/2 -right-1/2 w-full h-full gradient-animated opacity-10 blur-3xl" />
       </div>
 
-      {/* Main content - centered card */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -187,13 +167,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         className="relative z-10 w-full max-w-md mx-4"
       >
         <div className="glass-card rounded-3xl p-8 gradient-border">
-          {/* Centered Logo with subtle glow */}
           <div className="flex flex-col items-center mb-8 relative">
-            {/* Static glow behind logo for better performance */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-32 h-32 rounded-full bg-primary/30 blur-2xl" />
             </div>
-            
             <VYBELogo size="xl" showText={false} className="mb-4 relative z-10" />
             <h1 className="text-2xl font-display font-bold gradient-text relative z-10">
               Welcome to VYBE
@@ -203,7 +180,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             </p>
           </div>
 
-          {/* Auth Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <AnimatePresence mode="wait">
               {!isLogin && (
@@ -298,29 +274,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               type="button"
               variant="outline"
               className="w-full bg-secondary/30"
-              onClick={async () => {
-                setLoading(true);
-                try {
-                  // Always return through a dedicated callback route so we can reliably
-                  // exchange the OAuth code + decide the post-login destination.
-                  const next = isInviteMode
-                    ? `${window.location.pathname}${window.location.search}`
-                    : '/';
-
-                  const redirectUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
-
-                  const { error } = await supabase.auth.signInWithOAuth({
-                    provider: 'google',
-                    options: {
-                      redirectTo: redirectUrl,
-                    },
-                  });
-                  if (error) throw error;
-                } catch (error: any) {
-                  toast.error(getUserFriendlyError(error));
-                  setLoading(false);
-                }
-              }}
+              onClick={handleGoogleLogin}
               disabled={loading}
             >
               <Chrome className="w-4 h-4 mr-2" />
@@ -350,7 +304,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           </p>
         </div>
 
-        {/* Footer links */}
         <div className="flex justify-center gap-4 mt-4 text-xs text-muted-foreground">
           <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
           <span>•</span>
