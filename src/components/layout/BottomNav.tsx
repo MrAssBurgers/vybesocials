@@ -11,6 +11,7 @@ import { CreateMenu } from '@/components/hub/CreateMenu';
 import { VYBEHub } from '@/components/hub/VYBEHub';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
+import { navVisibility } from '@/lib/navVisibility';
 
 // Singleton scroll direction detection to prevent duplicate listeners
 let scrollDirectionListener: (() => void) | null = null;
@@ -75,6 +76,17 @@ function useScrollDirection() {
         scrollDirectionListener();
       }
     };
+  }, []);
+
+  return isVisible;
+}
+
+// Hook to listen to navVisibility centralized state
+function useNavVisibility() {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    return navVisibility.subscribe(setIsVisible);
   }, []);
 
   return isVisible;
@@ -156,7 +168,11 @@ export function BottomNav() {
   const { profile } = useAuth();
   const { isGuest } = useIsGuest();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
-  const isVisible = useScrollDirection();
+  const scrollVisible = useScrollDirection();
+  const navCentralVisible = useNavVisibility();
+  
+  // Combine both visibility states
+  const isVisible = scrollVisible && navCentralVisible;
 
   // Hide bottom nav until user has completed onboarding
   const onboardingComplete = profile?.onboarding_completed === true;
