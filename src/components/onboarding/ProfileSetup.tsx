@@ -127,13 +127,12 @@ export function ProfileSetup({ data, onChange, username }: ProfileSetupProps) {
           <Label htmlFor="displayName">{t('onboarding.displayName')}</Label>
           <Input
             id="displayName"
-            placeholder="Your display name"
-            value={data.displayName}
+            placeholder={username || "Your display name"}
+            value={data.displayName || username}
             onChange={(e) => onChange({ ...data, displayName: e.target.value })}
             className="bg-card border-border"
-            disabled
           />
-          <p className="text-xs text-muted-foreground">Auto-generated from your name</p>
+          <p className="text-xs text-muted-foreground">Defaults to your username, but you can customize it</p>
         </div>
 
         <div className="space-y-2">
