@@ -47,10 +47,10 @@ export function setPendingReferral(referral: PendingReferral): void {
     localStorage.setItem(PENDING_REFERRAL_KEY, JSON.stringify(referral));
     // Clear confirmed flag for fresh referral
     localStorage.removeItem(REFERRAL_CONFIRMED_KEY);
-    // Reset intro so invited user sees full first-time experience
-    localStorage.removeItem(INTRO_SHOWN_KEY);
+    // NOTE: We NO LONGER reset intro here - the intro completion is persisted to the database
+    // for logged-in users, so resetting localStorage would cause it to show again incorrectly.
+    // New users will naturally see the intro since they don't have intro_completed set.
     console.log('[Referral] Stored pending referral:', referral.inviterUsername);
-    console.log('[Referral] Reset intro for first-time experience');
   } catch (e) {
     console.error('[Referral] Failed to store referral:', e);
   }

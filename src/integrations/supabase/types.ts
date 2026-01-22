@@ -2950,6 +2950,7 @@ export type Database = {
           first_name: string | null
           id: string
           interests: string[] | null
+          intro_completed: boolean | null
           is_private: boolean | null
           is_verified: boolean | null
           language: string | null
@@ -2976,6 +2977,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           interests?: string[] | null
+          intro_completed?: boolean | null
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
@@ -3002,6 +3004,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           interests?: string[] | null
+          intro_completed?: boolean | null
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
