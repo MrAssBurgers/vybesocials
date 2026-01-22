@@ -12,7 +12,7 @@ import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Sparkles, Eye, EyeOff, AlertTriangle, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { VYBELogo } from '@/components/ui/VYBELogo';
-import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
+import { IntroFlow, hasSeenIntro, checkIntroStatus } from '@/components/intro/IntroFlow';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 
@@ -49,7 +49,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [isLogin, setIsLogin] = useState(() => modeParam === 'login' || searchParams.get('signup') !== 'true');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showIntro, setShowIntro] = useState(!hasSeenIntro());
+  const [showIntro, setShowIntro] = useState<boolean | null>(null); // null = still checking
   const [showDbNotice, setShowDbNotice] = useState(true);
   const [formData, setFormData] = useState({
     email: '',
@@ -57,18 +57,24 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     username: '',
   });
 
-  // Re-check intro status on mount (in case it was reset by invite flow)
+  // Check intro status on mount - use database as source of truth
   useEffect(() => {
-    const introNotSeen = !hasSeenIntro();
-    if (introNotSeen) {
-      setShowIntro(true);
-    }
-    // If mode=login, skip intro and go straight to login
+    // If mode=login, skip intro completely
     if (modeParam === 'login') {
       setShowIntro(false);
       setIsLogin(true);
+      return;
     }
-  }, [modeParam]);
+    
+    // Check intro status (database first for logged-in users, then localStorage)
+    const checkStatus = async () => {
+      const userId = user?.id;
+      const hasCompleted = await checkIntroStatus(userId);
+      setShowIntro(!hasCompleted);
+    };
+    
+    checkStatus();
+  }, [modeParam, user?.id]);
 
   // Redirect if already logged in AND has completed onboarding
   // First-time users (even if authenticated) should see intro if not completed
@@ -190,7 +196,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     });
   };
 
-  // Show intro flow for first-time visitors
+  // Show intro flow for first-time visitors (null = still checking, true = show intro)
+  if (showIntro === null) {
+    // Still checking status - show minimal loading state
+    return <div className="min-h-screen bg-background" />;
+  }
+  
   if (showIntro) {
     return <IntroFlow onComplete={handleIntroComplete} onSkip={handleIntroSkip} />;
   }

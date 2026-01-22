@@ -4,6 +4,7 @@ import { ChevronRight, Users, MessageCircle, Phone, Sparkles, Heart } from 'luci
 import { Button } from '@/components/ui/button';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useAccessibility } from '@/providers/AccessibilityProvider';
+import { supabase } from '@/integrations/supabase/client';
 
 const INTRO_SHOWN_KEY = 'vybe_intro_completed';
 
@@ -267,7 +268,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
   );
 }
 
-// Storage helpers
+// Storage helpers - localStorage is a fallback, database is source of truth for logged-in users
 export function hasSeenIntro(): boolean {
   try {
     return localStorage.getItem(INTRO_SHOWN_KEY) === 'true';
@@ -278,10 +279,58 @@ export function hasSeenIntro(): boolean {
 
 export function markIntroComplete(): void {
   try {
+    // Always set localStorage as immediate fallback
     localStorage.setItem(INTRO_SHOWN_KEY, 'true');
+    
+    // Also persist to database for logged-in users (fire and forget)
+    persistIntroToDatabase();
   } catch {
     // Ignore storage errors
   }
+}
+
+// Persist intro completion to database for logged-in users
+async function persistIntroToDatabase(): Promise<void> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    await supabase
+      .from('profiles')
+      .update({ intro_completed: true })
+      .eq('user_id', user.id);
+    
+    console.log('[IntroFlow] Intro completion persisted to database');
+  } catch (e) {
+    console.error('[IntroFlow] Failed to persist intro to database:', e);
+  }
+}
+
+// Check if user has completed intro (database first, then localStorage)
+export async function checkIntroStatus(userId?: string): Promise<boolean> {
+  // Check localStorage first for immediate response
+  if (hasSeenIntro()) return true;
+  
+  // If no user ID, just use localStorage
+  if (!userId) return false;
+  
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('intro_completed')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (profile?.intro_completed) {
+      // Sync to localStorage for faster checks
+      localStorage.setItem(INTRO_SHOWN_KEY, 'true');
+      return true;
+    }
+  } catch (e) {
+    console.error('[IntroFlow] Failed to check intro status:', e);
+  }
+  
+  return false;
 }
 
 export function resetIntro(): void {
