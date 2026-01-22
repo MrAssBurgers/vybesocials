@@ -120,18 +120,14 @@ export default function InviteRedeem() {
           }
           inviterProfile = data;
         } else {
-          // Use ilike for case-insensitive username match
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('id, username, avatar_url, display_name, user_id')
-            .ilike('username', parsed.value)
-            .limit(1)
-            .maybeSingle();
+          // Use RPC for robust case/whitespace-insensitive username match
+          const { data: profiles, error } = await supabase
+            .rpc('get_profile_by_username', { target_username: parsed.value });
           
           if (error) {
             console.warn('[InviteRedeem] Error fetching inviter by username:', error.message);
           }
-          inviterProfile = data;
+          inviterProfile = profiles?.[0] || null;
         }
         
         if (inviterProfile) {
