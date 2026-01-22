@@ -13,15 +13,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
+import { isInviteEntryMode } from '@/lib/referral';
 
 // Hide bottom nav on landing page
 function useHideBottomNav() {
   useEffect(() => {
     document.body.classList.add('hide-bottom-nav');
-    return () => document.body.classList.remove('hide-bottom-nav');
+    return () => {
+      document.body.classList.remove('hide-bottom-nav');
+    };
   }, []);
 }
 
+// Invite mode stage type - shared between invite flow components
 export type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
 interface LandingProps {
@@ -31,78 +35,130 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, authReady } = useAuth();
+  const { user, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const location = useLocation();
   const { triggerTransition } = useThemeTransition();
   
+  // Hide bottom nav while on landing page
   useHideBottomNav();
   
+  // Check URL params for mode (login vs signup) and intro reset
   const modeParam = searchParams.get('mode');
   const [isLogin, setIsLogin] = useState(() => modeParam === 'login' || searchParams.get('signup') !== 'true');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showIntro, setShowIntro] = useState(!hasSeenIntro());
-  const [formData, setFormData] = useState({ email: '', password: '', username: '' });
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    username: '',
+  });
 
-  // Handle intro/mode param
+  // Re-check intro status on mount (in case it was reset by invite flow)
   useEffect(() => {
-    if (!hasSeenIntro()) setShowIntro(true);
+    const introNotSeen = !hasSeenIntro();
+    if (introNotSeen) {
+      setShowIntro(true);
+    }
+    // If mode=login, skip intro and go straight to login
     if (modeParam === 'login') {
       setShowIntro(false);
       setIsLogin(true);
     }
   }, [modeParam]);
 
-  // CRITICAL: Redirect authenticated users IMMEDIATELY
+  // Redirect if already logged in AND has completed onboarding
+  // First-time users (even if authenticated) should see intro if not completed
+  // IMPORTANT: Don't redirect if user entered via invite link - let them complete the flow
+  // When isInviteMode=true, this component is rendered inline from InviteRedeem
+  const location = useLocation();
   const isInviteRoute = location.pathname.startsWith('/invite/');
   
   useEffect(() => {
-    if (!authReady) return;
-    if (isInviteMode || isInviteRoute) return;
-    
-    if (user) {
-      console.log('[Landing] User authenticated, redirecting to /home');
-      navigate('/home', { replace: true });
+    async function checkAndRedirect() {
+      // In invite mode, auth check and redirects are handled by parent (InviteRedeem)
+      // The Landing component in invite mode ONLY shows intro, then signals completion
+      if (isInviteMode) {
+        console.log('[Landing] In invite mode - auth redirects handled by InviteRedeem');
+        return;
+      }
+      
+      if (!user) return;
+      
+      // If on invite route or in invite entry mode, don't auto-redirect to home
+      // Let the user complete the full first-time experience
+      if (isInviteRoute || isInviteEntryMode()) {
+        console.log('[Landing] In invite flow, skipping auto-redirect');
+        return;
+      }
+      
+      // Check if user has completed onboarding (has a username set)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, onboarding_completed')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      // If user has completed onboarding (has username), redirect to home
+      // Otherwise, let them stay on landing to go through the flow
+      if (profile?.username && profile?.onboarding_completed !== false) {
+        navigate('/home');
+      }
     }
-  }, [authReady, user, navigate, isInviteMode, isInviteRoute]);
+    
+    checkAndRedirect();
+  }, [user, navigate, isInviteRoute, isInviteMode]);
+
+  // Only hide the landing page if we're about to redirect (handled in useEffect)
+  // Don't return null immediately - let the useEffect decide
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
+    // Helper function for navigation - uses callback in invite mode
     const navTo = (stage: InviteStage, fallbackPath: string) => {
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate(stage);
       } else {
-        navigate(fallbackPath, { replace: true });
+        navigate(fallbackPath);
       }
     };
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        });
+        const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
         toast.success('Welcome back! ✨');
-        navTo('home', '/home');
-      } else {
-        if (!formData.username.trim()) throw new Error('Username is required');
         
-        const { error } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
-          options: {
-            emailRedirectTo: window.location.origin,
-            data: { username: formData.username.toLowerCase().replace(/\s+/g, '') },
-          },
-        });
+        // Check if user has completed onboarding before redirecting
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username, onboarding_completed')
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
+          
+          if (profile?.username && profile?.onboarding_completed !== false) {
+            navTo('home', '/home');
+          } else if (!profile?.username) {
+            navTo('complete-profile', '/complete-profile');
+          } else {
+            navTo('onboarding', '/onboarding');
+          }
+        } else {
+          navTo('home', '/home');
+        }
+      } else {
+        if (!formData.username.trim()) {
+          throw new Error('Username is required');
+        }
+        const { error } = await signUp(formData.email, formData.password, formData.username);
         if (error) throw error;
         toast.success('Welcome to VYBE! 🎉');
-        navTo('home', '/home');
+        navTo('onboarding', '/onboarding');
       }
     } catch (error: any) {
       toast.error(getUserFriendlyError(error));
@@ -111,26 +167,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    try {
-      const next = isInviteMode
-        ? `${window.location.pathname}${window.location.search}`
-        : '/';
-      const redirectUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: redirectUrl },
-      });
-      if (error) throw error;
-    } catch (error: any) {
-      toast.error(getUserFriendlyError(error));
-      setLoading(false);
-    }
-  };
-
   const handleGuestBrowse = () => {
+    // Navigate to home without signing in - guest mode
     if (isInviteMode && onInviteNavigate) {
       onInviteNavigate('home');
     } else {
@@ -141,25 +179,30 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const handleIntroComplete = () => {
     triggerTransition('280 70% 50%', '330 80% 60%', () => {
       setShowIntro(false);
-      setIsLogin(false);
+      setIsLogin(false); // Start on signup mode
     });
   };
 
   const handleIntroSkip = () => {
-    triggerTransition('280 70% 50%', '330 80% 60%', () => setShowIntro(false));
+    triggerTransition('280 70% 50%', '330 80% 60%', () => {
+      setShowIntro(false);
+    });
   };
 
+  // Show intro flow for first-time visitors
   if (showIntro) {
     return <IntroFlow onComplete={handleIntroComplete} onSkip={handleIntroSkip} />;
   }
 
   return (
     <div className="min-h-screen bg-background overflow-hidden relative flex items-center justify-center">
+      {/* Simplified static background for better performance */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/2 -left-1/2 w-full h-full gradient-animated opacity-10 blur-3xl" />
         <div className="absolute -bottom-1/2 -right-1/2 w-full h-full gradient-animated opacity-10 blur-3xl" />
       </div>
 
+      {/* Main content - centered card */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -167,10 +210,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         className="relative z-10 w-full max-w-md mx-4"
       >
         <div className="glass-card rounded-3xl p-8 gradient-border">
+          {/* Centered Logo with subtle glow */}
           <div className="flex flex-col items-center mb-8 relative">
+            {/* Static glow behind logo for better performance */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-32 h-32 rounded-full bg-primary/30 blur-2xl" />
             </div>
+            
             <VYBELogo size="xl" showText={false} className="mb-4 relative z-10" />
             <h1 className="text-2xl font-display font-bold gradient-text relative z-10">
               Welcome to VYBE
@@ -180,6 +226,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             </p>
           </div>
 
+          {/* Auth Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <AnimatePresence mode="wait">
               {!isLogin && (
@@ -274,7 +321,29 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               type="button"
               variant="outline"
               className="w-full bg-secondary/30"
-              onClick={handleGoogleLogin}
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  // In invite mode, redirect back to current invite URL after OAuth
+                  // This preserves the invite URL through the OAuth flow
+                  // Note: OAuth is an external redirect, so we can't use internal callbacks
+                  // The user will return to the invite URL, and the useEffect will handle stage transition
+                  const redirectUrl = isInviteMode 
+                    ? window.location.href // Keep current invite URL
+                    : `${window.location.origin}/complete-profile`;
+                  
+                  const { error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                      redirectTo: redirectUrl,
+                    },
+                  });
+                  if (error) throw error;
+                } catch (error: any) {
+                  toast.error(getUserFriendlyError(error));
+                  setLoading(false);
+                }
+              }}
               disabled={loading}
             >
               <Chrome className="w-4 h-4 mr-2" />
@@ -304,6 +373,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           </p>
         </div>
 
+        {/* Footer links */}
         <div className="flex justify-center gap-4 mt-4 text-xs text-muted-foreground">
           <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
           <span>•</span>

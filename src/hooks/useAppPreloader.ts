@@ -46,22 +46,6 @@ const preloadVideoMetadata = (url: string): Promise<void> => {
   });
 };
 
-type GetSessionResponse = Awaited<ReturnType<typeof supabase.auth.getSession>>;
-
-const getSessionSafe = async (): Promise<GetSessionResponse> => {
-  // If auth is blocked for any reason, never keep the splash screen stuck.
-  const TIMEOUT_MS = 4000;
-  return await Promise.race([
-    supabase.auth.getSession(),
-    new Promise<GetSessionResponse>((resolve) =>
-      setTimeout(
-        () => resolve({ data: { session: null }, error: null } as GetSessionResponse),
-        TIMEOUT_MS
-      )
-    ),
-  ]);
-};
-
 export function useAppPreloader() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<PreloadStatus>({
@@ -95,9 +79,9 @@ export function useAppPreloader() {
         // Step 1: Initialize
         updateStatus('init');
 
-        // Step 2: Check authentication (guarded with a timeout to avoid a stuck splash)
+        // Step 2: Check authentication
         updateStatus('auth');
-        const { data: { session } } = await getSessionSafe();
+        const { data: { session } } = await supabase.auth.getSession();
 
         if (!session?.user) {
           // Not logged in - minimal load, done instantly
@@ -107,74 +91,57 @@ export function useAppPreloader() {
 
         const uid = session.user.id;
 
-        // Step 3: Load or create profile via ensure_profile RPC
+        // Step 3: Load profile
         updateStatus('profile');
-        
-        // Call ensure_profile to guarantee we have a profile row
-        try {
-          await supabase.rpc('ensure_profile');
-        } catch {
-          // Ignore errors - profile may already exist
-        }
-        
         const { data: profile } = await supabase
           .from('profiles')
-          .select('id, username, avatar_url, display_name, bio')
-          .eq('user_id', uid)
+          .select('id, username, avatar_url, display_name, bio, is_verified')
+          .eq('id', uid)
           .maybeSingle();
 
         if (profile) {
           queryClient.setQueryData(['profile', uid], profile);
-        }
-        
-        // Use profile.id for queries that need profile id (NOT auth uid)
-        const profileId = profile?.id;
-
-        // If no profile exists, skip data loading
-        if (!profileId) {
-          updateStatus('ready');
-          return;
         }
 
         // Step 4: Load critical data in parallel for speed
         updateStatus('data');
         
         const [conversationsResult, postsResult, notificationsResult] = await Promise.allSettled([
-          // Conversations - conversation_members.user_id is profile.id
+          // Conversations - limit to 30 for faster load
           supabase
             .from('conversation_members')
             .select(`
               conversation:conversations!inner(id, name, is_group, avatar_url, updated_at),
               is_muted, is_pinned, last_read_at
             `)
-            .eq('user_id', profileId)
+            .eq('user_id', uid)
             .order('conversation(updated_at)', { ascending: false })
             .limit(30),
           
-          // Posts - RPC takes profile.id as p_user_id
+          // Posts - limit to 50 for faster load
           supabase.rpc('get_posts_with_counts', {
             p_type: null,
             p_author_id: null,
-            p_user_id: profileId,
+            p_user_id: uid,
             p_offset: 0,
             p_limit: 50,
           }),
           
-          // Notifications - notifications.user_id is profile.id
+          // Notifications - limit to 20
           supabase
             .from('notifications')
             .select(`id, type, read, created_at, post_id, actor:profiles!notifications_actor_id_fkey(id, username, avatar_url)`)
-            .eq('user_id', profileId)
+            .eq('user_id', uid)
             .order('created_at', { ascending: false })
             .limit(20),
         ]);
 
-        // Process conversations - cache by profileId
+        // Process conversations
         if (conversationsResult.status === 'fulfilled' && conversationsResult.value.data) {
-          queryClient.setQueryData(['conversations', profileId], conversationsResult.value.data);
+          queryClient.setQueryData(['conversations', uid], conversationsResult.value.data);
         }
 
-        // Process posts - cache by profileId
+        // Process posts
         if (postsResult.status === 'fulfilled' && postsResult.value.data) {
           const posts = postsResult.value.data;
           const transformedPosts = posts.map((row: any) => ({
@@ -198,7 +165,7 @@ export function useAppPreloader() {
           }));
 
           queryClient.setQueryData(
-            ['infinite-posts', undefined, undefined, profileId],
+            ['infinite-posts', undefined, undefined, uid],
             {
               pages: [{ posts: transformedPosts, nextPage: transformedPosts.length >= 50 ? 1 : null, totalLoaded: transformedPosts.length }],
               pageParams: [0],
@@ -206,9 +173,9 @@ export function useAppPreloader() {
           );
         }
 
-        // Process notifications - cache by profileId
+        // Process notifications
         if (notificationsResult.status === 'fulfilled' && notificationsResult.value.data) {
-          queryClient.setQueryData(['notifications', profileId], notificationsResult.value.data);
+          queryClient.setQueryData(['notifications', uid], notificationsResult.value.data);
         }
 
         // Done - skip media preloading during initial load for faster startup

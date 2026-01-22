@@ -60,23 +60,14 @@ export function ConversationOptionsSheet({
   const handleToggleMute = async () => {
     setIsTogglingMute(true);
     try {
-      // Get current user's profile id (conversation_members.user_id is profile.id)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) return;
 
       const { error } = await supabase
         .from('conversation_members')
         .update({ is_muted: !isMuted })
         .eq('conversation_id', conversationId)
-        .eq('user_id', profile.id);
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
@@ -94,23 +85,14 @@ export function ConversationOptionsSheet({
   const handleTogglePin = async () => {
     setIsTogglingPin(true);
     try {
-      // Get current user's profile id (conversation_members.user_id is profile.id)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) return;
 
       const { error } = await supabase
         .from('conversation_members')
         .update({ is_pinned: !isPinned })
         .eq('conversation_id', conversationId)
-        .eq('user_id', profile.id);
+        .eq('user_id', user.id);
 
       if (error) throw error;
 

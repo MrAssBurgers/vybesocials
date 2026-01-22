@@ -90,7 +90,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, signOut } = useAuth();
+  const { profile, signOut } = useAuth();
   const { data: userRole } = useUserRole();
   const { data: unreadNotifications = 0 } = useUnreadCount();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
@@ -232,17 +232,9 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           </div>
         )}
 
-        {/* Show "Not signed in" only when user is truly not authenticated */}
-        {!collapsed && !user && (
+        {!collapsed && !profile && (
           <div className="mx-3 mb-3 p-3 rounded-xl liquid-glass-subtle">
             <p className="text-sm text-muted-foreground text-center">Not signed in</p>
-          </div>
-        )}
-
-        {/* Show loading state when user is authenticated but profile is loading */}
-        {!collapsed && user && !profile && (
-          <div className="mx-3 mb-3 p-3 rounded-xl liquid-glass-subtle">
-            <p className="text-sm text-muted-foreground text-center">Loading profile...</p>
           </div>
         )}
 
@@ -295,15 +287,6 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                 <TooltipContent side="right">Settings</TooltipContent>
               </Tooltip>
             </div>
-          </div>
-        )}
-
-        {/* Collapsed: show loading spinner when user is authenticated but profile is loading */}
-        {collapsed && user && !profile && (
-          <div className="flex flex-col items-center gap-1.5 mb-3 px-2">
-            <Avatar className="h-10 w-10 ring-2 ring-muted/30 animate-pulse">
-              <AvatarFallback className="bg-muted" />
-            </Avatar>
           </div>
         )}
 

@@ -20,7 +20,7 @@ interface CompleteProfileProps {
 
 export default function CompleteProfile({ onInviteNavigate, isInviteMode = false }: CompleteProfileProps) {
   const navigate = useNavigate();
-  const { user, profile, loading: authLoading, authReady } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -44,33 +44,28 @@ export default function CompleteProfile({ onInviteNavigate, isInviteMode = false
     if (isInviteMode && onInviteNavigate) {
       onInviteNavigate(stage);
     } else {
-      navigate(fallbackPath, { replace: true });
+      navigate(fallbackPath);
     }
   };
 
   useEffect(() => {
-    // CRITICAL: Wait for authReady before any redirect logic
-    if (!authReady) return;
-    
     // If user already has a profile with a username, proceed to next step
-    if (user && profile?.username) {
+    // New Google users without a profile will stay on this page
+    if (!authLoading && user && profile?.username) {
       if (profile.onboarding_completed) {
         navTo('home', '/home');
       } else {
         navTo('onboarding', '/onboarding');
       }
     }
-  }, [authReady, user, profile, navigate, isInviteMode, onInviteNavigate]);
+  }, [authLoading, user, profile, navigate, isInviteMode, onInviteNavigate]);
 
   useEffect(() => {
-    // CRITICAL: Wait for authReady before redirect
-    if (!authReady) return;
-    
     // Redirect if not authenticated
-    if (!user) {
+    if (!authLoading && !user) {
       navTo('landing', '/');
     }
-  }, [authReady, user, navigate, isInviteMode, onInviteNavigate]);
+  }, [authLoading, user, navigate, isInviteMode, onInviteNavigate]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -197,11 +192,6 @@ export default function CompleteProfile({ onInviteNavigate, isInviteMode = false
         </motion.div>
       </div>
     );
-  }
-
-  // If the profile is already set up, never show this screen (prevents flashes)
-  if (user && profile?.username) {
-    return <div className="min-h-screen bg-background" />;
   }
 
   return (

@@ -2,7 +2,7 @@ import { useState, forwardRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ChevronRight, Sparkles, Settings, Copy, Check } from 'lucide-react';
+import { LogOut, ChevronRight, Sparkles, Settings } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -21,45 +21,21 @@ import { HelpSection } from '@/components/settings/HelpSection';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
 
 // Lazy load developer section (only used in dev)
 const DeveloperSection = lazy(() => import('@/components/settings/DeveloperSection').then(m => ({ default: m.DeveloperSection })));
 
 const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref) {
   const { t } = useTranslation();
-  const { signOut, user, profile, authPhase, profileLoading, authReady } = useAuth();
+  const { signOut } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('profile');
-  const [copiedDebug, setCopiedDebug] = useState(false);
 
   const handleSignOut = async () => {
     haptics.impact();
     await signOut();
     navigate('/');
-  };
-
-  const copyDebugInfo = () => {
-    const debugInfo = {
-      timestamp: new Date().toISOString(),
-      authPhase,
-      authReady,
-      profileLoading,
-      hasUser: !!user,
-      userId: user?.id?.slice(0, 8) + '...',
-      hasProfile: !!profile,
-      profileId: profile?.id?.slice(0, 8) + '...',
-      userAgent: navigator.userAgent.slice(0, 50),
-    };
-    
-    navigator.clipboard.writeText(JSON.stringify(debugInfo, null, 2)).then(() => {
-      setCopiedDebug(true);
-      toast.success('Debug info copied!');
-      setTimeout(() => setCopiedDebug(false), 2000);
-    }).catch(() => {
-      toast.error('Failed to copy');
-    });
   };
 
   const getCategoryTitle = () => {
@@ -218,7 +194,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                className="text-center py-4 text-muted-foreground space-y-3"
+                className="text-center py-4 text-muted-foreground"
               >
                 <div className="flex items-center justify-center gap-2 mb-1">
                   <div className="gradient-static rounded-lg p-1">
@@ -227,19 +203,6 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
                   <span className="font-display font-black text-lg gradient-text">VYBE</span>
                 </div>
                 <p className="text-xs">v{APP_VERSION}</p>
-                
-                {/* Debug info copy button */}
-                <button
-                  onClick={copyDebugInfo}
-                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                >
-                  {copiedDebug ? (
-                    <Check className="h-3 w-3" />
-                  ) : (
-                    <Copy className="h-3 w-3" />
-                  )}
-                  Copy Debug Info
-                </button>
               </motion.div>
             </motion.div>
           </div>

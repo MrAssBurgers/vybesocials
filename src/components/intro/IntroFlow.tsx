@@ -235,7 +235,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
             <Button
               className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-white font-semibold rounded-xl shadow-lg shadow-primary/25"
               size="lg"
-              onClick={handleNext}
+              onClick={onComplete}
             >
               <Sparkles className="w-4 h-4 mr-2" />
               Create Account

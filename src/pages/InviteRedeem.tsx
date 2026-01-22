@@ -59,9 +59,9 @@ type InviteFlowStage = 'loading' | 'landing' | 'complete-profile' | 'onboarding'
 
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
-  const { user, profile, loading: authLoading, authReady } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [inviteProcessed, setInviteProcessed] = useState(false);
-  // CRITICAL: Start at 'loading' to wait for auth before deciding stage
+  // CRITICAL: Start at 'landing' to always show intro first
   const [currentStage, setCurrentStage] = useState<InviteFlowStage>('loading');
   // Track if user has completed the intro (landing stage)
   const [introCompleted, setIntroCompleted] = useState(false);
@@ -172,8 +172,8 @@ export default function InviteRedeem() {
       return;
     }
     
-    // After intro is done, wait for authReady (not just authLoading)
-    if (!authReady) {
+    // After intro is done, wait for auth to settle
+    if (authLoading) {
       return;
     }
     
@@ -184,27 +184,21 @@ export default function InviteRedeem() {
       return;
     }
     
-    // Authenticated but profile not loaded yet - wait (prevents flashing CompleteProfile)
-    if (!profile) {
-      setCurrentStage('loading');
-      return;
-    }
-
-    // Authenticated but no username - complete profile
-    if (!profile.username) {
+    // Authenticated but no profile or no username - complete profile
+    if (!profile || !profile.username) {
       setCurrentStage('complete-profile');
       return;
     }
-
+    
     // Has profile but onboarding not complete
     if (!profile.onboarding_completed) {
       setCurrentStage('onboarding');
       return;
     }
-
+    
     // Fully onboarded - show home (tutorial + invite popup will trigger there)
     setCurrentStage('home');
-  }, [inviteProcessed, authReady, user, profile, introCompleted]);
+  }, [inviteProcessed, authLoading, user, profile, introCompleted]);
   
   // Handle stage transitions (called by child components instead of navigate())
   const handleStageComplete = (nextStage: 'landing' | 'complete-profile' | 'onboarding' | 'home') => {

@@ -1,4 +1,4 @@
-import { lazy, Suspense, memo } from 'react';
+import { lazy, Suspense, memo, useMemo } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -6,7 +6,6 @@ import { isLowEndDevice } from '@/lib/performanceConfig';
 
 // Lazy load pages for code splitting with webpackPrefetch hints
 const Landing = lazy(() => import("@/pages/Landing"));
-const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 const Home = lazy(() => import(/* webpackPrefetch: true */ "@/pages/Home"));
 const Shorts = lazy(() => import("@/pages/Shorts"));
 const Explore = lazy(() => import(/* webpackPrefetch: true */ "@/pages/Explore"));
@@ -38,7 +37,6 @@ const InviteRedeem = lazy(() => import("@/pages/InviteRedeem"));
 const AddFriend = lazy(() => import("@/pages/AddFriend"));
 const CommunityGuidelines = lazy(() => import("@/pages/CommunityGuidelines"));
 const AdminMetrics = lazy(() => import("@/pages/AdminMetrics"));
-const DebugAuth = lazy(() => import("@/pages/DebugAuth"));
 
 // Debug panel - only loaded in dev mode
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -96,7 +94,6 @@ export function AnimatedRoutes() {
         <Suspense fallback={<PageFallback />}>
           <Routes location={location}>
             <Route path="/" element={<Landing />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/home" element={<Home />} />
             <Route path="/clips" element={<Shorts />} />
             <Route path="/shorts" element={<Shorts />} />
@@ -130,7 +127,6 @@ export function AnimatedRoutes() {
             <Route path="/add-friend/:userId" element={<AddFriend />} />
             <Route path="/guidelines" element={<CommunityGuidelines />} />
             <Route path="/admin/metrics" element={<AdminMetrics />} />
-            <Route path="/debug/auth" element={<DebugAuth />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           {/* Debug panel - only in dev mode */}

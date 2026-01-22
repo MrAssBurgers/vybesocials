@@ -9,13 +9,12 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { StoriesBar } from '@/components/stories/StoriesBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
-import { hasActiveReferral } from '@/lib/referral';
+import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
 import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { AutoFriendDrop } from '@/components/friends/AutoFriendDrop';
-import { ProfileRetryBanner } from '@/components/app/ProfileRetryBanner';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
@@ -77,7 +76,7 @@ interface HomePageProps {
 
 export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const navigate = useNavigate();
-  const { user, profile, loading: authLoading, authReady } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('foryou');
   
   const {
@@ -191,38 +190,35 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     }
   }, []);
 
-  // Keep guests browsing, but never force "Complete Profile" for returning users.
+  // Only redirect authenticated users without profile to complete-profile
+  // Guest users can browse freely
   useEffect(() => {
-    // CRITICAL: Wait for authReady, not just authLoading
-    if (!authReady) return;
-
+    if (authLoading) return;
+    
     // If in invite mode (rendered from InviteRedeem), never redirect
     if (isInviteMode) {
       console.log('[Home] In invite mode - skipping all redirects');
       return;
     }
-
+    
     // Guest users can browse - no redirect needed
-    if (!user) return;
+    if (!user) {
+      return;
+    }
 
-    // Wait for profile to load (prevents wrong redirects right after auth)
-    if (!profile) return;
-
-    // If username is missing, send them to onboarding (not CompleteProfile)
-    if (!profile.username) {
-      if (hasActiveReferral()) {
-        console.log('[Home] Skipping onboarding redirect - active referral in progress');
+    // For authenticated users without a username
+    if (!profile?.username) {
+      // Don't redirect during active referral flow or invite mode
+      if (hasActiveReferral() || isInviteEntryMode()) {
+        console.log('[Home] Skipping profile redirect - active referral/invite in progress');
         return;
       }
-      navigate('/onboarding', { replace: true });
+      navigate('/complete-profile');
     }
-  }, [authReady, user, profile, navigate, isInviteMode]);
+  }, [authLoading, user, profile, navigate, isInviteMode]);
 
   return (
     <AppLayout>
-      {/* Profile retry banner - shows when profile fails to load */}
-      <ProfileRetryBanner />
-      
       {/* Auto FriendDrop - bump phones to add friends */}
       <AutoFriendDrop />
       
