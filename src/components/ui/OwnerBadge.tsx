@@ -10,7 +10,7 @@ interface OwnerBadgeProps {
 const OWNER_USERNAME = 'mrassburgers';
 
 export function isOwner(username: string | null | undefined): boolean {
-  return username?.toLowerCase() === OWNER_USERNAME.toLowerCase();
+  return username?.trim().toLowerCase() === OWNER_USERNAME.toLowerCase();
 }
 
 export function OwnerBadge({ className }: OwnerBadgeProps) {
@@ -19,7 +19,7 @@ export function OwnerBadge({ className }: OwnerBadgeProps) {
       <Tooltip>
         <TooltipTrigger asChild>
           <span className={cn("inline-flex items-center", className)}>
-            <Crown className="h-4 w-4 text-yellow-500 fill-yellow-500/30" />
+            <Crown className="h-4 w-4 text-primary fill-primary/30" />
           </span>
         </TooltipTrigger>
         <TooltipContent>
