@@ -158,6 +158,9 @@ export function BottomNav() {
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   const isVisible = useScrollDirection();
 
+  // Hide bottom nav until user has completed onboarding
+  const onboardingComplete = profile?.onboarding_completed === true;
+
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);
   const [highlightedNav, setHighlightedNav] = useState<string | null>(null);
@@ -244,6 +247,11 @@ export function BottomNav() {
     { icon: MessageCircle, path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav', requiresAuth: true, authAction: 'send messages' },
     { icon: Settings, path: '/settings', badge: 0, tutorialId: 'settings-nav', requiresAuth: false },
   ];
+
+  // Don't render bottom nav if onboarding not complete (unless guest browsing)
+  if (!onboardingComplete && !isGuest) {
+    return null;
+  }
 
   return (
     <>

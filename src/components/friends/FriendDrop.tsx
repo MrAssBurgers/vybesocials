@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   UserPlus, X, Check, Sparkles, QrCode, Camera, 
-  ArrowLeftRight, Loader2, Heart
+  ArrowLeftRight, Loader2, Heart, ZoomIn
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -12,12 +12,13 @@ import { useSendFriendRequest } from '@/hooks/useFriends';
 import { supabase } from '@/integrations/supabase/client';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
+import jsQR from 'jsqr';
 
 interface FriendDropProps {
   variant?: 'button' | 'icon' | 'banner';
 }
 
-type DropPhase = 'idle' | 'showing' | 'scanning' | 'found' | 'exchanging' | 'success';
+type DropPhase = 'idle' | 'showing' | 'scanning' | 'detected' | 'found' | 'exchanging' | 'success';
 
 interface FoundUser {
   id: string;
@@ -33,9 +34,12 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [phase, setPhase] = useState<DropPhase>('idle');
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
+  const [qrEnlarged, setQrEnlarged] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // Generate QR data URL with user ID
   const myProfileUrl = profile?.username 
@@ -43,7 +47,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     : '';
   
   const qrCodeUrl = myProfileUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(myProfileUrl)}&bgcolor=000000&color=ffffff&format=svg`
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(myProfileUrl)}&bgcolor=000000&color=ffffff&format=svg&ecc=H`
     : '';
 
   const handleOpen = useCallback(() => {
@@ -54,11 +58,18 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setIsOpen(true);
     setPhase('idle');
     setFoundUser(null);
+    setQrEnlarged(false);
   }, [profile?.username]);
 
   const showMyProfile = useCallback(() => {
     setPhase('showing');
     haptics.impact();
+  }, []);
+
+  // Toggle QR code size
+  const toggleQrSize = useCallback(() => {
+    setQrEnlarged(prev => !prev);
+    haptics.tap();
   }, []);
 
   const startScanning = useCallback(async () => {
@@ -67,42 +78,54 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
       });
       streamRef.current = stream;
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        await videoRef.current.play();
       }
 
-      // Use BarcodeDetector if available
-      if ('BarcodeDetector' in window) {
-        const barcodeDetector = new (window as any).BarcodeDetector({
-          formats: ['qr_code']
+      // Create canvas for QR scanning
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+
+      const scanFrame = () => {
+        if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
+          animationFrameRef.current = requestAnimationFrame(scanFrame);
+          return;
+        }
+
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert',
         });
 
-        scanIntervalRef.current = setInterval(async () => {
-          if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-            try {
-              const barcodes = await barcodeDetector.detect(videoRef.current);
-              if (barcodes.length > 0) {
-                const url = barcodes[0].rawValue;
-                // Check for add-friend URL pattern
-                const match = url?.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
-                if (match) {
-                  const userId = match[1];
-                  if (userId !== user?.id) {
-                    handleFoundUser(userId);
-                  }
-                }
-              }
-            } catch (e) {
-              // Continue scanning
+        if (code) {
+          const url = code.data;
+          // Check for add-friend URL pattern
+          const match = url?.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
+          if (match) {
+            const userId = match[1];
+            if (userId !== user?.id) {
+              handleFoundUser(userId);
+              return; // Stop scanning
             }
           }
-        }, 150);
-      }
+        }
+
+        animationFrameRef.current = requestAnimationFrame(scanFrame);
+      };
+
+      // Start scanning loop
+      scanFrame();
     } catch (error) {
       console.error('Camera error:', error);
       toast.error('Could not access camera');
@@ -112,31 +135,37 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
   const handleFoundUser = useCallback(async (userId: string) => {
     // Stop scanning
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
     }
 
+    // Show detection animation first
     haptics.success();
-    setPhase('found');
+    setPhase('detected');
 
-    // Fetch the user's profile
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, bio')
-        .eq('id', userId)
-        .single();
+    // Wait for detection animation, then fetch user
+    setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, bio')
+          .eq('id', userId)
+          .single();
 
-      if (error) throw error;
-      setFoundUser(data);
-    } catch (error) {
-      console.error('Error fetching user:', error);
-      toast.error('Could not find user');
-      setPhase('idle');
-    }
+        if (error) throw error;
+        setFoundUser(data);
+        setPhase('found');
+        haptics.impact();
+      } catch (error) {
+        console.error('Error fetching user:', error);
+        toast.error('Could not find user');
+        setPhase('idle');
+      }
+    }, 1200);
   }, []);
 
   const handleAddFriend = useCallback(async () => {
@@ -171,6 +200,10 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   }, [foundUser, sendRequest]);
 
   const stopScanning = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
     if (scanIntervalRef.current) {
       clearInterval(scanIntervalRef.current);
     }
@@ -184,6 +217,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setIsOpen(false);
     setPhase('idle');
     setFoundUser(null);
+    setQrEnlarged(false);
   }, [stopScanning]);
 
   useEffect(() => {
@@ -220,26 +254,11 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
               <motion.div
                 key={i}
                 className="absolute"
-                style={{ 
-                  top: '50%', 
-                  left: '50%',
-                }}
-                animate={{ 
-                  rotate: 360,
-                }}
-                transition={{ 
-                  repeat: Infinity, 
-                  duration: 4,
-                  delay: i * 1.3,
-                  ease: "linear"
-                }}
+                style={{ top: '50%', left: '50%' }}
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 4, delay: i * 1.3, ease: "linear" }}
               >
-                <motion.div
-                  style={{ 
-                    x: 50, 
-                    y: -8 
-                  }}
-                >
+                <motion.div style={{ x: 50, y: -8 }}>
                   <Sparkles className="h-5 w-5 text-primary" />
                 </motion.div>
               </motion.div>
@@ -278,7 +297,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       );
     }
 
-    // Showing my profile card
+    // Showing my profile card with tap-to-enlarge QR
     if (phase === 'showing') {
       return (
         <motion.div
@@ -332,24 +351,32 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
                 <h3 className="text-xl font-bold">
                   {profile?.username}
                 </h3>
-                <p className="text-white/80 text-sm">@{profile?.username}</p>
+                <p className="text-white/80 text-sm">@{profile?.username?.trim()}</p>
               </div>
               
-              {/* QR Code */}
-              <motion.div 
-                className="p-3 rounded-2xl bg-black/20 backdrop-blur"
-                animate={{ scale: [1, 1.02, 1] }}
-                transition={{ repeat: Infinity, duration: 1.5, delay: 0.5 }}
+              {/* Tap-to-enlarge QR Code */}
+              <motion.button 
+                className="p-3 rounded-2xl bg-black/20 backdrop-blur cursor-pointer relative group"
+                onClick={toggleQrSize}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                animate={qrEnlarged ? { scale: 1.3 } : { scale: 1 }}
+                transition={{ type: "spring", stiffness: 300 }}
               >
                 <img 
                   src={qrCodeUrl} 
                   alt="QR Code" 
-                  className="w-32 h-32 rounded-lg"
+                  className={`rounded-lg transition-all ${qrEnlarged ? 'w-44 h-44' : 'w-32 h-32'}`}
                 />
-              </motion.div>
+                {!qrEnlarged && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity">
+                    <ZoomIn className="h-8 w-8 text-white" />
+                  </div>
+                )}
+              </motion.button>
               
               <p className="text-white/70 text-xs">
-                Have them scan this code
+                {qrEnlarged ? 'Tap to shrink' : 'Tap QR to enlarge'}
               </p>
             </div>
           </motion.div>
@@ -358,6 +385,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
             variant="ghost" 
             onClick={() => {
               setPhase('idle');
+              setQrEnlarged(false);
             }}
             className="gap-2 text-muted-foreground"
           >
@@ -384,6 +412,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
               playsInline
               muted
             />
+            <canvas ref={canvasRef} className="hidden" />
             
             {/* Scanning overlay */}
             <div className="absolute inset-0 pointer-events-none">
@@ -449,6 +478,64 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       );
     }
 
+    // QR Detected animation
+    if (phase === 'detected') {
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col items-center gap-6 py-12"
+        >
+          {/* Pulsing detection indicator */}
+          <motion.div
+            className="relative"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", bounce: 0.5 }}
+          >
+            <motion.div
+              className="w-32 h-32 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center"
+              animate={{ 
+                scale: [1, 1.1, 1],
+                boxShadow: [
+                  '0 0 0 0 hsl(var(--primary) / 0.4)',
+                  '0 0 0 30px hsl(var(--primary) / 0)',
+                  '0 0 0 0 hsl(var(--primary) / 0)',
+                ]
+              }}
+              transition={{ repeat: Infinity, duration: 1 }}
+            >
+              <QrCode className="h-16 w-16 text-primary-foreground" />
+            </motion.div>
+            
+            {/* Ripple effects */}
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                className="absolute inset-0 rounded-full border-2 border-primary"
+                initial={{ scale: 1, opacity: 0.8 }}
+                animate={{ scale: 2.5, opacity: 0 }}
+                transition={{ 
+                  repeat: Infinity, 
+                  duration: 1.5, 
+                  delay: i * 0.5,
+                  ease: "easeOut"
+                }}
+              />
+            ))}
+          </motion.div>
+          
+          <motion.p
+            className="text-lg font-semibold text-primary"
+            animate={{ opacity: [1, 0.5, 1] }}
+            transition={{ repeat: Infinity, duration: 0.8 }}
+          >
+            QR Code Detected!
+          </motion.p>
+        </motion.div>
+      );
+    }
+
     // Found a user - show their profile card
     if (phase === 'found' && foundUser) {
       return (
@@ -501,7 +588,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
                 <h3 className="text-2xl font-bold">
                   {foundUser.display_name || foundUser.username}
                 </h3>
-                <p className="text-white/80">@{foundUser.username}</p>
+                <p className="text-white/80">@{foundUser.username?.trim()}</p>
                 {foundUser.bio && (
                   <p className="text-white/60 text-sm mt-2 line-clamp-2">
                     {foundUser.bio}
@@ -636,7 +723,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
               Friend Added! 🎉
             </h3>
             <p className="text-muted-foreground text-sm mt-1">
-              You and @{foundUser?.username} are now connected
+              You and @{foundUser?.username?.trim()} are now connected
             </p>
           </motion.div>
         </motion.div>
