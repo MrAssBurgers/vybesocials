@@ -344,7 +344,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // THEN get existing session
-    supabase.auth.getSession().then(({ data, error }) => {
+    supabase.auth.getSession().then(async ({ data, error }) => {
       if (!mounted) return;
       
       if (error) {
@@ -353,6 +353,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         setAuthReady(true);
         return;
+      }
+
+      // If we have a session but it looks stale, try refreshing
+      if (data.session && !data.session.access_token) {
+        console.log('[Auth] Session exists but no access_token, attempting refresh...');
+        try {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          if (refreshed.session) {
+            handleSessionChange(refreshed.session);
+            return;
+          }
+        } catch (e) {
+          console.warn('[Auth] Session refresh failed:', e);
+        }
       }
 
       // Always apply the session snapshot; handleSessionChange is idempotent.

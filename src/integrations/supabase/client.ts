@@ -5,26 +5,47 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// Custom storage adapter that handles iOS Safari quirks
+// Test if localStorage is available (fails in iOS Private Browsing, some in-app browsers)
+const isLocalStorageAvailable = (() => {
+  try {
+    const testKey = '__storage_test__';
+    localStorage.setItem(testKey, '1');
+    localStorage.removeItem(testKey);
+    return true;
+  } catch {
+    console.warn('[Auth] localStorage unavailable, falling back to sessionStorage');
+    return false;
+  }
+})();
+
+// Export for debugging
+export const storageStatus = {
+  localStorageAvailable: isLocalStorageAvailable,
+  usingFallback: !isLocalStorageAvailable,
+};
+
+// Custom storage adapter with fallback to sessionStorage
 const customStorage = {
   getItem: (key: string): string | null => {
     try {
-      return localStorage.getItem(key);
+      const storage = isLocalStorageAvailable ? localStorage : sessionStorage;
+      return storage.getItem(key);
     } catch {
       return null;
     }
   },
   setItem: (key: string, value: string): void => {
     try {
-      localStorage.setItem(key, value);
+      const storage = isLocalStorageAvailable ? localStorage : sessionStorage;
+      storage.setItem(key, value);
     } catch {
-      // Storage might be full or unavailable (iOS private browsing)
-      console.warn('Failed to persist auth session');
+      console.error('[Auth] Storage blocked - session will NOT persist across tabs/reloads');
     }
   },
   removeItem: (key: string): void => {
     try {
-      localStorage.removeItem(key);
+      const storage = isLocalStorageAvailable ? localStorage : sessionStorage;
+      storage.removeItem(key);
     } catch {
       // Ignore errors
     }
