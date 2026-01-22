@@ -4701,6 +4701,7 @@ export type Database = {
         Returns: boolean
       }
       is_server_member: { Args: { p_server_id: string }; Returns: boolean }
+      is_username_available: { Args: { p_username: string }; Returns: boolean }
       process_due_scheduled_messages: {
         Args: { limit_count?: number }
         Returns: number
