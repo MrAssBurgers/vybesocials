@@ -4968,6 +4968,34 @@ export type Database = {
           type: string
         }[]
       }
+      get_profile_by_id: {
+        Args: { target_id: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          created_at: string
+          display_name: string
+          id: string
+          is_private: boolean
+          is_verified: boolean
+          user_id: string
+          username: string
+        }[]
+      }
+      get_profile_by_username: {
+        Args: { target_username: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          created_at: string
+          display_name: string
+          id: string
+          is_private: boolean
+          is_verified: boolean
+          user_id: string
+          username: string
+        }[]
+      }
       get_server_role: { Args: { p_server_id: string }; Returns: string }
       has_role: {
         Args: {

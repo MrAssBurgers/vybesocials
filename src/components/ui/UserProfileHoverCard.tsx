@@ -40,13 +40,18 @@ function useHoverProfile(username: string, enabled: boolean) {
   return useQuery({
     queryKey: ['hover-profile', username],
     queryFn: async (): Promise<ProfileData | null> => {
-      const { data: profileData, error } = await supabase
+      // Use case-insensitive lookup with ilike
+      const { data: profiles, error } = await supabase
         .from('profiles')
         .select('id, username, display_name, avatar_url, bio, is_verified')
-        .eq('username', username)
-        .single();
+        .ilike('username', username)
+        .limit(1);
 
-      if (error || !profileData) return null;
+      const profileData = profiles?.[0];
+      if (error || !profileData) {
+        console.warn('[HoverCard] Profile not found:', username, error?.message);
+        return null;
+      }
 
       // Get counts in parallel
       const [followerRes, followingRes, postRes, isFollowingRes] = await Promise.all([
@@ -82,6 +87,7 @@ function useHoverProfile(username: string, enabled: boolean) {
     },
     enabled,
     staleTime: 30000, // Cache for 30 seconds
+    retry: 1,
   });
 }
 

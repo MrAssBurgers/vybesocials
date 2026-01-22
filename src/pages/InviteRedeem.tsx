@@ -107,20 +107,30 @@ export default function InviteRedeem() {
           user_id: string;
         } | null = null;
         
-        // Find inviter by username or UUID
+        // Find inviter by username or UUID using case-insensitive lookup
         if (parsed.type === 'uuid') {
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from('profiles')
             .select('id, username, avatar_url, display_name, user_id')
             .eq('id', parsed.value)
             .maybeSingle();
+          
+          if (error) {
+            console.warn('[InviteRedeem] Error fetching inviter by ID:', error.message);
+          }
           inviterProfile = data;
         } else {
-          const { data } = await supabase
+          // Use ilike for case-insensitive username match
+          const { data, error } = await supabase
             .from('profiles')
             .select('id, username, avatar_url, display_name, user_id')
-            .ilike('username', parsed.value.toLowerCase())
+            .ilike('username', parsed.value)
+            .limit(1)
             .maybeSingle();
+          
+          if (error) {
+            console.warn('[InviteRedeem] Error fetching inviter by username:', error.message);
+          }
           inviterProfile = data;
         }
         

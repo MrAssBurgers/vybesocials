@@ -6,6 +6,7 @@ interface Profile {
   id: string;
   user_id: string;
   username: string;
+  display_name?: string | null;
   avatar_url: string | null;
   bio: string;
   created_at: string;
@@ -13,23 +14,33 @@ interface Profile {
   following_count: number;
   post_count: number;
   is_following: boolean;
+  is_private?: boolean | null;
+  is_verified?: boolean | null;
 }
 
-export function useProfileByUsername(username: string) {
+/**
+ * Hook to fetch a profile by ID with full stats
+ */
+export function useProfileById(profileId: string | undefined) {
   const { profile: currentProfile } = useAuth();
 
   return useQuery({
-    queryKey: ['profile', username, currentProfile?.id],
+    queryKey: ['profile-by-id', profileId, currentProfile?.id],
     queryFn: async (): Promise<Profile | null> => {
+      if (!profileId) return null;
+      
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('username', username)
-        .single();
+        .eq('id', profileId)
+        .maybeSingle();
 
-      if (error) return null;
+      if (error || !profile) {
+        console.warn('[useProfileById] Profile not found:', profileId, error?.message);
+        return null;
+      }
 
-      // Get counts
+      // Get counts in parallel
       const [followerCount, followingCount, postCount, isFollowing] = await Promise.all([
         supabase.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', profile.id),
         supabase.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', profile.id),
@@ -40,7 +51,57 @@ export function useProfileByUsername(username: string) {
               .select('id')
               .eq('follower_id', currentProfile.id)
               .eq('following_id', profile.id)
-              .single()
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+
+      return {
+        ...profile,
+        follower_count: followerCount.count || 0,
+        following_count: followingCount.count || 0,
+        post_count: postCount.count || 0,
+        is_following: !!isFollowing.data,
+      };
+    },
+    enabled: !!profileId,
+    staleTime: 1000 * 60 * 5,
+    retry: 2,
+  });
+}
+
+export function useProfileByUsername(username: string) {
+  const { profile: currentProfile } = useAuth();
+
+  return useQuery({
+    queryKey: ['profile', username, currentProfile?.id],
+    queryFn: async (): Promise<Profile | null> => {
+      // Use case-insensitive lookup directly on profiles table
+      // RLS now allows authenticated users to view all profiles
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('username', username)
+        .limit(1);
+
+      const profile = profiles?.[0];
+      
+      if (error || !profile) {
+        console.warn('[useProfile] Profile not found for username:', username, error?.message);
+        return null;
+      }
+
+      // Get counts in parallel
+      const [followerCount, followingCount, postCount, isFollowing] = await Promise.all([
+        supabase.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', profile.id),
+        supabase.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', profile.id),
+        supabase.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', profile.id),
+        currentProfile
+          ? supabase
+              .from('follows')
+              .select('id')
+              .eq('follower_id', currentProfile.id)
+              .eq('following_id', profile.id)
+              .maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
 
@@ -53,6 +114,8 @@ export function useProfileByUsername(username: string) {
       };
     },
     enabled: !!username,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: 2,
   });
 }
 
