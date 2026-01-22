@@ -15,6 +15,7 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { AutoFriendDrop } from '@/components/friends/AutoFriendDrop';
+import { ProfileRetryBanner } from '@/components/app/ProfileRetryBanner';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
@@ -219,6 +220,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
   return (
     <AppLayout>
+      {/* Profile retry banner - shows when profile fails to load */}
+      <ProfileRetryBanner />
+      
       {/* Auto FriendDrop - bump phones to add friends */}
       <AutoFriendDrop />
       
