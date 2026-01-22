@@ -57,9 +57,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authPhase, setAuthPhase] = useState<AuthPhase>('initializing');
   const [profileLoading, setProfileLoading] = useState(false);
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
-  
-  const initRef = useRef(false);
+
+  // Tracks whether we've successfully resolved auth at least once.
+  // This avoids StrictMode double-effect edge cases causing permanent "Signing you in...".
+  const resolvedRef = useRef(false);
   const profileFetchRef = useRef<Promise<Profile | null> | null>(null);
+  const profileRetryRef = useRef<string | null>(null);
+
+  // Supabase query builders are thenable, but not typed as Promise<T> in our generated types.
+  // Use Promise.resolve(...) to safely treat them as promises for timeouts.
+  const withTimeout = useCallback(async <T,>(promiseLike: unknown, ms: number, label: string): Promise<T> => {
+    return await Promise.race([
+      Promise.resolve(promiseLike as any) as Promise<T>,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+      ),
+    ]);
+  }, []);
 
   // Generate username from OAuth metadata
   const generateUsernameFromMetadata = useCallback(
@@ -123,37 +137,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileLoading(true);
 
     const fetchPromise = (async () => {
-      // IMPORTANT: abortSignal is the only way to ensure we never keep a stuck promise forever.
-      // If a request hangs and we keep profileFetchRef.current set, profile/userdata will NEVER load.
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), PROFILE_TIMEOUT_MS);
-
       try {
         // Try to get existing profile
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle()
-          .abortSignal(controller.signal);
+        let existing: { data: any; error: any } | null = null;
+        try {
+          existing = await withTimeout(
+            supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
+            PROFILE_TIMEOUT_MS,
+            'profiles.select'
+          );
+        } catch (e) {
+          console.warn('[Auth] profiles.select failed (non-blocking):', e);
+        }
 
-        clearTimeout(timeoutId);
-
-        if (!error && data) {
+        if (existing && !existing.error && existing.data) {
+          const data = existing.data;
           let profileData = data;
           
           // Auto-generate username for OAuth users if missing
           if (!profileData.username && userMetadata) {
             const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
-            await supabase
-              .from('profiles')
-              .update({ 
-                username: autoUsername,
-                display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-              })
-              .eq('id', profileData.id)
-              .abortSignal(controller.signal);
+            try {
+              await withTimeout(
+                supabase
+                  .from('profiles')
+                  .update({
+                    username: autoUsername,
+                    display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+                    avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+                  })
+                  .eq('id', profileData.id),
+                PROFILE_TIMEOUT_MS,
+                'profiles.update'
+              );
+            } catch (e) {
+              console.warn('[Auth] profiles.update failed (non-blocking):', e);
+            }
             
             profileData = {
               ...profileData,
@@ -170,33 +189,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Profile missing - try to create via ensure_profile
         try {
-          await supabase.rpc('ensure_profile').abortSignal(controller.signal);
+          await withTimeout(supabase.rpc('ensure_profile'), PROFILE_TIMEOUT_MS, 'ensure_profile');
         } catch (e) {
           console.warn('[Auth] ensure_profile failed:', e);
         }
 
         // Fetch newly created profile
-        const { data: newProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle()
-          .abortSignal(controller.signal);
+        let created: { data: any; error: any } | null = null;
+        try {
+          created = await withTimeout(
+            supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
+            PROFILE_TIMEOUT_MS,
+            'profiles.select.after_ensure'
+          );
+        } catch (e) {
+          console.warn('[Auth] profiles.select(after ensure) failed (non-blocking):', e);
+        }
 
-        if (newProfile) {
-          let profileData = newProfile;
+        if (created && !created.error && created.data) {
+          let profileData = created.data;
           
           if (!profileData.username && userMetadata) {
             const autoUsername = generateUsernameFromMetadata(userMetadata, userId);
-            await supabase
-              .from('profiles')
-              .update({ 
-                username: autoUsername,
-                display_name: userMetadata.full_name || userMetadata.name || autoUsername,
-                avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
-              })
-              .eq('id', profileData.id)
-              .abortSignal(controller.signal);
+            try {
+              await withTimeout(
+                supabase
+                  .from('profiles')
+                  .update({
+                    username: autoUsername,
+                    display_name: userMetadata.full_name || userMetadata.name || autoUsername,
+                    avatar_url: profileData.avatar_url || userMetadata.avatar_url || userMetadata.picture,
+                  })
+                  .eq('id', profileData.id),
+                PROFILE_TIMEOUT_MS,
+                'profiles.update.after_ensure'
+              );
+            } catch (e) {
+              console.warn('[Auth] profiles.update(after ensure) failed (non-blocking):', e);
+            }
             
             profileData = {
               ...profileData,
@@ -237,9 +267,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchProfile(user.id, user.user_metadata);
   }, [user, fetchProfile]);
 
+  // If auth is valid but profile is still missing, retry once (handles transient backend hiccups)
+  useEffect(() => {
+    if (AUTH_ONLY_MODE) return;
+
+    if (!user?.id) {
+      profileRetryRef.current = null;
+      return;
+    }
+
+    if (authPhase !== 'authenticated') return;
+    if (profile || profileLoading) return;
+
+    if (profileRetryRef.current === user.id) return;
+    profileRetryRef.current = user.id;
+
+    const t = setTimeout(() => {
+      refreshProfile().catch(() => {});
+    }, 1200);
+
+    return () => clearTimeout(t);
+  }, [user?.id, authPhase, profile, profileLoading, refreshProfile]);
+
   // CORE: Handle session changes - INSTANT auth resolution
   const handleSessionChange = useCallback((newSession: Session | null) => {
     console.log('[Auth] handleSessionChange:', !!newSession);
+
+    resolvedRef.current = true;
     
     setSession(newSession);
     setUser(newSession?.user ?? null);
@@ -266,9 +320,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Initialize auth - runs exactly once
   useEffect(() => {
-    if (initRef.current) return;
-    initRef.current = true;
-
     let mounted = true;
 
     console.log('[Auth] Initializing...');
@@ -292,15 +343,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Only process if we haven't already via onAuthStateChange
-      if (!authReady) {
-        handleSessionChange(data.session);
-      }
+      // Always apply the session snapshot; handleSessionChange is idempotent.
+      handleSessionChange(data.session);
     });
 
     // Hard failsafe - NEVER stay loading forever
     const failsafe = setTimeout(() => {
-      if (mounted && !authReady) {
+      if (mounted && !resolvedRef.current) {
         console.warn('[Auth] Failsafe timeout - forcing ready');
         setAuthPhase('unauthenticated');
         setLoading(false);
@@ -313,7 +362,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(failsafe);
       subscription.unsubscribe();
     };
-  }, [handleSessionChange, authReady]);
+  }, [handleSessionChange]);
 
   const signUp = useCallback(async (email: string, password: string, username: string) => {
     try {

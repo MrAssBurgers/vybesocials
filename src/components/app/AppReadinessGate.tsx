@@ -11,7 +11,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { SplashScreen } from "@/components/ui/SplashScreen";
-import { toast } from "sonner";
 
 type GatePhase = 'auth' | 'data' | 'ready';
 
@@ -161,7 +160,10 @@ export function AppReadinessGate({ children }: { children: ReactNode }) {
         safeFetch("posts", async () => {
           const { data } = await supabase.rpc("get_posts_with_counts", { p_type: null, p_author_id: null, p_user_id: profileId, p_offset: 0, p_limit: 50 });
           const posts = (data || []).map(transformPost);
-          queryClient.setQueryData(["infinite-posts", undefined, undefined, profileId], { pages: [{ posts, nextPage: posts.length >= 50 ? 1 : null }], pageParams: [0] });
+          queryClient.setQueryData(["infinite-posts", undefined, undefined, profileId], {
+            pages: [{ posts, nextPage: posts.length >= 50 ? 1 : null, totalLoaded: posts.length }],
+            pageParams: [0],
+          });
         }, null),
       ]);
 
