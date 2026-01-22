@@ -3,18 +3,33 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, AlertCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/integrations/supabase/client';
 
 export function ProfileRetryBanner() {
   const { user, profile, profileLoading, refreshProfile, authPhase } = useAuth();
   const [isRetrying, setIsRetrying] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Only show if: authenticated, no profile, not currently loading, not dismissed
   const shouldShow = authPhase === 'authenticated' && user && !profile && !profileLoading && !dismissed;
 
   const handleRetry = useCallback(async () => {
     setIsRetrying(true);
+    setRetryCount(prev => prev + 1);
+    
     try {
+      // First, try to call ensure_profile to create the profile if it doesn't exist
+      console.log('[ProfileRetryBanner] Calling ensure_profile...');
+      try {
+        await supabase.rpc('ensure_profile');
+        // Wait for DB to settle
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (err) {
+        console.warn('[ProfileRetryBanner] ensure_profile failed:', err);
+      }
+      
+      // Then refresh the profile
       await refreshProfile();
     } finally {
       setIsRetrying(false);
@@ -38,7 +53,9 @@ export function ProfileRetryBanner() {
                   Profile failed to load
                 </p>
                 <p className="text-xs text-destructive-foreground/80">
-                  Tap retry to load your profile
+                  {retryCount > 2 
+                    ? "Try signing out and back in" 
+                    : "Tap retry to load your profile"}
                 </p>
               </div>
               <div className="flex items-center gap-2">

@@ -4,6 +4,40 @@ import { supabase } from "@/integrations/supabase/client";
 import { getUserFriendlyError } from "@/lib/errorUtils";
 import { Button } from "@/components/ui/button";
 
+// Ensure profile exists with retry logic
+async function ensureProfileWithRetry(maxAttempts = 3): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      console.log(`[AuthCallback] ensure_profile attempt ${attempt}/${maxAttempts}`);
+      const { error } = await supabase.rpc("ensure_profile");
+      if (!error) {
+        // Verify profile actually exists
+        const { data: session } = await supabase.auth.getSession();
+        if (session?.session?.user?.id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .eq('user_id', session.session.user.id)
+            .maybeSingle();
+          
+          if (profile?.id) {
+            console.log('[AuthCallback] Profile confirmed:', profile.id);
+            return true;
+          }
+        }
+      }
+      console.warn(`[AuthCallback] ensure_profile attempt ${attempt} failed or profile not found`);
+    } catch (err) {
+      console.warn(`[AuthCallback] ensure_profile attempt ${attempt} error:`, err);
+    }
+    // Wait before retry (exponential backoff)
+    if (attempt < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+    }
+  }
+  return false;
+}
+
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -18,12 +52,12 @@ export default function AuthCallback() {
   useEffect(() => {
     let cancelled = false;
 
-    // Hard timeout - NEVER hang more than 6 seconds
+    // Hard timeout - NEVER hang more than 8 seconds
     const timeoutId = setTimeout(() => {
       if (cancelled) return;
       console.warn('[AuthCallback] Timeout exceeded, navigating anyway');
       navigate(nextPath, { replace: true });
-    }, 6000);
+    }, 8000);
 
     (async () => {
       try {
@@ -52,20 +86,22 @@ export default function AuthCallback() {
           throw new Error("No session was created");
         }
 
-        setStatus("Success! Redirecting...");
-
-        // Fire-and-forget profile ensure
-        void (async () => {
-          try {
-            await supabase.rpc("ensure_profile");
-          } catch (err) {
-            console.warn('[AuthCallback] ensure_profile failed (non-blocking):', err);
-          }
-        })();
+        // CRITICAL: Wait for profile to be created/confirmed before navigating
+        setStatus("Setting up your profile...");
+        const profileReady = await ensureProfileWithRetry(3);
+        
+        if (!profileReady) {
+          console.warn('[AuthCallback] Profile setup incomplete, navigating anyway');
+        }
 
         if (cancelled) return;
 
-        // Navigate immediately
+        setStatus("Success! Redirecting...");
+        
+        // Small delay to let auth state propagate
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Navigate
         navigate(nextPath, { replace: true });
       } catch (e: any) {
         if (cancelled) return;
