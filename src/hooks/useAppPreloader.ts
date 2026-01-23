@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { batchSignUrls } from '@/lib/signedUrlCache';
 
 interface PreloadStatus {
   step: string;
@@ -101,6 +102,10 @@ export function useAppPreloader() {
                 pageParams: [0],
               }
             );
+
+            // Pre-sign URLs for guest mode too
+            const urlsToSign = (posts as any[]).flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+            batchSignUrls(urlsToSign).catch(() => {});
           }
 
           console.log(`[Preloader] Guest mode complete - ${(performance.now() - startTime).toFixed(0)}ms`);
@@ -148,7 +153,7 @@ export function useAppPreloader() {
 
         updateStatus('messages');
 
-        // Cache feed
+        // Cache feed and pre-sign URLs
         if (feedResult.status === 'fulfilled' && feedResult.value.data) {
           const posts = feedResult.value.data as any[];
           const transformedPosts = posts.map((row) => ({
@@ -182,6 +187,10 @@ export function useAppPreloader() {
               pageParams: [0],
             }
           );
+
+          // Pre-sign all URLs for instant display (fire and forget)
+          const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+          batchSignUrls(urlsToSign).catch(() => {});
         }
 
         // Cache conversations
