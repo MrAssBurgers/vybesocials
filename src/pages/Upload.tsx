@@ -181,6 +181,7 @@ export default function UploadPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // Camera and AI Video Generator are fullscreen overlays - no bottom nav needed
   if (showCamera) return <Camera onClose={() => setShowCamera(false)} />;
 
   if (showAIVideoGenerator) {
@@ -193,7 +194,7 @@ export default function UploadPage() {
   }
 
   return (
-    <AppLayout>
+    <AppLayout hideNav>
       {showSafetyScanner && file && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
           <ContentSafetyScanner 
