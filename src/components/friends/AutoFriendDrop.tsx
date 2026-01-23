@@ -172,6 +172,17 @@ export function AutoFriendDrop() {
   // Track if we are the QR owner (our QR was scanned) or the scanner
   const [isQrOwner, setIsQrOwner] = useState(false);
   
+  // Auto-close helper
+  const autoCloseAfterSuccess = useCallback(() => {
+    setTimeout(() => {
+      setIsActive(false);
+      setPhase('idle');
+      setFoundUser(null);
+      setActiveDropId(null);
+      setIsQrOwner(false);
+    }, 3000);
+  }, []);
+  
   // Realtime sync for dual-device animation
   const friendDropSync = useFriendDropSync({
     enabled: isActive,
@@ -183,29 +194,37 @@ export function AutoFriendDrop() {
         fetchUser(drop.to_user_id).then((scannedUser) => {
           if (scannedUser) {
             setFoundUser(scannedUser);
-            // Skip 'found' phase - go straight to exchanging with auto-add
+            // Go to exchanging phase - show fly-out animation
             setPhase('exchanging');
-            // Auto-complete after animation
-            setTimeout(() => {
-              sendRequest.mutateAsync(scannedUser.id).then(() => {
-                friendDropSync.completeDrop(activeDropId!);
-              }).catch(() => {
-                // Already friends or error - still show success
-                friendDropSync.completeDrop(activeDropId!);
-              });
-            }, 1200);
+            // After animation, send friend request and complete
+            setTimeout(async () => {
+              try {
+                await sendRequest.mutateAsync(scannedUser.id);
+              } catch {
+                // Already friends - that's ok
+              }
+              // Mark as completed - both sides will see success
+              if (activeDropId) {
+                await friendDropSync.completeDrop(activeDropId);
+              }
+            }, 1500);
           }
         });
       }
-    }, [activeDropId]),
+    }, [activeDropId, sendRequest]),
     onConfirmed: useCallback(() => {
-      setPhase('exchanging');
-      haptics.impact();
-    }, []),
+      // Both sides see this - transition to exchanging
+      if (phase !== 'exchanging') {
+        setPhase('exchanging');
+        haptics.impact();
+      }
+    }, [phase]),
     onCompleted: useCallback(() => {
+      // Both sides see this - show success and auto-close
       setPhase('success');
       haptics.success();
-    }, []),
+      autoCloseAfterSuccess();
+    }, [autoCloseAfterSuccess]),
   });
   
   // Native FriendDrop (Bluetooth/Nearby) - works on native apps
@@ -329,36 +348,18 @@ export function AutoFriendDrop() {
     setActiveDropId(dropId);
     setIsQrOwner(false); // We are the scanner, not the owner
 
-    // Fetch the QR owner's profile and AUTO-ADD immediately
+    // Fetch the QR owner's profile and show exchanging animation
     if (scannedDrop.from_user_id) {
       const ownerProfile = await fetchUser(scannedDrop.from_user_id);
       if (ownerProfile) {
         setFoundUser(ownerProfile);
-        // Skip found phase - go straight to exchanging animation
+        // Go to exchanging animation - profile flies IN
         setPhase('exchanging');
-        
-        // Auto-add friend after a brief animation delay
-        setTimeout(async () => {
-          try {
-            await sendRequest.mutateAsync(ownerProfile.id);
-            await friendDropSync.completeDrop(dropId);
-            setPhase('success');
-            haptics.success();
-            setTimeout(handleClose, 2000);
-          } catch (error: any) {
-            if (error?.message?.includes('already')) {
-              await friendDropSync.completeDrop(dropId);
-              setPhase('success');
-              setTimeout(handleClose, 1500);
-            } else {
-              toast.error('Failed to add friend');
-              handleClose();
-            }
-          }
-        }, 1200);
+        // The QR owner will handle sending the friend request and completing
+        // We just wait for the realtime 'completed' event to show success
       }
     }
-  }, [friendDropSync, stopScanning, sendRequest]);
+  }, [friendDropSync, stopScanning]);
 
   const startScanning = useCallback(async () => {
     try {
@@ -459,33 +460,38 @@ export function AutoFriendDrop() {
     try {
       await sendRequest.mutateAsync(foundUser.id);
       
-      // Complete the drop
+      // Complete the drop - this triggers success on BOTH devices via realtime
       if (activeDropId) {
         await friendDropSync.completeDrop(activeDropId);
       }
       
-      setPhase('success');
-      haptics.success();
-      
-      setTimeout(() => {
-        handleClose();
-      }, 2500);
+      // If no activeDropId (legacy flow), manually show success
+      if (!activeDropId) {
+        setPhase('success');
+        haptics.success();
+        autoCloseAfterSuccess();
+      }
+      // Otherwise, the realtime onCompleted callback handles it
     } catch (error: any) {
       if (error?.message?.includes('already')) {
         toast.info('Already friends or request pending!');
-        setPhase('success');
-        setTimeout(handleClose, 1500);
+        if (activeDropId) {
+          await friendDropSync.completeDrop(activeDropId);
+        } else {
+          setPhase('success');
+          autoCloseAfterSuccess();
+        }
       } else {
         toast.error('Failed to send request');
         setPhase('found');
       }
     }
-  }, [foundUser, sendRequest, activeDropId, friendDropSync]);
+  }, [foundUser, sendRequest, activeDropId, friendDropSync, autoCloseAfterSuccess]);
 
   const handleClose = useCallback(async () => {
     stopScanning();
-    // Cancel the drop
-    if (activeDropId) {
+    // Only cancel the drop if we're not in success phase (don't interfere with completed drops)
+    if (activeDropId && phase !== 'success') {
       await friendDropSync.cancelDrop(activeDropId);
     }
     // Stop native session if active
@@ -497,7 +503,7 @@ export function AutoFriendDrop() {
     setFoundUser(null);
     setActiveDropId(null);
     setIsQrOwner(false);
-  }, [stopScanning, nativeFriendDrop, activeDropId, friendDropSync]);
+  }, [stopScanning, nativeFriendDrop, activeDropId, friendDropSync, phase]);
 
   useEffect(() => {
     return () => {
