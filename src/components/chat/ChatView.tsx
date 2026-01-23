@@ -43,6 +43,7 @@ import { CallButtons } from '@/components/call/CallButtons';
 import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 import { useChatPresence } from '@/hooks/useChatPresence';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
+import { LivePresenceBar, SnapTypingBubble, ScreenshotAlert } from './SnapchatFeedback';
 import { AIAssistButton } from './AIAssistButton';
 import { SmartRepliesBar } from './SmartRepliesBar';
 import { ChatSummarySheet } from './ChatSummarySheet';
@@ -160,6 +161,8 @@ export function ChatView() {
   const [showMediaSettings, setShowMediaSettings] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showSnapCamera, setShowSnapCamera] = useState(false);
+  const [showScreenshotAlert, setShowScreenshotAlert] = useState(false);
+  const [screenshotUser, setScreenshotUser] = useState<string | undefined>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -722,6 +725,15 @@ export function ChatView() {
 
   return (
     <div className="flex flex-col h-full bg-background relative overflow-hidden">
+      {/* Screenshot alert popup */}
+      <AnimatePresence>
+        {screenshotEvents.length > 0 && (
+          <ScreenshotAlert
+            username={screenshotEvents[screenshotEvents.length - 1]?.username}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Header - fixed height, compact on mobile */}
       <header className="flex-shrink-0 h-14 sm:h-16 px-2 sm:px-4 border-b border-border flex items-center gap-2 sm:gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20">
         <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10">
@@ -786,16 +798,13 @@ export function ChatView() {
             >
               {otherMembers.length + 1} members · Tap for info
             </button>
-          ) : !typingUsers.length ? (
-            <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight">
-              {otherMemberOnline ? 'Online' : 'Offline'}
-            </p>
-          ) : null}
-          {typingUsers.length > 0 && (
-            <p className="text-[11px] sm:text-xs text-primary flex items-center gap-1 leading-tight">
-              <Sparkles className="h-3 w-3" />
-              {t('messages.typing')}
-            </p>
+          ) : (
+            <LivePresenceBar
+              isOnline={otherMemberOnline}
+              isTyping={typingUsers.length > 0}
+              isInChat={presentUsers.length > 0}
+              username={otherMember?.username}
+            />
           )}
         </div>
         
@@ -1069,8 +1078,20 @@ export function ChatView() {
             )}
           </AnimatePresence>
 
-          {/* Snapchat-style presence/typing indicator - in message flow, above input */}
-          {presentUsers && presentUsers.length > 0 && (
+          {/* Snapchat-style typing bubble - appears in chat when someone is typing */}
+          <AnimatePresence>
+            {typingUsers && typingUsers.length > 0 && !isGroupChat && otherMember && (
+              <SnapTypingBubble
+                avatarUrl={otherMember.avatar_url}
+                username={otherMember.username}
+                displayName={otherMember.display_name}
+                size="md"
+              />
+            )}
+          </AnimatePresence>
+
+          {/* Group chat presence indicator */}
+          {isGroupChat && presentUsers && presentUsers.length > 0 && (
             <ChatPresenceIndicator
               presentUsers={presentUsers}
               typingUserIds={typingUsers || []}
