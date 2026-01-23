@@ -118,54 +118,13 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
   const [isQrExpanded, setIsQrExpanded] = useState(false);
   const [wasScanned, setWasScanned] = useState(false);
+  const [activeDropId, setActiveDropId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Realtime sync for dual-device animation
-  const friendDropSync = useFriendDropSync({
-    enabled: isOpen,
-    onScanned: (drop) => {
-      // QR owner sees this when their QR is scanned
-      setWasScanned(true);
-      setIsQrExpanded(false); // Auto-shrink QR when scanned
-      haptics.success();
-      
-      // Fetch the scanner's profile
-      if (drop.to_user_id) {
-        fetchUser(drop.to_user_id).then((scannedUser) => {
-          if (scannedUser) {
-            setFoundUser(scannedUser);
-            setPhase('found');
-          }
-        });
-      }
-    },
-    onConfirmed: () => {
-      // Both devices see this - start the animation!
-      setPhase('exchanging');
-      haptics.impact();
-    },
-    onCompleted: () => {
-      setPhase('success');
-      haptics.success();
-    },
-  });
-
-  // Generate QR data with drop ID for realtime sync
-  const [activeDropId, setActiveDropId] = useState<string | null>(null);
-  
-  const myProfileUrl = activeDropId 
-    ? `https://vybehub.app/friend-drop/${activeDropId}`
-    : profile?.username 
-      ? `https://vybehub.app/add-friend/${user?.id}`
-      : '';
-  
-  const qrCodeUrl = myProfileUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(myProfileUrl)}&bgcolor=000000&color=ffffff&format=svg&ecc=H`
-    : '';
-
+  // Fetch user helper
   const fetchUser = async (userId: string): Promise<FoundUser | null> => {
     try {
       const { data, error } = await supabase
@@ -179,6 +138,92 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       return null;
     }
   };
+
+  // Realtime sync for dual-device animation
+  const friendDropSync = useFriendDropSync({
+    enabled: isOpen,
+    onScanned: useCallback((drop) => {
+      console.log('[FriendDrop] onScanned triggered, drop:', drop);
+      // QR owner sees this when their QR is scanned
+      setWasScanned(true);
+      setIsQrExpanded(false); // Auto-shrink QR when scanned
+      haptics.success();
+      
+      // Fetch the scanner's profile and show found phase
+      if (drop.to_user_id) {
+        fetchUser(drop.to_user_id).then((scannedUser) => {
+          if (scannedUser) {
+            console.log('[FriendDrop] Found scanner user:', scannedUser);
+            setFoundUser(scannedUser);
+            setPhase('found');
+          }
+        });
+      }
+    }, []),
+    onConfirmed: useCallback(() => {
+      console.log('[FriendDrop] onConfirmed triggered - starting exchanging animation');
+      // Both devices see this - start the animation!
+      setPhase('exchanging');
+      haptics.impact();
+    }, []),
+    onCompleted: useCallback(() => {
+      console.log('[FriendDrop] onCompleted triggered - showing success');
+      setPhase('success');
+      haptics.success();
+    }, []),
+  });
+  
+  const myProfileUrl = activeDropId 
+    ? `https://vybehub.app/friend-drop/${activeDropId}`
+    : profile?.username 
+      ? `https://vybehub.app/add-friend/${user?.id}`
+      : '';
+  
+  const qrCodeUrl = myProfileUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(myProfileUrl)}&bgcolor=000000&color=ffffff&format=svg&ecc=H`
+    : '';
+
+  // Stop scanning helper - defined early so other callbacks can use it
+  const stopScanning = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+  }, []);
+
+  // Handle drop scan - called when scanner successfully scans QR
+  const handleDropScan = useCallback(async (dropId: string) => {
+    stopScanning();
+    haptics.success();
+    setPhase('detected');
+    console.log('[FriendDrop] Scanning drop:', dropId);
+
+    // Register ourselves as the scanner - this triggers realtime update to QR owner
+    const scannedDrop = await friendDropSync.scanDrop(dropId);
+    if (!scannedDrop) {
+      toast.error('This code has expired');
+      setPhase('idle');
+      return;
+    }
+
+    // Store the drop ID for later confirmation
+    setActiveDropId(dropId);
+
+    // Fetch the QR owner's profile and show their info
+    if (scannedDrop.from_user_id) {
+      setTimeout(async () => {
+        const ownerProfile = await fetchUser(scannedDrop.from_user_id);
+        if (ownerProfile) {
+          console.log('[FriendDrop] Found QR owner:', ownerProfile);
+          setFoundUser(ownerProfile);
+          setPhase('found');
+        }
+      }, 1000);
+    }
+  }, [friendDropSync, stopScanning]);
 
   const handleOpen = useCallback(async () => {
     if (!profile?.username) {
@@ -276,37 +321,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     }
   }, [user?.id]);
 
-  // Handle scanning a friend-drop QR (realtime sync version)
-  const handleDropScan = useCallback(async (dropId: string) => {
-    stopScanning();
-    haptics.success();
-    setPhase('detected');
-
-    // Register ourselves as the scanner
-    const success = await friendDropSync.scanDrop(dropId);
-    if (!success) {
-      toast.error('This code has expired');
-      setPhase('idle');
-      return;
-    }
-
-    // Fetch the QR owner's profile
-    const { data: drop } = await supabase
-      .from('friend_drops')
-      .select('from_user_id')
-      .eq('id', dropId)
-      .single();
-
-    if (drop?.from_user_id) {
-      setTimeout(async () => {
-        const ownerProfile = await fetchUser(drop.from_user_id);
-        if (ownerProfile) {
-          setFoundUser(ownerProfile);
-          setPhase('found');
-        }
-      }, 1000);
-    }
-  }, [friendDropSync]);
+  // (handleDropScan moved above to fix declaration order)
 
   const handleFoundUser = useCallback(async (userId: string) => {
     stopScanning();
@@ -363,15 +378,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     }
   }, [foundUser, sendRequest, activeDropId, friendDropSync]);
 
-  const stopScanning = useCallback(() => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-  }, []);
+  // (stopScanning moved above for proper declaration order)
 
   const handleClose = useCallback(async () => {
     stopScanning();
