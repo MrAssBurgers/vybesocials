@@ -53,9 +53,9 @@ export function ContentSafetyScanner({
       case 'scanning':
         return <Loader2 className="h-16 w-16 text-primary animate-spin" />;
       case 'allowed':
-        return <ShieldCheck className="h-16 w-16 text-green-500" />;
+        return <ShieldCheck className="h-16 w-16 text-emerald-500" />;
       case 'warned':
-        return <ShieldAlert className="h-16 w-16 text-yellow-500" />;
+        return <ShieldCheck className="h-16 w-16 text-amber-500" />;
       case 'blocked':
         return <ShieldX className="h-16 w-16 text-destructive" />;
       default:
@@ -70,9 +70,9 @@ export function ContentSafetyScanner({
       case 'allowed':
         return 'Content Approved';
       case 'warned':
-        return 'Content Warning';
+        return 'Content Allowed';
       case 'blocked':
-        return 'Content Blocked';
+        return 'Content Not Allowed';
       default:
         return 'Content Safety';
     }
@@ -86,9 +86,9 @@ export function ContentSafetyScanner({
       case 'allowed':
         return 'Your content is ready to share!';
       case 'warned':
-        return 'This content may be sensitive. You can still proceed if you wish.';
+        return 'This content is allowed but may be sensitive to some viewers. You can proceed with posting.';
       case 'blocked':
-        return 'This content violates our community guidelines and cannot be posted.';
+        return 'This content cannot be posted. Please choose different content.';
       default:
         return '';
     }
@@ -97,9 +97,9 @@ export function ContentSafetyScanner({
   const getBgClass = () => {
     switch (result) {
       case 'allowed':
-        return 'border-green-500/30 bg-green-500/5';
+        return 'border-emerald-500/30 bg-emerald-500/5';
       case 'warned':
-        return 'border-yellow-500/30 bg-yellow-500/5';
+        return 'border-amber-500/30 bg-amber-500/5';
       case 'blocked':
         return 'border-destructive/30 bg-destructive/5';
       default:
@@ -233,11 +233,11 @@ export function ContentSafetyScanner({
 
           {result === 'warned' && (
             <>
-              <Button onClick={onContinue} variant="default" className="w-full">
-                Post Anyway
+              <Button onClick={onContinue} variant="gradient" className="w-full">
+                Continue to Post
               </Button>
-              <Button onClick={onCancel} variant="outline" className="w-full">
-                Edit Content
+              <Button onClick={onCancel} variant="ghost" className="w-full text-muted-foreground">
+                Choose Different Content
               </Button>
             </>
           )}

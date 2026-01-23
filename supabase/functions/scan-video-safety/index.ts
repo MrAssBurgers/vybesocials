@@ -5,6 +5,9 @@
  * 1. Extracting frames for visual analysis
  * 2. Transcribing audio content (CRITICAL for hate speech detection)
  * 3. Using AI to evaluate both for safety violations
+ * 
+ * TUNED: Context-aware moderation that allows non-sexual adult content
+ * while maintaining strict hate speech and child safety blocks
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -53,78 +56,103 @@ serve(async (req) => {
       );
     }
 
-    // Use Gemini's native video understanding capabilities with STRICT content detection
+    // Context-aware video moderation with strong hate speech detection
     const messages = [
       {
         role: "system",
-        content: `You are an extremely strict video content safety analyzer. Your PRIMARY task is to:
+        content: `You are a context-aware video content safety analyzer. Your PRIMARY tasks are:
 
-1. TRANSCRIBE ALL AUDIO/SPEECH in the video WORD FOR WORD
-2. Analyze the transcript for ANY hate speech, slurs, or offensive language
-3. Analyze visual content for safety violations
+1. TRANSCRIBE ALL AUDIO/SPEECH word for word
+2. Analyze for hate speech, slurs, and harmful audio content
+3. Analyze visual content with context awareness
 
-CRITICAL: AUDIO TRANSCRIPTION IS MANDATORY
-You MUST listen to and transcribe every word spoken in the video. This is the most important part of your analysis.
+## AUDIO MODERATION - KEEP STRICT
 
-IMMEDIATE BLOCK - HATE SPEECH & SLURS (score 1.0):
-Block ANY video containing these types of language (spoken or written):
-- The N-word in ANY form or spelling variation (hard-r or soft-a ending)
-- Any racial slurs against ANY race or ethnicity
-- Anti-Semitic slurs or Holocaust denial
+### IMMEDIATE BLOCK FOR AUDIO (score 1.0):
+- The N-word in ANY form (hard-r or soft-a, any spelling)
+- ANY racial slurs or epithets
+- Anti-Semitic language or Holocaust denial
 - Homophobic slurs (f-word slur, etc.)
 - Transphobic slurs
 - Ableist slurs (r-word, etc.)
-- Sexist/misogynistic slurs
-- Religious hate speech
-- Ethnic slurs of any kind
-- ANY derogatory terms targeting protected groups
-- Dog whistles or coded hate speech
-- Threats against any group or individual
+- Direct threats against individuals or groups
+- Calls for violence
+- Detailed instructions for illegal activities
+- Sexual content involving minors
 
-ALSO BLOCK FOR:
-- ANY shirtless person (male or female)
-- Swimwear, bikinis, underwear, or lingerie
-- Nudity or sexually suggestive content
-- Violence, gore, or graphic content
+### AUDIO CONTEXT EXCEPTIONS:
+- Educational content discussing hate speech (with clear educational framing)
+- News reporting on incidents (quoting for context)
+- Music with mild profanity (not slurs) is generally OK
+
+## VISUAL MODERATION - CONTEXT AWARE
+
+### IMMEDIATE BLOCK FOR VISUALS (score 1.0):
+- ANY content involving minors in sexual/suggestive contexts
+- Full nudity (genitals, exposed buttocks, female nipples)
+- Sexual acts or explicit content
+- Sexual or provocative poses
+- Fetish/BDSM content
+- Graphic violence or gore
+- Hate symbols (swastikas, KKK, etc.)
 - Self-harm content
-- Drug use
-- Dangerous or illegal activities
 
-YOUR RESPONSE FORMAT (JSON only):
+### ALLOW FOR VISUALS (normal content):
+- Shirtless adult men in fitness/sports/casual contexts (gym, beach, pool, working out)
+- Adult women in appropriate swimwear
+- Athletic/fitness content showing physique
+- Sports content
+- Beach/pool videos without sexual posing
+- Normal daily life content
+
+### VISUAL CONTEXT EVALUATION:
+Ask yourself:
+1. Is this person clearly an adult? (18+)
+2. Is there sexual intent or provocative posing?
+3. Are explicit areas visible?
+4. Is this a normal activity (sports, fitness, swimming)?
+
+Adult + No sexual intent + No explicit areas + Normal activity = ALLOW
+
+## RESPONSE FORMAT (JSON only):
 {
   "result": "blocked" | "warned" | "allowed",
-  "categories": ["hate_speech", "racial_slur", etc.],
+  "categories": ["category1", "category2"],
   "score": 0.0-1.0,
-  "reason": "Clear explanation of why blocked",
-  "audioTranscript": "EXACT word-for-word transcription of ALL speech in the video - THIS IS MANDATORY",
+  "reason": "Clear explanation",
+  "audioTranscript": "EXACT word-for-word transcription of ALL speech - MANDATORY",
   "visualIssues": "Description of visual concerns if any",
-  "audioIssues": "Specific offensive words/phrases found in audio"
+  "audioIssues": "Specific offensive words/phrases if found"
 }
 
-SCORING:
-- 1.0 = BLOCKED: ANY slur, hate speech, or explicit content
-- 0.5-0.9 = BLOCKED: Violence, dangerous content
-- 0.3-0.5 = WARNED: Borderline language, mild profanity
-- 0.0-0.3 = ALLOWED: Clean content
+## SCORING THRESHOLDS:
+- 0.7-1.0 = BLOCKED: Slurs, hate speech, explicit content, minors
+- 0.4-0.69 = WARNED: Borderline content, excessive profanity
+- 0.0-0.39 = ALLOWED: Normal content, shirtless fitness, etc.
 
-CRITICAL RULES:
-1. ALWAYS transcribe the audio - even if you think it's clean
-2. If you hear ANYTHING that sounds like a slur, BLOCK IT
-3. When in doubt, BLOCK
-4. Pay attention to music lyrics too - they count as audio content
-5. Mumbled or unclear slurs still count - BLOCK them
-6. Context does NOT excuse slurs - block regardless of "educational" or "quoting" claims`
+## CRITICAL RULES:
+1. ALWAYS transcribe audio - this is mandatory
+2. Hate speech in audio = BLOCK regardless of visuals
+3. Shirtless adults in gym/beach context = ALLOW
+4. Sexual content = BLOCK regardless of who
+5. Minors + any nudity/suggestiveness = BLOCK (zero tolerance)
+6. Context matters for visuals - fitness ≠ sexual`
       },
       {
         role: "user",
         content: [
           {
             type: "text",
-            text: `IMPORTANT: First, transcribe EVERY WORD of audio in this video. Then analyze for hate speech, slurs, and offensive content. 
+            text: `Analyze this video for safety:
 
-You MUST provide the audioTranscript field with the exact words spoken. If there are racial slurs, hate speech, or any offensive language, immediately set result to "blocked".
+1. FIRST: Transcribe all audio/speech word for word (mandatory)
+2. Check audio for slurs, hate speech, threats (BLOCK these)
+3. Check visuals with CONTEXT awareness:
+   - Shirtless adults in fitness/casual contexts = OK
+   - Sexual content = BLOCK
+   - Minors in any inappropriate context = BLOCK
 
-Respond with ONLY the JSON object, no other text.`
+Respond with ONLY the JSON object.`
           },
           {
             type: "image_url",
@@ -136,7 +164,7 @@ Respond with ONLY the JSON object, no other text.`
       },
     ];
 
-    console.log("Sending video to AI for audio transcription and safety analysis...");
+    console.log("Sending video to AI for context-aware safety analysis...");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -145,7 +173,7 @@ Respond with ONLY the JSON object, no other text.`
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro", // Using Pro for better audio understanding
+        model: "google/gemini-2.5-pro", // Using Pro for better understanding
         messages,
         max_tokens: 2000,
       }),
@@ -190,10 +218,23 @@ Respond with ONLY the JSON object, no other text.`
         console.log("Audio transcript:", parsed.audioTranscript);
       }
       
+      // Determine result based on score thresholds
+      let result: 'allowed' | 'warned' | 'blocked' = parsed.result || 'allowed';
+      const score = parsed.score || 0;
+      
+      // Override based on score for consistency
+      if (score >= 0.7) {
+        result = 'blocked';
+      } else if (score >= 0.4 && score < 0.7) {
+        result = 'warned';
+      } else {
+        result = 'allowed';
+      }
+      
       const safetyResponse: SafetyResponse = {
-        result: parsed.result || 'allowed',
+        result,
         categories: parsed.categories || [],
-        score: parsed.score || 0,
+        score,
         audioTranscript: parsed.audioTranscript,
         visualAnalysis: parsed.visualIssues,
         audioAnalysis: parsed.audioIssues,
@@ -201,23 +242,22 @@ Respond with ONLY the JSON object, no other text.`
 
       // Generate user-friendly message
       if (safetyResponse.result === 'blocked') {
-        const issues: string[] = [];
-        if (parsed.audioIssues) issues.push('audio content containing hate speech or slurs');
-        if (parsed.visualIssues) issues.push('visual content');
-        
-        if (safetyResponse.categories?.some(c => 
+        // Check if it's a hate speech block
+        const isHateSpeech = safetyResponse.categories?.some(c => 
           c.toLowerCase().includes('hate') || 
           c.toLowerCase().includes('slur') || 
           c.toLowerCase().includes('racial')
-        )) {
+        );
+        
+        if (isHateSpeech) {
           safetyResponse.message = `This video cannot be posted because it contains hate speech or slurs. This type of content violates our community guidelines.`;
+        } else if (parsed.audioIssues) {
+          safetyResponse.message = `This video cannot be posted due to inappropriate audio content.`;
         } else {
-          safetyResponse.message = `This video cannot be posted because it contains inappropriate ${
-            issues.length > 0 ? issues.join(' and ') : 'content'
-          }.`;
+          safetyResponse.message = `This video cannot be posted because it contains content that violates community guidelines.`;
         }
       } else if (safetyResponse.result === 'warned') {
-        safetyResponse.message = `This video may contain sensitive content. Viewers will see a content warning.`;
+        safetyResponse.message = `This content is allowed but please follow community guidelines. Some viewers may find it sensitive.`;
       } else {
         safetyResponse.message = 'Video passed safety checks.';
       }
