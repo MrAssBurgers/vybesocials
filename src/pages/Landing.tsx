@@ -231,10 +231,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 exit={{ opacity: 0, height: 0 }}
                 className="mb-6"
               >
-                <Alert className="bg-red-500/15 border-red-500/50 text-red-400">
-                  <AlertTriangle className="h-4 w-4 text-red-400" />
-                  <AlertDescription className="text-red-300 text-sm pr-6">
-                    Please create a new account — the old database got corrupted so it had to be deleted. Thank you so much for your patience! 💜
+                <Alert className="bg-amber-500/15 border-amber-500/50 text-amber-400">
+                  <AlertTriangle className="h-4 w-4 text-amber-400" />
+                  <AlertDescription className="text-amber-300 text-sm pr-6">
+                    <strong>Returning user?</strong> Sign up with the same email you used before to reclaim your profile, posts, and friends. New users can sign up normally! 💜
                   </AlertDescription>
                   <button 
                     onClick={() => setShowDbNotice(false)}
