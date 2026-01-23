@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { Image, Camera, X, Sparkles } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
@@ -77,32 +77,25 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm"
+            {/* Backdrop - CSS transition for performance */}
+            <div
+              className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm animate-fade-in"
               onClick={onClose}
+              style={{ animationDuration: '150ms' }}
             />
 
-            {/* Menu - Centered */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.85, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 10 }}
-              transition={{ 
-                type: 'spring', 
-                stiffness: 300, 
-                damping: 25,
-                mass: 0.8
-              }}
-              className="fixed inset-0 z-[101] flex items-center justify-center pointer-events-none"
+            {/* Menu - Optimized slide-up animation */}
+            <div
+              className="fixed inset-0 z-[101] flex items-end sm:items-center justify-center pointer-events-none pb-24 sm:pb-0"
             >
-              <motion.div 
-                className="liquid-glass overflow-hidden rounded-3xl p-4 w-[90vw] max-w-xs pointer-events-auto"
+              <div 
+                className="liquid-glass overflow-hidden rounded-3xl p-4 w-[90vw] max-w-xs pointer-events-auto animate-slide-up-bounce"
                 onClick={(e) => e.stopPropagation()}
+                style={{ 
+                  transform: 'translateZ(0)',
+                  animationDuration: '300ms',
+                  animationFillMode: 'both'
+                }}
               >
                 {/* Header */}
                 <div className="text-center mb-4">
@@ -110,39 +103,19 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
                   <p className="text-xs text-muted-foreground">What do you want to share?</p>
                 </div>
 
-                {/* Menu Items */}
-                <motion.div 
-                  className="space-y-2"
-                  initial="hidden"
-                  animate="visible"
-                  variants={{
-                    hidden: {},
-                    visible: {
-                      transition: {
-                        staggerChildren: 0.04,
-                        delayChildren: 0.05
-                      }
-                    }
-                  }}
-                >
-                  {menuItems.map((item) => (
-                    <motion.button
+                {/* Menu Items - CSS animations for performance */}
+                <div className="space-y-2">
+                  {menuItems.map((item, index) => (
+                    <button
                       key={item.id}
-                      variants={{
-                        hidden: { opacity: 0, y: 12, scale: 0.95 },
-                        visible: { 
-                          opacity: 1, 
-                          y: 0, 
-                          scale: 1,
-                          transition: {
-                            type: 'spring',
-                            stiffness: 400,
-                            damping: 25
-                          }
-                        }
-                      }}
                       onClick={() => handleAction(item.id)}
-                      className="w-full p-3 rounded-2xl liquid-glass-button flex items-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                      className="w-full p-3 rounded-2xl liquid-glass-button flex items-center gap-3 active:scale-[0.97] transition-transform duration-100 touch-manipulation animate-fade-in-up"
+                      style={{ 
+                        animationDelay: `${50 + index * 40}ms`,
+                        animationDuration: '200ms',
+                        animationFillMode: 'both',
+                        transform: 'translateZ(0)'
+                      }}
                     >
                       <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center`}>
                         <item.icon className="h-5 w-5 text-white" />
@@ -151,23 +124,21 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
                         <span className="font-medium text-sm block">{item.label}</span>
                         <span className="text-xs text-muted-foreground">{item.description}</span>
                       </div>
-                    </motion.button>
+                    </button>
                   ))}
-                </motion.div>
+                </div>
 
                 {/* Close Button */}
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.15, duration: 0.2 }}
+                <button
                   onClick={onClose}
-                  className="w-full mt-4 p-2 rounded-xl text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2 text-sm"
+                  className="w-full mt-4 p-2 rounded-xl text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2 text-sm touch-manipulation animate-fade-in"
+                  style={{ animationDelay: '150ms', animationDuration: '200ms', animationFillMode: 'both' }}
                 >
                   <X className="h-4 w-4" />
                   Cancel
-                </motion.button>
-              </motion.div>
-            </motion.div>
+                </button>
+              </div>
+            </div>
           </>
         )}
       </AnimatePresence>
