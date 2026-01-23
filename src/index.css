@@ -1651,3 +1651,132 @@ img, video {
     -webkit-backdrop-filter: blur(6px) !important;
   }
 }
+
+/* ========================================
+   SMOOTH ANIMATION LIBRARY
+   High-performance CSS animations
+   ======================================== */
+
+/* Wallet slide up - like pulling a card from your wallet */
+@keyframes wallet-slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(100%) scale(0.95);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-5%) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes wallet-slide-down {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100%) scale(0.95);
+  }
+}
+
+.animate-wallet-slide-up {
+  animation: wallet-slide-up 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-wallet-slide-down {
+  animation: wallet-slide-down 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Slide up with bounce - for menus */
+@keyframes slide-up-bounce {
+  0% {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-slide-up-bounce {
+  animation: slide-up-bounce 0.3s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
+}
+
+/* Fade in up - for staggered items */
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Subtle pulse - for indicators */
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s ease-in-out infinite;
+}
+
+/* Wiggle - for icons */
+@keyframes wiggle {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(8deg);
+  }
+  75% {
+    transform: rotate(-8deg);
+  }
+}
+
+.animate-wiggle {
+  animation: wiggle 2s ease-in-out infinite;
+}
+
+/* Fast fade in */
+@keyframes fade-in-fast {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in-fast 0.15s ease-out forwards;
+}
+
+/* Touch manipulation for mobile */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}

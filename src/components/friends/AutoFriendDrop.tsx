@@ -336,64 +336,55 @@ export function AutoFriendDrop() {
 
   return (
     <>
-      {/* Subtle indicator that bump detection is active */}
-      <AnimatePresence>
-        {!isActive && !isDismissed && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40"
+      {/* Subtle indicator that bump detection is active - CSS animation */}
+      {!isActive && !isDismissed && (
+        <div
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in"
+          style={{ animationDuration: '300ms' }}
+        >
+          <div
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 backdrop-blur-lg border border-primary/20 animate-pulse-subtle"
           >
-            <motion.div
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 backdrop-blur-lg border border-primary/20"
-              animate={{ 
-                scale: [1, 1.02, 1],
-                opacity: [0.7, 1, 0.7]
+            <div className="animate-wiggle">
+              {nativeFriendDrop.isAvailable ? (
+                <Bluetooth className="h-4 w-4 text-primary" />
+              ) : (
+                <Smartphone className="h-4 w-4 text-primary" />
+              )}
+            </div>
+            <span className="text-xs text-primary font-medium">
+              {nativeFriendDrop.isAvailable 
+                ? 'Bring phones together to add friends'
+                : 'Bump phones to add friends'}
+            </span>
+            <Zap className="h-3 w-3 text-primary" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsDismissed(true);
               }}
-              transition={{ repeat: Infinity, duration: 3 }}
+              className="ml-1 p-0.5 rounded-full hover:bg-primary/20 transition-colors touch-manipulation"
             >
-              <motion.div
-                animate={{ rotate: [0, 10, -10, 0] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-              >
-                {nativeFriendDrop.isAvailable ? (
-                  <Bluetooth className="h-4 w-4 text-primary" />
-                ) : (
-                  <Smartphone className="h-4 w-4 text-primary" />
-                )}
-              </motion.div>
-              <span className="text-xs text-primary font-medium">
-                {nativeFriendDrop.isAvailable 
-                  ? 'Bring phones together to add friends'
-                  : 'Bump phones to add friends'}
-              </span>
-              <Zap className="h-3 w-3 text-primary" />
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsDismissed(true);
-                }}
-                className="ml-1 p-0.5 rounded-full hover:bg-primary/20 transition-colors"
-              >
-                <X className="h-3 w-3 text-primary/70" />
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <X className="h-3 w-3 text-primary/70" />
+            </button>
+          </div>
+        </div>
+      )}
 
-      {/* Exchange Modal */}
+      {/* Exchange Modal - Wallet-style slide up */}
       <Dialog open={isActive} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md p-0 border-0 bg-transparent overflow-hidden [&>button]:hidden">
+        <DialogContent 
+          className="sm:max-w-md p-0 border-0 bg-transparent overflow-hidden [&>button]:hidden data-[state=open]:animate-wallet-slide-up data-[state=closed]:animate-wallet-slide-down"
+          style={{ 
+            transformOrigin: 'bottom center',
+            transform: 'translateZ(0)'
+          }}
+        >
           <AnimatePresence mode="wait">
             {phase === 'activated' && (
-              <motion.div
-                key="activated"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-background/95 backdrop-blur-xl rounded-3xl p-6"
+              <div
+                className="bg-background/95 backdrop-blur-xl rounded-3xl p-6 animate-fade-in"
+                style={{ animationDuration: '200ms' }}
               >
                 {/* Split view - Native discovery or QR fallback */}
                 <div className="flex flex-col gap-4">
@@ -594,7 +585,7 @@ export function AutoFriendDrop() {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {phase === 'found' && foundUser && (
