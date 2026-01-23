@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useEffect, useRef } from 'react';
+import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
 
 interface Post {
   id: string;
@@ -24,8 +25,8 @@ interface Post {
 }
 
 // Optimized page sizes for faster initial load
-const INITIAL_PAGE_SIZE = 30; // Load 30 posts initially - faster startup
-const PAGE_SIZE = 30; // Load 30 more when scrolling
+const INITIAL_PAGE_SIZE = 20; // Reduced for faster initial render
+const PAGE_SIZE = 20; // Load 20 more when scrolling
 const STALE_TIME = 30 * 60 * 1000; // 30 minutes - reduce refetches
 const GC_TIME = 3 * 60 * 60 * 1000; // 3 hour cache
 
@@ -52,19 +53,45 @@ function transformPost(row: any): Post {
   };
 }
 
-// Preload images for posts - high priority batch loading
-function preloadPostMedia(posts: Post[]) {
-  posts.forEach((post) => {
-    const url = post.thumbnail_url || post.media_url;
-    if (url) {
-      const img = new Image();
-      img.src = url;
+/**
+ * Batch pre-sign all media URLs for posts
+ * This happens BEFORE rendering so images load instantly
+ */
+async function presignPostMedia(posts: Post[]): Promise<void> {
+  const urls: string[] = [];
+  
+  for (const post of posts) {
+    if (post.thumbnail_url) urls.push(post.thumbnail_url);
+    if (post.media_url) urls.push(post.media_url);
+    if (post.author?.avatar_url) urls.push(post.author.avatar_url);
+  }
+  
+  // Batch sign all URLs in one go
+  await batchSignUrls(urls);
+}
+
+/**
+ * Preload images AFTER signing - uses cached signed URLs
+ */
+function preloadSignedMedia(posts: Post[]) {
+  for (const post of posts) {
+    const mediaUrl = post.thumbnail_url || post.media_url;
+    if (mediaUrl) {
+      const signedUrl = getCachedSignedUrl(mediaUrl);
+      if (signedUrl && !needsSigning(signedUrl)) {
+        const img = new Image();
+        img.src = signedUrl;
+      }
     }
+    
     if (post.author?.avatar_url) {
-      const avatar = new Image();
-      avatar.src = post.author.avatar_url;
+      const signedAvatar = getCachedSignedUrl(post.author.avatar_url);
+      if (signedAvatar && !needsSigning(signedAvatar)) {
+        const avatar = new Image();
+        avatar.src = signedAvatar;
+      }
     }
-  });
+  }
 }
 
 export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
@@ -88,7 +115,12 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
       if (error) throw error;
 
       const posts = (data || []).map(transformPost);
-      preloadPostMedia(posts);
+      
+      // Pre-sign all URLs BEFORE returning - this ensures instant image display
+      await presignPostMedia(posts);
+      
+      // Now preload the signed images
+      preloadSignedMedia(posts);
 
       const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       return {
@@ -131,7 +163,10 @@ export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
       if (error) throw error;
 
       const posts = (data || []).map(transformPost);
-      preloadPostMedia(posts);
+      
+      // Pre-sign all URLs BEFORE returning
+      await presignPostMedia(posts);
+      preloadSignedMedia(posts);
 
       const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       return {
@@ -174,7 +209,10 @@ export function usePrefetchPosts() {
       });
       
       const posts = (data || []).map(transformPost);
-      preloadPostMedia(posts);
+      
+      // Pre-sign before caching
+      await presignPostMedia(posts);
+      preloadSignedMedia(posts);
       
       queryClient.setQueryData(
         ['infinite-posts', undefined, undefined, profile.id],

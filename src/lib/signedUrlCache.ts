@@ -1,6 +1,7 @@
 /**
  * Ultra-fast Signed URL Cache
  * Pre-warms cache during app startup for instant image loading
+ * Includes failed URL caching to prevent repeated 404 attempts
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -8,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface CacheEntry {
   signedUrl: string;
   expiresAt: number;
+  failed?: boolean;
 }
 
 // Global in-memory cache
@@ -16,6 +18,8 @@ const pendingRequests = new Map<string, Promise<string | null>>();
 
 // Cache for 50 minutes (before 1 hour expiry)
 const CACHE_DURATION = 50 * 60 * 1000;
+// Cache failed URLs for 5 minutes to prevent spam
+const FAILED_CACHE_DURATION = 5 * 60 * 1000;
 
 /**
  * Parse storage URL to get bucket and path
@@ -46,6 +50,7 @@ export function needsSigning(url: string | null | undefined): boolean {
 
 /**
  * Get cached signed URL synchronously - returns null if not cached
+ * Returns original URL for failed entries (cached 404s)
  */
 export function getCachedSignedUrl(publicUrl: string | null | undefined): string | null {
   if (!publicUrl) return null;
@@ -55,10 +60,19 @@ export function getCachedSignedUrl(publicUrl: string | null | undefined): string
   
   const entry = cache.get(publicUrl);
   if (entry && entry.expiresAt > Date.now()) {
-    return entry.signedUrl;
+    // Return original URL for failed entries (but still "cached")
+    return entry.failed ? publicUrl : entry.signedUrl;
   }
   
   return null;
+}
+
+/**
+ * Check if a URL has failed (404) and is cached
+ */
+export function isFailedUrl(publicUrl: string): boolean {
+  const entry = cache.get(publicUrl);
+  return !!(entry && entry.failed && entry.expiresAt > Date.now());
 }
 
 /**
@@ -70,9 +84,11 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
   // Not a storage URL - return as-is
   if (!needsSigning(publicUrl)) return publicUrl;
   
-  // Check cache
-  const cached = getCachedSignedUrl(publicUrl);
-  if (cached) return cached;
+  // Check cache (includes failed entries)
+  const entry = cache.get(publicUrl);
+  if (entry && entry.expiresAt > Date.now()) {
+    return entry.failed ? publicUrl : entry.signedUrl;
+  }
   
   // Check if already fetching
   const pending = pendingRequests.get(publicUrl);
@@ -89,10 +105,16 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
         .createSignedUrl(parsed.path, 3600);
       
       if (error || !data?.signedUrl) {
+        // Cache the failure to prevent repeated attempts
+        cache.set(publicUrl, {
+          signedUrl: publicUrl,
+          expiresAt: Date.now() + FAILED_CACHE_DURATION,
+          failed: true,
+        });
         return publicUrl; // Fallback to original
       }
       
-      // Cache the result
+      // Cache the success
       cache.set(publicUrl, {
         signedUrl: data.signedUrl,
         expiresAt: Date.now() + CACHE_DURATION,
@@ -100,6 +122,12 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
       
       return data.signedUrl;
     } catch {
+      // Cache the failure
+      cache.set(publicUrl, {
+        signedUrl: publicUrl,
+        expiresAt: Date.now() + FAILED_CACHE_DURATION,
+        failed: true,
+      });
       return publicUrl;
     } finally {
       pendingRequests.delete(publicUrl);
@@ -121,7 +149,11 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
   
   for (const url of uniqueUrls) {
     if (!needsSigning(url)) continue;
-    if (getCachedSignedUrl(url)) continue; // Already cached
+    
+    // Check if already cached (including failed entries)
+    const entry = cache.get(url);
+    if (entry && entry.expiresAt > Date.now()) continue;
+    
     if (pendingRequests.has(url)) continue; // Already fetching
     
     const parsed = parseStorageUrl(url);
@@ -150,27 +182,55 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
   const promises = Array.from(byBucket.entries()).map(async ([bucket, pathMap]) => {
     try {
       const paths = Array.from(pathMap.keys());
-      const urls = Array.from(pathMap.values());
+      const originalUrls = Array.from(pathMap.values());
       
       const { data, error } = await supabase.storage
         .from(bucket)
         .createSignedUrls(paths, 3600);
       
-      if (error || !data) return;
-      
-      // Cache all results
       const now = Date.now();
+      
+      if (error || !data) {
+        // Cache all as failed to prevent repeated attempts
+        for (const url of originalUrls) {
+          cache.set(url, {
+            signedUrl: url,
+            expiresAt: now + FAILED_CACHE_DURATION,
+            failed: true,
+          });
+        }
+        return;
+      }
+      
+      // Cache all results (success or failure per-item)
       for (let i = 0; i < paths.length; i++) {
         const signedUrl = data[i]?.signedUrl;
+        const originalUrl = originalUrls[i];
+        
         if (signedUrl) {
-          cache.set(urls[i], {
+          cache.set(originalUrl, {
             signedUrl,
             expiresAt: now + CACHE_DURATION,
           });
+        } else {
+          // Individual item failed (404)
+          cache.set(originalUrl, {
+            signedUrl: originalUrl,
+            expiresAt: now + FAILED_CACHE_DURATION,
+            failed: true,
+          });
         }
       }
-    } catch (e) {
-      // Silent fail - URLs will fallback to original
+    } catch {
+      // Silent fail - mark all as failed to prevent retries
+      const now = Date.now();
+      for (const url of pathMap.values()) {
+        cache.set(url, {
+          signedUrl: url,
+          expiresAt: now + FAILED_CACHE_DURATION,
+          failed: true,
+        });
+      }
     }
   });
   
