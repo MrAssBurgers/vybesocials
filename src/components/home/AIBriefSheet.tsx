@@ -158,14 +158,45 @@ const BriefCard = memo(function BriefCard({ update, index }: { update: BriefUpda
   );
 });
 
+// Cache key and helpers
+const BRIEF_CACHE_KEY = 'vybe_ai_brief_cache';
+const CACHE_TTL = 1000 * 60 * 15; // 15 minutes
+
+function getCachedBrief(): BriefData | null {
+  try {
+    const cached = localStorage.getItem(BRIEF_CACHE_KEY);
+    if (!cached) return null;
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp < CACHE_TTL) {
+      return data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedBrief(data: BriefData) {
+  try {
+    localStorage.setItem(BRIEF_CACHE_KEY, JSON.stringify({
+      data,
+      timestamp: Date.now(),
+    }));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [briefData, setBriefData] = useState<BriefData | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [briefData, setBriefData] = useState<BriefData | null>(() => getCachedBrief());
   const [showCustomize, setShowCustomize] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const hasFetchedRef = useRef(false);
 
-  const fetchBrief = useCallback(async () => {
+  const fetchBrief = useCallback(async (isBackground = false) => {
     if (!user) return;
     
     // Cancel any pending request
@@ -174,13 +205,20 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
     }
     abortControllerRef.current = new AbortController();
     
-    setIsLoading(true);
-    haptics.tap();
+    // Only show loading if no cached data
+    if (!isBackground && !briefData) {
+      setIsLoading(true);
+    }
+    if (isBackground) {
+      setIsRefreshing(true);
+    }
+    
+    if (!isBackground) haptics.tap();
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        toast.error('Please sign in');
+        if (!isBackground) toast.error('Please sign in');
         return;
       }
 
@@ -199,11 +237,11 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
 
       if (!response.ok) {
         if (response.status === 429) {
-          toast.error('Rate limited. Try again in a moment.');
+          if (!isBackground) toast.error('Rate limited. Try again in a moment.');
           return;
         }
         if (response.status === 402) {
-          toast.error('AI credits exhausted.');
+          if (!isBackground) toast.error('AI credits exhausted.');
           return;
         }
         throw new Error('Failed to get brief');
@@ -211,25 +249,34 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
 
       const data = await response.json();
       setBriefData(data);
-      haptics.success();
+      setCachedBrief(data);
+      if (!isBackground) haptics.success();
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        return; // Silently ignore aborted requests
+        return;
       }
       console.error('Brief error:', error);
-      toast.error('Could not load brief');
+      if (!isBackground) toast.error('Could not load brief');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
-  }, [user]);
+  }, [user, briefData]);
 
+  // Load cached data instantly, fetch fresh in background
   useEffect(() => {
-    if (open && !briefData) {
-      fetchBrief();
+    if (open && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      
+      // If we have cached data, show it and refresh in background
+      if (briefData) {
+        fetchBrief(true); // Background refresh
+      } else {
+        fetchBrief(false); // Normal fetch with loading state
+      }
     }
     
     return () => {
-      // Cleanup on unmount
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -237,8 +284,10 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   }, [open, briefData, fetchBrief]);
 
   const handleRefresh = useCallback(() => {
+    hasFetchedRef.current = true;
+    setIsLoading(true);
     setBriefData(null);
-    fetchBrief();
+    fetchBrief(false);
   }, [fetchBrief]);
 
   return (
@@ -247,6 +296,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
         <SheetContent 
           side="bottom" 
           className="h-[85vh] rounded-t-3xl flex flex-col overflow-hidden bg-background"
+          hideCloseButton
         >
           {/* Fixed Header */}
           <SheetHeader className="flex-shrink-0 pb-3 border-b border-border/50">
@@ -263,9 +313,9 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                   variant="ghost"
                   className="h-8 w-8"
                   onClick={handleRefresh}
-                  disabled={isLoading}
+                  disabled={isLoading || isRefreshing}
                 >
-                  <RefreshCw className={`h-4 w-4 transition-transform duration-500 ${isLoading ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-4 w-4 transition-transform duration-500 ${isLoading || isRefreshing ? 'animate-spin' : ''}`} />
                 </Button>
                 <Button
                   size="icon"
