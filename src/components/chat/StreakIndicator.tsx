@@ -33,6 +33,14 @@ export function StreakIndicator({
     lg: 'h-5 w-5',
   };
 
+  // Get flame color based on streak count (higher = hotter)
+  const getFlameColor = () => {
+    if (count >= 100) return 'text-accent'; // Accent for legendary 100+
+    if (count >= 30) return 'text-primary'; // Primary for 30+
+    if (count >= 7) return 'text-orange-500'; // Orange for 7+
+    return 'text-yellow-500'; // Yellow for beginners
+  };
+
   return (
     <motion.div
       initial={{ scale: 0.8, opacity: 0 }}
@@ -40,22 +48,38 @@ export function StreakIndicator({
       className={cn(
         'flex items-center font-bold',
         sizeClasses[size],
-        isExpiringSoon ? 'text-orange-500' : 'text-yellow-500'
+        isExpiringSoon ? 'text-orange-500' : getFlameColor()
       )}
     >
+      {/* Pulsing fire with glow effect */}
       <motion.div
-        animate={isExpiringSoon ? { 
-          scale: [1, 1.2, 1],
-          rotate: [-5, 5, -5, 0],
-        } : {}}
+        className="relative"
+        animate={{ 
+          scale: [1, 1.15, 1],
+          filter: [
+            'drop-shadow(0 0 2px currentColor)',
+            'drop-shadow(0 0 8px currentColor)',
+            'drop-shadow(0 0 2px currentColor)'
+          ]
+        }}
         transition={{ 
-          repeat: isExpiringSoon ? Infinity : 0, 
-          duration: 0.5 
+          repeat: Infinity, 
+          duration: isExpiringSoon ? 0.5 : 1.5,
+          ease: "easeInOut"
         }}
       >
         <Flame className={cn(iconSizes[size], 'fill-current')} />
       </motion.div>
-      <span>{count}</span>
+      
+      {/* Streak count with subtle animation */}
+      <motion.span
+        key={count}
+        initial={{ scale: 1.3, y: -2 }}
+        animate={{ scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+      >
+        {count}
+      </motion.span>
       
       {showExpiry && hoursLeft !== null && hoursLeft <= 24 && (
         <span className={cn(
@@ -83,13 +107,33 @@ export function StreakMilestone({ count }: { count: number }) {
     return '🎉';
   };
 
+  const getColor = () => {
+    if (count >= 365) return 'from-accent/20 to-accent/10';
+    if (count >= 100) return 'from-primary/20 to-accent/20';
+    if (count >= 30) return 'from-orange-500/20 to-primary/20';
+    return 'from-yellow-500/20 to-orange-500/20';
+  };
+
   return (
     <motion.div
       initial={{ scale: 0, rotate: -180 }}
       animate={{ scale: 1, rotate: 0 }}
-      className="flex items-center gap-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-full px-4 py-2"
+      transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+      className={cn(
+        "flex items-center gap-2 bg-gradient-to-r rounded-full px-4 py-2",
+        getColor()
+      )}
     >
-      <span className="text-2xl">{getEmoji()}</span>
+      <motion.span 
+        className="text-2xl"
+        animate={{ 
+          rotate: [0, 10, -10, 0],
+          scale: [1, 1.1, 1]
+        }}
+        transition={{ repeat: Infinity, duration: 2 }}
+      >
+        {getEmoji()}
+      </motion.span>
       <div>
         <p className="font-bold text-foreground">{count} Day Streak!</p>
         <p className="text-xs text-muted-foreground">Keep the fire alive!</p>

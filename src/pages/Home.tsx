@@ -15,6 +15,7 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { AutoFriendDrop } from '@/components/friends/AutoFriendDrop';
+import { WelcomeHeader } from '@/components/home/WelcomeHeader';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
@@ -241,6 +242,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       >
         {/* Announcements Banner */}
         <AnnouncementBanner />
+
+        {/* Welcome Header with AI Catch-up */}
+        <WelcomeHeader />
 
         {/* Stories Bar */}
         <StoriesBar />
