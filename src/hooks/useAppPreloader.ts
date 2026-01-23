@@ -47,6 +47,12 @@ export function useAppPreloader() {
     if (hasStarted.current) return;
     hasStarted.current = true;
 
+    // Safety timeout - never let splash screen hang more than 5 seconds
+    const safetyTimeout = setTimeout(() => {
+      console.warn('[Preloader] Safety timeout reached, forcing complete');
+      setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+    }, 5000);
+
     const preload = async () => {
       const startTime = performance.now();
       
@@ -54,9 +60,19 @@ export function useAppPreloader() {
         // Step 1: Initialize
         updateStatus('init');
 
-        // Step 2: Check authentication
+        // Step 2: Check authentication with timeout
         updateStatus('auth');
-        const { data: { session } } = await supabase.auth.getSession();
+        
+        let session = null;
+        try {
+          const authResult = await Promise.race([
+            supabase.auth.getSession(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000))
+          ]) as { data: { session: any } };
+          session = authResult.data.session;
+        } catch {
+          console.warn('[Preloader] Auth check failed, continuing as guest');
+        }
 
         if (!session?.user) {
           // Guest mode - load public feed only
@@ -206,6 +222,8 @@ export function useAppPreloader() {
       } catch (error) {
         console.error('[Preloader] Error:', error);
         setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+      } finally {
+        clearTimeout(safetyTimeout);
       }
     };
 
