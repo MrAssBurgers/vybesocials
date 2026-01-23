@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Check, Sparkles, Loader2, Smartphone, Zap,
-  ArrowLeftRight, Bluetooth, Wifi, ZoomIn
+  ArrowLeftRight, Bluetooth, Wifi, ZoomIn, MessageCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -10,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { useFriendDropSync } from '@/hooks/useFriendDropSync';
+import { useCreateConversation } from '@/hooks/useMessages';
 import { supabase } from '@/integrations/supabase/client';
 import { useSwingDetection } from '@/hooks/useSwingDetection';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
@@ -141,14 +143,17 @@ const ExpandableQR = memo(function ExpandableQR({
 
 export function AutoFriendDrop() {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const sendRequest = useSendFriendRequest();
+  const createConversation = useCreateConversation();
   const [isActive, setIsActive] = useState(false);
   const [phase, setPhase] = useState<DropPhase>('idle');
   const [isDismissed, setIsDismissed] = useState(false);
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
   const [isQrExpanded, setIsQrExpanded] = useState(false);
   const [activeDropId, setActiveDropId] = useState<string | null>(null);
+  const [createdConversationId, setCreatedConversationId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -172,16 +177,35 @@ export function AutoFriendDrop() {
   // Track if we are the QR owner (our QR was scanned) or the scanner
   const [isQrOwner, setIsQrOwner] = useState(false);
   
-  // Auto-close helper
-  const autoCloseAfterSuccess = useCallback(() => {
+  // Auto-close and navigate to DM after success
+  const autoCloseAfterSuccess = useCallback(async (friendId?: string) => {
+    // Create DM conversation with new friend
+    const targetUserId = friendId || foundUser?.id;
+    if (targetUserId) {
+      try {
+        const conversation = await createConversation.mutateAsync({ memberIds: [targetUserId] });
+        setCreatedConversationId(conversation.id);
+      } catch {
+        // Conversation might already exist, that's fine
+      }
+    }
+    
+    // Close after 3 seconds and navigate to the DM
     setTimeout(() => {
+      const convId = createdConversationId;
       setIsActive(false);
       setPhase('idle');
       setFoundUser(null);
       setActiveDropId(null);
       setIsQrOwner(false);
+      setCreatedConversationId(null);
+      
+      // Navigate to the conversation if we created one
+      if (convId) {
+        navigate(`/messages/${convId}`);
+      }
     }, 3000);
-  }, []);
+  }, [foundUser?.id, createConversation, createdConversationId, navigate]);
   
   // Realtime sync for dual-device animation
   const friendDropSync = useFriendDropSync({
@@ -219,12 +243,37 @@ export function AutoFriendDrop() {
         haptics.impact();
       }
     }, [phase]),
-    onCompleted: useCallback(() => {
-      // Both sides see this - show success and auto-close
+    onCompleted: useCallback(async () => {
+      // Both sides see this - show success, create DM, and auto-close
       setPhase('success');
       haptics.success();
-      autoCloseAfterSuccess();
-    }, [autoCloseAfterSuccess]),
+      
+      // Create DM and navigate after delay
+      const targetUserId = foundUser?.id;
+      if (targetUserId) {
+        try {
+          const conversation = await createConversation.mutateAsync({ memberIds: [targetUserId] });
+          // Navigate after the success animation
+          setTimeout(() => {
+            setIsActive(false);
+            setPhase('idle');
+            setFoundUser(null);
+            setActiveDropId(null);
+            setIsQrOwner(false);
+            navigate(`/messages/${conversation.id}`);
+          }, 3000);
+        } catch {
+          // Still close after 3 seconds even if DM creation fails
+          setTimeout(() => {
+            setIsActive(false);
+            setPhase('idle');
+            setFoundUser(null);
+            setActiveDropId(null);
+            setIsQrOwner(false);
+          }, 3000);
+        }
+      }
+    }, [foundUser?.id, createConversation, navigate]),
   });
   
   // Native FriendDrop (Bluetooth/Nearby) - works on native apps
@@ -503,6 +552,7 @@ export function AutoFriendDrop() {
     setFoundUser(null);
     setActiveDropId(null);
     setIsQrOwner(false);
+    setCreatedConversationId(null);
   }, [stopScanning, nativeFriendDrop, activeDropId, friendDropSync, phase]);
 
   useEffect(() => {
@@ -1041,6 +1091,15 @@ export function AutoFriendDrop() {
                   <p className="text-white/80 mt-1">
                     {foundUser?.display_name || foundUser?.username} is now your friend 🎉
                   </p>
+                  <motion.div
+                    className="flex items-center justify-center gap-2 mt-3 text-white/90"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.8 }}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    <span className="text-sm">Opening chat...</span>
+                  </motion.div>
                 </motion.div>
               </motion.div>
             )}
