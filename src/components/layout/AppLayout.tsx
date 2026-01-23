@@ -95,7 +95,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   return (
     <div 
       ref={ref} 
-      className="min-h-screen w-full overflow-x-hidden overflow-y-auto"
+      className="h-screen w-full overflow-hidden"
       style={{
         overscrollBehavior: 'contain',
         WebkitOverflowScrolling: 'touch',
@@ -107,8 +107,9 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
       {/* Main content - keep space for fixed bottom nav */}
       <main
+        data-app-scroll-container="true"
         className={cn(
-          "pb-[calc(5rem+env(safe-area-inset-bottom))]",
+          "h-full overflow-y-auto overflow-x-hidden pb-[calc(5rem+env(safe-area-inset-bottom))]",
           hideNav ? "" : "pt-14"
         )}
         style={{

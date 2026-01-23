@@ -17,19 +17,35 @@ export function usePullToRefresh({
   const isPulling = useRef(false);
   const rafId = useRef<number | null>(null);
 
+  // In this app, mobile scrolling happens inside AppLayout's <main> (not window scroll).
+  // We mark it with data-app-scroll-container="true".
+  const getScrollElement = useCallback((): HTMLElement | null => {
+    if (typeof document === 'undefined') return null;
+    return document.querySelector<HTMLElement>('[data-app-scroll-container="true"]');
+  }, []);
+
+  const getScrollTop = useCallback((): number => {
+    const el = getScrollElement();
+    if (el) return el.scrollTop;
+    // Fallback for pages that use normal document scrolling
+    return (document.scrollingElement?.scrollTop ?? window.scrollY ?? 0);
+  }, [getScrollElement]);
+
   const handleTouchStart = useCallback((e: TouchEvent) => {
-    const scrollTop = window.scrollY || document.documentElement.scrollTop;
-    if (scrollTop <= 0 && !isRefreshing) {
+    if (isRefreshing) return;
+
+    const scrollTop = getScrollTop();
+    if (scrollTop <= 0.5) {
       startY.current = e.touches[0].clientY;
       isPulling.current = true;
     }
-  }, [isRefreshing]);
+  }, [getScrollTop, isRefreshing]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (!isPulling.current || isRefreshing) return;
 
-    const scrollTop = window.scrollY || document.documentElement.scrollTop;
-    if (scrollTop > 0) {
+    const scrollTop = getScrollTop();
+    if (scrollTop > 0.5) {
       isPulling.current = false;
       setPullDistance(0);
       return;
@@ -38,22 +54,28 @@ export function usePullToRefresh({
     const currentY = e.touches[0].clientY;
     const diff = currentY - startY.current;
 
-    if (diff > 0) {
-      // Cancel any pending frame
-      if (rafId.current) cancelAnimationFrame(rafId.current);
-      
-      // Throttle updates with RAF
-      rafId.current = requestAnimationFrame(() => {
-        const resistance = 0.4;
-        const distance = Math.min(diff * resistance, maxPull);
-        setPullDistance(distance);
-      });
-      
-      if (diff > 25) {
-        e.preventDefault();
-      }
+    // If the user is swiping UP (normal scroll down the feed), don't treat it as pull-to-refresh.
+    if (diff <= 0) {
+      isPulling.current = false;
+      setPullDistance(0);
+      return;
     }
-  }, [isRefreshing, maxPull]);
+
+    // Cancel any pending frame
+    if (rafId.current) cancelAnimationFrame(rafId.current);
+
+    // Throttle updates with RAF
+    rafId.current = requestAnimationFrame(() => {
+      const resistance = 0.4;
+      const distance = Math.min(diff * resistance, maxPull);
+      setPullDistance(distance);
+    });
+
+    // Only prevent default once we're clearly pulling down; otherwise allow normal scroll.
+    if (diff > 25) {
+      e.preventDefault();
+    }
+  }, [getScrollTop, isRefreshing, maxPull]);
 
   const handleTouchEnd = useCallback(async () => {
     if (!isPulling.current) return;
@@ -80,17 +102,20 @@ export function usePullToRefresh({
   }, [pullDistance, threshold, isRefreshing, onRefresh]);
 
   useEffect(() => {
-    document.addEventListener('touchstart', handleTouchStart, { passive: true });
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('touchend', handleTouchEnd, { passive: true });
+    const scrollEl = getScrollElement();
+    const target: HTMLElement | Document = scrollEl ?? document;
+
+    target.addEventListener('touchstart', handleTouchStart, { passive: true });
+    target.addEventListener('touchmove', handleTouchMove, { passive: false });
+    target.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
-      document.removeEventListener('touchstart', handleTouchStart);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
+      target.removeEventListener('touchstart', handleTouchStart);
+      target.removeEventListener('touchmove', handleTouchMove);
+      target.removeEventListener('touchend', handleTouchEnd);
       if (rafId.current) cancelAnimationFrame(rafId.current);
     };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
+  }, [getScrollElement, handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   return {
     pullDistance,
