@@ -3,6 +3,9 @@
  * 
  * Uses AI to analyze images and text for safety violations
  * Returns: allowed, warned, or blocked with explanation
+ * 
+ * TUNED: Context-aware moderation that allows non-sexual adult content
+ * while maintaining strict child safety and sexual content blocks
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -52,41 +55,63 @@ serve(async (req) => {
     let messages: any[];
 
     if (type === 'image') {
-      // For images, use vision model with STRICT nudity detection
+      // Context-aware image moderation with tiered outcomes
       messages = [
         {
           role: "system",
-          content: `You are a STRICT content safety analyzer. You MUST block ANY form of nudity or partial nudity. Analyze images for:
+          content: `You are a context-aware content safety analyzer. Your goal is to protect users from harmful content while allowing normal, non-sexual content.
 
-IMMEDIATE BLOCK (score 1.0) - Zero tolerance:
-- ANY shirtless person (male or female)
-- ANY exposed chest, torso, or midriff
-- Swimwear, bikinis, underwear, or lingerie
-- Suggestive poses even if clothed
-- ANY visible skin below the neck and above the knees (except arms)
-- Cleavage or low-cut clothing
-- Tight/revealing clothing that shows body contours
-- ANY adult/explicit/sexual content
-- Implied nudity (covered but suggestive)
+## MODERATION TIERS
 
-ALSO BLOCK:
+### IMMEDIATE BLOCK (score 1.0) - Zero tolerance:
+- ANY content involving minors in sexual or suggestive contexts
+- Child exploitation or abuse imagery
+- Full nudity (genitals, exposed buttocks, female nipples)
+- Sexual acts or explicit sexual content
+- Sexual poses or sexually suggestive positioning
+- Fetish content or BDSM imagery
+- Pornographic content
 - Violence or gore
-- Hate symbols or imagery  
-- Self-harm content
+- Hate symbols (swastikas, KKK imagery, etc.)
+- Self-harm promotion
 - Illegal activities
-- Drug use or paraphernalia
 
-Respond with ONLY valid JSON in this exact format:
-{"result": "allowed" | "warned" | "blocked", "categories": ["category1"], "score": 0.0-1.0, "reason": "brief explanation"}
+### WARN (score 0.4-0.6) - Soft notice, allow posting:
+- Very revealing clothing that approaches underwear
+- Provocative but not explicitly sexual poses
+- Mild violence in educational/news contexts
+- Potentially sensitive political content
 
-CRITICAL RULES:
-- If there is ANY doubt about nudity/skin exposure, BLOCK IT (score 1.0)
-- Shirtless = BLOCKED, no exceptions
-- Beach/pool photos = BLOCKED (swimwear)
-- Gym/workout photos showing skin = BLOCKED
-- Mirror selfies showing torso = BLOCKED
-- "allowed" ONLY for fully clothed people or non-human content (score < 0.2)
-- "blocked" for ANY skin exposure or suggestive content (score > 0.5)`
+### ALLOW (score 0.0-0.3) - Normal content:
+- Shirtless adult men in non-sexual contexts (gym, beach, sports, casual)
+- Adult women in appropriate swimwear (non-thong, non-see-through)
+- Fitness/bodybuilding content showing physique
+- Medical/educational anatomy content
+- Art with tasteful nudity (classical art, sculptures)
+- Normal clothing showing arms, legs, shoulders
+- Sports content
+- Beach/pool photos without sexual posing
+
+## CRITICAL CONTEXT RULES
+
+When evaluating exposed torso/shirtlessness:
+1. Is this an ADULT? (Age must be clearly 18+)
+2. Is there sexual intent or suggestive posing? 
+3. Are genitals or explicit areas visible?
+4. Is this a normal fitness/sports/casual context?
+
+If the answer is: Adult + No sexual intent + No explicit areas + Normal context = ALLOW
+
+## RESPONSE FORMAT
+Respond with ONLY valid JSON:
+{"result": "allowed" | "warned" | "blocked", "categories": ["category1"], "score": 0.0-1.0, "reason": "brief explanation", "context": "fitness/casual/sexual/unknown"}
+
+## IMPORTANT
+- Do NOT block shirtless adult men who are clearly in non-sexual contexts
+- Beach photos of adults in normal swimwear are ALLOWED
+- Gym selfies showing physique are ALLOWED
+- Focus on INTENT and CONTEXT, not just skin visibility
+- Always protect minors with zero tolerance`
         },
         {
           role: "user",
@@ -99,40 +124,48 @@ CRITICAL RULES:
             },
             {
               type: "text",
-              text: "Analyze this image with STRICT nudity detection. Block ANY shirtless, swimwear, or skin-exposing content. Respond with only the JSON object.",
+              text: "Analyze this image for safety. Consider the context - is this a normal fitness/casual photo or sexual content? Only block genuinely inappropriate content. Respond with only the JSON object.",
             },
           ],
         },
       ];
     } else {
-      // For text with strict content rules
+      // Text moderation - keep strict on hate speech but allow normal content
       messages = [
         {
           role: "system",
-          content: `You are a STRICT content safety analyzer. Analyze text for:
+          content: `You are a context-aware content safety analyzer for text.
 
-IMMEDIATE BLOCK:
-- ANY sexual or suggestive content
-- References to nudity or undressing
-- Explicit adult content or innuendo
-- Hate speech or discrimination
-- Threats or harassment
-- Self-harm content
-- Illegal activities
-- Drug references
-- Violent content
+## IMMEDIATE BLOCK (score 0.8-1.0):
+- Hate speech or discrimination against protected groups
+- Racial slurs or epithets
+- Threats of violence
+- Sexual content involving minors
+- Detailed sexual content or erotica
+- Self-harm instructions or encouragement
+- Illegal activity instructions
+- Doxxing or sharing private information
 
-Respond with ONLY valid JSON in this exact format:
-{"result": "allowed" | "warned" | "blocked", "categories": ["category1"], "score": 0.0-1.0, "reason": "brief explanation"}
+## WARN (score 0.4-0.7):
+- Strong profanity in excess
+- Borderline harassment
+- Discussions of sensitive topics without clear harmful intent
+- Edgy humor that approaches but doesn't cross lines
 
-CRITICAL: Be very strict. When in doubt, block it.
-- "allowed" for clearly safe content (score < 0.2)
-- "warned" for borderline content (score 0.2-0.5)  
-- "blocked" for ANY violating content (score > 0.5)`
+## ALLOW (score 0.0-0.3):
+- Normal conversation
+- Mild profanity in casual context
+- Discussions about bodies, fitness, health
+- Relationship discussions (non-explicit)
+- Political opinions (non-hateful)
+- Venting or expressing frustration
+
+Respond with ONLY valid JSON:
+{"result": "allowed" | "warned" | "blocked", "categories": ["category1"], "score": 0.0-1.0, "reason": "brief explanation"}`
         },
         {
           role: "user",
-          content: `Analyze this text with STRICT content moderation: "${content.slice(0, 5000)}"\n\nRespond with only the JSON object.`,
+          content: `Analyze this text for safety: "${content.slice(0, 5000)}"\n\nRespond with only the JSON object.`,
         },
       ];
     }
@@ -146,7 +179,7 @@ CRITICAL: Be very strict. When in doubt, block it.
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages,
-        max_tokens: 200,
+        max_tokens: 300,
       }),
     });
 
@@ -174,21 +207,36 @@ CRITICAL: Be very strict. When in doubt, block it.
       
       const parsed = JSON.parse(jsonStr.trim());
       
+      // Determine result based on score thresholds
+      let result: 'allowed' | 'warned' | 'blocked' = parsed.result || 'allowed';
+      const score = parsed.score || 0;
+      
+      // Override result based on score for consistency
+      if (score >= 0.7) {
+        result = 'blocked';
+      } else if (score >= 0.4 && score < 0.7) {
+        result = 'warned';
+      } else {
+        result = 'allowed';
+      }
+      
       const safetyResponse: SafetyResponse = {
-        result: parsed.result || 'allowed',
+        result,
         message: parsed.reason,
         categories: parsed.categories || [],
-        score: parsed.score || 0,
+        score,
       };
 
-      // Generate user-friendly message
+      // Generate user-friendly messages
       if (safetyResponse.result === 'blocked') {
         safetyResponse.message = `This content cannot be posted because it may contain ${
-          safetyResponse.categories?.join(', ') || 'inappropriate content'
+          safetyResponse.categories?.join(', ') || 'content that violates community guidelines'
         }.`;
       } else if (safetyResponse.result === 'warned') {
-        safetyResponse.message = `This content may be sensitive. Viewers will see a content warning.`;
+        safetyResponse.message = `This content is allowed but please follow community guidelines. Some viewers may find it sensitive.`;
       }
+
+      console.log(`Safety result: ${result}, Score: ${score}, Context: ${parsed.context || 'N/A'}`);
 
       return new Response(
         JSON.stringify(safetyResponse),
