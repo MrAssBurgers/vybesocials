@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Sparkles, Eye, EyeOff, AlertTriangle, X } from 'lucide-react';
@@ -51,6 +52,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [showPassword, setShowPassword] = useState(false);
   const [showIntro, setShowIntro] = useState<boolean | null>(null); // null = still checking
   const [showDbNotice, setShowDbNotice] = useState(true);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -178,6 +180,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       } else {
         if (!formData.username.trim()) {
           throw new Error('Username is required');
+        }
+        if (!agreedToTerms) {
+          throw new Error('You must agree to the Terms of Use');
         }
         const { error } = await signUp(formData.email, formData.password, formData.username);
         if (error) throw error;
@@ -340,11 +345,36 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               </div>
             </div>
 
+            {/* Terms agreement for signup */}
+            <AnimatePresence>
+              {!isLogin && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex items-start gap-2"
+                >
+                  <Checkbox
+                    id="terms"
+                    checked={agreedToTerms}
+                    onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
+                    className="mt-0.5"
+                  />
+                  <label htmlFor="terms" className="text-sm text-muted-foreground leading-tight">
+                    I agree to the{' '}
+                    <a href="/terms" target="_blank" className="text-primary hover:underline">Terms of Use</a>
+                    {' '}and{' '}
+                    <a href="/privacy" target="_blank" className="text-primary hover:underline">Privacy Policy</a>
+                  </label>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <Button
               type="submit"
               className="w-full gradient-animated text-white font-semibold"
               size="lg"
-              disabled={loading}
+              disabled={loading || (!isLogin && !agreedToTerms)}
             >
               {loading ? (
                 <motion.div
@@ -378,9 +408,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               onClick={async () => {
                 setLoading(true);
                 try {
+                  // Google OAuth redirects to /home - the app will check if onboarding is needed there
                   const redirectUrl = isInviteMode 
                     ? window.location.href
-                    : `${window.location.origin}/onboarding`;
+                    : `${window.location.origin}/home`;
                   
                   const { error } = await supabase.auth.signInWithOAuth({
                     provider: 'google',
