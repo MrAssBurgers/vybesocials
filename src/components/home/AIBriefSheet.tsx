@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, memo, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Sparkles, Settings, RefreshCw, TrendingUp, MessageCircle, Image as ImageIcon, Globe, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -30,8 +29,77 @@ interface BriefData {
   hasLiveData: boolean;
 }
 
+// Smooth skeleton with shimmer effect
+const ShimmerSkeleton = memo(function ShimmerSkeleton({ className }: { className?: string }) {
+  return (
+    <div 
+      className={`relative overflow-hidden rounded-xl bg-muted/40 ${className}`}
+      style={{ contain: 'layout style paint' }}
+    >
+      <div 
+        className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite]"
+        style={{
+          background: 'linear-gradient(90deg, transparent, hsl(var(--muted)/0.4), transparent)',
+        }}
+      />
+    </div>
+  );
+});
+
+// Loading state with staggered animation
+const BriefLoadingState = memo(function BriefLoadingState() {
+  return (
+    <div className="space-y-4 animate-in fade-in duration-200">
+      {/* Summary skeleton */}
+      <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-accent/5 border border-primary/10">
+        <div className="flex items-center gap-2 mb-3">
+          <ShimmerSkeleton className="h-5 w-5 rounded-lg" />
+          <ShimmerSkeleton className="h-4 w-28" />
+        </div>
+        <div className="space-y-2">
+          <ShimmerSkeleton className="h-4 w-full" />
+          <ShimmerSkeleton className="h-4 w-4/5" />
+          <ShimmerSkeleton className="h-4 w-3/5" />
+        </div>
+      </div>
+      
+      {/* Updates header skeleton */}
+      <div className="flex items-center gap-2 px-1">
+        <ShimmerSkeleton className="h-4 w-4" />
+        <ShimmerSkeleton className="h-4 w-24" />
+      </div>
+      
+      {/* Card skeletons with stagger */}
+      {[0, 1, 2].map((i) => (
+        <div 
+          key={i} 
+          className="p-4 rounded-xl bg-card/60 border border-border/30"
+          style={{ 
+            animationDelay: `${i * 100}ms`,
+            opacity: 0,
+            animation: `fadeSlideIn 0.3s ease-out ${i * 100}ms forwards`
+          }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <ShimmerSkeleton className="h-6 w-6 rounded" />
+            <ShimmerSkeleton className="h-3 w-16" />
+          </div>
+          <div className="space-y-2">
+            <ShimmerSkeleton className="h-3 w-full" />
+            <ShimmerSkeleton className="h-3 w-5/6" />
+          </div>
+          <div className="flex gap-2 mt-3 pt-2 border-t border-border/20">
+            <ShimmerSkeleton className="h-6 w-20 rounded-md" />
+            <ShimmerSkeleton className="h-6 w-24 rounded-md" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+});
+
 // Memoized card component for performance
-const BriefCard = memo(function BriefCard({ update }: { update: BriefUpdate }) {
+const BriefCard = memo(function BriefCard({ update, index }: { update: BriefUpdate; index: number }) {
   const getEmoji = (topic: string) => {
     const emojis: Record<string, string> = {
       politics: '🗳️', gaming: '🎮', cooking: '🍳', fitness: '💪', music: '🎵',
@@ -45,7 +113,14 @@ const BriefCard = memo(function BriefCard({ update }: { update: BriefUpdate }) {
   };
 
   return (
-    <div className="p-4 rounded-xl bg-card/80 border border-border/50">
+    <div 
+      className="p-4 rounded-xl bg-card/80 border border-border/50 will-change-transform"
+      style={{ 
+        contain: 'layout style paint',
+        opacity: 0,
+        animation: `fadeSlideIn 0.3s ease-out ${index * 80}ms forwards`
+      }}
+    >
       <div className="flex items-center gap-2 mb-2">
         <span className="text-lg">{getEmoji(update.interest)}</span>
         <span className="text-xs font-semibold text-primary uppercase tracking-wide">{update.interest}</span>
@@ -88,9 +163,17 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [briefData, setBriefData] = useState<BriefData | null>(null);
   const [showCustomize, setShowCustomize] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchBrief = useCallback(async () => {
     if (!user) return;
+    
+    // Cancel any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    
     setIsLoading(true);
     haptics.tap();
 
@@ -110,6 +193,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
             'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({}),
+          signal: abortControllerRef.current.signal,
         }
       );
 
@@ -129,6 +213,9 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
       setBriefData(data);
       haptics.success();
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return; // Silently ignore aborted requests
+      }
       console.error('Brief error:', error);
       toast.error('Could not load brief');
     } finally {
@@ -140,12 +227,19 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
     if (open && !briefData) {
       fetchBrief();
     }
+    
+    return () => {
+      // Cleanup on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [open, briefData, fetchBrief]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setBriefData(null);
     fetchBrief();
-  };
+  }, [fetchBrief]);
 
   return (
     <>
@@ -171,7 +265,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                   onClick={handleRefresh}
                   disabled={isLoading}
                 >
-                  <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-4 w-4 transition-transform duration-500 ${isLoading ? 'animate-spin' : ''}`} />
                 </Button>
                 <Button
                   size="icon"
@@ -184,46 +278,50 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
               </div>
             </div>
             
-            {/* Status badges */}
-            {briefData && (
-              <div className="flex gap-2 pt-2">
-                {briefData.hasMessages && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground bg-accent/10 px-2 py-1 rounded-full">
-                    <MessageCircle className="h-3 w-3 text-accent" />
-                    {briefData.unreadCount} unread
-                  </div>
-                )}
-                {briefData.hasPosts && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground bg-primary/10 px-2 py-1 rounded-full">
-                    <ImageIcon className="h-3 w-3 text-primary" />
-                    New posts
-                  </div>
-                )}
-                {briefData.hasLiveData && (
-                  <div className="flex items-center gap-1 text-xs text-accent font-medium bg-accent/10 px-2 py-1 rounded-full">
-                    <Globe className="h-3 w-3" />
-                    Live
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Status badges with smooth fade */}
+            <div 
+              className="flex gap-2 pt-2 transition-opacity duration-300"
+              style={{ opacity: briefData ? 1 : 0 }}
+            >
+              {briefData?.hasMessages && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground bg-accent/10 px-2 py-1 rounded-full animate-in fade-in slide-in-from-bottom-1 duration-200">
+                  <MessageCircle className="h-3 w-3 text-accent" />
+                  {briefData.unreadCount} unread
+                </div>
+              )}
+              {briefData?.hasPosts && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground bg-primary/10 px-2 py-1 rounded-full animate-in fade-in slide-in-from-bottom-1 duration-200 delay-75">
+                  <ImageIcon className="h-3 w-3 text-primary" />
+                  New posts
+                </div>
+              )}
+              {briefData?.hasLiveData && (
+                <div className="flex items-center gap-1 text-xs text-accent font-medium bg-accent/10 px-2 py-1 rounded-full animate-in fade-in slide-in-from-bottom-1 duration-200 delay-150">
+                  <Globe className="h-3 w-3" />
+                  Live
+                </div>
+              )}
+            </div>
           </SheetHeader>
 
-          {/* Scrollable Content */}
+          {/* Scrollable Content - GPU accelerated */}
           <div 
-            className="flex-1 overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch py-4 px-1"
-            style={{ minHeight: 0 }}
+            className="flex-1 overflow-y-auto overscroll-contain py-4 px-1"
+            style={{ 
+              minHeight: 0,
+              WebkitOverflowScrolling: 'touch',
+              contain: 'strict',
+            }}
           >
             {isLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-20 w-full rounded-xl" />
-                <Skeleton className="h-28 w-full rounded-xl" />
-                <Skeleton className="h-24 w-full rounded-xl" />
-              </div>
+              <BriefLoadingState />
             ) : briefData ? (
-              <div className="space-y-4">
+              <div className="space-y-4 animate-in fade-in duration-300">
                 {/* Summary Card */}
-                <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 to-accent/5 border border-primary/20">
+                <div 
+                  className="p-4 rounded-xl bg-gradient-to-br from-primary/10 to-accent/5 border border-primary/20"
+                  style={{ animation: 'fadeSlideIn 0.3s ease-out forwards' }}
+                >
                   <div className="flex items-center gap-2 mb-2">
                     <Sparkles className="h-4 w-4 text-primary" />
                     <span className="text-sm font-medium">Quick Summary</span>
@@ -241,7 +339,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                       <span className="text-sm font-semibold">Live Updates</span>
                     </div>
                     {briefData.liveUpdates.map((update, index) => (
-                      <BriefCard key={update.interest + index} update={update} />
+                      <BriefCard key={update.interest + index} update={update} index={index} />
                     ))}
                   </div>
                 )}
@@ -249,7 +347,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                 {/* Empty state */}
                 {(!briefData.liveUpdates || briefData.liveUpdates.length === 0) && 
                  !briefData.hasPosts && !briefData.hasMessages && (
-                  <div className="text-center py-12">
+                  <div className="text-center py-12 animate-in fade-in duration-300">
                     <Globe className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
                     <p className="text-sm text-muted-foreground mb-3">
                       Add interests to get personalized updates
