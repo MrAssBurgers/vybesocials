@@ -42,8 +42,10 @@ import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { CallButtons } from '@/components/call/CallButtons';
 import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 import { useChatPresence } from '@/hooks/useChatPresence';
+import { useLiveActivity } from '@/hooks/useLiveActivity';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
 import { LivePresenceBar, SnapTypingBubble, ScreenshotAlert } from './SnapchatFeedback';
+import { LiveActivityIndicator, InlineActivityBubble } from './LiveActivityIndicator';
 import { AIAssistButton } from './AIAssistButton';
 import { SmartRepliesBar } from './SmartRepliesBar';
 import { ChatSummarySheet } from './ChatSummarySheet';
@@ -120,6 +122,13 @@ export function ChatView() {
   const editMessage = useEditMessage();
   // Use new presence hook for Snapchat-style presence + typing
   const { presentUsers, typingUsers, setTyping } = useChatPresence(conversationId);
+  // Ultra-fast live activity tracking for DMs
+  const { 
+    otherUserActivity, 
+    isOtherUserPresent, 
+    setTyping: setLiveTyping, 
+    setRecordingVoice: setLiveRecordingVoice 
+  } = useLiveActivity(conversationId);
   const { notifyScreenshot, notifyCapture, screenshotEvents, isRecording } = useScreenshotNotification(conversationId);
   
   // v1.1: Instant read clear - marks as read immediately and clears badges
@@ -362,14 +371,15 @@ export function ChatView() {
     };
   }, [conversationId, notifyScreenshot]);
 
-  // Handle typing indicator - debounced, doesn't block input
+  // Handle typing indicator - instant updates for both users
   const handleInputChange = useCallback((value: string) => {
     // Update text immediately - no blocking
     setMessageText(value);
     
-    // Debounce typing indicator separately - non-blocking
+    // Instant typing indicator update for live feedback
     if (value.length > 0) {
       setTyping(true);
+      setLiveTyping(true);
       
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
@@ -377,12 +387,14 @@ export function ChatView() {
       
       typingTimeoutRef.current = setTimeout(() => {
         setTyping(false);
-      }, 3000);
+        setLiveTyping(false);
+      }, 2000); // Faster timeout for snappier feel
     } else if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       setTyping(false);
+      setLiveTyping(false);
     }
-  }, [setTyping]);
+  }, [setTyping, setLiveTyping]);
 
   const handleSend = useCallback(() => {
     if (!messageText.trim() || !conversationId) return;
@@ -1078,14 +1090,13 @@ export function ChatView() {
             )}
           </AnimatePresence>
 
-          {/* Snapchat-style typing bubble - appears in chat when someone is typing */}
+          {/* Live activity bubble - shows other user's PFP with activity */}
           <AnimatePresence>
-            {typingUsers && typingUsers.length > 0 && !isGroupChat && otherMember && (
-              <SnapTypingBubble
-                avatarUrl={otherMember.avatar_url}
-                username={otherMember.username}
-                displayName={otherMember.display_name}
-                size="md"
+            {!isGroupChat && otherUserActivity && isOtherUserPresent && (
+              <InlineActivityBubble
+                avatarUrl={otherUserActivity.avatar_url}
+                username={otherUserActivity.username}
+                activity={otherUserActivity.activity}
               />
             )}
           </AnimatePresence>
@@ -1102,6 +1113,17 @@ export function ChatView() {
           <div ref={messagesEndRef} className="h-1" />
         </div>
       </div>
+
+      {/* Live Activity Indicator - shows other user's PFP at bottom of chat */}
+      {!isGroupChat && otherMember && (
+        <LiveActivityIndicator
+          avatarUrl={otherUserActivity?.avatar_url || otherMember.avatar_url}
+          username={otherUserActivity?.username || otherMember.username}
+          displayName={otherUserActivity?.display_name || otherMember.display_name}
+          activity={otherUserActivity?.activity || 'idle'}
+          isVisible={isOtherUserPresent}
+        />
+      )}
 
       {/* VYBE Camera Modal */}
       <SnapCamera
@@ -1132,6 +1154,7 @@ export function ChatView() {
             sendMediaMessage={sendMediaMessage}
             setViewMode={setViewMode}
             setIsRecordingVoice={setIsRecordingVoice}
+            onLiveRecordingChange={setLiveRecordingVoice}
             clearReply={clearReply}
             t={t}
             onOpenVanishThreads={() => setShowVanishThreads(true)}
@@ -1164,6 +1187,7 @@ export function ChatView() {
           sendMediaMessage={sendMediaMessage}
           setViewMode={setViewMode}
           setIsRecordingVoice={setIsRecordingVoice}
+          onLiveRecordingChange={setLiveRecordingVoice}
           clearReply={clearReply}
           t={t}
           onOpenVanishThreads={() => setShowVanishThreads(true)}
@@ -1200,6 +1224,7 @@ const MessageInputArea = memo(function MessageInputArea({
   sendMediaMessage,
   setViewMode,
   setIsRecordingVoice,
+  onLiveRecordingChange,
   clearReply,
   t,
   onOpenVanishThreads,
@@ -1229,6 +1254,7 @@ const MessageInputArea = memo(function MessageInputArea({
   sendMediaMessage: (mediaUrl: string, mediaType: string) => Promise<void>;
   setViewMode: (mode: ViewMode) => void;
   setIsRecordingVoice: (recording: boolean) => void;
+  onLiveRecordingChange?: (recording: boolean) => void;
   clearReply: () => void;
   t: (key: string) => string;
   onOpenVanishThreads?: () => void;
@@ -1278,7 +1304,10 @@ const MessageInputArea = memo(function MessageInputArea({
         {isRecordingVoice ? (
           <VoiceRecorder
             onRecordingComplete={handleVoiceRecordingComplete}
-            onCancel={() => setIsRecordingVoice(false)}
+            onCancel={() => {
+              setIsRecordingVoice(false);
+              onLiveRecordingChange?.(false);
+            }}
             isUploading={isUploadingMedia}
           />
         ) : (
@@ -1297,7 +1326,10 @@ const MessageInputArea = memo(function MessageInputArea({
               onGifSelect={async (gifUrl) => {
                 await sendMediaMessage(gifUrl, 'gif');
               }}
-              onVoiceStart={() => setIsRecordingVoice(true)}
+              onVoiceStart={() => {
+                setIsRecordingVoice(true);
+                onLiveRecordingChange?.(true);
+              }}
               onEmojiSelect={(emoji) => {
                 handleInputChange(messageText + emoji);
                 inputRef.current?.focus();
@@ -1364,7 +1396,10 @@ const MessageInputArea = memo(function MessageInputArea({
                 <Button 
                   variant="ghost"
                   size="icon"
-                  onClick={() => setIsRecordingVoice(true)}
+                  onClick={() => {
+                    setIsRecordingVoice(true);
+                    onLiveRecordingChange?.(true);
+                  }}
                   className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9"
                 >
                   <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
