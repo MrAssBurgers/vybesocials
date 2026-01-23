@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Flame } from 'lucide-react';
+import { Flame, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface StreakIndicatorProps {
@@ -20,6 +20,7 @@ export function StreakIndicator({
     : null;
 
   const isExpiringSoon = hoursLeft !== null && hoursLeft <= 3;
+  const isDying = hoursLeft !== null && hoursLeft <= 6;
 
   const sizeClasses = {
     sm: 'text-xs gap-0.5',
@@ -33,12 +34,51 @@ export function StreakIndicator({
     lg: 'h-5 w-5',
   };
 
+  const clockSizes = {
+    sm: 'h-2.5 w-2.5',
+    md: 'h-3 w-3',
+    lg: 'h-3.5 w-3.5',
+  };
+
   // Get flame color based on streak count (higher = hotter)
   const getFlameColor = () => {
-    if (count >= 100) return 'text-accent'; // Accent for legendary 100+
-    if (count >= 30) return 'text-primary'; // Primary for 30+
-    if (count >= 7) return 'text-orange-500'; // Orange for 7+
-    return 'text-yellow-500'; // Yellow for beginners
+    if (isDying) return 'text-orange-400/70'; // Faded when dying
+    if (count >= 100) return 'text-accent';
+    if (count >= 30) return 'text-primary';
+    if (count >= 7) return 'text-orange-500';
+    return 'text-yellow-500';
+  };
+
+  // Live fire animation - more chaotic flickering
+  const liveFireAnimation = {
+    scale: [1, 1.1, 0.95, 1.15, 1, 1.08, 0.98, 1.12, 1],
+    rotate: [-2, 3, -1, 2, -3, 1, -2, 2, -1],
+    y: [0, -1, 0.5, -1.5, 0, -0.5, 0.5, -1, 0],
+    filter: [
+      'drop-shadow(0 0 3px currentColor) brightness(1)',
+      'drop-shadow(0 0 6px currentColor) brightness(1.1)',
+      'drop-shadow(0 0 4px currentColor) brightness(0.95)',
+      'drop-shadow(0 0 8px currentColor) brightness(1.15)',
+      'drop-shadow(0 0 3px currentColor) brightness(1)',
+      'drop-shadow(0 0 5px currentColor) brightness(1.05)',
+      'drop-shadow(0 0 4px currentColor) brightness(0.98)',
+      'drop-shadow(0 0 7px currentColor) brightness(1.1)',
+      'drop-shadow(0 0 3px currentColor) brightness(1)',
+    ]
+  };
+
+  // Dying fire animation - slow, weak flickering
+  const dyingFireAnimation = {
+    scale: [1, 0.95, 1.02, 0.97, 1],
+    rotate: [-0.5, 0.5, -0.3, 0.3, 0],
+    opacity: [0.7, 0.5, 0.65, 0.55, 0.7],
+    filter: [
+      'drop-shadow(0 0 1px currentColor) brightness(0.8)',
+      'drop-shadow(0 0 2px currentColor) brightness(0.7)',
+      'drop-shadow(0 0 1px currentColor) brightness(0.75)',
+      'drop-shadow(0 0 2px currentColor) brightness(0.65)',
+      'drop-shadow(0 0 1px currentColor) brightness(0.8)',
+    ]
   };
 
   return (
@@ -48,35 +88,55 @@ export function StreakIndicator({
       className={cn(
         'flex items-center font-bold',
         sizeClasses[size],
-        isExpiringSoon ? 'text-orange-500' : getFlameColor()
+        getFlameColor()
       )}
     >
-      {/* Pulsing fire with glow effect */}
+      {/* Live fire with realistic flickering */}
       <motion.div
         className="relative"
-        animate={{ 
-          scale: [1, 1.15, 1],
-          filter: [
-            'drop-shadow(0 0 2px currentColor)',
-            'drop-shadow(0 0 8px currentColor)',
-            'drop-shadow(0 0 2px currentColor)'
-          ]
-        }}
+        animate={isDying ? dyingFireAnimation : liveFireAnimation}
         transition={{ 
           repeat: Infinity, 
-          duration: isExpiringSoon ? 0.5 : 1.5,
-          ease: "easeInOut"
+          duration: isDying ? 2.5 : 0.8,
+          ease: "easeInOut",
+          times: isDying ? [0, 0.25, 0.5, 0.75, 1] : [0, 0.12, 0.25, 0.37, 0.5, 0.62, 0.75, 0.87, 1]
         }}
       >
         <Flame className={cn(iconSizes[size], 'fill-current')} />
       </motion.div>
+
+      {/* Expiry clock when dying */}
+      {isDying && hoursLeft !== null && (
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="relative ml-0.5"
+        >
+          <motion.div
+            animate={{ 
+              scale: isExpiringSoon ? [1, 1.1, 1] : 1,
+              opacity: isExpiringSoon ? [1, 0.6, 1] : 0.8
+            }}
+            transition={{ 
+              repeat: Infinity, 
+              duration: isExpiringSoon ? 0.8 : 2 
+            }}
+          >
+            <Clock className={cn(
+              clockSizes[size], 
+              isExpiringSoon ? 'text-red-500' : 'text-orange-400'
+            )} />
+          </motion.div>
+        </motion.div>
+      )}
       
-      {/* Streak count with subtle animation */}
+      {/* Streak count */}
       <motion.span
         key={count}
         initial={{ scale: 1.3, y: -2 }}
         animate={{ scale: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+        className={cn(isDying && 'opacity-70')}
       >
         {count}
       </motion.span>
@@ -86,7 +146,7 @@ export function StreakIndicator({
           'text-[10px] ml-1',
           isExpiringSoon ? 'text-red-500 animate-pulse' : 'text-muted-foreground'
         )}>
-          ({hoursLeft}h left)
+          ({hoursLeft}h)
         </span>
       )}
     </motion.div>
