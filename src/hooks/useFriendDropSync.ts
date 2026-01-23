@@ -34,6 +34,12 @@ export function useFriendDropSync({
   const [activeDrop, setActiveDrop] = useState<FriendDrop | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const callbacksRef = useRef({ onScanned, onConfirmed, onCompleted });
+  
+  // Keep callbacks in sync without re-subscribing
+  useEffect(() => {
+    callbacksRef.current = { onScanned, onConfirmed, onCompleted };
+  }, [onScanned, onConfirmed, onCompleted]);
 
   // Create a new drop session (called by QR owner)
   const createDrop = useCallback(async (): Promise<FriendDrop | null> => {
@@ -60,6 +66,7 @@ export function useFriendDropSync({
 
       if (error) throw error;
       
+      console.log('[FriendDropSync] Created drop:', data.id);
       setActiveDrop(data as FriendDrop);
       return data as FriendDrop;
     } catch (error) {
@@ -70,11 +77,12 @@ export function useFriendDropSync({
     }
   }, [profile?.id]);
 
-  // Scan a drop (called by QR scanner)
-  const scanDrop = useCallback(async (dropId: string): Promise<boolean> => {
-    if (!profile?.id) return false;
+  // Scan a drop (called by QR scanner) - returns the scanned drop
+  const scanDrop = useCallback(async (dropId: string): Promise<FriendDrop | null> => {
+    if (!profile?.id) return null;
     
     try {
+      console.log('[FriendDropSync] Scanning drop:', dropId);
       const { data, error } = await supabase
         .from('friend_drops')
         .update({
@@ -88,18 +96,20 @@ export function useFriendDropSync({
 
       if (error) throw error;
       
+      console.log('[FriendDropSync] Scan successful, drop data:', data);
       setActiveDrop(data as FriendDrop);
       haptics.success();
-      return true;
+      return data as FriendDrop;
     } catch (error) {
       console.error('[FriendDropSync] Error scanning drop:', error);
-      return false;
+      return null;
     }
   }, [profile?.id]);
 
   // Confirm the drop (either party can confirm after scan)
   const confirmDrop = useCallback(async (dropId: string): Promise<boolean> => {
     try {
+      console.log('[FriendDropSync] Confirming drop:', dropId);
       const { data, error } = await supabase
         .from('friend_drops')
         .update({
@@ -113,6 +123,7 @@ export function useFriendDropSync({
 
       if (error) throw error;
       
+      console.log('[FriendDropSync] Confirmed:', data);
       setActiveDrop(data as FriendDrop);
       return true;
     } catch (error) {
@@ -124,6 +135,7 @@ export function useFriendDropSync({
   // Complete the drop (after friend request is sent)
   const completeDrop = useCallback(async (dropId: string): Promise<boolean> => {
     try {
+      console.log('[FriendDropSync] Completing drop:', dropId);
       const { data, error } = await supabase
         .from('friend_drops')
         .update({
@@ -136,6 +148,7 @@ export function useFriendDropSync({
 
       if (error) throw error;
       
+      console.log('[FriendDropSync] Completed:', data);
       setActiveDrop(data as FriendDrop);
       return true;
     } catch (error) {
@@ -165,13 +178,15 @@ export function useFriendDropSync({
   useEffect(() => {
     if (!enabled || !profile?.id) return;
 
+    console.log('[FriendDropSync] Setting up realtime subscription for user:', profile.id);
+    
     // Subscribe to drops where user is either party
     const channel = supabase
-      .channel(`friend-drops-${profile.id}`)
+      .channel(`friend-drops-${profile.id}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
           table: 'friend_drops',
           filter: `from_user_id=eq.${profile.id}`,
@@ -180,23 +195,28 @@ export function useFriendDropSync({
           const drop = payload.new as FriendDrop;
           if (!drop) return;
           
+          console.log('[FriendDropSync] Owner received update:', drop.status, drop);
           setActiveDrop(drop);
           
+          // Trigger callbacks based on status changes
           if (drop.status === 'scanned') {
+            console.log('[FriendDropSync] QR was scanned! Triggering onScanned callback');
             haptics.impact();
-            onScanned?.(drop);
+            callbacksRef.current.onScanned?.(drop);
           } else if (drop.status === 'confirmed') {
+            console.log('[FriendDropSync] Drop confirmed! Triggering onConfirmed callback');
             haptics.success();
-            onConfirmed?.(drop);
+            callbacksRef.current.onConfirmed?.(drop);
           } else if (drop.status === 'completed') {
-            onCompleted?.(drop);
+            console.log('[FriendDropSync] Drop completed! Triggering onCompleted callback');
+            callbacksRef.current.onCompleted?.(drop);
           }
         }
       )
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
           table: 'friend_drops',
           filter: `to_user_id=eq.${profile.id}`,
@@ -205,25 +225,31 @@ export function useFriendDropSync({
           const drop = payload.new as FriendDrop;
           if (!drop) return;
           
+          console.log('[FriendDropSync] Scanner received update:', drop.status, drop);
           setActiveDrop(drop);
           
           if (drop.status === 'confirmed') {
+            console.log('[FriendDropSync] Scanner sees confirm! Triggering onConfirmed callback');
             haptics.success();
-            onConfirmed?.(drop);
+            callbacksRef.current.onConfirmed?.(drop);
           } else if (drop.status === 'completed') {
-            onCompleted?.(drop);
+            console.log('[FriendDropSync] Scanner sees complete! Triggering onCompleted callback');
+            callbacksRef.current.onCompleted?.(drop);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[FriendDropSync] Subscription status:', status);
+      });
 
     channelRef.current = channel;
 
     return () => {
+      console.log('[FriendDropSync] Cleaning up subscription');
       channel.unsubscribe();
       channelRef.current = null;
     };
-  }, [enabled, profile?.id, onScanned, onConfirmed, onCompleted]);
+  }, [enabled, profile?.id]);
 
   return {
     activeDrop,
