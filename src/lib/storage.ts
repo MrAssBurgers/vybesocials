@@ -38,7 +38,10 @@ export async function createSignedUrl(
     .createSignedUrl(path, expiresIn);
   
   if (error) {
-    console.error('Failed to create signed URL:', error);
+    // Don't spam console for 404s - these are expected for deleted/moved files
+    if (error.message !== 'Object not found') {
+      console.warn('Failed to create signed URL:', error.message);
+    }
     return null;
   }
   
