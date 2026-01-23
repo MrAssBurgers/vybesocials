@@ -112,12 +112,15 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
 
 /**
  * Batch sign multiple URLs at once - MUCH faster than individual calls
+ * Deduplicates URLs to prevent redundant network requests
  */
 export async function batchSignUrls(urls: (string | null | undefined)[]): Promise<void> {
+  // Deduplicate URLs first using Set
+  const uniqueUrls = [...new Set(urls.filter(Boolean) as string[])];
   const urlsToSign: { url: string; bucket: string; path: string }[] = [];
   
-  for (const url of urls) {
-    if (!url || !needsSigning(url)) continue;
+  for (const url of uniqueUrls) {
+    if (!needsSigning(url)) continue;
     if (getCachedSignedUrl(url)) continue; // Already cached
     if (pendingRequests.has(url)) continue; // Already fetching
     
@@ -129,36 +132,45 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
   
   if (urlsToSign.length === 0) return;
   
-  // Group by bucket for efficient batch requests
-  const byBucket = new Map<string, { url: string; path: string }[]>();
+  // Group by bucket for efficient batch requests, dedupe paths within bucket
+  const byBucket = new Map<string, Map<string, string>>(); // bucket -> path -> originalUrl
   for (const item of urlsToSign) {
-    const list = byBucket.get(item.bucket) || [];
-    list.push({ url: item.url, path: item.path });
-    byBucket.set(item.bucket, list);
+    let bucketMap = byBucket.get(item.bucket);
+    if (!bucketMap) {
+      bucketMap = new Map();
+      byBucket.set(item.bucket, bucketMap);
+    }
+    // Only keep first occurrence of each path
+    if (!bucketMap.has(item.path)) {
+      bucketMap.set(item.path, item.url);
+    }
   }
   
   // Sign all URLs in parallel by bucket
-  const promises = Array.from(byBucket.entries()).map(async ([bucket, items]) => {
+  const promises = Array.from(byBucket.entries()).map(async ([bucket, pathMap]) => {
     try {
+      const paths = Array.from(pathMap.keys());
+      const urls = Array.from(pathMap.values());
+      
       const { data, error } = await supabase.storage
         .from(bucket)
-        .createSignedUrls(items.map(i => i.path), 3600);
+        .createSignedUrls(paths, 3600);
       
       if (error || !data) return;
       
       // Cache all results
       const now = Date.now();
-      for (let i = 0; i < items.length; i++) {
+      for (let i = 0; i < paths.length; i++) {
         const signedUrl = data[i]?.signedUrl;
         if (signedUrl) {
-          cache.set(items[i].url, {
+          cache.set(urls[i], {
             signedUrl,
             expiresAt: now + CACHE_DURATION,
           });
         }
       }
     } catch (e) {
-      console.warn('Batch sign failed for bucket:', bucket, e);
+      // Silent fail - URLs will fallback to original
     }
   });
   

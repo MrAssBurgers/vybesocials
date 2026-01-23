@@ -1,6 +1,6 @@
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import { Check, Sparkles } from 'lucide-react';
+import { useEffect, useState, useMemo, useCallback, forwardRef, memo } from 'react';
+import { Check } from 'lucide-react';
 
 type SwooshDirection = 
   | 'left' 
@@ -18,25 +18,22 @@ interface NanotechSwooshProps {
   primaryColor?: string;
   accentColor?: string;
   onComplete?: () => void;
-  onMidpoint?: () => void; // Called when swoosh reaches midpoint (apply theme here)
-  duration?: number; // Total duration in ms (600-800 recommended)
+  onMidpoint?: () => void;
+  duration?: number;
 }
 
 /**
  * Premium nanotech swoosh theme transition
- * - Semi-transparent frosted-glass effect
- * - Glowing leading edge, dissolving trailing edge
- * - Theme changes occur BEHIND the swoosh
- * - Respects prefers-reduced-motion
+ * Uses forwardRef to prevent React warnings when parent components pass refs
  */
-export function NanotechSwoosh({
+export const NanotechSwoosh = memo(forwardRef<HTMLDivElement, NanotechSwooshProps>(function NanotechSwoosh({
   isActive,
   primaryColor = '280 70% 50%',
   accentColor = '330 80% 60%',
   onComplete,
   onMidpoint,
   duration = 700,
-}: NanotechSwooshProps) {
+}, ref) {
   const prefersReducedMotion = useReducedMotion();
   const [phase, setPhase] = useState<'idle' | 'swoosh' | 'settle'>('idle');
 
@@ -368,4 +365,4 @@ export function NanotechSwoosh({
       )}
     </AnimatePresence>
   );
-}
+}));
