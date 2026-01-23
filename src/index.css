@@ -169,6 +169,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
 
   html {
     overflow-x: hidden;
+    scroll-behavior: smooth;
     /* Ensure touch scrolling works on iOS/iPad */
     -webkit-overflow-scrolling: touch;
   }
@@ -189,6 +190,30 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     /* Allow touch scrolling - never block it globally */
     touch-action: manipulation;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Universal smooth scroll for all scrollable containers */
+  .overflow-y-auto,
+  .overflow-y-scroll,
+  .overflow-auto,
+  [data-radix-scroll-area-viewport] {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+  }
+
+  /* Snap scroll containers - for feeds and clip viewers */
+  .snap-y {
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .snap-x {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
   
   .light body,
