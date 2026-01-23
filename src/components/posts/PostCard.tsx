@@ -25,7 +25,7 @@ import { ModBadge } from '@/components/ui/ModBadge';
 import { useTogglePin } from '@/hooks/usePosts';
 import { useUserRole } from '@/hooks/useModeration';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
-import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
@@ -259,8 +259,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authPromptAction, setAuthPromptAction] = useState('');
 
-  const signedMediaUrl = useSignedUrl(post.media_url);
-  const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
+  const signedMediaUrl = useFastSignedUrl(post.media_url);
+  const signedAvatarUrl = useFastSignedUrl(post.author.avatar_url);
 
   // Memoize computed values
   const isOwnPost = useMemo(() => profile?.id === post.author.id, [profile?.id, post.author.id]);

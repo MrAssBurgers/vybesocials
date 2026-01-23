@@ -1,4 +1,4 @@
-import { useState, memo } from 'react';
+import { useState, memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence } from 'framer-motion';
 import { Plus } from 'lucide-react';
@@ -9,7 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StoryViewer } from './StoryViewer';
 import { StoryCreator } from './StoryCreator';
 import { cn } from '@/lib/utils';
-import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
+import { batchSignUrls } from '@/lib/signedUrlCache';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 
 export const StoriesBar = memo(function StoriesBar() {
@@ -36,6 +37,15 @@ export const StoriesBar = memo(function StoriesBar() {
 
   const ownStoryGroup = storyGroups?.find((g) => g.user.id === profile?.id);
   const otherGroups = storyGroups?.filter((g) => g.user.id !== profile?.id) || [];
+
+  // Pre-sign all avatar URLs when stories load
+  useEffect(() => {
+    if (!storyGroups) return;
+    const urls = storyGroups.map(g => g.user.avatar_url).filter(Boolean);
+    if (urls.length > 0) {
+      batchSignUrls(urls).catch(() => {});
+    }
+  }, [storyGroups]);
 
   return (
     <>
@@ -134,7 +144,7 @@ const StoryAvatar = memo(function StoryAvatar({
   onClick,
   onAddClick 
 }: StoryAvatarProps) {
-  const signedUrl = useSignedUrl(avatarUrl);
+  const signedUrl = useFastSignedUrl(avatarUrl);
 
   const handleAddClick = (e: React.MouseEvent) => {
     e.preventDefault();
