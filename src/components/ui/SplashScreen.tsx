@@ -9,6 +9,15 @@ interface SplashScreenProps {
   progress?: number;
 }
 
+// Fun loading tips that rotate
+const LOADING_TIPS = [
+  "Tip: Double-tap to like posts ❤️",
+  "Tip: Swipe up for more clips 🎬",
+  "Tip: Hold messages to react 😊",
+  "Tip: Bump phones to add friends 📱",
+  "Tip: Pull down to refresh feeds 🔄",
+];
+
 export const SplashScreen = memo(function SplashScreen({ 
   isVisible, 
   status = 'Loading...', 
@@ -17,11 +26,14 @@ export const SplashScreen = memo(function SplashScreen({
   const showComplete = progress >= 100;
   const isLowEnd = useMemo(() => isLowEndDevice(), []);
   
+  // Random tip on mount
+  const [tip] = useState(() => LOADING_TIPS[Math.floor(Math.random() * LOADING_TIPS.length)]);
+  
   // Smooth spring animation for progress (disabled on low-end devices)
   const springProgress = useSpring(progress, isLowEnd ? { duration: 0 } : {
-    stiffness: 100,
-    damping: 30,
-    mass: 1,
+    stiffness: 120,
+    damping: 25,
+    mass: 0.8,
   });
   
   // Animated display progress
@@ -64,10 +76,9 @@ export const SplashScreen = memo(function SplashScreen({
           initial={{ opacity: 1 }}
           exit={{ 
             opacity: 0, 
-            scale: 1.05,
-            filter: 'blur(10px)',
+            scale: 1.02,
           }}
-          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+          transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
           className="fixed inset-0 flex flex-col items-center justify-center bg-background overflow-hidden"
           style={{
             zIndex: 2147483647,
@@ -80,63 +91,45 @@ export const SplashScreen = memo(function SplashScreen({
             height: '100dvh',
           }}
         >
-          {/* Simplified background with static glows for better performance */}
+          {/* Optimized background with static glows */}
           <div className="absolute inset-0 pointer-events-none">
-            {/* Primary glow - left */}
             <div 
-              className="absolute top-1/2 left-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2 bg-primary opacity-40"
+              className="absolute top-1/2 left-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2 bg-primary opacity-30"
             />
-            
-            {/* Accent glow - right */}
             <div 
-              className="absolute top-1/2 right-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2 bg-accent opacity-40"
+              className="absolute top-1/2 right-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2 bg-accent opacity-30"
             />
-
-            {/* Center purple glow */}
             <div 
-              className="absolute top-1/2 left-1/2 w-32 h-32 sm:w-48 sm:h-48 rounded-full blur-[60px] sm:blur-[80px] -translate-x-1/2 -translate-y-1/2 opacity-30"
+              className="absolute top-1/2 left-1/2 w-32 h-32 sm:w-48 sm:h-48 rounded-full blur-[60px] sm:blur-[80px] -translate-x-1/2 -translate-y-1/2 opacity-20"
               style={{ background: 'hsl(var(--neon-purple))' }}
             />
           </div>
           
-          {/* Animated VYBE Logo - clean, no box */}
+          {/* Animated VYBE Logo */}
           <motion.div
-            className="mb-6 sm:mb-10"
-            animate={showComplete ? { 
-              scale: [1, 1.1, 1],
-            } : undefined}
-            transition={{ duration: 0.5 }}
+            className="mb-4 sm:mb-6"
+            animate={showComplete ? { scale: [1, 1.08, 1] } : undefined}
+            transition={{ duration: 0.4 }}
           >
-            <VYBELogo size="splash" showText={false} animated={true} />
+            <VYBELogo size="splash" showText={false} animated={!isLowEnd} />
           </motion.div>
 
-          {/* Welcome to VYBE Text */}
+          {/* Welcome Text */}
           <motion.div
-            initial={{ opacity: 0, y: 15 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+            transition={{ delay: 0.2, duration: 0.4 }}
             className="text-center mb-6 sm:mb-8 px-4"
           >
-            <motion.p
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7, duration: 0.5 }}
-              className="text-sm sm:text-base text-muted-foreground mb-2"
-            >
-              Welcome to
-            </motion.p>
             <motion.h1
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.9, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-              className="text-4xl sm:text-5xl font-display font-black tracking-tight"
+              className="text-3xl sm:text-4xl font-display font-black tracking-tight"
               style={{
                 background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--neon-purple)), hsl(var(--accent)))',
                 backgroundSize: '200% 200%',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
-                animation: 'gradient-shift 4s ease infinite',
+                animation: isLowEnd ? 'none' : 'gradient-shift 4s ease infinite',
               }}
             >
               VYBE
@@ -145,59 +138,62 @@ export const SplashScreen = memo(function SplashScreen({
 
           {/* Progress bar container */}
           <motion.div
-            initial={{ opacity: 0, y: 25 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1, duration: 0.5, ease: 'easeOut' }}
-            className="w-48 sm:w-64 px-4"
+            transition={{ delay: 0.3, duration: 0.4 }}
+            className="w-56 sm:w-72 px-4"
           >
             {/* Progress bar background */}
-            <div className="relative h-1.5 sm:h-2 bg-muted rounded-full overflow-hidden backdrop-blur-sm">
-              {/* Animated background shimmer */}
-              <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-foreground/10 to-transparent"
-                animate={{ x: ['-100%', '200%'] }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-              />
+            <div className="relative h-2 sm:h-2.5 bg-muted/50 rounded-full overflow-hidden backdrop-blur-sm">
+              {/* Shimmer effect */}
+              {!isLowEnd && (
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-foreground/5 to-transparent"
+                  animate={{ x: ['-100%', '200%'] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                />
+              )}
               
-              {/* Progress fill with neon gradient */}
+              {/* Progress fill with gradient */}
               <motion.div
                 className="absolute inset-y-0 left-0 rounded-full"
                 style={{
                   width: `${displayProgress}%`,
                   background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--neon-purple)), hsl(var(--accent)))',
                 }}
+                transition={{ duration: 0.1 }}
               />
               
               {/* Glow at progress tip */}
-              <motion.div
-                className="absolute top-1/2 -translate-y-1/2 w-4 h-4 sm:w-6 sm:h-6 rounded-full blur-md pointer-events-none bg-accent"
-                style={{
-                  left: `${displayProgress}%`,
-                  marginLeft: '-8px',
-                }}
-                animate={{
-                  opacity: displayProgress > 0 && displayProgress < 100 ? [0.5, 0.9, 0.5] : 0,
-                }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
-              />
+              {!isLowEnd && displayProgress > 0 && displayProgress < 100 && (
+                <motion.div
+                  className="absolute top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 rounded-full blur-md bg-accent/60"
+                  style={{
+                    left: `${displayProgress}%`,
+                    marginLeft: '-8px',
+                  }}
+                  animate={{ opacity: [0.4, 0.8, 0.4] }}
+                  transition={{ duration: 0.8, repeat: Infinity, ease: 'easeInOut' }}
+                />
+              )}
             </div>
 
-            {/* Status text */}
-            <div className="flex justify-between items-center mt-2 sm:mt-3 h-5">
+            {/* Status text - more prominent */}
+            <div className="flex flex-col items-center mt-3 sm:mt-4 gap-1">
               <AnimatePresence mode="wait">
                 <motion.span 
                   key={status}
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.25, ease: 'easeOut' }}
-                  className="text-[10px] sm:text-xs text-muted-foreground truncate max-w-[100px] sm:max-w-[140px]"
+                  exit={{ opacity: 0, y: -5 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-sm sm:text-base font-medium text-foreground/80"
                 >
                   {status}
                 </motion.span>
               </AnimatePresence>
               <motion.span
-                className="text-xs sm:text-sm font-medium tabular-nums transition-colors duration-300"
+                className="text-xs sm:text-sm tabular-nums transition-colors duration-200"
                 style={{ 
                   color: showComplete ? 'hsl(var(--accent))' : 'hsl(var(--muted-foreground))'
                 }}
@@ -207,12 +203,22 @@ export const SplashScreen = memo(function SplashScreen({
             </div>
           </motion.div>
 
+          {/* Loading tip */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.5 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
+            className="absolute bottom-16 sm:bottom-20 text-xs sm:text-sm text-muted-foreground px-6 text-center max-w-xs"
+          >
+            {tip}
+          </motion.p>
+
           {/* Tagline */}
           <motion.p
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.4 }}
-            transition={{ delay: 1.2, duration: 0.8 }}
-            className="absolute bottom-6 sm:bottom-12 text-[10px] sm:text-xs text-muted-foreground tracking-wide px-4 text-center"
+            animate={{ opacity: 0.3 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+            className="absolute bottom-6 sm:bottom-8 text-[10px] sm:text-xs text-muted-foreground tracking-wide"
           >
             The Next Generation Social Platform
           </motion.p>

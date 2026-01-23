@@ -8,19 +8,21 @@ interface PreloadStatus {
   isComplete: boolean;
 }
 
-// Ultra-fast preload - minimal steps for immediate startup
+// Granular preload steps with descriptive labels
 const PRELOAD_STEPS = [
-  { key: 'init', label: 'Starting...', weight: 15 },
-  { key: 'auth', label: 'Authenticating...', weight: 25 },
-  { key: 'data', label: 'Loading...', weight: 50 },
-  { key: 'ready', label: 'Ready!', weight: 10 },
+  { key: 'init', label: 'Waking up...', weight: 10 },
+  { key: 'auth', label: 'Checking session...', weight: 15 },
+  { key: 'profile', label: 'Loading your profile...', weight: 20 },
+  { key: 'feed', label: 'Getting your feed...', weight: 30 },
+  { key: 'messages', label: 'Syncing messages...', weight: 20 },
+  { key: 'ready', label: 'Let\'s go! ✨', weight: 5 },
 ];
 
 export function useAppPreloader() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<PreloadStatus>({
-    step: 'Starting...',
-    progress: 5,
+    step: 'Waking up...',
+    progress: 0,
     isComplete: false,
   });
   const hasStarted = useRef(false);
@@ -48,27 +50,91 @@ export function useAppPreloader() {
       const startTime = performance.now();
       
       try {
-        // Step 1: Initialize - instant
+        // Step 1: Initialize
         updateStatus('init');
 
-        // Step 2: Check authentication - fast
+        // Step 2: Check authentication
         updateStatus('auth');
         const { data: { session } } = await supabase.auth.getSession();
 
         if (!session?.user) {
-          // Not logged in - done instantly
-          console.log(`[Preloader] Guest mode - ${(performance.now() - startTime).toFixed(0)}ms`);
+          // Guest mode - load public feed only
+          updateStatus('feed');
+          
+          const { data: posts } = await supabase.rpc('get_posts_with_counts', {
+            p_type: null,
+            p_author_id: null,
+            p_user_id: null,
+            p_offset: 0,
+            p_limit: 30,
+          });
+
+          if (posts) {
+            const transformedPosts = (posts as any[]).map((row) => ({
+              id: row.id,
+              type: row.type,
+              media_url: row.media_url,
+              thumbnail_url: row.thumbnail_url,
+              caption: row.caption || '',
+              tags: row.tags || [],
+              created_at: row.created_at,
+              is_pinned: row.is_pinned,
+              author: {
+                id: row.author_id,
+                username: row.author_username,
+                avatar_url: row.author_avatar_url,
+              },
+              like_count: Number(row.like_count) || 0,
+              comment_count: Number(row.comment_count) || 0,
+              is_liked: false,
+              is_bookmarked: false,
+            }));
+
+            queryClient.setQueryData(
+              ['infinite-posts', undefined, undefined, null],
+              {
+                pages: [{ 
+                  posts: transformedPosts, 
+                  nextPage: transformedPosts.length >= 30 ? 1 : null, 
+                  totalLoaded: transformedPosts.length 
+                }],
+                pageParams: [0],
+              }
+            );
+          }
+
+          console.log(`[Preloader] Guest mode complete - ${(performance.now() - startTime).toFixed(0)}ms`);
           updateStatus('ready');
           return;
         }
 
         const uid = session.user.id;
 
-        // Step 3: Load critical data in a single parallel batch
-        updateStatus('data');
-        
-        const results = await Promise.allSettled([
-          // Conversations - lightweight query
+        // Step 3: Load profile first (fast, needed for other queries)
+        updateStatus('profile');
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', uid)
+          .maybeSingle();
+
+        if (profileData) {
+          queryClient.setQueryData(['profile', uid], profileData);
+        }
+
+        // Step 4: Load feed and conversations in parallel
+        updateStatus('feed');
+
+        const [feedResult, conversationsResult] = await Promise.allSettled([
+          // Feed
+          supabase.rpc('get_posts_with_counts', {
+            p_type: null,
+            p_author_id: null,
+            p_user_id: uid,
+            p_offset: 0,
+            p_limit: 30,
+          }),
+          // Conversations
           supabase
             .from('conversation_members')
             .select(`
@@ -77,39 +143,15 @@ export function useAppPreloader() {
             `)
             .eq('user_id', uid)
             .order('conversation(updated_at)', { ascending: false })
-            .limit(20),
-          
-          // Posts - use optimized RPC with lower limit
-          supabase.rpc('get_posts_with_counts', {
-            p_type: null,
-            p_author_id: null,
-            p_user_id: uid,
-            p_offset: 0,
-            p_limit: 30,
-          }),
-          
-          // Profile - get minimal data
-          supabase
-            .from('profiles')
-            .select('id, username, avatar_url, display_name')
-            .eq('id', uid)
-            .maybeSingle(),
+            .limit(30),
         ]);
 
-        // Cache all results at once
-        const [conversationsResult, postsResult, profileResult] = results;
+        updateStatus('messages');
 
-        if (profileResult.status === 'fulfilled' && profileResult.value.data) {
-          queryClient.setQueryData(['profile', uid], profileResult.value.data);
-        }
-
-        if (conversationsResult.status === 'fulfilled' && conversationsResult.value.data) {
-          queryClient.setQueryData(['conversations', uid], conversationsResult.value.data);
-        }
-
-        if (postsResult.status === 'fulfilled' && postsResult.value.data) {
-          const posts = postsResult.value.data;
-          const transformedPosts = posts.map((row: any) => ({
+        // Cache feed
+        if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+          const posts = feedResult.value.data as any[];
+          const transformedPosts = posts.map((row) => ({
             id: row.id,
             type: row.type,
             media_url: row.media_url,
@@ -142,7 +184,14 @@ export function useAppPreloader() {
           );
         }
 
+        // Cache conversations
+        if (conversationsResult.status === 'fulfilled' && conversationsResult.value.data) {
+          queryClient.setQueryData(['conversations', uid], conversationsResult.value.data);
+        }
+
+        // Log performance
         console.log(`[Preloader] Complete - ${(performance.now() - startTime).toFixed(0)}ms`);
+        
         updateStatus('ready');
 
       } catch (error) {
