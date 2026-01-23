@@ -322,9 +322,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsInitialized(true);
     });
 
+    // Handle "session-only" mode (Remember Me unchecked)
+    // Clear session when browser/tab is closed
+    const handleBeforeUnload = () => {
+      if (sessionStorage.getItem('vybe-session-only') === 'true') {
+        // Clear the auth data from localStorage so session doesn't persist
+        localStorage.removeItem('sb-eabvbtkxdbttjpdpbmuw-auth-token');
+        sessionStorage.removeItem('vybe-session-only');
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     // Cleanup on unmount
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
       }
