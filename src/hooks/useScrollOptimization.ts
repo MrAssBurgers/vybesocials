@@ -8,6 +8,7 @@ let isScrolling = false;
 /**
  * Lightweight scroll optimization hook - uses passive listeners
  * SINGLETON: Only one listener across all components
+ * NOTE: This hook only adds a CSS class during scroll - it does NOT block scrolling
  */
 export function useScrollOptimization() {
   useEffect(() => {
@@ -28,6 +29,7 @@ export function useScrollOptimization() {
       }, 150);
     };
 
+    // CRITICAL: passive: true ensures this listener never blocks scrolling
     window.addEventListener('scroll', handleScroll, { passive: true });
     
     return () => {
