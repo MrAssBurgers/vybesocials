@@ -6,13 +6,16 @@ import { cn } from '@/lib/utils';
 import { CameraFilters, CAMERA_FILTERS, getFilterCSS } from './CameraFilters';
 import { CameraEditor } from './CameraEditor';
 import { CameraShareSheet } from './CameraShareSheet';
+import { CameraSafetyGate } from './CameraSafetyGate';
 import { triggerHaptic } from '@/lib/haptics';
+import { navVisibility } from '@/lib/navVisibility';
+import { SafetyResult } from '@/hooks/useContentSafety';
 
 interface CameraProps {
   onClose: () => void;
 }
 
-type CameraState = 'capture' | 'edit' | 'share';
+type CameraState = 'capture' | 'edit' | 'share' | 'scanning';
 
 export function Camera({ onClose }: CameraProps) {
   const [state, setState] = useState<CameraState>('capture');
@@ -20,7 +23,7 @@ export function Camera({ onClose }: CameraProps) {
   const [flash, setFlash] = useState(false);
   const [currentFilter, setCurrentFilter] = useState('normal');
   const [isRecording, setIsRecording] = useState(false);
-  const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video' } | null>(null);
+  const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video'; file?: File } | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -29,6 +32,14 @@ export function Camera({ onClose }: CameraProps) {
   const recordedChunksRef = useRef<Blob[]>([]);
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Hide bottom nav when camera is open
+  useEffect(() => {
+    navVisibility.setInCommunityChat(true);
+    return () => {
+      navVisibility.forceShow();
+    };
+  }, []);
 
   // Start camera
   const startCamera = useCallback(async () => {
@@ -89,9 +100,15 @@ export function Camera({ onClose }: CameraProps) {
       ctx.filter = getFilterCSS(currentFilter) || 'none';
       ctx.drawImage(videoRef.current, 0, 0);
       
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-      setCapturedMedia({ url: dataUrl, type: 'photo' });
-      setState('edit');
+      // Create both dataUrl and File for scanning
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const dataUrl = URL.createObjectURL(blob);
+          const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
+          setCapturedMedia({ url: dataUrl, type: 'photo', file });
+          setState('edit');
+        }
+      }, 'image/jpeg', 0.9);
     }
   };
 
@@ -114,7 +131,8 @@ export function Camera({ onClose }: CameraProps) {
     mediaRecorder.onstop = () => {
       const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
       const url = URL.createObjectURL(blob);
-      setCapturedMedia({ url, type: 'video' });
+      const file = new File([blob], 'camera-video.webm', { type: 'video/webm' });
+      setCapturedMedia({ url, type: 'video', file });
       setState('edit');
     };
 
@@ -176,6 +194,18 @@ export function Camera({ onClose }: CameraProps) {
     }
   };
 
+  // Handle safety scan result
+  const handleScanComplete = (result: SafetyResult) => {
+    if (result === 'blocked') {
+      // Go back to capture
+      setCapturedMedia(null);
+      setState('capture');
+    } else {
+      // Proceed to share
+      setState('share');
+    }
+  };
+
   // Render based on state
   if (state === 'edit' && capturedMedia) {
     return (
@@ -183,11 +213,23 @@ export function Camera({ onClose }: CameraProps) {
         mediaUrl={capturedMedia.url}
         mediaType={capturedMedia.type}
         filter={currentFilter}
-        onSave={() => setState('share')}
+        onSave={() => setState('scanning')}
         onCancel={() => {
           setCapturedMedia(null);
           setState('capture');
         }}
+      />
+    );
+  }
+
+  // AI Safety Scanning state
+  if (state === 'scanning' && capturedMedia?.file) {
+    return (
+      <CameraSafetyGate
+        file={capturedMedia.file}
+        mediaType={capturedMedia.type}
+        onResult={handleScanComplete}
+        onCancel={() => setState('edit')}
       />
     );
   }
