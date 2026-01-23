@@ -99,10 +99,11 @@ export function useNotifications() {
       }));
     },
     enabled: !!profile,
-    staleTime: 30000, // Cache for 30 seconds
-    gcTime: 1000 * 60 * 5, // Keep in cache for 5 minutes
+    staleTime: 60000, // Cache for 1 minute
+    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
   // Subscribe to real-time notifications

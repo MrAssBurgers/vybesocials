@@ -73,8 +73,11 @@ export function useProfileById(profileId: string | undefined) {
       };
     },
     enabled: !!profileId,
-    staleTime: 1000 * 60 * 5,
-    retry: 2,
+    staleTime: 1000 * 60 * 15, // 15 minutes
+    gcTime: 1000 * 60 * 60, // 1 hour
+    retry: 1,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -130,8 +133,11 @@ export function useProfileByUsername(username: string) {
       };
     },
     enabled: !!username,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    retry: 2,
+    staleTime: 1000 * 60 * 15, // 15 minutes
+    gcTime: 1000 * 60 * 60, // 1 hour
+    retry: 1,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 

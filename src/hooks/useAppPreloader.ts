@@ -8,49 +8,19 @@ interface PreloadStatus {
   isComplete: boolean;
 }
 
-// Streamlined preload steps - reduced for faster startup
+// Ultra-fast preload - minimal steps for immediate startup
 const PRELOAD_STEPS = [
-  { key: 'init', label: 'Starting...', weight: 10 },
-  { key: 'auth', label: 'Authenticating...', weight: 15 },
-  { key: 'profile', label: 'Loading profile...', weight: 20 },
-  { key: 'data', label: 'Loading content...', weight: 45 },
+  { key: 'init', label: 'Starting...', weight: 15 },
+  { key: 'auth', label: 'Authenticating...', weight: 25 },
+  { key: 'data', label: 'Loading...', weight: 50 },
   { key: 'ready', label: 'Ready!', weight: 10 },
 ];
-
-// Preload an image and return a promise
-const preloadImage = (url: string): Promise<void> => {
-  return new Promise((resolve) => {
-    if (!url) {
-      resolve();
-      return;
-    }
-    const img = new Image();
-    img.onload = () => resolve();
-    img.onerror = () => resolve(); // Don't fail on image errors
-    img.src = url;
-  });
-};
-
-// Preload video metadata
-const preloadVideoMetadata = (url: string): Promise<void> => {
-  return new Promise((resolve) => {
-    if (!url) {
-      resolve();
-      return;
-    }
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.onloadedmetadata = () => resolve();
-    video.onerror = () => resolve();
-    video.src = url;
-  });
-};
 
 export function useAppPreloader() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<PreloadStatus>({
-    step: 'Initializing...',
-    progress: 0,
+    step: 'Starting...',
+    progress: 5,
     isComplete: false,
   });
   const hasStarted = useRef(false);
@@ -75,39 +45,30 @@ export function useAppPreloader() {
     hasStarted.current = true;
 
     const preload = async () => {
+      const startTime = performance.now();
+      
       try {
-        // Step 1: Initialize
+        // Step 1: Initialize - instant
         updateStatus('init');
 
-        // Step 2: Check authentication
+        // Step 2: Check authentication - fast
         updateStatus('auth');
         const { data: { session } } = await supabase.auth.getSession();
 
         if (!session?.user) {
-          // Not logged in - minimal load, done instantly
+          // Not logged in - done instantly
+          console.log(`[Preloader] Guest mode - ${(performance.now() - startTime).toFixed(0)}ms`);
           updateStatus('ready');
           return;
         }
 
         const uid = session.user.id;
 
-        // Step 3: Load profile
-        updateStatus('profile');
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id, username, avatar_url, display_name, bio, is_verified')
-          .eq('id', uid)
-          .maybeSingle();
-
-        if (profile) {
-          queryClient.setQueryData(['profile', uid], profile);
-        }
-
-        // Step 4: Load critical data in parallel for speed
+        // Step 3: Load critical data in a single parallel batch
         updateStatus('data');
         
-        const [conversationsResult, postsResult, notificationsResult] = await Promise.allSettled([
-          // Conversations - limit to 30 for faster load
+        const results = await Promise.allSettled([
+          // Conversations - lightweight query
           supabase
             .from('conversation_members')
             .select(`
@@ -116,32 +77,36 @@ export function useAppPreloader() {
             `)
             .eq('user_id', uid)
             .order('conversation(updated_at)', { ascending: false })
-            .limit(30),
+            .limit(20),
           
-          // Posts - limit to 50 for faster load
+          // Posts - use optimized RPC with lower limit
           supabase.rpc('get_posts_with_counts', {
             p_type: null,
             p_author_id: null,
             p_user_id: uid,
             p_offset: 0,
-            p_limit: 50,
+            p_limit: 30,
           }),
           
-          // Notifications - limit to 20
+          // Profile - get minimal data
           supabase
-            .from('notifications')
-            .select(`id, type, read, created_at, post_id, actor:profiles!notifications_actor_id_fkey(id, username, avatar_url)`)
-            .eq('user_id', uid)
-            .order('created_at', { ascending: false })
-            .limit(20),
+            .from('profiles')
+            .select('id, username, avatar_url, display_name')
+            .eq('id', uid)
+            .maybeSingle(),
         ]);
 
-        // Process conversations
+        // Cache all results at once
+        const [conversationsResult, postsResult, profileResult] = results;
+
+        if (profileResult.status === 'fulfilled' && profileResult.value.data) {
+          queryClient.setQueryData(['profile', uid], profileResult.value.data);
+        }
+
         if (conversationsResult.status === 'fulfilled' && conversationsResult.value.data) {
           queryClient.setQueryData(['conversations', uid], conversationsResult.value.data);
         }
 
-        // Process posts
         if (postsResult.status === 'fulfilled' && postsResult.value.data) {
           const posts = postsResult.value.data;
           const transformedPosts = posts.map((row: any) => ({
@@ -167,18 +132,17 @@ export function useAppPreloader() {
           queryClient.setQueryData(
             ['infinite-posts', undefined, undefined, uid],
             {
-              pages: [{ posts: transformedPosts, nextPage: transformedPosts.length >= 50 ? 1 : null, totalLoaded: transformedPosts.length }],
+              pages: [{ 
+                posts: transformedPosts, 
+                nextPage: transformedPosts.length >= 30 ? 1 : null, 
+                totalLoaded: transformedPosts.length 
+              }],
               pageParams: [0],
             }
           );
         }
 
-        // Process notifications
-        if (notificationsResult.status === 'fulfilled' && notificationsResult.value.data) {
-          queryClient.setQueryData(['notifications', uid], notificationsResult.value.data);
-        }
-
-        // Done - skip media preloading during initial load for faster startup
+        console.log(`[Preloader] Complete - ${(performance.now() - startTime).toFixed(0)}ms`);
         updateStatus('ready');
 
       } catch (error) {

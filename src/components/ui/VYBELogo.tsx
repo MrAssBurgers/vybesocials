@@ -1,3 +1,4 @@
+import { memo, forwardRef } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -20,18 +21,21 @@ const sizes = {
 // Generate unique IDs to avoid conflicts when multiple logos are rendered
 let logoIdCounter = 0;
 
-export function VYBELogo({ 
+/**
+ * VYBE Logo component with forwardRef support to prevent React warnings
+ */
+export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function VYBELogo({ 
   size = 'md', 
   showText = true, 
   className,
   animated = true 
-}: VYBELogoProps) {
+}, ref) {
   const { icon, text, gap, strokeWidth } = sizes[size];
   const uniqueId = `vybe-logo-${++logoIdCounter}`;
   const isSplash = size === 'splash';
 
   return (
-    <div className={cn('flex items-center', gap, className)}>
+    <div ref={ref} className={cn('flex items-center', gap, className)}>
       <motion.div
         whileHover={animated && !isSplash ? { scale: 1.05 } : undefined}
         whileTap={animated && !isSplash ? { scale: 0.95 } : undefined}
@@ -133,4 +137,7 @@ export function VYBELogo({
       )}
     </div>
   );
-}
+}));
+
+// Default export for backwards compatibility
+export default VYBELogo;
