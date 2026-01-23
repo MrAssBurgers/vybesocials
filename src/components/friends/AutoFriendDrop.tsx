@@ -342,8 +342,9 @@ export function AutoFriendDrop() {
           className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in"
           style={{ animationDuration: '300ms' }}
         >
-          <div
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 backdrop-blur-lg border border-primary/20 animate-pulse-subtle"
+          <button
+            onClick={handleBump}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-primary/15 backdrop-blur-lg border border-primary/25 shadow-lg shadow-primary/10 active:scale-95 transition-transform duration-150 touch-manipulation"
           >
             <div className="animate-wiggle">
               {nativeFriendDrop.isAvailable ? (
@@ -354,10 +355,10 @@ export function AutoFriendDrop() {
             </div>
             <span className="text-xs text-primary font-medium">
               {nativeFriendDrop.isAvailable 
-                ? 'Bring phones together to add friends'
-                : 'Bump phones to add friends'}
+                ? 'Tap or bring phones together'
+                : 'Shake phone to add friends'}
             </span>
-            <Zap className="h-3 w-3 text-primary" />
+            <Zap className="h-3 w-3 text-primary animate-pulse" />
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -367,23 +368,24 @@ export function AutoFriendDrop() {
             >
               <X className="h-3 w-3 text-primary/70" />
             </button>
-          </div>
+          </button>
         </div>
       )}
 
-      {/* Exchange Modal - Wallet-style slide up */}
+      {/* Exchange Modal - Wallet-style slide up with card bounce */}
       <Dialog open={isActive} onOpenChange={handleClose}>
         <DialogContent 
-          className="sm:max-w-md p-0 border-0 bg-transparent overflow-hidden [&>button]:hidden data-[state=open]:animate-wallet-slide-up data-[state=closed]:animate-wallet-slide-down"
+          className="sm:max-w-md p-0 border-0 bg-transparent overflow-visible [&>button]:hidden data-[state=open]:animate-card-bounce-in data-[state=closed]:animate-wallet-slide-down"
           style={{ 
             transformOrigin: 'bottom center',
-            transform: 'translateZ(0)'
+            transform: 'translateZ(0)',
+            perspective: '1000px'
           }}
         >
           <AnimatePresence mode="wait">
             {phase === 'activated' && (
               <div
-                className="bg-background/95 backdrop-blur-xl rounded-3xl p-6 animate-fade-in"
+                className="bg-background/95 backdrop-blur-xl rounded-3xl p-6 shadow-2xl shadow-primary/20 border border-primary/10"
                 style={{ animationDuration: '200ms' }}
               >
                 {/* Split view - Native discovery or QR fallback */}
