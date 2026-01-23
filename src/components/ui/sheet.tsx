@@ -63,10 +63,28 @@ interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
     VariantProps<typeof sheetVariants> {
   hideCloseButton?: boolean;
+  /**
+   * By default, SheetContent wraps children in a padded, scrollable container.
+   * Set this to true when a sheet needs full layout control (e.g. fixed header + custom scroll area).
+   */
+  disableInternalScroll?: boolean;
+  /** Extra classes for the internal scroll wrapper (when not disabled). */
+  contentWrapperClassName?: string;
 }
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "center", className, children, hideCloseButton = false, ...props }, ref) => (
+  (
+    {
+      side = "center",
+      className,
+      children,
+      hideCloseButton = false,
+      disableInternalScroll = false,
+      contentWrapperClassName,
+      ...props
+    },
+    ref,
+  ) => (
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content
@@ -78,9 +96,13 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
         )}
         {...props}
       >
-        <div className="p-6 overflow-y-auto max-h-[85vh]">
-          {children}
-        </div>
+        {disableInternalScroll ? (
+          children
+        ) : (
+          <div className={cn("p-6 overflow-y-auto max-h-[85vh]", contentWrapperClassName)}>
+            {children}
+          </div>
+        )}
         {!hideCloseButton && (
           <SheetPrimitive.Close className="absolute right-4 top-4 rounded-full bg-muted/80 p-1.5 opacity-70 ring-offset-background transition-all hover:opacity-100 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10">
             <X className="h-4 w-4" />
