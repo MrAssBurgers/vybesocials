@@ -1725,30 +1725,67 @@ img, video {
   animation: shake-wiggle 0.5s ease-out;
 }
 
-/* Card bounce - like a credit card being flicked */
-@keyframes card-bounce-in {
+/* Card from wallet - credit card sliding out of a wallet with 3D perspective */
+@keyframes card-from-wallet {
   0% {
     opacity: 0;
-    transform: translateY(120%) rotateZ(-5deg) scale(0.8);
+    transform: translateY(150%) rotateX(45deg) rotateZ(-8deg) scale(0.7);
+    filter: brightness(0.6);
+    box-shadow: 0 0 0 rgba(0, 0, 0, 0);
   }
-  40% {
+  20% {
     opacity: 1;
-    transform: translateY(-15%) rotateZ(2deg) scale(1.05);
+    transform: translateY(80%) rotateX(35deg) rotateZ(-5deg) scale(0.85);
+    filter: brightness(0.8);
   }
-  60% {
-    transform: translateY(8%) rotateZ(-1deg) scale(0.98);
+  50% {
+    transform: translateY(-12%) rotateX(-8deg) rotateZ(3deg) scale(1.08);
+    filter: brightness(1.1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
   }
-  80% {
-    transform: translateY(-3%) rotateZ(0.5deg) scale(1.01);
+  70% {
+    transform: translateY(6%) rotateX(4deg) rotateZ(-1.5deg) scale(0.98);
+    filter: brightness(1);
+    box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.3);
+  }
+  85% {
+    transform: translateY(-3%) rotateX(-2deg) rotateZ(0.5deg) scale(1.02);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) rotateZ(0deg) scale(1);
+    transform: translateY(0) rotateX(0deg) rotateZ(0deg) scale(1);
+    filter: brightness(1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  }
+}
+
+/* Exit animation - card sliding back into wallet */
+@keyframes card-to-wallet {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg) rotateZ(0deg) scale(1);
+    filter: brightness(1);
+  }
+  30% {
+    transform: translateY(-5%) rotateX(-5deg) scale(1.02);
+    filter: brightness(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(120%) rotateX(40deg) rotateZ(-6deg) scale(0.75);
+    filter: brightness(0.5);
   }
 }
 
 .animate-card-bounce-in {
-  animation: card-bounce-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: card-from-wallet 0.7s cubic-bezier(0.22, 1.2, 0.36, 1) forwards;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+.animate-wallet-slide-down {
+  animation: card-to-wallet 0.4s cubic-bezier(0.4, 0, 0.8, 0.2) forwards;
+  transform-style: preserve-3d;
 }
 
 /* Slide up with bounce - for menus */
