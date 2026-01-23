@@ -193,8 +193,19 @@ export function useInstantReadClear(conversationId: string | undefined) {
     
     hasMarkedReadRef.current = conversationId;
     
-    // Optimistically update UI immediately
+    // Optimistically update UI immediately - update both query key formats
     queryClient.setQueryData<any[]>(['conversations', profile.id], (old) => {
+      if (!old) return old;
+      return old.map(conv => {
+        if (conv.id === conversationId) {
+          return { ...conv, unread_count: 0 };
+        }
+        return conv;
+      });
+    });
+    
+    // Also update the general conversations query
+    queryClient.setQueryData<any[]>(['conversations'], (old) => {
       if (!old) return old;
       return old.map(conv => {
         if (conv.id === conversationId) {
@@ -212,8 +223,9 @@ export function useInstantReadClear(conversationId: string | undefined) {
       .eq('conversation_id', conversationId)
       .eq('user_id', profile.id);
     
-    // Invalidate to sync across devices
+    // Force immediate invalidation to sync badge count everywhere
     queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations'] });
   }, [conversationId, profile?.id, queryClient]);
 
   // Mark as read immediately when conversation opens
