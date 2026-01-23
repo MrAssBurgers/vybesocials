@@ -895,85 +895,116 @@ export function AutoFriendDrop() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="bg-gradient-to-br from-primary/90 via-accent/80 to-primary/90 backdrop-blur-xl rounded-3xl p-8 flex flex-col items-center gap-6 overflow-hidden relative"
-                style={{ minHeight: 280 }}
+                className="bg-gradient-to-br from-primary/90 via-accent/80 to-primary/90 backdrop-blur-xl rounded-3xl p-8 flex flex-col items-center justify-center gap-6 overflow-hidden relative"
+                style={{ minHeight: 320 }}
               >
-                {/* Animated background particles */}
-                {[...Array(20)].map((_, i) => (
+                {/* Fast animated background particles */}
+                {[...Array(12)].map((_, i) => (
                   <motion.div
                     key={i}
-                    className="absolute w-2 h-2 rounded-full bg-white/30"
+                    className="absolute w-1.5 h-1.5 rounded-full bg-white/40"
                     initial={{ 
-                      x: Math.random() * 300 - 150,
-                      y: 300,
+                      x: Math.random() * 200 - 100,
+                      y: 200,
                       opacity: 0 
                     }}
                     animate={{ 
-                      y: -50,
-                      opacity: [0, 0.8, 0],
+                      y: -100,
+                      opacity: [0, 0.6, 0],
                     }}
                     transition={{ 
-                      duration: 2,
-                      delay: i * 0.1,
+                      duration: 1.2,
+                      delay: i * 0.08,
                       repeat: Infinity,
                       ease: "easeOut"
                     }}
                   />
                 ))}
                 
-                {/* Profile avatar with fly animation */}
+                {/* Phase 1: MY profile flies OUT (both devices show their own flying out) */}
+                <motion.div
+                  className="absolute z-20"
+                  initial={{ scale: 1, y: 0, x: 0, rotateZ: 0 }}
+                  animate={{ 
+                    scale: [1, 1.1, 0.2], 
+                    y: [0, -30, -350], 
+                    x: [0, 10, 40],
+                    rotateZ: [0, -5, -25],
+                    opacity: [1, 1, 0] 
+                  }}
+                  transition={{ 
+                    duration: 0.8,
+                    ease: [0.32, 0, 0.67, 0],
+                    times: [0, 0.3, 1]
+                  }}
+                >
+                  <div className="relative">
+                    <motion.div
+                      className="absolute inset-0 rounded-full bg-white/50 blur-lg"
+                      initial={{ scale: 1 }}
+                      animate={{ scale: [1, 2, 0] }}
+                      transition={{ duration: 0.8 }}
+                      style={{ margin: -12 }}
+                    />
+                    <Avatar className="h-24 w-24 border-4 border-white/90 shadow-2xl">
+                      <AvatarImage src={profile?.avatar_url || ''} />
+                      <AvatarFallback className="text-2xl bg-white/30 text-white font-bold">
+                        {profile?.username?.[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                </motion.div>
+                
+                {/* Phase 2: THEIR profile flies IN (delayed) */}
                 <motion.div
                   className="relative z-10"
-                  initial={isQrOwner ? { scale: 1, y: 0 } : { scale: 0.3, y: 200, rotateZ: -15 }}
-                  animate={isQrOwner 
-                    ? { scale: [1, 1.2, 0.3], y: [0, -20, -300], rotateZ: [0, 5, 15], opacity: [1, 1, 0] }
-                    : { scale: [0.3, 1.3, 1], y: [200, -15, 0], rotateZ: [-15, 5, 0] }
-                  }
+                  initial={{ scale: 0.2, y: 350, x: -40, rotateZ: 25, opacity: 0 }}
+                  animate={{ 
+                    scale: [0.2, 1.15, 1], 
+                    y: [350, -20, 0], 
+                    x: [-40, 10, 0],
+                    rotateZ: [25, -3, 0],
+                    opacity: [0, 1, 1] 
+                  }}
                   transition={{ 
-                    duration: 1.2,
-                    ease: [0.22, 1.2, 0.36, 1],
-                    times: [0, 0.6, 1]
+                    duration: 0.9,
+                    delay: 0.6,
+                    ease: [0.22, 1, 0.36, 1],
+                    times: [0, 0.7, 1]
                   }}
                 >
                   <div className="relative">
                     {/* Glow ring behind avatar */}
                     <motion.div
-                      className="absolute inset-0 rounded-full bg-white/40 blur-xl"
-                      animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0.8, 0.5] }}
-                      transition={{ duration: 1, repeat: Infinity }}
-                      style={{ margin: -8 }}
+                      className="absolute inset-0 rounded-full bg-white/50 blur-xl"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: [0, 1.8, 1.2], opacity: [0, 0.8, 0.4] }}
+                      transition={{ duration: 0.6, delay: 0.8 }}
+                      style={{ margin: -16 }}
                     />
                     <Avatar className="h-28 w-28 border-4 border-white/80 shadow-2xl relative z-10">
-                      <AvatarImage src={isQrOwner ? (profile?.avatar_url || '') : (foundUser?.avatar_url || '')} />
+                      <AvatarImage src={foundUser?.avatar_url || ''} />
                       <AvatarFallback className="text-3xl bg-white/30 text-white font-bold">
-                        {isQrOwner 
-                          ? profile?.username?.[0]?.toUpperCase()
-                          : foundUser?.username?.[0]?.toUpperCase()
-                        }
+                        {foundUser?.username?.[0]?.toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     
-                    {/* Sparkle effects around avatar */}
-                    {[...Array(6)].map((_, i) => (
+                    {/* Sparkle burst on landing */}
+                    {[...Array(8)].map((_, i) => (
                       <motion.div
                         key={i}
                         className="absolute"
-                        style={{
-                          top: '50%',
-                          left: '50%',
-                        }}
+                        style={{ top: '50%', left: '50%' }}
                         initial={{ scale: 0, opacity: 0 }}
                         animate={{ 
-                          scale: [0, 1, 0],
+                          scale: [0, 1.2, 0],
                           opacity: [0, 1, 0],
-                          x: Math.cos(i * 60 * Math.PI / 180) * 60 - 8,
-                          y: Math.sin(i * 60 * Math.PI / 180) * 60 - 8,
+                          x: Math.cos(i * 45 * Math.PI / 180) * 55 - 8,
+                          y: Math.sin(i * 45 * Math.PI / 180) * 55 - 8,
                         }}
                         transition={{ 
-                          duration: 0.8,
-                          delay: 0.3 + i * 0.1,
-                          repeat: Infinity,
-                          repeatDelay: 0.5
+                          duration: 0.5,
+                          delay: 1.3 + i * 0.04,
                         }}
                       >
                         <Sparkles className="h-4 w-4 text-white" />
@@ -984,19 +1015,14 @@ export function AutoFriendDrop() {
                 
                 {/* Text */}
                 <motion.div 
-                  className="text-center text-white z-10"
+                  className="text-center text-white z-10 mt-4"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
+                  transition={{ delay: 1.0 }}
                 >
-                  <p className="text-xl font-bold">
-                    {isQrOwner ? 'Sending your vybe...' : 'Receiving vybe...'}
-                  </p>
+                  <p className="text-xl font-bold">Exchanging vibes...</p>
                   <p className="text-white/70 text-sm mt-1">
-                    {isQrOwner 
-                      ? `Flying to ${foundUser?.username || 'friend'}` 
-                      : `From ${foundUser?.display_name || foundUser?.username}`
-                    }
+                    {foundUser?.display_name || foundUser?.username}
                   </p>
                 </motion.div>
               </motion.div>
@@ -1005,17 +1031,22 @@ export function AutoFriendDrop() {
             {phase === 'success' && (
               <motion.div
                 key="success"
-                initial={{ opacity: 0, scale: 0.8 }}
+                initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: "spring", bounce: 0.4 }}
+                transition={{ duration: 0.25 }}
                 className="bg-gradient-to-br from-accent via-primary to-accent rounded-3xl p-8 flex flex-col items-center gap-4 overflow-hidden relative"
-                style={{ minHeight: 280 }}
+                style={{ minHeight: 320 }}
               >
-                {/* Celebration particles bursting outward */}
-                {[...Array(16)].map((_, i) => (
+                {/* MASSIVE EXPLOSION - radial particle burst */}
+                {[...Array(32)].map((_, i) => (
                   <motion.div
                     key={i}
-                    className="absolute"
+                    className="absolute rounded-full"
+                    style={{
+                      width: 6 + Math.random() * 8,
+                      height: 6 + Math.random() * 8,
+                      background: i % 3 === 0 ? 'rgba(255,255,255,0.9)' : i % 3 === 1 ? 'rgba(255,220,100,0.9)' : 'rgba(255,180,255,0.8)',
+                    }}
                     initial={{ 
                       x: 0, 
                       y: 0, 
@@ -1023,26 +1054,50 @@ export function AutoFriendDrop() {
                       opacity: 1 
                     }}
                     animate={{ 
-                      x: Math.cos(i * 22.5 * Math.PI / 180) * 120,
-                      y: Math.sin(i * 22.5 * Math.PI / 180) * 120,
+                      x: Math.cos(i * 11.25 * Math.PI / 180) * (100 + Math.random() * 80),
+                      y: Math.sin(i * 11.25 * Math.PI / 180) * (100 + Math.random() * 80),
+                      scale: [0, 2, 0],
+                      opacity: [1, 1, 0],
+                    }}
+                    transition={{ duration: 0.8, delay: i * 0.015, ease: "easeOut" }}
+                  />
+                ))}
+                
+                {/* Secondary sparkle explosion */}
+                {[...Array(20)].map((_, i) => (
+                  <motion.div
+                    key={`sparkle-${i}`}
+                    className="absolute"
+                    initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
+                    animate={{ 
+                      x: Math.cos(i * 18 * Math.PI / 180) * (70 + Math.random() * 60),
+                      y: Math.sin(i * 18 * Math.PI / 180) * (70 + Math.random() * 60),
                       scale: [0, 1.5, 0],
                       opacity: [1, 1, 0],
-                      rotate: 360
+                      rotate: 720
                     }}
-                    transition={{ duration: 1.2, delay: i * 0.03, ease: "easeOut" }}
+                    transition={{ duration: 1, delay: 0.1 + i * 0.02, ease: "easeOut" }}
                   >
                     <Sparkles className="h-5 w-5 text-white" />
                   </motion.div>
                 ))}
                 
-                {/* Both avatars meeting - stack overlapping */}
-                <div className="relative flex items-center justify-center h-32">
+                {/* Central flash */}
+                <motion.div
+                  className="absolute inset-0 rounded-3xl bg-white pointer-events-none"
+                  initial={{ opacity: 0.9 }}
+                  animate={{ opacity: 0 }}
+                  transition={{ duration: 0.4 }}
+                />
+                
+                {/* Both avatars meeting with bounce */}
+                <div className="relative flex items-center justify-center h-32 z-10">
                   {/* My avatar */}
                   <motion.div
                     className="absolute"
-                    initial={{ x: -60, scale: 0.6, opacity: 0 }}
-                    animate={{ x: -20, scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.1, type: "spring", bounce: 0.5 }}
+                    initial={{ x: -80, scale: 0.4, opacity: 0 }}
+                    animate={{ x: -22, scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.15, type: "spring", stiffness: 300, damping: 20 }}
                   >
                     <Avatar className="h-20 w-20 border-4 border-white/90 shadow-xl">
                       <AvatarImage src={profile?.avatar_url || ''} />
@@ -1055,9 +1110,9 @@ export function AutoFriendDrop() {
                   {/* Friend's avatar */}
                   <motion.div
                     className="absolute"
-                    initial={{ x: 60, scale: 0.6, opacity: 0 }}
-                    animate={{ x: 20, scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.15, type: "spring", bounce: 0.5 }}
+                    initial={{ x: 80, scale: 0.4, opacity: 0 }}
+                    animate={{ x: 22, scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 300, damping: 20 }}
                   >
                     <Avatar className="h-20 w-20 border-4 border-white/90 shadow-xl">
                       <AvatarImage src={foundUser?.avatar_url || ''} />
@@ -1067,16 +1122,20 @@ export function AutoFriendDrop() {
                     </Avatar>
                   </motion.div>
                   
-                  {/* Connection burst at center */}
+                  {/* Connection burst with pulse */}
                   <motion.div
                     className="absolute z-10"
                     initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: [0, 1.5, 1], opacity: [0, 1, 1] }}
-                    transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
+                    animate={{ scale: [0, 1.6, 1], opacity: 1 }}
+                    transition={{ delay: 0.35, duration: 0.4, ease: "easeOut" }}
                   >
-                    <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-lg">
-                      <Check className="h-6 w-6 text-primary" strokeWidth={3} />
-                    </div>
+                    <motion.div 
+                      className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-lg"
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ delay: 0.8, duration: 0.5, repeat: 2 }}
+                    >
+                      <Check className="h-7 w-7 text-primary" strokeWidth={3} />
+                    </motion.div>
                   </motion.div>
                 </div>
                 
@@ -1085,7 +1144,7 @@ export function AutoFriendDrop() {
                   className="text-center text-white z-10"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
+                  transition={{ delay: 0.35 }}
                 >
                   <h3 className="text-2xl font-bold">You're connected!</h3>
                   <p className="text-white/80 mt-1">
@@ -1095,7 +1154,7 @@ export function AutoFriendDrop() {
                     className="flex items-center justify-center gap-2 mt-3 text-white/90"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: 0.8 }}
+                    transition={{ delay: 0.6 }}
                   >
                     <MessageCircle className="h-4 w-4" />
                     <span className="text-sm">Opening chat...</span>
