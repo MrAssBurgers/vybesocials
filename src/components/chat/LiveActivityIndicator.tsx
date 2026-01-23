@@ -183,7 +183,7 @@ export const LiveActivityIndicator = memo(function LiveActivityIndicator({
   );
 });
 
-// Compact inline version for message list
+// Compact inline version for message list - icon only, no text
 export const InlineActivityBubble = memo(function InlineActivityBubble({
   avatarUrl,
   username,
@@ -199,6 +199,8 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
 
   if (activity === 'idle') return null;
 
+  const showDots = activity === 'typing' || activity === 'recording_voice';
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.9 }}
@@ -207,38 +209,48 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
       className="flex items-end gap-2 mb-2"
     >
-      <Avatar className="h-7 w-7 ring-2 ring-primary/20">
-        <AvatarImage src={signedUrl || undefined} className="object-cover" />
-        <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">
-          {(username || '?').charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
+      <div className="relative">
+        {/* Animated ring */}
+        <motion.div
+          className={cn(
+            "absolute inset-0 rounded-full ring-2",
+            config.ringColor
+          )}
+          animate={{
+            scale: [1, 1.15, 1],
+            opacity: [0.5, 0.8, 0.5],
+          }}
+          transition={{
+            duration: 1.5,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        <Avatar className="h-7 w-7 relative z-10">
+          <AvatarImage src={signedUrl || undefined} className="object-cover" />
+          <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">
+            {(username || '?').charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      </div>
       
       <motion.div
         className={cn(
-          "rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-lg backdrop-blur-sm",
+          "rounded-2xl rounded-bl-sm px-3 py-2 shadow-lg backdrop-blur-sm",
           config.bgColor,
           "border border-border/30"
         )}
-        animate={{ 
-          boxShadow: [
-            '0 4px 15px rgba(0,0,0,0.1)',
-            '0 4px 20px rgba(var(--primary-rgb), 0.15)',
-            '0 4px 15px rgba(0,0,0,0.1)',
-          ]
-        }}
-        transition={{ duration: 2, repeat: Infinity }}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <Icon className={cn("h-3.5 w-3.5", config.color)} />
-          {activity === 'typing' ? (
-            <div className="flex items-center gap-1">
+          {showDots && (
+            <div className="flex items-center gap-0.5">
               {[0, 1, 2].map((i) => (
                 <motion.div
                   key={i}
                   className={cn("w-1.5 h-1.5 rounded-full", config.color.replace('text-', 'bg-'))}
                   animate={{
-                    y: [0, -5, 0],
+                    y: [0, -4, 0],
                     opacity: [0.5, 1, 0.5],
                   }}
                   transition={{
@@ -250,10 +262,6 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
                 />
               ))}
             </div>
-          ) : (
-            <span className={cn("text-xs font-medium", config.color)}>
-              {config.label}...
-            </span>
           )}
         </div>
       </motion.div>
