@@ -308,10 +308,14 @@ export function BottomNav() {
                         />
                       )}
                       <div 
-                        className="gradient-animated rounded-xl p-2.5 shadow-lg shadow-primary/30 transition-transform duration-100 ease-out active:scale-90"
-                        style={{ transform: 'translateZ(0)' }}
+                        className="rounded-xl p-2.5 shadow-lg transition-transform duration-150 ease-out active:scale-90"
+                        style={{ 
+                          background: 'linear-gradient(135deg, hsl(330 100% 60%), hsl(280 100% 60%), hsl(185 100% 50%))',
+                          boxShadow: '0 4px 20px hsl(330 100% 60% / 0.4)',
+                          transform: 'translateZ(0)'
+                        }}
                       >
-                        <PlusCircle className="h-5 w-5 text-primary-foreground" />
+                        <PlusCircle className="h-5 w-5 text-white" />
                       </div>
                     </button>
                   </div>

@@ -5,19 +5,27 @@ interface BumpDetectionOptions {
   enabled?: boolean;
   threshold?: number; // Acceleration threshold to detect a bump
   cooldown?: number; // Cooldown period after a bump is detected (ms)
+  shakeCount?: number; // Number of shakes required to trigger (like iPhone)
+  shakeWindow?: number; // Time window to count shakes (ms)
   onBump?: () => void;
 }
 
 export function useBumpDetection({
   enabled = true,
-  threshold = 15, // m/s² - a moderate bump
+  threshold = 12, // Slightly lower for shake detection
   cooldown = 3000, // 3 seconds cooldown
+  shakeCount = 2, // Require 2 shakes like iPhone undo
+  shakeWindow = 600, // Within 600ms
   onBump,
 }: BumpDetectionOptions = {}) {
   const [isListening, setIsListening] = useState(false);
   const [lastBumpTime, setLastBumpTime] = useState<number>(0);
   const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
   const onBumpRef = useRef(onBump);
+  
+  // Shake detection state
+  const shakeTimestamps = useRef<number[]>([]);
+  const lastDirection = useRef<'up' | 'down' | null>(null);
   
   // Keep callback ref updated
   useEffect(() => {
@@ -57,18 +65,43 @@ export function useBumpDetection({
     // Subtract gravity (approximately 9.8 m/s²) to get actual acceleration
     const actualAcceleration = Math.abs(magnitude - 9.8);
 
-    // Check if this qualifies as a bump
+    // Detect direction change for shake detection
+    const currentDirection: 'up' | 'down' = y > 0 ? 'up' : 'down';
+    const now = Date.now();
+
+    // Check if this qualifies as part of a shake motion
     if (actualAcceleration > threshold) {
-      const now = Date.now();
-      
-      // Check cooldown
-      if (now - lastBumpTime > cooldown) {
-        setLastBumpTime(now);
-        haptics.impact();
-        onBumpRef.current?.();
+      // Direction changed = one "shake"
+      if (lastDirection.current !== null && lastDirection.current !== currentDirection) {
+        shakeTimestamps.current.push(now);
+        
+        // Small haptic tick for each shake detected
+        haptics.tap();
+        
+        // Clean old timestamps outside window
+        shakeTimestamps.current = shakeTimestamps.current.filter(
+          t => now - t < shakeWindow
+        );
+        
+        // Check if we have enough shakes
+        if (shakeTimestamps.current.length >= shakeCount) {
+          // Check cooldown
+          if (now - lastBumpTime > cooldown) {
+            setLastBumpTime(now);
+            shakeTimestamps.current = []; // Reset
+            
+            // Strong haptic feedback on successful shake detection
+            haptics.impact();
+            setTimeout(() => haptics.success(), 100);
+            
+            onBumpRef.current?.();
+          }
+        }
       }
+      
+      lastDirection.current = currentDirection;
     }
-  }, [enabled, threshold, cooldown, lastBumpTime]);
+  }, [enabled, threshold, cooldown, lastBumpTime, shakeCount, shakeWindow]);
 
   const startListening = useCallback(async () => {
     const hasPermission = await requestPermission();
