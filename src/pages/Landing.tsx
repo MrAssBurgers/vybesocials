@@ -69,6 +69,23 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     // Check intro status (database first for logged-in users, then localStorage)
     const checkStatus = async () => {
       const userId = user?.id;
+      
+      // If user is logged in, check their full profile status
+      if (userId) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('intro_completed, onboarding_completed')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        // If they've completed onboarding, they don't need to see the intro
+        if (profile?.onboarding_completed === true || profile?.intro_completed === true) {
+          setShowIntro(false);
+          return;
+        }
+      }
+      
+      // Fall back to regular intro status check
       const hasCompleted = await checkIntroStatus(userId);
       setShowIntro(!hasCompleted);
     };
