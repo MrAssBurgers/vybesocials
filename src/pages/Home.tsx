@@ -190,9 +190,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     }
   }, []);
 
-  // Only redirect authenticated users to onboarding ONCE (when onboarding_completed !== true)
+  // Only redirect authenticated users to onboarding if they EXPLICITLY haven't completed it
   // Guest users can browse freely
   useEffect(() => {
+    // Wait for auth to fully load
     if (authLoading) return;
     
     // If in invite mode (rendered from InviteRedeem), never redirect
@@ -206,14 +207,16 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       return;
     }
 
-    // Only redirect if onboarding has NOT been completed
-    // Once onboarding_completed is true, user will never see onboarding again
-    if (profile?.onboarding_completed !== true) {
+    // CRITICAL: Only redirect if we have a profile AND it explicitly says onboarding is not completed
+    // If profile is null/undefined (still loading or missing), do NOT redirect - let auth handle it
+    // This prevents the loop where refreshing the page triggers onboarding before profile loads
+    if (profile && profile.onboarding_completed === false) {
       // Don't redirect during active referral flow or invite mode
       if (hasActiveReferral() || isInviteEntryMode()) {
         console.log('[Home] Skipping profile redirect - active referral/invite in progress');
         return;
       }
+      console.log('[Home] Profile explicitly has onboarding_completed=false, redirecting...');
       navigate('/onboarding');
     }
   }, [authLoading, user, profile, navigate, isInviteMode]);
