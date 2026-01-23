@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 
 // Shared state - singleton pattern
 let scrollListenerAttached = false;
-let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 let isScrolling = false;
 
 /**
@@ -15,6 +14,8 @@ export function useScrollOptimization() {
     if (scrollListenerAttached) return;
     scrollListenerAttached = true;
 
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+
     const handleScroll = () => {
       if (!isScrolling) {
         isScrolling = true;
@@ -26,7 +27,7 @@ export function useScrollOptimization() {
       scrollTimeout = setTimeout(() => {
         isScrolling = false;
         document.documentElement.classList.remove('is-scrolling');
-      }, 150);
+      }, 100); // Short timeout for snappy response
     };
 
     // CRITICAL: passive: true ensures this listener never blocks scrolling
@@ -37,7 +38,6 @@ export function useScrollOptimization() {
       scrollListenerAttached = false;
       if (scrollTimeout) {
         clearTimeout(scrollTimeout);
-        scrollTimeout = null;
       }
       isScrolling = false;
       document.documentElement.classList.remove('is-scrolling');

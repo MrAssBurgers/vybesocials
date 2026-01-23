@@ -47,7 +47,7 @@ export function usePullToRefresh({
     const scrollTop = getScrollTop();
     if (scrollTop > 0.5) {
       isPulling.current = false;
-      setPullDistance(0);
+      if (pullDistance > 0) setPullDistance(0);
       return;
     }
 
@@ -57,25 +57,25 @@ export function usePullToRefresh({
     // If the user is swiping UP (normal scroll down the feed), don't treat it as pull-to-refresh.
     if (diff <= 0) {
       isPulling.current = false;
-      setPullDistance(0);
+      if (pullDistance > 0) setPullDistance(0);
       return;
     }
 
-    // Cancel any pending frame
-    if (rafId.current) cancelAnimationFrame(rafId.current);
+    // Use RAF for smooth updates - but batch them
+    if (rafId.current) return; // Skip if a frame is already pending
 
-    // Throttle updates with RAF
     rafId.current = requestAnimationFrame(() => {
+      rafId.current = null;
       const resistance = 0.4;
       const distance = Math.min(diff * resistance, maxPull);
       setPullDistance(distance);
     });
 
-    // Only prevent default once we're clearly pulling down; otherwise allow normal scroll.
-    if (diff > 25) {
+    // Only prevent default once we're clearly pulling down
+    if (diff > 30) {
       e.preventDefault();
     }
-  }, [getScrollTop, isRefreshing, maxPull]);
+  }, [getScrollTop, isRefreshing, maxPull, pullDistance]);
 
   const handleTouchEnd = useCallback(async () => {
     if (!isPulling.current) return;
