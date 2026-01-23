@@ -12,6 +12,7 @@ interface CatchUpData {
   hasPosts: boolean;
   hasMessages: boolean;
   unreadCount?: number;
+  interests?: string[];
 }
 
 export function WelcomeHeader() {
@@ -172,7 +173,7 @@ export function WelcomeHeader() {
             </p>
 
             {/* Quick stats */}
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               {catchUpData.hasPosts && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Image className="h-3.5 w-3.5 text-primary" />
@@ -183,6 +184,12 @@ export function WelcomeHeader() {
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <MessageCircle className="h-3.5 w-3.5 text-accent" />
                   <span>{catchUpData.unreadCount} unread</span>
+                </div>
+              )}
+              {catchUpData.interests && catchUpData.interests.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <span>Based on your interests</span>
                 </div>
               )}
             </div>

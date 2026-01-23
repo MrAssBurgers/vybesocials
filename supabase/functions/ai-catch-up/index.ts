@@ -35,6 +35,15 @@ serve(async (req) => {
       );
     }
 
+    // Get user's profile with interests
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('interests, display_name, username')
+      .eq('id', user.id)
+      .single();
+
+    const interests = userProfile?.interests || [];
+
     // Get recent posts from people user follows (last 24 hours)
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     
@@ -97,18 +106,10 @@ serve(async (req) => {
       messagesContent = `You have ${unreadConvos} conversation${unreadConvos > 1 ? 's' : ''} with new messages.`;
     }
 
-    // Build the summary prompt
-    const hasUpdates = postsContent || messagesContent;
-    
-    if (!hasUpdates) {
-      return new Response(
-        JSON.stringify({ 
-          summary: "All caught up! 🎉 No new posts from people you follow and no unread messages.",
-          hasPosts: false,
-          hasMessages: false
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Build interest-based recommendations
+    let interestsContext = "";
+    if (interests.length > 0) {
+      interestsContext = `User's interests: ${interests.join(', ')}`;
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -123,6 +124,35 @@ serve(async (req) => {
     if (messagesContent) {
       contextParts.push(messagesContent);
     }
+    if (interestsContext) {
+      contextParts.push(interestsContext);
+    }
+
+    // Even if no updates, generate recommendations based on interests
+    const hasUpdates = postsContent || messagesContent;
+    const hasInterests = interests.length > 0;
+
+    if (!hasUpdates && !hasInterests) {
+      return new Response(
+        JSON.stringify({ 
+          summary: "All caught up! 🎉 No new posts from people you follow and no unread messages.",
+          hasPosts: false,
+          hasMessages: false,
+          recommendation: null
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const systemPrompt = hasUpdates
+      ? `You are VYBE's friendly AI assistant. Create a brief, engaging catch-up summary for the user. Be casual, use emojis sparingly, and keep it under 3 sentences. Highlight interesting posts and mention if they have unread messages. Be warm and encouraging!
+      
+Additionally, if the user has interests listed, include ONE personalized recommendation based on their interests. Make it specific and actionable (e.g., for cooking: suggest a trending recipe; for gaming: mention a new game release; for fitness: suggest a workout tip). Keep the recommendation to 1 sentence and prefix it with "💡 For you:".`
+      : `You are VYBE's friendly AI assistant. The user is all caught up with no new posts or messages. Based on their interests, give them ONE fun, specific, and actionable recommendation to check out today. Be casual and friendly, use an emoji, keep it to 2-3 sentences total. Make it feel personal and exciting!`;
+
+    const userPrompt = hasUpdates
+      ? `Summarize what I missed:\n\n${contextParts.join('\n\n')}`
+      : `I'm all caught up! But here are my interests: ${interests.join(', ')}. Give me a personalized recommendation for today.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -133,17 +163,11 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          {
-            role: "system",
-            content: `You are VYBE's friendly AI assistant. Create a brief, engaging catch-up summary for the user. Be casual, use emojis sparingly, and keep it under 3 sentences. Highlight interesting posts and mention if they have unread messages. Be warm and encouraging!`,
-          },
-          {
-            role: "user",
-            content: `Summarize what I missed:\n\n${contextParts.join('\n\n')}`,
-          },
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
         ],
-        max_tokens: 200,
-        temperature: 0.7,
+        max_tokens: 250,
+        temperature: 0.8,
       }),
     });
 
@@ -171,7 +195,8 @@ serve(async (req) => {
         summary,
         hasPosts: !!postsContent,
         hasMessages: unreadConvos > 0,
-        unreadCount: unreadConvos
+        unreadCount: unreadConvos,
+        interests: interests
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
