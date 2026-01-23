@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, memo, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Settings, RefreshCw, TrendingUp, MessageCircle, Image as ImageIcon, Globe, ExternalLink } from 'lucide-react';
+import { Sparkles, Settings, RefreshCw, TrendingUp, MessageCircle, Image as ImageIcon, Globe, ExternalLink, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -126,11 +126,15 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [briefData, setBriefData] = useState<BriefData | null>(() => getCachedBrief());
   const [showCustomize, setShowCustomize] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasFetchedRef = useRef(false);
 
   const fetchBrief = useCallback(async (isBackground = false) => {
-    if (!user) return;
+    if (!user) {
+      setError('Please sign in to see your brief');
+      return;
+    }
     
     // Cancel any pending request
     if (abortControllerRef.current) {
@@ -138,11 +142,11 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
     }
     abortControllerRef.current = new AbortController();
     
-    // Only show loading if no cached data
-    if (!isBackground && !briefData) {
+    // Always show loading if no cached data (and not background)
+    if (!isBackground) {
       setIsLoading(true);
-    }
-    if (isBackground) {
+      setError(null);
+    } else {
       setIsRefreshing(true);
     }
     
@@ -151,10 +155,12 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
+        setError('Please sign in to see your brief');
         if (!isBackground) toast.error('Please sign in');
         return;
       }
 
+      console.log('Fetching AI brief...');
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-catch-up`,
         {
@@ -170,38 +176,45 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
 
       if (!response.ok) {
         if (response.status === 429) {
+          setError('Rate limited. Try again in a moment.');
           if (!isBackground) toast.error('Rate limited. Try again in a moment.');
           return;
         }
         if (response.status === 402) {
+          setError('AI credits exhausted.');
           if (!isBackground) toast.error('AI credits exhausted.');
           return;
         }
+        const errorText = await response.text();
+        console.error('Brief response error:', response.status, errorText);
         throw new Error('Failed to get brief');
       }
 
       const data = await response.json();
+      console.log('Brief data received:', data);
       setBriefData(data);
       setCachedBrief(data);
+      setError(null);
       if (!isBackground) haptics.success();
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
         return;
       }
-      console.error('Brief error:', error);
+      console.error('Brief error:', err);
+      setError('Could not load brief. Tap refresh to try again.');
       if (!isBackground) toast.error('Could not load brief');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user, briefData]);
+  }, [user]);
 
   // Load cached data instantly, fetch fresh in background
   useEffect(() => {
     if (open && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
       
-      // If we have cached data, show it and refresh in background
+      // Always fetch when opening (cached data shows instantly, fresh data replaces it)
       if (briefData) {
         fetchBrief(true); // Background refresh
       } else {
@@ -209,17 +222,23 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
       }
     }
     
+    // Reset on close so next open fetches again
+    if (!open) {
+      hasFetchedRef.current = false;
+    }
+    
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [open, briefData, fetchBrief]);
+  }, [open, fetchBrief]);
 
   const handleRefresh = useCallback(() => {
     hasFetchedRef.current = true;
     setIsLoading(true);
     setBriefData(null);
+    setError(null);
     fetchBrief(false);
   }, [fetchBrief]);
 
@@ -298,6 +317,24 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
           >
             {isLoading ? (
               <BriefLoadingState />
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4 animate-in fade-in duration-300">
+                <div className="p-4 rounded-full bg-destructive/10 mb-4">
+                  <AlertCircle className="h-8 w-8 text-destructive" />
+                </div>
+                <h3 className="text-base font-medium text-foreground mb-2">Couldn't Load Brief</h3>
+                <p className="text-sm text-muted-foreground text-center mb-4 max-w-[250px]">
+                  {error}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefresh}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
+                </Button>
+              </div>
             ) : briefData ? (
               <div className="space-y-4 animate-in fade-in duration-300">
                 {/* Summary Card */}
@@ -327,10 +364,10 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                   </div>
                 )}
 
-                {/* Empty state */}
+                {/* Empty state - only show if we have a summary but no other content */}
                 {(!briefData.liveUpdates || briefData.liveUpdates.length === 0) && 
                  !briefData.hasPosts && !briefData.hasMessages && (
-                  <div className="text-center py-12 animate-in fade-in duration-300">
+                  <div className="text-center py-8 animate-in fade-in duration-300">
                     <Globe className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
                     <p className="text-sm text-muted-foreground mb-3">
                       Add interests to get personalized updates
@@ -346,7 +383,10 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                   </div>
                 )}
               </div>
-            ) : null}
+            ) : (
+              // Initial state before loading starts
+              <BriefLoadingState />
+            )}
           </div>
         </SheetContent>
       </Sheet>
