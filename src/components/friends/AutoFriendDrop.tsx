@@ -14,6 +14,7 @@ import { useBumpDetection } from '@/hooks/useBumpDetection';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 
@@ -107,6 +108,7 @@ const ExpandableQR = memo(function ExpandableQR({
 
 export function AutoFriendDrop() {
   const { user, profile } = useAuth();
+  const isMobile = useIsMobile();
   const sendRequest = useSendFriendRequest();
   const [isActive, setIsActive] = useState(false);
   const [phase, setPhase] = useState<DropPhase>('idle');
@@ -336,8 +338,8 @@ export function AutoFriendDrop() {
 
   return (
     <>
-      {/* Subtle indicator that bump detection is active - CSS animation */}
-      {!isActive && !isDismissed && (
+      {/* Subtle indicator that bump detection is active - only show on mobile */}
+      {!isActive && !isDismissed && isMobile && (
         <div
           className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in"
           style={{ animationDuration: '300ms' }}
