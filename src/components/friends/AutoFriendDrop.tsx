@@ -511,21 +511,26 @@ export function AutoFriendDrop() {
         </div>
       )}
 
-      {/* Exchange Modal - Wallet-style slide up with card bounce */}
+      {/* Exchange Modal - Wallet-style slide up like a credit card leaving a wallet */}
       <Dialog open={isActive} onOpenChange={handleClose}>
         <DialogContent 
           className="sm:max-w-md p-0 border-0 bg-transparent overflow-visible [&>button]:hidden data-[state=open]:animate-card-bounce-in data-[state=closed]:animate-wallet-slide-down"
           style={{ 
             transformOrigin: 'bottom center',
-            transform: 'translateZ(0)',
-            perspective: '1000px'
+            perspective: '1200px',
+            perspectiveOrigin: 'center bottom',
+            transformStyle: 'preserve-3d',
+            willChange: 'transform, opacity'
           }}
         >
           <AnimatePresence mode="wait">
             {phase === 'activated' && (
               <div
                 className="bg-background/95 backdrop-blur-xl rounded-3xl p-6 shadow-2xl shadow-primary/20 border border-primary/10"
-                style={{ animationDuration: '200ms' }}
+                style={{ 
+                  animationDuration: '200ms',
+                  transformStyle: 'preserve-3d'
+                }}
               >
                 {/* Split view - Native discovery or QR fallback */}
                 <div className="flex flex-col gap-4">
