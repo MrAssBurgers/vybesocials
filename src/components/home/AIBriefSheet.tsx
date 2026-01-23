@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { AIBriefCustomizeSheet } from './AIBriefCustomizeSheet';
+import { BriefLoadingState } from './AIBriefLoadingState';
 
 interface AIBriefSheetProps {
   open: boolean;
@@ -29,75 +30,6 @@ interface BriefData {
   hasLiveData: boolean;
 }
 
-// Smooth skeleton with shimmer effect
-const ShimmerSkeleton = memo(function ShimmerSkeleton({ className }: { className?: string }) {
-  return (
-    <div 
-      className={`relative overflow-hidden rounded-xl bg-muted/40 ${className}`}
-      style={{ contain: 'layout style paint' }}
-    >
-      <div 
-        className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite]"
-        style={{
-          background: 'linear-gradient(90deg, transparent, hsl(var(--muted)/0.4), transparent)',
-        }}
-      />
-    </div>
-  );
-});
-
-// Loading state with staggered animation
-const BriefLoadingState = memo(function BriefLoadingState() {
-  return (
-    <div className="space-y-4 animate-in fade-in duration-200">
-      {/* Summary skeleton */}
-      <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-accent/5 border border-primary/10">
-        <div className="flex items-center gap-2 mb-3">
-          <ShimmerSkeleton className="h-5 w-5 rounded-lg" />
-          <ShimmerSkeleton className="h-4 w-28" />
-        </div>
-        <div className="space-y-2">
-          <ShimmerSkeleton className="h-4 w-full" />
-          <ShimmerSkeleton className="h-4 w-4/5" />
-          <ShimmerSkeleton className="h-4 w-3/5" />
-        </div>
-      </div>
-      
-      {/* Updates header skeleton */}
-      <div className="flex items-center gap-2 px-1">
-        <ShimmerSkeleton className="h-4 w-4" />
-        <ShimmerSkeleton className="h-4 w-24" />
-      </div>
-      
-      {/* Card skeletons with stagger */}
-      {[0, 1, 2].map((i) => (
-        <div 
-          key={i} 
-          className="p-4 rounded-xl bg-card/60 border border-border/30"
-          style={{ 
-            animationDelay: `${i * 100}ms`,
-            opacity: 0,
-            animation: `fadeSlideIn 0.3s ease-out ${i * 100}ms forwards`
-          }}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <ShimmerSkeleton className="h-6 w-6 rounded" />
-            <ShimmerSkeleton className="h-3 w-16" />
-          </div>
-          <div className="space-y-2">
-            <ShimmerSkeleton className="h-3 w-full" />
-            <ShimmerSkeleton className="h-3 w-5/6" />
-          </div>
-          <div className="flex gap-2 mt-3 pt-2 border-t border-border/20">
-            <ShimmerSkeleton className="h-6 w-20 rounded-md" />
-            <ShimmerSkeleton className="h-6 w-24 rounded-md" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-});
-
 // Memoized card component for performance
 const BriefCard = memo(function BriefCard({ update, index }: { update: BriefUpdate; index: number }) {
   const getEmoji = (topic: string) => {
@@ -114,11 +46,12 @@ const BriefCard = memo(function BriefCard({ update, index }: { update: BriefUpda
 
   return (
     <div 
-      className="p-4 rounded-xl bg-card/80 border border-border/50 will-change-transform"
+      className="p-4 rounded-xl bg-card/80 border border-border/50 will-change-transform animate-in fade-in slide-in-from-bottom-2"
       style={{ 
         contain: 'layout style paint',
-        opacity: 0,
-        animation: `fadeSlideIn 0.3s ease-out ${index * 80}ms forwards`
+        animationDelay: `${index * 60}ms`,
+        animationFillMode: 'both',
+        animationDuration: '300ms'
       }}
     >
       <div className="flex items-center gap-2 mb-2">
