@@ -49,38 +49,6 @@ export function StreakIndicator({
     return 'text-yellow-500';
   };
 
-  // Live fire animation - more chaotic flickering
-  const liveFireAnimation = {
-    scale: [1, 1.1, 0.95, 1.15, 1, 1.08, 0.98, 1.12, 1],
-    rotate: [-2, 3, -1, 2, -3, 1, -2, 2, -1],
-    y: [0, -1, 0.5, -1.5, 0, -0.5, 0.5, -1, 0],
-    filter: [
-      'drop-shadow(0 0 3px currentColor) brightness(1)',
-      'drop-shadow(0 0 6px currentColor) brightness(1.1)',
-      'drop-shadow(0 0 4px currentColor) brightness(0.95)',
-      'drop-shadow(0 0 8px currentColor) brightness(1.15)',
-      'drop-shadow(0 0 3px currentColor) brightness(1)',
-      'drop-shadow(0 0 5px currentColor) brightness(1.05)',
-      'drop-shadow(0 0 4px currentColor) brightness(0.98)',
-      'drop-shadow(0 0 7px currentColor) brightness(1.1)',
-      'drop-shadow(0 0 3px currentColor) brightness(1)',
-    ]
-  };
-
-  // Dying fire animation - slow, weak flickering
-  const dyingFireAnimation = {
-    scale: [1, 0.95, 1.02, 0.97, 1],
-    rotate: [-0.5, 0.5, -0.3, 0.3, 0],
-    opacity: [0.7, 0.5, 0.65, 0.55, 0.7],
-    filter: [
-      'drop-shadow(0 0 1px currentColor) brightness(0.8)',
-      'drop-shadow(0 0 2px currentColor) brightness(0.7)',
-      'drop-shadow(0 0 1px currentColor) brightness(0.75)',
-      'drop-shadow(0 0 2px currentColor) brightness(0.65)',
-      'drop-shadow(0 0 1px currentColor) brightness(0.8)',
-    ]
-  };
-
   return (
     <motion.div
       initial={{ scale: 0.8, opacity: 0 }}
@@ -91,18 +59,25 @@ export function StreakIndicator({
         getFlameColor()
       )}
     >
-      {/* Live fire with realistic flickering */}
+      {/* Gentle pulsing fire with glow */}
       <motion.div
         className="relative"
-        animate={isDying ? dyingFireAnimation : liveFireAnimation}
+        animate={{ 
+          scale: isDying ? [1, 0.96, 1] : [1, 1.06, 1],
+          y: isDying ? 0 : [0, -0.5, 0],
+        }}
         transition={{ 
           repeat: Infinity, 
-          duration: isDying ? 2.5 : 0.8,
-          ease: "easeInOut",
-          times: isDying ? [0, 0.25, 0.5, 0.75, 1] : [0, 0.12, 0.25, 0.37, 0.5, 0.62, 0.75, 0.87, 1]
+          duration: isDying ? 2 : 1.2,
+          ease: "easeInOut"
+        }}
+        style={{
+          filter: isDying 
+            ? 'drop-shadow(0 0 2px currentColor)' 
+            : 'drop-shadow(0 0 4px currentColor)'
         }}
       >
-        <Flame className={cn(iconSizes[size], 'fill-current')} />
+        <Flame className={cn(iconSizes[size], 'fill-current', isDying && 'opacity-60')} />
       </motion.div>
 
       {/* Expiry clock when dying */}
