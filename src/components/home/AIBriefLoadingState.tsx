@@ -136,6 +136,18 @@ interface PreviewCardProps {
   index: number;
 }
 
+// Static color class mappings to ensure Tailwind includes these classes
+const colorClasses = {
+  primary: {
+    bg: 'bg-primary/10',
+    text: 'text-primary',
+  },
+  accent: {
+    bg: 'bg-accent/10',
+    text: 'text-accent',
+  },
+} as const;
+
 const PreviewCard = memo(function PreviewCard({ 
   icon: Icon, 
   title, 
@@ -144,6 +156,7 @@ const PreviewCard = memo(function PreviewCard({
   index 
 }: PreviewCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const colorClass = colorClasses[color as keyof typeof colorClasses] || colorClasses.primary;
 
   return (
     <motion.div
@@ -158,8 +171,8 @@ const PreviewCard = memo(function PreviewCard({
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg bg-${color}/10`}>
-              <Icon className={`h-4 w-4 text-${color}`} />
+            <div className={`p-2 rounded-lg ${colorClass.bg}`}>
+              <Icon className={`h-4 w-4 ${colorClass.text}`} />
             </div>
             <div>
               <h4 className="font-medium text-sm text-foreground">{title}</h4>

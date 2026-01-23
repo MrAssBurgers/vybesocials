@@ -95,22 +95,36 @@ const BriefCard = memo(function BriefCard({ update, index }: { update: BriefUpda
 const BRIEF_CACHE_KEY = 'vybe_ai_brief_cache';
 const CACHE_TTL = 1000 * 60 * 15; // 15 minutes
 
+// Validate that brief data is actually usable
+function isValidBrief(data: unknown): data is BriefData {
+  if (!data || typeof data !== 'object') return false;
+  const brief = data as BriefData;
+  // Must have a non-empty summary string
+  return typeof brief.summary === 'string' && brief.summary.trim().length > 0;
+}
+
 function getCachedBrief(): BriefData | null {
   try {
     const cached = localStorage.getItem(BRIEF_CACHE_KEY);
     if (!cached) return null;
     const { data, timestamp } = JSON.parse(cached);
-    if (Date.now() - timestamp < CACHE_TTL) {
+    // Check TTL and validate data structure
+    if (Date.now() - timestamp < CACHE_TTL && isValidBrief(data)) {
       return data;
     }
+    // Clear invalid cache
+    localStorage.removeItem(BRIEF_CACHE_KEY);
     return null;
   } catch {
+    localStorage.removeItem(BRIEF_CACHE_KEY);
     return null;
   }
 }
 
 function setCachedBrief(data: BriefData) {
   try {
+    // Only cache valid data
+    if (!isValidBrief(data)) return;
     localStorage.setItem(BRIEF_CACHE_KEY, JSON.stringify({
       data,
       timestamp: Date.now(),
