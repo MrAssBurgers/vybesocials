@@ -22,6 +22,16 @@ export const StoriesBar = memo(function StoriesBar() {
   const [showCreator, setShowCreator] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
+  // Pre-sign all avatar URLs when stories load.
+  // NOTE: This hook must run on every render (no conditional returns before it).
+  useEffect(() => {
+    if (!storyGroups || storyGroups.length === 0) return;
+    const urls = storyGroups.map(g => g.user.avatar_url).filter(Boolean);
+    if (urls.length > 0) {
+      batchSignUrls(urls).catch(() => {});
+    }
+  }, [storyGroups]);
+
   if (isLoading) {
     return (
       <div className="flex gap-4 p-4 overflow-x-auto scrollbar-hide">
@@ -37,15 +47,6 @@ export const StoriesBar = memo(function StoriesBar() {
 
   const ownStoryGroup = storyGroups?.find((g) => g.user.id === profile?.id);
   const otherGroups = storyGroups?.filter((g) => g.user.id !== profile?.id) || [];
-
-  // Pre-sign all avatar URLs when stories load
-  useEffect(() => {
-    if (!storyGroups) return;
-    const urls = storyGroups.map(g => g.user.avatar_url).filter(Boolean);
-    if (urls.length > 0) {
-      batchSignUrls(urls).catch(() => {});
-    }
-  }, [storyGroups]);
 
   return (
     <>
