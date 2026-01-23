@@ -61,6 +61,9 @@ export function useFriendRequests() {
       };
     },
     enabled: !!profile?.id,
+    staleTime: 60000, // 1 minute cache
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -101,6 +104,10 @@ export function useFriends() {
       return friends;
     },
     enabled: !!profile?.id,
+    staleTime: 2 * 60 * 1000, // 2 minutes cache
+    gcTime: 30 * 60 * 1000, // 30 min gc
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -147,6 +154,9 @@ export function useFriendshipStatus(targetUserId: string | undefined) {
       return { status: 'none' as const, requestId: null };
     },
     enabled: !!profile?.id && !!targetUserId,
+    staleTime: 60000, // 1 minute cache
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 

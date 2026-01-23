@@ -38,16 +38,15 @@ import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 15, // 15 minutes - reduce refetches further
-      gcTime: 1000 * 60 * 120, // 2 hour cache for better persistence
+      staleTime: 1000 * 60 * 30, // 30 minutes - maximize cache hits
+      gcTime: 1000 * 60 * 180, // 3 hour cache for even better persistence
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
       retry: 1,
-      retryDelay: 300,
+      retryDelay: 200,
       networkMode: 'offlineFirst',
       structuralSharing: true,
-      // Prevent duplicate requests
       refetchInterval: false,
     },
     mutations: {

@@ -1,4 +1,4 @@
-import { ReactNode, forwardRef, memo } from 'react';
+import { ReactNode, forwardRef, memo, useMemo } from 'react';
 import { MobileHeader } from './MobileHeader';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
@@ -37,15 +37,18 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   // Optimize animations during scroll
   useScrollOptimization();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Skeleton variant="circular" className="h-16 w-16" />
-          <Skeleton className="h-4 w-24" />
-        </div>
+  // Memoize the loading UI
+  const loadingUI = useMemo(() => (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <Skeleton variant="circular" className="h-16 w-16" />
+        <Skeleton className="h-4 w-24" />
       </div>
-    );
+    </div>
+  ), []);
+
+  if (loading) {
+    return loadingUI;
   }
 
   // Allow guest browsing - don't redirect if no user

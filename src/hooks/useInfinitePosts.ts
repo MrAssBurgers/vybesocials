@@ -23,11 +23,11 @@ interface Post {
   is_bookmarked: boolean;
 }
 
-// Load ALL posts initially for instant experience
-const INITIAL_PAGE_SIZE = 100; // Load 100 posts on first load
-const PAGE_SIZE = 50; // Load 50 more when scrolling
-const STALE_TIME = 5 * 60 * 1000; // 5 minutes
-const GC_TIME = 60 * 60 * 1000; // 1 hour cache
+// Optimized page sizes for faster initial load
+const INITIAL_PAGE_SIZE = 30; // Load 30 posts initially - faster startup
+const PAGE_SIZE = 30; // Load 30 more when scrolling
+const STALE_TIME = 30 * 60 * 1000; // 30 minutes - reduce refetches
+const GC_TIME = 3 * 60 * 60 * 1000; // 3 hour cache
 
 // Transform RPC result to Post format
 function transformPost(row: any): Post {

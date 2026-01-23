@@ -129,10 +129,12 @@ export function useStories() {
       return groups;
     },
     enabled: !!profile?.id,
-    staleTime: 60000, // 1 minute cache
-    refetchInterval: 60000, // Refetch every 60s instead of 30s
+    staleTime: 2 * 60 * 1000, // 2 minute cache
+    gcTime: 30 * 60 * 1000, // 30 min garbage collection
+    refetchInterval: 2 * 60 * 1000, // Refetch every 2 min
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 }
 
