@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, X, Loader2, MessageCircle, Image } from 'lucide-react';
+import { Sparkles, X, Loader2, MessageCircle, Image, Globe, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,6 +13,8 @@ interface CatchUpData {
   hasMessages: boolean;
   unreadCount?: number;
   interests?: string[];
+  liveUpdates?: { interest: string; content: string }[];
+  hasLiveData?: boolean;
 }
 
 export function WelcomeHeader() {
@@ -132,7 +134,8 @@ export function WelcomeHeader() {
             <>
               <Sparkles className="h-4 w-4 text-primary animate-pulse" />
               <span>AI Catch-up</span>
-              <span className="text-xs text-muted-foreground ml-1">• See what you missed</span>
+              <Globe className="h-3.5 w-3.5 text-accent ml-1" />
+              <span className="text-xs text-muted-foreground ml-1">• Live updates</span>
             </>
           )}
         </Button>
@@ -186,7 +189,13 @@ export function WelcomeHeader() {
                   <span>{catchUpData.unreadCount} unread</span>
                 </div>
               )}
-              {catchUpData.interests && catchUpData.interests.length > 0 && (
+              {catchUpData.hasLiveData && (
+                <div className="flex items-center gap-1.5 text-xs text-accent font-medium">
+                  <TrendingUp className="h-3.5 w-3.5 text-accent" />
+                  <span>Live from the web</span>
+                </div>
+              )}
+              {catchUpData.interests && catchUpData.interests.length > 0 && !catchUpData.hasLiveData && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
                   <span>Based on your interests</span>

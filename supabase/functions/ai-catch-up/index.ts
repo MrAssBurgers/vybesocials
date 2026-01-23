@@ -6,6 +6,65 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Map interests to search queries for Perplexity
+const interestSearchQueries: Record<string, string> = {
+  'politics': 'latest political news today unbiased summary',
+  'gaming': 'trending video game releases and gaming news this week',
+  'cooking': 'trending recipes and cooking tips this week',
+  'fitness': 'fitness tips and workout trends today',
+  'music': 'new music releases and trending songs this week',
+  'sports': 'top sports news and scores today',
+  'movies': 'new movie releases and entertainment news today',
+  'technology': 'latest tech news and gadget releases today',
+  'fashion': 'fashion trends and style tips this week',
+  'travel': 'trending travel destinations and tips',
+  'art': 'art exhibitions and creative trends this week',
+  'photography': 'photography tips and trending photo styles',
+  'reading': 'best new book releases and reading recommendations',
+  'science': 'latest science discoveries and research news',
+  'business': 'business news and market updates today',
+  'health': 'health news and wellness tips today',
+  'nature': 'environmental news and nature discoveries',
+  'comedy': 'trending comedy and viral funny content',
+  'animals': 'cute animal news and pet care tips',
+  'diy': 'trending DIY projects and craft ideas',
+};
+
+async function fetchPerplexityData(interest: string, apiKey: string): Promise<string | null> {
+  const query = interestSearchQueries[interest.toLowerCase()] || `latest ${interest} news and updates today`;
+  
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are a helpful assistant that provides brief, factual summaries. Be concise - 1-2 sentences max. Include specific details like names, numbers, or dates when relevant.' 
+          },
+          { role: 'user', content: query }
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Perplexity API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || null;
+  } catch (error) {
+    console.error('Perplexity fetch error:', error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -106,10 +165,20 @@ serve(async (req) => {
       messagesContent = `You have ${unreadConvos} conversation${unreadConvos > 1 ? 's' : ''} with new messages.`;
     }
 
-    // Build interest-based recommendations
-    let interestsContext = "";
-    if (interests.length > 0) {
-      interestsContext = `User's interests: ${interests.join(', ')}`;
+    // Fetch real-time data from Perplexity based on interests
+    let liveUpdates: { interest: string; content: string }[] = [];
+    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
+    
+    if (PERPLEXITY_API_KEY && interests.length > 0) {
+      // Fetch updates for up to 3 interests in parallel
+      const selectedInterests = interests.slice(0, 3);
+      const fetchPromises = selectedInterests.map(async (interest: string) => {
+        const content = await fetchPerplexityData(interest, PERPLEXITY_API_KEY);
+        return content ? { interest, content } : null;
+      });
+      
+      const results = await Promise.all(fetchPromises);
+      liveUpdates = results.filter((r): r is { interest: string; content: string } => r !== null);
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -124,35 +193,40 @@ serve(async (req) => {
     if (messagesContent) {
       contextParts.push(messagesContent);
     }
-    if (interestsContext) {
-      contextParts.push(interestsContext);
+    if (liveUpdates.length > 0) {
+      const liveContent = liveUpdates.map(u => `${u.interest}: ${u.content}`).join('\n');
+      contextParts.push(`Live updates based on your interests:\n${liveContent}`);
     }
 
-    // Even if no updates, generate recommendations based on interests
     const hasUpdates = postsContent || messagesContent;
+    const hasLiveData = liveUpdates.length > 0;
     const hasInterests = interests.length > 0;
 
-    if (!hasUpdates && !hasInterests) {
+    if (!hasUpdates && !hasLiveData && !hasInterests) {
       return new Response(
         JSON.stringify({ 
           summary: "All caught up! 🎉 No new posts from people you follow and no unread messages.",
           hasPosts: false,
           hasMessages: false,
+          liveUpdates: [],
           recommendation: null
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const systemPrompt = hasUpdates
-      ? `You are VYBE's friendly AI assistant. Create a brief, engaging catch-up summary for the user. Be casual, use emojis sparingly, and keep it under 3 sentences. Highlight interesting posts and mention if they have unread messages. Be warm and encouraging!
-      
-Additionally, if the user has interests listed, include ONE personalized recommendation based on their interests. Make it specific and actionable (e.g., for cooking: suggest a trending recipe; for gaming: mention a new game release; for fitness: suggest a workout tip). Keep the recommendation to 1 sentence and prefix it with "💡 For you:".`
-      : `You are VYBE's friendly AI assistant. The user is all caught up with no new posts or messages. Based on their interests, give them ONE fun, specific, and actionable recommendation to check out today. Be casual and friendly, use an emoji, keep it to 2-3 sentences total. Make it feel personal and exciting!`;
+    const systemPrompt = `You are VYBE's friendly AI assistant. Create a personalized, engaging catch-up for the user. Be casual, use emojis sparingly, and be concise.
 
-    const userPrompt = hasUpdates
-      ? `Summarize what I missed:\n\n${contextParts.join('\n\n')}`
-      : `I'm all caught up! But here are my interests: ${interests.join(', ')}. Give me a personalized recommendation for today.`;
+Your response should:
+1. First, briefly mention any new posts or messages (1 sentence max)
+2. Then, share the LIVE real-time updates from their interests - these are actual current news/facts from the web, so present them as fresh, exciting info!
+3. Make each interest update feel actionable and engaging
+
+Format the live updates clearly with the interest topic. Keep the total response under 5 sentences. Be warm and make it feel like a helpful friend catching them up!`;
+
+    const userPrompt = contextParts.length > 0
+      ? `Here's what I need to catch up on:\n\n${contextParts.join('\n\n')}`
+      : `I'm all caught up with posts and messages! But I'm interested in: ${interests.join(', ')}. Share something interesting!`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -166,8 +240,8 @@ Additionally, if the user has interests listed, include ONE personalized recomme
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_tokens: 250,
-        temperature: 0.8,
+        max_tokens: 400,
+        temperature: 0.7,
       }),
     });
 
@@ -196,7 +270,9 @@ Additionally, if the user has interests listed, include ONE personalized recomme
         hasPosts: !!postsContent,
         hasMessages: unreadConvos > 0,
         unreadCount: unreadConvos,
-        interests: interests
+        interests: interests,
+        liveUpdates: liveUpdates,
+        hasLiveData: hasLiveData
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
