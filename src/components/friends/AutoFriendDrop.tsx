@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { supabase } from '@/integrations/supabase/client';
-import { useBumpDetection } from '@/hooks/useBumpDetection';
+import { useSwingDetection } from '@/hooks/useSwingDetection';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
@@ -198,12 +198,13 @@ export function AutoFriendDrop() {
     startScanning();
   }, [profile?.username, user, nativeFriendDrop]);
 
-  // Bump detection - only when on home page and not already active
-  useBumpDetection({
+  // Swing detection - detects back-then-forward motion instantly
+  useSwingDetection({
     enabled: !isActive && !!profile?.username,
-    threshold: 12, // Slightly lower threshold for easier activation
-    cooldown: 5000,
-    onBump: handleBump,
+    threshold: 6, // Lower threshold for responsive detection
+    swingWindow: 500, // 500ms to complete back-forward swing
+    cooldown: 3000,
+    onSwing: handleBump,
   });
 
   const startScanning = useCallback(async () => {
@@ -358,7 +359,7 @@ export function AutoFriendDrop() {
             <span className="text-xs text-primary font-medium">
               {nativeFriendDrop.isAvailable 
                 ? 'Tap or bring phones together'
-                : 'Shake phone to add friends'}
+                : 'Swing phone to add friends'}
             </span>
             <Zap className="h-3 w-3 text-primary animate-pulse" />
             <button
