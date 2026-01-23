@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_brief_preferences: {
+        Row: {
+          brief_style: string | null
+          created_at: string
+          custom_topics: string[] | null
+          excluded_topics: string[] | null
+          id: string
+          preferred_sources: string[] | null
+          show_images: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brief_style?: string | null
+          created_at?: string
+          custom_topics?: string[] | null
+          excluded_topics?: string[] | null
+          id?: string
+          preferred_sources?: string[] | null
+          show_images?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brief_style?: string | null
+          created_at?: string
+          custom_topics?: string[] | null
+          excluded_topics?: string[] | null
+          id?: string
+          preferred_sources?: string[] | null
+          show_images?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       analytics_events: {
         Row: {
           created_at: string
