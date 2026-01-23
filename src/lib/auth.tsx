@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
+import { setCachedProfile, clearProfileCache } from '@/lib/profileCache';
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -11,6 +12,7 @@ interface Profile {
   id: string;
   user_id: string;
   username: string;
+  display_name?: string | null;
   avatar_url: string | null;
   bio: string;
   created_at: string;
@@ -178,11 +180,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .limit(1);
 
       if (!error && data?.[0]) {
-        setProfile(data[0]);
+        const profileData = data[0];
+        setProfile(profileData);
+        // Cache profile for instant lookups elsewhere
+        setCachedProfile({
+          id: profileData.id,
+          username: profileData.username,
+          display_name: profileData.display_name || null,
+          avatar_url: profileData.avatar_url,
+        });
         // Check ban status and subscribe to realtime changes
-        checkBanStatus(data[0].id);
-        subscribeToBanChanges(data[0].id);
-        return data[0];
+        checkBanStatus(profileData.id);
+        subscribeToBanChanges(profileData.id);
+        return profileData;
       }
 
       // If profile is missing, try to claim an unclaimed profile or create new one
@@ -222,11 +232,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .limit(1);
 
       if (!afterEnsureError && afterEnsure?.[0]) {
-        setProfile(afterEnsure[0]);
+        const profileData = afterEnsure[0];
+        setProfile(profileData);
+        // Cache profile for instant lookups elsewhere
+        setCachedProfile({
+          id: profileData.id,
+          username: profileData.username,
+          display_name: profileData.display_name || null,
+          avatar_url: profileData.avatar_url,
+        });
         // Check ban status and subscribe to realtime changes
-        checkBanStatus(afterEnsure[0].id);
-        subscribeToBanChanges(afterEnsure[0].id);
-        return afterEnsure[0];
+        checkBanStatus(profileData.id);
+        subscribeToBanChanges(profileData.id);
+        return profileData;
       }
 
       console.error('[Auth] Could not fetch profile after ensure_profile');
@@ -266,6 +284,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }, 0);
         } else {
           setProfile(null);
+          clearProfileCache(); // Clear cache on logout
           setBanInfo(null);
           // Clear refresh timer on logout
           if (refreshTimerRef.current) {
@@ -362,6 +381,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    clearProfileCache(); // Clear cache on logout
     await supabase.auth.signOut();
     setProfile(null);
   };

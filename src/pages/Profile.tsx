@@ -187,13 +187,23 @@ export default function ProfilePage() {
           {/* Info */}
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold flex items-center gap-2">
+              <div className="flex flex-col">
+                {/* Display Name */}
+                {profile.display_name && (
+                  <h1 className="text-2xl font-bold flex items-center gap-2">
+                    {profile.display_name}
+                    {isOwner(profile.username) && <OwnerBadge />}
+                    {isOwnerWife(profile.id) && <PrincessBadge />}
+                    {profileRole && <ModBadge role={profileRole} />}
+                  </h1>
+                )}
+                {/* Username */}
+                <p className={`${profile.display_name ? 'text-muted-foreground text-sm' : 'text-2xl font-bold'} flex items-center gap-2`}>
                   @{profile.username}
-                  {isOwner(profile.username) && <OwnerBadge />}
-                  {isOwnerWife(profile.id) && <PrincessBadge />}
-                  {profileRole && <ModBadge role={profileRole} />}
-                </h1>
+                  {!profile.display_name && isOwner(profile.username) && <OwnerBadge />}
+                  {!profile.display_name && isOwnerWife(profile.id) && <PrincessBadge />}
+                  {!profile.display_name && profileRole && <ModBadge role={profileRole} />}
+                </p>
               </div>
               {isOwnProfile ? (
                 <Link to="/settings">

@@ -226,6 +226,7 @@ interface PostCardProps {
     author: {
       id: string;
       username: string;
+      display_name?: string | null;
       avatar_url: string | null;
     };
     like_count: number;
@@ -401,7 +402,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
             </div>
             <div>
               <p className="font-semibold text-sm flex items-center gap-1.5">
-                {post.author.username}
+                {post.author.display_name || post.author.username}
                 {authorRole && <ModBadge role={authorRole} />}
                 {isOwner(post.author.username) && <OwnerBadge />}
                 {isOwnerWife(post.author.id) && <PrincessBadge />}
@@ -413,7 +414,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 )}
               </p>
               <p className="text-xs text-muted-foreground">
-                {formattedDate}
+                @{post.author.username} · {formattedDate}
               </p>
             </div>
           </Link>

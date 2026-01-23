@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { containsBlockedContent, filterBlockedContent } from '@/lib/contentModeration';
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
+import { setCachedProfiles } from '@/lib/profileCache';
 
 // Utility to validate media URLs - now returns true for any non-empty URL
 // so migrated posts with broken storage links still appear (with placeholder)
@@ -27,6 +28,7 @@ interface Post {
   author: {
     id: string;
     username: string;
+    display_name?: string | null;
     avatar_url: string | null;
   };
   like_count: number;
@@ -55,6 +57,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
           author:profiles!author_id (
             id,
             username,
+            display_name,
             avatar_url
           )
         `)
@@ -95,10 +98,12 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
             supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
 
+          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null };
+          
           return {
             ...post,
             is_pinned: post.is_pinned ?? false,
-            author: post.author as unknown as { id: string; username: string; avatar_url: string | null },
+            author,
             like_count: likesCount.count || 0,
             comment_count: commentsCount.count || 0,
             is_liked: userLikes.includes(post.id),
@@ -106,6 +111,19 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
           };
         })
       );
+
+      // Cache author profiles for instant lookups
+      const authors = postsWithCounts
+        .map(p => p.author)
+        .filter((a): a is NonNullable<typeof a> => !!a);
+      if (authors.length > 0) {
+        setCachedProfiles(authors.map(a => ({
+          id: a.id,
+          username: a.username,
+          display_name: a.display_name || null,
+          avatar_url: a.avatar_url,
+        })));
+      }
 
       // Filter out posts without valid media URLs
       return postsWithCounts.filter(post => isValidMediaUrl(post.media_url));
@@ -146,6 +164,7 @@ export function useFollowingPosts() {
           author:profiles!author_id (
             id,
             username,
+            display_name,
             avatar_url
           )
         `)
@@ -171,10 +190,12 @@ export function useFollowingPosts() {
             supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
 
+          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null };
+
           return {
             ...post,
             is_pinned: post.is_pinned ?? false,
-            author: post.author as unknown as { id: string; username: string; avatar_url: string | null },
+            author,
             like_count: likesCount.count || 0,
             comment_count: commentsCount.count || 0,
             is_liked: userLikes.includes(post.id),
@@ -182,6 +203,19 @@ export function useFollowingPosts() {
           };
         })
       );
+
+      // Cache author profiles
+      const authors = postsWithCounts
+        .map(p => p.author)
+        .filter((a): a is NonNullable<typeof a> => !!a);
+      if (authors.length > 0) {
+        setCachedProfiles(authors.map(a => ({
+          id: a.id,
+          username: a.username,
+          display_name: a.display_name || null,
+          avatar_url: a.avatar_url,
+        })));
+      }
 
       // Filter out posts without valid media URLs
       return postsWithCounts.filter(post => isValidMediaUrl(post.media_url));
