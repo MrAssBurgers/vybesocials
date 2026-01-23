@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, X, Sparkles, Plus, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -126,33 +125,30 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
     haptics.tap();
   };
 
-  const toggleExclude = (topic: string) => {
-    setPreferences(prev => ({
-      ...prev,
-      excluded_topics: prev.excluded_topics.includes(topic)
-        ? prev.excluded_topics.filter(t => t !== topic)
-        : [...prev.excluded_topics, topic]
-    }));
-    haptics.tap();
-  };
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
-        <SheetHeader className="pb-4">
+      <SheetContent 
+        side="bottom" 
+        className="h-[80vh] rounded-t-3xl flex flex-col overflow-hidden bg-background"
+      >
+        <SheetHeader className="flex-shrink-0 pb-3 border-b border-border/50">
           <SheetTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
             Customize Your Brief
           </SheetTitle>
         </SheetHeader>
 
-        <ScrollArea className="h-[calc(100%-120px)]">
+        {/* Scrollable Content */}
+        <div 
+          className="flex-1 overflow-y-auto overscroll-contain py-4"
+          style={{ minHeight: 0 }}
+        >
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           ) : (
-            <div className="space-y-6 pb-4">
+            <div className="space-y-6">
               {/* Add custom topics */}
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Add topics you want to follow</Label>
@@ -253,10 +249,10 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
               </div>
             </div>
           )}
-        </ScrollArea>
+        </div>
 
-        {/* Save button */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent">
+        {/* Fixed Save button */}
+        <div className="flex-shrink-0 pt-4 border-t border-border/50">
           <Button 
             onClick={savePreferences} 
             className="w-full gap-2"

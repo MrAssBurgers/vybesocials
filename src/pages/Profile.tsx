@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, Eye, MoreHorizontal } from 'lucide-react';
 import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/useProfile';
@@ -18,7 +18,7 @@ import { ClipsGrid } from '@/components/posts/ClipsGrid';
 import { MutualFriendsDisplay } from '@/components/profile/MutualFriendsDisplay';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { useCreateConversation } from '@/hooks/useMessages';
+import { useCreateConversation, useMarkConversationReadByUser } from '@/hooks/useMessages';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
@@ -35,6 +35,7 @@ export default function ProfilePage() {
   const follow = useFollow();
   const updateAvatar = useUpdateAvatar();
   const createConversation = useCreateConversation();
+  const markConversationReadByUser = useMarkConversationReadByUser();
   const [activeTab, setActiveTab] = useState('posts');
   const { data: profileRole } = useUserRoleById(profile?.id);
   const isModOrAdmin = useIsModOrAdmin();
@@ -47,6 +48,13 @@ export default function ProfilePage() {
 
   // Own-profile check should be identity-based (usernames can have case/whitespace)
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
+
+  // Mark any DM conversation with this user as read when viewing their profile
+  useEffect(() => {
+    if (profile?.id && currentProfile?.id && profile.id !== currentProfile.id) {
+      markConversationReadByUser.mutate(profile.id);
+    }
+  }, [profile?.id, currentProfile?.id]);
 
   const handleFollow = async () => {
     if (!profile) return;
