@@ -3,22 +3,33 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 
 import { cn } from "@/lib/utils";
 
+interface ScrollAreaProps extends React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> {
+  /** Enable horizontal scrolling */
+  horizontal?: boolean;
+}
+
 const ScrollArea = React.forwardRef<
   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
->(({ className, children, ...props }, ref) => (
-  <ScrollAreaPrimitive.Root ref={ref} className={cn("relative overflow-hidden", className)} {...props}>
+  ScrollAreaProps
+>(({ className, children, horizontal = false, ...props }, ref) => (
+  <ScrollAreaPrimitive.Root 
+    ref={ref} 
+    className={cn("relative overflow-hidden", className)} 
+    {...props}
+  >
     <ScrollAreaPrimitive.Viewport 
       className="h-full w-full rounded-[inherit] [&>div]:!block"
       style={{ 
         WebkitOverflowScrolling: 'touch',
         overscrollBehavior: 'contain',
-        overflowX: 'hidden',
+        scrollBehavior: 'smooth',
+        overflowX: horizontal ? 'auto' : 'hidden',
+        overflowY: horizontal ? 'hidden' : 'auto',
       }}
     >
       {children}
     </ScrollAreaPrimitive.Viewport>
-    <ScrollBar />
+    <ScrollBar orientation={horizontal ? "horizontal" : "vertical"} />
     <ScrollAreaPrimitive.Corner />
   </ScrollAreaPrimitive.Root>
 ));

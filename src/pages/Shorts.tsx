@@ -169,6 +169,8 @@ export default function ClipsPage() {
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch',
           scrollSnapStop: 'always',
+          scrollBehavior: 'smooth',
+          touchAction: 'pan-y',
         }}
       >
         {/* TikTok-style vertical scroll container */}
