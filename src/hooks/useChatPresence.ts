@@ -24,11 +24,11 @@ export function useChatPresence(conversationId: string | undefined) {
     profileIdRef.current = profile?.id;
   }, [conversationId, profile?.id]);
 
-  // Debounced typing indicator to prevent excessive DB calls
+  // Fast typing indicator - instant updates, no debounce for start
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastTypingStateRef = useRef<boolean>(false);
 
-  // Stable setTyping function - debounced to reduce DB overhead
+  // Instant setTyping function - no delay for starting, slight delay for stopping
   const setTyping = useCallback((isTyping: boolean) => {
     // Skip if no change
     if (lastTypingStateRef.current === isTyping) return;
@@ -42,7 +42,10 @@ export function useChatPresence(conversationId: string | undefined) {
       clearTimeout(typingDebounceRef.current);
     }
 
-    // Debounce the actual DB call
+    // For starting typing: instant update
+    // For stopping typing: slight delay to prevent flicker
+    const delay = isTyping ? 0 : 100;
+    
     typingDebounceRef.current = setTimeout(async () => {
       lastTypingStateRef.current = isTyping;
       try {
@@ -67,7 +70,7 @@ export function useChatPresence(conversationId: string | undefined) {
       } catch (error) {
         // Silent fail for typing - non-critical
       }
-    }, isTyping ? 300 : 100); // Faster for stopping, slightly delayed for starting
+    }, delay);
   }, []);
 
   // Setup presence and subscriptions
@@ -156,8 +159,8 @@ export function useChatPresence(conversationId: string | undefined) {
     joinPresence();
     fetchPresence();
 
-    // Heartbeat every 10 seconds
-    heartbeatRef.current = setInterval(joinPresence, 10000);
+    // Fast heartbeat every 5 seconds for responsive presence
+    heartbeatRef.current = setInterval(joinPresence, 5000);
 
     // Subscribe to presence changes
     const presenceChannel = supabase
