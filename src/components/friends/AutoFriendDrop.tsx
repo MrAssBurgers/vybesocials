@@ -1,8 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Check, Sparkles, Loader2, Smartphone, Zap,
-  ArrowLeftRight, Bluetooth, Wifi
+  ArrowLeftRight, Bluetooth, Wifi, ZoomIn
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -24,6 +24,87 @@ interface FoundUser {
   avatar_url: string | null;
 }
 
+// Expandable QR component with tap-to-toggle
+const ExpandableQR = memo(function ExpandableQR({
+  qrCodeUrl,
+  isExpanded,
+  onToggle,
+}: {
+  qrCodeUrl: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <motion.button
+      className="relative cursor-pointer overflow-hidden"
+      onClick={onToggle}
+      layout
+      initial={false}
+      animate={{
+        width: isExpanded ? 256 : 80,
+        height: isExpanded ? 256 : 80,
+        padding: isExpanded ? 16 : 8,
+      }}
+      transition={{
+        type: "spring",
+        stiffness: 400,
+        damping: 30,
+        duration: 0.25,
+      }}
+      style={{
+        borderRadius: 16,
+        background: 'rgba(0, 0, 0, 0.2)',
+        backdropFilter: 'blur(8px)',
+      }}
+      whileTap={{ scale: 0.98 }}
+    >
+      <motion.img
+        src={qrCodeUrl}
+        alt="QR Code"
+        className="w-full h-full rounded-lg"
+        layout
+        transition={{
+          type: "spring",
+          stiffness: 400,
+          damping: 30,
+        }}
+      />
+      
+      {/* Expand/shrink indicator */}
+      <AnimatePresence mode="wait">
+        {!isExpanded && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-2xl opacity-0 hover:opacity-100 transition-opacity duration-200"
+          >
+            <ZoomIn className="h-5 w-5 text-white" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Shrink hint when expanded */}
+      <AnimatePresence mode="wait">
+        {isExpanded && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.2, delay: 0.1 }}
+            className="absolute bottom-2 left-0 right-0 text-center"
+          >
+            <span className="text-xs text-white/60 bg-black/40 px-2 py-1 rounded-full">
+              Tap to shrink
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.button>
+  );
+});
+
 export function AutoFriendDrop() {
   const { user, profile } = useAuth();
   const sendRequest = useSendFriendRequest();
@@ -31,6 +112,7 @@ export function AutoFriendDrop() {
   const [phase, setPhase] = useState<DropPhase>('idle');
   const [isDismissed, setIsDismissed] = useState(false);
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
+  const [isQrExpanded, setIsQrExpanded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -55,11 +137,22 @@ export function AutoFriendDrop() {
     },
   });
 
+  // Toggle QR expansion
+  const toggleQrExpand = useCallback(() => {
+    setIsQrExpanded(prev => !prev);
+    haptics.tap();
+  }, []);
+
   // QR code for this user (fallback for web)
   const myProfileUrl = profile?.username 
     ? `https://vybehub.app/add-friend/${user?.id}`
     : '';
   
+  // Larger QR URL for expanded view
+  const expandedQrCodeUrl = myProfileUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=000000&color=ffffff&format=svg&ecc=H`
+    : '';
+
   const qrCodeUrl = myProfileUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(myProfileUrl)}&bgcolor=000000&color=ffffff&format=svg`
     : '';
@@ -393,7 +486,7 @@ export function AutoFriendDrop() {
                     </motion.div>
                   )}
 
-                  {/* My Profile QR (fallback for web or additional option) */}
+                  {/* My Profile QR (fallback for web or additional option) - with tap to expand */}
                   {!nativeFriendDrop.isAvailable && (
                     <motion.div 
                       className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-primary via-primary/80 to-accent p-4"
@@ -412,23 +505,28 @@ export function AutoFriendDrop() {
                         transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
                       />
                       
-                      <div className="relative flex items-center gap-4">
-                        <Avatar className="h-14 w-14 border-2 border-white/50">
-                          <AvatarImage src={profile?.avatar_url || ''} />
-                          <AvatarFallback className="bg-white/20 text-white">
-                            {profile?.username?.[0]?.toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        
-                        <div className="flex-1 text-white">
-                          <p className="font-bold">{profile?.username}</p>
-                          <p className="text-white/70 text-sm">Sharing your profile...</p>
+                      <div className="relative flex flex-col items-center gap-4">
+                        <div className="flex items-center gap-4 w-full">
+                          <Avatar className="h-14 w-14 border-2 border-white/50">
+                            <AvatarImage src={profile?.avatar_url || ''} />
+                            <AvatarFallback className="bg-white/20 text-white">
+                              {profile?.username?.[0]?.toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          
+                          <div className="flex-1 text-white">
+                            <p className="font-bold">{profile?.username}</p>
+                            <p className="text-white/70 text-sm">
+                              {isQrExpanded ? 'Tap QR to shrink' : 'Tap QR to enlarge'}
+                            </p>
+                          </div>
                         </div>
                         
-                        <img 
-                          src={qrCodeUrl} 
-                          alt="QR" 
-                          className="w-16 h-16 rounded-lg"
+                        {/* Expandable QR Code */}
+                        <ExpandableQR
+                          qrCodeUrl={isQrExpanded ? expandedQrCodeUrl : qrCodeUrl}
+                          isExpanded={isQrExpanded}
+                          onToggle={toggleQrExpand}
                         />
                       </div>
                     </motion.div>
