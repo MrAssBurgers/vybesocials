@@ -263,9 +263,10 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
           side="bottom" 
           className="h-[85vh] rounded-t-3xl flex flex-col overflow-hidden bg-background"
           hideCloseButton
+           disableInternalScroll
         >
           {/* Fixed Header */}
-          <SheetHeader className="flex-shrink-0 pb-3 border-b border-border/50">
+          <SheetHeader className="flex-shrink-0 px-4 pt-4 pb-3 border-b border-border/50">
             <div className="flex items-center justify-between">
               <SheetTitle className="flex items-center gap-2 text-lg">
                 <div className="p-1.5 rounded-lg bg-primary/15">
@@ -321,12 +322,13 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
           </SheetHeader>
 
           {/* Scrollable Content - GPU accelerated */}
-          <div 
-            className="flex-1 overflow-y-auto overscroll-contain py-4 px-1"
+           <div 
+             className="flex-1 overflow-y-auto overscroll-contain touch-pan-y py-4 px-4"
             style={{ 
               minHeight: 0,
               WebkitOverflowScrolling: 'touch',
-              contain: 'strict',
+               // Avoid size containment here; it can break scrolling on some mobile browsers
+               contain: 'layout style paint',
             }}
           >
             {isLoading ? (
