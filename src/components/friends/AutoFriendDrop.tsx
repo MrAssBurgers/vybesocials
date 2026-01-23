@@ -169,21 +169,35 @@ export function AutoFriendDrop() {
     }
   };
   
+  // Track if we are the QR owner (our QR was scanned) or the scanner
+  const [isQrOwner, setIsQrOwner] = useState(false);
+  
   // Realtime sync for dual-device animation
   const friendDropSync = useFriendDropSync({
     enabled: isActive,
     onScanned: useCallback((drop) => {
-      // QR owner sees this when their QR is scanned
+      // QR owner sees this when their QR is scanned - THEIR profile flies OUT
       haptics.success();
+      setIsQrOwner(true);
       if (drop.to_user_id) {
         fetchUser(drop.to_user_id).then((scannedUser) => {
           if (scannedUser) {
             setFoundUser(scannedUser);
-            setPhase('found');
+            // Skip 'found' phase - go straight to exchanging with auto-add
+            setPhase('exchanging');
+            // Auto-complete after animation
+            setTimeout(() => {
+              sendRequest.mutateAsync(scannedUser.id).then(() => {
+                friendDropSync.completeDrop(activeDropId!);
+              }).catch(() => {
+                // Already friends or error - still show success
+                friendDropSync.completeDrop(activeDropId!);
+              });
+            }, 1200);
           }
         });
       }
-    }, []),
+    }, [activeDropId]),
     onConfirmed: useCallback(() => {
       setPhase('exchanging');
       haptics.impact();
@@ -311,18 +325,40 @@ export function AutoFriendDrop() {
       return;
     }
 
-    // Store the drop ID for later confirmation
+    // Store the drop ID for later
     setActiveDropId(dropId);
+    setIsQrOwner(false); // We are the scanner, not the owner
 
-    // Fetch the QR owner's profile and show their info
+    // Fetch the QR owner's profile and AUTO-ADD immediately
     if (scannedDrop.from_user_id) {
       const ownerProfile = await fetchUser(scannedDrop.from_user_id);
       if (ownerProfile) {
         setFoundUser(ownerProfile);
-        setPhase('found');
+        // Skip found phase - go straight to exchanging animation
+        setPhase('exchanging');
+        
+        // Auto-add friend after a brief animation delay
+        setTimeout(async () => {
+          try {
+            await sendRequest.mutateAsync(ownerProfile.id);
+            await friendDropSync.completeDrop(dropId);
+            setPhase('success');
+            haptics.success();
+            setTimeout(handleClose, 2000);
+          } catch (error: any) {
+            if (error?.message?.includes('already')) {
+              await friendDropSync.completeDrop(dropId);
+              setPhase('success');
+              setTimeout(handleClose, 1500);
+            } else {
+              toast.error('Failed to add friend');
+              handleClose();
+            }
+          }
+        }, 1200);
       }
     }
-  }, [friendDropSync, stopScanning]);
+  }, [friendDropSync, stopScanning, sendRequest]);
 
   const startScanning = useCallback(async () => {
     try {
@@ -460,6 +496,7 @@ export function AutoFriendDrop() {
     setPhase('idle');
     setFoundUser(null);
     setActiveDropId(null);
+    setIsQrOwner(false);
   }, [stopScanning, nativeFriendDrop, activeDropId, friendDropSync]);
 
   useEffect(() => {
@@ -802,28 +839,124 @@ export function AutoFriendDrop() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="bg-background/95 backdrop-blur-xl rounded-3xl p-8 flex flex-col items-center gap-4"
+                className="bg-gradient-to-br from-primary/90 via-accent/80 to-primary/90 backdrop-blur-xl rounded-3xl p-8 flex flex-col items-center gap-6 overflow-hidden relative"
+                style={{ minHeight: 280 }}
               >
+                {/* Animated background particles */}
+                {[...Array(20)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute w-2 h-2 rounded-full bg-white/30"
+                    initial={{ 
+                      x: Math.random() * 300 - 150,
+                      y: 300,
+                      opacity: 0 
+                    }}
+                    animate={{ 
+                      y: -50,
+                      opacity: [0, 0.8, 0],
+                    }}
+                    transition={{ 
+                      duration: 2,
+                      delay: i * 0.1,
+                      repeat: Infinity,
+                      ease: "easeOut"
+                    }}
+                  />
+                ))}
+                
+                {/* Profile avatar with fly animation */}
                 <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                  className="relative z-10"
+                  initial={isQrOwner ? { scale: 1, y: 0 } : { scale: 0.3, y: 200, rotateZ: -15 }}
+                  animate={isQrOwner 
+                    ? { scale: [1, 1.2, 0.3], y: [0, -20, -300], rotateZ: [0, 5, 15], opacity: [1, 1, 0] }
+                    : { scale: [0.3, 1.3, 1], y: [200, -15, 0], rotateZ: [-15, 5, 0] }
+                  }
+                  transition={{ 
+                    duration: 1.2,
+                    ease: [0.22, 1.2, 0.36, 1],
+                    times: [0, 0.6, 1]
+                  }}
                 >
-                  <Loader2 className="h-12 w-12 text-primary" />
+                  <div className="relative">
+                    {/* Glow ring behind avatar */}
+                    <motion.div
+                      className="absolute inset-0 rounded-full bg-white/40 blur-xl"
+                      animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0.8, 0.5] }}
+                      transition={{ duration: 1, repeat: Infinity }}
+                      style={{ margin: -8 }}
+                    />
+                    <Avatar className="h-28 w-28 border-4 border-white/80 shadow-2xl relative z-10">
+                      <AvatarImage src={isQrOwner ? (profile?.avatar_url || '') : (foundUser?.avatar_url || '')} />
+                      <AvatarFallback className="text-3xl bg-white/30 text-white font-bold">
+                        {isQrOwner 
+                          ? profile?.username?.[0]?.toUpperCase()
+                          : foundUser?.username?.[0]?.toUpperCase()
+                        }
+                      </AvatarFallback>
+                    </Avatar>
+                    
+                    {/* Sparkle effects around avatar */}
+                    {[...Array(6)].map((_, i) => (
+                      <motion.div
+                        key={i}
+                        className="absolute"
+                        style={{
+                          top: '50%',
+                          left: '50%',
+                        }}
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ 
+                          scale: [0, 1, 0],
+                          opacity: [0, 1, 0],
+                          x: Math.cos(i * 60 * Math.PI / 180) * 60 - 8,
+                          y: Math.sin(i * 60 * Math.PI / 180) * 60 - 8,
+                        }}
+                        transition={{ 
+                          duration: 0.8,
+                          delay: 0.3 + i * 0.1,
+                          repeat: Infinity,
+                          repeatDelay: 0.5
+                        }}
+                      >
+                        <Sparkles className="h-4 w-4 text-white" />
+                      </motion.div>
+                    ))}
+                  </div>
                 </motion.div>
-                <p className="text-lg font-medium">Exchanging vibes...</p>
+                
+                {/* Text */}
+                <motion.div 
+                  className="text-center text-white z-10"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <p className="text-xl font-bold">
+                    {isQrOwner ? 'Sending your vybe...' : 'Receiving vybe...'}
+                  </p>
+                  <p className="text-white/70 text-sm mt-1">
+                    {isQrOwner 
+                      ? `Flying to ${foundUser?.username || 'friend'}` 
+                      : `From ${foundUser?.display_name || foundUser?.username}`
+                    }
+                  </p>
+                </motion.div>
               </motion.div>
             )}
 
             {phase === 'success' && (
               <motion.div
                 key="success"
-                initial={{ opacity: 0, scale: 0.5 }}
+                initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: "spring", bounce: 0.5 }}
-                className="bg-gradient-to-br from-accent to-primary rounded-3xl p-8 flex flex-col items-center gap-4"
+                transition={{ type: "spring", bounce: 0.4 }}
+                className="bg-gradient-to-br from-accent via-primary to-accent rounded-3xl p-8 flex flex-col items-center gap-4 overflow-hidden relative"
+                style={{ minHeight: 280 }}
               >
-                {/* Celebration particles */}
-                {[...Array(12)].map((_, i) => (
+                {/* Celebration particles bursting outward */}
+                {[...Array(16)].map((_, i) => (
                   <motion.div
                     key={i}
                     className="absolute"
@@ -834,44 +967,75 @@ export function AutoFriendDrop() {
                       opacity: 1 
                     }}
                     animate={{ 
-                      x: Math.cos(i * 30 * Math.PI / 180) * 100,
-                      y: Math.sin(i * 30 * Math.PI / 180) * 100,
-                      scale: [0, 1, 0],
-                      opacity: [1, 1, 0]
+                      x: Math.cos(i * 22.5 * Math.PI / 180) * 120,
+                      y: Math.sin(i * 22.5 * Math.PI / 180) * 120,
+                      scale: [0, 1.5, 0],
+                      opacity: [1, 1, 0],
+                      rotate: 360
                     }}
-                    transition={{ duration: 1, delay: i * 0.05 }}
+                    transition={{ duration: 1.2, delay: i * 0.03, ease: "easeOut" }}
                   >
-                    <Sparkles className="h-4 w-4 text-accent-foreground" />
+                    <Sparkles className="h-5 w-5 text-white" />
                   </motion.div>
                 ))}
                 
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.1, type: "spring" }}
-                  className="w-20 h-20 rounded-full bg-primary-foreground/20 flex items-center justify-center"
-                >
-                  <Check className="h-10 w-10 text-white" strokeWidth={3} />
-                </motion.div>
-                
-                <div className="text-center text-white">
-                  <motion.h3 
-                    className="text-2xl font-bold"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
+                {/* Both avatars meeting - stack overlapping */}
+                <div className="relative flex items-center justify-center h-32">
+                  {/* My avatar */}
+                  <motion.div
+                    className="absolute"
+                    initial={{ x: -60, scale: 0.6, opacity: 0 }}
+                    animate={{ x: -20, scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.1, type: "spring", bounce: 0.5 }}
                   >
-                    Friend Added!
-                  </motion.h3>
-                  <motion.p 
-                    className="text-white/80"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
+                    <Avatar className="h-20 w-20 border-4 border-white/90 shadow-xl">
+                      <AvatarImage src={profile?.avatar_url || ''} />
+                      <AvatarFallback className="text-xl bg-white/30 text-white font-bold">
+                        {profile?.username?.[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </motion.div>
+                  
+                  {/* Friend's avatar */}
+                  <motion.div
+                    className="absolute"
+                    initial={{ x: 60, scale: 0.6, opacity: 0 }}
+                    animate={{ x: 20, scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.15, type: "spring", bounce: 0.5 }}
                   >
-                    You're now connected 🎉
-                  </motion.p>
+                    <Avatar className="h-20 w-20 border-4 border-white/90 shadow-xl">
+                      <AvatarImage src={foundUser?.avatar_url || ''} />
+                      <AvatarFallback className="text-xl bg-white/30 text-white font-bold">
+                        {foundUser?.username?.[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </motion.div>
+                  
+                  {/* Connection burst at center */}
+                  <motion.div
+                    className="absolute z-10"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: [0, 1.5, 1], opacity: [0, 1, 1] }}
+                    transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-lg">
+                      <Check className="h-6 w-6 text-primary" strokeWidth={3} />
+                    </div>
+                  </motion.div>
                 </div>
+                
+                {/* Text */}
+                <motion.div 
+                  className="text-center text-white z-10"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <h3 className="text-2xl font-bold">You're connected!</h3>
+                  <p className="text-white/80 mt-1">
+                    {foundUser?.display_name || foundUser?.username} is now your friend 🎉
+                  </p>
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
