@@ -260,23 +260,23 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="foryou" className="space-y-6">
+            <TabsContent value="foryou" className="space-y-6" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
               <PostList
                 posts={forYouPosts}
                 isLoading={forYouLoading}
                 isFetchingNext={isFetchingNextForYou}
-                loadMoreRef={loadMoreRef}
+                loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
                 emptyIcon="😴"
                 emptyText="No posts yet. Be the first to create one!"
               />
             </TabsContent>
 
-            <TabsContent value="following" className="space-y-6">
+            <TabsContent value="following" className="space-y-6" forceMount style={{ display: activeTab === 'following' ? 'block' : 'none' }}>
               <PostList
                 posts={followingPosts}
                 isLoading={followingLoading}
                 isFetchingNext={isFetchingNextFollowing}
-                loadMoreRef={loadMoreRef}
+                loadMoreRef={activeTab === 'following' ? loadMoreRef : () => {}}
                 emptyIcon="👀"
                 emptyText="Follow creators to see their posts here!"
               />
