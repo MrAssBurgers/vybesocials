@@ -1114,16 +1114,6 @@ export function ChatView() {
         </div>
       </div>
 
-      {/* Live Activity Indicator - shows other user's PFP at bottom of chat */}
-      {!isGroupChat && otherMember && (
-        <LiveActivityIndicator
-          avatarUrl={otherUserActivity?.avatar_url || otherMember.avatar_url}
-          username={otherUserActivity?.username || otherMember.username}
-          displayName={otherUserActivity?.display_name || otherMember.display_name}
-          activity={otherUserActivity?.activity || 'idle'}
-          isVisible={isOtherUserPresent}
-        />
-      )}
 
       {/* VYBE Camera Modal */}
       <SnapCamera
