@@ -298,24 +298,20 @@ export function BottomNav() {
                 return (
                   <div key={item.path} className="relative flex items-center justify-center" data-tutorial="create-nav">
                     <button
-                      className="relative flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation"
+                      className="relative flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation group"
                       onClick={handleCreateClick}
                     >
-                      {/* Tutorial highlight ring for create button - simplified */}
+                      {/* Tutorial highlight ring for create button */}
                       {isHighlighted && (
                         <div
                           className="absolute inset-0 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse"
                         />
                       )}
+                      {/* Animated gradient background */}
                       <div 
-                        className="rounded-xl p-2.5 shadow-lg transition-transform duration-150 ease-out active:scale-90"
-                        style={{ 
-                          background: 'linear-gradient(135deg, hsl(330 100% 60%), hsl(280 100% 60%), hsl(185 100% 50%))',
-                          boxShadow: '0 4px 20px hsl(330 100% 60% / 0.4)',
-                          transform: 'translateZ(0)'
-                        }}
+                        className="rounded-xl p-2.5 shadow-lg transition-transform duration-200 ease-out active:scale-90 group-hover:scale-105 create-button-gradient"
                       >
-                        <PlusCircle className="h-5 w-5 text-white" />
+                        <PlusCircle className="h-5 w-5 text-white relative z-10" />
                       </div>
                     </button>
                   </div>
