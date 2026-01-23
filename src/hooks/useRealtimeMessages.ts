@@ -6,15 +6,17 @@ import { premiumSounds } from '@/lib/premiumSounds';
 import { Message } from './useMessages';
 
 /**
- * Snapchat-style realtime message sync
+ * Ultra-fast realtime message sync
  * - Instant updates without full refetch
  * - Optimistic inserts with server confirmation
  * - Efficient cache updates
+ * - No debouncing for maximum speed
  */
 export function useRealtimeMessages(conversationId: string | undefined) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const lastMessageIdRef = useRef<string | null>(null);
+  const processedIdsRef = useRef<Set<string>>(new Set());
 
   // Append a new message to cache instantly without refetching
   const appendMessageToCache = useCallback((newMessage: any) => {
