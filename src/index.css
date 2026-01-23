@@ -1435,20 +1435,16 @@ html, body, #root {
   max-width: 100vw;
 }
 
-/* Performance optimizations during scroll */
-.is-scrolling * {
-  pointer-events: none !important;
-}
-
+/* Performance optimizations during scroll - LIGHTER touch for mobile */
+/* Avoid disabling pointer-events globally as it causes jank on mobile */
 .is-scrolling .post-card,
 .is-scrolling article {
-  will-change: transform;
+  pointer-events: none;
 }
 
-/* GPU acceleration for scrolling containers */
+/* GPU acceleration for scrolling containers - use sparingly */
 .scroll-container {
   transform: translateZ(0);
-  backface-visibility: hidden;
 }
 
 /* Reduce motion for accessibility and performance */
@@ -1590,39 +1586,27 @@ img, video, picture, svg, canvas {
 
 /* ========================================
    PERFORMANCE OPTIMIZATIONS
-   GPU acceleration & reduced paint
+   Mobile-first, lean GPU usage
    ======================================== */
 
-/* Enable hardware acceleration for animated elements */
-.liquid-glass-card,
-.glass-card,
-[class*="animate-"],
-[class*="transition-"] {
-  will-change: transform, opacity;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
+/* CRITICAL: Avoid will-change on too many elements - causes GPU memory issues on mobile */
+/* Only apply hardware acceleration to actively animating elements */
 
-/* Optimize scrolling containers */
+/* Scrolling containers - minimal GPU hints */
 .scrollbar-hide,
-[class*="overflow-"] {
+[data-app-scroll-container="true"] {
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
 }
 
-/* Reduce paint on hover states */
-button, a, [role="button"] {
-  contain: layout style;
-}
-
-/* Content containment for cards */
+/* Content containment for better paint performance */
 article, .post-card, .card {
-  contain: content;
+  contain: layout style paint;
 }
 
-/* Optimize images */
+/* Images/videos - use content-visibility for off-screen optimization */
 img, video {
   content-visibility: auto;
+  contain-intrinsic-size: 300px 300px;
 }
 
 /* Reduce motion for users who prefer it */
@@ -1634,5 +1618,36 @@ img, video {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Mobile/tablet specific optimizations */
+@media (max-width: 1024px) {
+  /* Disable complex backdrop filters that cause jank on mobile */
+  .liquid-glass,
+  .liquid-glass-card,
+  .glass-card {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+  }
+  
+  /* Simpler transitions on mobile */
+  * {
+    transition-duration: 0.15s !important;
+  }
+  
+  /* Disable will-change globally on mobile - let browser decide */
+  [class*="animate-"],
+  [class*="transition-"] {
+    will-change: auto !important;
+  }
+}
+
+/* iPad specific - often has performance issues with complex effects */
+@media (hover: none) and (min-width: 768px) {
+  .liquid-glass,
+  .liquid-glass-card {
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
   }
 }

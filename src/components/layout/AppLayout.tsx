@@ -91,21 +91,16 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     );
   }
 
-  // Mobile/Tablet layout
+  // Mobile/Tablet layout - optimized for smooth scrolling
   return (
     <div 
       ref={ref} 
       className="h-screen w-full overflow-hidden"
-      style={{
-        overscrollBehavior: 'contain',
-        WebkitOverflowScrolling: 'touch',
-        touchAction: 'pan-y',
-      }}
     >
       {/* Header - visible on mobile/tablet */}
       {!hideNav && <MobileHeader />}
 
-      {/* Main content - keep space for fixed bottom nav */}
+      {/* Main content - optimized touch scrolling */}
       <main
         data-app-scroll-container="true"
         className={cn(
@@ -113,7 +108,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           hideNav ? "" : "pt-14"
         )}
         style={{
-          touchAction: 'pan-y',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehaviorY: 'contain',
         }}
       >
         {children}

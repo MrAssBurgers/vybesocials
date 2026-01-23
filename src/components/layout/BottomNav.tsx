@@ -1,7 +1,6 @@
-import { Home, Compass, PlusCircle, MessageCircle, Settings, User } from 'lucide-react';
+import { Home, Compass, PlusCircle, MessageCircle, Settings } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
 import { useState, useCallback, useRef, memo, useEffect } from 'react';
@@ -127,20 +126,15 @@ const NavItem = memo(({
     >
       <div className="relative p-2">
         {isActive && (
-          <motion.div
-            layoutId="bottomNavPill"
+          <div
             className="absolute inset-0 rounded-xl bg-primary/15"
-            transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.8 }}
           />
         )}
         
-        {/* Tutorial highlight ring */}
+        {/* Tutorial highlight ring - simplified */}
         {isHighlighted && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="absolute -inset-1 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background"
-            style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.5)' }}
+          <div
+            className="absolute -inset-1 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse"
           />
         )}
         
@@ -280,25 +274,18 @@ export function BottomNav() {
         onClose={() => setShowAuthPrompt(false)}
       />
 
-      <motion.nav 
+      <nav 
         className="fixed bottom-0 left-0 right-0 z-[2147483647] w-full pointer-events-auto"
         style={{
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
+          transform: isVisible ? 'translateY(0)' : 'translateY(100%)',
+          opacity: isVisible ? 1 : 0,
+          transition: 'transform 0.2s ease-out, opacity 0.15s ease-out',
         }}
         aria-label="Bottom navigation"
         data-tutorial-bottomnav
-        initial={false}
-        animate={{
-          y: isVisible ? 0 : 100,
-          opacity: isVisible ? 1 : 0,
-        }}
-        transition={{
-          type: 'spring',
-          stiffness: 400,
-          damping: 30,
-        }}
       >
         {/* Compact glass bar */}
         <div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">
@@ -314,13 +301,10 @@ export function BottomNav() {
                       className="relative flex items-center justify-center min-h-[44px] min-w-[44px]"
                       onClick={handleCreateClick}
                     >
-                      {/* Tutorial highlight ring for create button */}
+                      {/* Tutorial highlight ring for create button - simplified */}
                       {isHighlighted && (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="absolute inset-0 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background"
-                          style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.5)' }}
+                        <div
+                          className="absolute inset-0 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse"
                         />
                       )}
                       <div className="gradient-animated rounded-xl p-2.5 shadow-lg shadow-primary/30 active:scale-90 transition-transform">
@@ -346,7 +330,7 @@ export function BottomNav() {
             })}
           </div>
         </div>
-      </motion.nav>
+      </nav>
     </>
   );
 }
