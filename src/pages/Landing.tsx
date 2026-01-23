@@ -16,6 +16,7 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 import { IntroFlow, hasSeenIntro, checkIntroStatus } from '@/components/intro/IntroFlow';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
+import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 
 // Hide bottom nav on landing page
 function useHideBottomNav() {
@@ -53,6 +54,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [showIntro, setShowIntro] = useState<boolean | null>(null); // null = still checking
   const [showDbNotice, setShowDbNotice] = useState(true);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -157,6 +160,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       if (isLogin) {
         const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
+        
+        // Handle "Remember Me" - if unchecked, set a flag to clear session on browser close
+        if (!rememberMe) {
+          sessionStorage.setItem('vybe-session-only', 'true');
+        } else {
+          sessionStorage.removeItem('vybe-session-only');
+        }
+        
         toast.success('Welcome back! ✨');
         
         // Check if user has completed onboarding before redirecting
@@ -345,6 +356,36 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               </div>
             </div>
 
+            {/* Remember me + Forgot password for login */}
+            <AnimatePresence>
+              {isLogin && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="remember"
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    />
+                    <label htmlFor="remember" className="text-sm text-muted-foreground">
+                      Remember me
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Terms agreement for signup */}
             <AnimatePresence>
               {!isLogin && (
@@ -468,6 +509,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           <a href="/guidelines" className="hover:text-foreground transition-colors">Guidelines</a>
         </div>
       </motion.div>
+
+      {/* Forgot Password Dialog */}
+      <ForgotPasswordDialog 
+        open={showForgotPassword} 
+        onClose={() => setShowForgotPassword(false)} 
+      />
     </div>
   );
 }
