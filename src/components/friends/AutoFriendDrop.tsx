@@ -9,12 +9,14 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
 import { useSendFriendRequest } from '@/hooks/useFriends';
+import { useFriendDropSync } from '@/hooks/useFriendDropSync';
 import { supabase } from '@/integrations/supabase/client';
 import { useSwingDetection } from '@/hooks/useSwingDetection';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import jsQR from 'jsqr';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 
@@ -25,16 +27,23 @@ interface FoundUser {
   avatar_url: string | null;
 }
 
-// Expandable QR component with tap-to-toggle
+// Expandable QR component with tap-to-toggle and profile picture
 const ExpandableQR = memo(function ExpandableQR({
   qrCodeUrl,
   isExpanded,
   onToggle,
+  avatarUrl,
+  username,
 }: {
   qrCodeUrl: string;
   isExpanded: boolean;
   onToggle: () => void;
+  avatarUrl?: string | null;
+  username?: string | null;
 }) {
+  const size = isExpanded ? 256 : 80;
+  const avatarSize = isExpanded ? 48 : 24;
+  
   return (
     <motion.button
       className="relative cursor-pointer overflow-hidden"
@@ -42,8 +51,8 @@ const ExpandableQR = memo(function ExpandableQR({
       layout
       initial={false}
       animate={{
-        width: isExpanded ? 256 : 80,
-        height: isExpanded ? 256 : 80,
+        width: size,
+        height: size,
         padding: isExpanded ? 16 : 8,
       }}
       transition={{
@@ -54,8 +63,7 @@ const ExpandableQR = memo(function ExpandableQR({
       }}
       style={{
         borderRadius: 16,
-        background: 'rgba(0, 0, 0, 0.2)',
-        backdropFilter: 'blur(8px)',
+        background: 'white',
       }}
       whileTap={{ scale: 0.98 }}
     >
@@ -70,6 +78,31 @@ const ExpandableQR = memo(function ExpandableQR({
           damping: 30,
         }}
       />
+      
+      {/* Profile picture overlay in center */}
+      <motion.div 
+        className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        layout
+      >
+        <motion.div
+          className="relative rounded-full overflow-hidden border-2 border-white shadow-lg"
+          animate={{ width: avatarSize, height: avatarSize }}
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          style={{ background: 'white' }}
+        >
+          {avatarUrl ? (
+            <img 
+              src={avatarUrl} 
+              alt={username || 'Profile'} 
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground text-xs font-bold">
+              {username?.[0]?.toUpperCase() || 'V'}
+            </div>
+          )}
+        </motion.div>
+      </motion.div>
       
       {/* Expand/shrink indicator */}
       <AnimatePresence mode="wait">
@@ -96,7 +129,7 @@ const ExpandableQR = memo(function ExpandableQR({
             transition={{ duration: 0.2, delay: 0.1 }}
             className="absolute bottom-2 left-0 right-0 text-center"
           >
-            <span className="text-xs text-white/60 bg-black/40 px-2 py-1 rounded-full">
+            <span className="text-xs text-black/60 bg-white/80 px-2 py-1 rounded-full">
               Tap to shrink
             </span>
           </motion.div>
@@ -115,9 +148,51 @@ export function AutoFriendDrop() {
   const [isDismissed, setIsDismissed] = useState(false);
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
   const [isQrExpanded, setIsQrExpanded] = useState(false);
+  const [activeDropId, setActiveDropId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+
+  // Fetch user helper
+  const fetchUser = async (userId: string): Promise<FoundUser | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', userId)
+        .single();
+      if (error) throw error;
+      return data;
+    } catch {
+      return null;
+    }
+  };
+  
+  // Realtime sync for dual-device animation
+  const friendDropSync = useFriendDropSync({
+    enabled: isActive,
+    onScanned: useCallback((drop) => {
+      // QR owner sees this when their QR is scanned
+      haptics.success();
+      if (drop.to_user_id) {
+        fetchUser(drop.to_user_id).then((scannedUser) => {
+          if (scannedUser) {
+            setFoundUser(scannedUser);
+            setPhase('found');
+          }
+        });
+      }
+    }, []),
+    onConfirmed: useCallback(() => {
+      setPhase('exchanging');
+      haptics.impact();
+    }, []),
+    onCompleted: useCallback(() => {
+      setPhase('success');
+      haptics.success();
+    }, []),
+  });
   
   // Native FriendDrop (Bluetooth/Nearby) - works on native apps
   const nativeFriendDrop = useNativeFriendDrop({
@@ -145,18 +220,16 @@ export function AutoFriendDrop() {
     haptics.tap();
   }, []);
 
-  // QR code for this user (fallback for web)
-  const myProfileUrl = profile?.username 
-    ? `https://vybehub.app/add-friend/${user?.id}`
-    : '';
+  // QR code URL with friend-drop ID for realtime sync
+  const myProfileUrl = activeDropId 
+    ? `https://vybehub.app/friend-drop/${activeDropId}`
+    : profile?.username 
+      ? `https://vybehub.app/add-friend/${user?.id}`
+      : '';
   
-  // Larger QR URL for expanded view
-  const expandedQrCodeUrl = myProfileUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=000000&color=ffffff&format=svg&ecc=H`
-    : '';
-
+  // Use white background QR for better scannability
   const qrCodeUrl = myProfileUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(myProfileUrl)}&bgcolor=000000&color=ffffff&format=svg`
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=000000&format=svg&ecc=H&margin=2`
     : '';
 
   // Auto-add friend (for native peer-to-peer connection)
@@ -189,6 +262,12 @@ export function AutoFriendDrop() {
     setPhase('activated');
     haptics.impact();
     
+    // Create a drop session for realtime sync
+    const drop = await friendDropSync.createDrop();
+    if (drop) {
+      setActiveDropId(drop.id);
+    }
+    
     // Start native peer discovery if available
     if (nativeFriendDrop.isAvailable) {
       await nativeFriendDrop.startSession();
@@ -196,7 +275,7 @@ export function AutoFriendDrop() {
     
     // Also start QR scanning as fallback
     startScanning();
-  }, [profile?.username, user, nativeFriendDrop]);
+  }, [profile?.username, user, nativeFriendDrop, friendDropSync]);
 
   // Swing detection - detects back-then-forward motion instantly
   useSwingDetection({
@@ -207,58 +286,110 @@ export function AutoFriendDrop() {
     onSwing: handleBump,
   });
 
+  // Stop scanning helper
+  const stopScanning = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  }, []);
+
+  // Handle drop scan - called when scanner successfully scans QR
+  const handleDropScan = useCallback(async (dropId: string) => {
+    stopScanning();
+    haptics.success();
+
+    // Register ourselves as the scanner
+    const scannedDrop = await friendDropSync.scanDrop(dropId);
+    if (!scannedDrop) {
+      toast.error('This code has expired');
+      setPhase('activated');
+      return;
+    }
+
+    // Store the drop ID for later confirmation
+    setActiveDropId(dropId);
+
+    // Fetch the QR owner's profile and show their info
+    if (scannedDrop.from_user_id) {
+      const ownerProfile = await fetchUser(scannedDrop.from_user_id);
+      if (ownerProfile) {
+        setFoundUser(ownerProfile);
+        setPhase('found');
+      }
+    }
+  }, [friendDropSync, stopScanning]);
+
   const startScanning = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
       });
       streamRef.current = stream;
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        await videoRef.current.play();
       }
 
-      // Use BarcodeDetector if available
-      if ('BarcodeDetector' in window) {
-        const barcodeDetector = new (window as any).BarcodeDetector({
-          formats: ['qr_code']
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+
+      const scanFrame = async () => {
+        if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
+          animationFrameRef.current = requestAnimationFrame(scanFrame);
+          return;
+        }
+
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert',
         });
 
-        scanIntervalRef.current = setInterval(async () => {
-          if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-            try {
-              const barcodes = await barcodeDetector.detect(videoRef.current);
-              if (barcodes.length > 0) {
-                const url = barcodes[0].rawValue;
-                const match = url?.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
-                if (match) {
-                  const userId = match[1];
-                  if (userId !== user?.id) {
-                    handleFoundUser(userId);
-                  }
-                }
-              }
-            } catch (e) {
-              // Continue scanning
+        if (code) {
+          const url = code.data;
+          
+          // Check for friend-drop URL (realtime sync)
+          const dropMatch = url?.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
+          if (dropMatch) {
+            const dropId = dropMatch[1];
+            await handleDropScan(dropId);
+            return;
+          }
+          
+          // Check for legacy add-friend URL
+          const userMatch = url?.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
+          if (userMatch) {
+            const userId = userMatch[1];
+            if (userId !== user?.id) {
+              handleFoundUser(userId);
+              return;
             }
           }
-        }, 150);
-      }
+        }
+
+        animationFrameRef.current = requestAnimationFrame(scanFrame);
+      };
+
+      scanFrame();
     } catch (error) {
       console.error('Camera error:', error);
       // Camera not available - still show QR code
     }
-  }, [user?.id]);
+  }, [user?.id, handleDropScan]);
 
   const handleFoundUser = useCallback(async (userId: string) => {
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-
+    stopScanning();
     haptics.success();
     setPhase('found');
 
@@ -276,7 +407,7 @@ export function AutoFriendDrop() {
       toast.error('Could not find user');
       handleClose();
     }
-  }, []);
+  }, [stopScanning]);
 
   const handleAddFriend = useCallback(async () => {
     if (!foundUser) return;
@@ -284,8 +415,19 @@ export function AutoFriendDrop() {
     setPhase('exchanging');
     haptics.impact();
 
+    // Confirm the drop for realtime sync
+    if (activeDropId) {
+      await friendDropSync.confirmDrop(activeDropId);
+    }
+
     try {
       await sendRequest.mutateAsync(foundUser.id);
+      
+      // Complete the drop
+      if (activeDropId) {
+        await friendDropSync.completeDrop(activeDropId);
+      }
+      
       setPhase('success');
       haptics.success();
       
@@ -302,21 +444,14 @@ export function AutoFriendDrop() {
         setPhase('found');
       }
     }
-  }, [foundUser, sendRequest]);
-
-  const stopScanning = useCallback(() => {
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
-      scanIntervalRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-  }, []);
+  }, [foundUser, sendRequest, activeDropId, friendDropSync]);
 
   const handleClose = useCallback(async () => {
     stopScanning();
+    // Cancel the drop
+    if (activeDropId) {
+      await friendDropSync.cancelDrop(activeDropId);
+    }
     // Stop native session if active
     if (nativeFriendDrop.isActive) {
       await nativeFriendDrop.stopSession();
@@ -324,7 +459,8 @@ export function AutoFriendDrop() {
     setIsActive(false);
     setPhase('idle');
     setFoundUser(null);
-  }, [stopScanning, nativeFriendDrop]);
+    setActiveDropId(null);
+  }, [stopScanning, nativeFriendDrop, activeDropId, friendDropSync]);
 
   useEffect(() => {
     return () => {
@@ -518,11 +654,13 @@ export function AutoFriendDrop() {
                           </div>
                         </div>
                         
-                        {/* Expandable QR Code */}
+                        {/* Expandable QR Code with profile picture */}
                         <ExpandableQR
-                          qrCodeUrl={isQrExpanded ? expandedQrCodeUrl : qrCodeUrl}
+                          qrCodeUrl={qrCodeUrl}
                           isExpanded={isQrExpanded}
                           onToggle={toggleQrExpand}
+                          avatarUrl={profile?.avatar_url}
+                          username={profile?.username}
                         />
                       </div>
                     </motion.div>
@@ -536,6 +674,7 @@ export function AutoFriendDrop() {
                       playsInline
                       muted
                     />
+                    <canvas ref={canvasRef} className="hidden" />
                     
                     {/* Scanning overlay */}
                     <div className="absolute inset-0 pointer-events-none">

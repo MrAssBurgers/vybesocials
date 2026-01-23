@@ -29,16 +29,23 @@ interface FoundUser {
   bio: string | null;
 }
 
-// Inline expandable QR component with tap-to-toggle
+// Inline expandable QR component with tap-to-toggle and profile picture
 const ExpandableQR = memo(function ExpandableQR({
   qrCodeUrl,
   isExpanded,
   onToggle,
+  avatarUrl,
+  username,
 }: {
   qrCodeUrl: string;
   isExpanded: boolean;
   onToggle: () => void;
+  avatarUrl?: string | null;
+  username?: string | null;
 }) {
+  const size = isExpanded ? 256 : 128;
+  const avatarSize = isExpanded ? 56 : 32;
+  
   return (
     <motion.button
       className="relative cursor-pointer overflow-hidden"
@@ -46,8 +53,8 @@ const ExpandableQR = memo(function ExpandableQR({
       layout
       initial={false}
       animate={{
-        width: isExpanded ? 256 : 128,
-        height: isExpanded ? 256 : 128,
+        width: size,
+        height: size,
         padding: isExpanded ? 16 : 12,
       }}
       transition={{
@@ -58,8 +65,7 @@ const ExpandableQR = memo(function ExpandableQR({
       }}
       style={{
         borderRadius: 16,
-        background: 'rgba(0, 0, 0, 0.2)',
-        backdropFilter: 'blur(8px)',
+        background: 'white',
       }}
       whileTap={{ scale: 0.98 }}
     >
@@ -74,6 +80,31 @@ const ExpandableQR = memo(function ExpandableQR({
           damping: 30,
         }}
       />
+      
+      {/* Profile picture overlay in center */}
+      <motion.div 
+        className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        layout
+      >
+        <motion.div
+          className="relative rounded-full overflow-hidden border-2 border-white shadow-lg"
+          animate={{ width: avatarSize, height: avatarSize }}
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          style={{ background: 'white' }}
+        >
+          {avatarUrl ? (
+            <img 
+              src={avatarUrl} 
+              alt={username || 'Profile'} 
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground font-bold">
+              {username?.[0]?.toUpperCase() || 'V'}
+            </div>
+          )}
+        </motion.div>
+      </motion.div>
       
       {/* Expand/shrink indicator */}
       <AnimatePresence mode="wait">
@@ -100,7 +131,7 @@ const ExpandableQR = memo(function ExpandableQR({
             transition={{ duration: 0.2, delay: 0.1 }}
             className="absolute bottom-2 left-0 right-0 text-center"
           >
-            <span className="text-xs text-white/60 bg-black/40 px-2 py-1 rounded-full">
+            <span className="text-xs text-black/60 bg-white/80 px-2 py-1 rounded-full">
               Tap to shrink
             </span>
           </motion.div>
@@ -179,8 +210,9 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       ? `https://vybehub.app/add-friend/${user?.id}`
       : '';
   
+  // Use white background QR for better scannability with high error correction
   const qrCodeUrl = myProfileUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(myProfileUrl)}&bgcolor=000000&color=ffffff&format=svg&ecc=H`
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=000000&format=svg&ecc=H&margin=2`
     : '';
 
   // Stop scanning helper - defined early so other callbacks can use it
@@ -559,11 +591,13 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
             <p className="text-white/80 text-sm">@{profile?.username?.trim()}</p>
           </div>
               
-              {/* Inline Tap-to-expand QR Code */}
+              {/* Inline Tap-to-expand QR Code with profile picture */}
               <ExpandableQR
                 qrCodeUrl={qrCodeUrl}
                 isExpanded={isQrExpanded}
                 onToggle={toggleQrExpand}
+                avatarUrl={profile?.avatar_url}
+                username={profile?.username}
               />
               
               <AnimatePresence mode="wait">
