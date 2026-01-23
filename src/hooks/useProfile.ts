@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { setCachedProfile } from '@/lib/profileCache';
 
 interface Profile {
   id: string;
@@ -55,6 +56,14 @@ export function useProfileById(profileId: string | undefined) {
           : Promise.resolve({ data: null }),
       ]);
 
+      // Cache the profile
+      setCachedProfile({
+        id: profile.id,
+        username: profile.username,
+        display_name: profile.display_name || null,
+        avatar_url: profile.avatar_url,
+      });
+
       return {
         ...profile,
         follower_count: followerCount.count || 0,
@@ -103,6 +112,14 @@ export function useProfileByUsername(username: string) {
               .maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
+
+      // Cache the profile
+      setCachedProfile({
+        id: profile.id,
+        username: profile.username,
+        display_name: profile.display_name || null,
+        avatar_url: profile.avatar_url,
+      });
 
       return {
         ...profile,
