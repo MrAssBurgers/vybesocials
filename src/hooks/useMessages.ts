@@ -834,3 +834,57 @@ export function useMarkConversationRead() {
     },
   });
 }
+
+// Find conversation with a specific user and mark it as read
+export function useMarkConversationReadByUser() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (targetUserId: string) => {
+      if (!profile?.id || profile.id === targetUserId) return;
+
+      // Find the 1:1 conversation with this user
+      const { data: myMemberships } = await supabase
+        .from('conversation_members')
+        .select('conversation_id')
+        .eq('user_id', profile.id);
+
+      if (!myMemberships?.length) return;
+
+      const conversationIds = myMemberships.map(m => m.conversation_id);
+
+      // Find conversations where the target user is also a member AND it's a 1:1 (not group)
+      const { data: targetMemberships } = await supabase
+        .from('conversation_members')
+        .select(`
+          conversation_id,
+          conversations!inner(id, is_group)
+        `)
+        .eq('user_id', targetUserId)
+        .in('conversation_id', conversationIds);
+
+      // Filter to only 1:1 conversations
+      const dmConversations = targetMemberships?.filter(
+        m => (m.conversations as any)?.is_group === false
+      ) || [];
+
+      if (dmConversations.length === 0) return;
+
+      // Mark the first (most recent) DM conversation as read
+      const conversationId = dmConversations[0].conversation_id;
+
+      const { error } = await supabase
+        .from('conversation_members')
+        .update({ last_read_at: new Date().toISOString() })
+        .eq('conversation_id', conversationId)
+        .eq('user_id', profile.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+    },
+  });
+}
