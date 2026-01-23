@@ -1828,3 +1828,35 @@ img, video {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ========================================
+   CREATE BUTTON ANIMATED GRADIENT
+   VYBE-style gradient animation
+   ======================================== */
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.create-button-gradient {
+  background: linear-gradient(
+    135deg,
+    hsl(330 100% 60%),
+    hsl(280 100% 60%),
+    hsl(185 100% 50%),
+    hsl(330 100% 60%)
+  );
+  background-size: 300% 300%;
+  animation: gradient-shift 4s ease infinite;
+  box-shadow: 0 4px 20px hsl(330 100% 60% / 0.4);
+  transform: translateZ(0);
+  will-change: background-position;
+}
