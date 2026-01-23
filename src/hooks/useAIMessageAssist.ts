@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Message } from './useMessages';
+import { useUserAdaptation } from './useUserAdaptation';
 
 export type AIAssistAction = 'rewrite' | 'shorter' | 'friendlier' | 'fix_grammar' | 'suggest_reply';
 
@@ -10,19 +11,20 @@ interface AIAssistResult {
 }
 
 /**
- * VYBE v1.1 - AI Message Assist
+ * VYBE v1.1 - AI Message Assist with User Adaptation
  * 
  * Features:
+ * - Adapts to user's communication style
  * - Rewrite message (shorter, clearer, friendlier)
- * - Fix grammar & tone
- * - Suggest replies (context-aware)
- * - Never auto-sends
- * - Always optional
+ * - Fix grammar & tone (while keeping user's voice)
+ * - Suggest replies (context-aware + style-matched)
+ * - Learns from user's messages over time
  */
 export function useAIMessageAssist() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastResult, setLastResult] = useState<AIAssistResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { profile, learnFromMessage } = useUserAdaptation();
 
   const assist = useCallback(async (
     action: AIAssistAction,
@@ -34,18 +36,24 @@ export function useAIMessageAssist() {
       return null;
     }
 
+    // Learn from the message being processed
+    if (currentText.trim()) {
+      learnFromMessage(currentText);
+    }
+
     setIsProcessing(true);
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('ai-message-assist', {
+      // Use adaptive AI endpoint with user profile
+      const { data, error: fnError } = await supabase.functions.invoke('ai-adaptive-response', {
         body: {
           action,
-          text: currentText,
-          context: recentMessages?.slice(-5).map(m => ({
-            role: m.sender_id,
-            content: m.content,
-          })),
+          userProfile: profile,
+          messages: [
+            { role: 'user', content: currentText || 'Suggest a reply based on context' }
+          ],
+          context: recentMessages?.slice(-5).map(m => m.content).join('\n'),
         },
       });
 
@@ -61,7 +69,7 @@ export function useAIMessageAssist() {
     } finally {
       setIsProcessing(false);
     }
-  }, []);
+  }, [profile, learnFromMessage]);
 
   const rewrite = useCallback((text: string) => assist('rewrite', text), [assist]);
   const makeShorter = useCallback((text: string) => assist('shorter', text), [assist]);
@@ -82,15 +90,17 @@ export function useAIMessageAssist() {
     fixGrammar,
     suggestReply,
     clearResult,
+    userProfile: profile,
   };
 }
 
 /**
- * AI Smart Replies - Lightweight suggestions
+ * AI Smart Replies - Adaptive suggestions that match user's style
  */
 export function useAISmartReplies() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const { profile } = useUserAdaptation();
 
   const generateReplies = useCallback(async (lastMessage: Message | null) => {
     if (!lastMessage?.content) {
@@ -101,8 +111,13 @@ export function useAISmartReplies() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('ai-smart-replies', {
-        body: { message: lastMessage.content },
+      // Use adaptive endpoint with user profile for personalized suggestions
+      const { data, error } = await supabase.functions.invoke('ai-adaptive-response', {
+        body: { 
+          action: 'smart_replies',
+          context: lastMessage.content,
+          userProfile: profile,
+        },
       });
 
       if (error) throw error;
@@ -114,7 +129,7 @@ export function useAISmartReplies() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [profile]);
 
   const clearSuggestions = useCallback(() => setSuggestions([]), []);
 
