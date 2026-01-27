@@ -148,10 +148,10 @@ export default function UploadPage() {
       toast.error('Invalid file type. Please upload an image or video.');
       return;
     }
-    // Allow larger files for long-form video (500MB)
-    const maxSize = selectedFile.type.startsWith('video/') ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
+    // Allow larger files for long-form video (2GB max for unlimited duration)
+    const maxSize = selectedFile.type.startsWith('video/') ? 2 * 1024 * 1024 * 1024 : 50 * 1024 * 1024;
     if (selectedFile.size > maxSize) {
-      toast.error(`File too large. Maximum size is ${selectedFile.type.startsWith('video/') ? '500MB' : '50MB'}.`);
+      toast.error(`File too large. Maximum size is ${selectedFile.type.startsWith('video/') ? '2GB' : '50MB'}.`);
       return;
     }
     const url = URL.createObjectURL(selectedFile);
@@ -382,7 +382,7 @@ export default function UploadPage() {
                   <Wand2 className="w-4 h-4 mr-2 text-primary" />AI Video
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground mt-4">Supports: JPG, PNG, GIF, WebP, MP4, WebM (max 500MB for videos)</p>
+              <p className="text-xs text-muted-foreground mt-4">Supports: JPG, PNG, GIF, WebP, MP4, WebM • Videos up to 2GB, no duration limit</p>
             </div>
           )}
           <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleInputChange} className="hidden" />
