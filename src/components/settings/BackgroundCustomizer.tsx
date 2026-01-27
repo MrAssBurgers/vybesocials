@@ -15,16 +15,25 @@ import {
   Flame,
   Snowflake,
   Zap,
-  AlertCircle
+  AlertCircle,
+  Pipette
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
+
+interface ExtractedColors {
+  primary: string;
+  secondary: string;
+  accent: string;
+  background: string;
+}
 
 interface BackgroundCustomizerProps {
   currentBackground?: string;
@@ -33,6 +42,7 @@ interface BackgroundCustomizerProps {
   onBackgroundChange: (url: string | null) => void;
   onOpacityChange: (opacity: number) => void;
   onBlurChange: (blur: number) => void;
+  onColorsExtracted?: (colors: ExtractedColors) => void;
 }
 
 const AI_BACKGROUND_STYLES = [
@@ -50,6 +60,121 @@ const AI_BACKGROUND_STYLES = [
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+// Color extraction utilities
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+
+  return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
+}
+
+function extractColorsFromImage(imageUrl: string): Promise<ExtractedColors> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Could not get canvas context'));
+        return;
+      }
+
+      // Sample at a reasonable size
+      const sampleSize = 100;
+      canvas.width = sampleSize;
+      canvas.height = sampleSize;
+      ctx.drawImage(img, 0, 0, sampleSize, sampleSize);
+
+      const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize);
+      const pixels = imageData.data;
+
+      // Collect color buckets
+      const colorBuckets: Map<string, { r: number; g: number; b: number; count: number }> = new Map();
+
+      for (let i = 0; i < pixels.length; i += 4) {
+        const r = Math.floor(pixels[i] / 32) * 32;
+        const g = Math.floor(pixels[i + 1] / 32) * 32;
+        const b = Math.floor(pixels[i + 2] / 32) * 32;
+        const key = `${r}-${g}-${b}`;
+        
+        const existing = colorBuckets.get(key);
+        if (existing) {
+          existing.count++;
+          existing.r = (existing.r + pixels[i]) / 2;
+          existing.g = (existing.g + pixels[i + 1]) / 2;
+          existing.b = (existing.b + pixels[i + 2]) / 2;
+        } else {
+          colorBuckets.set(key, { r: pixels[i], g: pixels[i + 1], b: pixels[i + 2], count: 1 });
+        }
+      }
+
+      // Sort by count and get top colors, then add HSL values
+      const sortedColors = Array.from(colorBuckets.values())
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10)
+        .map(c => {
+          const [h, s, l] = rgbToHsl(c.r, c.g, c.b);
+          return { ...c, h, s, l };
+        });
+
+      // Find vibrant colors (higher saturation) for primary/accent
+      const vibrantColors = sortedColors
+        .filter(c => c.s > 20) // Filter out grays
+        .sort((a, b) => b.s - a.s);
+
+      // Find dark colors for background
+      const darkColors = sortedColors
+        .filter(c => c.l < 40)
+        .sort((a, b) => a.l - b.l);
+
+      // Extract colors - all now have h, s, l properties
+      const primary = vibrantColors[0] || sortedColors[0];
+      const secondary = vibrantColors[1] || sortedColors[1] || primary;
+      const accent = vibrantColors[2] || vibrantColors[0] || sortedColors[2] || primary;
+      const background = darkColors[0] || sortedColors[sortedColors.length - 1];
+
+      // Safely get HSL values with defaults
+      const getHsl = (color: typeof primary | undefined, defaults: [number, number, number]): [number, number, number] => {
+        if (!color) return defaults;
+        return [color.h, color.s, color.l];
+      };
+
+      const primaryHsl = getHsl(primary, [330, 100, 60]);
+      const secondaryHsl = getHsl(secondary, [240, 10, 12]);
+      const accentHsl = getHsl(accent, [185, 100, 50]);
+      const bgHsl = getHsl(background, [240, 10, 4]);
+
+      resolve({
+        primary: `${primaryHsl[0]} ${primaryHsl[1]}% ${Math.min(70, Math.max(40, primaryHsl[2]))}%`,
+        secondary: `${secondaryHsl[0]} ${Math.max(10, secondaryHsl[1])}% ${secondaryHsl[2]}%`,
+        accent: `${accentHsl[0]} ${Math.min(100, accentHsl[1] + 20)}% ${Math.min(70, Math.max(40, accentHsl[2]))}%`,
+        background: `${bgHsl[0]} ${Math.min(30, bgHsl[1])}% ${Math.min(10, bgHsl[2])}%`,
+      });
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image for color extraction'));
+    img.src = imageUrl;
+  });
+}
+
 export function BackgroundCustomizer({
   currentBackground,
   backgroundOpacity,
@@ -57,6 +182,7 @@ export function BackgroundCustomizer({
   onBackgroundChange,
   onOpacityChange,
   onBlurChange,
+  onColorsExtracted,
 }: BackgroundCustomizerProps) {
   const { user, profile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,6 +193,9 @@ export function BackgroundCustomizer({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [extractedColors, setExtractedColors] = useState<ExtractedColors | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [applyColorsToTheme, setApplyColorsToTheme] = useState(false);
 
   // Get the correct user identifier (profile.id or user.id)
   const userId = profile?.id || user?.id;
@@ -78,6 +207,30 @@ export function BackgroundCustomizer({
       return () => clearTimeout(timer);
     }
   }, [uploadError]);
+
+  // Extract colors when background changes
+  const handleColorExtraction = useCallback(async (imageUrl: string) => {
+    setIsExtracting(true);
+    try {
+      const colors = await extractColorsFromImage(imageUrl);
+      setExtractedColors(colors);
+      console.log('[ColorExtraction] Extracted colors:', colors);
+    } catch (error) {
+      console.error('[ColorExtraction] Failed:', error);
+      setExtractedColors(null);
+    } finally {
+      setIsExtracting(false);
+    }
+  }, []);
+
+  // Auto-extract colors when background is set
+  useEffect(() => {
+    if (currentBackground) {
+      handleColorExtraction(currentBackground);
+    } else {
+      setExtractedColors(null);
+    }
+  }, [currentBackground, handleColorExtraction]);
 
   const validateFile = useCallback((file: File): string | null => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -134,9 +287,9 @@ export function BackgroundCustomizer({
 
       console.log('[BackgroundUpload] Public URL:', publicUrl);
 
-      // Apply immediately
+      // Apply immediately as background
       onBackgroundChange(publicUrl);
-      toast.success('Background uploaded! Click Save to keep it.');
+      toast.success('Background set! Toggle below to match theme colors.');
     } catch (error: any) {
       console.error('[BackgroundUpload] Error:', error);
       const message = error.message || 'Failed to upload background';
@@ -199,8 +352,10 @@ export function BackgroundCustomizer({
       if (data.error) throw new Error(data.error);
 
       if (data.imageUrl) {
-        setPreviewUrl(data.imageUrl);
-        toast.success('Background generated! Click ✓ to apply.');
+        // Auto-apply generated background
+        onBackgroundChange(data.imageUrl);
+        setPreviewUrl(null);
+        toast.success('Background generated and applied!');
       } else {
         throw new Error('No image generated');
       }
@@ -217,7 +372,7 @@ export function BackgroundCustomizer({
       setIsGenerating(false);
       setSelectedStyle(null);
     }
-  }, []);
+  }, [onBackgroundChange]);
 
   const applyPreviewBackground = useCallback(() => {
     if (previewUrl) {
@@ -230,8 +385,27 @@ export function BackgroundCustomizer({
   const removeBackground = useCallback(() => {
     onBackgroundChange(null);
     setPreviewUrl(null);
+    setExtractedColors(null);
+    setApplyColorsToTheme(false);
     toast.success('Background removed');
   }, [onBackgroundChange]);
+
+  // Handle applying extracted colors to theme
+  const handleApplyColors = useCallback(() => {
+    if (extractedColors && onColorsExtracted) {
+      onColorsExtracted(extractedColors);
+      toast.success('Theme colors updated to match your background!');
+    }
+  }, [extractedColors, onColorsExtracted]);
+
+  // Toggle for auto-applying colors
+  const handleToggleApplyColors = useCallback((checked: boolean) => {
+    setApplyColorsToTheme(checked);
+    if (checked && extractedColors && onColorsExtracted) {
+      onColorsExtracted(extractedColors);
+      toast.success('Theme colors matched to background!');
+    }
+  }, [extractedColors, onColorsExtracted]);
 
   return (
     <div className="space-y-6">
@@ -314,12 +488,15 @@ export function BackgroundCustomizer({
                 </Button>
               </div>
               
-              {/* Persistence reminder */}
-              <div className="absolute bottom-2 left-2 right-2">
-                <p className="text-[10px] text-foreground/70 bg-background/60 backdrop-blur-sm px-2 py-1 rounded-md inline-block">
-                  Click "Save" above to keep your background
-                </p>
-              </div>
+              {/* Color extraction indicator */}
+              {isExtracting && (
+                <div className="absolute bottom-2 left-2">
+                  <span className="flex items-center gap-1 text-[10px] text-foreground/70 bg-background/60 backdrop-blur-sm px-2 py-1 rounded-md">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Extracting colors...
+                  </span>
+                </div>
+              )}
             </>
           ) : (
             <div 
@@ -345,6 +522,74 @@ export function BackgroundCustomizer({
           )}
         </div>
       </div>
+
+      {/* Color Matching Option - Shows when background is set */}
+      <AnimatePresence>
+        {currentBackground && extractedColors && onColorsExtracted && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="p-4 rounded-xl border bg-card/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Pipette className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Match Theme Colors</span>
+                </div>
+                <Switch
+                  checked={applyColorsToTheme}
+                  onCheckedChange={handleToggleApplyColors}
+                />
+              </div>
+              
+              <p className="text-xs text-muted-foreground">
+                Automatically update UI colors to match your background image
+              </p>
+              
+              {/* Color preview swatches */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Detected:</span>
+                <div className="flex gap-1">
+                  <div 
+                    className="w-6 h-6 rounded-full border border-border/50"
+                    style={{ backgroundColor: `hsl(${extractedColors.primary})` }}
+                    title="Primary"
+                  />
+                  <div 
+                    className="w-6 h-6 rounded-full border border-border/50"
+                    style={{ backgroundColor: `hsl(${extractedColors.secondary})` }}
+                    title="Secondary"
+                  />
+                  <div 
+                    className="w-6 h-6 rounded-full border border-border/50"
+                    style={{ backgroundColor: `hsl(${extractedColors.accent})` }}
+                    title="Accent"
+                  />
+                  <div 
+                    className="w-6 h-6 rounded-full border border-border/50"
+                    style={{ backgroundColor: `hsl(${extractedColors.background})` }}
+                    title="Background"
+                  />
+                </div>
+              </div>
+
+              {!applyColorsToTheme && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={handleApplyColors}
+                >
+                  <Palette className="h-4 w-4 mr-2" />
+                  Apply Colors Now
+                </Button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Upload & Generate Options */}
       <div className="grid grid-cols-2 gap-3">
