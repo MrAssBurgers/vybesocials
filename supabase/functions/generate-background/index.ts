@@ -44,7 +44,7 @@ serve(async (req) => {
         messages: [
           {
             role: "user",
-            content: `Generate a beautiful, high-quality background image: ${finalPrompt}. The image should be suitable as a phone or desktop wallpaper, with smooth gradients and no text or logos.`,
+            content: `Generate a seamless, edge-to-edge, full-bleed background image with NO borders, margins, or white space. The image must fill the entire canvas completely from edge to edge. Style: ${finalPrompt}. Requirements: Full coverage wallpaper suitable for mobile and desktop, smooth gradients that extend to all edges, no text or logos, no visible borders or frames, colors and patterns must reach every edge of the image.`,
           },
         ],
         modalities: ["image", "text"],

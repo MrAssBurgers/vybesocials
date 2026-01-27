@@ -194,6 +194,8 @@ export function BackgroundCustomizer({
   const [isExtracting, setIsExtracting] = useState(false);
   const [applyColorsToTheme, setApplyColorsToTheme] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
+  const [showThemeMatchDialog, setShowThemeMatchDialog] = useState(false);
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   
   // My Backgrounds state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -369,7 +371,10 @@ export function BackgroundCustomizer({
         root.setAttribute('data-has-bg-image', 'true');
         
         onBackgroundChange(data.imageUrl);
-        toast.success('Background generated and saved!');
+        
+        // Store image URL and show theme match dialog
+        setPendingImageUrl(data.imageUrl);
+        setShowThemeMatchDialog(true);
       } else {
         throw new Error('No image generated');
       }
@@ -386,7 +391,28 @@ export function BackgroundCustomizer({
       setIsGenerating(false);
       setSelectedStyle(null);
     }
-  }, [onBackgroundChange, addBackground]);
+  }, [onBackgroundChange, addBackground, backgroundOpacity, backgroundBlur]);
+
+  const handleThemeMatchChoice = useCallback(async (matchTheme: boolean) => {
+    setShowThemeMatchDialog(false);
+    
+    if (matchTheme && pendingImageUrl) {
+      try {
+        const colors = await extractColorsFromImage(pendingImageUrl);
+        if (onColorsExtracted) {
+          onColorsExtracted(colors);
+          toast.success('Background applied & theme colors matched!');
+        }
+      } catch (error) {
+        console.error('Color extraction failed:', error);
+        toast.success('Background applied!');
+      }
+    } else {
+      toast.success('Background applied!');
+    }
+    
+    setPendingImageUrl(null);
+  }, [pendingImageUrl, onColorsExtracted]);
 
   const handleSelectBackground = useCallback(async (bg: UserBackground) => {
     await setActiveBackground.mutateAsync(bg.id);
@@ -837,6 +863,36 @@ export function BackgroundCustomizer({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => editingId && handleRenameBackground(editingId)}>
               Save
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Theme Match Dialog */}
+      <AlertDialog open={showThemeMatchDialog} onOpenChange={setShowThemeMatchDialog}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Palette className="h-5 w-5 text-primary" />
+              Match Theme Colors?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Would you like to update your UI theme colors to match this new background?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel 
+              onClick={() => handleThemeMatchChoice(false)}
+              className="flex-1"
+            >
+              Keep Current Theme
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => handleThemeMatchChoice(true)}
+              className="flex-1 bg-primary"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Match Colors
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
