@@ -36,8 +36,16 @@ export function useIsMobile() {
  * Use this when you need bottom nav behavior (vs sidebar)
  */
 export function useIsMobileOrTablet() {
-  const [isMobileOrTablet, setIsMobileOrTablet] = React.useState<boolean>(false);
-  const [isIPad, setIsIPad] = React.useState<boolean>(false);
+  const [isMobileOrTablet, setIsMobileOrTablet] = React.useState<boolean>(() => {
+    // Initialize with correct value on first render
+    if (typeof window === 'undefined') return false;
+    const isIPadDevice = detectIsIPad();
+    return window.innerWidth < TABLET_BREAKPOINT || isIPadDevice;
+  });
+  const [isIPad, setIsIPad] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return detectIsIPad();
+  });
 
   React.useEffect(() => {
     const checkDevice = () => {
@@ -47,6 +55,7 @@ export function useIsMobileOrTablet() {
       setIsMobileOrTablet(window.innerWidth < TABLET_BREAKPOINT || isIPadDevice);
     };
 
+    // Run immediately to ensure we have correct initial value
     checkDevice();
 
     const handleResize = () => checkDevice();

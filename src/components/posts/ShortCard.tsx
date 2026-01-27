@@ -46,11 +46,11 @@ interface ShortCardProps {
   isActive: boolean;
   globalMuted?: boolean;
   onToggleMute?: () => void;
-  isHolding?: boolean;
+  onHoldingChange?: (isHolding: boolean) => void;
 }
 
 // Memoized to prevent re-renders during scroll
-export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted = true, onToggleMute, isHolding = false }: ShortCardProps) {
+export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted = true, onToggleMute, onHoldingChange }: ShortCardProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
@@ -72,8 +72,10 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [isHolding, setIsHolding] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
+  const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author?.avatar_url || null);
@@ -172,9 +174,29 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     }
   }, [profile, isActive]);
 
+  // Hold to pause handlers
+  const handleTouchStart = useCallback(() => {
+    holdTimeoutRef.current = setTimeout(() => {
+      setIsHolding(true);
+      onHoldingChange?.(true);
+    }, 200);
+  }, [onHoldingChange]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+    }
+    setIsHolding(false);
+    onHoldingChange?.(false);
+  }, [onHoldingChange]);
+
   // Tap to toggle mute (single tap), double tap to like
   const handleTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    // If holding, don't process tap
+    if (isHolding) return;
+    
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
     
@@ -191,7 +213,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       }
     }
     lastTapTime.current = now;
-  }, [isMuted, onToggleMute]);
+  }, [isMuted, onToggleMute, isHolding]);
   
   // Guard against null author - return early with placeholder AFTER all hooks
   if (!post.author) {
@@ -331,6 +353,12 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       <div 
         className="absolute inset-0 flex items-center justify-center"
         onClick={handleTap}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onMouseDown={handleTouchStart}
+        onMouseUp={handleTouchEnd}
+        onMouseLeave={handleTouchEnd}
       >
         {/* Loading skeleton */}
         {isLoading && !hasError && (
@@ -372,19 +400,44 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           />
         ) : null}
 
-        {/* Mute indicator */}
-        {browserForcedMute && isMuted && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute top-4 left-4 bg-black/60 px-3 py-1.5 rounded-full text-white text-sm flex items-center gap-2"
-          >
-            <VolumeX className="h-4 w-4" />
-            Tap to unmute
-          </motion.div>
-        )}
+        {/* Slow flashing muted icon in center */}
+        <AnimatePresence>
+          {isVideo && isMuted && isPlaying && !isHolding && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0.3, 0.8, 0.3] }}
+              exit={{ opacity: 0 }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            >
+              <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
+                <VolumeX className="h-8 w-8 text-white" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Play indicator when paused */}
+        {/* Hold to pause indicator */}
+        <AnimatePresence>
+          {isHolding && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            >
+              <div className="px-4 py-2 rounded-full bg-black/60 backdrop-blur-sm">
+                <span className="text-white text-sm font-medium">Paused</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Play indicator when paused (not holding) */}
         <AnimatePresence>
           {isVideo && !isPlaying && !isLoading && !hasError && !isHolding && (
             <motion.div
