@@ -14,21 +14,13 @@ import { useCreatePost } from '@/hooks/usePosts';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon, Wand2, Maximize2 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon, Wand2, ImagePlus } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 
 const contentTypes = [
-  { id: 'post', label: 'Post', icon: Image, description: 'Share a photo', aspectRatio: null },
-  { id: 'short', label: 'Clip', icon: Film, description: 'Quick vertical video', aspectRatio: '9:16' },
-  { id: 'video', label: 'Video', icon: Video, description: 'Longer video content', aspectRatio: '16:9' },
-];
-
-const aspectRatios = [
-  { value: '9:16', label: '9:16 (Vertical)', description: 'Best for clips/mobile' },
-  { value: '16:9', label: '16:9 (Horizontal)', description: 'Best for long-form' },
-  { value: '1:1', label: '1:1 (Square)', description: 'Best for posts' },
-  { value: '4:5', label: '4:5 (Portrait)', description: 'Instagram style' },
+  { id: 'post', label: 'Post', icon: Image, description: 'Share a photo' },
+  { id: 'short', label: 'Clip', icon: Film, description: 'Quick vertical video' },
+  { id: 'video', label: 'Video', icon: Video, description: 'Longer video content' },
 ];
 
 const suggestedTags = ['photography', 'art', 'music', 'gaming', 'food', 'travel', 'fashion', 'fitness', 'ai'];
@@ -41,7 +33,6 @@ export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [contentType, setContentType] = useState<'post' | 'short' | 'video'>('post');
-  const [aspectRatio, setAspectRatio] = useState<string>('9:16');
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
@@ -54,24 +45,73 @@ export default function UploadPage() {
   const [showAIVideoGenerator, setShowAIVideoGenerator] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   
-  // Set default aspect ratio based on content type
-  useEffect(() => {
-    if (contentType === 'short') {
-      setAspectRatio('9:16');
-    } else if (contentType === 'video') {
-      setAspectRatio('16:9');
-    } else {
-      setAspectRatio('1:1');
-    }
-  }, [contentType]);
+  // Long-form video specific fields
+  const [videoTitle, setVideoTitle] = useState('');
+  const [videoDescription, setVideoDescription] = useState('');
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [generatedThumbnails, setGeneratedThumbnails] = useState<string[]>([]);
+  const [selectedThumbnailIndex, setSelectedThumbnailIndex] = useState<number | null>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
+
+  // Generate thumbnails from video
+  const generateThumbnailsFromVideo = useCallback((videoFile: File) => {
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.muted = true;
+    video.preload = 'metadata';
+
+    const captureFrame = (time: number): Promise<string> => {
+      return new Promise((resolve) => {
+        video.currentTime = time;
+        video.onseeked = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          } else {
+            resolve('');
+          }
+        };
+      });
+    };
+
+    video.onloadedmetadata = async () => {
+      const duration = video.duration;
+      const times = [
+        duration * 0.1,
+        duration * 0.25,
+        duration * 0.5,
+        duration * 0.75,
+      ];
+      
+      const thumbnails: string[] = [];
+      for (const time of times) {
+        const thumb = await captureFrame(time);
+        if (thumb) thumbnails.push(thumb);
+      }
+      
+      setGeneratedThumbnails(thumbnails);
+      if (thumbnails.length > 0) {
+        setSelectedThumbnailIndex(0);
+        setThumbnailPreview(thumbnails[0]);
+      }
+      
+      URL.revokeObjectURL(video.src);
+    };
+
+    video.src = URL.createObjectURL(videoFile);
+    video.load();
+  }, []);
 
   const handleAIVideoGenerated = useCallback(async (videoUrl: string, videoBlob: Blob) => {
     setShowAIVideoGenerator(false);
     
-    // Create a File from the blob
     const file = new File([videoBlob], `ai-video-${Date.now()}.mp4`, { type: 'video/mp4' });
     
-    // If blob is empty, fetch from URL
     if (videoBlob.size === 0) {
       try {
         const response = await fetch(videoUrl);
@@ -86,7 +126,6 @@ export default function UploadPage() {
       handleFileSelect(file);
     }
     
-    // Add AI tag automatically
     if (!tags.includes('ai')) {
       setTags(prev => [...prev, 'ai']);
     }
@@ -109,21 +148,39 @@ export default function UploadPage() {
       toast.error('Invalid file type. Please upload an image or video.');
       return;
     }
-    if (selectedFile.size > 50 * 1024 * 1024) {
-      toast.error('File too large. Maximum size is 50MB.');
+    // Allow larger files for long-form video (500MB)
+    const maxSize = selectedFile.type.startsWith('video/') ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
+    if (selectedFile.size > maxSize) {
+      toast.error(`File too large. Maximum size is ${selectedFile.type.startsWith('video/') ? '500MB' : '50MB'}.`);
       return;
     }
     const url = URL.createObjectURL(selectedFile);
     setPreview(url);
     setFile(selectedFile);
+    
     if (selectedFile.type.startsWith('video/')) {
-      setContentType('short');
+      // Auto-detect: short clips vs long-form based on duration
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        const duration = video.duration;
+        // If video is longer than 60 seconds, treat as long-form
+        if (duration > 60) {
+          setContentType('video');
+          generateThumbnailsFromVideo(selectedFile);
+        } else {
+          setContentType('short');
+        }
+        URL.revokeObjectURL(video.src);
+      };
+      video.src = url;
     } else {
       setContentType('post');
     }
+    
     contentSafety.reset();
     setShowSafetyScanner(true);
-  }, [contentSafety]);
+  }, [contentSafety, generateThumbnailsFromVideo]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -175,13 +232,54 @@ export default function UploadPage() {
     if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); handleAddTag(tagInput); }
   };
 
+  const handleThumbnailSelect = (index: number) => {
+    setSelectedThumbnailIndex(index);
+    setThumbnailPreview(generatedThumbnails[index]);
+    setThumbnailFile(null); // Clear custom thumbnail
+  };
+
+  const handleCustomThumbnail = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      if (!selectedFile.type.startsWith('image/')) {
+        toast.error('Please select an image file');
+        return;
+      }
+      const url = URL.createObjectURL(selectedFile);
+      setThumbnailFile(selectedFile);
+      setThumbnailPreview(url);
+      setSelectedThumbnailIndex(null);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!file || !user) { toast.error('Please select a file to upload'); return; }
+    
+    // For long-form videos, require a title
+    if (contentType === 'video' && !videoTitle.trim()) {
+      toast.error('Please add a title for your video');
+      return;
+    }
+    
     setIsUploading(true);
     setUploadProgress(0);
     try {
-      const progressInterval = setInterval(() => setUploadProgress(prev => Math.min(prev + 10, 90)), 200);
-      await createPost.mutateAsync({ mediaFile: file, caption, type: contentType, tags });
+      const progressInterval = setInterval(() => setUploadProgress(prev => Math.min(prev + 5, 90)), 300);
+      
+      // Combine title and description into caption for long-form videos
+      const finalCaption = contentType === 'video' 
+        ? `${videoTitle}${videoDescription ? `\n\n${videoDescription}` : ''}${caption ? `\n\n${caption}` : ''}`
+        : caption;
+      
+      await createPost.mutateAsync({ 
+        mediaFile: file, 
+        caption: finalCaption, 
+        type: contentType, 
+        tags,
+        thumbnailFile: thumbnailFile || undefined,
+        thumbnailDataUrl: selectedThumbnailIndex !== null ? generatedThumbnails[selectedThumbnailIndex] : undefined,
+      });
+      
       clearInterval(progressInterval);
       setUploadProgress(100);
       toast.success('Posted successfully!');
@@ -197,9 +295,19 @@ export default function UploadPage() {
 
   const clearFile = () => {
     if (preview) URL.revokeObjectURL(preview);
+    if (thumbnailPreview && !generatedThumbnails.includes(thumbnailPreview)) {
+      URL.revokeObjectURL(thumbnailPreview);
+    }
     setFile(null);
     setPreview(null);
+    setVideoTitle('');
+    setVideoDescription('');
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
+    setGeneratedThumbnails([]);
+    setSelectedThumbnailIndex(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
   };
 
   // Camera and AI Video Generator are fullscreen overlays - no bottom nav needed
@@ -244,47 +352,17 @@ export default function UploadPage() {
             ))}
           </div>
         </div>
-        {/* Aspect Ratio for videos */}
-        {(contentType === 'short' || contentType === 'video') && (
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Maximize2 className="w-4 h-4" />
-              Video Sizing
-            </Label>
-            <Select value={aspectRatio} onValueChange={setAspectRatio}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select aspect ratio" />
-              </SelectTrigger>
-              <SelectContent>
-                {aspectRatios.map((ratio) => (
-                  <SelectItem key={ratio.value} value={ratio.value}>
-                    <div className="flex flex-col">
-                      <span>{ratio.label}</span>
-                      <span className="text-xs text-muted-foreground">{ratio.description}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {contentType === 'short' ? 'Clips work best in 9:16 vertical format' : 'Long-form videos work best in 16:9 horizontal format'}
-            </p>
-          </div>
-        )}
         
         <div className="space-y-2">
           <label className="text-sm font-medium text-muted-foreground">Media</label>
           {preview ? (
-            <div className="relative rounded-xl overflow-hidden bg-muted flex justify-center">
+            <div className="relative rounded-xl overflow-hidden bg-muted">
               {file?.type.startsWith('video/') ? (
                 <video 
                   src={preview} 
-                  className="max-h-96 object-contain" 
-                  style={{ 
-                    aspectRatio: aspectRatio.replace(':', '/'),
-                    maxWidth: '100%',
-                  }}
+                  className="w-full max-h-[60vh] object-contain mx-auto"
                   controls 
+                  playsInline
                 />
               ) : (
                 <img src={preview} alt="Preview" className="w-full max-h-96 object-contain" />
@@ -300,18 +378,100 @@ export default function UploadPage() {
               <div className="flex flex-wrap gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
                 <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Plus className="w-4 h-4 mr-2" />Choose File</Button>
                 <Button variant="outline" onClick={() => setShowCamera(true)}><CameraIcon className="w-4 h-4 mr-2" />Camera</Button>
-                <Button variant="outline" onClick={() => setShowAIVideoGenerator(true)} className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 border-violet-500/30 hover:border-violet-500/50">
-                  <Wand2 className="w-4 h-4 mr-2 text-violet-500" />AI Video
+                <Button variant="outline" onClick={() => setShowAIVideoGenerator(true)} className="bg-primary/10 border-primary/30 hover:border-primary/50">
+                  <Wand2 className="w-4 h-4 mr-2 text-primary" />AI Video
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground mt-4">Supports: JPG, PNG, GIF, WebP, MP4, WebM (max 50MB)</p>
+              <p className="text-xs text-muted-foreground mt-4">Supports: JPG, PNG, GIF, WebP, MP4, WebM (max 500MB for videos)</p>
             </div>
           )}
           <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleInputChange} className="hidden" />
+          <input ref={thumbnailInputRef} type="file" accept="image/*" onChange={handleCustomThumbnail} className="hidden" />
         </div>
+        
+        {/* Long-form video details */}
+        {contentType === 'video' && file && (
+          <div className="space-y-4 p-4 rounded-xl bg-muted/50 border border-border">
+            <h3 className="font-semibold text-foreground flex items-center gap-2">
+              <Video className="w-4 h-4" />
+              Video Details
+            </h3>
+            
+            {/* Title */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Title *</Label>
+              <Input 
+                value={videoTitle} 
+                onChange={(e) => setVideoTitle(e.target.value)} 
+                placeholder="Add a title that describes your video"
+                maxLength={100}
+              />
+              <span className="text-xs text-muted-foreground">{videoTitle.length}/100</span>
+            </div>
+            
+            {/* Description */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Description</Label>
+              <Textarea 
+                value={videoDescription} 
+                onChange={(e) => setVideoDescription(e.target.value)} 
+                placeholder="Tell viewers about your video..."
+                className="min-h-20 resize-none"
+                maxLength={5000}
+              />
+              <span className="text-xs text-muted-foreground">{videoDescription.length}/5000</span>
+            </div>
+            
+            {/* Thumbnail Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Thumbnail</Label>
+              <p className="text-xs text-muted-foreground">Select a thumbnail or upload your own</p>
+              
+              <div className="grid grid-cols-4 gap-2">
+                {generatedThumbnails.map((thumb, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleThumbnailSelect(index)}
+                    className={`relative aspect-video rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedThumbnailIndex === index ? 'border-primary ring-2 ring-primary/30' : 'border-transparent hover:border-primary/50'
+                    }`}
+                  >
+                    <img src={thumb} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+                
+                {/* Custom thumbnail upload */}
+                <button
+                  onClick={() => thumbnailInputRef.current?.click()}
+                  className={`relative aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-all ${
+                    thumbnailFile ? 'border-primary bg-primary/10' : 'border-muted-foreground/30 hover:border-primary/50'
+                  }`}
+                >
+                  {thumbnailFile && thumbnailPreview ? (
+                    <img src={thumbnailPreview} alt="Custom thumbnail" className="absolute inset-0 w-full h-full object-cover rounded-lg" />
+                  ) : (
+                    <>
+                      <ImagePlus className="w-5 h-5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Upload</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Caption</label>
-          <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write a caption..." className="min-h-24 resize-none" maxLength={2200} />
+          <label className="text-sm font-medium text-muted-foreground">
+            {contentType === 'video' ? 'Additional Notes' : 'Caption'}
+          </label>
+          <Textarea 
+            value={caption} 
+            onChange={(e) => setCaption(e.target.value)} 
+            placeholder={contentType === 'video' ? "Add any additional notes or hashtags..." : "Write a caption..."} 
+            className="min-h-24 resize-none" 
+            maxLength={2200} 
+          />
           <div className="flex items-center justify-between">
             <AICaptionGenerator tags={tags} contentType={contentType} onSelectCaption={setCaption} />
             <span className="text-xs text-muted-foreground">{caption.length}/2200</span>
