@@ -104,8 +104,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
       <main
         data-app-scroll-container="true"
         className={cn(
-          "h-full overflow-y-auto overflow-x-hidden pb-[calc(5rem+env(safe-area-inset-bottom))]",
-          hideNav ? "" : "pt-14"
+          "h-full overflow-y-auto overflow-x-hidden",
+          hideNav ? "pb-0" : "pt-14 pb-[calc(5rem+env(safe-area-inset-bottom))]"
         )}
         style={{
           WebkitOverflowScrolling: 'touch',
