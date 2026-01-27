@@ -410,19 +410,12 @@ export function BackgroundCustomizer({
   return (
     <div className="space-y-6">
       {/* Error Message */}
-      <AnimatePresence>
-        {uploadError && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm"
-          >
-            <AlertCircle className="h-4 w-4 flex-shrink-0" />
-            <span>{uploadError}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {uploadError && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>{uploadError}</span>
+        </div>
+      )}
 
       {/* Current Background Preview */}
       <div className="relative">
