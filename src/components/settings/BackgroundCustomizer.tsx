@@ -301,7 +301,10 @@ export function BackgroundCustomizer({
       root.setAttribute('data-has-bg-image', 'true');
       
       onBackgroundChange(publicUrl);
-      toast.success('Background applied and saved!');
+      
+      // Show theme match dialog for uploaded images too
+      setPendingImageUrl(publicUrl);
+      setShowThemeMatchDialog(true);
     } catch (error: any) {
       console.error('[BackgroundUpload] Error:', error);
       const message = error.message || 'Failed to upload background';
@@ -311,7 +314,7 @@ export function BackgroundCustomizer({
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [userId, validateFile, onBackgroundChange, addBackground]);
+  }, [userId, validateFile, onBackgroundChange, addBackground, backgroundOpacity, backgroundBlur]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
