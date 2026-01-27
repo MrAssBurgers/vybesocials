@@ -517,3 +517,43 @@ export function useApplyUserTheme() {
     }
   }, [userTheme]);
 }
+
+// Hook to load and apply active background on app start
+export function useApplyActiveBackground() {
+  useEffect(() => {
+    const loadActiveBackground = async () => {
+      try {
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Get profile id
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (!profile) return;
+
+        // Get active background
+        const { data: activeBg } = await supabase
+          .from('user_backgrounds')
+          .select('image_url')
+          .eq('user_id', profile.id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (activeBg?.image_url) {
+          const root = document.documentElement;
+          root.style.setProperty('--bg-image-url', `url(${activeBg.image_url})`);
+          root.dataset.hasBgImage = 'true';
+        }
+      } catch (error) {
+        console.error('Failed to load active background:', error);
+      }
+    };
+
+    loadActiveBackground();
+  }, []);
+}

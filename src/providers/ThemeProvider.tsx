@@ -1,5 +1,5 @@
 import { createContext, useEffect, useState, ReactNode } from 'react';
-import { useApplyUserTheme, useUserTheme, ThemeTokens } from '@/hooks/useCustomTheme';
+import { useApplyUserTheme, useUserTheme, ThemeTokens, useApplyActiveBackground } from '@/hooks/useCustomTheme';
 import { BackgroundEffects } from '@/components/effects/BackgroundEffects';
 
 interface ThemeProviderProps {
@@ -14,6 +14,9 @@ export function CustomThemeProvider({ children }: ThemeProviderProps) {
   
   // Apply user's custom theme on mount and when it changes
   useApplyUserTheme();
+  
+  // Load and apply active background from database
+  useApplyActiveBackground();
   
   // Update background effect when theme changes
   useEffect(() => {
