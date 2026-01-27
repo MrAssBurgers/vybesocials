@@ -25,15 +25,15 @@ interface EditPostDialogProps {
 
 export function EditPostDialog({ open, onOpenChange, post }: EditPostDialogProps) {
   const queryClient = useQueryClient();
-  const [caption, setCaption] = useState(post.caption);
-  const [tagsInput, setTagsInput] = useState(post.tags?.join(', ') || '');
+  const [caption, setCaption] = useState(post?.caption || '');
+  const [tagsInput, setTagsInput] = useState(post?.tags?.join(', ') || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Sync state when post changes
   useEffect(() => {
-    setCaption(post.caption);
-    setTagsInput(post.tags?.join(', ') || '');
-  }, [post.caption, post.tags]);
+    setCaption(post?.caption || '');
+    setTagsInput(post?.tags?.join(', ') || '');
+  }, [post?.caption, post?.tags]);
   const handleSave = async () => {
     setIsSubmitting(true);
 
@@ -83,7 +83,7 @@ export function EditPostDialog({ open, onOpenChange, post }: EditPostDialogProps
               maxLength={2200}
             />
             <p className="text-xs text-muted-foreground text-right">
-              {caption.length}/2200
+              {(caption || '').length}/2200
             </p>
           </div>
           <div className="space-y-2">
