@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
@@ -14,7 +14,8 @@ import {
   Waves,
   Flame,
   Snowflake,
-  Zap
+  Zap,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +46,10 @@ const AI_BACKGROUND_STYLES = [
   { id: 'abstract', label: 'Abstract', icon: Sparkles, prompt: 'Abstract fluid art background, swirling colors, liquid marble effect, artistic and unique' },
 ];
 
+// Accepted image types
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 export function BackgroundCustomizer({
   currentBackground,
   backgroundOpacity,
@@ -53,61 +58,128 @@ export function BackgroundCustomizer({
   onOpacityChange,
   onBlurChange,
 }: BackgroundCustomizerProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Get the correct user identifier (profile.id or user.id)
+  const userId = profile?.id || user?.id;
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
+  // Clear error after 5 seconds
+  useEffect(() => {
+    if (uploadError) {
+      const timer = setTimeout(() => setUploadError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [uploadError]);
+
+  const validateFile = useCallback((file: File): string | null => {
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      return `Unsupported format. Please use: JPG, PNG, GIF, WebP, SVG, or BMP`;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      return `File too large. Maximum size is 10MB (yours: ${(file.size / 1024 / 1024).toFixed(1)}MB)`;
+    }
+    return null;
+  }, []);
+
+  const uploadFile = useCallback(async (file: File) => {
+    if (!userId) {
+      setUploadError('Please sign in to upload backgrounds');
       return;
     }
 
-    // Validate file size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be under 5MB');
+    const validationError = validateFile(file);
+    if (validationError) {
+      setUploadError(validationError);
+      toast.error(validationError);
       return;
     }
 
     setIsUploading(true);
+    setUploadError(null);
 
     try {
-      // Create unique filename
-      const ext = file.name.split('.').pop();
-      const fileName = `backgrounds/${user?.id}/${Date.now()}.${ext}`;
+      // Create unique filename with timestamp
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `backgrounds/${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
 
-      // Upload to Supabase storage
-      const { error: uploadError } = await supabase.storage
+      console.log('[BackgroundUpload] Uploading to:', fileName);
+
+      // Upload to Supabase storage (media bucket is public)
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('media')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, file, { 
+          upsert: true,
+          contentType: file.type,
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('[BackgroundUpload] Upload error:', uploadError);
+        throw uploadError;
+      }
+
+      console.log('[BackgroundUpload] Upload success:', uploadData);
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('media')
         .getPublicUrl(fileName);
 
+      console.log('[BackgroundUpload] Public URL:', publicUrl);
+
+      // Apply immediately
       onBackgroundChange(publicUrl);
-      toast.success('Background uploaded!');
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload background');
+      toast.success('Background uploaded! Click Save to keep it.');
+    } catch (error: any) {
+      console.error('[BackgroundUpload] Error:', error);
+      const message = error.message || 'Failed to upload background';
+      setUploadError(message);
+      toast.error(message);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     }
-  }, [user?.id, onBackgroundChange]);
+  }, [userId, validateFile, onBackgroundChange]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadFile(file);
+    }
+  }, [uploadFile]);
+
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      uploadFile(file);
+    }
+  }, [uploadFile]);
 
   const handleGenerateBackground = useCallback(async (prompt: string, styleId?: string) => {
     if (!prompt.trim()) {
@@ -128,7 +200,7 @@ export function BackgroundCustomizer({
 
       if (data.imageUrl) {
         setPreviewUrl(data.imageUrl);
-        toast.success('Background generated! Click to apply.');
+        toast.success('Background generated! Click ✓ to apply.');
       } else {
         throw new Error('No image generated');
       }
@@ -151,7 +223,7 @@ export function BackgroundCustomizer({
     if (previewUrl) {
       onBackgroundChange(previewUrl);
       setPreviewUrl(null);
-      toast.success('Background applied!');
+      toast.success('Background applied! Click Save to keep it.');
     }
   }, [previewUrl, onBackgroundChange]);
 
@@ -163,20 +235,50 @@ export function BackgroundCustomizer({
 
   return (
     <div className="space-y-6">
+      {/* Error Message */}
+      <AnimatePresence>
+        {uploadError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm"
+          >
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span>{uploadError}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Current Background Preview */}
       <div className="relative">
         <Label className="text-sm font-medium mb-3 block">Background</Label>
         
-        <div className="relative h-32 rounded-xl overflow-hidden border border-border bg-muted/30">
+        {/* Preview with responsive sizing */}
+        <div 
+          className={cn(
+            "relative rounded-xl overflow-hidden border bg-muted/30 transition-all duration-200",
+            "min-h-[120px] sm:min-h-[140px] aspect-[16/9]",
+            isDragging && "border-primary border-2 bg-primary/5"
+          )}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           {(currentBackground || previewUrl) ? (
             <>
+              {/* Background image with responsive object-fit */}
               <img
                 src={previewUrl || currentBackground}
                 alt="Background preview"
-                className="w-full h-full object-cover"
+                className="absolute inset-0 w-full h-full object-cover object-center"
                 style={{
                   opacity: backgroundOpacity / 100,
                   filter: `blur(${backgroundBlur}px)`,
+                }}
+                onError={(e) => {
+                  console.error('[BackgroundPreview] Image failed to load');
+                  e.currentTarget.style.display = 'none';
                 }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
@@ -211,10 +313,34 @@ export function BackgroundCustomizer({
                   <X className="h-4 w-4" />
                 </Button>
               </div>
+              
+              {/* Persistence reminder */}
+              <div className="absolute bottom-2 left-2 right-2">
+                <p className="text-[10px] text-foreground/70 bg-background/60 backdrop-blur-sm px-2 py-1 rounded-md inline-block">
+                  Click "Save" above to keep your background
+                </p>
+              </div>
             </>
           ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              <ImageIcon className="h-8 w-8 opacity-50" />
+            <div 
+              className={cn(
+                "flex flex-col items-center justify-center h-full text-muted-foreground cursor-pointer",
+                "hover:bg-accent/5 transition-colors min-h-[120px]"
+              )}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {isDragging ? (
+                <>
+                  <Upload className="h-8 w-8 text-primary animate-bounce" />
+                  <p className="text-xs mt-2 text-primary">Drop to upload</p>
+                </>
+              ) : (
+                <>
+                  <ImageIcon className="h-8 w-8 opacity-50" />
+                  <p className="text-xs mt-2">Drag & drop or click to upload</p>
+                  <p className="text-[10px] opacity-60">JPG, PNG, GIF, WebP • Max 10MB</p>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -225,7 +351,7 @@ export function BackgroundCustomizer({
         <Button
           variant="outline"
           onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
+          disabled={isUploading || !userId}
           className="h-auto py-4 flex flex-col gap-2"
         >
           {isUploading ? (
@@ -233,7 +359,7 @@ export function BackgroundCustomizer({
           ) : (
             <Upload className="h-5 w-5" />
           )}
-          <span className="text-xs">Upload Image</span>
+          <span className="text-xs">{isUploading ? 'Uploading...' : 'Upload Image'}</span>
         </Button>
 
         <Button
@@ -254,7 +380,7 @@ export function BackgroundCustomizer({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,image/*"
         onChange={handleFileSelect}
         className="hidden"
       />
