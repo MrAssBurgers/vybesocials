@@ -16,7 +16,10 @@ import {
   Snowflake,
   Zap,
   AlertCircle,
-  Pipette
+  Pipette,
+  Trash2,
+  Pencil,
+  FolderOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +30,25 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
+import {
+  useUserBackgrounds,
+  useAddBackground,
+  useSetActiveBackground,
+  useDeleteBackground,
+  useRenameBackground,
+  useClearActiveBackground,
+  UserBackground,
+} from '@/hooks/useUserBackgrounds';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface ExtractedColors {
   primary: string;
@@ -56,19 +78,15 @@ const AI_BACKGROUND_STYLES = [
   { id: 'abstract', label: 'Abstract', icon: Sparkles, prompt: 'Abstract fluid art background, swirling colors, liquid marble effect, artistic and unique' },
 ];
 
-// Accepted image types
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // Color extraction utilities
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-  r /= 255;
-  g /= 255;
-  b /= 255;
+  r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
-  let h = 0;
-  let s = 0;
+  let h = 0, s = 0;
   const l = (max + min) / 2;
 
   if (max !== min) {
@@ -80,7 +98,6 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
       case b: h = ((r - g) / d + 4) / 6; break;
     }
   }
-
   return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
 }
 
@@ -92,12 +109,8 @@ function extractColorsFromImage(imageUrl: string): Promise<ExtractedColors> {
     img.onload = () => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Could not get canvas context'));
-        return;
-      }
+      if (!ctx) { reject(new Error('Could not get canvas context')); return; }
 
-      // Sample at a reasonable size
       const sampleSize = 100;
       canvas.width = sampleSize;
       canvas.height = sampleSize;
@@ -105,8 +118,6 @@ function extractColorsFromImage(imageUrl: string): Promise<ExtractedColors> {
 
       const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize);
       const pixels = imageData.data;
-
-      // Collect color buckets
       const colorBuckets: Map<string, { r: number; g: number; b: number; count: number }> = new Map();
 
       for (let i = 0; i < pixels.length; i += 4) {
@@ -126,32 +137,19 @@ function extractColorsFromImage(imageUrl: string): Promise<ExtractedColors> {
         }
       }
 
-      // Sort by count and get top colors, then add HSL values
       const sortedColors = Array.from(colorBuckets.values())
         .sort((a, b) => b.count - a.count)
         .slice(0, 10)
-        .map(c => {
-          const [h, s, l] = rgbToHsl(c.r, c.g, c.b);
-          return { ...c, h, s, l };
-        });
+        .map(c => ({ ...c, ...(() => { const [h, s, l] = rgbToHsl(c.r, c.g, c.b); return { h, s, l }; })() }));
 
-      // Find vibrant colors (higher saturation) for primary/accent
-      const vibrantColors = sortedColors
-        .filter(c => c.s > 20) // Filter out grays
-        .sort((a, b) => b.s - a.s);
+      const vibrantColors = sortedColors.filter(c => c.s > 20).sort((a, b) => b.s - a.s);
+      const darkColors = sortedColors.filter(c => c.l < 40).sort((a, b) => a.l - b.l);
 
-      // Find dark colors for background
-      const darkColors = sortedColors
-        .filter(c => c.l < 40)
-        .sort((a, b) => a.l - b.l);
-
-      // Extract colors - all now have h, s, l properties
       const primary = vibrantColors[0] || sortedColors[0];
       const secondary = vibrantColors[1] || sortedColors[1] || primary;
       const accent = vibrantColors[2] || vibrantColors[0] || sortedColors[2] || primary;
       const background = darkColors[0] || sortedColors[sortedColors.length - 1];
 
-      // Safely get HSL values with defaults
       const getHsl = (color: typeof primary | undefined, defaults: [number, number, number]): [number, number, number] => {
         if (!color) return defaults;
         return [color.h, color.s, color.l];
@@ -190,14 +188,26 @@ export function BackgroundCustomizer({
   const [isGenerating, setIsGenerating] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [extractedColors, setExtractedColors] = useState<ExtractedColors | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [applyColorsToTheme, setApplyColorsToTheme] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
+  
+  // My Backgrounds state
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
 
-  // Get the correct user identifier (profile.id or user.id)
+  // Hooks for background management
+  const { data: userBackgrounds = [], isLoading: isLoadingBackgrounds } = useUserBackgrounds();
+  const addBackground = useAddBackground();
+  const setActiveBackground = useSetActiveBackground();
+  const deleteBackground = useDeleteBackground();
+  const renameBackground = useRenameBackground();
+  const clearActiveBackground = useClearActiveBackground();
+
   const userId = profile?.id || user?.id;
 
   // Clear error after 5 seconds
@@ -214,7 +224,6 @@ export function BackgroundCustomizer({
     try {
       const colors = await extractColorsFromImage(imageUrl);
       setExtractedColors(colors);
-      console.log('[ColorExtraction] Extracted colors:', colors);
     } catch (error) {
       console.error('[ColorExtraction] Failed:', error);
       setExtractedColors(null);
@@ -223,10 +232,10 @@ export function BackgroundCustomizer({
     }
   }, []);
 
-  // Auto-extract colors when background is set
   useEffect(() => {
     if (currentBackground) {
       handleColorExtraction(currentBackground);
+      setImageLoadError(false);
     } else {
       setExtractedColors(null);
     }
@@ -259,37 +268,32 @@ export function BackgroundCustomizer({
     setUploadError(null);
 
     try {
-      // Create unique filename with timestamp
       const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `backgrounds/${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+      const storagePath = `backgrounds/${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
 
-      console.log('[BackgroundUpload] Uploading to:', fileName);
-
-      // Upload to Supabase storage (media bucket is public)
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
         .from('media')
-        .upload(fileName, file, { 
-          upsert: true,
-          contentType: file.type,
-        });
+        .upload(storagePath, file, { upsert: true, contentType: file.type });
 
-      if (uploadError) {
-        console.error('[BackgroundUpload] Upload error:', uploadError);
-        throw uploadError;
-      }
-
-      console.log('[BackgroundUpload] Upload success:', uploadData);
+      if (uploadError) throw uploadError;
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('media')
-        .getPublicUrl(fileName);
+        .getPublicUrl(storagePath);
 
-      console.log('[BackgroundUpload] Public URL:', publicUrl);
+      // Save to database and set as active
+      await addBackground.mutateAsync({
+        imageUrl: publicUrl,
+        name: file.name.replace(/\.[^/.]+$/, ''), // Remove extension for name
+        storagePath,
+        setActive: true,
+      });
 
-      // Apply immediately as background
+      // Apply immediately
       onBackgroundChange(publicUrl);
-      toast.success('Background applied! Click Save to keep it.');
+      toast.success('Background applied and saved!');
     } catch (error: any) {
       console.error('[BackgroundUpload] Error:', error);
       const message = error.message || 'Failed to upload background';
@@ -297,20 +301,15 @@ export function BackgroundCustomizer({
       toast.error(message);
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [userId, validateFile, onBackgroundChange]);
+  }, [userId, validateFile, onBackgroundChange, addBackground]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      uploadFile(file);
-    }
+    if (file) uploadFile(file);
   }, [uploadFile]);
 
-  // Drag and drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -327,11 +326,8 @@ export function BackgroundCustomizer({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    
     const file = e.dataTransfer.files?.[0];
-    if (file) {
-      uploadFile(file);
-    }
+    if (file) uploadFile(file);
   }, [uploadFile]);
 
   const handleGenerateBackground = useCallback(async (prompt: string, styleId?: string) => {
@@ -352,10 +348,14 @@ export function BackgroundCustomizer({
       if (data.error) throw new Error(data.error);
 
       if (data.imageUrl) {
-        // Auto-apply generated background
+        // Save to library and apply
+        await addBackground.mutateAsync({
+          imageUrl: data.imageUrl,
+          name: styleId ? AI_BACKGROUND_STYLES.find(s => s.id === styleId)?.label : 'AI Generated',
+          setActive: true,
+        });
         onBackgroundChange(data.imageUrl);
-        setPreviewUrl(null);
-        toast.success('Background generated and applied!');
+        toast.success('Background generated and saved!');
       } else {
         throw new Error('No image generated');
       }
@@ -372,25 +372,42 @@ export function BackgroundCustomizer({
       setIsGenerating(false);
       setSelectedStyle(null);
     }
-  }, [onBackgroundChange]);
+  }, [onBackgroundChange, addBackground]);
 
-  const applyPreviewBackground = useCallback(() => {
-    if (previewUrl) {
-      onBackgroundChange(previewUrl);
-      setPreviewUrl(null);
-      toast.success('Background applied! Click Save to keep it.');
+  const handleSelectBackground = useCallback(async (bg: UserBackground) => {
+    await setActiveBackground.mutateAsync(bg.id);
+    onBackgroundChange(bg.image_url);
+  }, [setActiveBackground, onBackgroundChange]);
+
+  const handleDeleteBackground = useCallback(async () => {
+    if (!deleteConfirmId) return;
+    const bg = userBackgrounds.find(b => b.id === deleteConfirmId);
+    if (!bg) return;
+
+    await deleteBackground.mutateAsync({ id: bg.id, storagePath: bg.storage_path });
+    
+    // If this was the active background, clear it
+    if (bg.is_active) {
+      onBackgroundChange(null);
     }
-  }, [previewUrl, onBackgroundChange]);
+    setDeleteConfirmId(null);
+  }, [deleteConfirmId, userBackgrounds, deleteBackground, onBackgroundChange]);
 
-  const removeBackground = useCallback(() => {
+  const handleRenameBackground = useCallback(async (id: string) => {
+    if (!editName.trim()) return;
+    await renameBackground.mutateAsync({ id, name: editName.trim() });
+    setEditingId(null);
+    setEditName('');
+  }, [editName, renameBackground]);
+
+  const removeBackground = useCallback(async () => {
+    await clearActiveBackground.mutateAsync();
     onBackgroundChange(null);
-    setPreviewUrl(null);
     setExtractedColors(null);
     setApplyColorsToTheme(false);
     toast.success('Background removed');
-  }, [onBackgroundChange]);
+  }, [clearActiveBackground, onBackgroundChange]);
 
-  // Handle applying extracted colors to theme
   const handleApplyColors = useCallback(() => {
     if (extractedColors && onColorsExtracted) {
       onColorsExtracted(extractedColors);
@@ -398,7 +415,6 @@ export function BackgroundCustomizer({
     }
   }, [extractedColors, onColorsExtracted]);
 
-  // Toggle for auto-applying colors
   const handleToggleApplyColors = useCallback((checked: boolean) => {
     setApplyColorsToTheme(checked);
     if (checked && extractedColors && onColorsExtracted) {
@@ -406,6 +422,12 @@ export function BackgroundCustomizer({
       toast.success('Theme colors matched to background!');
     }
   }, [extractedColors, onColorsExtracted]);
+
+  const handleImageError = useCallback(() => {
+    setImageLoadError(true);
+    toast.error('Background image failed to load. Falling back to default.');
+    onBackgroundChange(null);
+  }, [onBackgroundChange]);
 
   return (
     <div className="space-y-6">
@@ -419,9 +441,8 @@ export function BackgroundCustomizer({
 
       {/* Current Background Preview */}
       <div className="relative">
-        <Label className="text-sm font-medium mb-3 block">Background</Label>
+        <Label className="text-sm font-medium mb-3 block">Current Background</Label>
         
-        {/* Preview with responsive sizing */}
         <div 
           className={cn(
             "relative rounded-xl overflow-hidden border bg-muted/30 transition-all duration-200",
@@ -432,45 +453,22 @@ export function BackgroundCustomizer({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          {(currentBackground || previewUrl) ? (
+          {currentBackground && !imageLoadError ? (
             <>
-              {/* Background image with responsive object-fit */}
               <img
-                src={previewUrl || currentBackground}
+                src={currentBackground}
                 alt="Background preview"
                 className="absolute inset-0 w-full h-full object-cover object-center"
                 style={{
                   opacity: backgroundOpacity / 100,
                   filter: `blur(${backgroundBlur}px)`,
                 }}
-                onError={(e) => {
-                  console.error('[BackgroundPreview] Image failed to load');
-                  e.currentTarget.style.display = 'none';
-                }}
+                onError={handleImageError}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
               
-              {/* Preview badge */}
-              {previewUrl && (
-                <div className="absolute top-2 left-2 flex items-center gap-2">
-                  <span className="px-2 py-1 bg-primary/90 text-primary-foreground text-xs rounded-full font-medium">
-                    Preview
-                  </span>
-                </div>
-              )}
-              
               {/* Actions */}
               <div className="absolute top-2 right-2 flex gap-2">
-                {previewUrl && (
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-8 w-8 bg-background/80 backdrop-blur-sm"
-                    onClick={applyPreviewBackground}
-                  >
-                    <Check className="h-4 w-4 text-primary" />
-                  </Button>
-                )}
                 <Button
                   size="icon"
                   variant="secondary"
@@ -481,7 +479,6 @@ export function BackgroundCustomizer({
                 </Button>
               </div>
               
-              {/* Color extraction indicator */}
               {isExtracting && (
                 <div className="absolute bottom-2 left-2">
                   <span className="flex items-center gap-1 text-[10px] text-foreground/70 bg-background/60 backdrop-blur-sm px-2 py-1 rounded-md">
@@ -516,7 +513,7 @@ export function BackgroundCustomizer({
         </div>
       </div>
 
-      {/* Color Matching Option - Shows when background is set */}
+      {/* Color Matching Option */}
       <AnimatePresence>
         {currentBackground && extractedColors && onColorsExtracted && (
           <motion.div
@@ -541,40 +538,21 @@ export function BackgroundCustomizer({
                 Automatically update UI colors to match your background image
               </p>
               
-              {/* Color preview swatches */}
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">Detected:</span>
                 <div className="flex gap-1">
-                  <div 
-                    className="w-6 h-6 rounded-full border border-border/50"
-                    style={{ backgroundColor: `hsl(${extractedColors.primary})` }}
-                    title="Primary"
-                  />
-                  <div 
-                    className="w-6 h-6 rounded-full border border-border/50"
-                    style={{ backgroundColor: `hsl(${extractedColors.secondary})` }}
-                    title="Secondary"
-                  />
-                  <div 
-                    className="w-6 h-6 rounded-full border border-border/50"
-                    style={{ backgroundColor: `hsl(${extractedColors.accent})` }}
-                    title="Accent"
-                  />
-                  <div 
-                    className="w-6 h-6 rounded-full border border-border/50"
-                    style={{ backgroundColor: `hsl(${extractedColors.background})` }}
-                    title="Background"
-                  />
+                  {[extractedColors.primary, extractedColors.secondary, extractedColors.accent, extractedColors.background].map((color, i) => (
+                    <div 
+                      key={i}
+                      className="w-6 h-6 rounded-full border border-border/50"
+                      style={{ backgroundColor: `hsl(${color})` }}
+                    />
+                  ))}
                 </div>
               </div>
 
               {!applyColorsToTheme && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={handleApplyColors}
-                >
+                <Button variant="outline" size="sm" className="w-full" onClick={handleApplyColors}>
                   <Palette className="h-4 w-4 mr-2" />
                   Apply Colors Now
                 </Button>
@@ -583,6 +561,85 @@ export function BackgroundCustomizer({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* My Backgrounds Library */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <FolderOpen className="h-4 w-4 text-primary" />
+          <Label className="text-sm font-medium">My Backgrounds</Label>
+          {isLoadingBackgrounds && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+        </div>
+        
+        {userBackgrounds.length > 0 ? (
+          <div className="grid grid-cols-3 gap-2">
+            {userBackgrounds.map((bg) => (
+              <div
+                key={bg.id}
+                className={cn(
+                  "relative group rounded-lg overflow-hidden border cursor-pointer aspect-video",
+                  "transition-all duration-200 hover:ring-2 hover:ring-primary/50",
+                  bg.is_active && "ring-2 ring-primary"
+                )}
+                onClick={() => handleSelectBackground(bg)}
+              >
+                <img
+                  src={bg.image_url}
+                  alt={bg.name || 'Background'}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = '/placeholder.svg';
+                  }}
+                />
+                
+                {/* Active badge */}
+                {bg.is_active && (
+                  <div className="absolute top-1 left-1">
+                    <Check className="h-4 w-4 text-primary bg-background/80 rounded-full p-0.5" />
+                  </div>
+                )}
+                
+                {/* Hover actions */}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-white hover:bg-white/20"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingId(bg.id);
+                      setEditName(bg.name || '');
+                    }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-white hover:bg-destructive/50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteConfirmId(bg.id);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+                
+                {/* Name overlay */}
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1">
+                  <p className="text-[10px] text-white truncate">{bg.name || 'Untitled'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-6 text-muted-foreground text-sm">
+            <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>No saved backgrounds yet</p>
+            <p className="text-xs">Upload or generate your first background</p>
+          </div>
+        )}
+      </div>
 
       {/* Upload & Generate Options */}
       <div className="grid grid-cols-2 gap-3">
@@ -715,6 +772,45 @@ export function BackgroundCustomizer({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Background?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this background from your library. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteBackground} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Rename Dialog */}
+      <AlertDialog open={!!editingId} onOpenChange={() => setEditingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rename Background</AlertDialogTitle>
+          </AlertDialogHeader>
+          <Input
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder="Enter new name..."
+            className="mt-2"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => editingId && handleRenameBackground(editingId)}>
+              Save
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
