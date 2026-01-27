@@ -367,8 +367,14 @@ export function ThemeCustomizer() {
               backgroundOpacity={backgroundOpacity}
               backgroundBlur={backgroundBlur}
               onBackgroundChange={(url) => {
+                // Just set the background - don't touch theme colors
                 setBackgroundImage(url);
-                updateSetting('backgroundImage', url || undefined);
+                // Apply directly without going through updateSetting to avoid color changes
+                const theme = buildTheme();
+                const newTheme = { ...theme, backgroundImage: url || undefined };
+                applyThemeTokens(newTheme);
+                setCurrentTheme(prev => ({ ...(prev || THEME_PRESETS[selectedPreset]), backgroundImage: url || undefined }));
+                setHasChanges(true);
               }}
               onOpacityChange={(opacity) => {
                 setBackgroundOpacity(opacity);
@@ -377,33 +383,6 @@ export function ThemeCustomizer() {
               onBlurChange={(blur) => {
                 setBackgroundBlur(blur);
                 updateSetting('backgroundBlur', blur);
-              }}
-              onColorsExtracted={(colors) => {
-                // Apply extracted colors to theme
-                setCurrentTheme(prev => {
-                  const base = prev || THEME_PRESETS[selectedPreset];
-                  return {
-                    ...base,
-                    colorPrimary: colors.primary,
-                    colorAccent: colors.accent,
-                    colorSecondary: colors.secondary,
-                    bgMain: colors.background,
-                    neonPink: colors.primary,
-                    neonCyan: colors.accent,
-                  };
-                });
-                setHasChanges(true);
-                // Apply immediately
-                const theme = buildTheme();
-                applyThemeTokens({
-                  ...theme,
-                  colorPrimary: colors.primary,
-                  colorAccent: colors.accent,
-                  colorSecondary: colors.secondary,
-                  bgMain: colors.background,
-                  neonPink: colors.primary,
-                  neonCyan: colors.accent,
-                });
               }}
             />
           </div>

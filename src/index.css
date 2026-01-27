@@ -200,7 +200,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     content: '';
     position: fixed;
     inset: 0;
-    z-index: -1;
+    z-index: -10; /* Far behind all content */
     background-image: var(--bg-image-url);
     background-size: cover;
     background-position: center center;
@@ -210,10 +210,19 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     pointer-events: none;
   }
   
-  /* Ensure body has proper stacking when image is present */
-  html[data-has-bg-image="true"] body {
-    position: relative;
-    background: hsl(var(--background)) !important;
+  /* Add subtle overlay to ensure text readability */
+  html[data-has-bg-image="true"] body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -9; /* Just above the image but still behind content */
+    background: linear-gradient(
+      to bottom,
+      hsl(var(--background) / 0.7) 0%,
+      hsl(var(--background) / 0.5) 50%,
+      hsl(var(--background) / 0.7) 100%
+    );
+    pointer-events: none;
   }
   
   /* Mobile-specific adjustments for background image */
