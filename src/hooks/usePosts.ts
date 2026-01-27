@@ -98,7 +98,10 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
             supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
 
-          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null };
+          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null } | null;
+          
+          // Skip posts with no author
+          if (!author) return null;
           
           return {
             ...post,
@@ -112,8 +115,13 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
         })
       );
 
+      // Filter out null entries (posts without authors) and invalid media
+      const validPosts = postsWithCounts.filter((post): post is NonNullable<typeof post> => 
+        post !== null && isValidMediaUrl(post.media_url)
+      );
+
       // Cache author profiles for instant lookups
-      const authors = postsWithCounts
+      const authors = validPosts
         .map(p => p.author)
         .filter((a): a is NonNullable<typeof a> => !!a);
       if (authors.length > 0) {
@@ -125,8 +133,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
         })));
       }
 
-      // Filter out posts without valid media URLs
-      return postsWithCounts.filter(post => isValidMediaUrl(post.media_url));
+      return validPosts;
     },
     enabled: true,
   });
@@ -190,7 +197,10 @@ export function useFollowingPosts() {
             supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
 
-          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null };
+          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null } | null;
+
+          // Skip posts with no author
+          if (!author) return null;
 
           return {
             ...post,
@@ -204,8 +214,13 @@ export function useFollowingPosts() {
         })
       );
 
+      // Filter out null entries and invalid media
+      const validPosts = postsWithCounts.filter((post): post is NonNullable<typeof post> => 
+        post !== null && isValidMediaUrl(post.media_url)
+      );
+
       // Cache author profiles
-      const authors = postsWithCounts
+      const authors = validPosts
         .map(p => p.author)
         .filter((a): a is NonNullable<typeof a> => !!a);
       if (authors.length > 0) {
@@ -217,8 +232,7 @@ export function useFollowingPosts() {
         })));
       }
 
-      // Filter out posts without valid media URLs
-      return postsWithCounts.filter(post => isValidMediaUrl(post.media_url));
+      return validPosts;
     },
     enabled: !!profile,
   });

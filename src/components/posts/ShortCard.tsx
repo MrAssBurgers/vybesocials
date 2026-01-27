@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, Play, MoreVertical, Trash2, Flag, Eye } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, Play, MoreVertical, Trash2, Flag, Eye, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -24,6 +24,7 @@ import { ModBadge } from '@/components/ui/ModBadge';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
+import { EditPostDialog } from '@/components/posts/EditPostDialog';
 
 interface ShortCardProps {
   post: {
@@ -35,7 +36,7 @@ interface ShortCardProps {
       id: string;
       username: string;
       avatar_url: string | null;
-    };
+    } | null;
     like_count: number;
     comment_count: number;
     is_liked: boolean;
@@ -53,7 +54,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
-  const { data: authorRole } = useUserRoleById(post.author.id);
+  const { data: authorRole } = useUserRoleById(post.author?.id);
   const isModOrAdmin = useIsModOrAdmin();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -70,8 +71,13 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
+  
+  const signedMediaUrl = useSignedUrl(post.media_url);
+  const signedAvatarUrl = useSignedUrl(post.author?.avatar_url || null);
+  const { isSlowConnection } = useNetworkStatus();
 
   // Subscribe to realtime view count updates
   useEffect(() => {
@@ -97,14 +103,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       supabase.removeChannel(channel);
     };
   }, [post.id]);
-
-  const isOwnPost = profile?.id === post.author.id;
-  const isAdmin = userRole === 'admin' || userRole === 'moderator';
-  const canDelete = isOwnPost || isAdmin;
-
-  const signedMediaUrl = useSignedUrl(post.media_url);
-  const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
-  const { isSlowConnection } = useNetworkStatus();
 
   // Sync with global mute state
   useEffect(() => {
@@ -157,12 +155,11 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         setIsPlaying(false);
       }
     }
-  }, [isActive, signedMediaUrl, isHolding]);
+  }, [isActive, signedMediaUrl, isHolding, isMuted, profile]);
 
   const incrementViewCount = async () => {
     try {
       await supabase.rpc('increment_view_count', { post_id_param: post.id });
-      // Don't update local state - let realtime handle it for live sync
     } catch (error) {
       console.error('Failed to increment view count:', error);
     }
@@ -195,11 +192,28 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     }
     lastTapTime.current = now;
   }, [isMuted, onToggleMute]);
+  
+  // Guard against null author - return early with placeholder AFTER all hooks
+  if (!post.author) {
+    return (
+      <div className="relative h-full w-full bg-black flex items-center justify-center">
+        <p className="text-white/50">Post unavailable</p>
+      </div>
+    );
+  }
+
+  const isOwnPost = profile?.id === post.author.id;
+  const isAdmin = userRole === 'admin' || userRole === 'moderator';
+  const canDelete = isOwnPost || isAdmin;
 
   const handleLike = async () => {
-    if (!profile) return;
+    if (!profile || !post.author) return;
 
     const newIsLiked = !isLiked;
+    const prevIsLiked = isLiked;
+    const prevLikeCount = likeCount;
+    
+    // Optimistic update
     setIsLiked(newIsLiked);
     setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
 
@@ -208,18 +222,31 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       setTimeout(() => setShowLikeParticles(false), 700);
     }
 
-    if (newIsLiked) {
-      await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
-      if (post.author.id !== profile.id) {
-        await supabase.from('notifications').insert({
-          user_id: post.author.id,
-          type: 'like',
-          actor_id: profile.id,
-          post_id: post.id,
-        });
+    try {
+      if (newIsLiked) {
+        const { error } = await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
+        if (error) throw error;
+        
+        if (post.author.id !== profile.id) {
+          await supabase.from('notifications').insert({
+            user_id: post.author.id,
+            type: 'like',
+            actor_id: profile.id,
+            post_id: post.id,
+          });
+        }
+      } else {
+        const { error } = await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
+        if (error) throw error;
       }
-    } else {
-      await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
+      // Invalidate to sync with server
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    } catch (error) {
+      // Revert on error
+      console.error('Like failed:', error);
+      setIsLiked(prevIsLiked);
+      setLikeCount(prevLikeCount);
+      toast.error('Failed to update like');
     }
   };
 
@@ -522,6 +549,12 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
                 <ModBadge role={authorRole} showLabel />
               </div>
             )}
+            {isOwnPost && (
+              <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit Clip
+              </DropdownMenuItem>
+            )}
             {canDelete && (
               <DropdownMenuItem onClick={handleDelete} className="text-destructive">
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -535,7 +568,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
               </DropdownMenuItem>
             )}
             {/* Mod actions - only visible to mods/admins and not on own content */}
-            {isModOrAdmin && !isOwnPost && (
+            {isModOrAdmin && !isOwnPost && post.author && (
               <ModeratorMenuItems
                 userId={post.author.id}
                 username={post.author.username}
@@ -547,6 +580,13 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        
+        {/* Edit dialog */}
+        <EditPostDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          post={{ id: post.id, caption: post.caption, tags: post.tags || [] }}
+        />
         
         {/* Mod dialogs */}
         <ModeratorDialogs
