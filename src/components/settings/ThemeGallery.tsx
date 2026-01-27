@@ -1,6 +1,6 @@
 import { useState, useMemo, memo, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, Eye, User, Search, TrendingUp, Sparkles } from 'lucide-react';
+import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, Eye, User, Search, TrendingUp, Sparkles, Pencil, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,6 +17,7 @@ import {
   useUnlikeTheme,
   useUserThemeLikes,
   useDeleteSharedTheme,
+  useUpdateSharedTheme,
   SharedTheme,
 } from '@/hooks/useSharedThemes';
 import { applyThemeTokens } from '@/hooks/useCustomTheme';
@@ -38,6 +39,7 @@ interface ThemeCardProps {
   onDelete?: () => void;
   onPreview: () => void;
   onEquip: () => void;
+  onRename?: (newName: string) => void;
 }
 
 // Memoized ThemeCard to prevent unnecessary re-renders
@@ -53,9 +55,24 @@ const ThemeCard = memo(function ThemeCard({
   onUnsave, 
   onDelete,
   onPreview,
-  onEquip
+  onEquip,
+  onRename
 }: ThemeCardProps) {
   const tokens = theme.theme_tokens;
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(theme.theme_name);
+
+  const handleSaveRename = () => {
+    if (editName.trim() && editName !== theme.theme_name && onRename) {
+      onRename(editName.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancelRename = () => {
+    setEditName(theme.theme_name);
+    setIsEditing(false);
+  };
 
   return (
     <div className="relative group">
@@ -121,13 +138,51 @@ const ThemeCard = memo(function ThemeCard({
         {/* Theme Info */}
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-1">
-            <h3 className="font-semibold text-xs truncate flex-1">{theme.theme_name}</h3>
-            <span className={cn(
-              "text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0",
-              tokens.mode === 'dark' ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
-            )}>
-              {tokens.mode}
-            </span>
+            {isEditing && isOwn ? (
+              <div className="flex items-center gap-1 flex-1">
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="h-6 text-xs px-2"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveRename();
+                    if (e.key === 'Escape') handleCancelRename();
+                  }}
+                />
+                <button
+                  onClick={handleSaveRename}
+                  className="p-1 rounded hover:bg-primary/20 text-primary"
+                >
+                  <Check className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={handleCancelRename}
+                  className="p-1 rounded hover:bg-destructive/20 text-destructive"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <h3 className="font-semibold text-xs truncate flex-1">{theme.theme_name}</h3>
+                {isOwn && onRename && (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="p-1 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Edit name"
+                  >
+                    <Pencil className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                )}
+                <span className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0",
+                  tokens.mode === 'dark' ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+                )}>
+                  {tokens.mode}
+                </span>
+              </>
+            )}
           </div>
 
           {theme.creator && (
@@ -230,6 +285,7 @@ export function ThemeGallery() {
   const likeTheme = useLikeTheme();
   const unlikeTheme = useUnlikeTheme();
   const deleteTheme = useDeleteSharedTheme();
+  const updateTheme = useUpdateSharedTheme();
 
   const [previewingTheme, setPreviewingTheme] = useState<SharedTheme | null>(null);
   const [equippedThemeId, setEquippedThemeId] = useState<string | null>(() => {
@@ -285,6 +341,10 @@ export function ThemeGallery() {
       likeTheme.mutate(themeId);
     }
   }, [unlikeTheme, likeTheme]);
+
+  const handleRename = useCallback((themeId: string, newName: string) => {
+    updateTheme.mutate({ themeId, themeName: newName });
+  }, [updateTheme]);
 
   const savedThemeIds = useMemo(() => savedThemes?.map(t => t.id) || [], [savedThemes]);
 
@@ -343,6 +403,7 @@ export function ThemeGallery() {
                     onDelete={theme.creator_id === profile?.id ? () => deleteTheme.mutate(theme.id) : undefined}
                     onPreview={() => handlePreview(theme)}
                     onEquip={() => handleEquip(theme)}
+                    onRename={theme.creator_id === profile?.id ? (name) => handleRename(theme.id, name) : undefined}
                   />
                 ))}
               </div>
@@ -383,6 +444,7 @@ export function ThemeGallery() {
                     onUnsave={() => unsaveTheme.mutate(theme.id)}
                     onPreview={() => handlePreview(theme)}
                     onEquip={() => handleEquip(theme)}
+                    onRename={theme.creator_id === profile?.id ? (name) => handleRename(theme.id, name) : undefined}
                   />
                 ))}
               </div>
@@ -414,6 +476,7 @@ export function ThemeGallery() {
                     onDelete={() => deleteTheme.mutate(theme.id)}
                     onPreview={() => handlePreview(theme)}
                     onEquip={() => handleEquip(theme)}
+                    onRename={(name) => handleRename(theme.id, name)}
                   />
                 ))}
               </div>

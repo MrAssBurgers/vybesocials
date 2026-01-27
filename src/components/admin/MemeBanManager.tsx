@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Eye, EyeOff, X, Upload, Link } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, X, Upload, Link, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +17,7 @@ import {
   useDeleteMemeBanBackground,
   useToggleMemeBanBackground,
 } from '@/hooks/useMemeBanBackgrounds';
+import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -26,6 +27,7 @@ export const MemeBanManager = () => {
   const [gifUrl, setGifUrl] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
+  const [previewBanGif, setPreviewBanGif] = useState<string | null>(null);
 
   const { data: backgrounds, isLoading } = useMemeBanBackgrounds();
   const addBackground = useAddMemeBanBackground();
@@ -97,8 +99,46 @@ export const MemeBanManager = () => {
     }
   };
 
+  const handleShowPreview = (gifUrl: string) => {
+    setPreviewBanGif(gifUrl);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Fullscreen Ban Preview */}
+      <AnimatePresence>
+        {previewBanGif && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999]"
+          >
+            <MemeBanScreen
+              reason="This is what the banned user will see! 😈"
+              expiresAt={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()}
+              customGifUrl={previewBanGif}
+            />
+            <button
+              onClick={() => setPreviewBanGif(null)}
+              className="fixed top-4 right-4 z-[10000] p-3 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-colors"
+            >
+              <X className="h-6 w-6 text-white" />
+            </button>
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[10000]">
+              <Button
+                variant="secondary"
+                size="lg"
+                onClick={() => setPreviewBanGif(null)}
+                className="shadow-xl"
+              >
+                Close Preview
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Meme Ban Backgrounds</h2>
@@ -240,6 +280,15 @@ export const MemeBanManager = () => {
 
                 {/* Actions */}
                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Preview button - shows what banned user sees */}
+                  <button
+                    onClick={() => handleShowPreview(bg.gif_url)}
+                    className="p-2 rounded-full bg-primary/80 hover:bg-primary text-white"
+                    title="Preview ban screen"
+                  >
+                    <Play className="h-4 w-4" />
+                  </button>
+                  {/* Toggle active/inactive */}
                   <button
                     onClick={() =>
                       toggleBackground.mutate({

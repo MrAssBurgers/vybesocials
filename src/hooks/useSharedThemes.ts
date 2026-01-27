@@ -148,6 +148,46 @@ export function useShareTheme() {
   });
 }
 
+// Update a shared theme (for editing name/description)
+export function useUpdateSharedTheme() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      themeId,
+      themeName,
+      description,
+    }: {
+      themeId: string;
+      themeName?: string;
+      description?: string;
+    }) => {
+      const updates: Record<string, any> = {};
+      if (themeName !== undefined) updates.theme_name = themeName;
+      if (description !== undefined) updates.description = description;
+
+      const { data, error } = await supabase
+        .from('shared_themes')
+        .update(updates)
+        .eq('id', themeId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['public-themes'] });
+      queryClient.invalidateQueries({ queryKey: ['my-shared-themes'] });
+      toast.success('Theme updated!');
+    },
+    onError: (error: any) => {
+      console.error('Failed to update theme:', error);
+      toast.error('Failed to update theme');
+    },
+  });
+}
+
 // Save/favorite a theme
 export function useSaveSharedTheme() {
   const { profile } = useAuth();
