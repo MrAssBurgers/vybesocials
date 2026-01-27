@@ -45,9 +45,13 @@ export const RoomChat = memo(function RoomChat({
 
   // Hide bottom nav when inside community chat
   useEffect(() => {
+    // Defensive reset: if the input was focused and the component unmounted before blur,
+    // nav can get stuck hidden across the whole app.
+    navVisibility.setCommunityInputFocused(false);
     navVisibility.setInCommunityChat(true);
     return () => {
-      navVisibility.setInCommunityChat(false);
+      // Fully restore nav state when leaving the chat
+      navVisibility.forceShow();
     };
   }, []);
 

@@ -40,7 +40,8 @@ export function useIsMobileOrTablet() {
     // Initialize with correct value on first render
     if (typeof window === 'undefined') return false;
     const isIPadDevice = detectIsIPad();
-    return window.innerWidth < TABLET_BREAKPOINT || isIPadDevice;
+    // Treat 1024px wide tablets as tablet (common in preview + some devices)
+    return window.innerWidth <= TABLET_BREAKPOINT || isIPadDevice;
   });
   const [isIPad, setIsIPad] = React.useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -52,7 +53,7 @@ export function useIsMobileOrTablet() {
       const isIPadDevice = detectIsIPad();
       setIsIPad(isIPadDevice);
       // iPad always uses mobile/tablet layout regardless of screen size
-      setIsMobileOrTablet(window.innerWidth < TABLET_BREAKPOINT || isIPadDevice);
+      setIsMobileOrTablet(window.innerWidth <= TABLET_BREAKPOINT || isIPadDevice);
     };
 
     // Run immediately to ensure we have correct initial value
