@@ -227,7 +227,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     pointer-events: none;
   }
   
-  /* Readability overlay - just above background image */
+  /* Readability overlay - minimal for background visibility */
   html[data-has-bg-image="true"] #root::after {
     content: '';
     position: fixed;
@@ -235,9 +235,9 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     z-index: 1; /* Above image, below content */
     background: linear-gradient(
       to bottom,
-      hsl(var(--background) / 0.6) 0%,
-      hsl(var(--background) / 0.4) 50%,
-      hsl(var(--background) / 0.6) 100%
+      hsl(var(--background) / 0.1) 0%,
+      hsl(var(--background) / 0.05) 50%,
+      hsl(var(--background) / 0.15) 100%
     );
     pointer-events: none;
   }
