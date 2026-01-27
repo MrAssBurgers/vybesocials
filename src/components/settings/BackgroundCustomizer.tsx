@@ -289,7 +289,7 @@ export function BackgroundCustomizer({
 
       // Apply immediately as background
       onBackgroundChange(publicUrl);
-      toast.success('Background set! Toggle below to match theme colors.');
+      toast.success('Background applied! Click Save to keep it.');
     } catch (error: any) {
       console.error('[BackgroundUpload] Error:', error);
       const message = error.message || 'Failed to upload background';
