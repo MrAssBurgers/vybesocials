@@ -378,6 +378,33 @@ export function ThemeCustomizer() {
                 setBackgroundBlur(blur);
                 updateSetting('backgroundBlur', blur);
               }}
+              onColorsExtracted={(colors) => {
+                // Apply extracted colors to theme
+                setCurrentTheme(prev => {
+                  const base = prev || THEME_PRESETS[selectedPreset];
+                  return {
+                    ...base,
+                    colorPrimary: colors.primary,
+                    colorAccent: colors.accent,
+                    colorSecondary: colors.secondary,
+                    bgMain: colors.background,
+                    neonPink: colors.primary,
+                    neonCyan: colors.accent,
+                  };
+                });
+                setHasChanges(true);
+                // Apply immediately
+                const theme = buildTheme();
+                applyThemeTokens({
+                  ...theme,
+                  colorPrimary: colors.primary,
+                  colorAccent: colors.accent,
+                  colorSecondary: colors.secondary,
+                  bgMain: colors.background,
+                  neonPink: colors.primary,
+                  neonCyan: colors.accent,
+                });
+              }}
             />
           </div>
         </SheetContent>
