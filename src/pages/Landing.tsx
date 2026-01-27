@@ -365,13 +365,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   exit={{ opacity: 0, height: 0 }}
                   className="flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 md:gap-2">
                     <Checkbox
                       id="remember"
                       checked={rememberMe}
                       onCheckedChange={(checked) => setRememberMe(checked === true)}
+                      className="h-4 w-4 md:h-5 md:w-5 rounded-full"
                     />
-                    <label htmlFor="remember" className="text-sm text-muted-foreground">
+                    <label htmlFor="remember" className="text-xs md:text-sm text-muted-foreground">
                       Remember me
                     </label>
                   </div>
@@ -399,7 +400,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                     id="terms"
                     checked={agreedToTerms}
                     onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
-                    className="mt-0.5"
+                    className="mt-0.5 h-4 w-4 md:h-5 md:w-5 rounded-full"
                   />
                   <label htmlFor="terms" className="text-sm text-muted-foreground leading-tight">
                     I agree to the{' '}
