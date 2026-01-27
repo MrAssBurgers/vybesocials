@@ -457,14 +457,17 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     // === BACKGROUND IMAGE & EFFECTS ===
     root.dataset.bgEffect = tokens.backgroundEffect || 'none';
     
+    // Set background image as CSS variable for use in CSS
     if (tokens.backgroundImage) {
-      root.style.setProperty('--bg-image', `url(${tokens.backgroundImage})`);
-      root.style.setProperty('--bg-image-opacity', String((tokens.backgroundOpacity ?? 30) / 100));
+      root.style.setProperty('--bg-image-url', `url(${tokens.backgroundImage})`);
+      root.style.setProperty('--bg-image-opacity', String((tokens.backgroundOpacity ?? 50) / 100));
       root.style.setProperty('--bg-image-blur', `${tokens.backgroundBlur ?? 0}px`);
+      root.dataset.hasBgImage = 'true';
     } else {
-      root.style.removeProperty('--bg-image');
+      root.style.removeProperty('--bg-image-url');
       root.style.removeProperty('--bg-image-opacity');
       root.style.removeProperty('--bg-image-blur');
+      root.dataset.hasBgImage = 'false';
     }
     
     if (tokens.backgroundOverlay) {
@@ -479,58 +482,9 @@ export function applyThemeTokens(tokens: ThemeTokens) {
       root.style.setProperty('--light-bg-mid', gradientMid);
     }
     
-    // === UPDATE BODY BACKGROUND DIRECTLY ===
-    // Build background with optional image
-    let bodyBackground = '';
-    
-    if (tokens.backgroundImage) {
-      const opacity = (tokens.backgroundOpacity ?? 30) / 100;
-      const blur = tokens.backgroundBlur ?? 0;
-      const overlayColor = tokens.backgroundOverlay 
-        ? `hsl(${safeHSL(tokens.backgroundOverlay, bgMain)} / 0.6)` 
-        : `hsl(${bgMain} / 0.7)`;
-      
-      // Layer: overlay gradient on top of image
-      bodyBackground = `
-        linear-gradient(160deg, ${overlayColor} 0%, ${overlayColor} 100%),
-        url(${tokens.backgroundImage})
-      `;
-      
-      // Responsive background sizing - cover with center positioning
-      // Works on all screen sizes automatically
-      document.body.style.backgroundSize = 'cover, cover';
-      document.body.style.backgroundPosition = 'center center, center center';
-      document.body.style.backgroundRepeat = 'no-repeat, no-repeat';
-      document.body.style.backgroundAttachment = 'fixed, fixed';
-      
-      // Add CSS custom properties for potential use in components
-      root.style.setProperty('--bg-image-url', `url(${tokens.backgroundImage})`);
-      root.style.setProperty('--bg-has-image', '1');
-    } else {
-      // Standard gradient background
-      bodyBackground = `linear-gradient(160deg, hsl(${gradientFrom}) 0%, hsl(${gradientMid}) 50%, hsl(${gradientTo}) 100%)`;
-      document.body.style.backgroundSize = '';
-      document.body.style.backgroundPosition = '';
-      document.body.style.backgroundRepeat = '';
-      document.body.style.backgroundAttachment = '';
-      
-      // Clear image-related properties
-      root.style.removeProperty('--bg-image-url');
-      root.style.setProperty('--bg-has-image', '0');
-    }
-    
-    document.body.style.background = bodyBackground;
-    document.body.style.transition = 'background 0.4s ease';
-    document.body.style.minHeight = '100vh';
-    
     // === MODE CLASS ===
     root.classList.remove('light', 'dark');
     root.classList.add(tokens.mode === 'light' ? 'light' : 'dark');
-    
-    // Remove transition after applied
-    setTimeout(() => {
-      root.style.transition = '';
-    }, 500);
   } catch (error) {
     console.error('Error applying theme tokens:', error);
   }

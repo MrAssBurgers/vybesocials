@@ -193,29 +193,33 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     
-    /* Custom background image support - auto-sizes for all devices */
-    --bg-has-image: 0;
   }
   
-  /* Responsive background image layer - ensures proper scaling on all devices */
-  body[style*="background-image"],
-  body[style*="url("] {
-    background-size: cover !important;
-    background-position: center center !important;
-    background-repeat: no-repeat !important;
-    background-attachment: fixed !important;
-    
-    /* Fallback for mobile where fixed can cause issues */
-    @supports (-webkit-touch-callout: none) {
-      background-attachment: scroll !important;
-    }
+  /* Custom background image layer - uses CSS variable set by theme system */
+  html[data-has-bg-image="true"] body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-image: var(--bg-image-url);
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    opacity: var(--bg-image-opacity, 0.5);
+    filter: blur(var(--bg-image-blur, 0px));
+    pointer-events: none;
   }
   
-  /* Mobile-specific background adjustments */
+  /* Ensure body has proper stacking when image is present */
+  html[data-has-bg-image="true"] body {
+    position: relative;
+    background: hsl(var(--background)) !important;
+  }
+  
+  /* Mobile-specific adjustments for background image */
   @media (max-width: 768px) {
-    body[style*="url("] {
-      /* Use scroll on mobile for better performance */
-      background-attachment: scroll !important;
+    html[data-has-bg-image="true"] body::before {
+      background-attachment: scroll;
     }
   }
 
