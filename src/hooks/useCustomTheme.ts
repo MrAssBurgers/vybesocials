@@ -495,10 +495,17 @@ export function applyThemeTokens(tokens: ThemeTokens) {
         linear-gradient(160deg, ${overlayColor} 0%, ${overlayColor} 100%),
         url(${tokens.backgroundImage})
       `;
+      
+      // Responsive background sizing - cover with center positioning
+      // Works on all screen sizes automatically
       document.body.style.backgroundSize = 'cover, cover';
-      document.body.style.backgroundPosition = 'center, center';
+      document.body.style.backgroundPosition = 'center center, center center';
       document.body.style.backgroundRepeat = 'no-repeat, no-repeat';
       document.body.style.backgroundAttachment = 'fixed, fixed';
+      
+      // Add CSS custom properties for potential use in components
+      root.style.setProperty('--bg-image-url', `url(${tokens.backgroundImage})`);
+      root.style.setProperty('--bg-has-image', '1');
     } else {
       // Standard gradient background
       bodyBackground = `linear-gradient(160deg, hsl(${gradientFrom}) 0%, hsl(${gradientMid}) 50%, hsl(${gradientTo}) 100%)`;
@@ -506,10 +513,15 @@ export function applyThemeTokens(tokens: ThemeTokens) {
       document.body.style.backgroundPosition = '';
       document.body.style.backgroundRepeat = '';
       document.body.style.backgroundAttachment = '';
+      
+      // Clear image-related properties
+      root.style.removeProperty('--bg-image-url');
+      root.style.setProperty('--bg-has-image', '0');
     }
     
     document.body.style.background = bodyBackground;
     document.body.style.transition = 'background 0.4s ease';
+    document.body.style.minHeight = '100vh';
     
     // === MODE CLASS ===
     root.classList.remove('light', 'dark');

@@ -192,6 +192,31 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+    
+    /* Custom background image support - auto-sizes for all devices */
+    --bg-has-image: 0;
+  }
+  
+  /* Responsive background image layer - ensures proper scaling on all devices */
+  body[style*="background-image"],
+  body[style*="url("] {
+    background-size: cover !important;
+    background-position: center center !important;
+    background-repeat: no-repeat !important;
+    background-attachment: fixed !important;
+    
+    /* Fallback for mobile where fixed can cause issues */
+    @supports (-webkit-touch-callout: none) {
+      background-attachment: scroll !important;
+    }
+  }
+  
+  /* Mobile-specific background adjustments */
+  @media (max-width: 768px) {
+    body[style*="url("] {
+      /* Use scroll on mobile for better performance */
+      background-attachment: scroll !important;
+    }
   }
 
   /* Universal smooth scroll for all scrollable containers */
