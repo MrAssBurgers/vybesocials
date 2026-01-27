@@ -255,7 +255,7 @@ function FullscreenClipsViewer({
 
       <div
         ref={containerRef}
-        className="overflow-y-scroll scrollbar-hide bg-background pt-16"
+        className="overflow-y-scroll scrollbar-hide bg-background"
         style={{ 
           height: containerHeight,
           scrollSnapType: 'y mandatory',
@@ -271,7 +271,7 @@ function FullscreenClipsViewer({
               ref={(el) => { itemRefs.current[index] = el; }}
               className="w-full flex-shrink-0 flex justify-center"
               style={{ 
-                height: `calc(${containerHeight} - 4rem)`,
+                height: containerHeight,
                 scrollSnapAlign: 'start',
                 scrollSnapStop: 'always',
               }}

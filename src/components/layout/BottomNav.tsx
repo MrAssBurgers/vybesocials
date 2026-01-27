@@ -168,8 +168,9 @@ export function BottomNav() {
   // Combine both visibility states
   const isVisible = scrollVisible && navCentralVisible;
 
-  // Hide bottom nav until user has completed onboarding
-  const onboardingComplete = profile?.onboarding_completed === true;
+  // Hide bottom nav ONLY when onboarding is explicitly incomplete.
+  // If profile is still loading / null, we should still render the nav.
+  const shouldHideForOnboarding = profile?.onboarding_completed === false;
 
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);
@@ -258,8 +259,8 @@ export function BottomNav() {
     { icon: Settings, path: '/settings', badge: 0, tutorialId: 'settings-nav', requiresAuth: false },
   ];
 
-  // Don't render bottom nav if onboarding not complete (unless guest browsing)
-  if (!onboardingComplete && !isGuest) {
+  // Don't render bottom nav if onboarding explicitly not complete (unless guest browsing)
+  if (shouldHideForOnboarding && !isGuest) {
     return null;
   }
 
