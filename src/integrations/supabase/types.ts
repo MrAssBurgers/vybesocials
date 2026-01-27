@@ -3714,37 +3714,52 @@ export type Database = {
       }
       shared_themes: {
         Row: {
+          category: string | null
           created_at: string
           creator_id: string
           description: string | null
           downloads_count: number | null
           id: string
           is_public: boolean | null
+          layout_settings: Json | null
           likes_count: number | null
+          preview_images: string[] | null
+          tags: string[] | null
+          theme_code: string | null
           theme_name: string
           theme_tokens: Json
           updated_at: string
         }
         Insert: {
+          category?: string | null
           created_at?: string
           creator_id: string
           description?: string | null
           downloads_count?: number | null
           id?: string
           is_public?: boolean | null
+          layout_settings?: Json | null
           likes_count?: number | null
+          preview_images?: string[] | null
+          tags?: string[] | null
+          theme_code?: string | null
           theme_name: string
           theme_tokens: Json
           updated_at?: string
         }
         Update: {
+          category?: string | null
           created_at?: string
           creator_id?: string
           description?: string | null
           downloads_count?: number | null
           id?: string
           is_public?: boolean | null
+          layout_settings?: Json | null
           likes_count?: number | null
+          preview_images?: string[] | null
+          tags?: string[] | null
+          theme_code?: string | null
           theme_name?: string
           theme_tokens?: Json
           updated_at?: string
@@ -4009,6 +4024,68 @@ export type Database = {
             columns: ["user2_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      theme_codes: {
+        Row: {
+          code: string
+          created_at: string
+          creator_id: string
+          expires_at: string | null
+          id: string
+          max_uses: number | null
+          theme_id: string
+          uses_count: number | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          creator_id: string
+          expires_at?: string | null
+          id?: string
+          max_uses?: number | null
+          theme_id: string
+          uses_count?: number | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          creator_id?: string
+          expires_at?: string | null
+          id?: string
+          max_uses?: number | null
+          theme_id?: string
+          uses_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "theme_codes_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "theme_codes_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "theme_codes_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "theme_codes_theme_id_fkey"
+            columns: ["theme_id"]
+            isOneToOne: false
+            referencedRelation: "shared_themes"
             referencedColumns: ["id"]
           },
         ]
@@ -4509,6 +4586,45 @@ export type Database = {
           is_active?: boolean | null
           theme_name?: string | null
           theme_tokens?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_ui_settings: {
+        Row: {
+          config_version: number | null
+          created_at: string
+          id: string
+          layout_settings: Json | null
+          nav_settings: Json | null
+          safe_mode: boolean | null
+          theme_settings: Json | null
+          ui_config: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config_version?: number | null
+          created_at?: string
+          id?: string
+          layout_settings?: Json | null
+          nav_settings?: Json | null
+          safe_mode?: boolean | null
+          theme_settings?: Json | null
+          ui_config?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config_version?: number | null
+          created_at?: string
+          id?: string
+          layout_settings?: Json | null
+          nav_settings?: Json | null
+          safe_mode?: boolean | null
+          theme_settings?: Json | null
+          ui_config?: Json | null
           updated_at?: string
           user_id?: string
         }
@@ -5025,6 +5141,7 @@ export type Database = {
       ensure_profile: { Args: never; Returns: string }
       filter_profanity: { Args: { input_text: string }; Returns: string }
       generate_invite_code: { Args: never; Returns: string }
+      generate_theme_code: { Args: never; Returns: string }
       get_comment_count: { Args: { p_post_id: string }; Returns: number }
       get_follower_count: { Args: { profile_id: string }; Returns: number }
       get_following_count: { Args: { profile_id: string }; Returns: number }
@@ -5144,6 +5261,7 @@ export type Database = {
         Args: { limit_count?: number }
         Returns: number
       }
+      use_theme_code: { Args: { p_code: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user" | "owner_wife"
