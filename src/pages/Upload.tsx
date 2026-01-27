@@ -14,12 +14,21 @@ import { useCreatePost } from '@/hooks/usePosts';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon, Wand2 } from 'lucide-react';
+import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon, Wand2, Maximize2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 const contentTypes = [
-  { id: 'post', label: 'Post', icon: Image, description: 'Share a photo' },
-  { id: 'short', label: 'Clip', icon: Film, description: 'Quick vertical video' },
-  { id: 'video', label: 'Video', icon: Video, description: 'Longer video content' },
+  { id: 'post', label: 'Post', icon: Image, description: 'Share a photo', aspectRatio: null },
+  { id: 'short', label: 'Clip', icon: Film, description: 'Quick vertical video', aspectRatio: '9:16' },
+  { id: 'video', label: 'Video', icon: Video, description: 'Longer video content', aspectRatio: '16:9' },
+];
+
+const aspectRatios = [
+  { value: '9:16', label: '9:16 (Vertical)', description: 'Best for clips/mobile' },
+  { value: '16:9', label: '16:9 (Horizontal)', description: 'Best for long-form' },
+  { value: '1:1', label: '1:1 (Square)', description: 'Best for posts' },
+  { value: '4:5', label: '4:5 (Portrait)', description: 'Instagram style' },
 ];
 
 const suggestedTags = ['photography', 'art', 'music', 'gaming', 'food', 'travel', 'fashion', 'fitness', 'ai'];
@@ -32,6 +41,7 @@ export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [contentType, setContentType] = useState<'post' | 'short' | 'video'>('post');
+  const [aspectRatio, setAspectRatio] = useState<string>('9:16');
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
@@ -43,6 +53,17 @@ export default function UploadPage() {
   const [showSafetyScanner, setShowSafetyScanner] = useState(false);
   const [showAIVideoGenerator, setShowAIVideoGenerator] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Set default aspect ratio based on content type
+  useEffect(() => {
+    if (contentType === 'short') {
+      setAspectRatio('9:16');
+    } else if (contentType === 'video') {
+      setAspectRatio('16:9');
+    } else {
+      setAspectRatio('1:1');
+    }
+  }, [contentType]);
 
   const handleAIVideoGenerated = useCallback(async (videoUrl: string, videoBlob: Blob) => {
     setShowAIVideoGenerator(false);
@@ -223,11 +244,51 @@ export default function UploadPage() {
             ))}
           </div>
         </div>
+        {/* Aspect Ratio for videos */}
+        {(contentType === 'short' || contentType === 'video') && (
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Maximize2 className="w-4 h-4" />
+              Video Sizing
+            </Label>
+            <Select value={aspectRatio} onValueChange={setAspectRatio}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select aspect ratio" />
+              </SelectTrigger>
+              <SelectContent>
+                {aspectRatios.map((ratio) => (
+                  <SelectItem key={ratio.value} value={ratio.value}>
+                    <div className="flex flex-col">
+                      <span>{ratio.label}</span>
+                      <span className="text-xs text-muted-foreground">{ratio.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {contentType === 'short' ? 'Clips work best in 9:16 vertical format' : 'Long-form videos work best in 16:9 horizontal format'}
+            </p>
+          </div>
+        )}
+        
         <div className="space-y-2">
           <label className="text-sm font-medium text-muted-foreground">Media</label>
           {preview ? (
-            <div className="relative rounded-xl overflow-hidden bg-muted">
-              {file?.type.startsWith('video/') ? <video src={preview} className="w-full max-h-96 object-contain" controls /> : <img src={preview} alt="Preview" className="w-full max-h-96 object-contain" />}
+            <div className="relative rounded-xl overflow-hidden bg-muted flex justify-center">
+              {file?.type.startsWith('video/') ? (
+                <video 
+                  src={preview} 
+                  className="max-h-96 object-contain" 
+                  style={{ 
+                    aspectRatio: aspectRatio.replace(':', '/'),
+                    maxWidth: '100%',
+                  }}
+                  controls 
+                />
+              ) : (
+                <img src={preview} alt="Preview" className="w-full max-h-96 object-contain" />
+              )}
               <button onClick={clearFile} className="absolute top-2 right-2 p-2 rounded-full bg-background/80 hover:bg-background"><X className="w-4 h-4" /></button>
             </div>
           ) : (
