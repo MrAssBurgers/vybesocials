@@ -248,6 +248,8 @@ export function useCreatePost() {
       mediaFile: File;
       caption: string;
       tags: string[];
+      thumbnailFile?: File;
+      thumbnailDataUrl?: string;
     }) => {
       if (!profile) throw new Error('Not authenticated');
 
@@ -275,6 +277,46 @@ export function useCreatePost() {
         .from('media')
         .getPublicUrl(fileName);
 
+      // Handle thumbnail upload for videos
+      let thumbnailUrl: string | null = null;
+      
+      if (data.thumbnailFile) {
+        // Upload custom thumbnail file
+        const thumbExt = data.thumbnailFile.name.split('.').pop();
+        const thumbFileName = `${profile.user_id}/thumb_${Date.now()}.${thumbExt}`;
+        
+        const { error: thumbError } = await supabase.storage
+          .from('media')
+          .upload(thumbFileName, data.thumbnailFile);
+        
+        if (!thumbError) {
+          const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
+            .from('media')
+            .getPublicUrl(thumbFileName);
+          thumbnailUrl = thumbPublicUrl;
+        }
+      } else if (data.thumbnailDataUrl) {
+        // Convert data URL to blob and upload
+        try {
+          const response = await fetch(data.thumbnailDataUrl);
+          const blob = await response.blob();
+          const thumbFileName = `${profile.user_id}/thumb_${Date.now()}.jpg`;
+          
+          const { error: thumbError } = await supabase.storage
+            .from('media')
+            .upload(thumbFileName, blob, { contentType: 'image/jpeg' });
+          
+          if (!thumbError) {
+            const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
+              .from('media')
+              .getPublicUrl(thumbFileName);
+            thumbnailUrl = thumbPublicUrl;
+          }
+        } catch (e) {
+          console.warn('Failed to upload generated thumbnail:', e);
+        }
+      }
+
       // Create post
       const { data: post, error } = await supabase
         .from('posts')
@@ -282,6 +324,7 @@ export function useCreatePost() {
           author_id: profile.id,
           type: data.type,
           media_url: publicUrl,
+          thumbnail_url: thumbnailUrl,
           caption: filteredCaption,
           tags: data.tags,
         })
