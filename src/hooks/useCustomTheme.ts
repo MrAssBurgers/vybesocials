@@ -458,16 +458,17 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     root.dataset.bgEffect = tokens.backgroundEffect || 'none';
     
     // Set background image as CSS variable for use in CSS
+    // CRITICAL: Set on <html> element so #root::before can use it
     if (tokens.backgroundImage) {
       root.style.setProperty('--bg-image-url', `url(${tokens.backgroundImage})`);
       root.style.setProperty('--bg-image-opacity', String((tokens.backgroundOpacity ?? 50) / 100));
       root.style.setProperty('--bg-image-blur', `${tokens.backgroundBlur ?? 0}px`);
-      root.dataset.hasBgImage = 'true';
+      root.setAttribute('data-has-bg-image', 'true');
     } else {
       root.style.removeProperty('--bg-image-url');
       root.style.removeProperty('--bg-image-opacity');
       root.style.removeProperty('--bg-image-blur');
-      root.dataset.hasBgImage = 'false';
+      root.setAttribute('data-has-bg-image', 'false');
     }
     
     if (tokens.backgroundOverlay) {
@@ -547,7 +548,9 @@ export function useApplyActiveBackground() {
         if (activeBg?.image_url) {
           const root = document.documentElement;
           root.style.setProperty('--bg-image-url', `url(${activeBg.image_url})`);
-          root.dataset.hasBgImage = 'true';
+          root.style.setProperty('--bg-image-opacity', '0.5'); // Default opacity
+          root.style.setProperty('--bg-image-blur', '0px'); // Default no blur
+          root.setAttribute('data-has-bg-image', 'true');
         }
       } catch (error) {
         console.error('Failed to load active background:', error);
