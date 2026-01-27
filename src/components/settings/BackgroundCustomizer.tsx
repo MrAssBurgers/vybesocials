@@ -291,7 +291,13 @@ export function BackgroundCustomizer({
         setActive: true,
       });
 
-      // Apply immediately
+      // Apply immediately - set CSS variable and data attribute on html element
+      const root = document.documentElement;
+      root.style.setProperty('--bg-image-url', `url(${publicUrl})`);
+      root.style.setProperty('--bg-image-opacity', String(backgroundOpacity / 100));
+      root.style.setProperty('--bg-image-blur', `${backgroundBlur}px`);
+      root.setAttribute('data-has-bg-image', 'true');
+      
       onBackgroundChange(publicUrl);
       toast.success('Background applied and saved!');
     } catch (error: any) {
@@ -354,6 +360,14 @@ export function BackgroundCustomizer({
           name: styleId ? AI_BACKGROUND_STYLES.find(s => s.id === styleId)?.label : 'AI Generated',
           setActive: true,
         });
+        
+        // Apply immediately - set CSS variable and data attribute on html element
+        const root = document.documentElement;
+        root.style.setProperty('--bg-image-url', `url(${data.imageUrl})`);
+        root.style.setProperty('--bg-image-opacity', String(backgroundOpacity / 100));
+        root.style.setProperty('--bg-image-blur', `${backgroundBlur}px`);
+        root.setAttribute('data-has-bg-image', 'true');
+        
         onBackgroundChange(data.imageUrl);
         toast.success('Background generated and saved!');
       } else {
@@ -376,8 +390,16 @@ export function BackgroundCustomizer({
 
   const handleSelectBackground = useCallback(async (bg: UserBackground) => {
     await setActiveBackground.mutateAsync(bg.id);
+    
+    // Apply immediately - set CSS variable and data attribute on html element
+    const root = document.documentElement;
+    root.style.setProperty('--bg-image-url', `url(${bg.image_url})`);
+    root.style.setProperty('--bg-image-opacity', String(backgroundOpacity / 100));
+    root.style.setProperty('--bg-image-blur', `${backgroundBlur}px`);
+    root.setAttribute('data-has-bg-image', 'true');
+    
     onBackgroundChange(bg.image_url);
-  }, [setActiveBackground, onBackgroundChange]);
+  }, [setActiveBackground, onBackgroundChange, backgroundOpacity, backgroundBlur]);
 
   const handleDeleteBackground = useCallback(async () => {
     if (!deleteConfirmId) return;
@@ -402,6 +424,14 @@ export function BackgroundCustomizer({
 
   const removeBackground = useCallback(async () => {
     await clearActiveBackground.mutateAsync();
+    
+    // Clear CSS variable and data attribute immediately
+    const root = document.documentElement;
+    root.style.removeProperty('--bg-image-url');
+    root.style.removeProperty('--bg-image-opacity');
+    root.style.removeProperty('--bg-image-blur');
+    root.setAttribute('data-has-bg-image', 'false');
+    
     onBackgroundChange(null);
     setExtractedColors(null);
     setApplyColorsToTheme(false);

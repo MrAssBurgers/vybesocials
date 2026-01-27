@@ -192,43 +192,66 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
-    
   }
   
-  /* Custom background image layer - uses CSS variable set by theme system */
-  html[data-has-bg-image="true"] body::before {
+  /* CRITICAL FIX: When custom background is active, make body transparent
+     so the #root::before background image shows through */
+  html[data-has-bg-image="true"] body {
+    background: transparent !important;
+  }
+  
+  /* ==============================================
+     CUSTOM BACKGROUND IMAGE LAYER SYSTEM
+     Rendered on #root to be ABOVE body background
+     ============================================== */
+  
+  /* Ensure #root can hold pseudo-elements for background */
+  #root {
+    position: relative;
+    isolation: isolate; /* Create new stacking context */
+  }
+  
+  /* Background image layer - rendered INSIDE #root, above body */
+  html[data-has-bg-image="true"] #root::before {
     content: '';
     position: fixed;
     inset: 0;
-    z-index: -10; /* Far behind all content */
+    z-index: 0; /* Base layer inside #root */
     background-image: var(--bg-image-url);
     background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;
+    background-attachment: fixed;
     opacity: var(--bg-image-opacity, 0.5);
     filter: blur(var(--bg-image-blur, 0px));
     pointer-events: none;
   }
   
-  /* Add subtle overlay to ensure text readability */
-  html[data-has-bg-image="true"] body::after {
+  /* Readability overlay - just above background image */
+  html[data-has-bg-image="true"] #root::after {
     content: '';
     position: fixed;
     inset: 0;
-    z-index: -9; /* Just above the image but still behind content */
+    z-index: 1; /* Above image, below content */
     background: linear-gradient(
       to bottom,
-      hsl(var(--background) / 0.7) 0%,
-      hsl(var(--background) / 0.5) 50%,
-      hsl(var(--background) / 0.7) 100%
+      hsl(var(--background) / 0.6) 0%,
+      hsl(var(--background) / 0.4) 50%,
+      hsl(var(--background) / 0.6) 100%
     );
     pointer-events: none;
   }
   
+  /* All app content above background layers */
+  #root > * {
+    position: relative;
+    z-index: 2;
+  }
+  
   /* Mobile-specific adjustments for background image */
   @media (max-width: 768px) {
-    html[data-has-bg-image="true"] body::before {
-      background-attachment: scroll;
+    html[data-has-bg-image="true"] #root::before {
+      background-attachment: scroll; /* Prevent mobile rendering issues */
     }
   }
 
@@ -728,6 +751,34 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       hsl(var(--card) / 0.95)
     );
     border: 1px solid hsl(var(--foreground) / 0.18);
+  }
+  
+  /* When custom background image is active, make cards more transparent
+     so the background image shows through subtly */
+  html[data-has-bg-image="true"] .liquid-glass-card {
+    background: linear-gradient(
+      160deg,
+      hsl(var(--card) / 0.75),
+      hsl(var(--neon-purple) / 0.03),
+      hsl(var(--card) / 0.65)
+    );
+  }
+  
+  html[data-has-bg-image="true"] .liquid-glass {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--glass) / 0.7),
+      hsl(var(--glass) / 0.45),
+      hsl(var(--glass) / 0.6)
+    );
+  }
+  
+  html[data-has-bg-image="true"] .liquid-glass-subtle {
+    background: linear-gradient(
+      160deg,
+      hsl(var(--glass) / 0.55),
+      hsl(var(--glass) / 0.3)
+    );
   }
 
   /* Glass Input with color accent */
