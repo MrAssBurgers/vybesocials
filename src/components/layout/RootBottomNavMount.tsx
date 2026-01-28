@@ -1,19 +1,28 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useState, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { BottomNav } from "./BottomNav";
 import { useIsMobileOrTablet } from "@/hooks/use-mobile";
 import { navVisibility } from "@/lib/navVisibility";
+import { isLegitimateHiddenRoute } from "@/hooks/useBottomNavSafety";
+import { toast } from "sonner";
 
 /**
- * Forces BottomNav to mount at the app root on all mobile/tablet viewports.
- * Includes iPad in any orientation.
- * Hides nav when inside a DM conversation.
+ * CRITICAL: Root-level Bottom Navigation Mount
+ * 
+ * This component ensures the bottom navigation bar is ALWAYS visible on mobile/tablet.
+ * It renders at the app root level, outside of all page layouts.
+ * 
+ * Safety Rules:
+ * 1. On mobile/tablet: ALWAYS render (unless on legitimately hidden routes)
+ * 2. Ignores user UI settings that try to hide nav on mobile/tablet
+ * 3. Auto-repairs stuck CSS classes from wizard/overlay unmounts
+ * 4. Shows repair toast if settings needed fixing
  */
-// Routes where bottom nav should be hidden
-// NOTE: Do NOT hide on `/` because `/` is the primary Home route in this app.
+
+// Routes where bottom nav should be hidden (immersive experiences)
 const HIDDEN_NAV_ROUTES = ['/onboarding', '/complete-profile', '/upload', '/camera'];
 
-// Routes where we use hideNav in AppLayout (immersive experiences)
+// Routes with fullscreen experiences that manage their own nav
 const IMMERSIVE_ROUTES = ['/shorts', '/clips'];
 
 // CSS variable name for dynamic bottom padding
@@ -23,11 +32,47 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
   const { isMobileOrTablet } = useIsMobileOrTablet();
   const location = useLocation();
   const [mounted, setMounted] = useState(false);
+  const hasShownRepairToast = useRef(false);
 
-  // Ensure component is mounted before rendering to avoid hydration issues
+  // Ensure component is mounted before rendering
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // FAILSAFE: On mount, check if bottom nav should be showing but isn't
+  useEffect(() => {
+    if (!mounted || !isMobileOrTablet) return;
+
+    const checkNavVisibility = () => {
+      const pathname = location.pathname;
+      const isLegitimateHide = isLegitimateHiddenRoute(pathname);
+      
+      if (!isLegitimateHide) {
+        const hasHideClass = document.body.classList.contains('hide-bottom-nav');
+        const hasActiveOverlay = document.querySelector('.fixed.inset-0.z-\\[100\\]');
+        
+        if (hasHideClass && !hasActiveOverlay) {
+          document.body.classList.remove('hide-bottom-nav');
+          
+          if (!hasShownRepairToast.current) {
+            hasShownRepairToast.current = true;
+            console.warn('[BottomNavMount] Auto-repaired stuck hide-bottom-nav class');
+            toast.info("We restored your navigation to keep VYBE usable on mobile.", {
+              duration: 4000,
+            });
+          }
+        }
+      }
+    };
+
+    // Check immediately
+    checkNavVisibility();
+
+    // Also check after a short delay (catches async unmount issues)
+    const timeout = setTimeout(checkNavVisibility, 200);
+    
+    return () => clearTimeout(timeout);
+  }, [mounted, isMobileOrTablet, location.pathname]);
 
   // Safety: if we navigate away from community chat while the input is focused,
   // the global navVisibility state can remain stuck hidden.
@@ -38,77 +83,64 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
     }
   }, [location.pathname]);
 
-  // Safety: landing/intro/splash/wizard can hide the bottom nav via a BODY class.
-  // If that class ever gets stuck (HMR, interrupted unmount), the nav stays hidden.
-  // Clear it on all normal app routes UNLESS a wizard overlay is actively using it.
-  // The wizard adds/removes the class via its own effect, so we only clean up on route change.
+  // AGGRESSIVE CLEANUP: Clear stuck classes when navigating to normal routes
   useEffect(() => {
     const path = location.pathname;
-    // These routes may legitimately hide bottom nav via body class
-    const shouldAllowBodyHide =
-      path === '/' ||
-      path === '/onboarding' ||
-      path === '/complete-profile' ||
-      path === '/upload' ||
-      path === '/camera';
+    const isLegitimateHide = isLegitimateHiddenRoute(path);
 
-    // When navigating to a normal route, aggressively clear stuck classes
-    if (!shouldAllowBodyHide) {
-      // Small delay allows any active wizard unmount cleanup to fire first
-      const cleanup = setTimeout(() => {
-        // Only remove if not still open (wizard sets it on mount and removes on unmount)
-        // Check if wizard overlay is present (has z-[100] fixed element from wizard)
-        const wizardOpen = document.querySelector('.fixed.inset-0.z-\\[100\\]');
-        if (!wizardOpen) {
+    // When navigating to a normal route, clean up immediately
+    if (!isLegitimateHide && isMobileOrTablet) {
+      // Use requestAnimationFrame for better timing
+      requestAnimationFrame(() => {
+        const hasActiveOverlay = document.querySelector('.fixed.inset-0.z-\\[100\\]');
+        if (!hasActiveOverlay) {
           document.body.classList.remove('hide-bottom-nav');
+          document.body.classList.remove('splash-visible');
         }
-        document.body.classList.remove('splash-visible');
-      }, 50);
-      return () => clearTimeout(cleanup);
+      });
     }
-  }, [location.pathname]);
-  
-  // Hide nav when inside a specific DM conversation (e.g., /messages/uuid)
+  }, [location.pathname, isMobileOrTablet]);
+   
+  // Hide nav when inside a specific DM conversation
   const isInDMConversation = /^\/messages\/[^/]+/.test(location.pathname);
   
   // Hide nav on onboarding/profile completion and capture flows
   const isHiddenRoute = HIDDEN_NAV_ROUTES.includes(location.pathname);
   
-  // Check if we're on an immersive route (clips/shorts with their own fullscreen experience)
+  // Check if we're on an immersive route
   const isImmersiveRoute = IMMERSIVE_ROUTES.some(route => location.pathname.startsWith(route));
 
-  // Debug: log current width and detection
+  // Debug: log detection on mobile/tablet only
   useEffect(() => {
-    console.log('[BottomNavMount] Detection:', {
-      isMobileOrTablet,
-      windowWidth: window.innerWidth,
-      hasTouch: 'ontouchstart' in window,
-      maxTouchPoints: navigator.maxTouchPoints,
-      pointerCoarse: window.matchMedia?.('(pointer: coarse)')?.matches,
-    });
-  }, [isMobileOrTablet]);
+    if (isMobileOrTablet) {
+      console.log('[BottomNavMount] Mobile/Tablet detected:', {
+        pathname: location.pathname,
+        shouldRender: !isInDMConversation && !isHiddenRoute && !isImmersiveRoute,
+        windowWidth: window.innerWidth,
+        hasHideClass: document.body.classList.contains('hide-bottom-nav'),
+      });
+    }
+  }, [isMobileOrTablet, location.pathname, isInDMConversation, isHiddenRoute, isImmersiveRoute]);
 
-  // Compute whether we should render the nav
+  // CORE LOGIC: Determine if nav should render
+  // On mobile/tablet: ALWAYS render unless on legitimate hidden routes
   const shouldRender = mounted && isMobileOrTablet && !isInDMConversation && !isHiddenRoute && !isImmersiveRoute;
 
-  // Update CSS variable for dynamic bottom padding - prevents "black block" issue
+  // Update CSS variable for dynamic bottom padding
   useEffect(() => {
     const root = document.documentElement;
     if (shouldRender) {
-      // Nav is visible: reserve space (5rem + safe area)
       root.style.setProperty(BOTTOM_NAV_SPACE_VAR, 'calc(5rem + env(safe-area-inset-bottom, 0px))');
     } else {
-      // Nav is hidden: no reserved space
       root.style.setProperty(BOTTOM_NAV_SPACE_VAR, '0px');
     }
 
     return () => {
-      // Cleanup on unmount (though this component rarely unmounts)
       root.style.setProperty(BOTTOM_NAV_SPACE_VAR, '0px');
     };
   }, [shouldRender]);
 
-  // Don't render until mounted (prevents hydration mismatch)
+  // Don't render until mounted
   if (!mounted) return null;
   
   // Hide on desktop or hidden routes

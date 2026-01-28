@@ -1,5 +1,6 @@
 import { useState, useCallback, memo, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
+import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import {
   Grip,
   Eye,
@@ -72,14 +73,28 @@ export const UIBuilderWizard = memo(function UIBuilderWizard({
   const { data: currentSettings } = useUISettings();
   const saveSettings = useSaveUISettings();
   const resetSettings = useResetUISettings();
+  const { isMobileOrTablet } = useIsMobileOrTablet();
 
   // Hide the real bottom nav while this wizard is open
+  // CRITICAL: Only on mobile/tablet, and ALWAYS clean up on unmount
   useEffect(() => {
+    // Mark that wizard is active (for safety detection)
+    document.body.setAttribute('data-bottom-nav-override', 'hide');
     document.body.classList.add('hide-bottom-nav');
+    
     return () => {
+      // ALWAYS remove on unmount - critical for preventing stuck state
+      document.body.removeAttribute('data-bottom-nav-override');
       document.body.classList.remove('hide-bottom-nav');
+      
+      // Force a repaint to ensure nav is visible
+      if (isMobileOrTablet) {
+        requestAnimationFrame(() => {
+          document.body.classList.remove('hide-bottom-nav');
+        });
+      }
     };
-  }, []);
+  }, [isMobileOrTablet]);
 
   // Working copy of settings
   const [settings, setSettings] = useState<UISettings>(
