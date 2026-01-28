@@ -95,46 +95,72 @@ export function PushNotificationPrompt() {
     <AnimatePresence mode="wait">
       <motion.div
         key="push-prompt"
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 50 }}
-        className="fixed bottom-20 left-4 right-4 z-50 md:left-auto md:right-6 md:w-96"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none"
       >
-        <div className="bg-card border border-border rounded-xl p-4 shadow-lg">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-primary/10 rounded-full">
-              <Bell className="h-5 w-5 text-primary" />
+        {/* Backdrop */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm pointer-events-auto"
+          onClick={handleDismiss}
+        />
+        
+        {/* Modal */}
+        <motion.div 
+          className="relative w-full max-w-sm bg-card/95 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-2xl pointer-events-auto"
+          initial={{ scale: 0.9 }}
+          animate={{ scale: 1 }}
+          exit={{ scale: 0.9 }}
+        >
+          {/* Close button */}
+          <button
+            onClick={handleDismiss}
+            className="absolute top-4 right-4 p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+
+          {/* Content */}
+          <div className="flex flex-col items-center text-center">
+            {/* Icon */}
+            <div className="p-4 bg-primary/10 rounded-full mb-4">
+              <Bell className="h-8 w-8 text-primary" />
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-foreground">Stay Updated</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Get notified about calls and messages instantly.
-              </p>
-              <div className="flex gap-2 mt-3">
-                <Button
-                  size="sm"
-                  onClick={handleEnable}
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Enabling...' : 'Enable'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleDismiss}
-                >
-                  Not now
-                </Button>
-              </div>
+            
+            {/* Text */}
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              Stay Updated
+            </h3>
+            <p className="text-sm text-muted-foreground mb-6 max-w-[280px]">
+              Get notified instantly when friends message or call you.
+            </p>
+            
+            {/* Actions */}
+            <div className="flex flex-col w-full gap-2">
+              <Button
+                onClick={handleEnable}
+                disabled={isLoading}
+                className="w-full"
+                size="lg"
+              >
+                {isLoading ? 'Enabling...' : 'Enable Notifications'}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={handleDismiss}
+                className="w-full text-muted-foreground"
+                size="sm"
+              >
+                Maybe Later
+              </Button>
             </div>
-            <button
-              onClick={handleDismiss}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
           </div>
-        </div>
+        </motion.div>
       </motion.div>
     </AnimatePresence>
   );
