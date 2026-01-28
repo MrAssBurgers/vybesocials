@@ -11,6 +11,7 @@ import { VYBEHub } from '@/components/hub/VYBEHub';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
 import { navVisibility } from '@/lib/navVisibility';
+import { useScrollDirection } from '@/hooks/useScrollDirection';
 
 // Hook to listen to navVisibility centralized state (for community chat input hide)
 function useNavVisibility() {
@@ -21,6 +22,19 @@ function useNavVisibility() {
   }, []);
 
   return isVisible;
+}
+
+// Hook for scroll-based visibility
+function useScrollVisibility() {
+  const { scrollDirection, isAtTop } = useScrollDirection({ threshold: 15 });
+  
+  // Show nav when:
+  // 1. At top of page
+  // 2. Scrolling up
+  // 3. No scroll has happened yet (initial state)
+  const shouldShow = isAtTop || scrollDirection === 'up' || scrollDirection === null;
+  
+  return shouldShow;
 }
 
 type NavItemProps = {
@@ -98,8 +112,14 @@ export function BottomNav() {
   const { isGuest } = useIsGuest();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   
-  // Only use navVisibility (for community chat/input hide) - NO scroll-to-hide behavior
+  // NavVisibility (for community chat/input hide)
   const navCentralVisible = useNavVisibility();
+  
+  // Scroll-based visibility: show on scroll up, hide on scroll down
+  const scrollVisible = useScrollVisibility();
+  
+  // Combined visibility: both must be true to show
+  const isNavVisible = navCentralVisible && scrollVisible;
 
   // Hide bottom nav ONLY when onboarding is explicitly incomplete.
   // If profile is still loading / null, we should still render the nav.
@@ -218,10 +238,10 @@ export function BottomNav() {
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
-          // Only hide when navCentralVisible is false (e.g., community chat input focused)
-          transform: navCentralVisible ? 'translateY(0)' : 'translateY(100%)',
-          opacity: navCentralVisible ? 1 : 0,
-          transition: 'transform 0.2s ease-out, opacity 0.15s ease-out',
+          // Show/hide based on scroll direction + central visibility
+          transform: isNavVisible ? 'translateY(0)' : 'translateY(100%)',
+          opacity: isNavVisible ? 1 : 0,
+          transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease-out',
           // Ensure nav is never clipped
           contain: 'layout',
           isolation: 'isolate',
