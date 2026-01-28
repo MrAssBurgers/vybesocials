@@ -65,6 +65,17 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
   // Check if we're on an immersive route (clips/shorts with their own fullscreen experience)
   const isImmersiveRoute = IMMERSIVE_ROUTES.some(route => location.pathname.startsWith(route));
 
+  // Debug: log current width and detection
+  useEffect(() => {
+    console.log('[BottomNavMount] Detection:', {
+      isMobileOrTablet,
+      windowWidth: window.innerWidth,
+      hasTouch: 'ontouchstart' in window,
+      maxTouchPoints: navigator.maxTouchPoints,
+      pointerCoarse: window.matchMedia?.('(pointer: coarse)')?.matches,
+    });
+  }, [isMobileOrTablet]);
+
   // Compute whether we should render the nav
   const shouldRender = mounted && isMobileOrTablet && !isInDMConversation && !isHiddenRoute && !isImmersiveRoute;
 
