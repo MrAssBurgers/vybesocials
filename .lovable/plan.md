@@ -1,82 +1,140 @@
 
-# Fix: Custom Background Image Not Visible (Wrong Layer)
 
-## Problem Analysis
+# Implementation Plan: Fix Clips in Home, DMs, and Background Image
 
-After investigating the codebase, I identified the root cause: **the body's solid background gradient is painting OVER the `::before` pseudo-element** that contains the custom background image.
+## Overview
 
-### Current Layer Structure (Broken)
-
-```text
-+----------------------------------+
-|  UI Content (posts, cards, etc.) |  z-index: auto (positive)
-+----------------------------------+
-|  body background gradient        |  PAINTED ON BODY ITSELF
-|  (solid dark gradient - lines    |  (covers everything behind it)
-|   180-185 in index.css)          |
-+----------------------------------+
-|  body::after (readability overlay)|  z-index: -9
-+----------------------------------+
-|  body::before (background image) |  z-index: -10
-+----------------------------------+
-```
-
-The problem is that CSS pseudo-elements with negative z-index appear **behind** their parent's background. Since the `body` element has a solid gradient background, the `::before` pseudo-element (with the user's image) is painted behind it and thus invisible.
+This plan addresses four connected issues:
+1. Remove clips (shorts) from the Home feed - they should only appear in the Clips section
+2. Add a nice tab switcher at the top of the Explore page with persistence
+3. Fix DMs so conversations and profiles display correctly
+4. Fix background image layering so custom backgrounds are visible
 
 ---
 
-## Solution: Restructure Layer Hierarchy
+## 1. Remove Clips from Home Feed
 
-### Target Layer Structure (Fixed)
+### Problem
+The Home page fetches posts using `useInfinitePosts()` without filtering by type, so short-form clips appear alongside regular posts.
 
-```text
-+----------------------------------+
-|  UI Content Layer                |  z-index: auto (positive)
-|  - posts, buttons, nav bars      |
-|  - modals, cards                 |
-+----------------------------------+
-|  Glass Overlay / Surface Layer   |  Semi-transparent surfaces
-|  - liquid-glass-card             |  (backdrop-filter enabled)
-|  - NO solid backgrounds          |
-+----------------------------------+
-|  Readability Overlay             |  z-index: 1 (inside #root)
-|  (gradient for text contrast)    |
-+----------------------------------+
-|  Custom Background Image         |  z-index: 0 (inside #root)
-|  - full viewport, fixed          |
-+----------------------------------+
-|  Fallback Background (body)      |  On body element
-|  - solid color only              |  (only visible if no image)
-+----------------------------------+
+### Solution
+Modify the `useInfinitePosts` hook call on the Home page to filter OUT posts with type 'short'.
+
+**Files to modify:**
+- `src/pages/Home.tsx` - Pass type filter to exclude shorts
+
+**Changes:**
+- Update `useInfinitePosts()` and `useInfiniteFollowingPosts()` calls to use a new `excludeType` parameter OR filter client-side
+- Alternatively, create a new hook or parameter that filters to only show 'post' type content
+
+**Technical approach:**
+Either update the database function to support excluding types, or filter client-side when processing posts:
+```typescript
+const forYouPosts = useMemo(() => 
+  (forYouData?.pages.flatMap(page => page.posts) || [])
+    .filter(post => post.type !== 'short'), 
+  [forYouData]
+);
 ```
 
 ---
 
-## Implementation Steps
+## 2. Explore Page Tab Switcher with Persistence
 
-### 1. Modify Body Background (src/index.css)
+### Problem
+- The "Switch to Videos/Clips" button is at the bottom and not very discoverable
+- User's selection doesn't persist when they leave and return
 
-**Change:** When a custom background image is set, remove the solid gradient from body and make it transparent.
+### Solution
+Add a proper tab switcher at the TOP of the Explore page and persist the selection to localStorage.
 
+**Files to modify:**
+- `src/pages/Explore.tsx` - Add top tab bar, persist selection
+
+**Changes:**
+1. Add a styled tab bar at the top of both Clips and Videos views with "Clips" and "Videos" tabs
+2. Save selection to localStorage when changed
+3. Initialize from localStorage on mount
+4. Use a nice pill-style tab design that matches the app's aesthetic
+
+**Technical approach:**
+```typescript
+// Read from localStorage on mount
+const [viewMode, setViewMode] = useState<'clips' | 'videos'>(() => {
+  const saved = localStorage.getItem('explore-view-mode');
+  return (saved as 'clips' | 'videos') || 'clips';
+});
+
+// Save to localStorage on change
+useEffect(() => {
+  localStorage.setItem('explore-view-mode', viewMode);
+}, [viewMode]);
+```
+
+---
+
+## 3. Fix DMs Conversation List
+
+### Problem
+The conversation list appears empty (screenshot shows only the AI chat bot, no human conversations).
+
+### Solution
+Investigate and fix why conversations aren't loading. Likely causes:
+- RLS policy blocking access to conversations
+- The `useConversations` query not returning data
+- Profile data not being fetched correctly
+
+**Files to investigate/modify:**
+- `src/hooks/useMessages.ts` - Check the query
+- Check RLS policies on `conversations` and `conversation_members` tables
+
+**Technical approach:**
+1. Check if the user is actually in any conversations in the database
+2. Verify RLS policies allow reading own conversations
+3. Ensure the join with `profiles` works correctly
+4. Add better error handling/debugging
+
+**Database query to verify:**
+```sql
+SELECT * FROM conversation_members 
+WHERE user_id = 'current_user_profile_id';
+```
+
+---
+
+## 4. Fix Background Image Visibility
+
+### Problem
+When a user uploads a background image:
+- "Background applied" toast shows
+- But the app still shows a black/dark background
+- The image is applied to a layer that's covered by the body's gradient
+
+### Solution
+Restructure the CSS layering so background images are visible:
+
+1. Make body background transparent when a custom image is active
+2. Move background image rendering to a higher layer (`#root::before`)
+3. Ensure UI content floats above the background
+
+**Files to modify:**
+- `src/index.css` - Fix layering hierarchy
+- `src/hooks/useCustomTheme.ts` - Ensure CSS variables are set correctly
+
+**CSS Layer Hierarchy (top to bottom):**
+1. UI Content (z-index: 2) - posts, cards, nav
+2. Readability Overlay (z-index: 1) - semi-transparent gradient
+3. Background Image (z-index: 0) - custom user image
+4. Body Background - solid fallback only
+
+**Key CSS changes:**
 ```css
-/* Default body background (fallback) */
-body {
-  background: hsl(var(--background));
-  /* Remove the gradient - use solid color as fallback only */
-}
-
 /* When custom background is active, make body transparent */
 html[data-has-bg-image="true"] body {
   background: transparent !important;
 }
-```
 
-### 2. Move Background Image Layer INSIDE the DOM (src/index.css)
-
-**Change:** Instead of using `body::before`, create a dedicated background container at the root level that sits ABOVE body but BELOW content.
-
-```css
-/* Background image container - rendered as fixed layer */
+/* Move background to #root::before which is above body */
 html[data-has-bg-image="true"] #root::before {
   content: '';
   position: fixed;
@@ -84,109 +142,43 @@ html[data-has-bg-image="true"] #root::before {
   z-index: 0;
   background-image: var(--bg-image-url);
   background-size: cover;
-  background-position: center center;
-  opacity: var(--bg-image-opacity, 0.5);
-  filter: blur(var(--bg-image-blur, 0px));
-  pointer-events: none;
+  background-position: center;
 }
 
-/* Readability overlay - just above image */
-html[data-has-bg-image="true"] #root::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  background: linear-gradient(
-    to bottom,
-    hsl(var(--background) / 0.6) 0%,
-    hsl(var(--background) / 0.4) 50%,
-    hsl(var(--background) / 0.6) 100%
-  );
-  pointer-events: none;
-}
-```
-
-### 3. Ensure Content Has Proper Z-Index (src/index.css)
-
-**Add:** Give all main content containers a z-index that places them above the background layers.
-
-```css
-/* All app content above background */
+/* Ensure all content is above the background */
 #root > * {
   position: relative;
   z-index: 2;
 }
 ```
 
-### 4. Update Glass Card Transparency (src/index.css)
+---
 
-**Change:** Reduce opacity on glass cards when background image is active so the image shows through subtly.
+## Implementation Order
 
-```css
-/* When background image is active, make cards more transparent */
-html[data-has-bg-image="true"] .liquid-glass-card {
-  background: linear-gradient(
-    160deg,
-    hsl(var(--card) / 0.75),
-    hsl(var(--neon-purple) / 0.03),
-    hsl(var(--card) / 0.65)
-  );
-}
-```
-
-### 5. Fix the Active Background Application (src/hooks/useCustomTheme.ts)
-
-**Verify:** Ensure the `useApplyActiveBackground` hook correctly sets:
-- `--bg-image-url` CSS variable
-- `data-has-bg-image="true"` attribute on `<html>`
-
-### 6. Live Update Support
-
-**Ensure:** When `BackgroundCustomizer` uploads or applies a background:
-1. Set CSS variable immediately
-2. Set data attribute immediately
-3. No page reload required
+1. **Background image fix** - Critical visual bug
+2. **Home feed clips filter** - Simple change, high impact
+3. **Explore tab persistence** - UX improvement
+4. **DMs investigation** - Requires debugging to find root cause
 
 ---
 
-## Files to Modify
+## Files Summary
 
 | File | Changes |
 |------|---------|
-| `src/index.css` | Restructure layer hierarchy, update body/root pseudo-elements, adjust glass card transparency |
-| `src/hooks/useCustomTheme.ts` | Verify/fix `applyThemeTokens` and `useApplyActiveBackground` |
-| `src/components/settings/BackgroundCustomizer.tsx` | Ensure immediate application of background |
+| `src/index.css` | Restructure background layer hierarchy, make body transparent when bg image active |
+| `src/pages/Home.tsx` | Filter out 'short' type posts from both feeds |
+| `src/pages/Explore.tsx` | Add top tab switcher, persist selection to localStorage |
+| `src/hooks/useMessages.ts` | Debug/fix conversation fetching (if DB issue found) |
+| Possible DB migration | Fix RLS policies if conversations aren't loading |
 
 ---
 
-## Technical Details
+## Technical Notes
 
-### Why This Fixes the Issue
+- The `data-has-bg-image` attribute is already being set on the HTML element when a background is active
+- The `--bg-image-url` CSS variable is already being set with the image URL
+- The current issue is purely a CSS layering problem where the body's gradient covers the pseudo-element
+- For DMs, will need to query the database to see if any conversations exist for the current user
 
-1. **Body becomes transparent** when a background image is active, allowing layers beneath to show through
-2. **Background image moves to `#root::before`** which is a child of body, so it renders ABOVE body's background
-3. **Content gets explicit z-index: 2** ensuring it floats above the background layers
-4. **Glass cards become more transparent** to allow the background to subtly show through
-
-### Mobile Considerations
-
-- Use `background-attachment: scroll` on mobile to prevent rendering issues
-- Maintain touch scrolling performance with `contain: layout style`
-
-### Fallback Behavior
-
-- When no custom background: solid `hsl(var(--background))` color
-- If image fails to load: fallback to solid color automatically
-- If URL is invalid: gracefully degrade to default
-
----
-
-## Pass Conditions
-
-After implementation:
-- Uploaded image visible behind posts and buttons
-- UI floats above the image cleanly with glass effect
-- Black background only appears when no image is set
-- Background persists across pages and refresh
-- Background syncs via database
-- Background appears in "My Backgrounds" library
