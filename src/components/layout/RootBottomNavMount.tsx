@@ -62,6 +62,18 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
   // Check if we're on an immersive route (clips/shorts with their own fullscreen experience)
   const isImmersiveRoute = IMMERSIVE_ROUTES.some(route => location.pathname.startsWith(route));
   
+  // Debug: log nav decision values
+  useEffect(() => {
+    console.log('[BottomNavMount]', {
+      mounted,
+      isMobileOrTablet,
+      isInDMConversation,
+      isHiddenRoute,
+      isImmersiveRoute,
+      shouldRender: mounted && isMobileOrTablet && !isInDMConversation && !isHiddenRoute && !isImmersiveRoute,
+    });
+  }, [mounted, isMobileOrTablet, isInDMConversation, isHiddenRoute, isImmersiveRoute]);
+
   // Don't render until mounted (prevents hydration mismatch)
   if (!mounted) return null;
   
