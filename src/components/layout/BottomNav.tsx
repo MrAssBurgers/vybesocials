@@ -210,8 +210,11 @@ export function BottomNav() {
       />
 
       <nav 
-        className="fixed bottom-0 left-0 right-0 z-[2147483647] w-full pointer-events-auto"
+        className="fixed bottom-0 left-0 right-0 w-full pointer-events-auto"
         style={{
+          // CRITICAL: Highest z-index to ensure nav is always on top
+          zIndex: 2147483647,
+          // Safe area support for iOS
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
@@ -219,9 +222,13 @@ export function BottomNav() {
           transform: navCentralVisible ? 'translateY(0)' : 'translateY(100%)',
           opacity: navCentralVisible ? 1 : 0,
           transition: 'transform 0.2s ease-out, opacity 0.15s ease-out',
+          // Ensure nav is never clipped
+          contain: 'layout',
+          isolation: 'isolate',
         }}
         aria-label="Bottom navigation"
         data-tutorial-bottomnav
+        data-bottom-nav="true"
       >
         {/* Compact glass bar */}
         <div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">

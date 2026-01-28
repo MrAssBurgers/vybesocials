@@ -2,15 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Hide bottom nav on splash, landing, and intro pages */
+/* ========================================
+   BOTTOM NAVIGATION VISIBILITY RULES
+   ========================================
+   CRITICAL: The bottom nav can be hidden via body class, but ONLY when:
+   1. An overlay (wizard, camera) is actively managing the hide state
+   2. The route legitimately hides it (onboarding, clips, etc.)
+   
+   On mobile/tablet, the nav should ALWAYS be visible unless above conditions apply.
+   The RootBottomNavMount component has failsafe logic to auto-repair stuck states.
+   ======================================== */
 body.splash-visible nav[aria-label="Bottom navigation"],
 body.splash-visible [data-tutorial-bottomnav],
+body.splash-visible [data-bottom-nav="true"],
 body.hide-bottom-nav nav[aria-label="Bottom navigation"],
-body.hide-bottom-nav [data-tutorial-bottomnav] {
-  display: none !important;
-  visibility: hidden !important;
+body.hide-bottom-nav [data-tutorial-bottomnav],
+body.hide-bottom-nav [data-bottom-nav="true"] {
+  transform: translateY(100%) !important;
   opacity: 0 !important;
   pointer-events: none !important;
+  /* Use transform instead of display:none for smoother transitions */
 }
 
 /* ========================================
