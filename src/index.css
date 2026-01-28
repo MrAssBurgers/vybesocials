@@ -1996,3 +1996,70 @@ img, video {
   transform: translateZ(0);
   will-change: background-position;
 }
+
+/* ========================================
+   HOVER CARD FIX
+   Prevent giant highlight overlay on user rows
+   ======================================== */
+
+/* Remove any highlight overlay on hover card triggers */
+[data-radix-hover-card-trigger] {
+  background: transparent !important;
+}
+
+[data-radix-hover-card-trigger]:hover,
+[data-radix-hover-card-trigger]:focus {
+  background: transparent !important;
+}
+
+/* Ensure hover card content doesn't clip and stays visible */
+[data-radix-hover-card-content] {
+  max-width: calc(100vw - 2rem);
+}
+
+/* ========================================
+   SCROLL BEHAVIOR FIXES
+   Prevent frozen scroll and nested scroll fights
+   ======================================== */
+
+/* Prevent body scroll when modals are open */
+body.modal-open {
+  overflow: hidden !important;
+  position: fixed;
+  width: 100%;
+}
+
+/* Ensure modals restore scroll properly */
+[data-radix-dialog-overlay],
+[data-radix-sheet-overlay],
+.fixed.inset-0 {
+  overscroll-behavior: contain;
+}
+
+/* Prevent nested scroll containers from fighting */
+[data-app-scroll-container="true"] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+}
+
+/* Sticky sidebars on desktop */
+@media (min-width: 1025px) {
+  aside,
+  .sticky-sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+/* Mobile touch scroll optimization */
+@media (max-width: 1024px) {
+  main,
+  [data-app-scroll-container] {
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+}

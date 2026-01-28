@@ -159,7 +159,7 @@ const NavItem = memo(({
 export function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const { isGuest } = useIsGuest();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   const scrollVisible = useScrollDirection();
@@ -170,7 +170,8 @@ export function BottomNav() {
 
   // Hide bottom nav ONLY when onboarding is explicitly incomplete.
   // If profile is still loading / null, we should still render the nav.
-  const shouldHideForOnboarding = profile?.onboarding_completed === false;
+  // Guest users always see the nav.
+  const shouldHideForOnboarding = !authLoading && !isGuest && profile?.onboarding_completed === false;
 
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);
