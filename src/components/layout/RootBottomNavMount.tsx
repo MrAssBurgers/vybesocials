@@ -10,7 +10,8 @@ import { navVisibility } from "@/lib/navVisibility";
  * Hides nav when inside a DM conversation.
  */
 // Routes where bottom nav should be hidden
-const HIDDEN_NAV_ROUTES = ['/', '/onboarding', '/complete-profile', '/upload', '/camera'];
+// NOTE: Do NOT hide on `/` because `/` is the primary Home route in this app.
+const HIDDEN_NAV_ROUTES = ['/onboarding', '/complete-profile', '/upload', '/camera'];
 
 // Routes where we use hideNav in AppLayout (immersive experiences)
 const IMMERSIVE_ROUTES = ['/shorts', '/clips'];
@@ -37,7 +38,7 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
   // Hide nav when inside a specific DM conversation (e.g., /messages/uuid)
   const isInDMConversation = /^\/messages\/[^/]+/.test(location.pathname);
   
-  // Hide nav on landing, onboarding, and profile completion pages
+  // Hide nav on onboarding/profile completion and capture flows
   const isHiddenRoute = HIDDEN_NAV_ROUTES.includes(location.pathname);
   
   // Check if we're on an immersive route (clips/shorts with their own fullscreen experience)
