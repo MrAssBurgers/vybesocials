@@ -11,7 +11,8 @@ interface GlassIntensityContextType {
   getBlur: () => string;
   getSaturation: () => string;
   getBrightness: () => string;
-  isScrolling: boolean;
+  // NOTE: isScrolling removed from context to prevent app-wide re-renders during scroll.
+  // Use CSS class `.is-scrolling` on document.documentElement for scroll-based styling.
 }
 
 const GlassIntensityContext = createContext<GlassIntensityContextType | undefined>(undefined);
@@ -40,8 +41,6 @@ export function GlassIntensityProvider({ children }: { children: ReactNode }) {
     // Default to high contrast on mobile for better readability
     return stored || (isMobileDevice() ? 'high' : 'normal');
   });
-  
-  const [isScrolling, setIsScrolling] = useState(false);
 
   // Apply intensity and contrast to document
   useEffect(() => {
@@ -54,36 +53,9 @@ export function GlassIntensityProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute('data-contrast', contrast);
   }, [contrast]);
 
-  // Track scrolling to pause animations - optimized with RAF
-  useEffect(() => {
-    let scrollTimeout: ReturnType<typeof setTimeout>;
-    let rafId: number;
-    let isCurrentlyScrolling = false;
-    
-    const handleScroll = () => {
-      if (!isCurrentlyScrolling) {
-        isCurrentlyScrolling = true;
-        rafId = requestAnimationFrame(() => {
-          setIsScrolling(true);
-          document.documentElement.classList.add('is-scrolling');
-        });
-      }
-      
-      clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        isCurrentlyScrolling = false;
-        setIsScrolling(false);
-        document.documentElement.classList.remove('is-scrolling');
-      }, 150);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      clearTimeout(scrollTimeout);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, []);
+  // NOTE: Scroll tracking for `.is-scrolling` class is now handled by
+  // useScrollOptimization() in AppLayout - single source of truth.
+  // This prevents duplicate listeners and avoids React state updates during scroll.
 
   const setIntensity = useCallback((newIntensity: GlassIntensity) => {
     setIntensityState(newIntensity);
@@ -108,7 +80,6 @@ export function GlassIntensityProvider({ children }: { children: ReactNode }) {
       getBlur, 
       getSaturation, 
       getBrightness,
-      isScrolling
     }}>
       {children}
     </GlassIntensityContext.Provider>
@@ -127,7 +98,6 @@ export function useGlassIntensity() {
       getBlur: () => '40px',
       getSaturation: () => '200%',
       getBrightness: () => '1.05',
-      isScrolling: false,
     };
   }
   return context;

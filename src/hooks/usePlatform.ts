@@ -53,17 +53,28 @@ function detectDevice(): DeviceType {
   
   const width = window.innerWidth;
   const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const isCoarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
+  const hasNoHover = window.matchMedia?.('(hover: none)')?.matches ?? false;
   
   // iPad detection (iPads report as Macintosh now)
   const isIPad = /macintosh/.test(navigator.userAgent.toLowerCase()) && navigator.maxTouchPoints > 1;
   
-  if (width < 768 || (hasTouch && width < 768)) {
+  if (width < 768) {
     return 'mobile';
   }
-  // Treat 1024-wide tablets (common iPad/tablet width) as tablet, not desktop
-  if ((width >= 768 && width <= 1024) || isIPad) {
+  
+  // Expanded tablet detection: up to 1440px with touch/coarse pointer
+  // This catches Android tablets and iPad Pros in landscape
+  const isTouchDevice = hasTouch && (isCoarsePointer || hasNoHover);
+  if ((width >= 768 && width <= 1440 && isTouchDevice) || isIPad) {
     return 'tablet';
   }
+  
+  // Width 768-1024 without touch could be a small desktop window - treat as tablet for layout
+  if (width >= 768 && width <= 1024) {
+    return 'tablet';
+  }
+  
   return 'desktop';
 }
 
