@@ -1,4 +1,4 @@
-import { useState, useCallback, memo, useMemo } from 'react';
+import { useState, useCallback, memo, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import {
   Grip,
@@ -72,6 +72,14 @@ export const UIBuilderWizard = memo(function UIBuilderWizard({
   const { data: currentSettings } = useUISettings();
   const saveSettings = useSaveUISettings();
   const resetSettings = useResetUISettings();
+
+  // Hide the real bottom nav while this wizard is open
+  useEffect(() => {
+    document.body.classList.add('hide-bottom-nav');
+    return () => {
+      document.body.classList.remove('hide-bottom-nav');
+    };
+  }, []);
 
   // Working copy of settings
   const [settings, setSettings] = useState<UISettings>(
