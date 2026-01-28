@@ -105,6 +105,17 @@ export function useConversations() {
       if (!profile?.id) return [];
 
       // Fetch hidden conversations and conversations in parallel
+      // First get the conversation IDs the user is a member of
+      const { data: membershipData, error: membershipError } = await supabase
+        .from('conversation_members')
+        .select('conversation_id')
+        .eq('user_id', profile.id);
+      
+      if (membershipError) throw membershipError;
+      if (!membershipData?.length) return [];
+      
+      const userConversationIds = membershipData.map(m => m.conversation_id);
+
       const [hiddenResult, conversationsResult] = await Promise.all([
         supabase
           .from('hidden_conversations')
@@ -123,6 +134,7 @@ export function useConversations() {
               profile:profiles(id, username, avatar_url, display_name)
             )
           `)
+          .in('id', userConversationIds)
           .order('updated_at', { ascending: false }),
       ]);
 
