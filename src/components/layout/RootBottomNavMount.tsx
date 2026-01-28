@@ -38,11 +38,13 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
     }
   }, [location.pathname]);
 
-  // Safety: landing/intro/splash can hide the bottom nav via a BODY class.
-  // If that class ever gets stuck (HMR, interrupted unmount), the nav will stay hidden.
-  // Clear it on all normal app routes.
+  // Safety: landing/intro/splash/wizard can hide the bottom nav via a BODY class.
+  // If that class ever gets stuck (HMR, interrupted unmount), the nav stays hidden.
+  // Clear it on all normal app routes UNLESS a wizard overlay is actively using it.
+  // The wizard adds/removes the class via its own effect, so we only clean up on route change.
   useEffect(() => {
     const path = location.pathname;
+    // These routes may legitimately hide bottom nav via body class
     const shouldAllowBodyHide =
       path === '/' ||
       path === '/onboarding' ||
@@ -50,9 +52,19 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
       path === '/upload' ||
       path === '/camera';
 
+    // When navigating to a normal route, aggressively clear stuck classes
     if (!shouldAllowBodyHide) {
-      document.body.classList.remove('hide-bottom-nav');
-      document.body.classList.remove('splash-visible');
+      // Small delay allows any active wizard unmount cleanup to fire first
+      const cleanup = setTimeout(() => {
+        // Only remove if not still open (wizard sets it on mount and removes on unmount)
+        // Check if wizard overlay is present (has z-[100] fixed element from wizard)
+        const wizardOpen = document.querySelector('.fixed.inset-0.z-\\[100\\]');
+        if (!wizardOpen) {
+          document.body.classList.remove('hide-bottom-nav');
+        }
+        document.body.classList.remove('splash-visible');
+      }, 50);
+      return () => clearTimeout(cleanup);
     }
   }, [location.pathname]);
   
