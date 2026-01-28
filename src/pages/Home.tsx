@@ -101,13 +101,16 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   // Prefetch posts for faster navigation
   usePrefetchPosts();
 
+  // Filter out shorts/clips - they should only appear in Clips section
   const forYouPosts = useMemo(() => 
-    forYouData?.pages.flatMap(page => page.posts) || [], 
+    (forYouData?.pages.flatMap(page => page.posts) || [])
+      .filter(post => post.type !== 'short'), 
     [forYouData]
   );
   
   const followingPosts = useMemo(() => 
-    followingData?.pages.flatMap(page => page.posts) || [], 
+    (followingData?.pages.flatMap(page => page.posts) || [])
+      .filter(post => post.type !== 'short'), 
     [followingData]
   );
 

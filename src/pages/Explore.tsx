@@ -62,7 +62,46 @@ interface ClipPost {
   view_count?: number;
 }
 
-// Fullscreen TikTok-style clips viewer
+// Top tab bar for switching between Clips and Videos
+function ExploreTabBar({ 
+  viewMode, 
+  onTabChange 
+}: { 
+  viewMode: 'clips' | 'videos'; 
+  onTabChange: (mode: 'clips' | 'videos') => void;
+}) {
+  return (
+    <div className="flex justify-center">
+      <div className="inline-flex items-center gap-1 p-1 rounded-full bg-card/60 backdrop-blur-xl border border-border/30 shadow-lg">
+        <button
+          onClick={() => onTabChange('clips')}
+          className={cn(
+            "flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all",
+            viewMode === 'clips'
+              ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
+              : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+          )}
+        >
+          <Clapperboard className="h-4 w-4" />
+          Clips
+        </button>
+        <button
+          onClick={() => onTabChange('videos')}
+          className={cn(
+            "flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all",
+            viewMode === 'videos'
+              ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
+              : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+          )}
+        >
+          <Film className="h-4 w-4" />
+          Videos
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const BOTTOM_NAV_HEIGHT = 80;
 
 function FullscreenClipsViewer({
@@ -70,12 +109,16 @@ function FullscreenClipsViewer({
   startIndex,
   onClose,
   onSwitchToVideos,
+  viewMode,
+  onTabChange,
   isLoading,
 }: {
   clips: ClipPost[];
   startIndex: number;
   onClose: () => void;
   onSwitchToVideos: () => void;
+  viewMode: 'clips' | 'videos';
+  onTabChange: (mode: 'clips' | 'videos') => void;
   isLoading?: boolean;
 }) {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
@@ -262,28 +305,15 @@ function FullscreenClipsViewer({
           <X className="w-5 h-5" />
         </Button>
 
-        {/* Switch to Videos button */}
-        <div
-          className={cn(
-            "fixed z-30 left-1/2 -translate-x-1/2",
-            isMobileOrTablet ? "bottom-24" : "bottom-8"
-          )}
-        >
-          <motion.button
-            initial={{ y: 20, opacity: 0 }}
+        {/* Tab bar at top */}
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30">
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            onClick={onSwitchToVideos}
-            className={cn(
-              "flex items-center gap-2 px-5 py-3 rounded-full",
-              "bg-card/60 backdrop-blur-xl border border-border/30",
-              "text-foreground font-medium text-sm",
-              "hover:bg-card/80 transition-all shadow-xl"
-            )}
+            transition={{ delay: 0.2 }}
           >
-            <Film className="h-4 w-4" />
-            Switch to Videos
-          </motion.button>
+            <ExploreTabBar viewMode={viewMode} onTabChange={onTabChange} />
+          </motion.div>
         </div>
 
         {/* Progress indicator (desktop only) */}
@@ -330,7 +360,8 @@ function FullscreenClipsViewer({
 function VideosGalleryView({
   videos,
   isLoading,
-  onSwitchToClips,
+  viewMode,
+  onTabChange,
   searchQuery,
   setSearchQuery,
   handleSearch,
@@ -341,7 +372,8 @@ function VideosGalleryView({
 }: {
   videos: ClipPost[];
   isLoading: boolean;
-  onSwitchToClips: () => void;
+  viewMode: 'clips' | 'videos';
+  onTabChange: (mode: 'clips' | 'videos') => void;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   handleSearch: (e: React.FormEvent) => void;
@@ -355,6 +387,9 @@ function VideosGalleryView({
   return (
     <AppLayout>
       <div className="max-w-7xl mx-auto px-4 py-4 sm:py-6 space-y-5">
+        {/* Tab bar at top */}
+        <ExploreTabBar viewMode={viewMode} onTabChange={onTabChange} />
+        
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -463,29 +498,8 @@ function VideosGalleryView({
         {/* Videos Grid */}
         <ExploreVideosGrid videos={videos} isLoading={isLoading} />
 
-        {/* Switch to Clips button */}
-        <div
-          className={cn(
-            "fixed z-30 left-1/2 -translate-x-1/2",
-            isMobileOrTablet ? "bottom-24" : "bottom-8"
-          )}
-        >
-          <motion.button
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            onClick={onSwitchToClips}
-            className={cn(
-              "flex items-center gap-2 px-5 py-3 rounded-full",
-              "bg-primary",
-              "text-primary-foreground font-medium text-sm",
-              "hover:shadow-lg hover:shadow-primary/30 transition-all shadow-xl"
-            )}
-          >
-            <Clapperboard className="h-4 w-4" />
-            Switch to Clips
-          </motion.button>
-        </div>
+        {/* Tab bar at top */}
+        <ExploreTabBar viewMode={viewMode} onTabChange={onTabChange} />
       </div>
     </AppLayout>
   );
@@ -495,9 +509,21 @@ export default function ExplorePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [activeCategory, setActiveCategory] = useState(searchParams.get('cat') || 'all');
-  const [viewMode, setViewMode] = useState<'clips' | 'videos'>(
-    (searchParams.get('view') as 'clips' | 'videos') || 'clips'
-  );
+  
+  // Persist view mode to localStorage so it remembers user selection
+  const [viewMode, setViewMode] = useState<'clips' | 'videos'>(() => {
+    // First check URL param, then localStorage, then default to clips
+    const urlView = searchParams.get('view') as 'clips' | 'videos';
+    if (urlView === 'clips' || urlView === 'videos') return urlView;
+    const saved = localStorage.getItem('explore-view-mode');
+    return (saved === 'clips' || saved === 'videos') ? saved : 'clips';
+  });
+  
+  // Save to localStorage whenever viewMode changes
+  useEffect(() => {
+    localStorage.setItem('explore-view-mode', viewMode);
+  }, [viewMode]);
+  
   const selectedTag = searchParams.get('tag');
   const { data: posts, isLoading } = usePosts();
 
@@ -594,24 +620,19 @@ export default function ExplorePage() {
     setSearchParams(params);
   }, [searchParams, setSearchParams]);
 
-  const handleSwitchToVideos = useCallback(() => {
-    setViewMode('videos');
-    const params = new URLSearchParams(searchParams);
-    params.set('view', 'videos');
-    setSearchParams(params);
-  }, [searchParams, setSearchParams]);
 
-  const handleSwitchToClips = useCallback(() => {
-    setViewMode('clips');
+  // Handler for the tab bar to switch modes
+  const handleTabChange = useCallback((mode: 'clips' | 'videos') => {
+    setViewMode(mode);
     const params = new URLSearchParams(searchParams);
-    params.set('view', 'clips');
+    params.set('view', mode);
     setSearchParams(params);
   }, [searchParams, setSearchParams]);
 
   const handleCloseClips = useCallback(() => {
     // Close just returns to videos
-    handleSwitchToVideos();
-  }, [handleSwitchToVideos]);
+    handleTabChange('videos');
+  }, [handleTabChange]);
 
   // Clips view - fullscreen TikTok-style auto-play
   if (viewMode === 'clips') {
@@ -620,7 +641,9 @@ export default function ExplorePage() {
         clips={filteredContent}
         startIndex={0}
         onClose={handleCloseClips}
-        onSwitchToVideos={handleSwitchToVideos}
+        onSwitchToVideos={() => handleTabChange('videos')}
+        viewMode={viewMode}
+        onTabChange={handleTabChange}
         isLoading={isLoading}
       />
     );
@@ -631,7 +654,8 @@ export default function ExplorePage() {
     <VideosGalleryView
       videos={filteredContent}
       isLoading={isLoading}
-      onSwitchToClips={handleSwitchToClips}
+      viewMode={viewMode}
+      onTabChange={handleTabChange}
       searchQuery={searchQuery}
       setSearchQuery={setSearchQuery}
       handleSearch={handleSearch}

@@ -195,39 +195,50 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     
   }
   
-  /* Custom background image layer - uses CSS variable set by theme system */
-  html[data-has-bg-image="true"] body::before {
+  /* CRITICAL: When custom background is active, make body transparent so image shows */
+  html[data-has-bg-image="true"] body {
+    background: transparent !important;
+  }
+  
+  /* Custom background image layer - rendered on #root::before for proper z-index */
+  html[data-has-bg-image="true"] #root::before {
     content: '';
     position: fixed;
     inset: 0;
-    z-index: -10; /* Far behind all content */
+    z-index: 0;
     background-image: var(--bg-image-url);
     background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;
-    opacity: var(--bg-image-opacity, 0.5);
+    opacity: var(--bg-image-opacity, 0.85);
     filter: blur(var(--bg-image-blur, 0px));
     pointer-events: none;
   }
   
-  /* Add subtle overlay to ensure text readability */
-  html[data-has-bg-image="true"] body::after {
+  /* Subtle overlay for text readability - above image, below content */
+  html[data-has-bg-image="true"] #root::after {
     content: '';
     position: fixed;
     inset: 0;
-    z-index: -9; /* Just above the image but still behind content */
+    z-index: 1;
     background: linear-gradient(
       to bottom,
-      hsl(var(--background) / 0.7) 0%,
-      hsl(var(--background) / 0.5) 50%,
-      hsl(var(--background) / 0.7) 100%
+      hsl(var(--background) / 0.15) 0%,
+      hsl(var(--background) / 0.05) 50%,
+      hsl(var(--background) / 0.15) 100%
     );
     pointer-events: none;
   }
   
+  /* Ensure all content is above the background layers */
+  html[data-has-bg-image="true"] #root > * {
+    position: relative;
+    z-index: 2;
+  }
+  
   /* Mobile-specific adjustments for background image */
   @media (max-width: 768px) {
-    html[data-has-bg-image="true"] body::before {
+    html[data-has-bg-image="true"] #root::before {
       background-attachment: scroll;
     }
   }
