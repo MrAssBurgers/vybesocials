@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { validateAuth } from "../_shared/auth.ts";
+import { validateAndSanitizeInput, validateMessages, MAX_LENGTHS, wrapWithSafetyContext } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,43 +17,84 @@ const SYSTEM_PROMPTS: Record<AIAssistAction, string> = {
   suggest_reply: "You are a helpful assistant. Based on the conversation context, suggest a short, casual, and natural reply. Keep it under 20 words. Return only the suggested reply text.",
 };
 
+const VALID_ACTIONS: AIAssistAction[] = ['rewrite', 'shorter', 'friendlier', 'fix_grammar', 'suggest_reply'];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Validate authentication
+    const auth = await validateAuth(req);
+    if (!auth.authenticated) {
+      return new Response(
+        JSON.stringify({ error: auth.error }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { action, text, context } = await req.json() as {
-      action: AIAssistAction;
-      text: string;
-      context?: Array<{ role: string; content: string }>;
+      action: unknown;
+      text: unknown;
+      context?: unknown;
     };
 
-    if (!action || !SYSTEM_PROMPTS[action]) {
+    // Validate action
+    if (!action || typeof action !== 'string' || !VALID_ACTIONS.includes(action as AIAssistAction)) {
       return new Response(
-        JSON.stringify({ error: "Invalid action" }),
+        JSON.stringify({ error: "Invalid action. Allowed: " + VALID_ACTIONS.join(', ') }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const validAction = action as AIAssistAction;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Build messages
+    // Build messages based on action type
     const messages: Array<{ role: string; content: string }> = [
-      { role: "system", content: SYSTEM_PROMPTS[action] },
+      { role: "system", content: SYSTEM_PROMPTS[validAction] },
     ];
 
-    if (action === 'suggest_reply' && context?.length) {
-      // Add conversation context for reply suggestions
+    if (validAction === 'suggest_reply' && context) {
+      // Validate context messages
+      const contextValidation = validateMessages(context, 20, 500);
+      if (!contextValidation.valid) {
+        return new Response(
+          JSON.stringify({ error: contextValidation.error }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      const contextContent = contextValidation.sanitizedMessages!
+        .map(c => c.content)
+        .join('\n');
+      
       messages.push({
         role: "user",
-        content: `Recent conversation:\n${context.map(c => c.content).join('\n')}\n\nSuggest a natural reply.`,
+        content: wrapWithSafetyContext(
+          contextContent,
+          "Suggest a natural reply to this conversation"
+        ),
       });
     } else {
-      messages.push({ role: "user", content: text });
+      // Validate text input
+      const textValidation = validateAndSanitizeInput(text, MAX_LENGTHS.text);
+      if (!textValidation.valid) {
+        return new Response(
+          JSON.stringify({ error: textValidation.error }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      messages.push({ 
+        role: "user", 
+        content: wrapWithSafetyContext(textValidation.sanitized!, `Perform action: ${validAction}`) 
+      });
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {

@@ -5079,36 +5079,69 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bio: string | null
+          coins_balance: number | null
           created_at: string | null
           display_name: string | null
+          first_name: string | null
           id: string | null
+          interests: string[] | null
+          intro_completed: boolean | null
           is_private: boolean | null
           is_verified: boolean | null
+          language: string | null
+          last_name: string | null
           link_url: string | null
+          location: string | null
+          onboarding_completed: boolean | null
+          timezone: string | null
+          tutorial_completed: boolean | null
+          tutorial_skipped: boolean | null
           user_id: string | null
           username: string | null
         }
         Insert: {
           avatar_url?: string | null
           bio?: string | null
+          coins_balance?: number | null
           created_at?: string | null
           display_name?: string | null
+          first_name?: string | null
           id?: string | null
+          interests?: string[] | null
+          intro_completed?: boolean | null
           is_private?: boolean | null
           is_verified?: boolean | null
+          language?: string | null
+          last_name?: string | null
           link_url?: string | null
+          location?: string | null
+          onboarding_completed?: boolean | null
+          timezone?: string | null
+          tutorial_completed?: boolean | null
+          tutorial_skipped?: boolean | null
           user_id?: string | null
           username?: string | null
         }
         Update: {
           avatar_url?: string | null
           bio?: string | null
+          coins_balance?: number | null
           created_at?: string | null
           display_name?: string | null
+          first_name?: string | null
           id?: string | null
+          interests?: string[] | null
+          intro_completed?: boolean | null
           is_private?: boolean | null
           is_verified?: boolean | null
+          language?: string | null
+          last_name?: string | null
           link_url?: string | null
+          location?: string | null
+          onboarding_completed?: boolean | null
+          timezone?: string | null
+          tutorial_completed?: boolean | null
+          tutorial_skipped?: boolean | null
           user_id?: string | null
           username?: string | null
         }
@@ -5225,6 +5258,21 @@ export type Database = {
           type: string
         }[]
       }
+      get_friend_profile_by_id: {
+        Args: { current_user_profile_id: string; target_id: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          created_at: string
+          display_name: string
+          id: string
+          is_private: boolean
+          is_verified: boolean
+          link_url: string
+          location: string
+          username: string
+        }[]
+      }
       get_like_count: { Args: { p_post_id: string }; Returns: number }
       get_mutual_friends: {
         Args: { current_user_id: string; target_user_id: string }
@@ -5286,6 +5334,19 @@ export type Database = {
           is_private: boolean
           is_verified: boolean
           user_id: string
+          username: string
+        }[]
+      }
+      get_public_profile_by_id: {
+        Args: { target_id: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          created_at: string
+          display_name: string
+          id: string
+          is_private: boolean
+          is_verified: boolean
           username: string
         }[]
       }
