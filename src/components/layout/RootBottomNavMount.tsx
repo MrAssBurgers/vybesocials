@@ -34,6 +34,24 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
       navVisibility.forceShow();
     }
   }, [location.pathname]);
+
+  // Safety: landing/intro/splash can hide the bottom nav via a BODY class.
+  // If that class ever gets stuck (HMR, interrupted unmount), the nav will stay hidden.
+  // Clear it on all normal app routes.
+  useEffect(() => {
+    const path = location.pathname;
+    const shouldAllowBodyHide =
+      path === '/' ||
+      path === '/onboarding' ||
+      path === '/complete-profile' ||
+      path === '/upload' ||
+      path === '/camera';
+
+    if (!shouldAllowBodyHide) {
+      document.body.classList.remove('hide-bottom-nav');
+      document.body.classList.remove('splash-visible');
+    }
+  }, [location.pathname]);
   
   // Hide nav when inside a specific DM conversation (e.g., /messages/uuid)
   const isInDMConversation = /^\/messages\/[^/]+/.test(location.pathname);
