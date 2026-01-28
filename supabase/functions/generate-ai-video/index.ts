@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { validateAuth } from "../_shared/auth.ts";
+import { validateAndSanitizeInput, MAX_LENGTHS, wrapWithSafetyContext } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +13,15 @@ serve(async (req) => {
   }
 
   try {
+    // Validate authentication
+    const auth = await validateAuth(req);
+    if (!auth.authenticated) {
+      return new Response(
+        JSON.stringify({ error: auth.error }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       return new Response(
@@ -21,16 +32,25 @@ serve(async (req) => {
 
     const { prompt } = await req.json();
 
-    if (!prompt) {
+    // Validate and sanitize prompt
+    const validation = validateAndSanitizeInput(prompt, MAX_LENGTHS.prompt);
+    if (!validation.valid) {
       return new Response(
-        JSON.stringify({ error: "Prompt is required" }),
+        JSON.stringify({ error: validation.error }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("Generating AI video with prompt:", prompt);
+    const sanitizedPrompt = validation.sanitized!;
+    console.log("Generating AI video for user:", auth.userId, "prompt length:", sanitizedPrompt.length);
 
-    // Use Lovable AI to generate an image first
+    // Wrap prompt with safety context
+    const safePrompt = wrapWithSafetyContext(
+      sanitizedPrompt,
+      "Generate a high-quality cinematic image for a short video. Make it visually striking and suitable for social media. The image should be vertical (9:16 aspect ratio) and cinematic. Only generate safe, appropriate content."
+    );
+
+    // Use Lovable AI to generate an image
     const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -42,7 +62,7 @@ serve(async (req) => {
         messages: [
           {
             role: "user",
-            content: `Generate a high-quality cinematic image for a short video with this theme: ${prompt}. Make it visually striking and suitable for social media. The image should be vertical (9:16 aspect ratio) and cinematic.`
+            content: safePrompt
           }
         ],
         modalities: ["image", "text"]
@@ -86,9 +106,8 @@ serve(async (req) => {
       );
     }
 
-    console.log("AI content generated successfully");
+    console.log("AI content generated successfully for user:", auth.userId);
 
-    // Return the base64 image directly - no storage upload needed
     return new Response(
       JSON.stringify({ 
         success: true,
