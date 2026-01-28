@@ -104,12 +104,10 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
       <main
         data-app-scroll-container="true"
         className={cn(
-          "h-full overflow-y-auto overflow-x-hidden",
-          hideNav ? "pb-0" : "pt-14"
+          "h-full overflow-y-auto overflow-x-hidden pb-[calc(5rem+env(safe-area-inset-bottom))]",
+          hideNav ? "" : "pt-14"
         )}
         style={{
-          // Use CSS variable set by RootBottomNavMount for dynamic padding
-          paddingBottom: hideNav ? '0px' : 'var(--bottom-nav-space, 0px)',
           WebkitOverflowScrolling: 'touch',
           overscrollBehaviorY: 'contain',
         }}

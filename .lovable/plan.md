@@ -1,89 +1,192 @@
 
-Goal outcomes (what you’ll see after the fix)
-- Bottom nav is back on tablets + phones (and never shows on desktop).
-- Bottom nav stays visible in normal sections (Home/Explore/Messages/Profile/Community/etc). No “scroll-to-hide” behavior that makes it feel gone.
-- The “black block” at the bottom-left disappears (it’s the reserved bottom padding showing when the nav is hidden/offscreen).
-- Scrolling + animations feel smoother (especially on tablet) and the app stops doing “app-wide re-renders” during scroll.
+# Fix: Custom Background Image Not Visible (Wrong Layer)
 
-What’s actually going wrong (root cause)
-1) The bottom nav is being mounted (your logs confirm `shouldRender: true` on tablet), but it can still be visually hidden because BottomNav currently includes “hide while scrolling down” logic (translateY(100%) + opacity 0).  
-   - On tablet, users tend to “swipe up” (scroll down) a lot, which keeps it hidden.
-   - This also creates the “black block” because AppLayout always reserves bottom space (`pb-[calc(5rem+...)]`) even when the nav has slid offscreen, leaving a blank area.
+## Problem Analysis
 
-2) Performance/glitchiness is being amplified by `GlassIntensityProvider` updating React state on every scroll tick. That causes many components (especially glass cards) to re-render repeatedly while you scroll → jitter + slow interactions.
+After investigating the codebase, I identified the root cause: **the body's solid background gradient is painting OVER the `::before` pseudo-element** that contains the custom background image.
 
-Implementation plan (no fluff, just the steps)
-A) Bring back bottom nav (tablet/mobile only) and keep it visible
-1. Remove “scroll-to-hide” behavior from BottomNav
-   - In `src/components/layout/BottomNav.tsx`:
-     - Remove/disable `useScrollDirection()` and the `scrollVisibility` singleton.
-     - Make nav visibility depend only on the centralized `navVisibility` store (community input / chat hides) and route rules from `RootBottomNavMount`.
-     - Keep a simple, performant animation for appearance (CSS transition or a single framer-motion mount animation), but do not hide on scroll.
-   - Result: on tablet, “swipe up” won’t make it disappear.
+### Current Layer Structure (Broken)
 
-2. Make the “black block” impossible even if nav is hidden on specific routes
-   - In `src/components/layout/AppLayout.tsx`:
-     - Replace the hard-coded bottom padding (`pb-[calc(5rem+env(...))]`) with a CSS variable (example: `--bottom-nav-space`).
-   - In `src/components/layout/RootBottomNavMount.tsx`:
-     - When nav is rendered, set `document.documentElement.style.setProperty('--bottom-nav-space', '5rem')`
-     - When nav is not rendered (desktop / hidden routes / immersive routes), set it to `0px`
-   - Result: no more empty black “reserved” area when nav isn’t present.
+```text
++----------------------------------+
+|  UI Content (posts, cards, etc.) |  z-index: auto (positive)
++----------------------------------+
+|  body background gradient        |  PAINTED ON BODY ITSELF
+|  (solid dark gradient - lines    |  (covers everything behind it)
+|   180-185 in index.css)          |
++----------------------------------+
+|  body::after (readability overlay)|  z-index: -9
++----------------------------------+
+|  body::before (background image) |  z-index: -10
++----------------------------------+
+```
 
-3. Make tablet detection consistent and reliable (especially for Android tablets)
-   - Right now you have two parallel device systems: `useIsMobileOrTablet()` and `useBreakpoint()` / `usePlatform()`.
-   - We’ll unify the decision rule used by `RootBottomNavMount` so tablet doesn’t accidentally fall into “desktop sidebar” mode.
-   - In `src/hooks/usePlatform.ts` (and/or `use-mobile.tsx`):
-     - Expand “tablet” detection for large tablets (up to 1366px) when the primary pointer is coarse OR hover is none OR there are multiple touch points.
-     - Keep desktop as “no-touch or hover+fine pointer + large width”.
-   - Result: iPad + Android tablets consistently get bottom nav; desktops (even small windows) keep sidebars.
+The problem is that CSS pseudo-elements with negative z-index appear **behind** their parent's background. Since the `body` element has a solid gradient background, the `::before` pseudo-element (with the user's image) is painted behind it and thus invisible.
 
-B) Smooth everything (major performance wins with minimal risk)
-4. Stop app-wide re-renders during scroll (biggest performance fix)
-   - In `src/components/ui/glass/GlassIntensityProvider.tsx`:
-     - Remove the `setIsScrolling(true/false)` state updates inside the scroll handler.
-     - Keep only the DOM class toggle (`document.documentElement.classList.add/remove('is-scrolling')`) OR rely entirely on `useScrollOptimization()` (preferred: one source of truth).
-     - Keep `intensity/contrast` in context, but make `isScrolling` either:
-       - removed from the context value entirely, or
-       - a stable value that does not change on scroll.
-   - In `src/components/ui/glass/GlassCard.tsx`:
-     - Stop reading `isScrolling` from context (so it doesn’t re-render on scroll).
-     - Use CSS to pause glass animations during `.is-scrolling` if needed.
+---
 
-5. Reduce expensive visual effects on tablet / low-perf devices using existing CSS hooks
-   - You already have `.perf-low/.perf-medium` rules in `src/index.css`, but they’re only useful if the class is applied.
-   - In `src/App.tsx`:
-     - Add `PlatformProvider` near the top of the tree (it applies `device-*` + `perf-*` classes to `<html>`).
-   - In `src/index.css`:
-     - Add a tablet-specific rule to avoid `background-attachment: fixed` on background images for tablets too (not only `<768px>`), because fixed+blur is a known jank source on iPad/tablets.
-   - Result: fewer “glitchy” frames and faster scrolling.
+## Solution: Restructure Layer Hierarchy
 
-C) Verification checklist (manual)
-6. Bottom nav visibility
-   - Tablet preview: `/home`, `/explore`, `/messages`, `/community`, `/settings` → bottom nav visible
-   - Desktop preview: bottom nav never appears, sidebars remain
-   - Hidden routes: `/upload`, `/camera`, `/onboarding` → bottom nav hidden and NO bottom black gap
+### Target Layer Structure (Fixed)
 
-7. Nav doesn’t vanish on scroll
-   - On tablet, scroll down a long feed: nav remains visible
+```text
++----------------------------------+
+|  UI Content Layer                |  z-index: auto (positive)
+|  - posts, buttons, nav bars      |
+|  - modals, cards                 |
++----------------------------------+
+|  Glass Overlay / Surface Layer   |  Semi-transparent surfaces
+|  - liquid-glass-card             |  (backdrop-filter enabled)
+|  - NO solid backgrounds          |
++----------------------------------+
+|  Readability Overlay             |  z-index: 1 (inside #root)
+|  (gradient for text contrast)    |
++----------------------------------+
+|  Custom Background Image         |  z-index: 0 (inside #root)
+|  - full viewport, fixed          |
++----------------------------------+
+|  Fallback Background (body)      |  On body element
+|  - solid color only              |  (only visible if no image)
++----------------------------------+
+```
 
-8. Performance sanity
-   - Scroll Home feed on tablet: no stutter spikes from glass re-renders
-   - Open/close modals: no stuck overlays, no scroll lock issues
+---
 
-Files expected to change (so you know what’s being touched)
-- `src/components/layout/BottomNav.tsx` (remove scroll-to-hide; keep clean animations)
-- `src/components/layout/RootBottomNavMount.tsx` (set `--bottom-nav-space`, remove debug logging after verification)
-- `src/components/layout/AppLayout.tsx` (use the CSS variable for padding)
-- `src/hooks/usePlatform.ts` and/or `src/hooks/use-mobile.tsx` (unify tablet detection)
-- `src/components/ui/glass/GlassIntensityProvider.tsx` (remove scroll-driven state updates)
-- `src/components/ui/glass/GlassCard.tsx` (stop subscribing to scroll state)
-- `src/index.css` (tablet background-attachment fix; optional `.is-scrolling` pausing rules)
-- `src/App.tsx` (add `PlatformProvider` so perf/device classes actually apply)
+## Implementation Steps
 
-Risk management / why this won’t break things
-- Bottom nav changes are isolated to visibility logic and padding; route behavior remains governed by existing `RootBottomNavMount` rules.
-- Removing scroll-driven context updates is a net win and reduces global render churn; UI should remain visually identical except smoother.
-- We keep `navVisibility` intact so community chat/input can still hide the nav intentionally.
+### 1. Modify Body Background (src/index.css)
 
-After you approve
-- I’ll implement the above, then we’ll re-check the `[BottomNavMount]` log once, and I’ll remove the debug logging so it doesn’t spam the console.
+**Change:** When a custom background image is set, remove the solid gradient from body and make it transparent.
+
+```css
+/* Default body background (fallback) */
+body {
+  background: hsl(var(--background));
+  /* Remove the gradient - use solid color as fallback only */
+}
+
+/* When custom background is active, make body transparent */
+html[data-has-bg-image="true"] body {
+  background: transparent !important;
+}
+```
+
+### 2. Move Background Image Layer INSIDE the DOM (src/index.css)
+
+**Change:** Instead of using `body::before`, create a dedicated background container at the root level that sits ABOVE body but BELOW content.
+
+```css
+/* Background image container - rendered as fixed layer */
+html[data-has-bg-image="true"] #root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-image: var(--bg-image-url);
+  background-size: cover;
+  background-position: center center;
+  opacity: var(--bg-image-opacity, 0.5);
+  filter: blur(var(--bg-image-blur, 0px));
+  pointer-events: none;
+}
+
+/* Readability overlay - just above image */
+html[data-has-bg-image="true"] #root::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    to bottom,
+    hsl(var(--background) / 0.6) 0%,
+    hsl(var(--background) / 0.4) 50%,
+    hsl(var(--background) / 0.6) 100%
+  );
+  pointer-events: none;
+}
+```
+
+### 3. Ensure Content Has Proper Z-Index (src/index.css)
+
+**Add:** Give all main content containers a z-index that places them above the background layers.
+
+```css
+/* All app content above background */
+#root > * {
+  position: relative;
+  z-index: 2;
+}
+```
+
+### 4. Update Glass Card Transparency (src/index.css)
+
+**Change:** Reduce opacity on glass cards when background image is active so the image shows through subtly.
+
+```css
+/* When background image is active, make cards more transparent */
+html[data-has-bg-image="true"] .liquid-glass-card {
+  background: linear-gradient(
+    160deg,
+    hsl(var(--card) / 0.75),
+    hsl(var(--neon-purple) / 0.03),
+    hsl(var(--card) / 0.65)
+  );
+}
+```
+
+### 5. Fix the Active Background Application (src/hooks/useCustomTheme.ts)
+
+**Verify:** Ensure the `useApplyActiveBackground` hook correctly sets:
+- `--bg-image-url` CSS variable
+- `data-has-bg-image="true"` attribute on `<html>`
+
+### 6. Live Update Support
+
+**Ensure:** When `BackgroundCustomizer` uploads or applies a background:
+1. Set CSS variable immediately
+2. Set data attribute immediately
+3. No page reload required
+
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/index.css` | Restructure layer hierarchy, update body/root pseudo-elements, adjust glass card transparency |
+| `src/hooks/useCustomTheme.ts` | Verify/fix `applyThemeTokens` and `useApplyActiveBackground` |
+| `src/components/settings/BackgroundCustomizer.tsx` | Ensure immediate application of background |
+
+---
+
+## Technical Details
+
+### Why This Fixes the Issue
+
+1. **Body becomes transparent** when a background image is active, allowing layers beneath to show through
+2. **Background image moves to `#root::before`** which is a child of body, so it renders ABOVE body's background
+3. **Content gets explicit z-index: 2** ensuring it floats above the background layers
+4. **Glass cards become more transparent** to allow the background to subtly show through
+
+### Mobile Considerations
+
+- Use `background-attachment: scroll` on mobile to prevent rendering issues
+- Maintain touch scrolling performance with `contain: layout style`
+
+### Fallback Behavior
+
+- When no custom background: solid `hsl(var(--background))` color
+- If image fails to load: fallback to solid color automatically
+- If URL is invalid: gracefully degrade to default
+
+---
+
+## Pass Conditions
+
+After implementation:
+- Uploaded image visible behind posts and buttons
+- UI floats above the image cleanly with glass effect
+- Black background only appears when no image is set
+- Background persists across pages and refresh
+- Background syncs via database
+- Background appears in "My Backgrounds" library

@@ -31,7 +31,6 @@ import { useBanStatus } from "@/hooks/useBanStatus";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
-import { PlatformProvider } from "@/providers/PlatformProvider";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -166,9 +165,7 @@ const App = memo(() => {
         <ThemeProvider>
           <GlassIntensityProvider>
             <AccessibilityProvider>
-              <PlatformProvider>
-                <AppWithPreloader />
-              </PlatformProvider>
+              <AppWithPreloader />
             </AccessibilityProvider>
           </GlassIntensityProvider>
         </ThemeProvider>

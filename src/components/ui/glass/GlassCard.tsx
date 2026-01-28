@@ -14,7 +14,7 @@ interface GlassCardProps {
 
 export const GlassCard = memo(forwardRef<HTMLDivElement, GlassCardProps>(
   ({ className, variant = 'default', interactive = false, noiseOverlay = true, children, ...props }, ref) => {
-    const { intensity, contrast } = useGlassIntensity();
+    const { intensity, isScrolling, contrast } = useGlassIntensity();
     const { reduceMotion } = useAccessibility();
 
     const variantClasses = {
@@ -28,10 +28,6 @@ export const GlassCard = memo(forwardRef<HTMLDivElement, GlassCardProps>(
       normal: '',
       max: 'glass-max',
     };
-
-    // NOTE: isScrolling is now handled via CSS class `.is-scrolling` on document.documentElement
-    // instead of React state to avoid app-wide re-renders during scroll.
-    // The `.glass-paused` class can be applied via CSS when `.is-scrolling` is present.
 
     return (
       <motion.div
@@ -48,6 +44,7 @@ export const GlassCard = memo(forwardRef<HTMLDivElement, GlassCardProps>(
           variantClasses[variant],
           intensityClasses[intensity],
           interactive && 'cursor-pointer',
+          isScrolling && 'glass-paused',
           contrast === 'high' && 'high-contrast',
           className
         )}

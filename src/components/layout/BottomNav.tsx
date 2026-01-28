@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
-import { useState, useCallback, useRef, memo, useEffect, forwardRef } from 'react';
+import { useState, useCallback, useRef, memo, useEffect } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { CreateMenu } from '@/components/hub/CreateMenu';
@@ -11,9 +11,76 @@ import { VYBEHub } from '@/components/hub/VYBEHub';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
 import { navVisibility } from '@/lib/navVisibility';
-import { useScrollDirection } from '@/hooks/useScrollDirection';
 
-// Hook to listen to navVisibility centralized state (for community chat input hide)
+// Singleton scroll direction detection to prevent duplicate listeners
+let scrollDirectionListener: (() => void) | null = null;
+let scrollVisibility = true;
+const scrollVisibilityListeners = new Set<(visible: boolean) => void>();
+
+function setupScrollDirectionListener() {
+  if (scrollDirectionListener) return;
+  
+  let lastScrollY = 0;
+  let ticking = false;
+
+  const handleScroll = () => {
+    if (!ticking) {
+      window.requestAnimationFrame(() => {
+        const currentScrollY = window.scrollY;
+        const scrollDiff = currentScrollY - lastScrollY;
+        
+        if (Math.abs(scrollDiff) > 10) {
+          if (scrollDiff > 0 && currentScrollY > 50) {
+            scrollVisibility = false;
+          } else {
+            scrollVisibility = true;
+          }
+        }
+        
+        if (currentScrollY < 50) {
+          scrollVisibility = true;
+        }
+        
+        lastScrollY = currentScrollY;
+        ticking = false;
+        
+        // Notify all listeners
+        scrollVisibilityListeners.forEach(fn => fn(scrollVisibility));
+      });
+      ticking = true;
+    }
+  };
+
+  window.addEventListener('scroll', handleScroll, { passive: true });
+  scrollDirectionListener = () => {
+    window.removeEventListener('scroll', handleScroll);
+    scrollDirectionListener = null;
+  };
+}
+
+// Hook to detect scroll direction - uses singleton listener
+function useScrollDirection() {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    setupScrollDirectionListener();
+    
+    scrollVisibilityListeners.add(setIsVisible);
+    setIsVisible(scrollVisibility);
+
+    return () => {
+      scrollVisibilityListeners.delete(setIsVisible);
+      // Only cleanup if no more listeners
+      if (scrollVisibilityListeners.size === 0 && scrollDirectionListener) {
+        scrollDirectionListener();
+      }
+    };
+  }, []);
+
+  return isVisible;
+}
+
+// Hook to listen to navVisibility centralized state
 function useNavVisibility() {
   const [isVisible, setIsVisible] = useState(true);
 
@@ -24,31 +91,8 @@ function useNavVisibility() {
   return isVisible;
 }
 
-// Hook for scroll-based visibility
-function useScrollVisibility() {
-  const { scrollDirection, isAtTop } = useScrollDirection({ threshold: 15 });
-  
-  // Show nav when:
-  // 1. At top of page
-  // 2. Scrolling up
-  // 3. No scroll has happened yet (initial state)
-  const shouldShow = isAtTop || scrollDirection === 'up' || scrollDirection === null;
-  
-  return shouldShow;
-}
-
-type NavItemProps = {
-  path: string;
-  icon: typeof Home;
-  badge: number;
-  isActive: boolean;
-  tutorialId?: string;
-  isHighlighted?: boolean;
-  onClick?: (e: React.MouseEvent) => void;
-};
-
-// Memoized nav item for better performance (and ref-safe for Radix/asChild usages)
-const NavItem = memo(forwardRef<HTMLAnchorElement, NavItemProps>(function NavItem({ 
+// Memoized nav item for better performance
+const NavItem = memo(({ 
   path, 
   icon: Icon, 
   badge, 
@@ -56,7 +100,15 @@ const NavItem = memo(forwardRef<HTMLAnchorElement, NavItemProps>(function NavIte
   tutorialId,
   isHighlighted,
   onClick,
-}, ref) {
+}: { 
+  path: string; 
+  icon: typeof Home; 
+  badge: number; 
+  isActive: boolean;
+  tutorialId?: string;
+  isHighlighted?: boolean;
+  onClick?: (e: React.MouseEvent) => void;
+}) => {
   const handleClick = (e: React.MouseEvent) => {
     if (onClick) {
       onClick(e);
@@ -68,7 +120,6 @@ const NavItem = memo(forwardRef<HTMLAnchorElement, NavItemProps>(function NavIte
   return (
     <Link
       to={path}
-      ref={ref}
       className="relative flex items-center justify-center min-h-[44px] min-w-[44px]"
       onClick={handleClick}
       data-tutorial={tutorialId}
@@ -103,28 +154,22 @@ const NavItem = memo(forwardRef<HTMLAnchorElement, NavItemProps>(function NavIte
       </div>
     </Link>
   );
-}));
+});
 
 export function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, loading: authLoading } = useAuth();
+  const { profile } = useAuth();
   const { isGuest } = useIsGuest();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
-  
-  // NavVisibility (for community chat/input hide)
+  const scrollVisible = useScrollDirection();
   const navCentralVisible = useNavVisibility();
   
-  // Scroll-based visibility: show on scroll up, hide on scroll down
-  const scrollVisible = useScrollVisibility();
-  
-  // Combined visibility: both must be true to show
-  const isNavVisible = navCentralVisible && scrollVisible;
+  // Combine both visibility states
+  const isVisible = scrollVisible && navCentralVisible;
 
-  // Hide bottom nav ONLY when onboarding is explicitly incomplete.
-  // If profile is still loading / null, we should still render the nav.
-  // Guest users always see the nav.
-  const shouldHideForOnboarding = !authLoading && !isGuest && profile?.onboarding_completed === false;
+  // Hide bottom nav until user has completed onboarding
+  const onboardingComplete = profile?.onboarding_completed === true;
 
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);
@@ -213,8 +258,8 @@ export function BottomNav() {
     { icon: Settings, path: '/settings', badge: 0, tutorialId: 'settings-nav', requiresAuth: false },
   ];
 
-  // Don't render bottom nav if onboarding explicitly not complete (unless guest browsing)
-  if (shouldHideForOnboarding && !isGuest) {
+  // Don't render bottom nav if onboarding not complete (unless guest browsing)
+  if (!onboardingComplete && !isGuest) {
     return null;
   }
 
@@ -230,25 +275,17 @@ export function BottomNav() {
       />
 
       <nav 
-        className="fixed bottom-0 left-0 right-0 w-full pointer-events-auto"
+        className="fixed bottom-0 left-0 right-0 z-[2147483647] w-full pointer-events-auto"
         style={{
-          // CRITICAL: Highest z-index to ensure nav is always on top
-          zIndex: 2147483647,
-          // Safe area support for iOS
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
-          // Show/hide based on scroll direction + central visibility
-          transform: isNavVisible ? 'translateY(0)' : 'translateY(100%)',
-          opacity: isNavVisible ? 1 : 0,
-          transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease-out',
-          // Ensure nav is never clipped
-          contain: 'layout',
-          isolation: 'isolate',
+          transform: isVisible ? 'translateY(0)' : 'translateY(100%)',
+          opacity: isVisible ? 1 : 0,
+          transition: 'transform 0.2s ease-out, opacity 0.15s ease-out',
         }}
         aria-label="Bottom navigation"
         data-tutorial-bottomnav
-        data-bottom-nav="true"
       >
         {/* Compact glass bar */}
         <div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">

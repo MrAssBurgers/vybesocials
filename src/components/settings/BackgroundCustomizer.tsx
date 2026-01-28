@@ -194,8 +194,6 @@ export function BackgroundCustomizer({
   const [isExtracting, setIsExtracting] = useState(false);
   const [applyColorsToTheme, setApplyColorsToTheme] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
-  const [showThemeMatchDialog, setShowThemeMatchDialog] = useState(false);
-  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   
   // My Backgrounds state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -293,18 +291,9 @@ export function BackgroundCustomizer({
         setActive: true,
       });
 
-      // Apply immediately - set CSS variable and data attribute on html element
-      const root = document.documentElement;
-      root.style.setProperty('--bg-image-url', `url(${publicUrl})`);
-      root.style.setProperty('--bg-image-opacity', String(backgroundOpacity / 100));
-      root.style.setProperty('--bg-image-blur', `${backgroundBlur}px`);
-      root.setAttribute('data-has-bg-image', 'true');
-      
+      // Apply immediately
       onBackgroundChange(publicUrl);
-      
-      // Show theme match dialog for uploaded images too
-      setPendingImageUrl(publicUrl);
-      setShowThemeMatchDialog(true);
+      toast.success('Background applied and saved!');
     } catch (error: any) {
       console.error('[BackgroundUpload] Error:', error);
       const message = error.message || 'Failed to upload background';
@@ -314,7 +303,7 @@ export function BackgroundCustomizer({
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [userId, validateFile, onBackgroundChange, addBackground, backgroundOpacity, backgroundBlur]);
+  }, [userId, validateFile, onBackgroundChange, addBackground]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -365,19 +354,8 @@ export function BackgroundCustomizer({
           name: styleId ? AI_BACKGROUND_STYLES.find(s => s.id === styleId)?.label : 'AI Generated',
           setActive: true,
         });
-        
-        // Apply immediately - set CSS variable and data attribute on html element
-        const root = document.documentElement;
-        root.style.setProperty('--bg-image-url', `url(${data.imageUrl})`);
-        root.style.setProperty('--bg-image-opacity', String(backgroundOpacity / 100));
-        root.style.setProperty('--bg-image-blur', `${backgroundBlur}px`);
-        root.setAttribute('data-has-bg-image', 'true');
-        
         onBackgroundChange(data.imageUrl);
-        
-        // Store image URL and show theme match dialog
-        setPendingImageUrl(data.imageUrl);
-        setShowThemeMatchDialog(true);
+        toast.success('Background generated and saved!');
       } else {
         throw new Error('No image generated');
       }
@@ -394,41 +372,12 @@ export function BackgroundCustomizer({
       setIsGenerating(false);
       setSelectedStyle(null);
     }
-  }, [onBackgroundChange, addBackground, backgroundOpacity, backgroundBlur]);
-
-  const handleThemeMatchChoice = useCallback(async (matchTheme: boolean) => {
-    setShowThemeMatchDialog(false);
-    
-    if (matchTheme && pendingImageUrl) {
-      try {
-        const colors = await extractColorsFromImage(pendingImageUrl);
-        if (onColorsExtracted) {
-          onColorsExtracted(colors);
-          toast.success('Background applied & theme colors matched!');
-        }
-      } catch (error) {
-        console.error('Color extraction failed:', error);
-        toast.success('Background applied!');
-      }
-    } else {
-      toast.success('Background applied!');
-    }
-    
-    setPendingImageUrl(null);
-  }, [pendingImageUrl, onColorsExtracted]);
+  }, [onBackgroundChange, addBackground]);
 
   const handleSelectBackground = useCallback(async (bg: UserBackground) => {
     await setActiveBackground.mutateAsync(bg.id);
-    
-    // Apply immediately - set CSS variable and data attribute on html element
-    const root = document.documentElement;
-    root.style.setProperty('--bg-image-url', `url(${bg.image_url})`);
-    root.style.setProperty('--bg-image-opacity', String(backgroundOpacity / 100));
-    root.style.setProperty('--bg-image-blur', `${backgroundBlur}px`);
-    root.setAttribute('data-has-bg-image', 'true');
-    
     onBackgroundChange(bg.image_url);
-  }, [setActiveBackground, onBackgroundChange, backgroundOpacity, backgroundBlur]);
+  }, [setActiveBackground, onBackgroundChange]);
 
   const handleDeleteBackground = useCallback(async () => {
     if (!deleteConfirmId) return;
@@ -453,14 +402,6 @@ export function BackgroundCustomizer({
 
   const removeBackground = useCallback(async () => {
     await clearActiveBackground.mutateAsync();
-    
-    // Clear CSS variable and data attribute immediately
-    const root = document.documentElement;
-    root.style.removeProperty('--bg-image-url');
-    root.style.removeProperty('--bg-image-opacity');
-    root.style.removeProperty('--bg-image-blur');
-    root.setAttribute('data-has-bg-image', 'false');
-    
     onBackgroundChange(null);
     setExtractedColors(null);
     setApplyColorsToTheme(false);
@@ -866,36 +807,6 @@ export function BackgroundCustomizer({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => editingId && handleRenameBackground(editingId)}>
               Save
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Theme Match Dialog */}
-      <AlertDialog open={showThemeMatchDialog} onOpenChange={setShowThemeMatchDialog}>
-        <AlertDialogContent className="max-w-sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Palette className="h-5 w-5 text-primary" />
-              Match Theme Colors?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Would you like to update your UI theme colors to match this new background?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel 
-              onClick={() => handleThemeMatchChoice(false)}
-              className="flex-1"
-            >
-              Keep Current Theme
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => handleThemeMatchChoice(true)}
-              className="flex-1 bg-primary"
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              Match Colors
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

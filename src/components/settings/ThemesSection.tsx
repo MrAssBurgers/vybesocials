@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeCustomizer } from './ThemeCustomizer';
 import { ThemeGallery } from './ThemeGallery';
 import { ThemeMarketplace } from './ThemeMarketplace';
-import { UIBuilderWizard } from './UIBuilderWizard';
+import { UIBuilder } from './UIBuilder';
 import { AnimatePresence } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -31,20 +31,15 @@ export function ThemesSection() {
           <TabsContent value="customize" className="space-y-4">
             <ThemeCustomizer />
             
-            {/* UI Builder Wizard Button */}
-            <div className="space-y-1">
-              <Button 
-                className="w-full"
-                variant="outline"
-                onClick={() => setShowUIBuilder(true)}
-              >
-                <Layout className="w-4 h-4 mr-2" />
-                Customize UI (Layout + Tabs)
-              </Button>
-              <p className="text-[10px] text-center text-muted-foreground">
-                Reorder home sections, choose which bottom-bar tabs appear, and more.
-              </p>
-            </div>
+            {/* UI Builder Button */}
+            <Button 
+              className="w-full"
+              variant="outline"
+              onClick={() => setShowUIBuilder(true)}
+            >
+              <Layout className="w-4 h-4 mr-2" />
+              Design Your Layout
+            </Button>
           </TabsContent>
 
           <TabsContent value="marketplace">
@@ -57,10 +52,10 @@ export function ThemesSection() {
         </Tabs>
       </div>
 
-      {/* UI Builder Wizard Overlay */}
+      {/* UI Builder Overlay */}
       <AnimatePresence>
         {showUIBuilder && (
-          <UIBuilderWizard onClose={() => setShowUIBuilder(false)} />
+          <UIBuilder onClose={() => setShowUIBuilder(false)} />
         )}
       </AnimatePresence>
     </>

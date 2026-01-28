@@ -217,42 +217,6 @@ function FullscreenClipsViewer({
 
   return (
     <div className="fixed inset-0 z-50 bg-background">
-      {/* Tabs at the top */}
-      <div className="fixed top-0 left-0 right-0 z-40 px-4 pt-4 pb-2 bg-gradient-to-b from-background via-background/80 to-transparent">
-        <div className="flex items-center justify-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute left-4 w-10 h-10 rounded-full bg-background/40 backdrop-blur-md border border-border/20 text-foreground hover:bg-background/60"
-            onClick={onClose}
-          >
-            <X className="w-5 h-5" />
-          </Button>
-          
-          <div className="flex items-center gap-1 p-1 rounded-full bg-card/60 backdrop-blur-xl border border-border/30">
-            <button
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all",
-                "bg-primary text-primary-foreground"
-              )}
-            >
-              <Clapperboard className="h-4 w-4" />
-              Clips
-            </button>
-            <button
-              onClick={onSwitchToVideos}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all",
-                "text-muted-foreground hover:text-foreground hover:bg-card/80"
-              )}
-            >
-              <Film className="h-4 w-4" />
-              Videos
-            </button>
-          </div>
-        </div>
-      </div>
-
       <div
         ref={containerRef}
         className="overflow-y-scroll scrollbar-hide bg-background"
@@ -286,6 +250,40 @@ function FullscreenClipsViewer({
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Close button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-background/40 backdrop-blur-md border border-border/20 text-foreground hover:bg-background/60"
+          onClick={onClose}
+        >
+          <X className="w-5 h-5" />
+        </Button>
+
+        {/* Switch to Videos button */}
+        <div
+          className={cn(
+            "fixed z-30 left-1/2 -translate-x-1/2",
+            isMobileOrTablet ? "bottom-24" : "bottom-8"
+          )}
+        >
+          <motion.button
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            onClick={onSwitchToVideos}
+            className={cn(
+              "flex items-center gap-2 px-5 py-3 rounded-full",
+              "bg-card/60 backdrop-blur-xl border border-border/30",
+              "text-foreground font-medium text-sm",
+              "hover:bg-card/80 transition-all shadow-xl"
+            )}
+          >
+            <Film className="h-4 w-4" />
+            Switch to Videos
+          </motion.button>
         </div>
 
         {/* Progress indicator (desktop only) */}
@@ -357,30 +355,17 @@ function VideosGalleryView({
   return (
     <AppLayout>
       <div className="max-w-7xl mx-auto px-4 py-4 sm:py-6 space-y-5">
-        {/* Tab Header */}
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            {/* Tabs */}
-            <div className="flex items-center gap-1 p-1 rounded-full bg-card/60 backdrop-blur-xl border border-border/30">
-              <button
-                onClick={onSwitchToClips}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all",
-                  "text-muted-foreground hover:text-foreground hover:bg-card/80"
-                )}
-              >
-                <Clapperboard className="h-4 w-4" />
-                Clips
-              </button>
-              <button
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all",
-                  "bg-primary text-primary-foreground"
-                )}
-              >
-                <Film className="h-4 w-4" />
+            <div className="h-12 w-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
+              <Film className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">
                 Videos
-              </button>
+              </h1>
+              <p className="text-sm text-muted-foreground">Browse video content</p>
             </div>
           </div>
           
@@ -477,6 +462,30 @@ function VideosGalleryView({
 
         {/* Videos Grid */}
         <ExploreVideosGrid videos={videos} isLoading={isLoading} />
+
+        {/* Switch to Clips button */}
+        <div
+          className={cn(
+            "fixed z-30 left-1/2 -translate-x-1/2",
+            isMobileOrTablet ? "bottom-24" : "bottom-8"
+          )}
+        >
+          <motion.button
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            onClick={onSwitchToClips}
+            className={cn(
+              "flex items-center gap-2 px-5 py-3 rounded-full",
+              "bg-primary",
+              "text-primary-foreground font-medium text-sm",
+              "hover:shadow-lg hover:shadow-primary/30 transition-all shadow-xl"
+            )}
+          >
+            <Clapperboard className="h-4 w-4" />
+            Switch to Clips
+          </motion.button>
+        </div>
       </div>
     </AppLayout>
   );

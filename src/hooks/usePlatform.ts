@@ -53,28 +53,16 @@ function detectDevice(): DeviceType {
   
   const width = window.innerWidth;
   const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  const isCoarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
-  const hasNoHover = window.matchMedia?.('(hover: none)')?.matches ?? false;
   
   // iPad detection (iPads report as Macintosh now)
   const isIPad = /macintosh/.test(navigator.userAgent.toLowerCase()) && navigator.maxTouchPoints > 1;
   
-  if (width < 768) {
+  if (width < 768 || (hasTouch && width < 768)) {
     return 'mobile';
   }
-  
-  // Expanded tablet detection: up to 1440px with touch/coarse pointer
-  // This catches Android tablets and iPad Pros in landscape
-  const isTouchDevice = hasTouch && (isCoarsePointer || hasNoHover);
-  if ((width >= 768 && width <= 1440 && isTouchDevice) || isIPad) {
+  if ((width >= 768 && width < 1024) || isIPad) {
     return 'tablet';
   }
-  
-  // Width 768-1024 without touch could be a small desktop window - treat as tablet for layout
-  if (width >= 768 && width <= 1024) {
-    return 'tablet';
-  }
-  
   return 'desktop';
 }
 
@@ -252,15 +240,13 @@ export function usePlatform(): PlatformInfo {
 export function useBreakpoint() {
   const [breakpoint, setBreakpoint] = useState<'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'>('md');
   const [isIPad, setIsIPad] = useState(false);
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   useEffect(() => {
     const getBreakpoint = () => {
       const width = window.innerWidth;
       if (width < 640) return 'xs';
       if (width < 768) return 'sm';
-      // Keep 1024px devices in tablet layout (iPad/tablets)
-      if (width <= 1024) return 'md';
+      if (width < 1024) return 'md';
       if (width < 1280) return 'lg';
       if (width < 1536) return 'xl';
       return '2xl';
@@ -275,41 +261,25 @@ export function useBreakpoint() {
       );
     };
 
-    // Detect touch/coarse pointer devices (Android tablets, etc.)
-    const detectTouchDevice = () => {
-      const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      const isCoarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
-      return hasTouch && isCoarsePointer;
-    };
-
     setBreakpoint(getBreakpoint());
     setIsIPad(detectIPad());
-    setIsTouchDevice(detectTouchDevice());
 
-    const handleResize = () => {
-      setBreakpoint(getBreakpoint());
-      setIsTouchDevice(detectTouchDevice());
-    };
+    const handleResize = () => setBreakpoint(getBreakpoint());
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const width = typeof window !== 'undefined' ? window.innerWidth : 1024;
-
   // Desktop = sidebars, Tablet/iPad/Mobile = bottom nav
-  // CRITICAL: For touch/coarse devices up to 1440px, treat as tablet (not desktop)
-  // This matches the logic in use-mobile.tsx for consistency
   const isMobileBreakpoint = breakpoint === 'xs' || breakpoint === 'sm';
-  const isTabletBreakpoint = breakpoint === 'md' || isIPad || (isTouchDevice && width <= 1440);
-  // Desktop ONLY if: large screen (lg+) AND NOT a touch device AND NOT iPad
-  const isDesktopBreakpoint = (breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl') && !isTouchDevice && !isIPad;
+  const isTabletBreakpoint = breakpoint === 'md' || isIPad;
+  const isDesktopBreakpoint = breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl';
 
   return {
     breakpoint,
     isMobile: isMobileBreakpoint && !isIPad,
     isTablet: isTabletBreakpoint && !isDesktopBreakpoint,
-    // ONLY true desktop (lg+ without touch) gets sidebars - NOT tablets or iPads
-    isDesktop: isDesktopBreakpoint,
+    // ONLY true desktop (lg+) gets sidebars - NOT tablets or iPads
+    isDesktop: isDesktopBreakpoint && !isIPad,
     isIPad,
   };
 }

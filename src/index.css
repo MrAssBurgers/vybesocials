@@ -2,26 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ========================================
-   BOTTOM NAVIGATION VISIBILITY RULES
-   ========================================
-   CRITICAL: The bottom nav can be hidden via body class, but ONLY when:
-   1. An overlay (wizard, camera) is actively managing the hide state
-   2. The route legitimately hides it (onboarding, clips, etc.)
-   
-   On mobile/tablet, the nav should ALWAYS be visible unless above conditions apply.
-   The RootBottomNavMount component has failsafe logic to auto-repair stuck states.
-   ======================================== */
+/* Hide bottom nav on splash, landing, and intro pages */
 body.splash-visible nav[aria-label="Bottom navigation"],
 body.splash-visible [data-tutorial-bottomnav],
-body.splash-visible [data-bottom-nav="true"],
 body.hide-bottom-nav nav[aria-label="Bottom navigation"],
-body.hide-bottom-nav [data-tutorial-bottomnav],
-body.hide-bottom-nav [data-bottom-nav="true"] {
-  transform: translateY(100%) !important;
+body.hide-bottom-nav [data-tutorial-bottomnav] {
+  display: none !important;
+  visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
-  /* Use transform instead of display:none for smoother transitions */
 }
 
 /* ========================================
@@ -203,66 +192,43 @@ body.hide-bottom-nav [data-bottom-nav="true"] {
     touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+    
   }
   
-  /* CRITICAL FIX: When custom background is active, make body transparent
-     so the #root::before background image shows through */
-  html[data-has-bg-image="true"] body {
-    background: transparent !important;
-  }
-  
-  /* ==============================================
-     CUSTOM BACKGROUND IMAGE LAYER SYSTEM
-     Rendered on #root to be ABOVE body background
-     ============================================== */
-  
-  /* Ensure #root can hold pseudo-elements for background */
-  #root {
-    position: relative;
-    isolation: isolate; /* Create new stacking context */
-  }
-  
-  /* Background image layer - rendered INSIDE #root, above body */
-  html[data-has-bg-image="true"] #root::before {
+  /* Custom background image layer - uses CSS variable set by theme system */
+  html[data-has-bg-image="true"] body::before {
     content: '';
     position: fixed;
     inset: 0;
-    z-index: 0; /* Base layer inside #root */
+    z-index: -10; /* Far behind all content */
     background-image: var(--bg-image-url);
     background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;
-    background-attachment: fixed;
     opacity: var(--bg-image-opacity, 0.5);
     filter: blur(var(--bg-image-blur, 0px));
     pointer-events: none;
   }
   
-  /* Readability overlay - minimal for background visibility */
-  html[data-has-bg-image="true"] #root::after {
+  /* Add subtle overlay to ensure text readability */
+  html[data-has-bg-image="true"] body::after {
     content: '';
     position: fixed;
     inset: 0;
-    z-index: 1; /* Above image, below content */
+    z-index: -9; /* Just above the image but still behind content */
     background: linear-gradient(
       to bottom,
-      hsl(var(--background) / 0.1) 0%,
-      hsl(var(--background) / 0.05) 50%,
-      hsl(var(--background) / 0.15) 100%
+      hsl(var(--background) / 0.7) 0%,
+      hsl(var(--background) / 0.5) 50%,
+      hsl(var(--background) / 0.7) 100%
     );
     pointer-events: none;
   }
   
-  /* All app content above background layers */
-  #root > * {
-    position: relative;
-    z-index: 2;
-  }
-  
-  /* Mobile AND tablet adjustments for background image - fixes jank on iPad/tablets */
-  @media (max-width: 1440px) and (pointer: coarse), (max-width: 768px) {
-    html[data-has-bg-image="true"] #root::before {
-      background-attachment: scroll; /* Prevent mobile/tablet rendering issues */
+  /* Mobile-specific adjustments for background image */
+  @media (max-width: 768px) {
+    html[data-has-bg-image="true"] body::before {
+      background-attachment: scroll;
     }
   }
 
@@ -762,34 +728,6 @@ body.hide-bottom-nav [data-bottom-nav="true"] {
       hsl(var(--card) / 0.95)
     );
     border: 1px solid hsl(var(--foreground) / 0.18);
-  }
-  
-  /* When custom background image is active, make cards more transparent
-     so the background image shows through subtly */
-  html[data-has-bg-image="true"] .liquid-glass-card {
-    background: linear-gradient(
-      160deg,
-      hsl(var(--card) / 0.75),
-      hsl(var(--neon-purple) / 0.03),
-      hsl(var(--card) / 0.65)
-    );
-  }
-  
-  html[data-has-bg-image="true"] .liquid-glass {
-    background: linear-gradient(
-      135deg,
-      hsl(var(--glass) / 0.7),
-      hsl(var(--glass) / 0.45),
-      hsl(var(--glass) / 0.6)
-    );
-  }
-  
-  html[data-has-bg-image="true"] .liquid-glass-subtle {
-    background: linear-gradient(
-      160deg,
-      hsl(var(--glass) / 0.55),
-      hsl(var(--glass) / 0.3)
-    );
   }
 
   /* Glass Input with color accent */
@@ -1547,9 +1485,11 @@ html, body, #root {
 }
 
 /* Performance optimizations during scroll - LIGHTER touch for mobile */
-/* IMPORTANT: Do NOT use pointer-events: none here as it blocks clicks on desktop
-   when the is-scrolling class gets stuck or has timing issues. Instead, we only
-   reduce visual complexity during scroll (handled elsewhere with animation pauses). */
+/* Avoid disabling pointer-events globally as it causes jank on mobile */
+.is-scrolling .post-card,
+.is-scrolling article {
+  pointer-events: none;
+}
 
 /* GPU acceleration for scrolling containers - use sparingly */
 .scroll-container {
@@ -2004,71 +1944,4 @@ img, video {
   box-shadow: 0 4px 20px hsl(var(--primary) / 0.4);
   transform: translateZ(0);
   will-change: background-position;
-}
-
-/* ========================================
-   HOVER CARD FIX
-   Prevent giant highlight overlay on user rows
-   ======================================== */
-
-/* Remove any highlight overlay on hover card triggers */
-[data-radix-hover-card-trigger] {
-  background: transparent !important;
-}
-
-[data-radix-hover-card-trigger]:hover,
-[data-radix-hover-card-trigger]:focus {
-  background: transparent !important;
-}
-
-/* Ensure hover card content doesn't clip and stays visible */
-[data-radix-hover-card-content] {
-  max-width: calc(100vw - 2rem);
-}
-
-/* ========================================
-   SCROLL BEHAVIOR FIXES
-   Prevent frozen scroll and nested scroll fights
-   ======================================== */
-
-/* Prevent body scroll when modals are open */
-body.modal-open {
-  overflow: hidden !important;
-  position: fixed;
-  width: 100%;
-}
-
-/* Ensure modals restore scroll properly */
-[data-radix-dialog-overlay],
-[data-radix-sheet-overlay],
-.fixed.inset-0 {
-  overscroll-behavior: contain;
-}
-
-/* Prevent nested scroll containers from fighting */
-[data-app-scroll-container="true"] {
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  scroll-behavior: smooth;
-}
-
-/* Sticky sidebars on desktop */
-@media (min-width: 1025px) {
-  aside,
-  .sticky-sidebar {
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-}
-
-/* Mobile touch scroll optimization */
-@media (max-width: 1024px) {
-  main,
-  [data-app-scroll-container] {
-    touch-action: pan-y;
-    -webkit-overflow-scrolling: touch;
-  }
 }

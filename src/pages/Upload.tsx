@@ -283,13 +283,7 @@ export default function UploadPage() {
       clearInterval(progressInterval);
       setUploadProgress(100);
       toast.success('Posted successfully!');
-      
-      // Route based on content type: clips go to explore/clips, others go to home
-      if (contentType === 'short') {
-        navigate('/explore?view=clips');
-      } else {
-        navigate('/home');
-      }
+      navigate('/home');
     } catch (error) {
       console.error('Upload error:', error);
       toast.error('Failed to upload. Please try again.');

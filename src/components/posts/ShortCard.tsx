@@ -46,11 +46,11 @@ interface ShortCardProps {
   isActive: boolean;
   globalMuted?: boolean;
   onToggleMute?: () => void;
-  onHoldingChange?: (isHolding: boolean) => void;
+  isHolding?: boolean;
 }
 
 // Memoized to prevent re-renders during scroll
-export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted = true, onToggleMute, onHoldingChange }: ShortCardProps) {
+export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted = true, onToggleMute, isHolding = false }: ShortCardProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
@@ -72,12 +72,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [isHolding, setIsHolding] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
-  const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const holdStartPosRef = useRef<{ x: number; y: number } | null>(null);
-  const suppressNextTapRef = useRef(false);
   
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author?.avatar_url || null);
@@ -176,69 +172,9 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     }
   }, [profile, isActive]);
 
-  // Hold to pause (pointer-based so it works on touch + mouse, and doesn't conflict with scroll)
-  const cancelHoldTimer = useCallback(() => {
-    if (holdTimeoutRef.current) {
-      clearTimeout(holdTimeoutRef.current);
-      holdTimeoutRef.current = null;
-    }
-  }, []);
-
-  const handleHoldStart = useCallback((e: React.PointerEvent) => {
-    // Only primary pointer
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
-
-    holdStartPosRef.current = { x: e.clientX, y: e.clientY };
-    cancelHoldTimer();
-    holdTimeoutRef.current = setTimeout(() => {
-      suppressNextTapRef.current = true;
-      setIsHolding(true);
-      onHoldingChange?.(true);
-    }, 200);
-  }, [cancelHoldTimer, onHoldingChange]);
-
-  const handleHoldMove = useCallback((e: React.PointerEvent) => {
-    const start = holdStartPosRef.current;
-    if (!start) return;
-    const dx = Math.abs(e.clientX - start.x);
-    const dy = Math.abs(e.clientY - start.y);
-
-    // User started scrolling/swiping — cancel the hold.
-    if (dx + dy > 10) {
-      holdStartPosRef.current = null;
-      cancelHoldTimer();
-    }
-  }, [cancelHoldTimer]);
-
-  const handleHoldEnd = useCallback(() => {
-    holdStartPosRef.current = null;
-    cancelHoldTimer();
-    if (isHolding) {
-      setIsHolding(false);
-      onHoldingChange?.(false);
-      // Prevent the click that follows a long-press from toggling mute.
-      window.setTimeout(() => {
-        suppressNextTapRef.current = false;
-      }, 250);
-    } else {
-      suppressNextTapRef.current = false;
-      onHoldingChange?.(false);
-    }
-  }, [cancelHoldTimer, isHolding, onHoldingChange]);
-
   // Tap to toggle mute (single tap), double tap to like
   const handleTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-
-    // If we just long-pressed, ignore the synthetic click.
-    if (suppressNextTapRef.current) {
-      suppressNextTapRef.current = false;
-      return;
-    }
-    
-    // If holding, don't process tap
-    if (isHolding) return;
-    
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
     
@@ -255,7 +191,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       }
     }
     lastTapTime.current = now;
-  }, [isMuted, onToggleMute, isHolding]);
+  }, [isMuted, onToggleMute]);
   
   // Guard against null author - return early with placeholder AFTER all hooks
   if (!post.author) {
@@ -395,11 +331,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       <div 
         className="absolute inset-0 flex items-center justify-center"
         onClick={handleTap}
-        onPointerDown={handleHoldStart}
-        onPointerMove={handleHoldMove}
-        onPointerUp={handleHoldEnd}
-        onPointerCancel={handleHoldEnd}
-        onPointerLeave={handleHoldEnd}
       >
         {/* Loading skeleton */}
         {isLoading && !hasError && (
@@ -441,29 +372,19 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           />
         ) : null}
 
-        {/* Slow flashing muted icon in center */}
-        <AnimatePresence>
-          {isVideo && isMuted && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0.3, 0.8, 0.3] }}
-              exit={{ opacity: 0 }}
-              transition={{ 
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-              className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            >
-              <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
-                <VolumeX className="h-8 w-8 text-white" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Mute indicator */}
+        {browserForcedMute && isMuted && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute top-4 left-4 bg-black/60 px-3 py-1.5 rounded-full text-white text-sm flex items-center gap-2"
+          >
+            <VolumeX className="h-4 w-4" />
+            Tap to unmute
+          </motion.div>
+        )}
 
-
-        {/* Play indicator when paused (not holding) */}
+        {/* Play indicator when paused */}
         <AnimatePresence>
           {isVideo && !isPlaying && !isLoading && !hasError && !isHolding && (
             <motion.div

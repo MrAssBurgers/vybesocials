@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, MoreVertical, Eye } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -59,13 +58,9 @@ export const MobileShortCard = memo(function MobileShortCard({
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [viewCount, setViewCount] = useState(post.view_count || 0);
-  const [isHolding, setIsHolding] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
   const playAttemptRef = useRef<NodeJS.Timeout | null>(null);
-  const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const holdStartPosRef = useRef<{ x: number; y: number } | null>(null);
-  const suppressNextTapRef = useRef(false);
 
   // Subscribe to realtime view count updates
   useEffect(() => {
@@ -115,7 +110,7 @@ export const MobileShortCard = memo(function MobileShortCard({
       clearTimeout(playAttemptRef.current);
     }
 
-    if (isActive && !isHolding) {
+    if (isActive) {
       // Delay play slightly to allow DOM updates
       playAttemptRef.current = setTimeout(() => {
         video.muted = true; // Always start muted for autoplay
@@ -143,10 +138,6 @@ export const MobileShortCard = memo(function MobileShortCard({
             });
         }
       }, 100);
-    } else if (isHolding) {
-      // Pause when holding
-      video.pause();
-      setIsPlaying(false);
     } else {
       video.pause();
       video.currentTime = 0;
@@ -159,7 +150,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         clearTimeout(playAttemptRef.current);
       }
     };
-  }, [isActive, signedMediaUrl, isVideo, globalMuted, profile, isHolding]);
+  }, [isActive, signedMediaUrl, isVideo, globalMuted, profile]);
 
   const incrementViewCount = async () => {
     try {
@@ -177,61 +168,9 @@ export const MobileShortCard = memo(function MobileShortCard({
     }
   }, [profile, isActive]);
 
-  // Hold to pause (pointer-based so it works on touch + mouse, and doesn't conflict with scroll)
-  const cancelHoldTimer = useCallback(() => {
-    if (holdTimeoutRef.current) {
-      clearTimeout(holdTimeoutRef.current);
-      holdTimeoutRef.current = null;
-    }
-  }, []);
-
-  const handleHoldStart = useCallback((e: React.PointerEvent) => {
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
-    holdStartPosRef.current = { x: e.clientX, y: e.clientY };
-    cancelHoldTimer();
-    holdTimeoutRef.current = setTimeout(() => {
-      suppressNextTapRef.current = true;
-      setIsHolding(true);
-    }, 200);
-  }, [cancelHoldTimer]);
-
-  const handleHoldMove = useCallback((e: React.PointerEvent) => {
-    const start = holdStartPosRef.current;
-    if (!start) return;
-    const dx = Math.abs(e.clientX - start.x);
-    const dy = Math.abs(e.clientY - start.y);
-    if (dx + dy > 10) {
-      holdStartPosRef.current = null;
-      cancelHoldTimer();
-    }
-  }, [cancelHoldTimer]);
-
-  const handleHoldEnd = useCallback(() => {
-    holdStartPosRef.current = null;
-    cancelHoldTimer();
-    if (isHolding) {
-      setIsHolding(false);
-      window.setTimeout(() => {
-        suppressNextTapRef.current = false;
-      }, 250);
-    } else {
-      suppressNextTapRef.current = false;
-    }
-  }, [cancelHoldTimer, isHolding]);
-
   const handleTap = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    // If we just long-pressed, ignore the synthetic click.
-    if (suppressNextTapRef.current) {
-      suppressNextTapRef.current = false;
-      return;
-    }
-    
-    // If holding, don't process tap
-    if (isHolding) return;
-    
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
 
@@ -251,7 +190,7 @@ export const MobileShortCard = memo(function MobileShortCard({
       }
     }
     lastTapTime.current = now;
-  }, [isMuted, onToggleMute, isLiked, isHolding]);
+  }, [isMuted, onToggleMute, isLiked]);
 
   const handleLike = async () => {
     if (!profile) return;
@@ -310,11 +249,6 @@ export const MobileShortCard = memo(function MobileShortCard({
       <div 
         className="absolute inset-0 flex items-center justify-center"
         onClick={handleTap}
-        onPointerDown={handleHoldStart}
-        onPointerMove={handleHoldMove}
-        onPointerUp={handleHoldEnd}
-        onPointerCancel={handleHoldEnd}
-        onPointerLeave={handleHoldEnd}
       >
         {/* Loading indicator */}
         {isLoading && !hasError && (
@@ -361,27 +295,13 @@ export const MobileShortCard = memo(function MobileShortCard({
           />
         ) : null}
 
-        {/* Slow flashing muted icon in center */}
-        <AnimatePresence>
-          {isVideo && isMuted && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0.3, 0.8, 0.3] }}
-              exit={{ opacity: 0 }}
-              transition={{ 
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-              className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            >
-              <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
-                <VolumeX className="h-8 w-8 text-white" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+        {/* Mute indicator */}
+        {isVideo && isMuted && isPlaying && (
+          <div className="absolute top-4 left-4 bg-black/60 px-3 py-1.5 rounded-full text-white text-sm flex items-center gap-2">
+            <VolumeX className="h-4 w-4" />
+            Tap to unmute
+          </div>
+        )}
       </div>
 
       {/* Gradient overlays */}

@@ -384,22 +384,6 @@ export function ThemeCustomizer() {
                 setBackgroundBlur(blur);
                 updateSetting('backgroundBlur', blur);
               }}
-              onColorsExtracted={(colors) => {
-                // User explicitly chose to match colors from the dialog
-                // Apply extracted colors to the theme
-                const theme = buildTheme();
-                const newTheme: ThemeTokens = {
-                  ...theme,
-                  colorPrimary: colors.primary,
-                  colorAccent: colors.accent,
-                  colorSecondary: colors.secondary,
-                  bgMain: colors.background,
-                  bgCard: colors.background,
-                };
-                applyThemeTokens(newTheme);
-                setCurrentTheme(newTheme);
-                setHasChanges(true);
-              }}
             />
           </div>
         </SheetContent>
