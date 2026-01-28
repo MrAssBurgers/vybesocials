@@ -159,6 +159,8 @@ export function UserProfileHoverCard({
   const isOwnProfile = currentUser?.username === username;
   const isFollowing = profileData?.is_following || false;
 
+  // Prevent hover card from showing big highlight overlay - just show normal card behavior
+
   const handleFollow = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -193,14 +195,16 @@ export function UserProfileHoverCard({
 
   return (
     <HoverCard openDelay={300} closeDelay={100} onOpenChange={setIsOpen}>
-      <HoverCardTrigger asChild>
+      <HoverCardTrigger asChild className="hover:bg-transparent focus:bg-transparent active:bg-transparent [&>*]:hover:bg-transparent">
         {children}
       </HoverCardTrigger>
       <HoverCardContent 
-        className="w-72 p-4" 
+        className="w-72 p-4 z-[100]" 
         side="top" 
         align="start"
         sideOffset={8}
+        collisionPadding={16}
+        avoidCollisions
       >
         {isLoading ? (
           <div className="space-y-3">

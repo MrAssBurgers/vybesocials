@@ -38,9 +38,10 @@ export function useIsMobile() {
 export function useIsMobileOrTablet() {
   const [isMobileOrTablet, setIsMobileOrTablet] = React.useState<boolean>(() => {
     // Initialize with correct value on first render
-    if (typeof window === 'undefined') return false;
+    if (typeof window === 'undefined') return true; // Default to mobile for SSR safety
     const isIPadDevice = detectIsIPad();
     // Treat 1024px wide tablets as tablet (common in preview + some devices)
+    // Use <= to include 1024px exactly (common tablet/preview width)
     return window.innerWidth <= TABLET_BREAKPOINT || isIPadDevice;
   });
   const [isIPad, setIsIPad] = React.useState<boolean>(() => {
@@ -53,13 +54,19 @@ export function useIsMobileOrTablet() {
       const isIPadDevice = detectIsIPad();
       setIsIPad(isIPadDevice);
       // iPad always uses mobile/tablet layout regardless of screen size
-      setIsMobileOrTablet(window.innerWidth <= TABLET_BREAKPOINT || isIPadDevice);
+      // Use <= to include 1024px exactly
+      const shouldBeMobileOrTablet = window.innerWidth <= TABLET_BREAKPOINT || isIPadDevice;
+      setIsMobileOrTablet(shouldBeMobileOrTablet);
     };
 
     // Run immediately to ensure we have correct initial value
     checkDevice();
 
-    const handleResize = () => checkDevice();
+    const handleResize = () => {
+      // Debounce resize to prevent jank
+      requestAnimationFrame(checkDevice);
+    };
+    
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
     

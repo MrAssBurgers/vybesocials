@@ -1,4 +1,4 @@
-import { memo, useEffect } from "react";
+import { memo, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { BottomNav } from "./BottomNav";
 import { useIsMobileOrTablet } from "@/hooks/use-mobile";
@@ -12,9 +12,18 @@ import { navVisibility } from "@/lib/navVisibility";
 // Routes where bottom nav should be hidden
 const HIDDEN_NAV_ROUTES = ['/', '/onboarding', '/complete-profile', '/upload', '/camera'];
 
+// Routes where we use hideNav in AppLayout (immersive experiences)
+const IMMERSIVE_ROUTES = ['/shorts', '/clips'];
+
 export const RootBottomNavMount = memo(function RootBottomNavMount() {
   const { isMobileOrTablet } = useIsMobileOrTablet();
   const location = useLocation();
+  const [mounted, setMounted] = useState(false);
+
+  // Ensure component is mounted before rendering to avoid hydration issues
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Safety: if we navigate away from community chat while the input is focused,
   // the global navVisibility state can remain stuck hidden.
@@ -31,6 +40,14 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
   // Hide nav on landing, onboarding, and profile completion pages
   const isHiddenRoute = HIDDEN_NAV_ROUTES.includes(location.pathname);
   
-  if (!isMobileOrTablet || isInDMConversation || isHiddenRoute) return null;
+  // Check if we're on an immersive route (clips/shorts with their own fullscreen experience)
+  const isImmersiveRoute = IMMERSIVE_ROUTES.some(route => location.pathname.startsWith(route));
+  
+  // Don't render until mounted (prevents hydration mismatch)
+  if (!mounted) return null;
+  
+  // Hide on desktop or hidden routes
+  if (!isMobileOrTablet || isInDMConversation || isHiddenRoute || isImmersiveRoute) return null;
+  
   return <BottomNav />;
 });

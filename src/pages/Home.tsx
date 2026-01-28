@@ -101,15 +101,16 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   // Prefetch posts for faster navigation
   usePrefetchPosts();
 
-  const forYouPosts = useMemo(() => 
-    forYouData?.pages.flatMap(page => page.posts) || [], 
-    [forYouData]
-  );
+  // Filter out shorts/clips from home feed - they should only appear in Explore/Clips
+  const forYouPosts = useMemo(() => {
+    const allPosts = forYouData?.pages.flatMap(page => page.posts) || [];
+    return allPosts.filter(post => post.type !== 'short');
+  }, [forYouData]);
   
-  const followingPosts = useMemo(() => 
-    followingData?.pages.flatMap(page => page.posts) || [], 
-    [followingData]
-  );
+  const followingPosts = useMemo(() => {
+    const allPosts = followingData?.pages.flatMap(page => page.posts) || [];
+    return allPosts.filter(post => post.type !== 'short');
+  }, [followingData]);
 
   // Pull to refresh
   const handleRefresh = useCallback(async () => {
