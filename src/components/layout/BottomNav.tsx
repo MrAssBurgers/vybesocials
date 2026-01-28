@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
-import { useState, useCallback, useRef, memo, useEffect } from 'react';
+import { useState, useCallback, useRef, memo, useEffect, forwardRef } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { CreateMenu } from '@/components/hub/CreateMenu';
@@ -91,8 +91,18 @@ function useNavVisibility() {
   return isVisible;
 }
 
-// Memoized nav item for better performance
-const NavItem = memo(({ 
+type NavItemProps = {
+  path: string;
+  icon: typeof Home;
+  badge: number;
+  isActive: boolean;
+  tutorialId?: string;
+  isHighlighted?: boolean;
+  onClick?: (e: React.MouseEvent) => void;
+};
+
+// Memoized nav item for better performance (and ref-safe for Radix/asChild usages)
+const NavItem = memo(forwardRef<HTMLAnchorElement, NavItemProps>(function NavItem({ 
   path, 
   icon: Icon, 
   badge, 
@@ -100,15 +110,7 @@ const NavItem = memo(({
   tutorialId,
   isHighlighted,
   onClick,
-}: { 
-  path: string; 
-  icon: typeof Home; 
-  badge: number; 
-  isActive: boolean;
-  tutorialId?: string;
-  isHighlighted?: boolean;
-  onClick?: (e: React.MouseEvent) => void;
-}) => {
+}, ref) {
   const handleClick = (e: React.MouseEvent) => {
     if (onClick) {
       onClick(e);
@@ -120,6 +122,7 @@ const NavItem = memo(({
   return (
     <Link
       to={path}
+      ref={ref}
       className="relative flex items-center justify-center min-h-[44px] min-w-[44px]"
       onClick={handleClick}
       data-tutorial={tutorialId}
@@ -154,7 +157,7 @@ const NavItem = memo(({
       </div>
     </Link>
   );
-});
+}));
 
 export function BottomNav() {
   const location = useLocation();
