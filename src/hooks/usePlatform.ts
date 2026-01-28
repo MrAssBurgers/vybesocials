@@ -60,7 +60,8 @@ function detectDevice(): DeviceType {
   if (width < 768 || (hasTouch && width < 768)) {
     return 'mobile';
   }
-  if ((width >= 768 && width < 1024) || isIPad) {
+  // Treat 1024-wide tablets (common iPad/tablet width) as tablet, not desktop
+  if ((width >= 768 && width <= 1024) || isIPad) {
     return 'tablet';
   }
   return 'desktop';
@@ -246,7 +247,8 @@ export function useBreakpoint() {
       const width = window.innerWidth;
       if (width < 640) return 'xs';
       if (width < 768) return 'sm';
-      if (width < 1024) return 'md';
+      // Keep 1024px devices in tablet layout (iPad/tablets)
+      if (width <= 1024) return 'md';
       if (width < 1280) return 'lg';
       if (width < 1536) return 'xl';
       return '2xl';
