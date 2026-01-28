@@ -4,7 +4,7 @@ const MOBILE_BREAKPOINT = 768;
 const TABLET_BREAKPOINT = 1024;
 // Many Android tablets (and some iPad Pros) exceed 1024px CSS width.
 // Use coarse-pointer + touch to keep them in the mobile/tablet UX (bottom nav).
-const LARGE_TABLET_BREAKPOINT = 1366;
+const LARGE_TABLET_BREAKPOINT = 1440; // Increased to capture more tablets
 
 /**
  * Detects if device is an iPad (modern iPads report as Macintosh)

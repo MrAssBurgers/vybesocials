@@ -248,10 +248,10 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     z-index: 2;
   }
   
-  /* Mobile-specific adjustments for background image */
-  @media (max-width: 768px) {
+  /* Mobile AND tablet adjustments for background image - fixes jank on iPad/tablets */
+  @media (max-width: 1440px) and (pointer: coarse), (max-width: 768px) {
     html[data-has-bg-image="true"] #root::before {
-      background-attachment: scroll; /* Prevent mobile rendering issues */
+      background-attachment: scroll; /* Prevent mobile/tablet rendering issues */
     }
   }
 

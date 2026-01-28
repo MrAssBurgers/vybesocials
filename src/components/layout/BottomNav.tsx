@@ -12,75 +12,7 @@ import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
 import { navVisibility } from '@/lib/navVisibility';
 
-// Singleton scroll direction detection to prevent duplicate listeners
-let scrollDirectionListener: (() => void) | null = null;
-let scrollVisibility = true;
-const scrollVisibilityListeners = new Set<(visible: boolean) => void>();
-
-function setupScrollDirectionListener() {
-  if (scrollDirectionListener) return;
-  
-  let lastScrollY = 0;
-  let ticking = false;
-
-  const handleScroll = () => {
-    if (!ticking) {
-      window.requestAnimationFrame(() => {
-        const currentScrollY = window.scrollY;
-        const scrollDiff = currentScrollY - lastScrollY;
-        
-        if (Math.abs(scrollDiff) > 10) {
-          if (scrollDiff > 0 && currentScrollY > 50) {
-            scrollVisibility = false;
-          } else {
-            scrollVisibility = true;
-          }
-        }
-        
-        if (currentScrollY < 50) {
-          scrollVisibility = true;
-        }
-        
-        lastScrollY = currentScrollY;
-        ticking = false;
-        
-        // Notify all listeners
-        scrollVisibilityListeners.forEach(fn => fn(scrollVisibility));
-      });
-      ticking = true;
-    }
-  };
-
-  window.addEventListener('scroll', handleScroll, { passive: true });
-  scrollDirectionListener = () => {
-    window.removeEventListener('scroll', handleScroll);
-    scrollDirectionListener = null;
-  };
-}
-
-// Hook to detect scroll direction - uses singleton listener
-function useScrollDirection() {
-  const [isVisible, setIsVisible] = useState(true);
-
-  useEffect(() => {
-    setupScrollDirectionListener();
-    
-    scrollVisibilityListeners.add(setIsVisible);
-    setIsVisible(scrollVisibility);
-
-    return () => {
-      scrollVisibilityListeners.delete(setIsVisible);
-      // Only cleanup if no more listeners
-      if (scrollVisibilityListeners.size === 0 && scrollDirectionListener) {
-        scrollDirectionListener();
-      }
-    };
-  }, []);
-
-  return isVisible;
-}
-
-// Hook to listen to navVisibility centralized state
+// Hook to listen to navVisibility centralized state (for community chat input hide)
 function useNavVisibility() {
   const [isVisible, setIsVisible] = useState(true);
 
@@ -165,11 +97,9 @@ export function BottomNav() {
   const { profile, loading: authLoading } = useAuth();
   const { isGuest } = useIsGuest();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
-  const scrollVisible = useScrollDirection();
-  const navCentralVisible = useNavVisibility();
   
-  // Combine both visibility states
-  const isVisible = scrollVisible && navCentralVisible;
+  // Only use navVisibility (for community chat/input hide) - NO scroll-to-hide behavior
+  const navCentralVisible = useNavVisibility();
 
   // Hide bottom nav ONLY when onboarding is explicitly incomplete.
   // If profile is still loading / null, we should still render the nav.
@@ -285,8 +215,9 @@ export function BottomNav() {
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
-          transform: isVisible ? 'translateY(0)' : 'translateY(100%)',
-          opacity: isVisible ? 1 : 0,
+          // Only hide when navCentralVisible is false (e.g., community chat input focused)
+          transform: navCentralVisible ? 'translateY(0)' : 'translateY(100%)',
+          opacity: navCentralVisible ? 1 : 0,
           transition: 'transform 0.2s ease-out, opacity 0.15s ease-out',
         }}
         aria-label="Bottom navigation"

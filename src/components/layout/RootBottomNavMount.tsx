@@ -16,6 +16,9 @@ const HIDDEN_NAV_ROUTES = ['/onboarding', '/complete-profile', '/upload', '/came
 // Routes where we use hideNav in AppLayout (immersive experiences)
 const IMMERSIVE_ROUTES = ['/shorts', '/clips'];
 
+// CSS variable name for dynamic bottom padding
+const BOTTOM_NAV_SPACE_VAR = '--bottom-nav-space';
+
 export const RootBottomNavMount = memo(function RootBottomNavMount() {
   const { isMobileOrTablet } = useIsMobileOrTablet();
   const location = useLocation();
@@ -61,24 +64,32 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
   
   // Check if we're on an immersive route (clips/shorts with their own fullscreen experience)
   const isImmersiveRoute = IMMERSIVE_ROUTES.some(route => location.pathname.startsWith(route));
-  
-  // Debug: log nav decision values
+
+  // Compute whether we should render the nav
+  const shouldRender = mounted && isMobileOrTablet && !isInDMConversation && !isHiddenRoute && !isImmersiveRoute;
+
+  // Update CSS variable for dynamic bottom padding - prevents "black block" issue
   useEffect(() => {
-    console.log('[BottomNavMount]', {
-      mounted,
-      isMobileOrTablet,
-      isInDMConversation,
-      isHiddenRoute,
-      isImmersiveRoute,
-      shouldRender: mounted && isMobileOrTablet && !isInDMConversation && !isHiddenRoute && !isImmersiveRoute,
-    });
-  }, [mounted, isMobileOrTablet, isInDMConversation, isHiddenRoute, isImmersiveRoute]);
+    const root = document.documentElement;
+    if (shouldRender) {
+      // Nav is visible: reserve space (5rem + safe area)
+      root.style.setProperty(BOTTOM_NAV_SPACE_VAR, 'calc(5rem + env(safe-area-inset-bottom, 0px))');
+    } else {
+      // Nav is hidden: no reserved space
+      root.style.setProperty(BOTTOM_NAV_SPACE_VAR, '0px');
+    }
+
+    return () => {
+      // Cleanup on unmount (though this component rarely unmounts)
+      root.style.setProperty(BOTTOM_NAV_SPACE_VAR, '0px');
+    };
+  }, [shouldRender]);
 
   // Don't render until mounted (prevents hydration mismatch)
   if (!mounted) return null;
   
   // Hide on desktop or hidden routes
-  if (!isMobileOrTablet || isInDMConversation || isHiddenRoute || isImmersiveRoute) return null;
+  if (!shouldRender) return null;
   
   return <BottomNav />;
 });
