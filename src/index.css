@@ -1536,11 +1536,9 @@ html, body, #root {
 }
 
 /* Performance optimizations during scroll - LIGHTER touch for mobile */
-/* Avoid disabling pointer-events globally as it causes jank on mobile */
-.is-scrolling .post-card,
-.is-scrolling article {
-  pointer-events: none;
-}
+/* IMPORTANT: Do NOT use pointer-events: none here as it blocks clicks on desktop
+   when the is-scrolling class gets stuck or has timing issues. Instead, we only
+   reduce visual complexity during scroll (handled elsewhere with animation pauses). */
 
 /* GPU acceleration for scrolling containers - use sparingly */
 .scroll-container {

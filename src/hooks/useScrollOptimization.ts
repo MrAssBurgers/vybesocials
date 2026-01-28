@@ -3,18 +3,19 @@ import { useEffect, useRef } from 'react';
 // Shared state - singleton pattern
 let scrollListenerAttached = false;
 let isScrolling = false;
+let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Lightweight scroll optimization hook - uses passive listeners
  * SINGLETON: Only one listener across all components
  * NOTE: This hook only adds a CSS class during scroll - it does NOT block scrolling
+ * IMPORTANT: We use a short timeout and aggressive cleanup to prevent the class from
+ * getting stuck (which would block pointer-events on desktop).
  */
 export function useScrollOptimization() {
   useEffect(() => {
     if (scrollListenerAttached) return;
     scrollListenerAttached = true;
-
-    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const handleScroll = () => {
       if (!isScrolling) {
@@ -27,17 +28,32 @@ export function useScrollOptimization() {
       scrollTimeout = setTimeout(() => {
         isScrolling = false;
         document.documentElement.classList.remove('is-scrolling');
-      }, 100); // Short timeout for snappy response
+      }, 80); // Slightly shorter for quicker response
+    };
+
+    // Also clean up on any click to ensure we never get stuck
+    const handleInteraction = () => {
+      if (isScrolling) {
+        if (scrollTimeout) clearTimeout(scrollTimeout);
+        isScrolling = false;
+        document.documentElement.classList.remove('is-scrolling');
+      }
     };
 
     // CRITICAL: passive: true ensures this listener never blocks scrolling
     window.addEventListener('scroll', handleScroll, { passive: true });
+    // Clean up on any click/touch to prevent stuck state
+    window.addEventListener('click', handleInteraction, { passive: true, capture: true });
+    window.addEventListener('touchstart', handleInteraction, { passive: true, capture: true });
     
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
       scrollListenerAttached = false;
       if (scrollTimeout) {
         clearTimeout(scrollTimeout);
+        scrollTimeout = null;
       }
       isScrolling = false;
       document.documentElement.classList.remove('is-scrolling');
