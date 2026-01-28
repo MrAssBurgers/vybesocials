@@ -252,6 +252,7 @@ export function usePlatform(): PlatformInfo {
 export function useBreakpoint() {
   const [breakpoint, setBreakpoint] = useState<'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'>('md');
   const [isIPad, setIsIPad] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   useEffect(() => {
     const getBreakpoint = () => {
@@ -274,25 +275,41 @@ export function useBreakpoint() {
       );
     };
 
+    // Detect touch/coarse pointer devices (Android tablets, etc.)
+    const detectTouchDevice = () => {
+      const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const isCoarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
+      return hasTouch && isCoarsePointer;
+    };
+
     setBreakpoint(getBreakpoint());
     setIsIPad(detectIPad());
+    setIsTouchDevice(detectTouchDevice());
 
-    const handleResize = () => setBreakpoint(getBreakpoint());
+    const handleResize = () => {
+      setBreakpoint(getBreakpoint());
+      setIsTouchDevice(detectTouchDevice());
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const width = typeof window !== 'undefined' ? window.innerWidth : 1024;
+
   // Desktop = sidebars, Tablet/iPad/Mobile = bottom nav
+  // CRITICAL: For touch/coarse devices up to 1440px, treat as tablet (not desktop)
+  // This matches the logic in use-mobile.tsx for consistency
   const isMobileBreakpoint = breakpoint === 'xs' || breakpoint === 'sm';
-  const isTabletBreakpoint = breakpoint === 'md' || isIPad;
-  const isDesktopBreakpoint = breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl';
+  const isTabletBreakpoint = breakpoint === 'md' || isIPad || (isTouchDevice && width <= 1440);
+  // Desktop ONLY if: large screen (lg+) AND NOT a touch device AND NOT iPad
+  const isDesktopBreakpoint = (breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl') && !isTouchDevice && !isIPad;
 
   return {
     breakpoint,
     isMobile: isMobileBreakpoint && !isIPad,
     isTablet: isTabletBreakpoint && !isDesktopBreakpoint,
-    // ONLY true desktop (lg+) gets sidebars - NOT tablets or iPads
-    isDesktop: isDesktopBreakpoint && !isIPad,
+    // ONLY true desktop (lg+ without touch) gets sidebars - NOT tablets or iPads
+    isDesktop: isDesktopBreakpoint,
     isIPad,
   };
 }
