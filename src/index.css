@@ -230,10 +230,16 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     pointer-events: none;
   }
   
-  /* Ensure all content is above the background layers */
-  html[data-has-bg-image="true"] #root > * {
+  /* Ensure main content is above the background layers but don't affect fixed nav */
+  html[data-has-bg-image="true"] #root > *:not(nav) {
     position: relative;
     z-index: 2;
+  }
+  
+  /* Bottom nav must always be on top - override any stacking context */
+  nav[aria-label="Bottom navigation"] {
+    z-index: 2147483647 !important;
+    isolation: isolate;
   }
   
   /* Mobile-specific adjustments for background image */
