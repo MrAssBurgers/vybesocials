@@ -1,12 +1,13 @@
 import { useState, useMemo, memo, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, Eye, User, Search, TrendingUp, Sparkles, Pencil, Check, X } from 'lucide-react';
+import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, User, Search, TrendingUp, Sparkles, Pencil, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+
 import {
   usePublicThemes,
   useSavedThemes,
@@ -32,15 +33,15 @@ interface ThemeCardProps {
   isSaved: boolean;
   isOwn: boolean;
   isPopular?: boolean;
-  isEquipped?: boolean;
+  isActive?: boolean;
   onLike: () => void;
   onSave: () => void;
   onUnsave: () => void;
   onDelete?: () => void;
-  onPreview: () => void;
-  onEquip: () => void;
+  onSelect: () => void;
   onRename?: (newName: string) => void;
 }
+
 
 // Memoized ThemeCard to prevent unnecessary re-renders
 const ThemeCard = memo(function ThemeCard({ 
@@ -49,15 +50,15 @@ const ThemeCard = memo(function ThemeCard({
   isSaved, 
   isOwn,
   isPopular,
-  isEquipped,
+  isActive,
   onLike, 
   onSave, 
   onUnsave, 
   onDelete,
-  onPreview,
-  onEquip,
+  onSelect,
   onRename
 }: ThemeCardProps) {
+
   const tokens = theme.theme_tokens;
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(theme.theme_name);
@@ -77,9 +78,10 @@ const ThemeCard = memo(function ThemeCard({
   return (
     <div className="relative group">
       <div 
+        onClick={onSelect}
         className={cn(
-          "p-3 rounded-xl border-2 transition-colors",
-          isEquipped
+          "p-3 rounded-xl border-2 transition-colors cursor-pointer",
+          isActive
             ? "border-primary bg-primary/10 ring-2 ring-primary/30"
             : isPopular 
               ? "border-primary/50 bg-primary/5 hover:border-primary" 
@@ -87,7 +89,7 @@ const ThemeCard = memo(function ThemeCard({
         )}
       >
         {/* Popular badge */}
-        {isPopular && !isEquipped && (
+        {isPopular && !isActive && (
           <div className="absolute -top-2 -right-2 z-10">
             <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
               <TrendingUp className="h-3 w-3" />
@@ -96,19 +98,18 @@ const ThemeCard = memo(function ThemeCard({
           </div>
         )}
 
-        {/* Equipped badge */}
-        {isEquipped && (
+        {/* Active badge */}
+        {isActive && (
           <div className="absolute -top-2 -right-2 z-10">
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500 text-white text-xs font-medium">
-              ✓ Equipped
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+              ✓ Active
             </div>
           </div>
         )}
 
-        {/* Theme Preview - clickable for preview */}
+        {/* Theme Preview */}
         <div 
-          className="h-20 rounded-lg mb-2 relative overflow-hidden cursor-pointer"
-          onClick={onPreview}
+          className="h-20 rounded-lg mb-2 relative overflow-hidden"
           style={{ 
             background: `linear-gradient(135deg, hsl(${tokens.bgMain || '240 10% 4%'}), hsl(${tokens.bgCard || '240 10% 6%'}))` 
           }}
@@ -128,11 +129,6 @@ const ThemeCard = memo(function ThemeCard({
               style={{ background: `hsl(${tokens.colorAccent || '185 100% 50%'})` }}
             />
           </div>
-          
-          {/* Preview overlay */}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-            <Eye className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
         </div>
 
         {/* Theme Info */}
@@ -145,19 +141,20 @@ const ThemeCard = memo(function ThemeCard({
                   onChange={(e) => setEditName(e.target.value)}
                   className="h-6 text-xs px-2"
                   autoFocus
+                  onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSaveRename();
                     if (e.key === 'Escape') handleCancelRename();
                   }}
                 />
                 <button
-                  onClick={handleSaveRename}
+                  onClick={(e) => { e.stopPropagation(); handleSaveRename(); }}
                   className="p-1 rounded hover:bg-primary/20 text-primary"
                 >
                   <Check className="h-3 w-3" />
                 </button>
                 <button
-                  onClick={handleCancelRename}
+                  onClick={(e) => { e.stopPropagation(); handleCancelRename(); }}
                   className="p-1 rounded hover:bg-destructive/20 text-destructive"
                 >
                   <X className="h-3 w-3" />
@@ -168,7 +165,7 @@ const ThemeCard = memo(function ThemeCard({
                 <h3 className="font-semibold text-xs truncate flex-1">{theme.theme_name}</h3>
                 {isOwn && onRename && (
                   <button
-                    onClick={() => setIsEditing(true)}
+                    onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
                     className="p-1 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
                     title="Edit name"
                   >
@@ -197,63 +194,52 @@ const ThemeCard = memo(function ThemeCard({
             </div>
           )}
 
-          {/* Stats row */}
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            <button
-              onClick={(e) => { e.stopPropagation(); onLike(); }}
-              className="flex items-center gap-0.5 hover:text-primary transition-colors"
-            >
-              <Heart className={cn("h-3 w-3", isLiked && "fill-primary text-primary")} />
-              {theme.likes_count}
-            </button>
-            <span className="flex items-center gap-0.5">
-              <Download className="h-3 w-3" />
-              {theme.downloads_count}
-            </span>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-1.5 pt-1">
-            <Button
-              size="sm"
-              variant={isEquipped ? "secondary" : "default"}
-              className="flex-1 h-7 text-xs"
-              onClick={(e) => { e.stopPropagation(); onEquip(); }}
-              disabled={isEquipped}
-            >
-              {isEquipped ? '✓ Equipped' : 'Equip'}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 flex-shrink-0"
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                isSaved ? onUnsave() : onSave(); 
-              }}
-            >
-              {isSaved ? (
-                <BookmarkCheck className="h-3.5 w-3.5 text-primary" />
-              ) : (
-                <Bookmark className="h-3.5 w-3.5" />
-              )}
-            </Button>
-            {isOwn && onDelete && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 flex-shrink-0"
-                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          {/* Stats and actions row */}
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); onLike(); }}
+                className="flex items-center gap-0.5 hover:text-primary transition-colors"
               >
-                <Trash2 className="h-3.5 w-3.5 text-destructive" />
-              </Button>
-            )}
+                <Heart className={cn("h-3 w-3", isLiked && "fill-primary text-primary")} />
+                {theme.likes_count}
+              </button>
+              <span className="flex items-center gap-0.5">
+                <Download className="h-3 w-3" />
+                {theme.downloads_count}
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-1">
+              <button
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  isSaved ? onUnsave() : onSave(); 
+                }}
+                className="p-1 rounded hover:bg-muted transition-colors"
+              >
+                {isSaved ? (
+                  <BookmarkCheck className="h-3.5 w-3.5 text-primary" />
+                ) : (
+                  <Bookmark className="h-3.5 w-3.5" />
+                )}
+              </button>
+              {isOwn && onDelete && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  className="p-1 rounded hover:bg-destructive/10 transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 });
+
 
 function ThemeGridSkeleton() {
   return (
@@ -287,8 +273,7 @@ export function ThemeGallery() {
   const deleteTheme = useDeleteSharedTheme();
   const updateTheme = useUpdateSharedTheme();
 
-  const [previewingTheme, setPreviewingTheme] = useState<SharedTheme | null>(null);
-  const [equippedThemeId, setEquippedThemeId] = useState<string | null>(() => {
+  const [activeThemeId, setActiveThemeId] = useState<string | null>(() => {
     return localStorage.getItem('vybe-equipped-theme-id');
   });
 
@@ -298,41 +283,25 @@ export function ThemeGallery() {
     return new Set(publicThemes.slice(0, 3).map(t => t.id));
   }, [publicThemes]);
 
-  const handlePreview = useCallback((theme: SharedTheme) => {
-    const primaryColor = theme.theme_tokens?.colorPrimary || '280 70% 50%';
-    const accentColor = theme.theme_tokens?.colorAccent || '330 80% 60%';
-    
-    // Trigger the fire transition animation on preview
-    triggerTransition(primaryColor, accentColor, () => {
-      // Apply theme at midpoint
-      try {
-        applyThemeTokens(theme.theme_tokens);
-        setPreviewingTheme(theme);
-      } catch (error) {
-        console.error('Error previewing theme:', error);
-      }
-    });
-  }, [triggerTransition]);
-
-  const handleEquip = useCallback((theme: SharedTheme) => {
+  // Single action: clicking a theme applies and persists it
+  const handleSelectTheme = useCallback((theme: SharedTheme) => {
     const primaryColor = theme.theme_tokens?.colorPrimary || '280 70% 50%';
     const accentColor = theme.theme_tokens?.colorAccent || '330 80% 60%';
     
     // Trigger global theme transition
     triggerTransition(primaryColor, accentColor, () => {
-      // This runs at the midpoint of the animation
       try {
         applyThemeTokens(theme.theme_tokens);
-        setEquippedThemeId(theme.id);
+        setActiveThemeId(theme.id);
         localStorage.setItem('vybe-equipped-theme-id', theme.id);
         localStorage.setItem('vybe-custom-theme', JSON.stringify(theme.theme_tokens));
-        setPreviewingTheme(null);
-        toast.success(`Theme "${theme.theme_name}" equipped!`);
+        toast.success(`Theme "${theme.theme_name}" applied!`);
       } catch (error) {
-        console.error('Error equipping theme:', error);
+        console.error('Error applying theme:', error);
       }
     });
   }, [triggerTransition]);
+
 
   const handleLike = useCallback((themeId: string, isLiked: boolean) => {
     if (isLiked) {
@@ -396,15 +365,15 @@ export function ThemeGallery() {
                     isSaved={savedThemeIds.includes(theme.id)}
                     isOwn={theme.creator_id === profile?.id}
                     isPopular={popularThemeIds.has(theme.id) && !searchQuery}
-                    isEquipped={equippedThemeId === theme.id}
+                    isActive={activeThemeId === theme.id}
                     onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
                     onSave={() => saveTheme.mutate(theme.id)}
                     onUnsave={() => unsaveTheme.mutate(theme.id)}
                     onDelete={theme.creator_id === profile?.id ? () => deleteTheme.mutate(theme.id) : undefined}
-                    onPreview={() => handlePreview(theme)}
-                    onEquip={() => handleEquip(theme)}
+                    onSelect={() => handleSelectTheme(theme)}
                     onRename={theme.creator_id === profile?.id ? (name) => handleRename(theme.id, name) : undefined}
                   />
+
                 ))}
               </div>
             ) : (
@@ -438,14 +407,14 @@ export function ThemeGallery() {
                     isLiked={likedIds?.includes(theme.id) || false}
                     isSaved={true}
                     isOwn={theme.creator_id === profile?.id}
-                    isEquipped={equippedThemeId === theme.id}
+                    isActive={activeThemeId === theme.id}
                     onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
                     onSave={() => {}}
                     onUnsave={() => unsaveTheme.mutate(theme.id)}
-                    onPreview={() => handlePreview(theme)}
-                    onEquip={() => handleEquip(theme)}
+                    onSelect={() => handleSelectTheme(theme)}
                     onRename={theme.creator_id === profile?.id ? (name) => handleRename(theme.id, name) : undefined}
                   />
+
                 ))}
               </div>
             ) : (
@@ -469,15 +438,15 @@ export function ThemeGallery() {
                     isLiked={likedIds?.includes(theme.id) || false}
                     isSaved={savedThemeIds.includes(theme.id)}
                     isOwn={true}
-                    isEquipped={equippedThemeId === theme.id}
+                    isActive={activeThemeId === theme.id}
                     onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
                     onSave={() => saveTheme.mutate(theme.id)}
                     onUnsave={() => unsaveTheme.mutate(theme.id)}
                     onDelete={() => deleteTheme.mutate(theme.id)}
-                    onPreview={() => handlePreview(theme)}
-                    onEquip={() => handleEquip(theme)}
+                    onSelect={() => handleSelectTheme(theme)}
                     onRename={(name) => handleRename(theme.id, name)}
                   />
+
                 ))}
               </div>
             ) : (
@@ -490,21 +459,6 @@ export function ThemeGallery() {
           </TabsContent>
         </Tabs>
 
-        {/* Preview notification */}
-        {previewingTheme && (
-          <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/30 text-sm">
-            <div className="flex items-center justify-between">
-              <span>Previewing: <strong>{previewingTheme.theme_name}</strong></span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setPreviewingTheme(null)}
-              >
-                Done
-              </Button>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

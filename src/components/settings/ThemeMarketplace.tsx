@@ -1,33 +1,27 @@
 import { useState, memo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   Search, Heart, Download, Star, TrendingUp, Clock, 
-  Palette, Eye, Share2, Copy, Check, X, User, Filter,
-  Sparkles, Code
+  Palette, User, Sparkles, Code
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { 
   usePublicThemes, 
-  useSavedThemes, 
-  useMySharedThemes,
-  useSaveSharedTheme,
   useLikeTheme,
   useUnlikeTheme,
   useUserThemeLikes,
   SharedTheme
 } from '@/hooks/useSharedThemes';
-import { useExportThemeCode, useImportThemeCode } from '@/hooks/useUISettings';
-import { applyThemeTokens, ThemeTokens } from '@/hooks/useCustomTheme';
+import { useImportThemeCode } from '@/hooks/useUISettings';
+import { applyThemeTokens } from '@/hooks/useCustomTheme';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
-import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
@@ -48,22 +42,22 @@ const SORT_OPTIONS = [
 interface ThemeCardProps {
   theme: SharedTheme;
   isLiked: boolean;
+  isActive: boolean;
   onLike: () => void;
   onUnlike: () => void;
-  onPreview: () => void;
-  onInstall: () => void;
-  onShare: () => void;
+  onSelect: () => void;
 }
+
 
 const ThemeCard = memo(function ThemeCard({
   theme,
   isLiked,
+  isActive,
   onLike,
   onUnlike,
-  onPreview,
-  onInstall,
-  onShare,
+  onSelect,
 }: ThemeCardProps) {
+
   const tokens = theme.theme_tokens;
   
   // Generate preview gradient
@@ -76,23 +70,27 @@ const ThemeCard = memo(function ThemeCard({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group relative rounded-xl overflow-hidden border border-border bg-card"
+      onClick={onSelect}
+      className={cn(
+        "group relative rounded-xl overflow-hidden border-2 bg-card cursor-pointer transition-all",
+        isActive ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary/50"
+      )}
     >
+      {/* Active badge */}
+      {isActive && (
+        <div className="absolute top-2 right-2 z-10">
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+            ✓ Active
+          </div>
+        </div>
+      )}
+
       {/* Preview */}
       <div 
-        className="h-32 relative cursor-pointer"
+        className="h-32 relative"
         style={{ background: previewGradient }}
-        onClick={onPreview}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-        
-        {/* Quick actions overlay */}
-        <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); onPreview(); }}>
-            <Eye className="h-4 w-4 mr-1" />
-            Preview
-          </Button>
-        </div>
       </div>
 
       {/* Content */}
@@ -121,38 +119,27 @@ const ThemeCard = memo(function ThemeCard({
           </p>
         )}
 
-        {/* Stats and Actions */}
-        <div className="flex items-center justify-between pt-2 border-t border-border">
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <button 
-              onClick={() => isLiked ? onUnlike() : onLike()}
-              className="flex items-center gap-1 hover:text-primary transition-colors"
-            >
-              <Heart className={cn("h-4 w-4", isLiked && "fill-primary text-primary")} />
-              {theme.likes_count}
-            </button>
-            <span className="flex items-center gap-1">
-              <Download className="h-4 w-4" />
-              {theme.downloads_count}
-            </span>
-          </div>
-          
-          <div className="flex items-center gap-1">
-            <Button size="sm" variant="ghost" onClick={onShare}>
-              <Share2 className="h-4 w-4" />
-            </Button>
-            <Button size="sm" onClick={onInstall}>
-              Install
-            </Button>
-          </div>
+        {/* Stats */}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground pt-2 border-t border-border">
+          <button 
+            onClick={(e) => { e.stopPropagation(); isLiked ? onUnlike() : onLike(); }}
+            className="flex items-center gap-1 hover:text-primary transition-colors"
+          >
+            <Heart className={cn("h-4 w-4", isLiked && "fill-primary text-primary")} />
+            {theme.likes_count}
+          </button>
+          <span className="flex items-center gap-1">
+            <Download className="h-4 w-4" />
+            {theme.downloads_count}
+          </span>
         </div>
       </div>
     </motion.div>
   );
 });
 
+
 export const ThemeMarketplace = memo(function ThemeMarketplace() {
-  const { profile } = useAuth();
   const { triggerTransition } = useThemeTransition();
   
   // Data hooks
@@ -161,22 +148,20 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
   const [sortBy, setSortBy] = useState('trending');
   
   const { data: publicThemes = [], isLoading } = usePublicThemes(searchQuery);
-  const { data: savedThemes = [] } = useSavedThemes();
-  const { data: myThemes = [] } = useMySharedThemes();
   const { data: likedThemeIds = [] } = useUserThemeLikes();
   
   // Mutations
-  const saveTheme = useSaveSharedTheme();
   const likeTheme = useLikeTheme();
   const unlikeTheme = useUnlikeTheme();
-  const exportCode = useExportThemeCode();
   const importCode = useImportThemeCode();
+
   
   // State
-  const [previewTheme, setPreviewTheme] = useState<SharedTheme | null>(null);
+  const [activeThemeId, setActiveThemeId] = useState<string | null>(() => {
+    return localStorage.getItem('vybe-equipped-theme-id');
+  });
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importCodeInput, setImportCodeInput] = useState('');
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // Filter and sort themes
   const filteredThemes = publicThemes
@@ -204,40 +189,39 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
       }
     });
 
-  // Preview theme
-  const handlePreview = useCallback((theme: SharedTheme) => {
-    setPreviewTheme(theme);
-    applyThemeTokens(theme.theme_tokens);
-  }, []);
-
-  // Install theme
-  const handleInstall = useCallback((theme: SharedTheme) => {
+  // Select theme - clicking applies and persists
+  const handleSelectTheme = useCallback((theme: SharedTheme) => {
     const tokens = theme.theme_tokens;
     triggerTransition(
       tokens.colorPrimary || '280 70% 50%',
       tokens.colorAccent || '330 80% 60%',
       () => {
         applyThemeTokens(tokens);
-        saveTheme.mutate(theme.id);
-        setPreviewTheme(null);
+        setActiveThemeId(theme.id);
+        localStorage.setItem('vybe-equipped-theme-id', theme.id);
+        localStorage.setItem('vybe-custom-theme', JSON.stringify(tokens));
+        toast.success(`Theme "${theme.theme_name}" applied!`);
       }
     );
-  }, [triggerTransition, saveTheme]);
+  }, [triggerTransition]);
 
-  // Share theme (generate code)
-  const handleShare = useCallback(async (theme: SharedTheme) => {
-    try {
-      const code = await exportCode.mutateAsync(theme.id);
-      navigator.clipboard.writeText(code);
-      setCopiedCode(code);
-      setTimeout(() => setCopiedCode(null), 3000);
-    } catch (err) {
-      // Error handled by mutation
-    }
-  }, [exportCode]);
 
   // Import theme by code
   const handleImport = useCallback(async () => {
+    if (!importCodeInput.trim()) return;
+    
+    try {
+      const theme = await importCode.mutateAsync(importCodeInput.trim());
+      if (theme) {
+        handleSelectTheme(theme as unknown as SharedTheme);
+        setImportDialogOpen(false);
+        setImportCodeInput('');
+      }
+    } catch (err) {
+      // Error handled by mutation
+    }
+  }, [importCodeInput, importCode, handleSelectTheme]);
+
     if (!importCodeInput.trim()) return;
     
     try {
@@ -370,96 +354,15 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
               key={theme.id}
               theme={theme}
               isLiked={likedThemeIds.includes(theme.id)}
+              isActive={activeThemeId === theme.id}
               onLike={() => likeTheme.mutate(theme.id)}
               onUnlike={() => unlikeTheme.mutate(theme.id)}
-              onPreview={() => handlePreview(theme)}
-              onInstall={() => handleInstall(theme)}
-              onShare={() => handleShare(theme)}
+              onSelect={() => handleSelectTheme(theme)}
             />
           ))
         )}
       </div>
-
-      {/* Preview Dialog */}
-      <AnimatePresence>
-        {previewTheme && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setPreviewTheme(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="max-w-md w-full bg-card rounded-2xl border border-border p-6 space-y-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">{previewTheme.theme_name}</h3>
-                <Button variant="ghost" size="icon" onClick={() => setPreviewTheme(null)}>
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-              
-              <p className="text-sm text-muted-foreground">
-                {previewTheme.description || 'A beautiful custom theme for VYBE'}
-              </p>
-              
-              <div className="flex items-center gap-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={previewTheme.creator?.avatar_url || ''} />
-                  <AvatarFallback>
-                    <User className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-sm font-medium">
-                    {previewTheme.creator?.display_name || previewTheme.creator?.username}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Theme Creator</p>
-                </div>
-              </div>
-              
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  className="flex-1"
-                  onClick={() => setPreviewTheme(null)}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  className="flex-1"
-                  onClick={() => handleInstall(previewTheme)}
-                >
-                  Install Theme
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Copied Code Toast */}
-      <AnimatePresence>
-        {copiedCode && (
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-card border border-border rounded-xl px-4 py-3 shadow-lg flex items-center gap-3"
-          >
-            <Check className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-sm font-medium">Code copied!</p>
-              <p className="text-xs text-muted-foreground font-mono">{copiedCode}</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 });
+
