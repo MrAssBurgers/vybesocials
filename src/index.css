@@ -221,20 +221,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     pointer-events: none;
   }
 
-  /* Readability overlay - above image, below app */
-  html[data-has-bg-image="true"] body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: 1;
-    background: linear-gradient(
-      to bottom,
-      hsl(var(--background) / 0.14) 0%,
-      hsl(var(--background) / 0.06) 50%,
-      hsl(var(--background) / 0.14) 100%
-    );
-    pointer-events: none;
-  }
+  /* No overlay - let the background image show through fully */
 
   /* Body and #root must be transparent when background image is active */
   html[data-has-bg-image="true"] body,
