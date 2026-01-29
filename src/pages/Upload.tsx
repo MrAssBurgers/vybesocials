@@ -343,7 +343,7 @@ export default function UploadPage() {
         {/* Mobile/Tablet back button */}
         {isMobileOrTablet && (
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/home')}
             className="w-10 h-10 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center transition-colors mb-2"
           >
             <ArrowLeft className="w-5 h-5" />
