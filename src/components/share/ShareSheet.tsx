@@ -1,17 +1,14 @@
 import { useState, useCallback, memo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  X, 
   Link2, 
   Share2, 
   Download, 
   Check, 
   Send,
-  BookmarkPlus,
   PenLine
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
 import { useFriends } from '@/hooks/useFriends';
@@ -20,6 +17,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { navVisibility } from '@/lib/navVisibility';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ShareSheetProps {
   isOpen: boolean;
@@ -36,11 +34,11 @@ interface QuickFriend {
   avatar_url: string | null;
   display_name: string | null;
   sent?: boolean;
+  sending?: boolean;
 }
 
 /**
- * Instagram-style share sheet with clean UI and smooth animations.
- * Quick send to friends + share options.
+ * Instagram-style share sheet with clean glassmorphic UI and plane animation.
  */
 export const ShareSheet = memo(function ShareSheet({
   isOpen,
@@ -52,10 +50,11 @@ export const ShareSheet = memo(function ShareSheet({
 }: ShareSheetProps) {
   const { profile } = useAuth();
   const { data: friends } = useFriends();
+  const queryClient = useQueryClient();
   const [quickFriends, setQuickFriends] = useState<QuickFriend[]>([]);
-  const [sendingTo, setSendingTo] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
+  const [flyingPlanes, setFlyingPlanes] = useState<string[]>([]);
 
   // Hide bottom nav when sheet is open
   useEffect(() => {
@@ -79,6 +78,7 @@ export const ShareSheet = memo(function ShareSheet({
           avatar_url: f.avatar_url,
           display_name: f.display_name,
           sent: false,
+          sending: false,
         }))
       );
     }
@@ -89,7 +89,7 @@ export const ShareSheet = memo(function ShareSheet({
     if (!isOpen) {
       setSearchQuery('');
       setLinkCopied(false);
-      setSendingTo(null);
+      setFlyingPlanes([]);
     }
   }, [isOpen]);
 
@@ -103,11 +103,15 @@ export const ShareSheet = memo(function ShareSheet({
       )
     : quickFriends;
 
-  // Quick send to friend via DM - Instagram style (sends actual media, not text)
+  // Quick send to friend via DM with plane animation
   const handleQuickSend = useCallback(async (friend: QuickFriend) => {
-    if (!profile || friend.sent) return;
+    if (!profile || friend.sent || friend.sending) return;
 
-    setSendingTo(friend.id);
+    // Start plane animation
+    setFlyingPlanes(prev => [...prev, friend.id]);
+    setQuickFriends(prev => 
+      prev.map(f => f.id === friend.id ? { ...f, sending: true } : f)
+    );
 
     try {
       // Find or create conversation
@@ -116,38 +120,44 @@ export const ShareSheet = memo(function ShareSheet({
       });
 
       if (convId) {
-        // Send the actual media like Instagram - no "check this out" text
         const isVideo = postType === 'video' || postType === 'short';
         
         await supabase.from('messages').insert({
           conversation_id: convId,
           sender_id: profile.id,
-          // Store the post ID in content so we can navigate to it
           content: postId,
           media_url: mediaUrl || null,
           media_type: isVideo ? 'video' : 'image',
-          // Use message_type to indicate this is a shared post
           message_type: 'shared_post',
         });
 
-        // Update conversation timestamp so it appears at top of DM list
+        // Update conversation timestamp to move it to top
         await supabase
           .from('conversations')
           .update({ updated_at: new Date().toISOString() })
           .eq('id', convId);
 
-        // Mark as sent with animation
-        setQuickFriends(prev => 
-          prev.map(f => f.id === friend.id ? { ...f, sent: true } : f)
-        );
+        // Invalidate DM queries to refresh the list instantly
+        queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+
+        // Mark as sent after animation completes
+        setTimeout(() => {
+          setQuickFriends(prev => 
+            prev.map(f => f.id === friend.id ? { ...f, sent: true, sending: false } : f)
+          );
+          setFlyingPlanes(prev => prev.filter(id => id !== friend.id));
+        }, 600);
       }
     } catch (error) {
       console.error('Failed to send:', error);
       toast.error('Failed to send');
-    } finally {
-      setSendingTo(null);
+      setQuickFriends(prev => 
+        prev.map(f => f.id === friend.id ? { ...f, sending: false } : f)
+      );
+      setFlyingPlanes(prev => prev.filter(id => id !== friend.id));
     }
-  }, [profile, postId, postType, mediaUrl, caption]);
+  }, [profile, postId, postType, mediaUrl, queryClient]);
 
   // Copy link to clipboard
   const handleCopyLink = useCallback(() => {
@@ -210,8 +220,8 @@ export const ShareSheet = memo(function ShareSheet({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 bg-black/60 z-[100]"
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100]"
             onClick={onClose}
           />
 
@@ -222,91 +232,87 @@ export const ShareSheet = memo(function ShareSheet({
             exit={{ y: '100%' }}
             transition={{ 
               type: 'spring', 
-              damping: 28, 
-              stiffness: 380,
+              damping: 32, 
+              stiffness: 400,
               mass: 0.8
             }}
             className={cn(
               "fixed bottom-0 left-0 right-0 z-[101]",
-              "bg-background rounded-t-2xl overflow-hidden",
+              "bg-background/95 backdrop-blur-xl",
+              "rounded-t-3xl overflow-hidden",
+              "border-t border-border/20",
               "pb-safe"
             )}
           >
             {/* Handle */}
-            <div className="flex justify-center py-2.5">
-              <div className="w-9 h-1 bg-muted-foreground/25 rounded-full" />
+            <div className="flex justify-center py-3">
+              <div className="w-10 h-1 bg-foreground/20 rounded-full" />
+            </div>
+
+            {/* Title */}
+            <div className="px-5 pb-4">
+              <h3 className="text-lg font-semibold text-center">Share</h3>
             </div>
 
             {/* Search bar */}
-            <div className="px-4 pb-3">
+            <div className="px-4 pb-4">
               <Input
-                placeholder="Search..."
+                placeholder="Search friends..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-muted/50 border-0 h-9 rounded-xl text-sm placeholder:text-muted-foreground/60"
+                className="bg-muted/40 border-0 h-10 rounded-xl text-sm placeholder:text-muted-foreground/50 focus-visible:ring-1 focus-visible:ring-primary/30"
               />
             </div>
 
-            {/* Friends grid - Instagram style */}
-            <div className="px-4 pb-4">
-              <div className="grid grid-cols-4 gap-3">
-                {filteredFriends.slice(0, 8).map((friend, index) => (
+            {/* Friends grid */}
+            <div className="px-4 pb-5">
+              <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                {filteredFriends.slice(0, 10).map((friend, index) => (
                   <FriendSendButton
                     key={friend.id}
                     friend={friend}
                     onClick={() => handleQuickSend(friend)}
-                    isSending={sendingTo === friend.id}
-                    delay={index * 0.02}
+                    isFlying={flyingPlanes.includes(friend.id)}
+                    delay={index * 0.03}
                   />
                 ))}
               </div>
             </div>
 
             {/* Divider */}
-            <div className="h-px bg-border mx-4" />
+            <div className="h-px bg-border/30 mx-5" />
 
-            {/* Actions row - Instagram style */}
-            <div className="px-4 py-4">
-              <div className="flex justify-around">
+            {/* Actions row */}
+            <div className="px-5 py-5">
+              <div className="flex justify-around gap-2">
                 <ActionButton
                   icon={PenLine}
-                  label="Add to story"
+                  label="Story"
                   onClick={handleShareToStory}
                   delay={0}
                 />
                 <ActionButton
                   icon={linkCopied ? Check : Link2}
-                  label={linkCopied ? "Copied!" : "Copy link"}
+                  label={linkCopied ? "Copied" : "Link"}
                   onClick={handleCopyLink}
                   active={linkCopied}
-                  delay={0.03}
+                  delay={0.05}
                 />
                 <ActionButton
                   icon={Share2}
-                  label="Share to..."
+                  label="More"
                   onClick={handleSystemShare}
-                  delay={0.06}
+                  delay={0.1}
                 />
                 {mediaUrl && (
                   <ActionButton
                     icon={Download}
                     label="Save"
                     onClick={handleDownload}
-                    delay={0.09}
+                    delay={0.15}
                   />
                 )}
               </div>
-            </div>
-
-            {/* Cancel button */}
-            <div className="px-4 pb-4">
-              <Button
-                variant="secondary"
-                onClick={onClose}
-                className="w-full h-12 rounded-xl font-semibold text-base"
-              >
-                Cancel
-              </Button>
             </div>
           </motion.div>
         </>
@@ -315,76 +321,94 @@ export const ShareSheet = memo(function ShareSheet({
   );
 });
 
-// Friend send button component - Instagram style
+// Friend send button with plane animation
 const FriendSendButton = memo(function FriendSendButton({
   friend,
   onClick,
-  isSending,
+  isFlying,
   delay,
 }: {
   friend: QuickFriend;
   onClick: () => void;
-  isSending: boolean;
+  isFlying: boolean;
   delay: number;
 }) {
   const signedUrl = useSignedUrl(friend.avatar_url);
 
   return (
     <motion.button
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay, duration: 0.2 }}
-      whileTap={{ scale: 0.92 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.3, ease: 'easeOut' }}
+      whileTap={{ scale: 0.9 }}
       onClick={onClick}
-      disabled={friend.sent || isSending}
-      className="flex flex-col items-center gap-1.5"
+      disabled={friend.sent || friend.sending}
+      className="flex flex-col items-center gap-2 min-w-[72px]"
     >
       <div className="relative">
-        <Avatar className="h-14 w-14">
-          <AvatarImage src={signedUrl || undefined} />
-          <AvatarFallback className="bg-muted text-muted-foreground font-medium">
-            {friend.username[0].toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        {/* Avatar */}
+        <motion.div
+          animate={friend.sent ? { scale: [1, 1.1, 1] } : {}}
+          transition={{ duration: 0.3 }}
+        >
+          <Avatar className={cn(
+            "h-16 w-16 ring-2 ring-offset-2 ring-offset-background transition-all duration-300",
+            friend.sent ? "ring-primary" : "ring-transparent"
+          )}>
+            <AvatarImage src={signedUrl || undefined} className="object-cover" />
+            <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-foreground font-semibold text-lg">
+              {friend.username[0].toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </motion.div>
         
-        {/* Send indicator overlay */}
-        <AnimatePresence mode="wait">
-          {friend.sent ? (
+        {/* Flying plane animation */}
+        <AnimatePresence>
+          {isFlying && (
             <motion.div
-              key="sent"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', damping: 15, stiffness: 400 }}
-              className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-primary rounded-full flex items-center justify-center border-2 border-background"
+              initial={{ scale: 0.5, opacity: 1, x: 0, y: 0 }}
+              animate={{ 
+                scale: [0.5, 1, 0.8],
+                opacity: [1, 1, 0],
+                x: [0, 40, 100],
+                y: [0, -60, -120],
+                rotate: [0, -15, -30]
+              }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10"
             >
-              <Check className="h-3 w-3 text-primary-foreground" />
-            </motion.div>
-          ) : isSending ? (
-            <motion.div
-              key="sending"
-              className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center"
-            >
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
-                className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="send"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-muted rounded-full flex items-center justify-center border-2 border-background"
-            >
-              <Send className="h-2.5 w-2.5 text-muted-foreground" />
+              <Send className="h-6 w-6 text-primary" fill="currentColor" />
             </motion.div>
           )}
         </AnimatePresence>
+        
+        {/* Sent checkmark */}
+        <AnimatePresence>
+          {friend.sent && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', damping: 15, stiffness: 400 }}
+              className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center border-2 border-background shadow-lg"
+            >
+              <Check className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={3} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Send icon (before sending) */}
+        {!friend.sent && !friend.sending && (
+          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center border-2 border-background shadow-md">
+            <Send className="h-3 w-3 text-primary-foreground" />
+          </div>
+        )}
       </div>
       
-      <span className="text-[11px] text-foreground/80 truncate max-w-[60px] leading-tight">
-        {friend.display_name || friend.username}
+      <span className={cn(
+        "text-xs font-medium truncate max-w-[68px] transition-colors",
+        friend.sent ? "text-primary" : "text-foreground/80"
+      )}>
+        {friend.display_name?.split(' ')[0] || friend.username}
       </span>
     </motion.button>
   );
@@ -406,23 +430,28 @@ const ActionButton = memo(function ActionButton({
 }) {
   return (
     <motion.button
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.2 }}
+      transition={{ delay, duration: 0.25 }}
       whileTap={{ scale: 0.9 }}
       onClick={onClick}
-      className="flex flex-col items-center gap-2"
+      className="flex flex-col items-center gap-2 flex-1"
     >
       <div className={cn(
-        "w-14 h-14 rounded-full flex items-center justify-center transition-colors",
-        active ? "bg-primary" : "bg-muted"
+        "w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200",
+        active 
+          ? "bg-primary shadow-lg shadow-primary/30" 
+          : "bg-muted/60 hover:bg-muted"
       )}>
         <Icon className={cn(
-          "h-6 w-6 transition-colors",
+          "h-5 w-5 transition-colors",
           active ? "text-primary-foreground" : "text-foreground"
         )} />
       </div>
-      <span className="text-xs text-foreground/70 font-medium">
+      <span className={cn(
+        "text-xs font-medium transition-colors",
+        active ? "text-primary" : "text-foreground/70"
+      )}>
         {label}
       </span>
     </motion.button>

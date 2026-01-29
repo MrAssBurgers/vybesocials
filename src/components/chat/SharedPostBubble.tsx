@@ -1,7 +1,7 @@
 import { memo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Play, ExternalLink, Film } from 'lucide-react';
+import { Play, Film } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,8 +17,7 @@ interface SharedPostBubbleProps {
 }
 
 /**
- * Instagram-style shared post bubble that displays as a clickable thumbnail.
- * When tapped, navigates to the video/post in the feed.
+ * Clean video bubble for shared posts - shows video with title at bottom.
  */
 export const SharedPostBubble = memo(function SharedPostBubble({
   postId,
@@ -112,7 +111,6 @@ export const SharedPostBubble = memo(function SharedPostBubble({
     if (onNavigate) {
       onNavigate(postId);
     } else {
-      // Navigate to post detail or shorts view
       if (isVideo && postData?.type === 'short') {
         navigate(`/shorts?startId=${postId}`);
       } else {
@@ -124,16 +122,16 @@ export const SharedPostBubble = memo(function SharedPostBubble({
   // Loading state
   if (isLoading) {
     return (
-      <div className="w-36 sm:w-44 aspect-square rounded-2xl bg-muted/50 animate-pulse flex items-center justify-center">
+      <div className="w-44 sm:w-52 aspect-[4/5] rounded-2xl bg-muted/50 animate-pulse flex items-center justify-center">
         <Film className="h-6 w-6 text-muted-foreground/50" />
       </div>
     );
   }
 
-  // Error state - post not found or deleted
+  // Error state
   if (hasError || !postData) {
     return (
-      <div className="w-36 sm:w-44 aspect-square rounded-2xl bg-muted/30 border border-border/50 flex flex-col items-center justify-center gap-2 p-4">
+      <div className="w-44 sm:w-52 aspect-[4/5] rounded-2xl bg-muted/30 border border-border/50 flex flex-col items-center justify-center gap-2 p-4">
         <Film className="h-8 w-8 text-muted-foreground/50" />
         <p className="text-xs text-muted-foreground text-center">Post unavailable</p>
       </div>
@@ -142,6 +140,11 @@ export const SharedPostBubble = memo(function SharedPostBubble({
 
   // Determine which image to show
   const displayUrl = signedThumbnailUrl || signedMediaUrl;
+  
+  // Get a short title from caption (first line or first few words)
+  const videoTitle = postData.caption 
+    ? postData.caption.split('\n')[0].slice(0, 40) + (postData.caption.length > 40 ? '...' : '')
+    : null;
 
   return (
     <motion.button
@@ -149,7 +152,7 @@ export const SharedPostBubble = memo(function SharedPostBubble({
       className={cn(
         "relative overflow-hidden rounded-2xl cursor-pointer",
         "w-44 sm:w-52 aspect-[4/5]",
-        "bg-black/90",
+        "bg-black",
         "active:scale-[0.98] transition-transform",
         "shadow-lg"
       )}
@@ -177,15 +180,21 @@ export const SharedPostBubble = memo(function SharedPostBubble({
         <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-accent/30" />
       )}
 
-      {/* Subtle gradient overlay for depth */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10" />
-
       {/* Play button for videos */}
       {isVideo && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-11 h-11 rounded-full flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <Play className="h-5 w-5 text-white ml-0.5" fill="white" />
+          <div className="w-12 h-12 rounded-full flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <Play className="h-6 w-6 text-white ml-0.5" fill="white" />
           </div>
+        </div>
+      )}
+
+      {/* Bottom gradient for title */}
+      {videoTitle && (
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-10 pb-3 px-3">
+          <p className="text-xs text-white font-medium line-clamp-2 text-left leading-tight">
+            {videoTitle}
+          </p>
         </div>
       )}
     </motion.button>
