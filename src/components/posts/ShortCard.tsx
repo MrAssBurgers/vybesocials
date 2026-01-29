@@ -50,7 +50,7 @@ interface ShortCardProps {
 }
 
 // Memoized to prevent re-renders during scroll
-export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted = true, onToggleMute, isHolding = false }: ShortCardProps) {
+export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted = true, onToggleMute, isHolding: externalIsHolding = false }: ShortCardProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
@@ -61,7 +61,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isMuted, setIsMuted] = useState(globalMuted);
-  const [browserForcedMute, setBrowserForcedMute] = useState(false);
   const [isLiked, setIsLiked] = useState(post.is_liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
@@ -72,11 +71,16 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [isHolding, setIsHolding] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
+  const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author?.avatar_url || null);
+  
+  // Combine external and internal holding state
+  const effectiveIsHolding = externalIsHolding || isHolding;
   const { isSlowConnection } = useNetworkStatus();
 
   // Subscribe to realtime view count updates
@@ -115,7 +119,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   // Handle hold pause
   useEffect(() => {
     if (videoRef.current) {
-      if (isHolding) {
+      if (effectiveIsHolding) {
         videoRef.current.pause();
         setIsPlaying(false);
       } else if (isActive) {
@@ -123,23 +127,22 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         setIsPlaying(true);
       }
     }
-  }, [isHolding, isActive]);
+  }, [effectiveIsHolding, isActive]);
 
   // Auto-play when active
   useEffect(() => {
     if (videoRef.current && signedMediaUrl) {
-      if (isActive && !isHolding) {
+      if (isActive && !effectiveIsHolding) {
         videoRef.current.muted = isMuted;
         videoRef.current.play().then(() => {
           setIsPlaying(true);
-          setBrowserForcedMute(false);
           // Count initial view
           if (!hasCountedInitialView.current && profile) {
             hasCountedInitialView.current = true;
             incrementViewCount();
           }
         }).catch(() => {
-          setBrowserForcedMute(true);
+          // Browser blocked autoplay - force muted and retry
           if (videoRef.current) {
             videoRef.current.muted = true;
             setIsMuted(true);
@@ -155,7 +158,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         setIsPlaying(false);
       }
     }
-  }, [isActive, signedMediaUrl, isHolding, isMuted, profile]);
+  }, [isActive, signedMediaUrl, effectiveIsHolding, isMuted, profile]);
 
   const incrementViewCount = async () => {
     try {
@@ -172,9 +175,30 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     }
   }, [profile, isActive]);
 
+  // Touch handlers for hold-to-pause (Instagram-style)
+  const handleTouchStart = useCallback(() => {
+    holdTimeoutRef.current = setTimeout(() => {
+      setIsHolding(true);
+    }, 150);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+    if (isHolding) {
+      setIsHolding(false);
+    }
+  }, [isHolding]);
+
   // Tap to toggle mute (single tap), double tap to like
   const handleTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    // If we were holding, don't process as tap
+    if (isHolding) return;
+    
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
     
@@ -191,7 +215,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       }
     }
     lastTapTime.current = now;
-  }, [isMuted, onToggleMute]);
+  }, [isMuted, onToggleMute, isHolding]);
   
   // Guard against null author - return early with placeholder AFTER all hooks
   if (!post.author) {
@@ -331,6 +355,12 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       <div 
         className="absolute inset-0 flex items-center justify-center"
         onClick={handleTap}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onMouseDown={handleTouchStart}
+        onMouseUp={handleTouchEnd}
+        onMouseLeave={handleTouchEnd}
       >
         {/* Loading skeleton */}
         {isLoading && !hasError && (
@@ -372,21 +402,33 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           />
         ) : null}
 
-        {/* Mute indicator */}
-        {browserForcedMute && isMuted && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute top-4 left-4 bg-black/60 px-3 py-1.5 rounded-full text-white text-sm flex items-center gap-2"
-          >
-            <VolumeX className="h-4 w-4" />
-            Tap to unmute
-          </motion.div>
-        )}
-
-        {/* Play indicator when paused */}
+        {/* Instagram-style pulsing muted icon - only visible when muted */}
         <AnimatePresence>
-          {isVideo && !isPlaying && !isLoading && !hasError && !isHolding && (
+          {isVideo && isMuted && isPlaying && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ 
+                opacity: [0.6, 0.9, 0.6],
+                scale: [1, 1.1, 1]
+              }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10"
+            >
+              <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
+                <VolumeX className="h-8 w-8 text-white/80" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Play indicator when paused (but NOT when holding - no UI for hold-pause) */}
+        <AnimatePresence>
+          {isVideo && !isPlaying && !isLoading && !hasError && !effectiveIsHolding && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

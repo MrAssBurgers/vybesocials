@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, memo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Search, 
@@ -63,7 +63,7 @@ interface ClipPost {
 }
 
 // Top tab bar for switching between Clips and Videos
-function ExploreTabBar({ 
+const ExploreTabBar = memo(function ExploreTabBar({ 
   viewMode, 
   onTabChange 
 }: { 
@@ -100,7 +100,7 @@ function ExploreTabBar({
       </div>
     </div>
   );
-}
+});
 
 const BOTTOM_NAV_HEIGHT = 80;
 
