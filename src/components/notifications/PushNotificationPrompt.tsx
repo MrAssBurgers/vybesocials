@@ -106,25 +106,46 @@ export function PushNotificationPrompt() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          className="absolute inset-0 bg-background/80 backdrop-blur-md"
           onClick={handleDismiss}
         />
         
-        {/* Modal Card */}
+        {/* Modal Card - liquid-glass vybe design */}
         <motion.div 
           initial={{ y: 20 }}
           animate={{ y: 0 }}
-          className="relative w-full max-w-sm bg-card/95 backdrop-blur-md border border-border rounded-3xl p-8 shadow-2xl"
+          className="relative w-full max-w-sm liquid-glass border border-primary/20 rounded-3xl p-8 shadow-2xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="text-center">
-            {/* Icon */}
-            <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center mb-6 shadow-lg shadow-primary/25">
-              <Bell className="h-10 w-10 text-white" />
-            </div>
+          {/* Animated gradient border glow */}
+          <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/20 via-transparent to-accent/20 pointer-events-none" />
+          
+          {/* Scanline overlay for cyber effect */}
+          <div 
+            className="absolute inset-0 pointer-events-none opacity-[0.03]"
+            style={{
+              backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, hsl(var(--foreground)) 2px, hsl(var(--foreground)) 4px)',
+            }}
+          />
+          
+          <div className="relative text-center">
+            {/* Animated Bell Icon with pulsing glow */}
+            <motion.div 
+              animate={{ 
+                boxShadow: [
+                  '0 0 20px hsl(var(--primary) / 0.3)',
+                  '0 0 40px hsl(var(--primary) / 0.5)',
+                  '0 0 20px hsl(var(--primary) / 0.3)'
+                ]
+              }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center mb-6"
+            >
+              <Bell className="h-10 w-10 text-primary-foreground" />
+            </motion.div>
             
             {/* Text */}
-            <h2 className="text-2xl font-bold mb-3">Turn on Notifications</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-3">Turn on Notifications</h2>
             <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
               Stay connected with instant updates for messages, calls, and friend activity. Never miss a moment!
             </p>
@@ -134,14 +155,14 @@ export function PushNotificationPrompt() {
               <Button 
                 onClick={handleEnable}
                 disabled={isLoading}
-                className="w-full h-12 text-base font-semibold rounded-xl gradient-animated"
+                className="w-full h-12 text-base font-semibold rounded-xl bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground transition-opacity"
               >
                 {isLoading ? 'Enabling...' : 'Enable Notifications'}
               </Button>
               <Button 
                 variant="ghost" 
                 onClick={handleDismiss}
-                className="w-full h-10 text-muted-foreground hover:text-foreground"
+                className="w-full h-10 text-muted-foreground hover:text-foreground hover:bg-muted/50"
               >
                 Not Now
               </Button>
