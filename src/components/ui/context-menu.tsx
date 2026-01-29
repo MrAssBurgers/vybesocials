@@ -44,7 +44,9 @@ const ContextMenuSubContent = React.forwardRef<
   <ContextMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
+      "z-50 min-w-[8rem] overflow-hidden rounded-xl liquid-glass p-1.5 text-popover-foreground shadow-xl",
+      "origin-[var(--radix-context-menu-content-transform-origin)]",
+      "data-[state=open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
       className,
     )}
     {...props}
@@ -60,7 +62,10 @@ const ContextMenuContent = React.forwardRef<
     <ContextMenuPrimitive.Content
       ref={ref}
       className={cn(
-        "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
+        "z-50 min-w-[8rem] overflow-hidden rounded-xl liquid-glass p-1.5 text-popover-foreground shadow-xl",
+        // Bubble pop animation - grows from click point
+        "origin-[var(--radix-context-menu-content-transform-origin)]",
+        "data-[state=open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
         className,
       )}
       {...props}

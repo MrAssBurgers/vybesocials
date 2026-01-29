@@ -39,8 +39,8 @@ const sheetVariants = cva(
     "border border-border/50",
     "overflow-hidden rounded-2xl md:rounded-3xl",
     "shadow-2xl shadow-black/20",
-    // Animations
-    "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+    // Bubble pop animation
+    "data-[state=open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
   ].join(" "),
   {
     variants: {
@@ -91,7 +91,6 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
         ref={ref}
         className={cn(
           sheetVariants({ side }),
-          "data-[state=open]:animate-in data-[state=closed]:animate-out",
           className,
         )}
         {...props}
