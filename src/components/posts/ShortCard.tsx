@@ -116,15 +116,20 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     }
   }, [globalMuted]);
 
-  // Handle hold pause
+  // Track if resuming from hold to preserve mute state
+  const wasHoldingRef = useRef(false);
+
+  // Handle hold pause - preserve mute state
   useEffect(() => {
     if (videoRef.current) {
       if (effectiveIsHolding) {
         videoRef.current.pause();
         setIsPlaying(false);
       } else if (isActive) {
-        videoRef.current.play().catch(() => {});
-        setIsPlaying(true);
+        // Resume with current mute state preserved (don't change video.muted)
+        videoRef.current.play().then(() => {
+          setIsPlaying(true);
+        }).catch(() => {});
       }
     }
   }, [effectiveIsHolding, isActive]);
@@ -132,8 +137,16 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   // Auto-play when active
   useEffect(() => {
     if (videoRef.current && signedMediaUrl) {
+      const isResumingFromHold = wasHoldingRef.current && !effectiveIsHolding;
+      wasHoldingRef.current = effectiveIsHolding;
+
       if (isActive && !effectiveIsHolding) {
-        videoRef.current.muted = isMuted;
+        // Only set mute on initial play, not when resuming from hold
+        if (!isResumingFromHold) {
+          videoRef.current.muted = isMuted;
+        }
+        // Otherwise preserve current mute state
+        
         videoRef.current.play().then(() => {
           setIsPlaying(true);
           // Count initial view
