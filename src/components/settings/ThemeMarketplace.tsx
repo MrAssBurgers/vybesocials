@@ -222,20 +222,6 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
     }
   }, [importCodeInput, importCode, handleSelectTheme]);
 
-    if (!importCodeInput.trim()) return;
-    
-    try {
-      const theme = await importCode.mutateAsync(importCodeInput.trim());
-      if (theme) {
-        handleInstall(theme as unknown as SharedTheme);
-        setImportDialogOpen(false);
-        setImportCodeInput('');
-      }
-    } catch (err) {
-      // Error handled by mutation
-    }
-  }, [importCodeInput, importCode, handleInstall]);
-
   return (
     <div className="space-y-6">
       {/* Header */}
