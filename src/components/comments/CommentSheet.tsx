@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence, PanInfo, useDragControls } from 'framer-motion';
-import { Image, Send, Smile, Loader2, X } from 'lucide-react';
+import { Send, Smile, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -48,13 +48,10 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
 
   const [text, setText] = useState('');
   const [replyingTo, setReplyingTo] = useState<{ id: string; username: string } | null>(null);
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
-  const [mediaType, setMediaType] = useState<'image' | 'gif' | null>(null);
+  const [gifUrl, setGifUrl] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(0.6); // 60% of screen
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // Hide bottom nav when sheet is open
@@ -82,55 +79,13 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
     }
   }, [onClose]);
 
-  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !profile) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be less than 5MB');
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `comments/${profile.user_id}/${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(fileName);
-
-      setMediaUrl(publicUrl);
-      setMediaType('image');
-    } catch (error) {
-      console.error('Failed to upload image:', error);
-      toast.error('Failed to upload image');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }, [profile]);
-
-  const handleGifSelect = useCallback((gifUrl: string) => {
-    setMediaUrl(gifUrl);
-    setMediaType('gif');
+  const handleGifSelect = useCallback((url: string) => {
+    setGifUrl(url);
     setShowGifPicker(false);
   }, []);
 
-  const clearMedia = useCallback(() => {
-    setMediaUrl(null);
-    setMediaType(null);
+  const clearGif = useCallback(() => {
+    setGifUrl(null);
   }, []);
 
   const handleSubmit = useCallback(async () => {
@@ -139,24 +94,23 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
       return;
     }
 
-    if (!text.trim() && !mediaUrl) return;
+    if (!text.trim() && !gifUrl) return;
 
     try {
       await createComment.mutateAsync({
         postId,
         text: text.trim(),
         authorId,
-        imageUrl: mediaUrl || undefined,
+        imageUrl: gifUrl || undefined,
       });
 
       setText('');
-      setMediaUrl(null);
-      setMediaType(null);
+      setGifUrl(null);
       setReplyingTo(null);
     } catch (error) {
       // Error handled in mutation
     }
-  }, [profile, text, mediaUrl, postId, authorId, createComment]);
+  }, [profile, text, gifUrl, postId, authorId, createComment]);
 
   const handleReply = useCallback((commentId: string, username: string) => {
     setReplyingTo({ id: commentId, username });
@@ -168,7 +122,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
     setText('');
   }, []);
 
-  const canSubmit = (text.trim() || mediaUrl) && !createComment.isPending && !isUploading;
+  const canSubmit = (text.trim() || gifUrl) && !createComment.isPending;
 
   return (
     <AnimatePresence>
@@ -269,9 +223,9 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
                   )}
                 </AnimatePresence>
 
-                {/* Media preview */}
+                {/* GIF preview */}
                 <AnimatePresence>
-                  {mediaUrl && (
+                  {gifUrl && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
@@ -280,23 +234,21 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
                     >
                       <div className="relative inline-block rounded-lg overflow-hidden border border-border max-w-[120px]">
                         <img
-                          src={mediaUrl}
-                          alt="Preview"
+                          src={gifUrl}
+                          alt="GIF Preview"
                           className="w-full h-auto max-h-20 object-cover"
                         />
                         <Button
                           variant="secondary"
                           size="icon"
-                          onClick={clearMedia}
+                          onClick={clearGif}
                           className="absolute top-1 right-1 h-5 w-5 rounded-full bg-background/80"
                         >
                           <X className="h-3 w-3" />
                         </Button>
-                        {mediaType === 'gif' && (
-                          <span className="absolute bottom-1 left-1 px-1 py-0.5 rounded text-[8px] font-medium bg-black/60 text-white">
-                            GIF
-                          </span>
-                        )}
+                        <span className="absolute bottom-1 left-1 px-1 py-0.5 rounded text-[8px] font-medium bg-black/60 text-white">
+                          GIF
+                        </span>
                       </div>
                     </motion.div>
                   )}
@@ -318,36 +270,13 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
                       className="border-0 bg-transparent p-0 min-h-[32px] focus-visible:ring-0"
                     />
 
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageSelect}
-                      className="hidden"
-                    />
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading || !!mediaUrl}
-                      className="h-7 w-7 flex-shrink-0"
-                    >
-                      {isUploading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Image className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-
                     <div className="relative">
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         onClick={() => setShowGifPicker(!showGifPicker)}
-                        disabled={!!mediaUrl}
+                        disabled={!!gifUrl}
                         className="h-7 w-7 flex-shrink-0"
                       >
                         <Smile className="h-4 w-4 text-muted-foreground" />
