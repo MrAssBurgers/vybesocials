@@ -319,16 +319,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     setTimeout(() => setShowHeart(false), 800);
   };
 
-  const handleShare = async () => {
-    const url = `${window.location.origin}/p/${post.id}`;
-    if (navigator.share) {
-      await navigator.share({ title: 'Check this out on VYBE', url });
-    } else {
-      navigator.clipboard.writeText(url);
-      toast.success('Link copied!');
-    }
-  };
-
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this clip?')) return;
 
