@@ -204,8 +204,8 @@ export function useRealtimeConversations() {
         async (payload) => {
           const newMessage = payload.new as any;
           
-          // Instantly update conversation list
-          queryClient.setQueryData<any[]>(['conversations', profile.id], (old) => {
+          // Instantly update conversation list - update both query keys
+          const updateConversations = (old: any[] | undefined) => {
             if (!old) return old;
             
             const updated = old.map(conv => {
@@ -216,6 +216,7 @@ export function useRealtimeConversations() {
                   last_message: newMessage,
                   updated_at: newMessage.created_at,
                   _sortTime: newMessage.created_at,
+                  _hasUnread: isFromOther ? true : conv._hasUnread,
                   unread_count: isFromOther 
                     ? (conv.unread_count || 0) + 1 
                     : conv.unread_count,
@@ -224,13 +225,30 @@ export function useRealtimeConversations() {
               return conv;
             });
             
-            // Sort by most recent
+            // Sort by unread first, then most recent (Instagram-style)
             return updated.sort((a, b) => {
+              // Pinned first
+              if (a.members && b.members) {
+                const aIsPinned = a.members.find((m: any) => m.user_id === profile.id)?.is_pinned;
+                const bIsPinned = b.members.find((m: any) => m.user_id === profile.id)?.is_pinned;
+                if (aIsPinned && !bIsPinned) return -1;
+                if (!aIsPinned && bIsPinned) return 1;
+              }
+              
+              // Unread first
+              if (a._hasUnread && !b._hasUnread) return -1;
+              if (!a._hasUnread && b._hasUnread) return 1;
+              
+              // Then by time
               const timeA = new Date(a._sortTime || a.updated_at).getTime();
               const timeB = new Date(b._sortTime || b.updated_at).getTime();
               return timeB - timeA;
             });
-          });
+          };
+          
+          // Update both query keys for consistency
+          queryClient.setQueryData<any[]>(['conversations', profile.id], updateConversations);
+          queryClient.setQueryData<any[]>(['dm-conversations', profile.id], updateConversations);
           
           // Sound is handled by useMessageNotifications to avoid duplicates
         }
@@ -240,6 +258,7 @@ export function useRealtimeConversations() {
         { event: '*', schema: 'public', table: 'conversation_members' },
         () => {
           queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
+          queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
         }
       )
       .subscribe();
