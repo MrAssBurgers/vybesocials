@@ -11,11 +11,13 @@ interface PreloadStatus {
 
 // Granular preload steps with descriptive labels
 const PRELOAD_STEPS = [
-  { key: 'init', label: 'Waking up...', weight: 10 },
-  { key: 'auth', label: 'Checking session...', weight: 15 },
-  { key: 'profile', label: 'Loading your profile...', weight: 20 },
-  { key: 'feed', label: 'Getting your feed...', weight: 30 },
-  { key: 'messages', label: 'Syncing messages...', weight: 20 },
+  { key: 'init', label: 'Waking up...', weight: 5 },
+  { key: 'auth', label: 'Checking session...', weight: 10 },
+  { key: 'profile', label: 'Loading profile...', weight: 10 },
+  { key: 'feed', label: 'Getting your feed...', weight: 25 },
+  { key: 'clips', label: 'Loading clips...', weight: 20 },
+  { key: 'social', label: 'Syncing social...', weight: 20 },
+  { key: 'final', label: 'Final touches...', weight: 5 },
   { key: 'ready', label: 'Let\'s go! ✨', weight: 5 },
 ];
 
@@ -55,11 +57,11 @@ export function useAppPreloader() {
       return;
     }
 
-    // Safety timeout - reduced to 1.5 seconds for faster access
+    // Safety timeout - 2 seconds max wait
     const safetyTimeout = setTimeout(() => {
       console.warn('[Preloader] Safety timeout reached, forcing complete');
       setStatus({ step: 'Ready!', progress: 100, isComplete: true });
-    }, 1500);
+    }, 2000);
 
     const preload = async () => {
       const startTime = performance.now();
@@ -75,7 +77,7 @@ export function useAppPreloader() {
         try {
           const authResult = await Promise.race([
             supabase.auth.getSession(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 2000))
           ]) as { data: { session: any } };
           session = authResult.data.session;
         } catch {
@@ -83,52 +85,42 @@ export function useAppPreloader() {
         }
 
         if (!session?.user) {
-          // Guest mode - load public feed only
+          // Guest mode - load public content in parallel
           updateStatus('feed');
           
-          const { data: posts } = await supabase.rpc('get_posts_with_counts', {
-            p_type: null,
-            p_author_id: null,
-            p_user_id: null,
-            p_offset: 0,
-            p_limit: 30,
-          });
+          const [feedResult, clipsResult] = await Promise.allSettled([
+            supabase.rpc('get_posts_with_counts', {
+              p_type: 'feed_post',
+              p_author_id: null,
+              p_user_id: null,
+              p_offset: 0,
+              p_limit: 30,
+            }),
+            supabase.rpc('get_posts_with_counts', {
+              p_type: 'clip',
+              p_author_id: null,
+              p_user_id: null,
+              p_offset: 0,
+              p_limit: 20,
+            }),
+          ]);
 
-          if (posts) {
-            const transformedPosts = (posts as any[]).map((row) => ({
-              id: row.id,
-              type: row.type,
-              media_url: row.media_url,
-              thumbnail_url: row.thumbnail_url,
-              caption: row.caption || '',
-              tags: row.tags || [],
-              created_at: row.created_at,
-              is_pinned: row.is_pinned,
-              author: {
-                id: row.author_id,
-                username: row.author_username,
-                avatar_url: row.author_avatar_url,
-              },
-              like_count: Number(row.like_count) || 0,
-              comment_count: Number(row.comment_count) || 0,
-              is_liked: false,
-              is_bookmarked: false,
-            }));
+          // Cache feed
+          if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+            const posts = feedResult.value.data as any[];
+            cacheFeedData(queryClient, posts, null, 'feed_post');
+            
+            // Pre-sign URLs
+            const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+            batchSignUrls(urlsToSign).catch(() => {});
+          }
 
-            queryClient.setQueryData(
-              ['infinite-posts', undefined, undefined, null],
-              {
-                pages: [{ 
-                  posts: transformedPosts, 
-                  nextPage: transformedPosts.length >= 30 ? 1 : null, 
-                  totalLoaded: transformedPosts.length 
-                }],
-                pageParams: [0],
-              }
-            );
-
-            // Pre-sign URLs for guest mode too
-            const urlsToSign = (posts as any[]).flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+          // Cache clips
+          if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
+            const clips = clipsResult.value.data as any[];
+            cacheFeedData(queryClient, clips, null, 'clip');
+            
+            const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
             batchSignUrls(urlsToSign).catch(() => {});
           }
 
@@ -144,25 +136,58 @@ export function useAppPreloader() {
         const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', uid)
+          .eq('user_id', uid)
           .maybeSingle();
 
+        const profileId = profileData?.id;
         if (profileData) {
-          queryClient.setQueryData(['profile', uid], profileData);
+          queryClient.setQueryData(['profile', profileId], profileData);
         }
 
-        // Step 4: Load feed and conversations in parallel
+        // Step 4: Load feed posts and clips in parallel
         updateStatus('feed');
 
-        const [feedResult, conversationsResult] = await Promise.allSettled([
-          // Feed
+        const [feedResult, clipsResult] = await Promise.allSettled([
           supabase.rpc('get_posts_with_counts', {
-            p_type: null,
+            p_type: 'feed_post',
             p_author_id: null,
-            p_user_id: uid,
+            p_user_id: profileId,
             p_offset: 0,
             p_limit: 30,
           }),
+          supabase.rpc('get_posts_with_counts', {
+            p_type: 'clip',
+            p_author_id: null,
+            p_user_id: profileId,
+            p_offset: 0,
+            p_limit: 20,
+          }),
+        ]);
+
+        // Cache feed
+        if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+          const posts = feedResult.value.data as any[];
+          cacheFeedData(queryClient, posts, profileId, 'feed_post');
+          
+          const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+          batchSignUrls(urlsToSign).catch(() => {});
+        }
+
+        updateStatus('clips');
+
+        // Cache clips
+        if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
+          const clips = clipsResult.value.data as any[];
+          cacheFeedData(queryClient, clips, profileId, 'clip');
+          
+          const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+          batchSignUrls(urlsToSign).catch(() => {});
+        }
+
+        // Step 5: Load social data in parallel (conversations, notifications, friend requests, stories)
+        updateStatus('social');
+
+        const [conversationsResult, notificationsResult, friendRequestsResult, storiesResult] = await Promise.allSettled([
           // Conversations
           supabase
             .from('conversation_members')
@@ -170,57 +195,82 @@ export function useAppPreloader() {
               conversation:conversations!inner(id, name, is_group, avatar_url, updated_at),
               is_muted, is_pinned, last_read_at
             `)
-            .eq('user_id', uid)
+            .eq('user_id', profileId)
             .order('conversation(updated_at)', { ascending: false })
             .limit(30),
+          // Notifications
+          supabase
+            .from('notifications')
+            .select(`
+              *,
+              actor:profiles!notifications_actor_id_fkey(id, username, avatar_url)
+            `)
+            .eq('user_id', profileId)
+            .order('created_at', { ascending: false })
+            .limit(20),
+          // Friend requests
+          supabase
+            .from('friend_requests')
+            .select(`
+              *,
+              sender:profiles!friend_requests_sender_id_fkey(id, username, display_name, avatar_url)
+            `)
+            .eq('receiver_id', profileId)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false })
+            .limit(20),
+          // Stories
+          supabase
+            .from('stories')
+            .select(`
+              *,
+              author:profiles!stories_author_id_fkey(id, username, avatar_url)
+            `)
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false })
+            .limit(50),
         ]);
-
-        updateStatus('messages');
-
-        // Cache feed and pre-sign URLs
-        if (feedResult.status === 'fulfilled' && feedResult.value.data) {
-          const posts = feedResult.value.data as any[];
-          const transformedPosts = posts.map((row) => ({
-            id: row.id,
-            type: row.type,
-            media_url: row.media_url,
-            thumbnail_url: row.thumbnail_url,
-            caption: row.caption || '',
-            tags: row.tags || [],
-            created_at: row.created_at,
-            is_pinned: row.is_pinned,
-            author: {
-              id: row.author_id,
-              username: row.author_username,
-              avatar_url: row.author_avatar_url,
-            },
-            like_count: Number(row.like_count) || 0,
-            comment_count: Number(row.comment_count) || 0,
-            is_liked: row.is_liked || false,
-            is_bookmarked: row.is_bookmarked || false,
-          }));
-
-          queryClient.setQueryData(
-            ['infinite-posts', undefined, undefined, uid],
-            {
-              pages: [{ 
-                posts: transformedPosts, 
-                nextPage: transformedPosts.length >= 30 ? 1 : null, 
-                totalLoaded: transformedPosts.length 
-              }],
-              pageParams: [0],
-            }
-          );
-
-          // Pre-sign all URLs for instant display (fire and forget)
-          const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-          batchSignUrls(urlsToSign).catch(() => {});
-        }
 
         // Cache conversations
         if (conversationsResult.status === 'fulfilled' && conversationsResult.value.data) {
-          queryClient.setQueryData(['conversations', uid], conversationsResult.value.data);
+          queryClient.setQueryData(['conversations', profileId], conversationsResult.value.data);
         }
+
+        // Cache notifications
+        if (notificationsResult.status === 'fulfilled' && notificationsResult.value.data) {
+          queryClient.setQueryData(['notifications', profileId], notificationsResult.value.data);
+        }
+
+        // Cache friend requests
+        if (friendRequestsResult.status === 'fulfilled' && friendRequestsResult.value.data) {
+          queryClient.setQueryData(['friend-requests', profileId], friendRequestsResult.value.data);
+        }
+
+        // Cache stories and pre-sign URLs
+        if (storiesResult.status === 'fulfilled' && storiesResult.value.data) {
+          const stories = storiesResult.value.data;
+          queryClient.setQueryData(['stories'], stories);
+          
+          const storyUrls = stories.flatMap((s: any) => [s.media_url, s.author?.avatar_url]).filter(Boolean);
+          batchSignUrls(storyUrls).catch(() => {});
+        }
+
+        // Step 6: Final optimizations
+        updateStatus('final');
+
+        // Pre-fetch user's own posts for profile view (non-blocking)
+        supabase.rpc('get_posts_with_counts', {
+          p_type: null,
+          p_author_id: profileId,
+          p_user_id: profileId,
+          p_offset: 0,
+          p_limit: 20,
+        }).then(({ data }) => {
+          if (data) {
+            const posts = data as any[];
+            queryClient.setQueryData(['user-posts', profileId], posts);
+          }
+        });
 
         // Log performance
         console.log(`[Preloader] Complete - ${(performance.now() - startTime).toFixed(0)}ms`);
@@ -239,4 +289,61 @@ export function useAppPreloader() {
   }, [queryClient, updateStatus]);
 
   return status;
+}
+
+// Helper function to cache feed data in the correct format
+function cacheFeedData(
+  queryClient: ReturnType<typeof useQueryClient>,
+  posts: any[],
+  userId: string | null,
+  type: string
+) {
+  const transformedPosts = posts.map((row) => ({
+    id: row.id,
+    type: row.type,
+    media_url: row.media_url,
+    thumbnail_url: row.thumbnail_url,
+    caption: row.caption || '',
+    tags: row.tags || [],
+    created_at: row.created_at,
+    is_pinned: row.is_pinned,
+    view_count: row.view_count || 0,
+    author: {
+      id: row.author_id,
+      username: row.author_username,
+      avatar_url: row.author_avatar_url,
+    },
+    like_count: Number(row.like_count) || 0,
+    comment_count: Number(row.comment_count) || 0,
+    is_liked: row.is_liked || false,
+    is_bookmarked: row.is_bookmarked || false,
+  }));
+
+  // Cache with the correct query key format
+  queryClient.setQueryData(
+    ['infinite-posts', type, undefined, userId],
+    {
+      pages: [{ 
+        posts: transformedPosts, 
+        nextPage: transformedPosts.length >= 20 ? 1 : null, 
+        totalLoaded: transformedPosts.length 
+      }],
+      pageParams: [0],
+    }
+  );
+
+  // Also cache for generic feed query
+  if (type === 'feed_post') {
+    queryClient.setQueryData(
+      ['infinite-posts', undefined, undefined, userId],
+      {
+        pages: [{ 
+          posts: transformedPosts, 
+          nextPage: transformedPosts.length >= 30 ? 1 : null, 
+          totalLoaded: transformedPosts.length 
+        }],
+        pageParams: [0],
+      }
+    );
+  }
 }
