@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, Camera, Mic, Users, Check, Shield, ChevronRight } from 'lucide-react';
+import { Bell, Camera, Mic, Users, Check, Shield, ChevronRight, Smartphone, MapPin, Vibrate } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ interface PermissionItem {
   description: string;
   icon: typeof Bell;
   isRequired: boolean;
+  mobileOnly?: boolean;
 }
 
 const PERMISSIONS: PermissionItem[] = [
@@ -36,6 +37,29 @@ const PERMISSIONS: PermissionItem[] = [
     isRequired: false,
   },
   {
+    id: 'motion',
+    name: 'Motion & Sensors',
+    description: 'Shake detection & gesture controls',
+    icon: Smartphone,
+    isRequired: false,
+    mobileOnly: true,
+  },
+  {
+    id: 'location',
+    name: 'Location',
+    description: 'Find nearby friends & local events',
+    icon: MapPin,
+    isRequired: false,
+  },
+  {
+    id: 'haptics',
+    name: 'Haptics & Vibration',
+    description: 'Tactile feedback for interactions',
+    icon: Vibrate,
+    isRequired: false,
+    mobileOnly: true,
+  },
+  {
     id: 'contacts',
     name: 'Contacts',
     description: 'Find friends already on VYBE',
@@ -48,23 +72,45 @@ interface PermissionsSetupProps {
   onAllRequiredGranted: (granted: boolean) => void;
 }
 
+type PermissionState = 'granted' | 'denied' | 'pending' | 'unsupported';
+
 export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps) {
   const { t } = useTranslation();
-  const [permissionStates, setPermissionStates] = useState<Record<string, 'granted' | 'denied' | 'pending'>>({
+  const [permissionStates, setPermissionStates] = useState<Record<string, PermissionState>>({
     notifications: 'pending',
     camera: 'pending',
     microphone: 'pending',
+    motion: 'pending',
+    location: 'pending',
+    haptics: 'pending',
     contacts: 'pending',
   });
   const [requesting, setRequesting] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect if mobile/tablet
+  useEffect(() => {
+    const checkMobile = () => {
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const isSmallScreen = window.innerWidth <= 1024;
+      setIsMobile(isTouchDevice && isSmallScreen);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Check initial permission states
   useEffect(() => {
     const checkPermissions = async () => {
-      const states: Record<string, 'granted' | 'denied' | 'pending'> = {
+      const states: Record<string, PermissionState> = {
         notifications: 'pending',
         camera: 'pending',
         microphone: 'pending',
+        motion: 'pending',
+        location: 'pending',
+        haptics: 'pending',
         contacts: 'pending',
       };
 
@@ -91,6 +137,36 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
         } catch {
           // Permissions API might not support microphone
         }
+
+        // Check geolocation permission
+        try {
+          const geo = await navigator.permissions.query({ name: 'geolocation' });
+          states.location = geo.state === 'granted' ? 'granted' : 
+                           geo.state === 'denied' ? 'denied' : 'pending';
+        } catch {
+          // Geolocation check failed
+        }
+      }
+
+      // Check motion sensors - DeviceMotionEvent requires permission on iOS 13+
+      if (typeof DeviceMotionEvent !== 'undefined') {
+        // @ts-ignore - requestPermission is iOS-specific
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+          // iOS 13+ - requires explicit permission
+          states.motion = 'pending';
+        } else {
+          // Android and other platforms - generally granted by default
+          states.motion = 'granted';
+        }
+      } else {
+        states.motion = 'unsupported';
+      }
+
+      // Check haptics/vibration support
+      if ('vibrate' in navigator) {
+        states.haptics = 'granted'; // Vibration API doesn't require explicit permission
+      } else {
+        states.haptics = 'unsupported';
       }
 
       // Contacts API doesn't have a persistent permission check
@@ -146,6 +222,62 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
           }
           break;
 
+        case 'motion':
+          try {
+            // @ts-ignore - requestPermission is iOS-specific
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+              // @ts-ignore
+              const result = await DeviceMotionEvent.requestPermission();
+              setPermissionStates(prev => ({
+                ...prev,
+                motion: result === 'granted' ? 'granted' : 'denied'
+              }));
+            } else {
+              // Android/other - test by listening for event
+              const testMotion = () => {
+                setPermissionStates(prev => ({ ...prev, motion: 'granted' }));
+                window.removeEventListener('devicemotion', testMotion);
+              };
+              window.addEventListener('devicemotion', testMotion, { once: true });
+              
+              // If no event after 1 second, assume granted (some devices don't emit events when stationary)
+              setTimeout(() => {
+                window.removeEventListener('devicemotion', testMotion);
+                setPermissionStates(prev => ({ 
+                  ...prev, 
+                  motion: prev.motion === 'pending' ? 'granted' : prev.motion 
+                }));
+              }, 1000);
+            }
+          } catch {
+            setPermissionStates(prev => ({ ...prev, motion: 'denied' }));
+          }
+          break;
+
+        case 'location':
+          try {
+            await new Promise<GeolocationPosition>((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                timeout: 10000,
+                maximumAge: 0
+              });
+            });
+            setPermissionStates(prev => ({ ...prev, location: 'granted' }));
+          } catch {
+            setPermissionStates(prev => ({ ...prev, location: 'denied' }));
+          }
+          break;
+
+        case 'haptics':
+          // Vibration API doesn't require permission - just test it
+          if ('vibrate' in navigator) {
+            navigator.vibrate(50); // Short vibration to confirm it works
+            setPermissionStates(prev => ({ ...prev, haptics: 'granted' }));
+          } else {
+            setPermissionStates(prev => ({ ...prev, haptics: 'unsupported' }));
+          }
+          break;
+
         case 'contacts':
           // Contacts API is per-request, just mark as granted if supported
           if ('contacts' in navigator && 'ContactsManager' in window) {
@@ -163,7 +295,16 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
     }
   }, []);
 
-  const allGranted = Object.values(permissionStates).every(s => s === 'granted');
+  // Filter permissions based on device type
+  const visiblePermissions = PERMISSIONS.filter(p => {
+    if (p.mobileOnly && !isMobile) return false;
+    if (permissionStates[p.id] === 'unsupported') return false;
+    return true;
+  });
+
+  const allGranted = visiblePermissions.every(p => 
+    permissionStates[p.id] === 'granted' || permissionStates[p.id] === 'unsupported'
+  );
 
   return (
     <div className="space-y-6">
@@ -179,11 +320,12 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
       </div>
 
       {/* Permission Cards */}
-      <div className="space-y-3">
-        {PERMISSIONS.map((permission, index) => {
+      <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+        {visiblePermissions.map((permission, index) => {
           const state = permissionStates[permission.id];
           const isGranted = state === 'granted';
           const isDenied = state === 'denied';
+          const isUnsupported = state === 'unsupported';
           const isRequesting = requesting === permission.id;
 
           return (
@@ -191,14 +333,16 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
               key={permission.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
+              transition={{ delay: index * 0.08 }}
               className={cn(
                 "p-4 rounded-2xl border transition-all duration-200",
                 isGranted 
                   ? "bg-green-500/10 border-green-500/30" 
                   : isDenied
                     ? "bg-destructive/10 border-destructive/30"
-                    : "bg-card border-border"
+                    : isUnsupported
+                      ? "bg-muted/50 border-border/50 opacity-50"
+                      : "bg-card border-border"
               )}
             >
               <div className="flex items-center gap-4">
@@ -221,11 +365,16 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
 
                 {/* Text */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-semibold">{permission.name}</h3>
                     {permission.isRequired && !isGranted && (
                       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">
                         Required
+                      </span>
+                    )}
+                    {permission.mobileOnly && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/20 text-accent-foreground">
+                        Mobile
                       </span>
                     )}
                   </div>
@@ -235,7 +384,7 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
                 </div>
 
                 {/* Action Button */}
-                {!isGranted && (
+                {!isGranted && !isUnsupported && (
                   <Button
                     size="sm"
                     variant={isDenied ? "outline" : "default"}
@@ -259,6 +408,12 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
                 {isGranted && (
                   <div className="shrink-0 text-green-500 font-medium text-sm">
                     Enabled
+                  </div>
+                )}
+
+                {isUnsupported && (
+                  <div className="shrink-0 text-muted-foreground font-medium text-sm">
+                    N/A
                   </div>
                 )}
               </div>
