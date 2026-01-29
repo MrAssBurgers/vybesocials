@@ -77,16 +77,16 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Backdrop - CSS transition for performance */}
+            {/* Backdrop - Highest z-index to cover everything */}
             <div
-              className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm animate-fade-in"
+              className="fixed inset-0 z-[2147483646] bg-black/60 backdrop-blur-sm animate-fade-in"
               onClick={onClose}
               style={{ animationDuration: '150ms' }}
             />
 
-            {/* Menu - Optimized slide-up animation */}
+            {/* Menu - Centered on screen with highest z-index */}
             <div
-              className="fixed inset-0 z-[101] flex items-end sm:items-center justify-center pointer-events-none pb-24 sm:pb-0"
+              className="fixed inset-0 z-[2147483647] flex items-center justify-center pointer-events-none"
             >
               <div 
                 className="liquid-glass overflow-hidden rounded-3xl p-4 w-[90vw] max-w-xs pointer-events-auto animate-slide-up-bounce"
