@@ -165,8 +165,8 @@ export function DesktopRightSidebar() {
       className={cn(
         "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-40",
         "w-[240px] 2xl:w-[280px] overflow-hidden",
-        "bg-gradient-to-b from-background via-background/98 to-background",
-        "backdrop-blur-xl"
+        "bg-background/60 backdrop-blur-2xl backdrop-saturate-150",
+        "border-l border-white/10"
       )}
     >
       <ScrollArea className="flex-1 h-full">
