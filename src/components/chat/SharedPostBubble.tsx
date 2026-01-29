@@ -1,7 +1,7 @@
 import { memo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Play, Film } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,7 +17,8 @@ interface SharedPostBubbleProps {
 }
 
 /**
- * Clean video bubble for shared posts - shows video with title at bottom.
+ * Clean video bubble for shared clips - just thumbnail with title at bottom.
+ * No extra backgrounds, minimal, Instagram-style.
  */
 export const SharedPostBubble = memo(function SharedPostBubble({
   postId,
@@ -34,20 +35,14 @@ export const SharedPostBubble = memo(function SharedPostBubble({
     thumbnail_url: string | null;
     caption: string | null;
     type: string | null;
-    author?: {
-      username: string;
-      avatar_url: string | null;
-    };
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
 
   // Fetch post data if not provided
   useEffect(() => {
     async function fetchPost() {
       if (!postId) {
         setIsLoading(false);
-        setHasError(true);
         return;
       }
 
@@ -67,32 +62,20 @@ export const SharedPostBubble = memo(function SharedPostBubble({
       try {
         const { data, error } = await supabase
           .from('posts')
-          .select(`
-            id,
-            media_url,
-            thumbnail_url,
-            caption,
-            type,
-            author:profiles!author_id(username, avatar_url)
-          `)
+          .select('id, media_url, thumbnail_url, caption, type')
           .eq('id', postId)
           .maybeSingle();
 
-        if (error || !data) {
-          console.error('Failed to fetch shared post:', error);
-          setHasError(true);
-        } else {
+        if (!error && data) {
           setPostData({
             media_url: data.media_url,
             thumbnail_url: data.thumbnail_url,
             caption: data.caption,
             type: data.type,
-            author: data.author as any,
           });
         }
       } catch (err) {
         console.error('Error fetching shared post:', err);
-        setHasError(true);
       } finally {
         setIsLoading(false);
       }
@@ -119,46 +102,31 @@ export const SharedPostBubble = memo(function SharedPostBubble({
     }
   };
 
-  // Loading state
+  // Loading skeleton
   if (isLoading) {
     return (
-      <div className="w-44 sm:w-52 aspect-[4/5] rounded-2xl bg-muted/50 animate-pulse flex items-center justify-center">
-        <Film className="h-6 w-6 text-muted-foreground/50" />
-      </div>
+      <div className="w-40 aspect-[4/5] rounded-2xl bg-muted/50 animate-pulse" />
     );
   }
 
-  // Error state
-  if (hasError || !postData) {
-    return (
-      <div className="w-44 sm:w-52 aspect-[4/5] rounded-2xl bg-muted/30 border border-border/50 flex flex-col items-center justify-center gap-2 p-4">
-        <Film className="h-8 w-8 text-muted-foreground/50" />
-        <p className="text-xs text-muted-foreground text-center">Post unavailable</p>
-      </div>
-    );
-  }
+  // No data - don't render anything broken
+  if (!postData) return null;
 
   // Determine which image to show
   const displayUrl = signedThumbnailUrl || signedMediaUrl;
   
-  // Get a short title from caption (first line or first few words)
+  // Get title from caption (first line, truncated)
   const videoTitle = postData.caption 
-    ? postData.caption.split('\n')[0].slice(0, 40) + (postData.caption.length > 40 ? '...' : '')
+    ? postData.caption.split('\n')[0].slice(0, 50) + (postData.caption.length > 50 ? '...' : '')
     : null;
 
   return (
     <motion.button
       onClick={handleClick}
-      className={cn(
-        "relative overflow-hidden rounded-2xl cursor-pointer",
-        "w-44 sm:w-52 aspect-[4/5]",
-        "bg-black",
-        "active:scale-[0.98] transition-transform",
-        "shadow-lg"
-      )}
+      className="relative overflow-hidden rounded-2xl w-40 aspect-[4/5] bg-black active:scale-[0.98] transition-transform"
       whileTap={{ scale: 0.98 }}
     >
-      {/* Thumbnail/Preview */}
+      {/* Thumbnail */}
       {displayUrl ? (
         isVideo && signedMediaUrl && !signedThumbnailUrl ? (
           <video
@@ -171,28 +139,28 @@ export const SharedPostBubble = memo(function SharedPostBubble({
         ) : (
           <img
             src={displayUrl}
-            alt="Shared clip"
+            alt=""
             className="absolute inset-0 w-full h-full object-cover"
             loading="lazy"
           />
         )
       ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-accent/30" />
+        <div className="absolute inset-0 bg-muted/30" />
       )}
 
       {/* Play button for videos */}
       {isVideo && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-12 h-12 rounded-full flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <Play className="h-6 w-6 text-white ml-0.5" fill="white" />
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <Play className="h-5 w-5 text-white ml-0.5" fill="white" />
           </div>
         </div>
       )}
 
-      {/* Bottom gradient for title */}
+      {/* Title at bottom */}
       {videoTitle && (
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-10 pb-3 px-3">
-          <p className="text-xs text-white font-medium line-clamp-2 text-left leading-tight">
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent pt-8 pb-2.5 px-2.5">
+          <p className="text-[11px] text-white font-medium line-clamp-2 text-left leading-tight">
             {videoTitle}
           </p>
         </div>

@@ -34,6 +34,7 @@ export function useStreaks() {
     queryFn: async () => {
       if (!profile?.id) return [];
 
+      // Only fetch active (non-expired) streaks
       const { data, error } = await supabase
         .from('streaks')
         .select(`
@@ -42,6 +43,7 @@ export function useStreaks() {
           user2:profiles!user2_id(id, username, avatar_url, display_name)
         `)
         .or(`user1_id.eq.${profile.id},user2_id.eq.${profile.id}`)
+        .gt('expires_at', new Date().toISOString()) // Only active streaks
         .order('streak_count', { ascending: false });
 
       if (error) throw error;
