@@ -4404,6 +4404,58 @@ export type Database = {
           },
         ]
       }
+      user_custom_sounds: {
+        Row: {
+          created_at: string | null
+          duration_seconds: number
+          file_name: string
+          file_url: string
+          id: string
+          sound_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          duration_seconds: number
+          file_name: string
+          file_url: string
+          id?: string
+          sound_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          duration_seconds?: number
+          file_name?: string
+          file_url?: string
+          id?: string
+          sound_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_custom_sounds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_custom_sounds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_custom_sounds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_interactions: {
         Row: {
           created_at: string

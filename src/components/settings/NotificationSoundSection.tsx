@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, MessageCircle, Phone, Sparkles, Volume2, VolumeX, Play } from 'lucide-react';
+import { Bell, MessageCircle, Phone, Sparkles, Volume2, VolumeX, Play, ChevronDown, Music } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { haptics } from '@/lib/haptics';
 import { 
   getSoundSettings, 
@@ -10,9 +11,15 @@ import {
   previewSound,
   type SoundSettings 
 } from '@/lib/premiumSounds';
+import { CustomRingtoneUploader } from './CustomRingtoneUploader';
+import { useSyncCustomSounds } from '@/hooks/useCustomSounds';
 
 export function NotificationSoundSection() {
   const [settings, setSettings] = useState<SoundSettings>(getSoundSettings);
+  const [customTonesOpen, setCustomTonesOpen] = useState(false);
+  
+  // Sync custom sounds from database to local storage
+  useSyncCustomSounds();
   
   // Keep in sync with localStorage
   useEffect(() => {
@@ -85,7 +92,7 @@ export function NotificationSoundSection() {
             <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-background flex items-center justify-center">
-                  <MessageCircle className="w-4 h-4 text-blue-500" />
+                  <MessageCircle className="w-4 h-4 text-primary" />
                 </div>
                 <div>
                   <p className="font-medium text-sm">Messages</p>
@@ -113,7 +120,7 @@ export function NotificationSoundSection() {
             <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-background flex items-center justify-center">
-                  <Phone className="w-4 h-4 text-green-500" />
+                  <Phone className="w-4 h-4 text-primary" />
                 </div>
                 <div>
                   <p className="font-medium text-sm">Calls</p>
@@ -141,7 +148,7 @@ export function NotificationSoundSection() {
             <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-background flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-purple-500" />
+                  <Sparkles className="w-4 h-4 text-primary" />
                 </div>
                 <div>
                   <p className="font-medium text-sm">Interface</p>
@@ -166,6 +173,52 @@ export function NotificationSoundSection() {
             </div>
           </motion.div>
         )}
+      </motion.div>
+
+      {/* Custom Tones Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+      >
+        <Collapsible open={customTonesOpen} onOpenChange={setCustomTonesOpen}>
+          <CollapsibleTrigger asChild>
+            <button className="w-full liquid-glass-card p-4 sm:p-6 flex items-center gap-4 hover:bg-muted/5 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
+                <Music className="w-6 h-6 text-accent-foreground" />
+              </div>
+              <div className="flex-1 text-left">
+                <h3 className="font-semibold text-base mb-1">Custom Tones</h3>
+                <p className="text-sm text-muted-foreground">
+                  Upload your own ringtones and message sounds
+                </p>
+              </div>
+              <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform ${customTonesOpen ? 'rotate-180' : ''}`} />
+            </button>
+          </CollapsibleTrigger>
+          
+          <CollapsibleContent>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-3 space-y-3"
+            >
+              <CustomRingtoneUploader
+                soundType="message_tone"
+                title="Message Tone"
+                description="Plays when you receive a new message"
+                maxDuration={5}
+              />
+              
+              <CustomRingtoneUploader
+                soundType="call_ringtone"
+                title="Call Ringtone"
+                description="Plays when someone calls you"
+                maxDuration={15}
+              />
+            </motion.div>
+          </CollapsibleContent>
+        </Collapsible>
       </motion.div>
 
       {/* Info Card */}

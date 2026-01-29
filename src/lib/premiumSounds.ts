@@ -1,6 +1,6 @@
 // Premium Sound System
-// Clean, subtle, satisfying - Snapchat/Apple-level polish
-// All sounds <300ms, soft attack, gentle decay
+// Soft, satisfying, modern - Apple/Snapchat-level polish
+// Low-mid frequencies, soft attacks, smooth decays
 
 type SoundCategory = 'messages' | 'calls' | 'ui';
 type PremiumSoundType = 
@@ -21,6 +21,7 @@ let lastSoundTime: Record<string, number> = {};
 
 // Settings stored in localStorage
 const SOUND_SETTINGS_KEY = 'vybe-sound-settings';
+const CUSTOM_SOUNDS_KEY = 'vybe-custom-sounds';
 
 export interface SoundSettings {
   master: boolean;
@@ -29,8 +30,13 @@ export interface SoundSettings {
   ui: boolean;
 }
 
+export interface CustomSoundConfig {
+  message_tone?: string; // URL to custom audio file
+  call_ringtone?: string;
+}
+
 const DEFAULT_SETTINGS: SoundSettings = {
-  master: true, // ON by default for notifications
+  master: true,
   messages: true,
   calls: true,
   ui: true,
@@ -54,6 +60,32 @@ export function updateSoundSettings(updates: Partial<SoundSettings>): void {
   const current = getSoundSettings();
   const newSettings = { ...current, ...updates };
   localStorage.setItem(SOUND_SETTINGS_KEY, JSON.stringify(newSettings));
+}
+
+// Get custom sound URLs
+export function getCustomSounds(): CustomSoundConfig {
+  if (typeof window === 'undefined') return {};
+  try {
+    const stored = localStorage.getItem(CUSTOM_SOUNDS_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return {};
+}
+
+// Update custom sounds
+export function updateCustomSounds(updates: Partial<CustomSoundConfig>): void {
+  if (typeof window === 'undefined') return;
+  const current = getCustomSounds();
+  const newConfig = { ...current, ...updates };
+  localStorage.setItem(CUSTOM_SOUNDS_KEY, JSON.stringify(newConfig));
+}
+
+// Clear a custom sound
+export function clearCustomSound(type: 'message_tone' | 'call_ringtone'): void {
+  if (typeof window === 'undefined') return;
+  const current = getCustomSounds();
+  delete current[type];
+  localStorage.setItem(CUSTOM_SOUNDS_KEY, JSON.stringify(current));
 }
 
 // Check if a specific category is enabled
@@ -92,7 +124,9 @@ function getAudioContext(): AudioContext | null {
   return audioContext;
 }
 
-// Sound configuration - all carefully tuned for premium feel
+// ============= REFINED SOUND CONFIGS =============
+// Lower frequencies, softer attacks, reduced volumes for premium feel
+
 const SOUND_CONFIGS: Record<PremiumSoundType, {
   category: SoundCategory;
   frequencies: number[];
@@ -100,117 +134,126 @@ const SOUND_CONFIGS: Record<PremiumSoundType, {
   volumes: number[];
   types: OscillatorType[];
   delays: number[];
+  detune?: number[]; // Subtle detuning for warmth
 }> = {
-  // Message send - subtle "sent" tick (very quiet)
+  // Message send - soft "whoosh" tick (nearly silent)
   messageSend: {
     category: 'messages',
-    frequencies: [800, 1000],
-    durations: [0.04, 0.03],
-    volumes: [0.015, 0.01],
-    types: ['sine', 'sine'],
-    delays: [0, 0.02],
-  },
-  
-  // Message receive - quick subtle pop for in-app
-  messageReceive: {
-    category: 'messages',
-    frequencies: [1200, 1800],
-    durations: [0.06, 0.04],
-    volumes: [0.03, 0.02],
+    frequencies: [600, 800], // Lower frequencies
+    durations: [0.05, 0.04],
+    volumes: [0.008, 0.005], // Very quiet
     types: ['sine', 'sine'],
     delays: [0, 0.015],
+    detune: [0, 5],
   },
   
-  // DM Notification - SATISFYING crystal chime (think iPhone/Snapchat)
-  // Two-tone ascending with shimmer - feels rewarding and fresh
+  // Message receive - warm subtle pop
+  messageReceive: {
+    category: 'messages',
+    frequencies: [880, 1200], // Warmer than before
+    durations: [0.08, 0.06],
+    volumes: [0.02, 0.015], // Softer
+    types: ['sine', 'sine'],
+    delays: [0, 0.02],
+    detune: [0, 8],
+  },
+  
+  // DM Notification - soft glass tap chime
+  // Warm, bubbly, satisfying
   notification: {
     category: 'messages',
-    frequencies: [1047, 1319, 1568, 2093], // C6, E6, G6, C7 - bright major sparkle
-    durations: [0.12, 0.10, 0.08, 0.15],
-    volumes: [0.12, 0.09, 0.07, 0.05], // Louder, more presence
-    types: ['sine', 'sine', 'sine', 'triangle'], // Triangle adds shimmer
-    delays: [0, 0.04, 0.08, 0.12],
+    frequencies: [880, 1047, 1319, 1568], // C5-ish range, not too bright
+    durations: [0.15, 0.12, 0.10, 0.20], // Longer tails
+    volumes: [0.08, 0.06, 0.05, 0.04], // 30% quieter
+    types: ['sine', 'sine', 'sine', 'triangle'],
+    delays: [0, 0.05, 0.10, 0.15],
+    detune: [0, 3, 6, -2], // Slight detuning for richness
   },
   
-  // UI tap - very quiet click
+  // UI tap - near-silent tactile click
   tap: {
     category: 'ui',
-    frequencies: [700],
-    durations: [0.025],
-    volumes: [0.01],
+    frequencies: [500], // Lower frequency
+    durations: [0.03],
+    volumes: [0.006], // Nearly silent
     types: ['sine'],
     delays: [0],
   },
   
-  // Toggle switch - subtle click
+  // Toggle switch - soft click
   toggle: {
     category: 'ui',
-    frequencies: [500, 700],
-    durations: [0.03, 0.02],
-    volumes: [0.015, 0.01],
+    frequencies: [400, 550], // Lower
+    durations: [0.04, 0.03],
+    volumes: [0.01, 0.007],
     types: ['sine', 'sine'],
-    delays: [0, 0.015],
+    delays: [0, 0.02],
+    detune: [0, 4],
   },
   
-  // Success - gentle chime
+  // Success - gentle ascending chime
   success: {
     category: 'ui',
-    frequencies: [523, 659, 784],
-    durations: [0.08, 0.08, 0.1],
-    volumes: [0.025, 0.02, 0.025],
+    frequencies: [440, 523, 659], // A4, C5, E5 - warm major
+    durations: [0.10, 0.10, 0.14],
+    volumes: [0.018, 0.015, 0.02],
     types: ['sine', 'sine', 'sine'],
-    delays: [0, 0.05, 0.1],
+    delays: [0, 0.06, 0.12],
+    detune: [0, 2, -2],
   },
   
-  // Error - soft low tone
+  // Error - soft low tone (not alarming)
   error: {
     category: 'ui',
-    frequencies: [220, 180],
-    durations: [0.1, 0.12],
-    volumes: [0.03, 0.025],
+    frequencies: [180, 150], // Low and soft
+    durations: [0.12, 0.15],
+    volumes: [0.02, 0.015],
     types: ['sine', 'sine'],
-    delays: [0, 0.06],
+    delays: [0, 0.08],
   },
   
-  // Call ring - gentle pulse (single instance for preview)
+  // Call ring - warm harmonic pulse
   callRing: {
     category: 'calls',
-    frequencies: [440, 554, 659],
-    durations: [0.15, 0.12, 0.1],
-    volumes: [0.04, 0.03, 0.025],
+    frequencies: [392, 494, 587], // G4, B4, D5 - pleasant
+    durations: [0.18, 0.15, 0.12],
+    volumes: [0.03, 0.025, 0.02], // Softer peaks
     types: ['sine', 'sine', 'sine'],
-    delays: [0, 0.08, 0.16],
+    delays: [0, 0.1, 0.2],
+    detune: [0, 3, -3],
   },
   
-  // Call connect - warm connection tone
+  // Call connect - warm ascending tone
   callConnect: {
     category: 'calls',
-    frequencies: [440, 554, 659, 880],
-    durations: [0.1, 0.1, 0.1, 0.15],
-    volumes: [0.03, 0.025, 0.03, 0.02],
+    frequencies: [392, 494, 587, 784],
+    durations: [0.12, 0.12, 0.12, 0.18],
+    volumes: [0.025, 0.02, 0.025, 0.015],
     types: ['sine', 'sine', 'sine', 'sine'],
-    delays: [0, 0.06, 0.12, 0.18],
+    delays: [0, 0.08, 0.16, 0.24],
+    detune: [0, 2, 4, 0],
   },
   
   // Call end - soft descending tone
   callEnd: {
     category: 'calls',
-    frequencies: [659, 554, 440],
-    durations: [0.08, 0.08, 0.12],
-    volumes: [0.025, 0.025, 0.02],
+    frequencies: [587, 494, 392],
+    durations: [0.10, 0.10, 0.14],
+    volumes: [0.02, 0.02, 0.015],
     types: ['sine', 'sine', 'sine'],
-    delays: [0, 0.06, 0.12],
+    delays: [0, 0.08, 0.16],
   },
 };
 
-// Create a smooth tone with envelope
+// Create a smooth tone with soft envelope
 function createTone(
   ctx: AudioContext,
   frequency: number,
   duration: number,
   volume: number,
   type: OscillatorType,
-  startTime: number
+  startTime: number,
+  detune: number = 0
 ): void {
   const oscillator = ctx.createOscillator();
   const gainNode = ctx.createGain();
@@ -220,10 +263,11 @@ function createTone(
   
   oscillator.type = type;
   oscillator.frequency.setValueAtTime(frequency, startTime);
+  oscillator.detune.setValueAtTime(detune, startTime);
   
-  // Smooth attack (soft start)
-  const attackTime = Math.min(0.008, duration * 0.15);
-  const releaseTime = duration * 0.5;
+  // Softer attack (15ms) and smooth release
+  const attackTime = Math.min(0.015, duration * 0.2);
+  const releaseTime = duration * 0.6; // Longer release for smoothness
   
   gainNode.gain.setValueAtTime(0, startTime);
   gainNode.gain.linearRampToValueAtTime(volume, startTime + attackTime);
@@ -231,7 +275,7 @@ function createTone(
   gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
   
   oscillator.start(startTime);
-  oscillator.stop(startTime + duration + 0.01);
+  oscillator.stop(startTime + duration + 0.02);
 }
 
 // Play a premium sound
@@ -257,7 +301,8 @@ export function playPremiumSound(soundType: PremiumSoundType): void {
         config.durations[i],
         config.volumes[i],
         config.types[i],
-        now + config.delays[i]
+        now + config.delays[i],
+        config.detune?.[i] || 0
       );
     });
   } catch (e) {
@@ -279,13 +324,51 @@ export function previewSound(soundType: PremiumSoundType): void {
         ctx,
         freq,
         config.durations[i],
-        Math.min(config.volumes[i] * 2, 0.08), // Slightly louder for preview
+        Math.min(config.volumes[i] * 1.5, 0.06), // Slightly louder for preview
         config.types[i],
-        now + config.delays[i]
+        now + config.delays[i],
+        config.detune?.[i] || 0
       );
     });
   } catch (e) {
     // Sound generation failed silently
+  }
+}
+
+// Custom audio cache
+const customAudioCache: Map<string, AudioBuffer> = new Map();
+
+// Play custom audio file (for custom ringtones)
+export async function playCustomAudio(url: string, loop: boolean = false): Promise<{ stop: () => void } | null> {
+  const ctx = getAudioContext();
+  if (!ctx) return null;
+  
+  try {
+    let buffer = customAudioCache.get(url);
+    
+    if (!buffer) {
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      buffer = await ctx.decodeAudioData(arrayBuffer);
+      customAudioCache.set(url, buffer);
+    }
+    
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = loop;
+    source.connect(ctx.destination);
+    source.start();
+    
+    return {
+      stop: () => {
+        try {
+          source.stop();
+        } catch {}
+      }
+    };
+  } catch (e) {
+    console.error('Failed to play custom audio:', e);
+    return null;
   }
 }
 
@@ -294,20 +377,23 @@ let messageDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingMessageCount = 0;
 
 export function playMessageReceiveSound(): void {
-  // Don't play if viewing the chat or window inactive
   if (!isCategoryEnabled('messages')) return;
   
   pendingMessageCount++;
   
-  // Clear existing timer
   if (messageDebounceTimer) {
     clearTimeout(messageDebounceTimer);
   }
   
-  // Play once after short delay (debounce rapid messages)
   messageDebounceTimer = setTimeout(() => {
     if (pendingMessageCount > 0) {
-      playPremiumSound('messageReceive');
+      // Check for custom sound first
+      const custom = getCustomSounds();
+      if (custom.message_tone) {
+        playCustomAudio(custom.message_tone);
+      } else {
+        playPremiumSound('messageReceive');
+      }
       pendingMessageCount = 0;
     }
   }, 200);
@@ -317,25 +403,37 @@ export function playMessageReceiveSound(): void {
 export function playNotificationSound(): void {
   if (!isCategoryEnabled('messages')) return;
   
-  // Use notification sound for a more satisfying "ding"
-  playPremiumSound('notification');
+  // Check for custom sound first
+  const custom = getCustomSounds();
+  if (custom.message_tone) {
+    playCustomAudio(custom.message_tone);
+  } else {
+    playPremiumSound('notification');
+  }
 }
 
 // Call sound loops with proper cleanup
 let callRingInterval: ReturnType<typeof setInterval> | null = null;
 let ringbackInterval: ReturnType<typeof setInterval> | null = null;
+let customRingPlayer: { stop: () => void } | null = null;
 
-export function startRinging(): void {
+export async function startRinging(): Promise<void> {
   if (!isCategoryEnabled('calls')) return;
   stopAllCallSounds();
   
-  playPremiumSound('callRing');
-  callRingInterval = setInterval(() => {
+  const custom = getCustomSounds();
+  if (custom.call_ringtone) {
+    // Play custom ringtone in loop
+    customRingPlayer = await playCustomAudio(custom.call_ringtone, true);
+  } else {
     playPremiumSound('callRing');
-  }, 2000);
+    callRingInterval = setInterval(() => {
+      playPremiumSound('callRing');
+    }, 2000);
+  }
 }
 
-export function startRingback(): void {
+export async function startRingback(): Promise<void> {
   if (!isCategoryEnabled('calls')) return;
   stopAllCallSounds();
   
@@ -353,6 +451,10 @@ export function stopAllCallSounds(): void {
   if (ringbackInterval) {
     clearInterval(ringbackInterval);
     ringbackInterval = null;
+  }
+  if (customRingPlayer) {
+    customRingPlayer.stop();
+    customRingPlayer = null;
   }
 }
 
@@ -389,6 +491,12 @@ export const premiumSounds = {
   // Settings
   getSettings: getSoundSettings,
   updateSettings: updateSoundSettings,
+  
+  // Custom sounds
+  getCustomSounds,
+  updateCustomSounds,
+  clearCustomSound,
+  playCustomAudio,
   
   // Preview (for settings page)
   preview: previewSound,

@@ -965,8 +965,8 @@ export function ChatView() {
           contain: 'strict',
         }}
       >
-        {/* Messages container */}
-        <div className="flex flex-col gap-0 pb-2">
+        {/* Messages container - extra bottom padding on mobile for bottom nav */}
+        <div className="flex flex-col gap-0 pb-20 md:pb-4">
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
             // Instagram/Snapchat spacing rules:
             // Same sender consecutive: 4-6px gap (tight grouping)
