@@ -16,6 +16,8 @@ import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { CommentSheet } from '@/components/comments/CommentSheet';
+import { ShareSheet } from '@/components/share/ShareSheet';
 
 interface MobileShortCardProps {
   post: {
@@ -63,6 +65,8 @@ export const MobileShortCard = memo(function MobileShortCard({
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [viewCount, setViewCount] = useState(post.view_count || 0);
   const [isHolding, setIsHolding] = useState(false);
+  const [showCommentSheet, setShowCommentSheet] = useState(false);
+  const [showShareSheet, setShowShareSheet] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
   const playAttemptRef = useRef<NodeJS.Timeout | null>(null);
@@ -284,13 +288,25 @@ export const MobileShortCard = memo(function MobileShortCard({
     }
   };
 
-  const handleShare = async () => {
-    const url = `${window.location.origin}/p/${post.id}`;
-    if (navigator.share) {
-      await navigator.share({ title: 'Check this out on VYBE', url });
-    } else {
-      navigator.clipboard.writeText(url);
-      toast.success('Link copied!');
+  const handleShare = () => {
+    setShowShareSheet(true);
+  };
+
+  const handleOpenComments = () => {
+    // Pause video when opening comments
+    if (videoRef.current) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+    setShowCommentSheet(true);
+  };
+
+  const handleCloseComments = () => {
+    setShowCommentSheet(false);
+    // Resume video when closing comments
+    if (videoRef.current && isActive) {
+      videoRef.current.play().catch(() => {});
+      setIsPlaying(true);
     }
   };
 
@@ -397,13 +413,14 @@ export const MobileShortCard = memo(function MobileShortCard({
           <span className="text-xs font-bold text-white drop-shadow-lg">{likeCount}</span>
         </button>
 
-        {/* Comment */}
-        <Link to={`/p/${post.id}`}>
-          <button className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
-            <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
-            <span className="text-xs font-bold text-white drop-shadow-lg">{post.comment_count}</span>
-          </button>
-        </Link>
+        {/* Comment - opens bottom sheet */}
+        <button 
+          onClick={handleOpenComments}
+          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
+        >
+          <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
+          <span className="text-xs font-bold text-white drop-shadow-lg">{post.comment_count}</span>
+        </button>
 
         {/* Bookmark */}
         <button 
@@ -476,6 +493,24 @@ export const MobileShortCard = memo(function MobileShortCard({
           </div>
         )}
       </div>
+
+      {/* Instagram-style comment bottom sheet */}
+      <CommentSheet
+        postId={post.id}
+        authorId={post.author.id}
+        commentCount={post.comment_count}
+        isOpen={showCommentSheet}
+        onClose={handleCloseComments}
+      />
+
+      {/* VYBE share sheet */}
+      <ShareSheet
+        isOpen={showShareSheet}
+        onClose={() => setShowShareSheet(false)}
+        postId={post.id}
+        postType="short"
+        caption={post.caption}
+      />
     </div>
   );
 });
