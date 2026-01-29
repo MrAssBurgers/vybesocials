@@ -409,35 +409,14 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           />
         ) : null}
 
-        {/* Instagram-style pulsing muted icon - truly centered, only visible when muted */}
-        <AnimatePresence>
-          {isVideo && isMuted && isPlaying && !effectiveIsHolding && (
-            <motion.div
-              key="muted-indicator"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ 
-                opacity: [0.5, 0.8, 0.5],
-                scale: 1
-              }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ 
-                opacity: {
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                },
-                scale: {
-                  duration: 0.2
-                }
-              }}
-              className="fixed inset-0 flex items-center justify-center pointer-events-none z-50"
-            >
-              <div className="w-20 h-20 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                <VolumeX className="h-10 w-10 text-white/90" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Instagram-style pulsing muted icon - only visible when muted AND playing */}
+        {isVideo && isMuted && isPlaying && !effectiveIsHolding && (
+          <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
+            <div className="w-20 h-20 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center animate-pulse">
+              <VolumeX className="h-10 w-10 text-white/90" />
+            </div>
+          </div>
+        )}
 
         {/* Play indicator when paused (but NOT when holding - no UI for hold-pause) */}
         <AnimatePresence>
