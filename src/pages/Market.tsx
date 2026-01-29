@@ -37,11 +37,13 @@ const ListingCard = memo(function ListingCard({
   viewMode,
   isFavorite,
   onToggleFavorite,
+  index = 0,
 }: { 
   listing: any; 
   viewMode: 'grid' | 'list';
   isFavorite: boolean;
   onToggleFavorite: () => void;
+  index?: number;
 }) {
   const category = LISTING_CATEGORIES.find(c => c.value === listing.category);
 
@@ -49,12 +51,26 @@ const ListingCard = memo(function ListingCard({
     return (
       <motion.div
         layout
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 20 }}
+        transition={{ 
+          duration: 0.3, 
+          delay: index * 0.05,
+          type: 'spring',
+          stiffness: 400,
+          damping: 25
+        }}
+        whileHover={{ scale: 1.01, y: -2 }}
+        whileTap={{ scale: 0.99 }}
         className="liquid-glass-card p-4 flex gap-4"
       >
         <Link to={`/market/${listing.id}`} className="shrink-0">
-          <div className="w-24 h-24 rounded-lg overflow-hidden bg-muted">
+          <motion.div 
+            className="w-24 h-24 rounded-lg overflow-hidden bg-muted"
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          >
             {listing.images?.[0] ? (
               <img 
                 src={listing.images[0]} 
@@ -66,29 +82,43 @@ const ListingCard = memo(function ListingCard({
                 {category?.icon || '📦'}
               </div>
             )}
-          </div>
+          </motion.div>
         </Link>
         
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <Link to={`/market/${listing.id}`} className="flex-1 min-w-0">
               <h3 className="font-semibold truncate">{listing.title}</h3>
-              <p className="text-lg font-bold text-primary">
+              <motion.p 
+                className="text-lg font-bold text-primary"
+                initial={{ scale: 1 }}
+                whileHover={{ scale: 1.05 }}
+              >
                 {listing.price === 0 ? 'Free' : `$${listing.price.toLocaleString()}`}
-              </p>
+              </motion.p>
             </Link>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => {
-                e.preventDefault();
-                triggerHaptic('light');
-                onToggleFavorite();
-              }}
-              className="shrink-0"
+            <motion.div
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.85 }}
             >
-              <Heart className={cn('h-5 w-5', isFavorite && 'fill-primary text-primary')} />
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.preventDefault();
+                  triggerHaptic('light');
+                  onToggleFavorite();
+                }}
+                className="shrink-0"
+              >
+                <motion.div
+                  animate={isFavorite ? { scale: [1, 1.3, 1] } : {}}
+                  transition={{ duration: 0.3 }}
+                >
+                  <Heart className={cn('h-5 w-5 transition-colors', isFavorite && 'fill-primary text-primary')} />
+                </motion.div>
+              </Button>
+            </motion.div>
           </div>
           
           <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
@@ -96,10 +126,15 @@ const ListingCard = memo(function ListingCard({
               {category?.label}
             </Badge>
             {listing.location && (
-              <span className="flex items-center gap-1">
+              <motion.span 
+                className="flex items-center gap-1"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
                 <MapPin className="h-3 w-3" />
                 {listing.location}
-              </span>
+              </motion.span>
             )}
           </div>
         </div>
@@ -110,65 +145,125 @@ const ListingCard = memo(function ListingCard({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="liquid-glass-card overflow-hidden group"
+      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, y: -20 }}
+      transition={{ 
+        duration: 0.4, 
+        delay: index * 0.05,
+        type: 'spring',
+        stiffness: 300,
+        damping: 25
+      }}
+      whileHover={{ y: -8, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className="liquid-glass-card overflow-hidden group cursor-pointer"
     >
       <Link to={`/market/${listing.id}`} className="block">
         <div className="aspect-square relative overflow-hidden bg-muted">
           {listing.images?.[0] ? (
-            <img 
+            <motion.img 
               src={listing.images[0]} 
               alt={listing.title}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              className="w-full h-full object-cover"
+              whileHover={{ scale: 1.1 }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-4xl">
+            <motion.div 
+              className="w-full h-full flex items-center justify-center text-4xl"
+              whileHover={{ scale: 1.2, rotate: 5 }}
+              transition={{ type: 'spring', stiffness: 300 }}
+            >
               {category?.icon || '📦'}
-            </div>
+            </motion.div>
           )}
           
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.preventDefault();
-              triggerHaptic('light');
-              onToggleFavorite();
-            }}
-            className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm"
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            whileHover={{ opacity: 1, scale: 1 }}
+            className="absolute top-2 right-2"
           >
-            <Heart className={cn('h-4 w-4', isFavorite && 'fill-primary text-primary')} />
-          </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.preventDefault();
+                triggerHaptic('light');
+                onToggleFavorite();
+              }}
+              className="bg-background/80 backdrop-blur-sm hover:bg-background/90"
+            >
+              <motion.div
+                animate={isFavorite ? { 
+                  scale: [1, 1.4, 1],
+                  rotate: [0, -10, 10, 0]
+                } : {}}
+                transition={{ duration: 0.4 }}
+              >
+                <Heart className={cn('h-4 w-4 transition-colors', isFavorite && 'fill-primary text-primary')} />
+              </motion.div>
+            </Button>
+          </motion.div>
           
           {listing.condition === 'new' && (
-            <Badge className="absolute top-2 left-2 bg-green-500">New</Badge>
+            <motion.div
+              initial={{ x: -50, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.2, type: 'spring', stiffness: 400 }}
+            >
+              <Badge className="absolute top-2 left-2 bg-emerald-500">New</Badge>
+            </motion.div>
           )}
+          
+          {/* Shimmer overlay on hover */}
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+            initial={{ x: '-100%' }}
+            whileHover={{ x: '100%' }}
+            transition={{ duration: 0.6, ease: 'easeInOut' }}
+          />
         </div>
       </Link>
       
-      <div className="p-3">
+      <motion.div 
+        className="p-3"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.05 + 0.1 }}
+      >
         <Link to={`/market/${listing.id}`}>
-          <p className="text-lg font-bold text-primary">
+          <motion.p 
+            className="text-lg font-bold text-primary"
+            whileHover={{ scale: 1.05, x: 5 }}
+            transition={{ type: 'spring', stiffness: 400 }}
+          >
             {listing.price === 0 ? 'Free' : `$${listing.price.toLocaleString()}`}
-          </p>
+          </motion.p>
           <h3 className="font-medium truncate">{listing.title}</h3>
         </Link>
         
-        <div className="flex items-center gap-2 mt-2">
-          <Link to={`/u/${listing.seller?.username}`} className="flex items-center gap-1.5">
-            <Avatar className="h-5 w-5">
-              <AvatarImage src={listing.seller?.avatar_url} />
-              <AvatarFallback className="text-xs">
-                {listing.seller?.username?.[0]?.toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <span className="text-xs text-muted-foreground truncate">
+        <motion.div 
+          className="flex items-center gap-2 mt-2"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: index * 0.05 + 0.2 }}
+        >
+          <Link to={`/u/${listing.seller?.username}`} className="flex items-center gap-1.5 group/seller">
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+              <Avatar className="h-5 w-5">
+                <AvatarImage src={listing.seller?.avatar_url} />
+                <AvatarFallback className="text-xs">
+                  {listing.seller?.username?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </motion.div>
+            <span className="text-xs text-muted-foreground truncate group-hover/seller:text-foreground transition-colors">
               {listing.seller?.username}
             </span>
           </Link>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </motion.div>
   );
 });
@@ -203,26 +298,59 @@ export default function MarketPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <motion.div 
+        className="max-w-7xl mx-auto px-4 py-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4 }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <motion.div 
+          className="flex items-center justify-between mb-6"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <ShoppingBag className="h-6 w-6 text-primary" />
+            <motion.h1 
+              className="text-2xl font-bold flex items-center gap-2"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+            >
+              <motion.div
+                animate={{ rotate: [0, -10, 10, 0] }}
+                transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+              >
+                <ShoppingBag className="h-6 w-6 text-primary" />
+              </motion.div>
               VYBE Market
-            </h1>
-            <p className="text-muted-foreground text-sm">
+            </motion.h1>
+            <motion.p 
+              className="text-muted-foreground text-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+            >
               Buy and sell with your community
-            </p>
+            </motion.p>
           </div>
           
-          <Link to="/market/new">
-            <Button className="gradient-animated text-white">
-              <Plus className="h-4 w-4 mr-2" />
-              Sell Item
-            </Button>
-          </Link>
-        </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3, type: 'spring', stiffness: 400 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Link to="/market/new">
+              <Button className="gradient-animated text-white">
+                <Plus className="h-4 w-4 mr-2" />
+                Sell Item
+              </Button>
+            </Link>
+          </motion.div>
+        </motion.div>
 
         {/* Search & Filters */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -347,23 +475,39 @@ export default function MarketPage() {
 
         {/* Listings Grid */}
         {isLoading ? (
-          <div className={cn(
-            viewMode === 'grid' 
-              ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'
-              : 'space-y-4'
-          )}>
+          <motion.div 
+            className={cn(
+              viewMode === 'grid' 
+                ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'
+                : 'space-y-4'
+            )}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
             {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className={viewMode === 'grid' ? 'aspect-square rounded-xl' : 'h-32 rounded-xl'} />
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <Skeleton className={viewMode === 'grid' ? 'aspect-square rounded-xl' : 'h-32 rounded-xl'} />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         ) : listings && listings.length > 0 ? (
-          <div className={cn(
-            viewMode === 'grid' 
-              ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'
-              : 'space-y-4'
-          )}>
+          <motion.div 
+            className={cn(
+              viewMode === 'grid' 
+                ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'
+                : 'space-y-4'
+            )}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
             <AnimatePresence mode="popLayout">
-              {listings.map(listing => (
+              {listings.map((listing, index) => (
                 <ListingCard
                   key={listing.id}
                   listing={listing}
@@ -373,20 +517,27 @@ export default function MarketPage() {
                     listingId: listing.id, 
                     isFavorite: favoriteIds.has(listing.id) 
                   })}
+                  index={index}
                 />
               ))}
             </AnimatePresence>
-          </div>
+          </motion.div>
         ) : (
-          <EmptyState
-            emoji="🛒"
-            title="No listings found"
-            description={search || category ? "Try adjusting your filters" : "Be the first to list something!"}
-            actionLabel="Create Listing"
-            onAction={() => window.location.href = '/market/new'}
-          />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <EmptyState
+              emoji="🛒"
+              title="No listings found"
+              description={search || category ? "Try adjusting your filters" : "Be the first to list something!"}
+              actionLabel="Create Listing"
+              onAction={() => window.location.href = '/market/new'}
+            />
+          </motion.div>
         )}
-      </div>
+      </motion.div>
     </AppLayout>
   );
 }
