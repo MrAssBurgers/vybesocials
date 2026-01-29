@@ -224,6 +224,7 @@ export function ChatView() {
             return;
           }
           queryClient.invalidateQueries({ queryKey: ['conversations'] });
+          queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
           queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
         });
     }

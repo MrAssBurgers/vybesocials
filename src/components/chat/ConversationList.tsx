@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
-import { useConversations, useCreateConversation, Conversation } from '@/hooks/useMessages';
+import { useCreateConversation, Conversation } from '@/hooks/useMessages';
+import { useDMConversations, useMarkConversationRead } from '@/hooks/useDMConversations';
 import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useOnlineFriends } from '@/hooks/useOnlineFriends';
 import { useAuth } from '@/lib/auth';
@@ -11,6 +12,7 @@ import { useTrashedConversationIds, useTrashConversation } from '@/hooks/useTras
 import { useStories, StoryGroup } from '@/hooks/useStories';
 import { useAcceptedFriendRequests, useDismissAcceptedRequest } from '@/hooks/useAcceptedFriendRequests';
 import { useStreakMap, Streak } from '@/hooks/useStreaks';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -90,14 +92,24 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   );
 });
 
-// Debug flag for dev visibility
-const DEBUG_DM = import.meta.env.DEV;
+// Debug flag for dev visibility - moved inside component
 
 export function ConversationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const { data: conversations, isLoading, error: convError } = useConversations();
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
+  
+  // Use the new optimized DM conversations hook with auto-creation
+  const { 
+    pinnedConversations, 
+    unpinnedConversations, 
+    isLoading, 
+    error: convError,
+    totalUnreadCount,
+  } = useDMConversations(debouncedSearch);
+  
   // Enable instant realtime updates for conversations
   useRealtimeConversations();
   const { onlineFriends, onlineCount, isLoading: onlineLoading } = useOnlineFriends();
@@ -108,7 +120,6 @@ export function ConversationList() {
   const { data: acceptedRequests } = useAcceptedFriendRequests();
   const dismissAccepted = useDismissAcceptedRequest();
   const streakMap = useStreakMap();
-  const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [isTrashOpen, setIsTrashOpen] = useState(false);
@@ -125,23 +136,29 @@ export function ConversationList() {
   
   // Debug logging in dev mode
   useEffect(() => {
-    if (DEBUG_DM) {
+    if (import.meta.env.DEV) {
       console.log('[DM Debug]', {
         currentUserId: profile?.id,
-        conversationsCount: conversations?.length || 0,
+        pinnedCount: pinnedConversations?.length || 0,
+        unpinnedCount: unpinnedConversations?.length || 0,
+        totalUnread: totalUnreadCount,
         onlineCount,
-        onlineFriendsCount: onlineFriends?.length || 0,
         isLoading,
         convError: convError?.message,
       });
     }
-  }, [profile?.id, conversations, onlineCount, onlineFriends, isLoading, convError]);
+  }, [profile?.id, pinnedConversations, unpinnedConversations, totalUnreadCount, onlineCount, isLoading, convError]);
 
   // Get user IDs for online status check - memoized
+  const allConversations = useMemo(() => 
+    [...(pinnedConversations || []), ...(unpinnedConversations || [])],
+    [pinnedConversations, unpinnedConversations]
+  );
+  
   const otherMemberIds = useMemo(() => {
-    if (!conversations || !profile?.id) return [];
+    if (!allConversations.length || !profile?.id) return [];
     const ids = new Set<string>();
-    conversations.forEach((conv) => {
+    allConversations.forEach((conv) => {
       conv.members?.forEach((m) => {
         if (m.user_id !== profile.id && m.profile?.id) {
           ids.add(m.profile.id);
@@ -149,7 +166,7 @@ export function ConversationList() {
       });
     });
     return Array.from(ids);
-  }, [conversations, profile?.id]);
+  }, [allConversations, profile?.id]);
 
   const { data: onlineStatus = {} } = useUsersOnlineStatus(otherMemberIds);
   const { data: usersRoles = {} } = useUsersRoles(otherMemberIds);
@@ -185,28 +202,7 @@ export function ConversationList() {
     }
   }, [profile?.id, createConversation, navigate]);
 
-  const { pinnedConversations, unpinnedConversations } = useMemo(() => {
-    // Filter out trashed conversations
-    const filtered = conversations?.filter((conv) => {
-      // Exclude trashed conversations
-      if (trashedIds?.has(conv.id)) return false;
-      
-      const otherMembers = conv.members?.filter((m) => m.user_id !== profile?.id) || [];
-      const name = conv.is_group 
-        ? conv.name 
-        : otherMembers[0]?.profile?.display_name || otherMembers[0]?.profile?.username;
-      return name?.toLowerCase().includes(searchQuery.toLowerCase());
-    }) || [];
-
-    return {
-      pinnedConversations: filtered.filter(
-        (c) => c.members?.find((m) => m.user_id === profile?.id)?.is_pinned
-      ),
-      unpinnedConversations: filtered.filter(
-        (c) => !c.members?.find((m) => m.user_id === profile?.id)?.is_pinned
-      ),
-    };
-  }, [conversations, profile?.id, searchQuery, trashedIds]);
+  // pinnedConversations and unpinnedConversations already provided by useDMConversations hook
 
   const handleConversationClick = useCallback((convId: string) => {
     navigate(`/messages/${convId}`);
@@ -393,6 +389,24 @@ export function ConversationList() {
                 );
               })}
             </>
+          ) : searchQuery ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+              <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                <Search className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-base font-semibold mb-1">No conversations found</h3>
+              <p className="text-muted-foreground text-sm">
+                No results for "{searchQuery}"
+              </p>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="mt-4"
+                onClick={() => setSearchQuery('')}
+              >
+                Clear search
+              </Button>
+            </div>
           ) : !acceptedRequests?.length ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-4">
               <div className="w-20 h-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
