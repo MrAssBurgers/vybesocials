@@ -116,17 +116,17 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     }
   }, [globalMuted]);
 
-  // Track if resuming from hold to preserve mute state
-  const wasHoldingRef = useRef(false);
+  // Track if initial autoplay happened
+  const hasInitializedRef = useRef(false);
 
-  // Handle hold pause - preserve mute state
+  // Handle hold pause - DO NOT touch mute state here
   useEffect(() => {
     if (videoRef.current) {
       if (effectiveIsHolding) {
         videoRef.current.pause();
         setIsPlaying(false);
       } else if (isActive) {
-        // Resume with current mute state preserved (don't change video.muted)
+        // Resume playback without changing mute state
         videoRef.current.play().then(() => {
           setIsPlaying(true);
         }).catch(() => {});
@@ -134,18 +134,19 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     }
   }, [effectiveIsHolding, isActive]);
 
-  // Auto-play when active
+  // Auto-play when active - mute state only changes via tap
   useEffect(() => {
     if (videoRef.current && signedMediaUrl) {
-      const isResumingFromHold = wasHoldingRef.current && !effectiveIsHolding;
-      wasHoldingRef.current = effectiveIsHolding;
+      // Skip if holding - that's handled separately
+      if (effectiveIsHolding) return;
 
-      if (isActive && !effectiveIsHolding) {
-        // Only set mute on initial play, not when resuming from hold
-        if (!isResumingFromHold) {
+      if (isActive) {
+        // Only set mute on FIRST ever autoplay for this clip
+        if (!hasInitializedRef.current) {
           videoRef.current.muted = isMuted;
+          hasInitializedRef.current = true;
         }
-        // Otherwise preserve current mute state
+        // Otherwise don't touch video.muted - preserve current state
         
         videoRef.current.play().then(() => {
           setIsPlaying(true);
@@ -164,14 +165,13 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         });
       } else {
         videoRef.current.pause();
-        if (!isActive) {
-          videoRef.current.currentTime = 0;
-          hasCountedInitialView.current = false;
-        }
+        videoRef.current.currentTime = 0;
+        hasCountedInitialView.current = false;
+        hasInitializedRef.current = false;
         setIsPlaying(false);
       }
     }
-  }, [isActive, signedMediaUrl, effectiveIsHolding, isMuted, profile]);
+  }, [isActive, signedMediaUrl, isMuted, profile]);
 
   const incrementViewCount = async () => {
     try {
@@ -650,8 +650,16 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
 
       <div className="absolute left-4 right-20 bottom-4 z-10">
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <Link to={`/u/${post.author.username}`} className="font-bold text-lg text-white drop-shadow-lg">
-            @{post.author.username}
+          <Link to={`/u/${post.author.username}`} className="flex items-center gap-2">
+            <Avatar className="h-6 w-6 border border-white/50">
+              <AvatarImage src={signedAvatarUrl || undefined} />
+              <AvatarFallback className="bg-primary text-white text-xs font-bold">
+                {post.author.username[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="font-bold text-lg text-white drop-shadow-lg">
+              @{post.author.username}
+            </span>
           </Link>
           {authorRole && <ModBadge role={authorRole} className="shadow-md" />}
           {isOwner(post.author.username) && <OwnerBadge />}
