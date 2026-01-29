@@ -51,17 +51,16 @@ const PageFallback = memo(() => (
   </div>
 ));
 
-// Simplified page transition for better performance
+// Ultra-smooth page transition - no black flash
 const pageVariants = {
-  initial: { opacity: 0 },
+  initial: { opacity: 0.7 },
   animate: { opacity: 1 },
-  exit: { opacity: 0 },
 };
 
-// Faster transitions
+// Instant transitions - no delay
 const pageTransition = {
-  duration: 0.15,
-  ease: 'easeOut' as const,
+  duration: 0.08,
+  ease: 'linear' as const,
 };
 
 /**
@@ -81,15 +80,14 @@ export function AnimatedRoutes() {
   };
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
+    <AnimatePresence mode="sync" initial={false}>
       <motion.div
         key={getRouteKey()}
         variants={pageVariants}
         initial="initial"
         animate="animate"
-        exit="exit"
         transition={pageTransition}
-        className="min-h-screen"
+        className="min-h-screen bg-background"
       >
         <Suspense fallback={<PageFallback />}>
           <Routes location={location}>
