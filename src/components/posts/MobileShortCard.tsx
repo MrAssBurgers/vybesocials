@@ -176,10 +176,16 @@ export const MobileShortCard = memo(function MobileShortCard({
 
   const incrementViewCount = async () => {
     try {
-      await supabase.rpc('increment_view_count', { post_id_param: post.id });
-      // Don't update local state - let realtime handle it for live sync
+      const { error } = await supabase.rpc('increment_view_count', { post_id_param: post.id });
+      if (error) {
+        console.error('RPC error:', error);
+        // Fallback: optimistically update local state
+        setViewCount(prev => prev + 1);
+      }
     } catch (error) {
       console.error('Failed to increment view count:', error);
+      // Fallback: optimistically update local state  
+      setViewCount(prev => prev + 1);
     }
   };
 
@@ -344,25 +350,31 @@ export const MobileShortCard = memo(function MobileShortCard({
           />
         ) : null}
 
-        {/* Instagram-style pulsing muted icon - centered, only visible when muted */}
+        {/* Instagram-style pulsing muted icon - truly centered on screen, only visible when muted */}
         <AnimatePresence>
-          {isVideo && isMuted && isPlaying && (
+          {isVideo && isMuted && isPlaying && !isHolding && (
             <motion.div
+              key="muted-indicator"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ 
-                opacity: [0.6, 0.9, 0.6],
-                scale: [1, 1.1, 1]
+                opacity: [0.5, 0.8, 0.5],
+                scale: 1
               }}
               exit={{ opacity: 0, scale: 0.8 }}
               transition={{ 
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut"
+                opacity: {
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                },
+                scale: {
+                  duration: 0.2
+                }
               }}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10"
+              className="fixed inset-0 flex items-center justify-center pointer-events-none z-50"
             >
-              <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
-                <VolumeX className="h-8 w-8 text-white/80" />
+              <div className="w-20 h-20 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
+                <VolumeX className="h-10 w-10 text-white/90" />
               </div>
             </motion.div>
           )}
