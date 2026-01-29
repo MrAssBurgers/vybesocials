@@ -165,7 +165,7 @@ export function DesktopRightSidebar() {
       className={cn(
         "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-40",
         "w-[240px] 2xl:w-[280px] overflow-hidden",
-        "bg-background/60 backdrop-blur-2xl backdrop-saturate-150",
+        "bg-gradient-to-b from-accent/8 via-background/60 to-primary/8 backdrop-blur-2xl backdrop-saturate-150",
         "border-l border-white/10"
       )}
     >
