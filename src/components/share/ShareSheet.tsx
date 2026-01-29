@@ -5,20 +5,21 @@ import {
   Link2, 
   Share2, 
   Download, 
-  MessageCircle, 
   Check, 
-  Sparkles,
-  ExternalLink
+  Send,
+  BookmarkPlus,
+  PenLine
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
 import { useFriends } from '@/hooks/useFriends';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { navVisibility } from '@/lib/navVisibility';
 
 interface ShareSheetProps {
   isOpen: boolean;
@@ -38,8 +39,8 @@ interface QuickFriend {
 }
 
 /**
- * VYBE-styled share sheet with glassmorphism and animated glow.
- * Instagram-style quick send + share options.
+ * Instagram-style share sheet with clean UI and smooth animations.
+ * Quick send to friends + share options.
  */
 export const ShareSheet = memo(function ShareSheet({
   isOpen,
@@ -53,12 +54,26 @@ export const ShareSheet = memo(function ShareSheet({
   const { data: friends } = useFriends();
   const [quickFriends, setQuickFriends] = useState<QuickFriend[]>([]);
   const [sendingTo, setSendingTo] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // Hide bottom nav when sheet is open
+  useEffect(() => {
+    if (isOpen) {
+      navVisibility.setInCommunityChat(true);
+    }
+    return () => {
+      if (isOpen) {
+        navVisibility.setInCommunityChat(false);
+      }
+    };
+  }, [isOpen]);
 
   // Initialize quick friends from friends list
   useEffect(() => {
     if (friends) {
       setQuickFriends(
-        friends.slice(0, 10).map(f => ({
+        friends.slice(0, 20).map(f => ({
           id: f.id,
           username: f.username,
           avatar_url: f.avatar_url,
@@ -69,9 +84,26 @@ export const ShareSheet = memo(function ShareSheet({
     }
   }, [friends]);
 
+  // Reset states when closing
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchQuery('');
+      setLinkCopied(false);
+      setSendingTo(null);
+    }
+  }, [isOpen]);
+
   const shareUrl = `${window.location.origin}/p/${postId}`;
 
-  // Quick send to friend via DM
+  // Filter friends by search
+  const filteredFriends = searchQuery 
+    ? quickFriends.filter(f => 
+        f.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        f.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : quickFriends;
+
+  // Quick send to friend via DM - Instagram style
   const handleQuickSend = useCallback(async (friend: QuickFriend) => {
     if (!profile || friend.sent) return;
 
@@ -84,21 +116,18 @@ export const ShareSheet = memo(function ShareSheet({
       });
 
       if (convId) {
-        // Send the share message
+        // Send the share as a link/preview message
         await supabase.from('messages').insert({
           conversation_id: convId,
           sender_id: profile.id,
-          content: caption ? `Check this out: ${caption}` : 'Check this out!',
-          media_url: mediaUrl || shareUrl,
-          media_type: postType === 'video' || postType === 'short' ? 'video' : 'link',
+          content: shareUrl,
+          media_type: 'link',
         });
 
-        // Mark as sent
+        // Mark as sent with animation
         setQuickFriends(prev => 
           prev.map(f => f.id === friend.id ? { ...f, sent: true } : f)
         );
-
-        toast.success(`Sent to ${friend.username}!`);
       }
     } catch (error) {
       console.error('Failed to send:', error);
@@ -106,12 +135,13 @@ export const ShareSheet = memo(function ShareSheet({
     } finally {
       setSendingTo(null);
     }
-  }, [profile, mediaUrl, caption, shareUrl, postType]);
+  }, [profile, shareUrl]);
 
   // Copy link to clipboard
   const handleCopyLink = useCallback(() => {
     navigator.clipboard.writeText(shareUrl);
-    toast.success('Link copied!');
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   }, [shareUrl]);
 
   // System share
@@ -122,23 +152,23 @@ export const ShareSheet = memo(function ShareSheet({
           title: caption || 'Check this out on VYBE!',
           url: shareUrl,
         });
+        onClose();
       } catch (error) {
         if ((error as Error).name !== 'AbortError') {
-          toast.error('Failed to share');
+          handleCopyLink();
         }
       }
     } else {
       handleCopyLink();
     }
-  }, [shareUrl, caption, handleCopyLink]);
+  }, [shareUrl, caption, handleCopyLink, onClose]);
 
-  // Share to story (placeholder)
+  // Share to story
   const handleShareToStory = useCallback(() => {
-    toast.info('Coming soon: Share to Story!');
-    onClose();
-  }, [onClose]);
+    toast.info('Coming soon!');
+  }, []);
 
-  // Download (for own content)
+  // Download
   const handleDownload = useCallback(async () => {
     if (!mediaUrl) return;
     
@@ -153,38 +183,11 @@ export const ShareSheet = memo(function ShareSheet({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success('Downloaded!');
+      toast.success('Saved!');
     } catch (error) {
-      toast.error('Failed to download');
+      toast.error('Failed to save');
     }
   }, [mediaUrl, postId, postType]);
-
-  const shareActions = [
-    { 
-      icon: MessageCircle, 
-      label: 'Share to Story', 
-      onClick: handleShareToStory,
-      color: 'from-purple-500 to-pink-500'
-    },
-    { 
-      icon: Link2, 
-      label: 'Copy Link', 
-      onClick: handleCopyLink,
-      color: 'from-blue-500 to-cyan-500'
-    },
-    { 
-      icon: ExternalLink, 
-      label: 'Share', 
-      onClick: handleSystemShare,
-      color: 'from-green-500 to-emerald-500'
-    },
-    ...(mediaUrl ? [{
-      icon: Download, 
-      label: 'Save', 
-      onClick: handleDownload,
-      color: 'from-orange-500 to-amber-500'
-    }] : []),
-  ];
 
   return (
     <AnimatePresence>
@@ -195,129 +198,103 @@ export const ShareSheet = memo(function ShareSheet({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 bg-black/60 z-[100]"
             onClick={onClose}
           />
 
           {/* Sheet */}
           <motion.div
-            initial={{ opacity: 0, y: 100, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 100, scale: 0.95 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ 
+              type: 'spring', 
+              damping: 28, 
+              stiffness: 380,
+              mass: 0.8
+            }}
             className={cn(
               "fixed bottom-0 left-0 right-0 z-[101]",
-              "mx-auto max-w-lg",
-              // Glassmorphism
-              "bg-background/80 backdrop-blur-2xl",
-              "rounded-t-3xl overflow-hidden",
-              "border-t border-x border-white/10",
-              "shadow-2xl shadow-black/40"
+              "bg-background rounded-t-2xl overflow-hidden",
+              "pb-safe"
             )}
           >
-            {/* Animated glow effect */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-t-3xl">
-              <motion.div
-                animate={{ 
-                  rotate: 360,
-                  scale: [1, 1.1, 1],
-                }}
-                transition={{ 
-                  rotate: { duration: 8, repeat: Infinity, ease: 'linear' },
-                  scale: { duration: 4, repeat: Infinity, ease: 'easeInOut' }
-                }}
-                className="absolute -top-32 -right-32 w-64 h-64 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 blur-3xl"
-              />
-              <motion.div
-                animate={{ 
-                  rotate: -360,
-                  scale: [1, 1.2, 1],
-                }}
-                transition={{ 
-                  rotate: { duration: 10, repeat: Infinity, ease: 'linear' },
-                  scale: { duration: 5, repeat: Infinity, ease: 'easeInOut' }
-                }}
-                className="absolute -bottom-32 -left-32 w-64 h-64 rounded-full bg-gradient-to-tr from-purple-500/15 to-primary/15 blur-3xl"
+            {/* Handle */}
+            <div className="flex justify-center py-2.5">
+              <div className="w-9 h-1 bg-muted-foreground/25 rounded-full" />
+            </div>
+
+            {/* Search bar */}
+            <div className="px-4 pb-3">
+              <Input
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-muted/50 border-0 h-9 rounded-xl text-sm placeholder:text-muted-foreground/60"
               />
             </div>
 
-            {/* Content */}
-            <div className="relative z-10">
-              {/* Handle */}
-              <div className="flex justify-center pt-3">
-                <div className="w-10 h-1 bg-white/20 rounded-full" />
-              </div>
-
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 pt-2 pb-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  <h3 className="font-semibold text-lg">Share</h3>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={onClose}
-                  className="h-8 w-8 rounded-full hover:bg-white/10"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Quick send - horizontal scroll of friends */}
-              {quickFriends.length > 0 && (
-                <div className="px-4 pb-4">
-                  <p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wide">
-                    Quick Send
-                  </p>
-                  <ScrollArea className="w-full">
-                    <div className="flex gap-3 pb-2">
-                      {quickFriends.map(friend => (
-                        <QuickSendAvatar
-                          key={friend.id}
-                          friend={friend}
-                          onClick={() => handleQuickSend(friend)}
-                          isSending={sendingTo === friend.id}
-                        />
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
-
-              {/* Divider */}
-              <div className="h-px bg-border/50 mx-4" />
-
-              {/* Share actions grid */}
-              <div className="p-4 grid grid-cols-4 gap-3">
-                {shareActions.map((action, index) => (
-                  <motion.button
-                    key={action.label}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    onClick={action.onClick}
-                    className="flex flex-col items-center gap-2 group"
-                  >
-                    <div className={cn(
-                      "w-14 h-14 rounded-2xl flex items-center justify-center",
-                      "bg-gradient-to-br",
-                      action.color,
-                      "shadow-lg transition-transform",
-                      "group-hover:scale-110 group-active:scale-95"
-                    )}>
-                      <action.icon className="h-6 w-6 text-white" />
-                    </div>
-                    <span className="text-xs text-muted-foreground font-medium">
-                      {action.label}
-                    </span>
-                  </motion.button>
+            {/* Friends grid - Instagram style */}
+            <div className="px-4 pb-4">
+              <div className="grid grid-cols-4 gap-3">
+                {filteredFriends.slice(0, 8).map((friend, index) => (
+                  <FriendSendButton
+                    key={friend.id}
+                    friend={friend}
+                    onClick={() => handleQuickSend(friend)}
+                    isSending={sendingTo === friend.id}
+                    delay={index * 0.02}
+                  />
                 ))}
               </div>
+            </div>
 
-              {/* Safe area padding for iOS */}
-              <div className="h-safe-area-bottom" />
+            {/* Divider */}
+            <div className="h-px bg-border mx-4" />
+
+            {/* Actions row - Instagram style */}
+            <div className="px-4 py-4">
+              <div className="flex justify-around">
+                <ActionButton
+                  icon={PenLine}
+                  label="Add to story"
+                  onClick={handleShareToStory}
+                  delay={0}
+                />
+                <ActionButton
+                  icon={linkCopied ? Check : Link2}
+                  label={linkCopied ? "Copied!" : "Copy link"}
+                  onClick={handleCopyLink}
+                  active={linkCopied}
+                  delay={0.03}
+                />
+                <ActionButton
+                  icon={Share2}
+                  label="Share to..."
+                  onClick={handleSystemShare}
+                  delay={0.06}
+                />
+                {mediaUrl && (
+                  <ActionButton
+                    icon={Download}
+                    label="Save"
+                    onClick={handleDownload}
+                    delay={0.09}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Cancel button */}
+            <div className="px-4 pb-4">
+              <Button
+                variant="secondary"
+                onClick={onClose}
+                className="w-full h-12 rounded-xl font-semibold text-base"
+              >
+                Cancel
+              </Button>
             </div>
           </motion.div>
         </>
@@ -326,64 +303,115 @@ export const ShareSheet = memo(function ShareSheet({
   );
 });
 
-// Quick send avatar component
-const QuickSendAvatar = memo(function QuickSendAvatar({
+// Friend send button component - Instagram style
+const FriendSendButton = memo(function FriendSendButton({
   friend,
   onClick,
   isSending,
+  delay,
 }: {
   friend: QuickFriend;
   onClick: () => void;
   isSending: boolean;
+  delay: number;
 }) {
   const signedUrl = useSignedUrl(friend.avatar_url);
 
   return (
     <motion.button
-      whileTap={{ scale: 0.9 }}
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay, duration: 0.2 }}
+      whileTap={{ scale: 0.92 }}
       onClick={onClick}
       disabled={friend.sent || isSending}
-      className="flex flex-col items-center gap-1.5 min-w-[60px]"
+      className="flex flex-col items-center gap-1.5"
     >
       <div className="relative">
-        <Avatar className={cn(
-          "h-14 w-14 border-2 transition-all",
-          friend.sent 
-            ? "border-green-500" 
-            : "border-transparent hover:border-primary"
-        )}>
+        <Avatar className="h-14 w-14">
           <AvatarImage src={signedUrl || undefined} />
-          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-bold">
+          <AvatarFallback className="bg-muted text-muted-foreground font-medium">
             {friend.username[0].toUpperCase()}
           </AvatarFallback>
         </Avatar>
         
-        {/* Sent checkmark overlay */}
-        <AnimatePresence>
-          {friend.sent && (
+        {/* Send indicator overlay */}
+        <AnimatePresence mode="wait">
+          {friend.sent ? (
             <motion.div
+              key="sent"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', damping: 15, stiffness: 400 }}
+              className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-primary rounded-full flex items-center justify-center border-2 border-background"
+            >
+              <Check className="h-3 w-3 text-primary-foreground" />
+            </motion.div>
+          ) : isSending ? (
+            <motion.div
+              key="sending"
+              className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center"
+            >
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="send"
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              className="absolute inset-0 bg-green-500/90 rounded-full flex items-center justify-center"
+              className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-muted rounded-full flex items-center justify-center border-2 border-background"
             >
-              <Check className="h-6 w-6 text-white" />
+              <Send className="h-2.5 w-2.5 text-muted-foreground" />
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Sending spinner */}
-        {isSending && (
-          <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-            />
-          </div>
-        )}
       </div>
-      <span className="text-xs text-muted-foreground truncate max-w-[60px]">
-        {friend.username}
+      
+      <span className="text-[11px] text-foreground/80 truncate max-w-[60px] leading-tight">
+        {friend.display_name || friend.username}
+      </span>
+    </motion.button>
+  );
+});
+
+// Action button component
+const ActionButton = memo(function ActionButton({
+  icon: Icon,
+  label,
+  onClick,
+  active,
+  delay,
+}: {
+  icon: React.ElementType;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  delay: number;
+}) {
+  return (
+    <motion.button
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.2 }}
+      whileTap={{ scale: 0.9 }}
+      onClick={onClick}
+      className="flex flex-col items-center gap-2"
+    >
+      <div className={cn(
+        "w-14 h-14 rounded-full flex items-center justify-center transition-colors",
+        active ? "bg-primary" : "bg-muted"
+      )}>
+        <Icon className={cn(
+          "h-6 w-6 transition-colors",
+          active ? "text-primary-foreground" : "text-foreground"
+        )} />
+      </div>
+      <span className="text-xs text-foreground/70 font-medium">
+        {label}
       </span>
     </motion.button>
   );
