@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, memo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Sparkles, HelpCircle, Navigation } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Sparkles, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
@@ -103,18 +103,25 @@ export const TutorialOverlay = memo(function TutorialOverlay({
   const executeStepAction = useCallback(async () => {
     if (!currentStepData) return;
 
-    // Handle route navigation
-    if (currentStepData.requiresRoute && location.pathname !== currentStepData.requiresRoute) {
+    // Handle route navigation - only if actually on different route
+    const needsNavigation = currentStepData.requiresRoute && location.pathname !== currentStepData.requiresRoute;
+    
+    if (needsNavigation) {
       setIsNavigating(true);
       closeAllMenus();
-      navigate(currentStepData.requiresRoute);
+      navigate(currentStepData.requiresRoute!);
       // Wait for navigation to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setIsNavigating(false);
+      await new Promise(resolve => setTimeout(resolve, 400));
     }
+    
+    // Always ensure navigating is false after route check
+    setIsNavigating(false);
 
-    // Handle menu actions
+    // Handle menu actions after navigation
     if (currentStepData.action) {
+      // Small delay to let DOM settle
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       switch (currentStepData.action) {
         case 'openCreateMenu':
           openCreateMenu();
@@ -499,19 +506,23 @@ export const TutorialOverlay = memo(function TutorialOverlay({
           <span className="hidden sm:inline">Skip Tutorial</span>
         </motion.button>
 
-        {/* Navigation indicator */}
-        {isNavigating && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="fixed inset-0 z-[10001] flex items-center justify-center"
-          >
-            <div className="liquid-glass p-6 rounded-2xl flex items-center gap-3">
-              <Navigation className="w-5 h-5 text-primary animate-pulse" />
-              <span className="text-sm font-medium">Navigating...</span>
-            </div>
-          </motion.div>
-        )}
+        {/* Navigation indicator - only show briefly during actual navigation */}
+        <AnimatePresence>
+          {isNavigating && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[100001] flex items-center justify-center pointer-events-none"
+            >
+              <div className="p-4 rounded-2xl bg-card/95 backdrop-blur-xl border border-primary/30 shadow-2xl flex items-center gap-3">
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm font-medium text-foreground">Loading...</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Tooltip */}
         {!isNavigating && (
