@@ -844,6 +844,15 @@ export function BackgroundCustomizer({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Color Match Prompt - shows after adding background */}
+      <ColorMatchPrompt
+        isOpen={showColorMatchPrompt}
+        onClose={() => setShowColorMatchPrompt(false)}
+        onMatchColors={handleApplyColorsFromPrompt}
+        onKeepColors={handleKeepColors}
+        extractedColors={pendingExtractedColors}
+      />
     </div>
   );
 }

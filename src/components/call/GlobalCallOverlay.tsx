@@ -275,10 +275,13 @@ export function GlobalCallOverlay() {
   const getOrCreateDaily = useCallback((): DailyCall => {
     if (dailyRef.current) return dailyRef.current;
 
-    console.log('[CallOverlay] Creating Daily Call Object');
+    console.log('[CallOverlay] Creating Daily Call Object with HIGH QUALITY settings');
     
     const daily = DailyIframe.createCallObject({
       subscribeToTracksAutomatically: true,
+      // Request high-quality audio encoding
+      audioSource: true,
+      videoSource: true,
     });
 
     dailyRef.current = daily;
@@ -567,10 +570,28 @@ export function GlobalCallOverlay() {
         }
       }, 30000);
 
-      // Join the room - this should be instant now
+      // Join the room with HIGH QUALITY settings
       try {
         console.log('[CallOverlay] Calling daily.join() (' + (Date.now() - joinStart) + 'ms)');
-        await daily.join({ url: state.call!.roomUrl, token });
+        
+        // Join with the room URL and token
+        await daily.join({ 
+          url: state.call!.roomUrl, 
+          token,
+        });
+        
+        // After joining, configure high-quality send settings
+        try {
+          await daily.updateSendSettings({
+            video: {
+              maxQuality: 'high', // 720p quality
+            },
+          });
+          console.log('[CallOverlay] ✅ High quality video enabled');
+        } catch (settingsErr) {
+          console.warn('[CallOverlay] Could not set high quality:', settingsErr);
+        }
+        
         console.log('[CallOverlay] ✅ Joined! Total time: ' + (Date.now() - joinStart) + 'ms');
       } catch (err: any) {
         console.error('[CallOverlay] Join failed:', err);

@@ -338,11 +338,24 @@ function adjustLightness(hsl: string, amount: number): string {
   return hsl;
 }
 
-export function applyThemeTokens(tokens: ThemeTokens) {
+/**
+ * Apply theme tokens to CSS variables.
+ * 
+ * CRITICAL: This function ONLY applies UI colors and settings.
+ * It NEVER touches background image CSS variables (--bg-image-url, etc.)
+ * Background images are managed separately via useApplyActiveBackground.
+ * 
+ * @param tokens - Theme tokens to apply
+ * @param options.preserveBackground - If true, don't touch any background-related CSS (default: true)
+ */
+export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackground?: boolean }) {
   if (!tokens || typeof tokens !== 'object') {
     console.error('Invalid theme tokens provided');
     return;
   }
+
+  // ALWAYS preserve background by default - background image is a separate setting!
+  const preserveBackground = options?.preserveBackground !== false;
 
   try {
     const root = document.documentElement;
@@ -354,8 +367,6 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     const defaultText = tokens.mode === 'dark' ? '0 0% 98%' : '240 10% 20%';
     const defaultMuted = tokens.mode === 'dark' ? '240 5% 55%' : '240 5% 50%';
     const defaultBg = tokens.mode === 'dark' ? defaultDark : defaultLight;
-    
-    // Use requestAnimationFrame for smoother updates - no transition on root to prevent lag
     
     // === PRIMARY COLORS ===
     root.style.setProperty('--primary', safeHSL(tokens.colorPrimary, defaultPrimary));
@@ -379,7 +390,7 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     root.style.setProperty('--gradient-mid', safeHSL(tokens.colorSecondary, '240 10% 12%'));
     root.style.setProperty('--gradient-end', safeHSL(tokens.colorAccent, '185 100% 50%'));
     
-    // Glass effects - critical for removing "black barriers"
+    // Glass effects
     const glassBg = safeHSL(tokens.glassBg, bgCard);
     const glassBorder = safeHSL(tokens.glassBorder, safeHSL(tokens.borderColor, tokens.mode === 'dark' ? '240 10% 20%' : '240 5% 90%'));
     root.style.setProperty('--glass', glassBg);
@@ -437,11 +448,9 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     const animSpeed = tokens.animationSpeed || 'normal';
     const animStyle = tokens.animationStyle || 'smooth';
     
-    // Animation duration multiplier
     const speedMap = { slow: '1.5', normal: '1', fast: '0.6', instant: '0.1' };
     root.style.setProperty('--anim-speed', speedMap[animSpeed] || '1');
     
-    // Animation easing
     const easingMap = {
       smooth: 'cubic-bezier(0.4, 0, 0.2, 1)',
       bouncy: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -450,31 +459,35 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     };
     root.style.setProperty('--anim-easing', easingMap[animStyle] || easingMap.smooth);
     
-    // Set CSS classes for animation styles
     root.dataset.animSpeed = animSpeed;
     root.dataset.animStyle = animStyle;
     
     // === BACKGROUND IMAGE & EFFECTS ===
-    root.dataset.bgEffect = tokens.backgroundEffect || 'none';
-    
-    // Set background image as CSS variable for use in CSS
-    if (tokens.backgroundImage) {
-      root.style.setProperty('--bg-image-url', `url(${tokens.backgroundImage})`);
-      root.style.setProperty('--bg-image-opacity', String((tokens.backgroundOpacity ?? 50) / 100));
-      root.style.setProperty('--bg-image-blur', `${tokens.backgroundBlur ?? 0}px`);
-      root.dataset.hasBgImage = 'true';
-    } else {
-      root.style.removeProperty('--bg-image-url');
-      root.style.removeProperty('--bg-image-opacity');
-      root.style.removeProperty('--bg-image-blur');
-      root.dataset.hasBgImage = 'false';
+    // CRITICAL: Only touch background image CSS if explicitly NOT preserving background
+    // This ensures changing UI colors never removes the user's background image
+    if (!preserveBackground) {
+      root.dataset.bgEffect = tokens.backgroundEffect || 'none';
+      
+      if (tokens.backgroundImage) {
+        root.style.setProperty('--bg-image-url', `url(${tokens.backgroundImage})`);
+        root.style.setProperty('--bg-image-opacity', String((tokens.backgroundOpacity ?? 50) / 100));
+        root.style.setProperty('--bg-image-blur', `${tokens.backgroundBlur ?? 0}px`);
+        root.dataset.hasBgImage = 'true';
+      } else {
+        root.style.removeProperty('--bg-image-url');
+        root.style.removeProperty('--bg-image-opacity');
+        root.style.removeProperty('--bg-image-blur');
+        root.dataset.hasBgImage = 'false';
+      }
+      
+      if (tokens.backgroundOverlay) {
+        root.style.setProperty('--bg-overlay', safeHSL(tokens.backgroundOverlay, '0 0% 0%'));
+      } else {
+        root.style.removeProperty('--bg-overlay');
+      }
     }
-    
-    if (tokens.backgroundOverlay) {
-      root.style.setProperty('--bg-overlay', safeHSL(tokens.backgroundOverlay, '0 0% 0%'));
-    } else {
-      root.style.removeProperty('--bg-overlay');
-    }
+    // When preserveBackground is true (the default), we simply don't touch any
+    // --bg-image-* variables, so the user's background image stays intact!
     
     // === LIGHT MODE SPECIFIC ===
     if (tokens.mode === 'light') {
@@ -487,6 +500,26 @@ export function applyThemeTokens(tokens: ThemeTokens) {
     root.classList.add(tokens.mode === 'light' ? 'light' : 'dark');
   } catch (error) {
     console.error('Error applying theme tokens:', error);
+  }
+}
+
+/**
+ * Apply ONLY background image CSS variables.
+ * Used by the background customizer - separate from theme colors.
+ */
+export function applyBackgroundImage(imageUrl: string | null, opacity?: number, blur?: number) {
+  const root = document.documentElement;
+  
+  if (imageUrl) {
+    root.style.setProperty('--bg-image-url', `url(${imageUrl})`);
+    root.style.setProperty('--bg-image-opacity', String((opacity ?? 30) / 100));
+    root.style.setProperty('--bg-image-blur', `${blur ?? 0}px`);
+    root.dataset.hasBgImage = 'true';
+  } else {
+    root.style.removeProperty('--bg-image-url');
+    root.style.removeProperty('--bg-image-opacity');
+    root.style.removeProperty('--bg-image-blur');
+    root.dataset.hasBgImage = 'false';
   }
 }
 

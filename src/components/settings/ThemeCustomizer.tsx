@@ -28,6 +28,7 @@ import {
   useResetTheme, 
   useGenerateTheme,
   applyThemeTokens,
+  applyBackgroundImage,
   THEME_PRESETS,
   ThemeTokens,
 } from '@/hooks/useCustomTheme';
@@ -367,22 +368,38 @@ export function ThemeCustomizer() {
               backgroundOpacity={backgroundOpacity}
               backgroundBlur={backgroundBlur}
               onBackgroundChange={(url) => {
-                // Just set the background - don't touch theme colors
+                // ONLY set background - NEVER touch theme colors
                 setBackgroundImage(url);
-                // Apply directly without going through updateSetting to avoid color changes
-                const theme = buildTheme();
-                const newTheme = { ...theme, backgroundImage: url || undefined };
-                applyThemeTokens(newTheme);
+                // Use dedicated background function, NOT applyThemeTokens
+                applyBackgroundImage(url, backgroundOpacity, backgroundBlur);
+                // Update local state for tracking
                 setCurrentTheme(prev => ({ ...(prev || THEME_PRESETS[selectedPreset]), backgroundImage: url || undefined }));
                 setHasChanges(true);
               }}
               onOpacityChange={(opacity) => {
                 setBackgroundOpacity(opacity);
-                updateSetting('backgroundOpacity', opacity);
+                // Only update background opacity, not theme tokens
+                applyBackgroundImage(backgroundImage, opacity, backgroundBlur);
+                setHasChanges(true);
               }}
               onBlurChange={(blur) => {
                 setBackgroundBlur(blur);
-                updateSetting('backgroundBlur', blur);
+                // Only update background blur, not theme tokens
+                applyBackgroundImage(backgroundImage, backgroundOpacity, blur);
+                setHasChanges(true);
+              }}
+              onColorsExtracted={(colors) => {
+                // User chose to match colors - apply extracted colors to theme
+                const newTheme: ThemeTokens = {
+                  ...(currentTheme || THEME_PRESETS[selectedPreset]),
+                  colorPrimary: colors.primary,
+                  colorAccent: colors.accent,
+                  colorSecondary: colors.secondary,
+                  bgMain: colors.background,
+                };
+                setCurrentTheme(newTheme);
+                applyThemeTokens(newTheme); // This won't touch background since preserveBackground is true by default
+                setHasChanges(true);
               }}
             />
           </div>
