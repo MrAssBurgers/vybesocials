@@ -6,7 +6,7 @@ import { useUnreadMessagesCount } from '@/hooks/useMessages';
 import { useState, useCallback, useRef, memo, useEffect } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
-import { CreateMenu } from '@/components/hub/CreateMenu';
+import { CreateMenuLayer } from '@/components/hub/CreateMenuLayer';
 import { VYBEHub } from '@/components/hub/VYBEHub';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
@@ -266,7 +266,7 @@ export function BottomNav() {
 
   return (
     <>
-      <CreateMenu isOpen={isCreateMenuOpen} onClose={() => setIsCreateMenuOpen(false)} />
+      <CreateMenuLayer open={isCreateMenuOpen} onOpenChange={setIsCreateMenuOpen} />
       <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
       <GuestAuthPrompt 
         variant="modal"
@@ -275,8 +275,8 @@ export function BottomNav() {
         onClose={() => setShowAuthPrompt(false)}
       />
 
-      <nav 
-        className="fixed bottom-0 left-0 right-0 z-[2147483647] w-full pointer-events-auto"
+       <nav 
+         className="fixed bottom-0 left-0 right-0 z-[60] w-full pointer-events-auto"
         style={{
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
