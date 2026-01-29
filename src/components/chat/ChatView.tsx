@@ -95,6 +95,7 @@ import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
 import { StreakIndicator } from './StreakIndicator';
 import { useStreakWithUser } from '@/hooks/useStreaks';
+import { DMImageSafetyGate } from './DMImageSafetyGate';
 
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
@@ -180,6 +181,9 @@ export function ChatView() {
   // Video preview state
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
   const [showVideoPreview, setShowVideoPreview] = useState(false);
+  // Image safety scanning state
+  const [pendingSafetyImage, setPendingSafetyImage] = useState<{ url: string; file: File } | null>(null);
+  const [showImageSafetyGate, setShowImageSafetyGate] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -488,7 +492,6 @@ export function ChatView() {
 
     // Prevent double uploads
     if (uploadingRef.current) return;
-    uploadingRef.current = true;
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -496,18 +499,25 @@ export function ChatView() {
 
     if (!file.type.startsWith('image/')) {
       toast.error('Please select an image file');
-      uploadingRef.current = false;
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
       toast.error('Image must be less than 10MB');
-      uploadingRef.current = false;
       return;
     }
 
-    // Create optimistic preview immediately
+    // Create preview and show safety gate
     const previewUrl = URL.createObjectURL(file);
+    setPendingSafetyImage({ url: previewUrl, file });
+    setShowImageSafetyGate(true);
+  }, [conversationId, profile?.id]);
+
+  // Process image after safety check passes
+  const processApprovedImage = useCallback(async (file: File, previewUrl: string) => {
+    if (!conversationId || !profile?.id) return;
+    
+    uploadingRef.current = true;
     setPendingImage({ url: previewUrl, file });
     setIsUploadingMedia(true);
 
@@ -573,58 +583,26 @@ export function ChatView() {
     }
   }, [conversationId, profile?.id, profile?.user_id]);
 
-
-  // Handle direct file selection (from Toybox)
+  // Handle direct file selection (from Toybox) - now goes through safety gate
   const handleDirectImageSelect = useCallback(async (file: File) => {
     if (!file || !conversationId || !profile?.id) return;
     if (uploadingRef.current) return;
-    uploadingRef.current = true;
 
     if (!file.type.startsWith('image/')) {
       toast.error('Please select an image file');
-      uploadingRef.current = false;
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
       toast.error('Image must be less than 10MB');
-      uploadingRef.current = false;
       return;
     }
 
+    // Create preview and show safety gate
     const previewUrl = URL.createObjectURL(file);
-    setPendingImage({ url: previewUrl, file });
-    setIsUploadingMedia(true);
-
-    try {
-      const compressedBlob = await compressImage(file);
-      const fileExt = file.type === 'image/png' ? 'png' : 'jpg';
-      const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('chat-media')
-        .upload(fileName, compressedBlob, {
-          contentType: `image/${fileExt}`,
-          cacheControl: '31536000',
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('chat-media')
-        .getPublicUrl(fileName);
-
-      await sendMediaMessage(publicUrl, 'image');
-      URL.revokeObjectURL(previewUrl);
-      setPendingImage(null);
-    } catch (error) {
-      console.error('Failed to upload image:', error);
-      toast.error('Failed to upload image. Tap to retry.');
-    } finally {
-      setIsUploadingMedia(false);
-      uploadingRef.current = false;
-    }
-  }, [conversationId, profile?.id, profile?.user_id, compressImage, sendMediaMessage]);
+    setPendingSafetyImage({ url: previewUrl, file });
+    setShowImageSafetyGate(true);
+  }, [conversationId, profile?.id]);
 
   // Handle vybe camera send - uploads base64 image and sends as vybe
   const handleVybeSend = useCallback(async (imageDataUrl: string) => {
@@ -789,6 +767,31 @@ export function ChatView() {
 
   return (
     <div className="flex flex-col h-full bg-background relative overflow-hidden">
+      {/* DM Image Safety Gate */}
+      <AnimatePresence>
+        {showImageSafetyGate && pendingSafetyImage && (
+          <DMImageSafetyGate
+            file={pendingSafetyImage.file}
+            previewUrl={pendingSafetyImage.url}
+            onApproved={() => {
+              setShowImageSafetyGate(false);
+              processApprovedImage(pendingSafetyImage.file, pendingSafetyImage.url);
+              setPendingSafetyImage(null);
+            }}
+            onCancel={() => {
+              setShowImageSafetyGate(false);
+              if (pendingSafetyImage.url) {
+                URL.revokeObjectURL(pendingSafetyImage.url);
+              }
+              setPendingSafetyImage(null);
+            }}
+            onBlocked={() => {
+              // Keep gate open for blocked content
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Screenshot alert popup */}
       <AnimatePresence>
         {screenshotEvents.length > 0 && (
