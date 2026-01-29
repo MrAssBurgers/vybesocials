@@ -1687,7 +1687,19 @@ const MessageBubble = memo(function MessageBubble({
           </div>
         )}
 
-        {/* Message bubble - Instagram-quality padding and radius */}
+        {/* Shared Post - render directly without bubble wrapper */}
+        {isSharedPost && (
+          <SharedPostBubble
+            postId={message.content || ''}
+            mediaUrl={message.media_url}
+            mediaType={message.media_type}
+            isOwn={isOwn}
+            onNavigate={onNavigateToPost}
+          />
+        )}
+
+        {/* Message bubble - Instagram-quality padding and radius (not for shared posts) */}
+        {!isSharedPost && (
         <div
           className={cn(
             'relative rounded-[20px] break-words select-none group/bubble',
@@ -1745,18 +1757,7 @@ const MessageBubble = memo(function MessageBubble({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          {/* Shared Post - Instagram-style clickable thumbnail */}
-          {isSharedPost && (
-            <div className={message.content && !isVideoMessage && !isMediaMessage ? "mb-2" : ""}>
-              <SharedPostBubble
-                postId={message.content || ''}
-                mediaUrl={message.media_url}
-                mediaType={message.media_type}
-                isOwn={isOwn}
-                onNavigate={onNavigateToPost}
-              />
-            </div>
-          )}
+          {/* Shared Post is rendered outside the bubble wrapper now */}
 
           {/* Image/GIF message (not for shared posts - they use SharedPostBubble) */}
           {isMediaMessage && !isSharedPost && (
@@ -1961,6 +1962,7 @@ const MessageBubble = memo(function MessageBubble({
             </div>
           )}
         </div>
+        )}
 
         {/* Reactions bar - floats below message */}
         {uniqueReactions.length > 0 && (
