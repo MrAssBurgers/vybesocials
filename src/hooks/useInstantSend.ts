@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -11,9 +11,12 @@ export interface PendingMessage {
   mediaType?: string;
   viewMode: ViewMode;
   replyToId?: string;
-  status: 'sending' | 'sent' | 'failed';
+  status: 'processing' | 'uploading' | 'sending' | 'sent' | 'failed';
   createdAt: string;
   error?: string;
+  uploadProgress?: number;
+  thumbnail?: string;
+  duration?: number;
 }
 
 /**
@@ -24,6 +27,7 @@ export function useInstantSend(conversationId: string | undefined) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
+  const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
 
   // Generate a temporary ID for optimistic updates
   const generateTempId = useCallback(() => {
@@ -272,6 +276,138 @@ export function useInstantSend(conversationId: string | undefined) {
     }
   }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed]);
 
+  // Send video with optimistic UI and progress tracking
+  const sendVideo = useCallback(async (
+    file: File,
+    thumbnail: string,
+    duration: number,
+    viewMode: ViewMode = 'permanent',
+    replyToId?: string,
+    caption?: string
+  ) => {
+    if (!conversationId || !profile?.id) return;
+
+    const tempId = generateTempId();
+    const localUrl = URL.createObjectURL(file);
+    
+    // Track pending message with video-specific metadata
+    pendingMessagesRef.current.set(tempId, {
+      tempId,
+      mediaUrl: localUrl,
+      mediaType: 'video',
+      viewMode,
+      replyToId,
+      status: 'uploading',
+      createdAt: new Date().toISOString(),
+      uploadProgress: 0,
+      thumbnail,
+      duration,
+    });
+
+    // Add optimistic message with thumbnail
+    addOptimisticMessage(tempId, { 
+      media_url: thumbnail, // Show thumbnail initially
+      media_type: 'video',
+      content: caption,
+      view_mode: viewMode, 
+      reply_to_id: replyToId 
+    });
+
+    // Initialize progress
+    setVideoUploadProgress(prev => ({ ...prev, [tempId]: 0 }));
+
+    try {
+      // Simulate upload progress (real progress would come from XHR)
+      const updateProgress = (p: number) => {
+        setVideoUploadProgress(prev => ({ ...prev, [tempId]: p }));
+        const pending = pendingMessagesRef.current.get(tempId);
+        if (pending) {
+          pending.uploadProgress = p;
+        }
+      };
+
+      updateProgress(10);
+
+      // Upload to Supabase storage
+      const fileExt = file.name.split('.').pop() || 'mp4';
+      const fileName = `${profile.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      
+      updateProgress(30);
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(fileName, file, {
+          contentType: file.type,
+          cacheControl: '3600',
+        });
+
+      if (uploadError) throw uploadError;
+      
+      updateProgress(70);
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(fileName);
+      
+      const mediaUrl = urlData.publicUrl;
+      
+      updateProgress(85);
+
+      // Calculate expiry
+      const expiresAt = viewMode === '24h' 
+        ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        : null;
+
+      // Insert message
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversationId,
+          sender_id: profile.id,
+          content: caption || null,
+          media_url: mediaUrl,
+          media_type: 'video',
+          view_mode: viewMode,
+          expires_at: expiresAt,
+          reply_to_id: replyToId,
+        })
+        .select(`
+          *,
+          sender:profiles!sender_id(id, username, avatar_url, display_name)
+        `)
+        .single();
+
+      if (error) throw error;
+
+      updateProgress(100);
+
+      // Replace temp with real message
+      const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
+      confirmMessage(tempId, messageWithViewMode);
+
+      // Update conversation timestamp
+      await supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversationId);
+
+      // Cleanup
+      URL.revokeObjectURL(localUrl);
+      setVideoUploadProgress(prev => {
+        const { [tempId]: _, ...rest } = prev;
+        return rest;
+      });
+
+      return data;
+    } catch (error: any) {
+      console.error('Failed to send video:', error);
+      markFailed(tempId, error.message || 'Failed to send');
+      URL.revokeObjectURL(localUrl);
+      throw error;
+    }
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed]);
+
   // Retry a failed message
   const retry = useCallback(async (tempId: string) => {
     const pending = pendingMessagesRef.current.get(tempId);
@@ -291,8 +427,10 @@ export function useInstantSend(conversationId: string | undefined) {
   return {
     sendText,
     sendMedia,
+    sendVideo,
     retry,
     removeMessage,
+    videoUploadProgress,
     getPendingMessages: () => Array.from(pendingMessagesRef.current.values()),
   };
 }
