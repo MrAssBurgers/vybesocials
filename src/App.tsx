@@ -30,6 +30,7 @@ import { InvitePopup } from "@/components/invite/InvitePopup";
 import { useBanStatus } from "@/hooks/useBanStatus";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
+import { usePrefetchBackgrounds } from "@/hooks/useUserBackgrounds";
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 
 // Expose query client for error recovery
@@ -106,6 +107,9 @@ function AppWithPreloader() {
   
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
+  
+  // Prefetch user backgrounds for instant settings load
+  usePrefetchBackgrounds();
 
   useEffect(() => {
     // Only hide splash when preloading is truly complete
