@@ -200,20 +200,12 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     background-color: transparent !important;
   }
   
-  /* CRITICAL: #root must be transparent when background image is active */
-  html[data-has-bg-image="true"] #root {
-    background: transparent !important;
-    background-color: transparent !important;
-    position: relative;
-    isolation: isolate;
-  }
-  
-  /* Custom background image layer - rendered on #root::before for proper z-index */
-  html[data-has-bg-image="true"] #root::before {
+  /* CRITICAL: Background image layer - FIXED to viewport, ABOVE body background */
+  html[data-has-bg-image="true"]::before {
     content: '';
     position: fixed;
     inset: 0;
-    z-index: -2;
+    z-index: 0;
     background-image: var(--bg-image-url);
     background-size: cover;
     background-position: center center;
@@ -224,24 +216,31 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   }
   
   /* Subtle overlay for text readability - above image, below content */
-  html[data-has-bg-image="true"] #root::after {
+  html[data-has-bg-image="true"]::after {
     content: '';
     position: fixed;
     inset: 0;
-    z-index: -1;
+    z-index: 1;
     background: linear-gradient(
       to bottom,
-      hsl(var(--background) / 0.2) 0%,
-      hsl(var(--background) / 0.1) 50%,
-      hsl(var(--background) / 0.2) 100%
+      hsl(var(--background) / 0.15) 0%,
+      hsl(var(--background) / 0.05) 50%,
+      hsl(var(--background) / 0.15) 100%
     );
     pointer-events: none;
   }
   
+  /* Body and #root must be transparent when background image is active */
+  html[data-has-bg-image="true"] body,
+  html[data-has-bg-image="true"] #root {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+  
   /* All content inside #root should be above the background layers */
-  html[data-has-bg-image="true"] #root > * {
+  html[data-has-bg-image="true"] #root {
     position: relative;
-    z-index: 1;
+    z-index: 2;
   }
   
   /* Bottom nav must always be on top - override any stacking context */
