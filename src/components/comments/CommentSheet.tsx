@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence, PanInfo, useDragControls } from 'framer-motion';
-import { Image, Send, Smile, Loader2, X, GripHorizontal } from 'lucide-react';
+import { Image, Send, Smile, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,6 +12,7 @@ import { CommentThread } from './CommentThread';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { navVisibility } from '@/lib/navVisibility';
 
 interface CommentSheetProps {
   postId: string;
@@ -55,6 +56,18 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+
+  // Hide bottom nav when sheet is open
+  useEffect(() => {
+    if (isOpen) {
+      navVisibility.setInCommunityChat(true);
+    }
+    return () => {
+      if (isOpen) {
+        navVisibility.setInCommunityChat(false);
+      }
+    };
+  }, [isOpen]);
 
   // Expose open/close methods via ref
   useImperativeHandle(ref, () => ({
