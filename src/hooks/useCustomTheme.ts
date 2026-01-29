@@ -572,22 +572,48 @@ export function useApplyActiveBackground() {
         // Get active background
         const { data: activeBg } = await supabase
           .from('user_backgrounds')
-          .select('image_url')
+          .select('id,image_url')
           .eq('user_id', profile.id)
           .eq('is_active', true)
           .maybeSingle();
 
-        if (activeBg?.image_url) {
-          const root = document.documentElement;
+        // If none is active (common "broken state"), fall back to the most recent background
+        // and best-effort mark it active so it persists on next launch.
+        let bgToApply: { id: string; image_url: string } | null = activeBg?.image_url ? (activeBg as any) : null;
+        if (!bgToApply) {
+          const { data: latestBg } = await supabase
+            .from('user_backgrounds')
+            .select('id,image_url')
+            .eq('user_id', profile.id)
+            .order('updated_at', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (latestBg?.image_url) {
+            bgToApply = latestBg as any;
+            // Best-effort: repair DB state (don't block UI if it fails)
+            try {
+              await supabase.rpc('set_active_background', { p_background_id: latestBg.id });
+            } catch (e) {
+              console.warn('[Background] Failed to set active background (non-blocking):', e);
+            }
+          }
+        }
+
+        const root = document.documentElement;
+        if (bgToApply?.image_url) {
           // CRITICAL: Set ALL required CSS variables for background to show
-          root.style.setProperty('--bg-image-url', `url(${activeBg.image_url})`);
+          root.style.setProperty('--bg-image-url', `url(${bgToApply.image_url})`);
           root.style.setProperty('--bg-image-opacity', '0.85'); // Default opacity
           root.style.setProperty('--bg-image-blur', '0px'); // Default no blur
           root.dataset.hasBgImage = 'true';
-          console.log('[Background] Applied active background:', activeBg.image_url);
+          console.log('[Background] Applied background:', bgToApply.image_url);
         } else {
-          // No active background - ensure flag is cleared
-          const root = document.documentElement;
+          // No background - ensure everything is cleared
+          root.style.removeProperty('--bg-image-url');
+          root.style.removeProperty('--bg-image-opacity');
+          root.style.removeProperty('--bg-image-blur');
           root.dataset.hasBgImage = 'false';
         }
       } catch (error) {
