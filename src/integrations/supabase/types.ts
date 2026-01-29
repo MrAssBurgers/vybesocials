@@ -5256,6 +5256,7 @@ export type Database = {
           tags: string[]
           thumbnail_url: string
           type: string
+          view_count: number
         }[]
       }
       get_friend_profile_by_id: {
@@ -5307,6 +5308,7 @@ export type Database = {
           tags: string[]
           thumbnail_url: string
           type: string
+          view_count: number
         }[]
       }
       get_profile_by_id: {
