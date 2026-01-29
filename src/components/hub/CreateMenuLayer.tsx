@@ -15,8 +15,8 @@ interface CreateMenuLayerProps {
 }
 
 const Z = {
-  overlay: 5000,
-  surface: 5001,
+  overlay: 9998,
+  surface: 9999,
 } as const;
 
 type Action = "post" | "camera" | "hub";
