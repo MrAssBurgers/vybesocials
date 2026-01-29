@@ -25,6 +25,8 @@ import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { EditPostDialog } from '@/components/posts/EditPostDialog';
+import { CommentSheet } from '@/components/comments/CommentSheet';
+import { ShareSheet } from '@/components/share/ShareSheet';
 
 interface ShortCardProps {
   post: {
@@ -72,6 +74,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isHolding, setIsHolding] = useState(false);
+  const [showCommentSheet, setShowCommentSheet] = useState(false);
+  const [showShareSheet, setShowShareSheet] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
   const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -361,6 +365,18 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     }
   };
 
+  const handleShare = () => setShowShareSheet(true);
+  
+  const handleOpenComments = () => {
+    if (videoRef.current) { videoRef.current.pause(); setIsPlaying(false); }
+    setShowCommentSheet(true);
+  };
+  
+  const handleCloseComments = () => {
+    setShowCommentSheet(false);
+    if (videoRef.current && isActive) { videoRef.current.play().catch(() => {}); setIsPlaying(true); }
+  };
+
   const formatViewCount = (count: number) => {
     if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
     if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
@@ -532,8 +548,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           </AnimatePresence>
         </div>
 
-        {/* Comment */}
-        <Link to={`/p/${post.id}`}>
+        {/* Comment - opens bottom sheet */}
+        <button onClick={handleOpenComments}>
           <motion.button 
             whileTap={{ scale: 0.7 }}
             className="flex flex-col items-center gap-1"
@@ -541,7 +557,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
             <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
             <span className="text-xs font-bold text-white drop-shadow-lg">{post.comment_count}</span>
           </motion.button>
-        </Link>
+        </button>
 
         {/* Bookmark */}
         <motion.button 
@@ -685,6 +701,24 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           </div>
         )}
       </div>
+
+      {/* Comment Sheet */}
+      <CommentSheet
+        postId={post.id}
+        authorId={post.author?.id || ''}
+        commentCount={post.comment_count}
+        isOpen={showCommentSheet}
+        onClose={handleCloseComments}
+      />
+
+      {/* Share Sheet */}
+      <ShareSheet
+        isOpen={showShareSheet}
+        onClose={() => setShowShareSheet(false)}
+        postId={post.id}
+        postType="short"
+        caption={post.caption}
+      />
     </div>
   );
 });

@@ -30,6 +30,8 @@ import { usePosts } from '@/hooks/usePosts';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
+import { InlineComments } from '@/components/comments/InlineComments';
+import { ShareSheet } from '@/components/share/ShareSheet';
 
 export default function WatchPage() {
   const { id } = useParams<{ id: string }>();
@@ -47,6 +49,8 @@ export default function WatchPage() {
   const [isLiked, setIsLiked] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const [commentCount, setCommentCount] = useState(0);
+  const [showShareSheet, setShowShareSheet] = useState(false);
 
   // Fetch video details
   const { data: video, isLoading } = useQuery({
@@ -85,15 +89,17 @@ export default function WatchPage() {
     if (!profile || !id) return;
 
     const fetchStatus = async () => {
-      const [likeRes, bookmarkRes, countRes] = await Promise.all([
+      const [likeRes, bookmarkRes, countRes, commentRes] = await Promise.all([
         supabase.from('likes').select('id').eq('post_id', id).eq('user_id', profile.id).single(),
         supabase.from('bookmarks').select('id').eq('post_id', id).eq('user_id', profile.id).single(),
         supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', id),
+        supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', id),
       ]);
 
       setIsLiked(!!likeRes.data);
       setIsBookmarked(!!bookmarkRes.data);
       setLikeCount(countRes.count || 0);
+      setCommentCount(commentRes.count || 0);
     };
 
     fetchStatus();
@@ -177,13 +183,7 @@ export default function WatchPage() {
   };
 
   const handleShare = async () => {
-    const url = window.location.href;
-    if (navigator.share) {
-      await navigator.share({ title: video?.caption || 'Check this out', url });
-    } else {
-      navigator.clipboard.writeText(url);
-      toast.success('Link copied!');
-    }
+    setShowShareSheet(true);
   };
 
   if (isLoading) {
@@ -399,6 +399,13 @@ export default function WatchPage() {
                   ))}
                 </div>
               )}
+
+              {/* YouTube-style inline comments */}
+              <InlineComments 
+                postId={id!} 
+                authorId={video.author?.id || ''} 
+                commentCount={commentCount}
+              />
             </div>
           </div>
 
@@ -413,6 +420,16 @@ export default function WatchPage() {
           </div>
         </div>
       </div>
+
+      {/* Share Sheet */}
+      <ShareSheet
+        isOpen={showShareSheet}
+        onClose={() => setShowShareSheet(false)}
+        postId={id!}
+        postType="video"
+        caption={video.caption}
+        mediaUrl={signedUrl || undefined}
+      />
     </AppLayout>
   );
 }
