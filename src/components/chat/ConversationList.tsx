@@ -310,7 +310,7 @@ export function ConversationList() {
 
       {/* Conversation List */}
       <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
-        <div className="p-3 pb-0 space-y-1 w-full box-border">
+        <div className="p-3 pb-24 space-y-1 w-full box-border">
           <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
             <Users className="h-3.5 w-3.5 flex-shrink-0" />
             <span className="truncate">Friends & AI</span>
