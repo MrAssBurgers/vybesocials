@@ -311,6 +311,7 @@ export function playPremiumSound(soundType: PremiumSoundType): void {
 }
 
 // Preview a sound (ignores settings, for settings page)
+// Plays full, longer, louder version so user can actually hear it
 export function previewSound(soundType: PremiumSoundType): void {
   const config = SOUND_CONFIGS[soundType];
   const ctx = getAudioContext();
@@ -319,17 +320,27 @@ export function previewSound(soundType: PremiumSoundType): void {
   try {
     const now = ctx.currentTime;
     
-    config.frequencies.forEach((freq, i) => {
-      createTone(
-        ctx,
-        freq,
-        config.durations[i],
-        Math.min(config.volumes[i] * 1.5, 0.06), // Slightly louder for preview
-        config.types[i],
-        now + config.delays[i],
-        config.detune?.[i] || 0
-      );
-    });
+    // For preview, play the sound multiple times or extend durations
+    // to make it clearly audible
+    const previewMultiplier = soundType === 'callRing' ? 3 : 2;
+    const volumeBoost = 4; // Make it much louder for preview
+    const durationBoost = 3; // Make durations longer
+    
+    for (let repeat = 0; repeat < previewMultiplier; repeat++) {
+      const repeatDelay = repeat * 0.4; // Space out repeats
+      
+      config.frequencies.forEach((freq, i) => {
+        createTone(
+          ctx,
+          freq,
+          config.durations[i] * durationBoost,
+          Math.min(config.volumes[i] * volumeBoost, 0.15), // Much louder for preview
+          config.types[i],
+          now + config.delays[i] + repeatDelay,
+          config.detune?.[i] || 0
+        );
+      });
+    }
   } catch (e) {
     // Sound generation failed silently
   }
