@@ -55,7 +55,8 @@ export const ShareSheet = memo(function ShareSheet({
   const [searchQuery, setSearchQuery] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
   const [flyingPlanes, setFlyingPlanes] = useState<string[]>([]);
-
+  const [selectedFriend, setSelectedFriend] = useState<QuickFriend | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
   // Hide bottom nav when sheet is open
   useEffect(() => {
     if (isOpen) {
@@ -90,6 +91,8 @@ export const ShareSheet = memo(function ShareSheet({
       setSearchQuery('');
       setLinkCopied(false);
       setFlyingPlanes([]);
+      setSelectedFriend(null);
+      setShowConfirm(false);
     }
   }, [isOpen]);
 
@@ -103,9 +106,20 @@ export const ShareSheet = memo(function ShareSheet({
       )
     : quickFriends;
 
-  // Quick send to friend via DM with plane animation
-  const handleQuickSend = useCallback(async (friend: QuickFriend) => {
-    if (!profile || friend.sent || friend.sending) return;
+  // Select friend for confirmation
+  const handleFriendSelect = useCallback((friend: QuickFriend) => {
+    if (friend.sent || friend.sending) return;
+    setSelectedFriend(friend);
+    setShowConfirm(true);
+  }, []);
+
+  // Confirm and send to selected friend
+  const handleConfirmSend = useCallback(async () => {
+    if (!profile || !selectedFriend) return;
+
+    const friend = selectedFriend;
+    setShowConfirm(false);
+    setSelectedFriend(null);
 
     // Start plane animation
     setFlyingPlanes(prev => [...prev, friend.id]);
@@ -157,7 +171,7 @@ export const ShareSheet = memo(function ShareSheet({
       );
       setFlyingPlanes(prev => prev.filter(id => id !== friend.id));
     }
-  }, [profile, postId, postType, mediaUrl, queryClient]);
+  }, [profile, selectedFriend, postId, postType, mediaUrl, queryClient]);
 
   // Copy link to clipboard
   const handleCopyLink = useCallback(() => {
@@ -271,7 +285,7 @@ export const ShareSheet = memo(function ShareSheet({
                   <FriendSendButton
                     key={friend.id}
                     friend={friend}
-                    onClick={() => handleQuickSend(friend)}
+                    onClick={() => handleFriendSelect(friend)}
                     isFlying={flyingPlanes.includes(friend.id)}
                     delay={index * 0.03}
                   />
@@ -315,6 +329,64 @@ export const ShareSheet = memo(function ShareSheet({
               </div>
             </div>
           </motion.div>
+
+          {/* Send Confirmation Modal */}
+          <AnimatePresence>
+            {showConfirm && selectedFriend && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[102] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                onClick={() => setShowConfirm(false)}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 400 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-card border border-border rounded-2xl p-6 mx-4 max-w-sm w-full shadow-xl"
+                >
+                  <div className="flex flex-col items-center gap-4">
+                    <Avatar className="h-16 w-16 ring-2 ring-primary ring-offset-2 ring-offset-background">
+                      <AvatarImage src={selectedFriend.avatar_url || undefined} />
+                      <AvatarFallback className="bg-primary/20 text-lg font-semibold">
+                        {selectedFriend.username[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    
+                    <div className="text-center">
+                      <h4 className="font-semibold text-lg">
+                        Send to {selectedFriend.display_name || selectedFriend.username}?
+                      </h4>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Share this {postType === 'short' ? 'clip' : postType} via DM
+                      </p>
+                    </div>
+
+                    <div className="flex gap-3 w-full mt-2">
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowConfirm(false)}
+                        className="flex-1 py-3 px-4 rounded-xl bg-muted/60 text-foreground font-medium hover:bg-muted transition-colors"
+                      >
+                        Cancel
+                      </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleConfirmSend}
+                        className="flex-1 py-3 px-4 rounded-xl bg-primary text-primary-foreground font-medium flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
+                      >
+                        <Send className="h-4 w-4" />
+                        Send
+                      </motion.button>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </>
       )}
     </AnimatePresence>
