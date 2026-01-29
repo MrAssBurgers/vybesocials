@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, Image, Sparkles } from "lucide-react";
@@ -55,19 +56,19 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
         id: "post" as const,
         icon: Image,
         label: "Post",
-        gradient: "from-rose-500 to-pink-500",
+        gradient: "from-neon-pink to-neon-purple",
       },
       {
         id: "camera" as const,
         icon: Camera,
         label: "Camera",
-        gradient: "from-cyan-500 to-blue-500",
+        gradient: "from-neon-cyan to-neon-purple",
       },
       {
         id: "hub" as const,
         icon: Sparkles,
         label: "Hub",
-        gradient: "from-violet-500 to-purple-500",
+        gradient: "from-neon-purple to-neon-pink",
       },
     ],
     [],
@@ -99,7 +100,13 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
     return () => window.clearTimeout(t);
   }, [open, onOpenChange]);
 
-  return (
+  const portalTarget = typeof document !== "undefined" ? document.body : null;
+  if (!portalTarget) return null;
+
+  // Keep the Create button tappable to toggle-close on mobile/tablet.
+  const navClearancePx = isMobileOrTablet ? 90 : 0;
+
+  return createPortal(
     <>
       {/* Nested modals/fullscreen */}
       <VYBEHub isOpen={showHub} onClose={() => setShowHub(false)} />
@@ -114,8 +121,13 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-              style={{ zIndex: Z.overlay }}
+              className="fixed left-0 right-0 top-0 bg-background/40 backdrop-blur-sm backdrop-brightness-75"
+              style={{
+                zIndex: Z.overlay,
+                bottom: navClearancePx
+                  ? `calc(env(safe-area-inset-bottom, 0px) + ${navClearancePx}px)`
+                  : "0px",
+              }}
               onClick={close}
             />
 
@@ -131,7 +143,9 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
             >
               {/* Clean card popup */}
               <div className="flex flex-col gap-3 p-4 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/40 shadow-2xl min-w-[240px]">
-                <p className="text-sm font-medium text-center text-muted-foreground mb-1">Create</p>
+                <p className="text-sm font-medium text-center text-muted-foreground mb-1">
+                  Create
+                </p>
                 {menuItems.map((item) => (
                   <motion.button
                     key={item.id}
@@ -143,7 +157,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                     <div
                       className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-md`}
                     >
-                      <item.icon className="h-5 w-5 text-white" />
+                      <item.icon className="h-5 w-5 text-primary-foreground" />
                     </div>
                     <span className="text-sm font-medium text-foreground">
                       {item.label}
@@ -155,6 +169,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
           </>
         )}
       </AnimatePresence>
-    </>
+    </>,
+    portalTarget,
   );
 }
