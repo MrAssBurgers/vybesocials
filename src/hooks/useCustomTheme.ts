@@ -579,8 +579,16 @@ export function useApplyActiveBackground() {
 
         if (activeBg?.image_url) {
           const root = document.documentElement;
+          // CRITICAL: Set ALL required CSS variables for background to show
           root.style.setProperty('--bg-image-url', `url(${activeBg.image_url})`);
+          root.style.setProperty('--bg-image-opacity', '0.85'); // Default opacity
+          root.style.setProperty('--bg-image-blur', '0px'); // Default no blur
           root.dataset.hasBgImage = 'true';
+          console.log('[Background] Applied active background:', activeBg.image_url);
+        } else {
+          // No active background - ensure flag is cleared
+          const root = document.documentElement;
+          root.dataset.hasBgImage = 'false';
         }
       } catch (error) {
         console.error('Failed to load active background:', error);

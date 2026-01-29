@@ -192,12 +192,20 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
-    
   }
   
-  /* CRITICAL: When custom background is active, make body transparent so image shows */
+  /* CRITICAL: When custom background is active, make body fully transparent so image shows through */
   html[data-has-bg-image="true"] body {
     background: transparent !important;
+    background-color: transparent !important;
+  }
+  
+  /* CRITICAL: #root must be transparent when background image is active */
+  html[data-has-bg-image="true"] #root {
+    background: transparent !important;
+    background-color: transparent !important;
+    position: relative;
+    isolation: isolate;
   }
   
   /* Custom background image layer - rendered on #root::before for proper z-index */
@@ -205,7 +213,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     content: '';
     position: fixed;
     inset: 0;
-    z-index: 0;
+    z-index: -2;
     background-image: var(--bg-image-url);
     background-size: cover;
     background-position: center center;
@@ -220,20 +228,20 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     content: '';
     position: fixed;
     inset: 0;
-    z-index: 1;
+    z-index: -1;
     background: linear-gradient(
       to bottom,
-      hsl(var(--background) / 0.15) 0%,
-      hsl(var(--background) / 0.05) 50%,
-      hsl(var(--background) / 0.15) 100%
+      hsl(var(--background) / 0.2) 0%,
+      hsl(var(--background) / 0.1) 50%,
+      hsl(var(--background) / 0.2) 100%
     );
     pointer-events: none;
   }
   
-  /* Ensure main content is above the background layers but don't affect fixed nav */
-  html[data-has-bg-image="true"] #root > *:not(nav) {
+  /* All content inside #root should be above the background layers */
+  html[data-has-bg-image="true"] #root > * {
     position: relative;
-    z-index: 2;
+    z-index: 1;
   }
   
   /* Bottom nav must always be on top - override any stacking context */
