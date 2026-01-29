@@ -2,13 +2,13 @@ import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
-  Search, TrendingUp, ShoppingBag, Calendar, 
+  TrendingUp, ShoppingBag, Calendar, 
   Volume2, VolumeX, Bookmark, Users, Sparkles, ChevronRight,
   MessageCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
-import { Input } from '@/components/ui/input';
+
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -75,8 +75,8 @@ export function DesktopRightSidebar() {
   const { data: friends, isLoading: friendsLoading } = useFriends();
   const { data: events, isLoading: eventsLoading } = useEvents({ upcoming: true });
   const { data: listings, isLoading: listingsLoading } = useListings();
-  const [searchQuery, setSearchQuery] = useState('');
   const [isMuted, setIsMuted] = useState(false);
+
 
   // Get friend IDs for presence lookup
   const friendIds = useMemo(() => 
@@ -93,17 +93,8 @@ export function DesktopRightSidebar() {
     return friends.filter(f => f?.id && onlineStatusMap[f.id] === true);
   }, [friends, onlineStatusMap]);
 
-  // Handle Cmd/Ctrl+K shortcut
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        document.getElementById('desktop-search-input')?.focus();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+
+
 
   // Get recent conversations with unread messages - memoized
   const recentChats = useMemo(() => {
@@ -180,21 +171,6 @@ export function DesktopRightSidebar() {
     >
       <ScrollArea className="flex-1 h-full">
         <div className="p-3 space-y-3">
-          {/* Quick Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="desktop-search-input"
-              type="search"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-16 h-10 liquid-glass-input"
-            />
-            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono bg-secondary px-1.5 py-0.5 rounded text-muted-foreground">
-              ⌘K
-            </kbd>
-          </div>
 
           {/* Online Friends Strip */}
           <div>
