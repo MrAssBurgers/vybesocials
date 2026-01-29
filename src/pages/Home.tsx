@@ -102,15 +102,16 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   usePrefetchPosts();
 
   // Filter out shorts/clips - they should only appear in Clips section
+  // Keep posts and videos (long-form content)
   const forYouPosts = useMemo(() => 
     (forYouData?.pages.flatMap(page => page.posts) || [])
-      .filter(post => post.type !== 'short'), 
+      .filter(post => post.type === 'post' || post.type === 'video'), 
     [forYouData]
   );
   
   const followingPosts = useMemo(() => 
     (followingData?.pages.flatMap(page => page.posts) || [])
-      .filter(post => post.type !== 'short'), 
+      .filter(post => post.type === 'post' || post.type === 'video'), 
     [followingData]
   );
 

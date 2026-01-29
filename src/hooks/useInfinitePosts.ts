@@ -133,9 +133,8 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
     initialPageParam: 0,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
-    refetchOnMount: false,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
-    placeholderData: (previousData) => previousData,
   });
 
   return query;
