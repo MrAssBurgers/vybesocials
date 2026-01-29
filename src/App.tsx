@@ -96,6 +96,13 @@ function BanCheck() {
 // Track if initial load has completed (persists across navigations)
 let hasInitialLoadCompleted = false;
 
+// Component that requires AuthProvider context
+function AuthenticatedPreloads() {
+  // Prefetch user backgrounds for instant settings load
+  usePrefetchBackgrounds();
+  return null;
+}
+
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
@@ -107,9 +114,6 @@ function AppWithPreloader() {
   
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
-  
-  // Prefetch user backgrounds for instant settings load
-  usePrefetchBackgrounds();
 
   useEffect(() => {
     // Only hide splash when preloading is truly complete
@@ -132,6 +136,7 @@ function AppWithPreloader() {
       />
       <GlobalErrorHandler />
       <AuthProvider>
+        <AuthenticatedPreloads />
         <CustomThemeProvider>
           <ThemeTransitionProvider>
             <EasterEggProvider>
