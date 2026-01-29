@@ -147,17 +147,17 @@ export const SharedPostBubble = memo(function SharedPostBubble({
     <motion.button
       onClick={handleClick}
       className={cn(
-        "relative overflow-hidden rounded-2xl group cursor-pointer",
-        "w-36 sm:w-44 aspect-square",
-        "bg-black/90 border border-border/30",
-        "active:scale-[0.98] transition-transform"
+        "relative overflow-hidden rounded-2xl cursor-pointer",
+        "w-44 sm:w-52 aspect-[4/5]",
+        "bg-black/90",
+        "active:scale-[0.98] transition-transform",
+        "shadow-lg"
       )}
       whileTap={{ scale: 0.98 }}
     >
       {/* Thumbnail/Preview */}
       {displayUrl ? (
         isVideo && signedMediaUrl && !signedThumbnailUrl ? (
-          // Video thumbnail from video element
           <video
             src={signedMediaUrl}
             className="absolute inset-0 w-full h-full object-cover"
@@ -166,64 +166,28 @@ export const SharedPostBubble = memo(function SharedPostBubble({
             preload="metadata"
           />
         ) : (
-          // Image thumbnail
           <img
             src={displayUrl}
-            alt="Shared post"
+            alt="Shared clip"
             className="absolute inset-0 w-full h-full object-cover"
             loading="lazy"
           />
         )
       ) : (
-        // Fallback gradient
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-accent/30" />
       )}
 
-      {/* Overlay gradient */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+      {/* Subtle gradient overlay for depth */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10" />
 
       {/* Play button for videos */}
       {isVideo && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0.8 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.2 }}
-            className={cn(
-              "w-12 h-12 rounded-full flex items-center justify-center",
-              "bg-white/90 shadow-lg",
-              "group-hover:bg-white transition-colors"
-            )}
-          >
-            <Play className="h-6 w-6 text-black ml-0.5" fill="black" />
-          </motion.div>
+          <div className="w-11 h-11 rounded-full flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <Play className="h-5 w-5 text-white ml-0.5" fill="white" />
+          </div>
         </div>
       )}
-
-      {/* Clip badge */}
-      <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm">
-        <Film className="h-3 w-3 text-white" />
-        <span className="text-[10px] font-medium text-white">Clip</span>
-      </div>
-
-      {/* External link indicator */}
-      <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-        <ExternalLink className="h-3 w-3 text-white" />
-      </div>
-
-      {/* Caption preview */}
-      {postData.caption && (
-        <div className="absolute bottom-0 left-0 right-0 p-2.5">
-          <p className="text-xs text-white font-medium line-clamp-2 drop-shadow-lg">
-            {postData.caption}
-          </p>
-        </div>
-      )}
-
-      {/* "Tap to view" hint */}
-      <div className="absolute bottom-0 left-0 right-0 p-2 pt-6 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-        <p className="text-[10px] text-white/80 text-center font-medium">Tap to view</p>
-      </div>
     </motion.button>
   );
 });
