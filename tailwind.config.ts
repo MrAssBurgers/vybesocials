@@ -121,6 +121,31 @@ export default {
           from: { transform: "rotate(0deg)" },
           to: { transform: "rotate(360deg)" },
         },
+        // Bubble pop animation - grows from trigger origin
+        "bubble-pop-in": {
+          "0%": { 
+            opacity: "0", 
+            transform: "scale(0.5)"
+          },
+          "60%": { 
+            opacity: "1",
+            transform: "scale(1.02)"
+          },
+          "100%": { 
+            opacity: "1", 
+            transform: "scale(1)"
+          },
+        },
+        "bubble-pop-out": {
+          "0%": { 
+            opacity: "1", 
+            transform: "scale(1)"
+          },
+          "100%": { 
+            opacity: "0", 
+            transform: "scale(0.5)"
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -133,6 +158,8 @@ export default {
         "heart-pop": "heart-pop 0.4s ease-out",
         "gradient": "gradient-shift 8s ease infinite",
         spin: "spin 1s linear infinite",
+        "bubble-pop-in": "bubble-pop-in 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "bubble-pop-out": "bubble-pop-out 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
       },
     },
   },

@@ -17,7 +17,10 @@ const TooltipContent = React.forwardRef<
     ref={ref}
     sideOffset={sideOffset}
     className={cn(
-      "z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md",
+      "z-50 overflow-hidden rounded-lg liquid-glass px-3 py-1.5 text-sm text-popover-foreground shadow-lg",
+      // Bubble pop animation - grows from trigger
+      "origin-[var(--radix-tooltip-content-transform-origin)]",
+      "data-[state=delayed-open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
       className,
     )}
     {...props}

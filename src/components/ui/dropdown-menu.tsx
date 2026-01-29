@@ -44,7 +44,9 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg",
+      "z-50 min-w-[8rem] overflow-hidden rounded-xl liquid-glass p-1.5 text-popover-foreground shadow-xl",
+      "origin-[var(--radix-dropdown-menu-content-transform-origin)]",
+      "data-[state=open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
       className,
     )}
     {...props}
@@ -62,6 +64,9 @@ const DropdownMenuContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(
         "z-50 min-w-[8rem] overflow-hidden rounded-xl liquid-glass p-1.5 text-popover-foreground shadow-xl",
+        // Bubble pop animation - grows from trigger
+        "origin-[var(--radix-dropdown-menu-content-transform-origin)]",
+        "data-[state=open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
         className,
       )}
       {...props}

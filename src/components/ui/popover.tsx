@@ -18,6 +18,9 @@ const PopoverContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(
         "z-50 w-72 rounded-2xl liquid-glass p-4 text-popover-foreground shadow-xl outline-none",
+        // Bubble pop animation - grows from trigger
+        "origin-[var(--radix-popover-content-transform-origin)]",
+        "data-[state=open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
         className,
       )}
       {...props}
