@@ -1566,6 +1566,7 @@ const MessageBubble = memo(function MessageBubble({
   // Check if this is an audio message for proper sizing
   const isAudioMessage = message.media_url && message.media_type === 'audio';
   const isMediaMessage = message.media_url && (message.media_type === 'image' || message.media_type === 'gif');
+  const isVideoMessage = message.media_url && message.media_type === 'video';
   const isVybeMessage = message.media_url && message.media_type === 'vybe';
 
   return (
@@ -1670,6 +1671,7 @@ const MessageBubble = memo(function MessageBubble({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          {/* Image/GIF message */}
           {isMediaMessage && (
             <div className={message.content ? "mb-2" : ""}>
               <img
@@ -1677,6 +1679,20 @@ const MessageBubble = memo(function MessageBubble({
                 alt={message.media_type === 'gif' ? "GIF" : "Shared image"}
                 className="rounded-xl max-w-full max-h-52 sm:max-h-64 object-cover"
                 loading="lazy"
+              />
+            </div>
+          )}
+
+          {/* Video message - Instagram style inline video player */}
+          {isVideoMessage && (
+            <div className={cn(message.content ? "mb-2" : "", "relative")}>
+              <video
+                src={message.media_url!}
+                className="rounded-xl max-w-full max-h-64 sm:max-h-72 object-cover"
+                controls
+                playsInline
+                preload="metadata"
+                poster={message.media_url + '#t=0.1'}
               />
             </div>
           )}
