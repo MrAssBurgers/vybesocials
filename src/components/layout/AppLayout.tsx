@@ -17,6 +17,7 @@ interface AppLayoutProps {
   hideRightSidebar?: boolean;
   fullWidth?: boolean;
   hideNav?: boolean; // Hide bottom nav for immersive views like Clips
+  noPadding?: boolean; // Remove padding for full-bleed content like DMs
 }
 
 // Use forwardRef to avoid React ref warnings
@@ -25,7 +26,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   requireAuth = true, 
   hideRightSidebar = false,
   fullWidth = false,
-  hideNav = false 
+  hideNav = false,
+  noPadding = false
 }, ref) {
   const { user, loading } = useAuth();
   const { isDesktop, isTablet, isIPad } = useBreakpoint();
@@ -76,7 +78,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           >
             <div 
               className={cn(
-                "mx-auto w-full px-2 lg:px-3 py-3",
+                "mx-auto w-full",
+                noPadding ? "" : "px-2 lg:px-3 py-3",
                 fullWidth ? "" : "max-w-full"
               )}
             >
@@ -104,8 +107,10 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
       <main
         data-app-scroll-container="true"
         className={cn(
-          "h-full overflow-y-auto overflow-x-hidden pb-[calc(5rem+env(safe-area-inset-bottom))]",
-          hideNav ? "" : "pt-14"
+          "h-full overflow-y-auto overflow-x-hidden",
+          hideNav ? "" : "pb-[calc(5rem+env(safe-area-inset-bottom))]",
+          hideNav ? "" : "pt-14",
+          noPadding ? "" : ""
         )}
         style={{
           WebkitOverflowScrolling: 'touch',
