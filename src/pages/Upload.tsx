@@ -15,7 +15,7 @@ import { useContentSafety } from '@/hooks/useContentSafety';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon, Wand2, ImagePlus, ArrowLeft } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { Label } from '@/components/ui/label';
 
 const contentTypes = [
@@ -27,7 +27,7 @@ const contentTypes = [
 const suggestedTags = ['photography', 'art', 'music', 'gaming', 'food', 'travel', 'fashion', 'fitness', 'ai'];
 
 export default function UploadPage() {
-  const isMobile = useIsMobile();
+  const { isMobileOrTablet } = useIsMobileOrTablet();
   const navigate = useNavigate();
   const { user } = useAuth();
   const createPost = useCreatePost();
@@ -341,13 +341,12 @@ export default function UploadPage() {
       )}
       <div className="max-w-2xl mx-auto p-4 pb-24 space-y-6">
         {/* Mobile/Tablet back button */}
-        {isMobile && (
+        {isMobileOrTablet && (
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors -ml-1 mb-2"
+            className="w-10 h-10 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center transition-colors mb-2"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Back</span>
           </button>
         )}
         <h1 className="text-2xl font-bold">Create Post</h1>
