@@ -214,7 +214,7 @@ export function NotificationSoundSection() {
                 soundType="call_ringtone"
                 title="Call Ringtone"
                 description="Plays when someone calls you"
-                maxDuration={15}
+                maxDuration={null}
               />
             </motion.div>
           </CollapsibleContent>
