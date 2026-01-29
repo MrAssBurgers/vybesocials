@@ -17,7 +17,7 @@ interface CustomRingtoneUploaderProps {
   soundType: SoundType;
   title: string;
   description: string;
-  maxDuration: number;
+  maxDuration: number | null; // null = no limit
 }
 
 export function CustomRingtoneUploader({
@@ -250,7 +250,7 @@ export function CustomRingtoneUploader({
       
       {/* File requirements */}
       <p className="text-[10px] text-muted-foreground/70 mt-2 text-center">
-        MP3, WAV, or M4A • Max {maxDuration}s • Under 5MB
+        MP3, WAV, or M4A{maxDuration ? ` • Max ${maxDuration}s` : ''} • Under 5MB
       </p>
     </div>
   );

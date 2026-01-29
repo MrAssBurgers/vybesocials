@@ -20,10 +20,10 @@ export interface CustomSound {
   created_at: string;
 }
 
-// Duration limits in seconds
-const DURATION_LIMITS: Record<SoundType, number> = {
+// Duration limits in seconds (null = no limit)
+const DURATION_LIMITS: Record<SoundType, number | null> = {
   message_tone: 5,
-  call_ringtone: 15,
+  call_ringtone: null, // No limit for call ringtones
 };
 
 // Fetch user's custom sounds from database
@@ -82,7 +82,8 @@ export async function validateAudioFile(
     const duration = await getAudioDuration(file);
     const maxDuration = DURATION_LIMITS[soundType];
     
-    if (duration > maxDuration) {
+    // Only check duration if there's a limit
+    if (maxDuration !== null && duration > maxDuration) {
       return { 
         valid: false, 
         error: `Duration must be under ${maxDuration} seconds (current: ${duration.toFixed(1)}s)`,
