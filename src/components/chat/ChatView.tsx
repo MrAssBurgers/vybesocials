@@ -75,7 +75,8 @@ import {
   Users,
   Settings,
   FileText,
-  Camera
+  Camera,
+  Play
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { SnapCamera } from './SnapCamera';
@@ -1033,6 +1034,7 @@ export function ChatView() {
                     )}
                     profileId={profile?.id}
                     isEmojiOnly={isEmojiOnly}
+                    onNavigateToPost={(postId) => navigate(`/shorts?id=${postId}`)}
                   />
                 </SwipeToReply>
               </div>
@@ -1441,6 +1443,7 @@ const MessageBubble = memo(function MessageBubble({
   onToggleReactions,
   profileId,
   isEmojiOnly = false,
+  onNavigateToPost,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -1459,6 +1462,7 @@ const MessageBubble = memo(function MessageBubble({
   onToggleReactions: () => void;
   profileId?: string;
   isEmojiOnly?: boolean;
+  onNavigateToPost?: (postId: string) => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const [vybeViewed, setVybeViewed] = useState(false);
@@ -1683,17 +1687,38 @@ const MessageBubble = memo(function MessageBubble({
             </div>
           )}
 
-          {/* Video message - Instagram style inline video player */}
+          {/* Video message - Instagram style portrait video with navigation */}
           {isVideoMessage && (
-            <div className={cn(message.content ? "mb-2" : "", "relative")}>
-              <video
-                src={message.media_url!}
-                className="rounded-xl max-w-full max-h-64 sm:max-h-72 object-cover"
-                controls
-                playsInline
-                preload="metadata"
-                poster={message.media_url + '#t=0.1'}
-              />
+            <div 
+              className={cn(message.content ? "mb-2" : "", "relative cursor-pointer group")}
+              onClick={() => {
+                // Navigate to the post - content contains the post ID for shared posts
+                if (message.message_type === 'shared_post' && message.content && onNavigateToPost) {
+                  onNavigateToPost(message.content);
+                }
+              }}
+            >
+              <div className="relative aspect-[9/16] w-32 sm:w-40 overflow-hidden rounded-xl bg-black">
+                <video
+                  src={message.media_url!}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  playsInline
+                  muted
+                  loop
+                  autoPlay
+                  preload="metadata"
+                  poster={message.media_url + '#t=0.1'}
+                />
+                {/* Play overlay hint */}
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
+                    <Play className="h-5 w-5 text-black ml-0.5" />
+                  </div>
+                </div>
+              </div>
+              {message.message_type === 'shared_post' && (
+                <p className="text-[10px] text-muted-foreground mt-1 text-center">Tap to view</p>
+              )}
             </div>
           )}
 

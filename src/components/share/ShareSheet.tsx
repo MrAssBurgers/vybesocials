@@ -122,8 +122,8 @@ export const ShareSheet = memo(function ShareSheet({
         await supabase.from('messages').insert({
           conversation_id: convId,
           sender_id: profile.id,
-          // No text - just send the media directly like Instagram
-          content: null,
+          // Store the post ID in content so we can navigate to it
+          content: postId,
           media_url: mediaUrl || null,
           media_type: isVideo ? 'video' : 'image',
           // Use message_type to indicate this is a shared post
