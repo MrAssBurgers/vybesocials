@@ -527,6 +527,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         postId={post.id}
         postType="short"
         caption={post.caption}
+        mediaUrl={signedMediaUrl || post.media_url}
       />
     </div>
   );
