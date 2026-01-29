@@ -14,7 +14,8 @@ import { useCreatePost } from '@/hooks/usePosts';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon, Wand2, ImagePlus } from 'lucide-react';
+import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon, Wand2, ImagePlus, ArrowLeft } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Label } from '@/components/ui/label';
 
 const contentTypes = [
@@ -26,6 +27,7 @@ const contentTypes = [
 const suggestedTags = ['photography', 'art', 'music', 'gaming', 'food', 'travel', 'fashion', 'fitness', 'ai'];
 
 export default function UploadPage() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { user } = useAuth();
   const createPost = useCreatePost();
@@ -338,6 +340,16 @@ export default function UploadPage() {
         </div>
       )}
       <div className="max-w-2xl mx-auto p-4 pb-24 space-y-6">
+        {/* Mobile/Tablet back button */}
+        {isMobile && (
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors -ml-1 mb-2"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm font-medium">Back</span>
+          </button>
+        )}
         <h1 className="text-2xl font-bold">Create Post</h1>
         <div className="space-y-2">
           <label className="text-sm font-medium text-muted-foreground">Content Type</label>
