@@ -34,6 +34,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  profileLoading: boolean;
   banInfo: BanInfo | null;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -273,17 +275,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          // CRITICAL: Set loading = false IMMEDIATELY when session exists
+          // Profile loading happens in background and should NOT block app
+          setLoading(false);
+          setIsInitialized(true);
+          
           // Schedule token refresh for persistent sessions
           if (session.expires_at) {
             scheduleTokenRefresh(session.expires_at);
           }
           
-          // Use setTimeout to avoid Supabase auth deadlock
+          // Profile loads in background - use setTimeout to avoid Supabase auth deadlock
+          setProfileLoading(true);
           setTimeout(() => {
-            fetchProfile(session.user.id);
+            fetchProfile(session.user.id).finally(() => setProfileLoading(false));
           }, 0);
         } else {
           setProfile(null);
+          setProfileLoading(false);
           clearProfileCache(); // Clear cache on logout
           setBanInfo(null);
           // Clear refresh timer on logout
@@ -298,10 +307,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           // Clear ban expiry timer
           clearBanExpiryTimer();
+          setLoading(false);
+          setIsInitialized(true);
         }
-        
-        setLoading(false);
-        setIsInitialized(true);
       }
     );
 
@@ -311,15 +319,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       
       if (session?.user) {
+        // CRITICAL: Session exists = signed in immediately
+        setLoading(false);
+        setIsInitialized(true);
+        
         // Schedule token refresh for persistent sessions
         if (session.expires_at) {
           scheduleTokenRefresh(session.expires_at);
         }
-        fetchProfile(session.user.id);
+        
+        // Profile loads in background
+        setProfileLoading(true);
+        fetchProfile(session.user.id).finally(() => setProfileLoading(false));
+      } else {
+        setLoading(false);
+        setProfileLoading(false);
+        setIsInitialized(true);
       }
-      
-      setLoading(false);
-      setIsInitialized(true);
     });
 
     // Handle "session-only" mode (Remember Me unchecked)
@@ -436,6 +452,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       loading,
+      profileLoading,
       banInfo,
       signUp,
       signIn,
