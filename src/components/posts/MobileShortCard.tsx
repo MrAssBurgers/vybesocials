@@ -106,7 +106,7 @@ export const MobileShortCard = memo(function MobileShortCard({
     }
   }, [globalMuted]);
 
-  // Handle hold-to-pause
+  // Handle hold-to-pause - preserve mute state
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -115,10 +115,15 @@ export const MobileShortCard = memo(function MobileShortCard({
       video.pause();
       setIsPlaying(false);
     } else if (isActive && signedMediaUrl) {
-      video.play().catch(() => {});
-      setIsPlaying(true);
+      // Resume with current mute state preserved
+      video.play().then(() => {
+        setIsPlaying(true);
+      }).catch(() => {});
     }
   }, [isHolding, isActive, signedMediaUrl]);
+
+  // Track if this is initial load vs resume from hold
+  const wasHoldingRef = useRef(false);
 
   // Simplified play/pause for mobile - avoid complex state updates
   useEffect(() => {
@@ -130,21 +135,31 @@ export const MobileShortCard = memo(function MobileShortCard({
       clearTimeout(playAttemptRef.current);
     }
 
+    const isResumingFromHold = wasHoldingRef.current && !isHolding;
+    wasHoldingRef.current = isHolding;
+
     if (isActive && !isHolding) {
       // Delay play slightly to allow DOM updates
       playAttemptRef.current = setTimeout(() => {
-        video.muted = true; // Always start muted for autoplay
         video.playsInline = true;
+        
+        // Only force mute on initial autoplay, NOT when resuming from hold
+        if (!isResumingFromHold && !hasCountedInitialView.current) {
+          video.muted = true; // Initial autoplay must be muted
+        }
+        // Otherwise preserve current mute state (don't change video.muted)
         
         const playPromise = video.play();
         if (playPromise !== undefined) {
           playPromise
             .then(() => {
               setIsPlaying(true);
-              // Unmute if user preference is unmuted
-              if (!globalMuted) {
-                video.muted = false;
-                setIsMuted(false);
+              // Only apply global mute preference on initial play, not resume
+              if (!isResumingFromHold && !hasCountedInitialView.current) {
+                if (!globalMuted) {
+                  video.muted = false;
+                  setIsMuted(false);
+                }
               }
               // Count initial view
               if (!hasCountedInitialView.current && profile) {
