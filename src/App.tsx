@@ -98,8 +98,8 @@ let hasInitialLoadCompleted = false;
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
-  // Skip splash entirely for faster loading - show app immediately
-  const [showSplash, setShowSplash] = useState(false);
+  // Only show splash on truly initial load, not on navigation
+  const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
   
   // Auto-update checker
   useAutoUpdate();
@@ -108,9 +108,16 @@ function AppWithPreloader() {
   useRealtimeProfiles();
 
   useEffect(() => {
-    // Mark as complete immediately
-    hasInitialLoadCompleted = true;
-  }, []);
+    // Only hide splash when preloading is truly complete
+    if (preloadStatus.isComplete && showSplash) {
+      // Small delay for smooth transition
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+        hasInitialLoadCompleted = true;
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [preloadStatus.isComplete, showSplash]);
 
   return (
     <>
