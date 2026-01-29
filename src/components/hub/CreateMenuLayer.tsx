@@ -120,50 +120,87 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="fixed left-0 right-0 top-0 bg-background/40 backdrop-blur-sm backdrop-brightness-75"
-              style={{
-                zIndex: Z.overlay,
-                bottom: navClearancePx
-                  ? `calc(env(safe-area-inset-bottom, 0px) + ${navClearancePx}px)`
-                  : "0px",
-              }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-md"
+              style={{ zIndex: Z.overlay }}
               onClick={close}
             />
 
-            {/* Centered popup */}
+            {/* High-tech centered popup */}
             <motion.div
               ref={surfaceRef}
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
               className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
               style={{ zIndex: Z.surface }}
             >
-              {/* Clean card popup */}
-              <div className="flex flex-col gap-3 p-4 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/40 shadow-2xl min-w-[240px]">
-                <p className="text-sm font-medium text-center text-muted-foreground mb-1">
-                  Create
-                </p>
-                {menuItems.map((item) => (
-                  <motion.button
-                    key={item.id}
-                    onClick={() => handleAction(item.id)}
-                    whileTap={{ scale: 0.97 }}
-                    whileHover={{ scale: 1.02 }}
-                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/60 transition-colors"
-                  >
-                    <div
-                      className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-md`}
-                    >
-                      <item.icon className="h-5 w-5 text-primary-foreground" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">
-                      {item.label}
-                    </span>
-                  </motion.button>
-                ))}
+              {/* Futuristic glass card */}
+              <div className="relative flex flex-col gap-2 p-5 rounded-3xl min-w-[280px] overflow-hidden">
+                {/* Glass background layers */}
+                <div className="absolute inset-0 bg-gradient-to-br from-card/90 via-card/80 to-card/70 backdrop-blur-2xl" />
+                <div className="absolute inset-0 bg-gradient-to-t from-primary/5 via-transparent to-accent/5" />
+                
+                {/* Animated border glow */}
+                <div className="absolute inset-0 rounded-3xl border border-foreground/10" />
+                <div className="absolute inset-0 rounded-3xl shadow-[0_0_40px_-10px] shadow-primary/20" />
+                
+                {/* Top shine line */}
+                <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent" />
+                
+                {/* Content */}
+                <div className="relative z-10">
+                  <p className="text-xs font-semibold tracking-widest uppercase text-center text-muted-foreground/70 mb-4">
+                    Create
+                  </p>
+                  
+                  <div className="flex flex-col gap-2">
+                    {menuItems.map((item, index) => (
+                      <motion.button
+                        key={item.id}
+                        onClick={() => handleAction(item.id)}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        whileTap={{ scale: 0.97 }}
+                        whileHover={{ x: 4 }}
+                        className="group flex items-center gap-4 p-3 rounded-2xl bg-foreground/5 hover:bg-foreground/10 border border-foreground/5 hover:border-foreground/10 transition-all duration-200"
+                      >
+                        {/* Icon container with glow */}
+                        <div className="relative">
+                          <div
+                            className={`w-11 h-11 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow`}
+                          >
+                            <item.icon className="h-5 w-5 text-primary-foreground" />
+                          </div>
+                          {/* Icon glow effect */}
+                          <div className={`absolute inset-0 rounded-xl bg-gradient-to-br ${item.gradient} blur-lg opacity-30 group-hover:opacity-50 transition-opacity`} />
+                        </div>
+                        
+                        <div className="flex flex-col items-start">
+                          <span className="text-sm font-semibold text-foreground">
+                            {item.label}
+                          </span>
+                          <span className="text-xs text-muted-foreground/60">
+                            {item.id === 'post' && 'Share media'}
+                            {item.id === 'camera' && 'Capture moment'}
+                            {item.id === 'hub' && 'Create more'}
+                          </span>
+                        </div>
+                        
+                        {/* Arrow indicator */}
+                        <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="w-6 h-6 rounded-full bg-foreground/10 flex items-center justify-center">
+                            <svg className="w-3 h-3 text-foreground/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </motion.div>
           </>
