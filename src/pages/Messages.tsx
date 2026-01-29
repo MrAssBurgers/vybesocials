@@ -13,12 +13,12 @@ export default function Messages() {
   const hideNavOnMobile = isInChat && !isDesktop;
 
   return (
-    <AppLayout hideRightSidebar fullWidth hideNav={hideNavOnMobile}>
+    <AppLayout hideRightSidebar fullWidth hideNav={hideNavOnMobile} noPadding>
       <div 
         className={`
           ${hideNavOnMobile 
             ? 'h-[100dvh] fixed inset-0 z-50' 
-            : 'h-[calc(100dvh-5rem)] md:h-[calc(100dvh-2rem)] lg:h-screen'
+            : 'h-[calc(100dvh-4rem)] md:h-screen'
           } 
           flex max-w-full bg-background
         `}
