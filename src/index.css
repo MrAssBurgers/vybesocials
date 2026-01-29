@@ -200,8 +200,14 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     background-color: transparent !important;
   }
   
-  /* CRITICAL: Background image layer - FIXED to viewport, ABOVE body background */
-  html[data-has-bg-image="true"]::before {
+  /* CRITICAL: Use BODY pseudo elements (more reliable than html/#root) */
+  html[data-has-bg-image="true"] body {
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* Background image layer - FIXED to viewport */
+  html[data-has-bg-image="true"] body::before {
     content: '';
     position: fixed;
     inset: 0;
@@ -214,30 +220,30 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     filter: blur(var(--bg-image-blur, 0px));
     pointer-events: none;
   }
-  
-  /* Subtle overlay for text readability - above image, below content */
-  html[data-has-bg-image="true"]::after {
+
+  /* Readability overlay - above image, below app */
+  html[data-has-bg-image="true"] body::after {
     content: '';
     position: fixed;
     inset: 0;
     z-index: 1;
     background: linear-gradient(
       to bottom,
-      hsl(var(--background) / 0.15) 0%,
-      hsl(var(--background) / 0.05) 50%,
-      hsl(var(--background) / 0.15) 100%
+      hsl(var(--background) / 0.14) 0%,
+      hsl(var(--background) / 0.06) 50%,
+      hsl(var(--background) / 0.14) 100%
     );
     pointer-events: none;
   }
-  
+
   /* Body and #root must be transparent when background image is active */
   html[data-has-bg-image="true"] body,
   html[data-has-bg-image="true"] #root {
     background: transparent !important;
     background-color: transparent !important;
   }
-  
-  /* All content inside #root should be above the background layers */
+
+  /* App content above background layers */
   html[data-has-bg-image="true"] #root {
     position: relative;
     z-index: 2;
@@ -251,7 +257,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   
   /* Mobile-specific adjustments for background image */
   @media (max-width: 768px) {
-    html[data-has-bg-image="true"] #root::before {
+    html[data-has-bg-image="true"] body::before {
       background-attachment: scroll;
     }
   }
