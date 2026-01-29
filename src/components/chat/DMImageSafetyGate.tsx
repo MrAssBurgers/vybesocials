@@ -41,14 +41,12 @@ export function DMImageSafetyGate({
     const runScan = async () => {
       const scanResult = await scanImage(file);
       
-      if (scanResult.result === 'allowed' || scanResult.result === 'warned') {
-        // Auto-proceed for allowed content after brief delay
-        if (scanResult.result === 'allowed') {
-          triggerHaptic('success');
-          setTimeout(() => {
-            onApproved();
-          }, 800);
-        }
+      if (scanResult.result === 'allowed') {
+        triggerHaptic('success');
+        // Don't auto-send - user must click Send button
+      } else if (scanResult.result === 'warned') {
+        triggerHaptic('medium');
+        // Don't auto-send - user must click Send Anyway
       } else if (scanResult.result === 'blocked') {
         triggerHaptic('error');
         onBlocked?.();
@@ -56,7 +54,7 @@ export function DMImageSafetyGate({
     };
     
     runScan();
-  }, [file, scanImage, onApproved, onBlocked]);
+  }, [file, scanImage, onBlocked]);
 
   // Animate dots during scanning
   useEffect(() => {
@@ -260,6 +258,33 @@ export function DMImageSafetyGate({
 
           {/* Actions */}
           <AnimatePresence mode="wait">
+            {result === 'allowed' && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="flex gap-3 pt-2"
+              >
+                <Button
+                  variant="outline"
+                  onClick={onCancel}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    triggerHaptic('light');
+                    onApproved();
+                  }}
+                  className="flex-1 gap-2 bg-emerald-500 hover:bg-emerald-600"
+                >
+                  <Send className="h-4 w-4" />
+                  Send
+                </Button>
+              </motion.div>
+            )}
+
             {result === 'warned' && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -279,7 +304,7 @@ export function DMImageSafetyGate({
                     triggerHaptic('light');
                     onApproved();
                   }}
-                  className="flex-1 gap-2"
+                  className="flex-1 gap-2 bg-amber-500 hover:bg-amber-600"
                 >
                   <Send className="h-4 w-4" />
                   Send Anyway
