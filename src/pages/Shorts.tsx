@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 
 // Bottom nav height - accounts for safe area on all devices
 const BOTTOM_NAV_HEIGHT = 80; // px (including safe area padding)
@@ -186,8 +187,12 @@ export default function ClipsPage() {
                 scrollSnapStop: 'always',
               }}
             >
-              {/* Full screen container */}
-              <div className="relative h-full w-full max-w-[500px]">
+              {/* Full screen container - responsive max-width for different devices */}
+              <div className={cn(
+                "relative h-full w-full",
+                // Mobile: full width, Tablet/iPad: constrained for better UX
+                "max-w-full sm:max-w-[480px] md:max-w-[420px] lg:max-w-[400px]"
+              )}>
                 <CardComponent 
                   post={short} 
                   isActive={index === currentIndex}

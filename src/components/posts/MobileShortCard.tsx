@@ -404,13 +404,13 @@ export const MobileShortCard = memo(function MobileShortCard({
       {/* Gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
 
-      {/* Right side actions - simplified without heavy animations */}
-      <div className="absolute right-3 bottom-20 flex flex-col items-center gap-5 z-10">
+      {/* Right side actions - responsive sizing for mobile/tablet */}
+      <div className="absolute right-3 sm:right-4 bottom-20 sm:bottom-24 flex flex-col items-center gap-4 sm:gap-5 z-10">
         {/* Author avatar */}
         <Link to={`/u/${post.author.username}`} className="relative">
-          <Avatar className="h-12 w-12 border-2 border-white">
+          <Avatar className="h-11 w-11 sm:h-12 sm:w-12 border-2 border-white shadow-lg">
             <AvatarImage src={signedAvatarUrl || undefined} />
-            <AvatarFallback className="bg-primary text-white font-bold">
+            <AvatarFallback className="bg-primary text-white font-bold text-sm sm:text-base">
               {post.author.username[0].toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -419,34 +419,34 @@ export const MobileShortCard = memo(function MobileShortCard({
         {/* Like */}
         <button 
           onClick={handleLike} 
-          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
+          className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
         >
           <Heart
             className={cn(
-              "h-8 w-8 drop-shadow-lg",
+              "h-7 w-7 sm:h-8 sm:w-8 drop-shadow-lg",
               isLiked ? "fill-red-500 text-red-500" : "text-white"
             )}
           />
-          <span className="text-xs font-bold text-white drop-shadow-lg">{likeCount}</span>
+          <span className="text-[11px] sm:text-xs font-bold text-white drop-shadow-lg">{likeCount}</span>
         </button>
 
         {/* Comment - opens bottom sheet */}
         <button 
           onClick={handleOpenComments}
-          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
+          className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
         >
-          <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
-          <span className="text-xs font-bold text-white drop-shadow-lg">{post.comment_count}</span>
+          <MessageCircle className="h-7 w-7 sm:h-8 sm:w-8 text-white drop-shadow-lg" />
+          <span className="text-[11px] sm:text-xs font-bold text-white drop-shadow-lg">{post.comment_count}</span>
         </button>
 
         {/* Bookmark */}
         <button 
           onClick={handleBookmark} 
-          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
+          className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
         >
           <Bookmark
             className={cn(
-              "h-8 w-8 drop-shadow-lg",
+              "h-7 w-7 sm:h-8 sm:w-8 drop-shadow-lg",
               isBookmarked ? "fill-yellow-400 text-yellow-400" : "text-white"
             )}
           />
@@ -455,54 +455,54 @@ export const MobileShortCard = memo(function MobileShortCard({
         {/* Share */}
         <button 
           onClick={handleShare} 
-          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
+          className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
         >
-          <Share2 className="h-8 w-8 text-white drop-shadow-lg" />
+          <Share2 className="h-7 w-7 sm:h-8 sm:w-8 text-white drop-shadow-lg" />
         </button>
 
         {/* Mute toggle */}
         {isVideo && (
           <button 
             onClick={() => onToggleMute ? onToggleMute() : setIsMuted(!isMuted)} 
-            className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
+            className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
           >
             {isMuted ? (
-              <VolumeX className="h-7 w-7 text-white drop-shadow-lg" />
+              <VolumeX className="h-6 w-6 sm:h-7 sm:w-7 text-white drop-shadow-lg" />
             ) : (
-              <Volume2 className="h-7 w-7 text-white drop-shadow-lg" />
+              <Volume2 className="h-6 w-6 sm:h-7 sm:w-7 text-white drop-shadow-lg" />
             )}
           </button>
         )}
       </div>
 
-      {/* Bottom info */}
-      <div className="absolute left-4 right-20 bottom-4 z-10">
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <Link to={`/u/${post.author.username}`} className="flex items-center gap-2">
-            <Avatar className="h-6 w-6 border border-white/50">
+      {/* Bottom info - responsive padding and sizing */}
+      <div className="absolute left-3 sm:left-4 right-16 sm:right-20 bottom-3 sm:bottom-4 z-10">
+        <div className="flex items-center gap-2 mb-1.5 sm:mb-2 flex-wrap">
+          <Link to={`/u/${post.author.username}`} className="flex items-center gap-1.5 sm:gap-2">
+            <Avatar className="h-5 w-5 sm:h-6 sm:w-6 border border-white/50">
               <AvatarImage src={signedAvatarUrl || undefined} />
-              <AvatarFallback className="bg-primary text-white text-xs font-bold">
+              <AvatarFallback className="bg-primary text-white text-[10px] sm:text-xs font-bold">
                 {post.author.username[0].toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <span className="font-bold text-lg text-white drop-shadow-lg">
+            <span className="font-bold text-base sm:text-lg text-white drop-shadow-lg">
               @{post.author.username}
             </span>
           </Link>
-          <div className="flex items-center gap-1 text-white/80 text-sm">
-            <Eye className="h-4 w-4" />
+          <div className="flex items-center gap-1 text-white/80 text-xs sm:text-sm">
+            <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span>{formatViewCount(viewCount)}</span>
           </div>
         </div>
         {post.caption && (
-          <p className="text-sm text-white drop-shadow-lg line-clamp-2 mb-2">{post.caption}</p>
+          <p className="text-xs sm:text-sm text-white drop-shadow-lg line-clamp-2 mb-1.5 sm:mb-2">{post.caption}</p>
         )}
         {post.tags && post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1 sm:gap-1.5">
             {post.tags.map((tag) => (
               <span 
                 key={tag} 
-                className="text-xs text-cyan-300 font-medium drop-shadow-lg"
+                className="text-[11px] sm:text-xs text-cyan-300 font-medium drop-shadow-lg"
               >
                 #{tag}
               </span>
