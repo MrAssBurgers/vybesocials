@@ -106,7 +106,7 @@ export const MobileShortCard = memo(function MobileShortCard({
     }
   }, [globalMuted]);
 
-  // Handle hold-to-pause - preserve mute state
+  // Handle hold-to-pause - DO NOT touch mute state here
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -115,17 +115,17 @@ export const MobileShortCard = memo(function MobileShortCard({
       video.pause();
       setIsPlaying(false);
     } else if (isActive && signedMediaUrl) {
-      // Resume with current mute state preserved
+      // Resume playback without changing mute state
       video.play().then(() => {
         setIsPlaying(true);
       }).catch(() => {});
     }
   }, [isHolding, isActive, signedMediaUrl]);
 
-  // Track if this is initial load vs resume from hold
-  const wasHoldingRef = useRef(false);
+  // Track if initial autoplay happened
+  const hasInitializedRef = useRef(false);
 
-  // Simplified play/pause for mobile - avoid complex state updates
+  // Simplified play/pause for mobile - mute state only changes via tap
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !signedMediaUrl || !isVideo) return;
@@ -135,32 +135,27 @@ export const MobileShortCard = memo(function MobileShortCard({
       clearTimeout(playAttemptRef.current);
     }
 
-    const isResumingFromHold = wasHoldingRef.current && !isHolding;
-    wasHoldingRef.current = isHolding;
+    // Skip if holding - that's handled separately
+    if (isHolding) return;
 
-    if (isActive && !isHolding) {
+    if (isActive) {
       // Delay play slightly to allow DOM updates
       playAttemptRef.current = setTimeout(() => {
         video.playsInline = true;
         
-        // Only force mute on initial autoplay, NOT when resuming from hold
-        if (!isResumingFromHold && !hasCountedInitialView.current) {
-          video.muted = true; // Initial autoplay must be muted
+        // Only force mute on FIRST ever autoplay for this clip
+        if (!hasInitializedRef.current) {
+          video.muted = globalMuted;
+          setIsMuted(globalMuted);
+          hasInitializedRef.current = true;
         }
-        // Otherwise preserve current mute state (don't change video.muted)
+        // Otherwise don't touch video.muted - preserve current state
         
         const playPromise = video.play();
         if (playPromise !== undefined) {
           playPromise
             .then(() => {
               setIsPlaying(true);
-              // Only apply global mute preference on initial play, not resume
-              if (!isResumingFromHold && !hasCountedInitialView.current) {
-                if (!globalMuted) {
-                  video.muted = false;
-                  setIsMuted(false);
-                }
-              }
               // Count initial view
               if (!hasCountedInitialView.current && profile) {
                 hasCountedInitialView.current = true;
@@ -169,16 +164,14 @@ export const MobileShortCard = memo(function MobileShortCard({
             })
             .catch((error) => {
               console.log('Video play failed:', error);
-              // Video failed to play - that's ok, user can tap to play
             });
         }
       }, 100);
     } else {
       video.pause();
-      if (!isActive) {
-        video.currentTime = 0;
-        hasCountedInitialView.current = false;
-      }
+      video.currentTime = 0;
+      hasCountedInitialView.current = false;
+      hasInitializedRef.current = false;
       setIsPlaying(false);
     }
 
@@ -187,7 +180,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         clearTimeout(playAttemptRef.current);
       }
     };
-  }, [isActive, signedMediaUrl, isVideo, globalMuted, profile, isHolding]);
+  }, [isActive, signedMediaUrl, isVideo, globalMuted, profile]);
 
   const incrementViewCount = async () => {
     try {
@@ -451,8 +444,16 @@ export const MobileShortCard = memo(function MobileShortCard({
       {/* Bottom info */}
       <div className="absolute left-4 right-20 bottom-4 z-10">
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <Link to={`/u/${post.author.username}`} className="font-bold text-lg text-white drop-shadow-lg">
-            @{post.author.username}
+          <Link to={`/u/${post.author.username}`} className="flex items-center gap-2">
+            <Avatar className="h-6 w-6 border border-white/50">
+              <AvatarImage src={signedAvatarUrl || undefined} />
+              <AvatarFallback className="bg-primary text-white text-xs font-bold">
+                {post.author.username[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="font-bold text-lg text-white drop-shadow-lg">
+              @{post.author.username}
+            </span>
           </Link>
           <div className="flex items-center gap-1 text-white/80 text-sm">
             <Eye className="h-4 w-4" />
