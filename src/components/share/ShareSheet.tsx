@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { navVisibility } from '@/lib/navVisibility';
 import { useQueryClient } from '@tanstack/react-query';
+import { triggerHaptic } from '@/lib/haptics';
 
 interface ShareSheetProps {
   isOpen: boolean;
@@ -38,7 +39,7 @@ interface QuickFriend {
 }
 
 /**
- * Instagram-style share sheet with clean glassmorphic UI and plane animation.
+ * Instagram-style share sheet with bottom send button and multi-select.
  */
 export const ShareSheet = memo(function ShareSheet({
   isOpen,
@@ -55,8 +56,9 @@ export const ShareSheet = memo(function ShareSheet({
   const [searchQuery, setSearchQuery] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
   const [flyingPlanes, setFlyingPlanes] = useState<string[]>([]);
-  const [selectedFriend, setSelectedFriend] = useState<QuickFriend | null>(null);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
+  const [isSending, setIsSending] = useState(false);
+
   // Hide bottom nav when sheet is open
   useEffect(() => {
     if (isOpen) {
@@ -91,8 +93,8 @@ export const ShareSheet = memo(function ShareSheet({
       setSearchQuery('');
       setLinkCopied(false);
       setFlyingPlanes([]);
-      setSelectedFriend(null);
-      setShowConfirm(false);
+      setSelectedFriends(new Set());
+      setIsSending(false);
     }
   }, [isOpen]);
 
@@ -106,72 +108,89 @@ export const ShareSheet = memo(function ShareSheet({
       )
     : quickFriends;
 
-  // Select friend for confirmation
-  const handleFriendSelect = useCallback((friend: QuickFriend) => {
+  // Toggle friend selection
+  const handleFriendToggle = useCallback((friend: QuickFriend) => {
     if (friend.sent || friend.sending) return;
-    setSelectedFriend(friend);
-    setShowConfirm(true);
+    
+    triggerHaptic('light');
+    setSelectedFriends(prev => {
+      const next = new Set(prev);
+      if (next.has(friend.id)) {
+        next.delete(friend.id);
+      } else {
+        next.add(friend.id);
+      }
+      return next;
+    });
   }, []);
 
-  // Confirm and send to selected friend
-  const handleConfirmSend = useCallback(async () => {
-    if (!profile || !selectedFriend) return;
+  // Send to all selected friends
+  const handleSendToSelected = useCallback(async () => {
+    if (!profile || selectedFriends.size === 0) return;
 
-    const friend = selectedFriend;
-    setShowConfirm(false);
-    setSelectedFriend(null);
+    triggerHaptic('medium');
+    setIsSending(true);
 
-    // Start plane animation
-    setFlyingPlanes(prev => [...prev, friend.id]);
+    const friendIds = Array.from(selectedFriends);
+    
+    // Start plane animations for all selected
+    setFlyingPlanes(friendIds);
     setQuickFriends(prev => 
-      prev.map(f => f.id === friend.id ? { ...f, sending: true } : f)
+      prev.map(f => friendIds.includes(f.id) ? { ...f, sending: true } : f)
     );
 
     try {
-      // Find or create conversation
-      const { data: convId } = await supabase.rpc('create_dm_conversation', {
-        other_profile_id: friend.id
-      });
-
-      if (convId) {
-        const isVideo = postType === 'video' || postType === 'short';
-        
-        await supabase.from('messages').insert({
-          conversation_id: convId,
-          sender_id: profile.id,
-          content: postId,
-          media_url: mediaUrl || null,
-          media_type: isVideo ? 'video' : 'image',
-          message_type: 'shared_post',
+      for (const friendId of friendIds) {
+        // Find or create conversation
+        const { data: convId } = await supabase.rpc('create_dm_conversation', {
+          other_profile_id: friendId
         });
 
-        // Update conversation timestamp to move it to top
-        await supabase
-          .from('conversations')
-          .update({ updated_at: new Date().toISOString() })
-          .eq('id', convId);
+        if (convId) {
+          const isVideo = postType === 'video' || postType === 'short';
+          
+          await supabase.from('messages').insert({
+            conversation_id: convId,
+            sender_id: profile.id,
+            content: postId,
+            media_url: mediaUrl || null,
+            media_type: isVideo ? 'video' : 'image',
+            message_type: 'shared_post',
+          });
 
-        // Invalidate DM queries to refresh the list instantly
-        queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-        queryClient.invalidateQueries({ queryKey: ['conversations'] });
-
-        // Mark as sent after animation completes
-        setTimeout(() => {
-          setQuickFriends(prev => 
-            prev.map(f => f.id === friend.id ? { ...f, sent: true, sending: false } : f)
-          );
-          setFlyingPlanes(prev => prev.filter(id => id !== friend.id));
-        }, 600);
+          // Update conversation timestamp to move it to top
+          await supabase
+            .from('conversations')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('id', convId);
+        }
       }
+
+      // Invalidate DM queries to refresh the list instantly
+      queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+
+      // Mark as sent after animation completes
+      setTimeout(() => {
+        setQuickFriends(prev => 
+          prev.map(f => friendIds.includes(f.id) ? { ...f, sent: true, sending: false } : f)
+        );
+        setFlyingPlanes([]);
+        setSelectedFriends(new Set());
+        setIsSending(false);
+        
+        toast.success(friendIds.length === 1 ? 'Sent!' : `Sent to ${friendIds.length} friends!`);
+      }, 600);
     } catch (error) {
       console.error('Failed to send:', error);
       toast.error('Failed to send');
       setQuickFriends(prev => 
-        prev.map(f => f.id === friend.id ? { ...f, sending: false } : f)
+        prev.map(f => friendIds.includes(f.id) ? { ...f, sending: false } : f)
       );
-      setFlyingPlanes(prev => prev.filter(id => id !== friend.id));
+      setFlyingPlanes([]);
+      setIsSending(false);
     }
-  }, [profile, selectedFriend, postId, postType, mediaUrl, queryClient]);
+  }, [profile, selectedFriends, postId, postType, mediaUrl, queryClient]);
 
   // Copy link to clipboard
   const handleCopyLink = useCallback(() => {
@@ -224,6 +243,16 @@ export const ShareSheet = memo(function ShareSheet({
       toast.error('Failed to save');
     }
   }, [mediaUrl, postId, postType]);
+
+  // Get names for send button
+  const getSelectedNames = () => {
+    if (selectedFriends.size === 0) return '';
+    if (selectedFriends.size === 1) {
+      const friend = quickFriends.find(f => selectedFriends.has(f.id));
+      return friend?.display_name?.split(' ')[0] || friend?.username || '';
+    }
+    return `${selectedFriends.size} people`;
+  };
 
   return (
     <AnimatePresence>
@@ -282,11 +311,12 @@ export const ShareSheet = memo(function ShareSheet({
             <div className="px-4 pb-5">
               <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                 {filteredFriends.slice(0, 10).map((friend, index) => (
-                  <FriendSendButton
+                  <FriendSelectButton
                     key={friend.id}
                     friend={friend}
-                    onClick={() => handleFriendSelect(friend)}
+                    onClick={() => handleFriendToggle(friend)}
                     isFlying={flyingPlanes.includes(friend.id)}
+                    isSelected={selectedFriends.has(friend.id)}
                     delay={index * 0.03}
                   />
                 ))}
@@ -328,81 +358,68 @@ export const ShareSheet = memo(function ShareSheet({
                 )}
               </div>
             </div>
-          </motion.div>
 
-          {/* Send Confirmation Modal */}
-          <AnimatePresence>
-            {showConfirm && selectedFriend && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[102] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-                onClick={() => setShowConfirm(false)}
-              >
+            {/* Bottom Send Bar - Instagram style */}
+            <AnimatePresence>
+              {selectedFriends.size > 0 && (
                 <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.9, opacity: 0 }}
+                  initial={{ y: 100, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 100, opacity: 0 }}
                   transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="bg-card border border-border rounded-2xl p-6 mx-4 max-w-sm w-full shadow-xl"
+                  className="px-4 pb-4"
                 >
-                  <div className="flex flex-col items-center gap-4">
-                    <Avatar className="h-16 w-16 ring-2 ring-primary ring-offset-2 ring-offset-background">
-                      <AvatarImage src={selectedFriend.avatar_url || undefined} />
-                      <AvatarFallback className="bg-primary/20 text-lg font-semibold">
-                        {selectedFriend.username[0].toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    
-                    <div className="text-center">
-                      <h4 className="font-semibold text-lg">
-                        Send to {selectedFriend.display_name || selectedFriend.username}?
-                      </h4>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Share this {postType === 'short' ? 'clip' : postType} via DM
-                      </p>
-                    </div>
-
-                    <div className="flex gap-3 w-full mt-2">
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setShowConfirm(false)}
-                        className="flex-1 py-3 px-4 rounded-xl bg-muted/60 text-foreground font-medium hover:bg-muted transition-colors"
-                      >
-                        Cancel
-                      </motion.button>
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleConfirmSend}
-                        className="flex-1 py-3 px-4 rounded-xl bg-primary text-primary-foreground font-medium flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
-                      >
-                        <Send className="h-4 w-4" />
-                        Send
-                      </motion.button>
-                    </div>
-                  </div>
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleSendToSelected}
+                    disabled={isSending}
+                    className={cn(
+                      "w-full py-4 rounded-2xl font-semibold text-base",
+                      "bg-primary text-primary-foreground",
+                      "flex items-center justify-center gap-2",
+                      "shadow-lg shadow-primary/25",
+                      "disabled:opacity-70",
+                      "transition-all duration-200"
+                    )}
+                  >
+                    {isSending ? (
+                      <>
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                          className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full"
+                        />
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-5 w-5" />
+                        <span>Send to {getSelectedNames()}</span>
+                      </>
+                    )}
+                  </motion.button>
                 </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )}
+            </AnimatePresence>
+          </motion.div>
         </>
       )}
     </AnimatePresence>
   );
 });
 
-// Friend send button with plane animation
-const FriendSendButton = memo(function FriendSendButton({
+// Friend select button with selection ring
+const FriendSelectButton = memo(function FriendSelectButton({
   friend,
   onClick,
   isFlying,
+  isSelected,
   delay,
 }: {
   friend: QuickFriend;
   onClick: () => void;
   isFlying: boolean;
+  isSelected: boolean;
   delay: number;
 }) {
   const signedUrl = useSignedUrl(friend.avatar_url);
@@ -418,14 +435,23 @@ const FriendSendButton = memo(function FriendSendButton({
       className="flex flex-col items-center gap-2 min-w-[72px]"
     >
       <div className="relative">
+        {/* Selection ring */}
+        <motion.div
+          animate={{ 
+            scale: isSelected ? 1 : 0.9,
+            opacity: isSelected ? 1 : 0 
+          }}
+          className="absolute -inset-1 rounded-full bg-primary/20"
+        />
+        
         {/* Avatar */}
         <motion.div
           animate={friend.sent ? { scale: [1, 1.1, 1] } : {}}
           transition={{ duration: 0.3 }}
         >
           <Avatar className={cn(
-            "h-16 w-16 ring-2 ring-offset-2 ring-offset-background transition-all duration-300",
-            friend.sent ? "ring-primary" : "ring-transparent"
+            "h-16 w-16 ring-[3px] ring-offset-2 ring-offset-background transition-all duration-200",
+            isSelected ? "ring-primary" : friend.sent ? "ring-primary" : "ring-transparent"
           )}>
             <AvatarImage src={signedUrl || undefined} className="object-cover" />
             <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-foreground font-semibold text-lg">
@@ -468,17 +494,25 @@ const FriendSendButton = memo(function FriendSendButton({
           )}
         </AnimatePresence>
 
-        {/* Send icon (before sending) */}
-        {!friend.sent && !friend.sending && (
-          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center border-2 border-background shadow-md">
-            <Send className="h-3 w-3 text-primary-foreground" />
-          </div>
-        )}
+        {/* Selection checkmark */}
+        <AnimatePresence>
+          {isSelected && !friend.sent && !friend.sending && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ type: 'spring', damping: 15, stiffness: 400 }}
+              className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center border-2 border-background shadow-lg"
+            >
+              <Check className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={3} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
       
       <span className={cn(
         "text-xs font-medium truncate max-w-[68px] transition-colors",
-        friend.sent ? "text-primary" : "text-foreground/80"
+        friend.sent ? "text-primary" : isSelected ? "text-primary" : "text-foreground/80"
       )}>
         {friend.display_name?.split(' ')[0] || friend.username}
       </span>
@@ -502,23 +536,20 @@ const ActionButton = memo(function ActionButton({
 }) {
   return (
     <motion.button
-      initial={{ opacity: 0, y: 15 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.25 }}
       whileTap={{ scale: 0.9 }}
       onClick={onClick}
-      className="flex flex-col items-center gap-2 flex-1"
+      className="flex flex-col items-center gap-2 min-w-[60px]"
     >
       <div className={cn(
-        "w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200",
+        "w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-200",
         active 
-          ? "bg-primary shadow-lg shadow-primary/30" 
-          : "bg-muted/60 hover:bg-muted"
+          ? "bg-primary text-primary-foreground" 
+          : "bg-muted/60 hover:bg-muted text-foreground"
       )}>
-        <Icon className={cn(
-          "h-5 w-5 transition-colors",
-          active ? "text-primary-foreground" : "text-foreground"
-        )} />
+        <Icon className="h-6 w-6" />
       </div>
       <span className={cn(
         "text-xs font-medium transition-colors",
