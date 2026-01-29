@@ -38,6 +38,7 @@ import {
   useClearActiveBackground,
   UserBackground,
 } from '@/hooks/useUserBackgrounds';
+import { useAppBackgroundSafe } from '@/components/layout/AppBackground';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -210,6 +211,9 @@ export function BackgroundCustomizer({
   const deleteBackground = useDeleteBackground();
   const renameBackground = useRenameBackground();
   const clearActiveBackground = useClearActiveBackground();
+  
+  // Get AppBackground context for immediate visual updates
+  const appBackground = useAppBackgroundSafe();
 
   const userId = profile?.id || user?.id;
 
@@ -294,7 +298,8 @@ export function BackgroundCustomizer({
         setActive: true,
       });
 
-      // Apply background immediately - DO NOT change theme colors
+      // Apply background immediately via AppBackground context
+      appBackground?.setBackgroundImage(publicUrl);
       onBackgroundChange(publicUrl);
       toast.success('Background applied!');
       
@@ -317,7 +322,7 @@ export function BackgroundCustomizer({
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [userId, validateFile, onBackgroundChange, addBackground, onColorsExtracted]);
+  }, [userId, validateFile, onBackgroundChange, addBackground, onColorsExtracted, appBackground]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -362,12 +367,14 @@ export function BackgroundCustomizer({
       if (data.error) throw new Error(data.error);
 
       if (data.imageUrl) {
-        // Save to library and apply - DO NOT change theme colors
+        // Save to library and apply
         await addBackground.mutateAsync({
           imageUrl: data.imageUrl,
           name: styleId ? AI_BACKGROUND_STYLES.find(s => s.id === styleId)?.label : 'AI Generated',
           setActive: true,
         });
+        // Apply immediately via AppBackground context
+        appBackground?.setBackgroundImage(data.imageUrl);
         onBackgroundChange(data.imageUrl);
         toast.success('Background generated!');
         
@@ -397,12 +404,14 @@ export function BackgroundCustomizer({
       setIsGenerating(false);
       setSelectedStyle(null);
     }
-  }, [onBackgroundChange, addBackground, onColorsExtracted]);
+  }, [onBackgroundChange, addBackground, onColorsExtracted, appBackground]);
 
   const handleSelectBackground = useCallback(async (bg: UserBackground) => {
     await setActiveBackground.mutateAsync(bg.id);
+    // Apply immediately via AppBackground context
+    appBackground?.setBackgroundImage(bg.image_url);
     onBackgroundChange(bg.image_url);
-  }, [setActiveBackground, onBackgroundChange]);
+  }, [setActiveBackground, onBackgroundChange, appBackground]);
 
   const handleDeleteBackground = useCallback(async () => {
     if (!deleteConfirmId) return;
@@ -413,10 +422,11 @@ export function BackgroundCustomizer({
     
     // If this was the active background, clear it
     if (bg.is_active) {
+      appBackground?.setBackgroundImage(null);
       onBackgroundChange(null);
     }
     setDeleteConfirmId(null);
-  }, [deleteConfirmId, userBackgrounds, deleteBackground, onBackgroundChange]);
+  }, [deleteConfirmId, userBackgrounds, deleteBackground, onBackgroundChange, appBackground]);
 
   const handleRenameBackground = useCallback(async (id: string) => {
     if (!editName.trim()) return;
@@ -427,11 +437,12 @@ export function BackgroundCustomizer({
 
   const removeBackground = useCallback(async () => {
     await clearActiveBackground.mutateAsync();
+    appBackground?.setBackgroundImage(null);
     onBackgroundChange(null);
     setExtractedColors(null);
     setPendingExtractedColors(null);
     toast.success('Background removed');
-  }, [clearActiveBackground, onBackgroundChange]);
+  }, [clearActiveBackground, onBackgroundChange, appBackground]);
 
   // Handle applying colors from prompt
   const handleApplyColorsFromPrompt = useCallback(() => {
@@ -782,7 +793,10 @@ export function BackgroundCustomizer({
               </div>
               <Slider
                 value={[backgroundOpacity]}
-                onValueChange={([val]) => onOpacityChange(val)}
+                onValueChange={([val]) => {
+                  appBackground?.setBackgroundOpacity(val / 100);
+                  onOpacityChange(val);
+                }}
                 min={10}
                 max={100}
                 step={5}
@@ -796,7 +810,10 @@ export function BackgroundCustomizer({
               </div>
               <Slider
                 value={[backgroundBlur]}
-                onValueChange={([val]) => onBlurChange(val)}
+                onValueChange={([val]) => {
+                  appBackground?.setBackgroundBlur(val);
+                  onBlurChange(val);
+                }}
                 min={0}
                 max={20}
                 step={1}

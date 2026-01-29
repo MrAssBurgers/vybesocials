@@ -194,59 +194,41 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     overscroll-behavior-y: contain;
   }
   
-  /* CRITICAL: When custom background is active, make body fully transparent so image shows through */
-  html[data-has-bg-image="true"] body {
+  /* =============================================
+     BACKGROUND IMAGE SYSTEM
+     Background images are rendered via React component (AppBackground)
+     This ensures they persist through theme changes and navigation.
+     CSS here only handles layering and transparency.
+     ============================================= */
+  
+  /* When AppBackground component is active, ensure all containers are transparent */
+  body:has(#app-background-layer) {
     background: transparent !important;
     background-color: transparent !important;
   }
   
-  /* CRITICAL: Use BODY pseudo elements (more reliable than html/#root) */
-  html[data-has-bg-image="true"] body {
-    position: relative;
-    isolation: isolate;
+  body:has(#app-background-layer) #root {
+    background: transparent !important;
+    background-color: transparent !important;
   }
-
-  /* Background image layer - FIXED to viewport */
-  html[data-has-bg-image="true"] body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    background-image: var(--bg-image-url);
-    background-size: cover;
-    background-position: center center;
-    background-repeat: no-repeat;
-    opacity: var(--bg-image-opacity, 0.85);
-    filter: blur(var(--bg-image-blur, 0px));
-    pointer-events: none;
-  }
-
-  /* No overlay - let the background image show through fully */
-
-  /* Body and #root must be transparent when background image is active */
+  
+  /* Fallback for browsers without :has() support - use data attribute */
   html[data-has-bg-image="true"] body,
   html[data-has-bg-image="true"] #root {
     background: transparent !important;
     background-color: transparent !important;
   }
-
-  /* App content above background layers */
-  html[data-has-bg-image="true"] #root {
+  
+  /* App content must be above background layer (z-index 0) */
+  #root {
     position: relative;
-    z-index: 2;
+    z-index: 1;
   }
   
   /* Bottom nav must always be on top - override any stacking context */
   nav[aria-label="Bottom navigation"] {
     z-index: 2147483647 !important;
     isolation: isolate;
-  }
-  
-  /* Mobile-specific adjustments for background image */
-  @media (max-width: 768px) {
-    html[data-has-bg-image="true"] body::before {
-      background-attachment: scroll;
-    }
   }
 
   /* Universal smooth scroll for all scrollable containers */

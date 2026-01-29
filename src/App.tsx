@@ -30,8 +30,9 @@ import { InvitePopup } from "@/components/invite/InvitePopup";
 import { useBanStatus } from "@/hooks/useBanStatus";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
-import { usePrefetchBackgrounds } from "@/hooks/useUserBackgrounds";
+import { usePrefetchBackgrounds } from '@/hooks/useUserBackgrounds';
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
+import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -137,31 +138,34 @@ function AppWithPreloader() {
       <GlobalErrorHandler />
       <AuthProvider>
         <AuthenticatedPreloads />
-        <CustomThemeProvider>
-          <ThemeTransitionProvider>
-            <EasterEggProvider>
-              <CallStoreProvider>
-                <TooltipProvider>
-                  <Toaster />
-                  <Sonner />
-                  <BrowserRouter>
-                    <TutorialProvider>
-                      <ScrollRestoration />
-                      <AnimatedRoutes />
-                      <RootBottomNavMount />
-                      <PushNotificationPrompt />
-                      <GlobalMessageNotifications />
-                      <GlobalCallOverlay />
-                      <WarningPopup />
-                      <InvitePopup />
-                      <BanCheck />
-                    </TutorialProvider>
-                  </BrowserRouter>
-                </TooltipProvider>
-              </CallStoreProvider>
-            </EasterEggProvider>
-          </ThemeTransitionProvider>
-        </CustomThemeProvider>
+        {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
+        <AppBackgroundProvider>
+          <CustomThemeProvider>
+            <ThemeTransitionProvider>
+              <EasterEggProvider>
+                <CallStoreProvider>
+                  <TooltipProvider>
+                    <Toaster />
+                    <Sonner />
+                    <BrowserRouter>
+                      <TutorialProvider>
+                        <ScrollRestoration />
+                        <AnimatedRoutes />
+                        <RootBottomNavMount />
+                        <PushNotificationPrompt />
+                        <GlobalMessageNotifications />
+                        <GlobalCallOverlay />
+                        <WarningPopup />
+                        <InvitePopup />
+                        <BanCheck />
+                      </TutorialProvider>
+                    </BrowserRouter>
+                  </TooltipProvider>
+                </CallStoreProvider>
+              </EasterEggProvider>
+            </ThemeTransitionProvider>
+          </CustomThemeProvider>
+        </AppBackgroundProvider>
       </AuthProvider>
     </>
   );
