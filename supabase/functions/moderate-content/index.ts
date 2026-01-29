@@ -14,7 +14,7 @@ interface ModerationResult {
   category_scores: Record<string, number>;
 }
 
-const ALLOWED_CONTENT_TYPES = ['post', 'comment', 'message', 'profile'];
+const ALLOWED_CONTENT_TYPES = ['post', 'comment', 'message', 'profile', 'listing'];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
