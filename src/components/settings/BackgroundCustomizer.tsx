@@ -25,7 +25,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -49,8 +48,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { ColorMatchPrompt } from './ColorMatchPrompt';
 
-interface ExtractedColors {
+export interface ExtractedColors {
   primary: string;
   secondary: string;
   accent: string;
@@ -192,8 +192,11 @@ export function BackgroundCustomizer({
   const [isDragging, setIsDragging] = useState(false);
   const [extractedColors, setExtractedColors] = useState<ExtractedColors | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
-  const [applyColorsToTheme, setApplyColorsToTheme] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
+  
+  // Color match prompt state - shows after new background is added
+  const [showColorMatchPrompt, setShowColorMatchPrompt] = useState(false);
+  const [pendingExtractedColors, setPendingExtractedColors] = useState<ExtractedColors | null>(null);
   
   // My Backgrounds state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -291,9 +294,20 @@ export function BackgroundCustomizer({
         setActive: true,
       });
 
-      // Apply immediately
+      // Apply background immediately - DO NOT change theme colors
       onBackgroundChange(publicUrl);
-      toast.success('Background applied and saved!');
+      toast.success('Background applied!');
+      
+      // Extract colors and show prompt to ask if user wants to match
+      if (onColorsExtracted) {
+        try {
+          const colors = await extractColorsFromImage(publicUrl);
+          setPendingExtractedColors(colors);
+          setShowColorMatchPrompt(true);
+        } catch (err) {
+          console.error('[ColorExtraction] Failed:', err);
+        }
+      }
     } catch (error: any) {
       console.error('[BackgroundUpload] Error:', error);
       const message = error.message || 'Failed to upload background';
@@ -303,7 +317,7 @@ export function BackgroundCustomizer({
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [userId, validateFile, onBackgroundChange, addBackground]);
+  }, [userId, validateFile, onBackgroundChange, addBackground, onColorsExtracted]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -348,14 +362,25 @@ export function BackgroundCustomizer({
       if (data.error) throw new Error(data.error);
 
       if (data.imageUrl) {
-        // Save to library and apply
+        // Save to library and apply - DO NOT change theme colors
         await addBackground.mutateAsync({
           imageUrl: data.imageUrl,
           name: styleId ? AI_BACKGROUND_STYLES.find(s => s.id === styleId)?.label : 'AI Generated',
           setActive: true,
         });
         onBackgroundChange(data.imageUrl);
-        toast.success('Background generated and saved!');
+        toast.success('Background generated!');
+        
+        // Extract colors and show prompt to ask if user wants to match
+        if (onColorsExtracted) {
+          try {
+            const colors = await extractColorsFromImage(data.imageUrl);
+            setPendingExtractedColors(colors);
+            setShowColorMatchPrompt(true);
+          } catch (err) {
+            console.error('[ColorExtraction] Failed:', err);
+          }
+        }
       } else {
         throw new Error('No image generated');
       }
@@ -372,7 +397,7 @@ export function BackgroundCustomizer({
       setIsGenerating(false);
       setSelectedStyle(null);
     }
-  }, [onBackgroundChange, addBackground]);
+  }, [onBackgroundChange, addBackground, onColorsExtracted]);
 
   const handleSelectBackground = useCallback(async (bg: UserBackground) => {
     await setActiveBackground.mutateAsync(bg.id);
@@ -404,22 +429,29 @@ export function BackgroundCustomizer({
     await clearActiveBackground.mutateAsync();
     onBackgroundChange(null);
     setExtractedColors(null);
-    setApplyColorsToTheme(false);
+    setPendingExtractedColors(null);
     toast.success('Background removed');
   }, [clearActiveBackground, onBackgroundChange]);
 
+  // Handle applying colors from prompt
+  const handleApplyColorsFromPrompt = useCallback(() => {
+    if (pendingExtractedColors && onColorsExtracted) {
+      onColorsExtracted(pendingExtractedColors);
+      toast.success('Theme colors updated to match your background!');
+    }
+  }, [pendingExtractedColors, onColorsExtracted]);
+
+  // Handle keeping current colors
+  const handleKeepColors = useCallback(() => {
+    // Just close the prompt, don't change colors
+    setPendingExtractedColors(null);
+  }, []);
+
+  // Handle manual apply colors button
   const handleApplyColors = useCallback(() => {
     if (extractedColors && onColorsExtracted) {
       onColorsExtracted(extractedColors);
       toast.success('Theme colors updated to match your background!');
-    }
-  }, [extractedColors, onColorsExtracted]);
-
-  const handleToggleApplyColors = useCallback((checked: boolean) => {
-    setApplyColorsToTheme(checked);
-    if (checked && extractedColors && onColorsExtracted) {
-      onColorsExtracted(extractedColors);
-      toast.success('Theme colors matched to background!');
     }
   }, [extractedColors, onColorsExtracted]);
 
@@ -513,7 +545,7 @@ export function BackgroundCustomizer({
         </div>
       </div>
 
-      {/* Color Matching Option */}
+      {/* Color Matching Section - Simplified */}
       <AnimatePresence>
         {currentBackground && extractedColors && onColorsExtracted && (
           <motion.div
@@ -523,23 +555,17 @@ export function BackgroundCustomizer({
             className="overflow-hidden"
           >
             <div className="p-4 rounded-xl border bg-card/50 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Pipette className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">Match Theme Colors</span>
-                </div>
-                <Switch
-                  checked={applyColorsToTheme}
-                  onCheckedChange={handleToggleApplyColors}
-                />
+              <div className="flex items-center gap-2">
+                <Pipette className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">Extracted Colors</span>
               </div>
               
               <p className="text-xs text-muted-foreground">
-                Automatically update UI colors to match your background image
+                Colors detected from your background image
               </p>
               
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Detected:</span>
+                <span className="text-xs text-muted-foreground">Palette:</span>
                 <div className="flex gap-1">
                   {[extractedColors.primary, extractedColors.secondary, extractedColors.accent, extractedColors.background].map((color, i) => (
                     <div 
@@ -551,16 +577,23 @@ export function BackgroundCustomizer({
                 </div>
               </div>
 
-              {!applyColorsToTheme && (
-                <Button variant="outline" size="sm" className="w-full" onClick={handleApplyColors}>
-                  <Palette className="h-4 w-4 mr-2" />
-                  Apply Colors Now
-                </Button>
-              )}
+              <Button variant="outline" size="sm" className="w-full" onClick={handleApplyColors}>
+                <Palette className="h-4 w-4 mr-2" />
+                Match UI Colors to Background
+              </Button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Color Match Prompt Modal */}
+      <ColorMatchPrompt
+        isOpen={showColorMatchPrompt}
+        onClose={() => setShowColorMatchPrompt(false)}
+        onMatchColors={handleApplyColorsFromPrompt}
+        onKeepColors={handleKeepColors}
+        extractedColors={pendingExtractedColors}
+      />
 
       {/* My Backgrounds Library */}
       <div className="space-y-3">

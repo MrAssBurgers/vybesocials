@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { motion, AnimatePresence, useMotionValue, PanInfo } from 'framer-motion';
-import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, Play, Pause } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
@@ -68,7 +68,9 @@ const ClipItem = memo(function ClipItem({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [showPlayPause, setShowPlayPause] = useState(false);
+  const [isHolding, setIsHolding] = useState(false);
+  const holdTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasPlayingBeforeHoldRef = useRef(false);
   
   const signedUrl = useSignedUrl(clip.media_url);
   const thumbnailUrl = useSignedUrl(clip.thumbnail_url || null);
@@ -82,7 +84,7 @@ const ClipItem = memo(function ClipItem({
     // iPad-specific: reset video state to prevent freezing
     const onIPad = isIPad();
     
-    if (isActive) {
+    if (isActive && !isHolding) {
       // Use a small delay on mobile to prevent race conditions
       const playVideo = async () => {
         try {
@@ -110,7 +112,7 @@ const ClipItem = memo(function ClipItem({
       // Small delay helps mobile browsers, slightly longer for iPad
       const timeout = setTimeout(playVideo, onIPad ? 200 : 100);
       return () => clearTimeout(timeout);
-    } else {
+    } else if (!isActive) {
       video.pause();
       // iPad fix: reset currentTime to prevent memory buildup
       if (onIPad) {
@@ -118,7 +120,7 @@ const ClipItem = memo(function ClipItem({
       }
       setIsPlaying(false);
     }
-  }, [isActive, signedUrl]);
+  }, [isActive, signedUrl, isHolding]);
 
   // Update mute state
   useEffect(() => {
@@ -127,19 +129,52 @@ const ClipItem = memo(function ClipItem({
     }
   }, [isMuted]);
 
-  const handleTap = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
+  // TAP = toggle mute/unmute (Instagram Reels behavior)
+  const handleTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Ignore if it was a hold gesture
+    if (isHolding) return;
+    
+    // Toggle mute state on tap
+    onToggleMute();
+  }, [onToggleMute, isHolding]);
 
-    if (video.paused) {
-      video.play().then(() => setIsPlaying(true));
-    } else {
-      video.pause();
-      setIsPlaying(false);
+  // HOLD = pause video silently (Instagram Reels behavior)
+  const handleTouchStart = useCallback(() => {
+    holdTimeoutRef.current = setTimeout(() => {
+      const video = videoRef.current;
+      if (video && !video.paused) {
+        wasPlayingBeforeHoldRef.current = true;
+        video.pause();
+        setIsHolding(true);
+        setIsPlaying(false);
+      }
+    }, 150); // Short delay to differentiate tap from hold
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
     }
+    
+    if (isHolding) {
+      // Resume playback after hold release
+      const video = videoRef.current;
+      if (video && wasPlayingBeforeHoldRef.current) {
+        video.play().then(() => setIsPlaying(true)).catch(() => {});
+      }
+      setIsHolding(false);
+      wasPlayingBeforeHoldRef.current = false;
+    }
+  }, [isHolding]);
 
-    setShowPlayPause(true);
-    setTimeout(() => setShowPlayPause(false), 500);
+  // Cleanup hold timeout
+  useEffect(() => {
+    return () => {
+      if (holdTimeoutRef.current) {
+        clearTimeout(holdTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handleDoubleTap = useCallback(() => {
@@ -147,7 +182,14 @@ const ClipItem = memo(function ClipItem({
   }, [clip.id, onLike]);
 
   return (
-    <div className="relative w-full h-full bg-black">
+    <div 
+      className="relative w-full h-full bg-black"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onMouseDown={handleTouchStart}
+      onMouseUp={handleTouchEnd}
+      onMouseLeave={handleTouchEnd}
+    >
       {/* Thumbnail/Skeleton while loading */}
       {(!isLoaded || isUrlLoading) && (
         <div className="absolute inset-0 z-10">
@@ -182,25 +224,34 @@ const ClipItem = memo(function ClipItem({
         />
       )}
 
-      {/* Play/Pause indicator */}
+      {/* Muted Icon - ONLY visible when muted, centered with pulsing animation */}
       <AnimatePresence>
-        {showPlayPause && (
+        {isMuted && isActive && !isHolding && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.5 }}
+            initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
           >
-            <div className="h-20 w-20 rounded-full bg-black/50 flex items-center justify-center">
-              {isPlaying ? (
-                <Pause className="h-10 w-10 text-white" />
-              ) : (
-                <Play className="h-10 w-10 text-white ml-1" />
-              )}
-            </div>
+            <motion.div
+              animate={{ 
+                opacity: [0.5, 0.8, 0.5],
+                scale: [1, 1.05, 1],
+              }}
+              transition={{ 
+                duration: 2, 
+                repeat: Infinity, 
+                ease: 'easeInOut' 
+              }}
+              className="h-16 w-16 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+            >
+              <VolumeX className="h-8 w-8 text-white/80" />
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* NO pause indicator when holding - Instagram doesn't show one */}
 
       {/* Gradient overlays */}
       <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
@@ -231,7 +282,7 @@ const ClipItem = memo(function ClipItem({
         >
           <div className={cn(
             "h-11 w-11 rounded-full flex items-center justify-center transition-colors",
-            clip.is_liked ? "bg-red-500" : "bg-white/20"
+            clip.is_liked ? "bg-destructive" : "bg-white/20"
           )}>
             <Heart className={cn(
               "h-6 w-6",
@@ -411,6 +462,9 @@ export function OptimizedClipsPlayer({
     }
   }, [handleWheel]);
 
+  // Use simpler rendering on mobile to prevent crashes - MUST be before early return
+  const isMobile = useMemo(() => isMobileDevice(), []);
+
   if (clips.length === 0) {
     return (
       <div className="h-full flex items-center justify-center bg-black">
@@ -418,9 +472,6 @@ export function OptimizedClipsPlayer({
       </div>
     );
   }
-
-  // Use simpler rendering on mobile to prevent crashes
-  const isMobile = useMemo(() => isMobileDevice(), []);
 
   return (
     <div 
