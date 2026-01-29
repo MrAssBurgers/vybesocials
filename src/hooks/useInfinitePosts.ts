@@ -25,13 +25,13 @@ interface Post {
 }
 
 // Optimized page sizes for faster initial load
-const INITIAL_PAGE_SIZE = 20; // Reduced for faster initial render
-const PAGE_SIZE = 20; // Load 20 more when scrolling
-const STALE_TIME = 30 * 60 * 1000; // 30 minutes - reduce refetches
+const INITIAL_PAGE_SIZE = 15; // Smaller for faster initial render
+const PAGE_SIZE = 15; // Load 15 more when scrolling
+const STALE_TIME = 60 * 60 * 1000; // 1 hour - reduce refetches
 const GC_TIME = 3 * 60 * 60 * 1000; // 3 hour cache
 
 // Transform RPC result to Post format
-function transformPost(row: any): Post {
+function transformPost(row: any): Post & { view_count?: number } {
   return {
     id: row.id,
     type: row.type,
@@ -41,6 +41,7 @@ function transformPost(row: any): Post {
     tags: row.tags || [],
     created_at: row.created_at,
     is_pinned: row.is_pinned,
+    view_count: row.view_count || 0,
     author: {
       id: row.author_id,
       username: row.author_username,

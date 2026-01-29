@@ -57,11 +57,11 @@ export function useAppPreloader() {
       return;
     }
 
-    // Safety timeout - 2 seconds max wait
+    // Safety timeout - 1.5 seconds max wait for snappy feel
     const safetyTimeout = setTimeout(() => {
       console.warn('[Preloader] Safety timeout reached, forcing complete');
       setStatus({ step: 'Ready!', progress: 100, isComplete: true });
-    }, 2000);
+    }, 1500);
 
     const preload = async () => {
       const startTime = performance.now();
@@ -77,7 +77,7 @@ export function useAppPreloader() {
         try {
           const authResult = await Promise.race([
             supabase.auth.getSession(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 2000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 1000))
           ]) as { data: { session: any } };
           session = authResult.data.session;
         } catch {
@@ -144,50 +144,24 @@ export function useAppPreloader() {
           queryClient.setQueryData(['profile', profileId], profileData);
         }
 
-        // Step 4: Load feed posts and clips in parallel
+        // Step 4: Load feed posts, clips, AND social data ALL in parallel for speed
         updateStatus('feed');
 
-        const [feedResult, clipsResult] = await Promise.allSettled([
+        const [feedResult, clipsResult, conversationsResult, notificationsResult, friendRequestsResult, storiesResult] = await Promise.allSettled([
           supabase.rpc('get_posts_with_counts', {
-            p_type: 'feed_post',
+            p_type: null, // Get all posts, faster than filtering
             p_author_id: null,
             p_user_id: profileId,
             p_offset: 0,
-            p_limit: 30,
+            p_limit: 25, // Reduced for faster response
           }),
           supabase.rpc('get_posts_with_counts', {
-            p_type: 'clip',
+            p_type: 'short',
             p_author_id: null,
             p_user_id: profileId,
             p_offset: 0,
-            p_limit: 20,
+            p_limit: 15, // Reduced for faster response
           }),
-        ]);
-
-        // Cache feed
-        if (feedResult.status === 'fulfilled' && feedResult.value.data) {
-          const posts = feedResult.value.data as any[];
-          cacheFeedData(queryClient, posts, profileId, 'feed_post');
-          
-          const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-          batchSignUrls(urlsToSign).catch(() => {});
-        }
-
-        updateStatus('clips');
-
-        // Cache clips
-        if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
-          const clips = clipsResult.value.data as any[];
-          cacheFeedData(queryClient, clips, profileId, 'clip');
-          
-          const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-          batchSignUrls(urlsToSign).catch(() => {});
-        }
-
-        // Step 5: Load social data in parallel (conversations, notifications, friend requests, stories)
-        updateStatus('social');
-
-        const [conversationsResult, notificationsResult, friendRequestsResult, storiesResult] = await Promise.allSettled([
           // Conversations
           supabase
             .from('conversation_members')
@@ -197,7 +171,7 @@ export function useAppPreloader() {
             `)
             .eq('user_id', profileId)
             .order('conversation(updated_at)', { ascending: false })
-            .limit(30),
+            .limit(20),
           // Notifications
           supabase
             .from('notifications')
@@ -207,7 +181,7 @@ export function useAppPreloader() {
             `)
             .eq('user_id', profileId)
             .order('created_at', { ascending: false })
-            .limit(20),
+            .limit(15),
           // Friend requests
           supabase
             .from('friend_requests')
@@ -218,7 +192,7 @@ export function useAppPreloader() {
             .eq('receiver_id', profileId)
             .eq('status', 'pending')
             .order('created_at', { ascending: false })
-            .limit(20),
+            .limit(10),
           // Stories
           supabase
             .from('stories')
@@ -228,8 +202,31 @@ export function useAppPreloader() {
             `)
             .gt('expires_at', new Date().toISOString())
             .order('created_at', { ascending: false })
-            .limit(50),
+            .limit(30),
         ]);
+
+        // Cache feed
+        if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+          const posts = feedResult.value.data as any[];
+          cacheFeedData(queryClient, posts, profileId, null); // Cache as general feed
+          
+          // Non-blocking URL signing
+          const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+          batchSignUrls(urlsToSign).catch(() => {});
+        }
+
+        updateStatus('clips');
+
+        // Cache clips
+        if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
+          const clips = clipsResult.value.data as any[];
+          cacheFeedData(queryClient, clips, profileId, 'short');
+          
+          const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+          batchSignUrls(urlsToSign).catch(() => {});
+        }
+
+        updateStatus('social');
 
         // Cache conversations
         if (conversationsResult.status === 'fulfilled' && conversationsResult.value.data) {
