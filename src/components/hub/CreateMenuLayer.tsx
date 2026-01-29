@@ -99,9 +99,6 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
     return () => window.clearTimeout(t);
   }, [open, onOpenChange]);
 
-  // Calculate position above bottom nav
-  const bottomOffset = isMobileOrTablet ? 90 : 100; // px above bottom
-
   return (
     <>
       {/* Nested modals/fullscreen */}
@@ -117,40 +114,38 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="fixed inset-0 bg-black/40"
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm"
               style={{ zIndex: Z.overlay }}
               onClick={close}
             />
 
-            {/* Compact centered popup */}
+            {/* Centered popup */}
             <motion.div
               ref={surfaceRef}
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ type: "spring", damping: 28, stiffness: 400 }}
-              className="fixed left-1/2 -translate-x-1/2"
-              style={{ 
-                zIndex: Z.surface,
-                bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomOffset}px)`,
-              }}
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+              style={{ zIndex: Z.surface }}
             >
-              {/* Compact pill menu */}
-              <div className="flex items-center gap-2 p-2 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/50 shadow-2xl">
+              {/* Clean card popup */}
+              <div className="flex flex-col gap-3 p-4 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/40 shadow-2xl min-w-[240px]">
+                <p className="text-sm font-medium text-center text-muted-foreground mb-1">Create</p>
                 {menuItems.map((item) => (
                   <motion.button
                     key={item.id}
                     onClick={() => handleAction(item.id)}
-                    whileTap={{ scale: 0.9 }}
-                    whileHover={{ scale: 1.05 }}
-                    className="flex flex-col items-center gap-1.5 p-3 rounded-xl hover:bg-muted/60 transition-colors min-w-[72px]"
+                    whileTap={{ scale: 0.97 }}
+                    whileHover={{ scale: 1.02 }}
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/60 transition-colors"
                   >
                     <div
-                      className={`w-11 h-11 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-lg`}
+                      className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-md`}
                     >
                       <item.icon className="h-5 w-5 text-white" />
                     </div>
-                    <span className="text-xs font-medium text-foreground/80">
+                    <span className="text-sm font-medium text-foreground">
                       {item.label}
                     </span>
                   </motion.button>
