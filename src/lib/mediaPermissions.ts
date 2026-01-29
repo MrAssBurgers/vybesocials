@@ -16,18 +16,28 @@ function stopTracks(stream: MediaStream) {
 }
 
 /**
- * Requests the minimal permissions required for the call type.
- * - audio: microphone
- * - video: microphone + camera
+ * Requests high-quality permissions for the call type.
+ * - audio: microphone with echo cancellation and noise suppression
+ * - video: microphone + camera with 720p/1080p preference
  */
 export async function requestCallMediaPermissions(callType: CallMediaType): Promise<void> {
   assertMediaSupported();
 
-  console.log('[mediaPermissions] Requesting permissions for:', callType);
+  console.log('[mediaPermissions] Requesting HIGH QUALITY permissions for:', callType);
+
+  // High-quality audio constraints for clear voice
+  const audioConstraints: MediaTrackConstraints = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    // Request high sample rate when supported
+    sampleRate: { ideal: 48000 },
+    channelCount: { ideal: 1 }, // Mono for voice clarity
+  };
 
   try {
-    const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    console.log('[mediaPermissions] Microphone access granted');
+    const micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+    console.log('[mediaPermissions] High-quality microphone access granted');
     stopTracks(micStream);
   } catch (err: any) {
     console.error('[mediaPermissions] Microphone access denied:', err);
@@ -36,13 +46,39 @@ export async function requestCallMediaPermissions(callType: CallMediaType): Prom
   }
 
   if (callType === 'video') {
+    // High-quality video constraints - prefer 720p minimum, 1080p ideal
+    const videoConstraints: MediaTrackConstraints = {
+      width: { min: 640, ideal: 1280, max: 1920 },
+      height: { min: 480, ideal: 720, max: 1080 },
+      frameRate: { min: 24, ideal: 30, max: 60 },
+      facingMode: 'user',
+      // Request higher quality when bandwidth allows
+      aspectRatio: { ideal: 16/9 },
+    };
+
     try {
-      const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      console.log('[mediaPermissions] Camera access granted');
+      const camStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+      const videoTrack = camStream.getVideoTracks()[0];
+      if (videoTrack) {
+        const settings = videoTrack.getSettings();
+        console.log('[mediaPermissions] Camera access granted with settings:', {
+          width: settings.width,
+          height: settings.height,
+          frameRate: settings.frameRate,
+        });
+      }
       stopTracks(camStream);
     } catch (err: any) {
-      console.warn('[mediaPermissions] Camera access denied, continuing with audio only:', err);
-      // Don't throw for camera - allow audio-only fallback
+      console.warn('[mediaPermissions] High-quality camera access denied, trying basic:', err);
+      // Fallback to basic video constraints
+      try {
+        const basicStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        console.log('[mediaPermissions] Basic camera access granted');
+        stopTracks(basicStream);
+      } catch (fallbackErr) {
+        console.warn('[mediaPermissions] Camera access denied, continuing with audio only:', fallbackErr);
+        // Don't throw for camera - allow audio-only fallback
+      }
     }
   }
 }
