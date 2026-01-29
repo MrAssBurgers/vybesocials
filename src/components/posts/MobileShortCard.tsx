@@ -71,6 +71,8 @@ export const MobileShortCard = memo(function MobileShortCard({
   const lastTapTime = useRef(0);
   const playAttemptRef = useRef<NodeJS.Timeout | null>(null);
   const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const wasHoldingRef = useRef(false); // Track if we just released from a hold
+  const holdStartedRef = useRef(false); // Track if hold gesture started
 
   // Subscribe to realtime view count updates
   useEffect(() => {
@@ -209,8 +211,11 @@ export const MobileShortCard = memo(function MobileShortCard({
   }, [profile, isActive]);
 
   // Touch handlers for hold-to-pause (Instagram-style)
+  // CRITICAL: Separate hold (pause only) from tap (mute only)
   const handleTouchStart = useCallback(() => {
+    holdStartedRef.current = false;
     holdTimeoutRef.current = setTimeout(() => {
+      holdStartedRef.current = true;
       setIsHolding(true);
     }, 150);
   }, []);
@@ -221,7 +226,12 @@ export const MobileShortCard = memo(function MobileShortCard({
       holdTimeoutRef.current = null;
     }
     if (isHolding) {
+      wasHoldingRef.current = true;
       setIsHolding(false);
+      // Clear the flag after a short delay to block the click event
+      setTimeout(() => {
+        wasHoldingRef.current = false;
+      }, 50);
     }
   }, [isHolding]);
 
@@ -229,8 +239,15 @@ export const MobileShortCard = memo(function MobileShortCard({
     e.preventDefault();
     e.stopPropagation();
     
-    // If we were holding, don't process as tap
-    if (isHolding) return;
+    // CRITICAL: If we just released from a hold, ignore this click entirely
+    // This prevents hold-release from triggering mute toggle
+    if (wasHoldingRef.current || isHolding || holdStartedRef.current) {
+      return;
+    }
+    
+    // CRITICAL: Only allow mute toggle when video is actively playing
+    // Do NOT toggle mute while paused
+    if (!isPlaying) return;
     
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
@@ -241,7 +258,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         handleLike();
       }
     } else {
-      // Single tap - toggle mute
+      // Single tap - toggle mute ONLY
       if (onToggleMute) {
         onToggleMute();
       } else if (videoRef.current) {
@@ -251,7 +268,7 @@ export const MobileShortCard = memo(function MobileShortCard({
       }
     }
     lastTapTime.current = now;
-  }, [isMuted, onToggleMute, isLiked, isHolding]);
+  }, [isMuted, onToggleMute, isLiked, isHolding, isPlaying]);
 
   const handleLike = async () => {
     if (!profile) return;

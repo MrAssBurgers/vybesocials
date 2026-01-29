@@ -25,6 +25,7 @@ interface Post {
   tags: string[];
   created_at: string;
   is_pinned: boolean;
+  view_count: number;
   author: {
     id: string;
     username: string;
@@ -54,6 +55,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
           tags,
           created_at,
           is_pinned,
+          view_count,
           author:profiles!author_id (
             id,
             username,
@@ -62,19 +64,25 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
           )
         `)
         .order('is_pinned', { ascending: false })
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(500); // Explicit limit to avoid default 1000 row limit issues
 
+      // Filter by type if specified, but don't over-filter
       if (type) {
         query = query.eq('type', type);
       }
 
+      // Filter by author if specified
       if (authorId) {
         query = query.eq('author_id', authorId);
       }
 
       const { data: posts, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('Failed to fetch posts:', error);
+        throw error;
+      }
 
       // Get likes and bookmarks for current user
       let userLikes: string[] = [];
@@ -106,6 +114,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
           return {
             ...post,
             is_pinned: post.is_pinned ?? false,
+            view_count: (post as any).view_count ?? 0,
             author,
             like_count: likesCount.count || 0,
             comment_count: commentsCount.count || 0,
@@ -168,6 +177,7 @@ export function useFollowingPosts() {
           tags,
           created_at,
           is_pinned,
+          view_count,
           author:profiles!author_id (
             id,
             username,
@@ -177,9 +187,13 @@ export function useFollowingPosts() {
         `)
         .in('author_id', followingIds)
         .order('is_pinned', { ascending: false })
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(500);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Failed to fetch following posts:', error);
+        throw error;
+      }
 
       // Get likes and bookmarks
       const [likesResult, bookmarksResult] = await Promise.all([
@@ -205,6 +219,7 @@ export function useFollowingPosts() {
           return {
             ...post,
             is_pinned: post.is_pinned ?? false,
+            view_count: (post as any).view_count ?? 0,
             author,
             like_count: likesCount.count || 0,
             comment_count: commentsCount.count || 0,

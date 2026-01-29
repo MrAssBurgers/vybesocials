@@ -108,7 +108,7 @@ export default function ProfilePage() {
     comment_count: post.comment_count,
     is_liked: post.is_liked,
     is_bookmarked: post.is_bookmarked,
-    view_count: (post as any).view_count || 0,
+    view_count: post.view_count || 0,
   }));
 
   const formatViewCount = (count: number) => {
