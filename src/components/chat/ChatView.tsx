@@ -81,6 +81,9 @@ import {
 import { Toybox } from './Toybox';
 import { SnapCamera } from './SnapCamera';
 import { VybeViewer } from './VybeViewer';
+import { VideoSendPreview } from './VideoSendPreview';
+import { VideoBubble } from './VideoBubble';
+import { VideoMessageViewer } from './VideoMessageViewer';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
@@ -113,7 +116,7 @@ export function ChatView() {
   
   const { data: conversations } = useConversations();
   const { data: messages, isLoading } = useMessages(conversationId);
-  const { sendText, sendMedia, retry: retryMessage, removeMessage } = useInstantSend(conversationId);
+  const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
   // Enable realtime sync for this conversation
   useRealtimeMessages(conversationId);
   const markViewed = useMarkMessageViewed();
@@ -173,6 +176,9 @@ export function ChatView() {
   const [showSnapCamera, setShowSnapCamera] = useState(false);
   const [showScreenshotAlert, setShowScreenshotAlert] = useState(false);
   const [screenshotUser, setScreenshotUser] = useState<string | undefined>();
+  // Video preview state
+  const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
+  const [showVideoPreview, setShowVideoPreview] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -663,6 +669,49 @@ export function ChatView() {
     }
   }, [conversationId, profile?.id, profile?.user_id, viewMode, replyingTo?.id, sendMedia]);
 
+  // Handle video selection - opens the preview modal
+  const handleVideoSelect = useCallback((file: File) => {
+    if (!file.type.startsWith('video/')) {
+      toast.error('Please select a video file');
+      return;
+    }
+    if (file.size > 100 * 1024 * 1024) { // 100MB limit
+      toast.error('Video must be less than 100MB');
+      return;
+    }
+    setPendingVideoFile(file);
+    setShowVideoPreview(true);
+  }, []);
+
+  // Handle video send from preview modal
+  const handleVideoSend = useCallback(async (
+    processedVideo: { blob: Blob; thumbnail: string; duration: number },
+    caption: string
+  ) => {
+    if (!conversationId || !profile?.id) return;
+    
+    try {
+      // Create a File from the processed blob
+      const videoFile = new File([processedVideo.blob], 'video.mp4', { type: 'video/mp4' });
+      
+      await sendVideo(
+        videoFile,
+        processedVideo.thumbnail,
+        processedVideo.duration,
+        viewMode,
+        replyingTo?.id,
+        caption || undefined
+      );
+      
+      setReplyingTo(null);
+      setPendingVideoFile(null);
+      setShowVideoPreview(false);
+    } catch (error) {
+      console.error('Failed to send video:', error);
+      toast.error('Failed to send video');
+    }
+  }, [conversationId, profile?.id, viewMode, replyingTo?.id, sendVideo]);
+
   const handleReply = useCallback((msg: Message) => {
     setReplyingTo(msg);
   }, []);
@@ -1125,6 +1174,19 @@ export function ChatView() {
         onSend={handleVybeSend}
       />
 
+      {/* Video Send Preview Modal */}
+      <VideoSendPreview
+        open={showVideoPreview}
+        onClose={() => {
+          setShowVideoPreview(false);
+          setPendingVideoFile(null);
+        }}
+        file={pendingVideoFile}
+        recipientName={displayName}
+        recipientAvatar={isGroupChat ? conversation?.avatar_url : otherMember?.avatar_url}
+        onSend={handleVideoSend}
+      />
+
       {/* Input area - wrapped with DM safety for non-group chats */}
       {!isGroupChat && otherMember?.id ? (
         <DMSafetyGate targetUserId={otherMember.id} targetUsername={otherMember.username || ''}>
@@ -1143,6 +1205,7 @@ export function ChatView() {
             handleKeyPress={handleKeyPress}
             handleSend={handleSend}
             handleImageSelect={handleImageSelect}
+            handleVideoSelect={handleVideoSelect}
             handleVoiceRecordingComplete={handleVoiceRecordingComplete}
             sendMediaMessage={sendMediaMessage}
             setViewMode={setViewMode}
@@ -1176,6 +1239,7 @@ export function ChatView() {
           handleKeyPress={handleKeyPress}
           handleSend={handleSend}
           handleImageSelect={handleImageSelect}
+          handleVideoSelect={handleVideoSelect}
           handleVoiceRecordingComplete={handleVoiceRecordingComplete}
           sendMediaMessage={sendMediaMessage}
           setViewMode={setViewMode}
@@ -1213,6 +1277,7 @@ const MessageInputArea = memo(function MessageInputArea({
   handleKeyPress,
   handleSend,
   handleImageSelect,
+  handleVideoSelect,
   handleVoiceRecordingComplete,
   sendMediaMessage,
   setViewMode,
@@ -1243,6 +1308,7 @@ const MessageInputArea = memo(function MessageInputArea({
   handleKeyPress: (e: React.KeyboardEvent) => void;
   handleSend: () => void;
   handleImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleVideoSelect: (file: File) => void;
   handleVoiceRecordingComplete: (blob: Blob) => void;
   sendMediaMessage: (mediaUrl: string, mediaType: string) => Promise<void>;
   setViewMode: (mode: ViewMode) => void;
@@ -1311,10 +1377,8 @@ const MessageInputArea = memo(function MessageInputArea({
                 dt.items.add(file);
                 handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
               }}
-              onVideoSelect={async (file) => {
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
+              onVideoSelect={(file) => {
+                handleVideoSelect(file);
               }}
               onGifSelect={async (gifUrl) => {
                 await sendMediaMessage(gifUrl, 'gif');
