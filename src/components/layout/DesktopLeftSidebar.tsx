@@ -160,7 +160,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         className={cn(
           "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-40",
           "transition-[width] duration-200 ease-out overflow-hidden",
-          "bg-gradient-to-b from-primary/8 via-background/60 to-accent/8 backdrop-blur-2xl backdrop-saturate-150",
+          "bg-gradient-to-b from-primary/20 via-primary/10 to-accent/15 backdrop-blur-2xl backdrop-saturate-150",
           "border-r border-white/10",
           collapsed 
             ? "w-[72px]" 
