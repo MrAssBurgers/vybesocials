@@ -79,6 +79,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
   const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const wasHoldingRef = useRef(false); // Track if we just released from a hold
+  const holdStartedRef = useRef(false); // Track if hold gesture started
   
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author?.avatar_url || null);
@@ -200,8 +202,11 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   }, [profile, isActive]);
 
   // Touch handlers for hold-to-pause (Instagram-style)
+  // CRITICAL: Separate hold (pause only) from tap (mute only)
   const handleTouchStart = useCallback(() => {
+    holdStartedRef.current = false;
     holdTimeoutRef.current = setTimeout(() => {
+      holdStartedRef.current = true;
       setIsHolding(true);
     }, 150);
   }, []);
@@ -212,16 +217,29 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       holdTimeoutRef.current = null;
     }
     if (isHolding) {
+      wasHoldingRef.current = true;
       setIsHolding(false);
+      // Clear the flag after a short delay to block the click event
+      setTimeout(() => {
+        wasHoldingRef.current = false;
+      }, 50);
     }
   }, [isHolding]);
 
   // Tap to toggle mute (single tap), double tap to like
+  // CRITICAL: Only works when playing, NOT when coming from a hold
   const handleTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // If we were holding, don't process as tap
-    if (isHolding) return;
+    // CRITICAL: If we just released from a hold, ignore this click entirely
+    // This prevents hold-release from triggering mute toggle
+    if (wasHoldingRef.current || isHolding || holdStartedRef.current) {
+      return;
+    }
+    
+    // CRITICAL: Only allow mute toggle when video is actively playing
+    // Do NOT toggle mute while paused
+    if (!isPlaying) return;
     
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
@@ -230,7 +248,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       // Double tap - like
       handleDoubleTap();
     } else {
-      // Single tap - toggle mute
+      // Single tap - toggle mute ONLY
       if (onToggleMute) {
         onToggleMute();
       } else if (videoRef.current) {
@@ -239,7 +257,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       }
     }
     lastTapTime.current = now;
-  }, [isMuted, onToggleMute, isHolding]);
+  }, [isMuted, onToggleMute, isHolding, isPlaying]);
   
   // Guard against null author - return early with placeholder AFTER all hooks
   if (!post.author) {
