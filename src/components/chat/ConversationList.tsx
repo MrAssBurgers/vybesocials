@@ -585,9 +585,13 @@ const ConversationContent = memo(function ConversationContent({
                 <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">
                   {lastMessage.media_type === 'image' 
                     ? '📷 Photo' 
+                    : lastMessage.media_type === 'video'
+                    ? '📹 Video'
                     : lastMessage.media_type === 'audio'
                     ? '🎤 Voice'
-                    : (lastMessage.content?.slice(0, 30) || 'Message') + (lastMessage.content && lastMessage.content.length > 30 ? '...' : '')}
+                    : lastMessage.media_type === 'gif'
+                    ? '🎞️ GIF'
+                    : (lastMessage.content?.slice(0, 30) || 'Media') + (lastMessage.content && lastMessage.content.length > 30 ? '...' : '')}
                 </p>
               </>
             )}

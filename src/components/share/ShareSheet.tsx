@@ -103,7 +103,7 @@ export const ShareSheet = memo(function ShareSheet({
       )
     : quickFriends;
 
-  // Quick send to friend via DM - Instagram style
+  // Quick send to friend via DM - Instagram style (sends actual media, not text)
   const handleQuickSend = useCallback(async (friend: QuickFriend) => {
     if (!profile || friend.sent) return;
 
@@ -116,12 +116,18 @@ export const ShareSheet = memo(function ShareSheet({
       });
 
       if (convId) {
-        // Send the share as a link/preview message
+        // Send the actual media like Instagram - no "check this out" text
+        const isVideo = postType === 'video' || postType === 'short';
+        
         await supabase.from('messages').insert({
           conversation_id: convId,
           sender_id: profile.id,
-          content: shareUrl,
-          media_type: 'link',
+          // No text - just send the media directly like Instagram
+          content: null,
+          media_url: mediaUrl || null,
+          media_type: isVideo ? 'video' : 'image',
+          // Use message_type to indicate this is a shared post
+          message_type: 'shared_post',
         });
 
         // Mark as sent with animation
@@ -135,7 +141,7 @@ export const ShareSheet = memo(function ShareSheet({
     } finally {
       setSendingTo(null);
     }
-  }, [profile, shareUrl]);
+  }, [profile, postId, postType, mediaUrl, caption]);
 
   // Copy link to clipboard
   const handleCopyLink = useCallback(() => {
