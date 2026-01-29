@@ -109,11 +109,12 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         if (onboardingCompleted && !completed && !isManualOpen && !hasTriggeredRef.current) {
           hasTriggeredRef.current = true;
           console.log('[Tutorial] Auto-triggering tutorial for first-time user');
-          // Delay to let UI fully render after navigation
+          // Delay to let UI fully render after navigation - reduced for faster UX
           setTimeout(() => {
             setIsOpen(true);
+            setIsLoading(false);
             console.log('[Tutorial] Tutorial opened');
-          }, 1500);
+          }, 800);
         }
       }
     } catch (error) {
