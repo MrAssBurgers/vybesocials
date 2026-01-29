@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,7 @@ import { SensitivitySettings } from '@/components/onboarding/SensitivitySettings
 import { EmailVerification } from '@/components/onboarding/EmailVerification';
 import { ContactDiscovery } from '@/components/onboarding/ContactDiscovery';
 import { PrivacySettings } from '@/components/onboarding/PrivacySettings';
+import { PermissionsSetup } from '@/components/onboarding/PermissionsSetup';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
@@ -33,11 +34,13 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   
   // Check if user needs to set username (Google OAuth users without profile)
   const needsUsername = !profile?.username;
-  const TOTAL_STEPS = needsUsername ? 8 : 7;
+  // Total steps: username(optional) + interests + creators + profile + sensitivity + privacy + permissions + email + contacts
+  const TOTAL_STEPS = needsUsername ? 9 : 8;
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [usernameValid, setUsernameValid] = useState(false);
+  const [permissionsGranted, setPermissionsGranted] = useState(false);
 
   // State for each step
   const [username, setUsername] = useState('');
@@ -79,7 +82,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     return step;
   };
 
-  const canProceed = () => {
+  const canProceed = useCallback(() => {
     if (needsUsername && step === 1) {
       return usernameValid;
     }
@@ -89,13 +92,14 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       case 1: return interests.length >= 3;
       case 2: return true; // Can skip following
       case 3: return profileData.firstName.length > 0 && profileData.lastName.length > 0;
-      case 4: return true;
-      case 5: return true;
-      case 6: return true; // Email verification is optional
-      case 7: return true; // Contact discovery is optional
+      case 4: return true; // Sensitivity
+      case 5: return true; // Privacy
+      case 6: return permissionsGranted; // Permissions - must have required permissions
+      case 7: return true; // Email verification is optional
+      case 8: return true; // Contact discovery is optional
       default: return true;
     }
-  };
+  }, [needsUsername, step, usernameValid, interests.length, profileData.firstName.length, profileData.lastName.length, permissionsGranted]);
 
   const handleNext = () => {
     if (step < TOTAL_STEPS) {
@@ -305,9 +309,12 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
                 <PrivacySettings isPrivate={isPrivate} onChange={setIsPrivate} />
               )}
               {(needsUsername ? step === 7 : step === 6) && (
-                <EmailVerification />
+                <PermissionsSetup onAllRequiredGranted={setPermissionsGranted} />
               )}
               {(needsUsername ? step === 8 : step === 7) && (
+                <EmailVerification />
+              )}
+              {(needsUsername ? step === 9 : step === 8) && (
                 <ContactDiscovery onComplete={handleFinish} />
               )}
             </motion.div>

@@ -47,11 +47,19 @@ export function useAppPreloader() {
     if (hasStarted.current) return;
     hasStarted.current = true;
 
-    // Safety timeout - never let splash screen hang more than 5 seconds
+    // Check for cached data - if we have feed data, skip preloading entirely
+    const existingFeedData = queryClient.getQueryData(['infinite-posts']);
+    if (existingFeedData) {
+      console.log('[Preloader] Cached data found, skipping splash');
+      setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+      return;
+    }
+
+    // Safety timeout - reduced to 1.5 seconds for faster access
     const safetyTimeout = setTimeout(() => {
       console.warn('[Preloader] Safety timeout reached, forcing complete');
       setStatus({ step: 'Ready!', progress: 100, isComplete: true });
-    }, 5000);
+    }, 1500);
 
     const preload = async () => {
       const startTime = performance.now();
