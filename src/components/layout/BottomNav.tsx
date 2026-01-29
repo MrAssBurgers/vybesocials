@@ -276,8 +276,9 @@ export function BottomNav() {
       />
 
        <nav 
-         className="fixed bottom-0 left-0 right-0 z-[60] w-full pointer-events-auto"
+         className="fixed bottom-0 left-0 right-0 w-full pointer-events-auto"
         style={{
+          zIndex: 5002,
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
