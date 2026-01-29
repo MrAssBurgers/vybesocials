@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import { useEffect } from 'react';
 
 export interface UserBackground {
   id: string;
@@ -14,7 +15,7 @@ export interface UserBackground {
   updated_at: string;
 }
 
-// Fetch user's background library
+// Fetch user's background library - with instant load priority
 export function useUserBackgrounds() {
   const { profile } = useAuth();
   const profileId = profile?.id;
@@ -38,7 +39,10 @@ export function useUserBackgrounds() {
       return (data || []) as UserBackground[];
     },
     enabled: !!profileId,
-    staleTime: 30000,
+    staleTime: 1000 * 60 * 5, // 5 minutes - cache longer for instant loads
+    gcTime: 1000 * 60 * 30, // 30 minutes garbage collection
+    refetchOnMount: true, // Always check for updates but show cached first
+    refetchOnWindowFocus: false, // Don't refetch on focus to avoid flicker
   });
 }
 
@@ -46,6 +50,33 @@ export function useUserBackgrounds() {
 export function useActiveBackground() {
   const { data: backgrounds } = useUserBackgrounds();
   return backgrounds?.find(bg => bg.is_active) || null;
+}
+
+// Prefetch backgrounds on app load for instant access in settings
+export function usePrefetchBackgrounds() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const profileId = profile?.id;
+
+  useEffect(() => {
+    if (!profileId) return;
+    
+    // Prefetch backgrounds if not already cached
+    queryClient.prefetchQuery({
+      queryKey: ['user-backgrounds', profileId],
+      queryFn: async (): Promise<UserBackground[]> => {
+        const { data, error } = await supabase
+          .from('user_backgrounds')
+          .select('*')
+          .eq('user_id', profileId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return (data || []) as UserBackground[];
+      },
+      staleTime: 1000 * 60 * 5,
+    });
+  }, [profileId, queryClient]);
 }
 
 // Add a new background to library
