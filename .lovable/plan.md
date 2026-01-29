@@ -1,216 +1,179 @@
 
-# VYBE Stability & Sound Design Polish Plan
+# Plan: Instagram-Style Share Flow and Reels-Style Shared Clips
 
 ## Overview
-This plan addresses 5 key areas:
-1. **Toast notification z-index fix** - Move toasts in front of other UI layers
-2. **DM chat scroll fix** - Ensure bottom nav doesn't block chat messages
-3. **Navigation transition fix** - Remove glitchy black delays when switching tabs
-4. **Premium sound design refinement** - Polish notification & call sounds
-5. **Custom ringtone upload feature** - Allow users to upload custom tones
+This plan transforms the share sheet to use Instagram's bottom send button pattern (instead of a popup modal) and redesigns how shared clips appear in DMs to match Instagram Reels' visual style.
 
 ---
 
-## 1. Toast/Notification Z-Index Fix
+## Part 1: Share Sheet - Bottom Send Button
 
-**Problem**: Toast notifications appear behind other UI elements (screenshot shows toast behind sidebar).
+### Current Behavior
+- User clicks a friend avatar
+- A modal popup appears asking "Send to [name]?"
+- User must click "Send" in the popup to confirm
 
-**Root Cause**: Sonner toaster doesn't have an explicit z-index set, while other elements like the BottomNav use `z-index: 5002` and overlays use `z-[9999]`.
+### New Behavior (Instagram-Style)
+- User clicks a friend avatar to select/deselect them (with visual selection ring)
+- A "Send" button appears fixed at the bottom of the sheet
+- Multiple friends can be selected before sending
+- Button shows selected count (e.g., "Send to 2 people")
 
-**Solution**:
-- Update `src/components/ui/sonner.tsx` to include explicit positioning with `z-[99998]` (just below tutorial overlay)
-- Add `position` prop set to `"top-center"` for better mobile visibility
+### Changes to `src/components/share/ShareSheet.tsx`
 
-**Files to modify**:
-- `src/components/ui/sonner.tsx`
+1. **Replace popup modal with inline selection**:
+   - Remove `showConfirm` state and confirmation modal JSX
+   - Add selection ring around selected friend avatars
+   - Toggle selection on click instead of opening modal
 
----
+2. **Add bottom Send bar**:
+   - Fixed position at bottom of sheet
+   - Animates in when at least one friend is selected
+   - Shows "Send" with airplane icon
+   - Displays count when multiple selected
 
-## 2. DM Chat Scroll / Bottom Nav Fix
-
-**Problem**: Messages at the bottom of the chat get hidden behind the bottom navigation bar on mobile.
-
-**Root Cause**: The ChatView message input area has `pb-[max(0.75rem,env(safe-area-inset-bottom))]` but doesn't account for the bottom nav height on mobile when not in full-screen mode.
-
-**Solution**:
-- Add extra bottom padding to the message container when bottom nav is visible
-- The messages container needs padding so the last message scrolls above the nav
-- Update the MessageInputArea to have proper safe-area handling
-
-**Files to modify**:
-- `src/components/chat/ChatView.tsx` - Add bottom padding accounting for bottom nav
-
----
-
-## 3. Navigation Transition Fix (Remove Glitchy Black)
-
-**Problem**: When switching tabs, there's a noticeable black flash/glitchy transition.
-
-**Root Cause**: 
-- `AnimatePresence` with `mode="wait"` causes a fade-to-opacity-0 before the new route fades in
-- The `min-h-screen` wrapper combined with opacity:0 creates the "black" flash effect
-- Lazy loading adds additional delay
-
-**Solution**:
-- Change AnimatePresence mode from `"wait"` to `"sync"` for overlapping transitions
-- Remove exit animation entirely (only animate in, not out)
-- Add `initial={false}` to prevent initial animation on first load
-- Reduce lazy loading by prefetching common routes
-- Ensure background color persists during transition
-
-**Files to modify**:
-- `src/components/layout/AnimatedRoutes.tsx`
+3. **Update friend button visuals**:
+   - Add blue/primary ring when selected
+   - Keep sent checkmark for already-sent friends
+   - Animate selection state changes
 
 ---
 
-## 4. Premium Sound Design Refinement
+## Part 2: Reels-Style Shared Clips in DMs
 
-**Problem**: Some sounds need polish to feel soft, satisfying, and premium (no harsh tones).
+### Current Behavior
+- Shared clips appear as 4:5 aspect ratio cards
+- Simple thumbnail with play button overlay
+- Title text at bottom
 
-**Current State**: Already has a good foundation in `premiumSounds.ts` with WebAudio synthesis.
+### New Behavior (Instagram Reels-Style)
+- Taller 9:16 aspect ratio (like actual Reels)
+- Creator avatar + username overlay at top-left
+- Gradient overlays top and bottom
+- "Reels" or "Clip" label badge
+- View count or caption preview
+- Rounded corners with subtle shadow
 
-**Enhancements**:
+### Changes to `src/components/chat/SharedPostBubble.tsx`
 
-### Refined Sound Profiles:
-| Sound | Current | Enhancement |
-|-------|---------|-------------|
-| Message Receive | Quick pop | Lower frequencies, warmer tone, slight reverb feel |
-| Notification | Crystal chime | Softer attack, more "glass tap" feel |
-| Message Send | Tick | Quieter, more subtle whoosh |
-| Call Ring | Ascending arpeggio | Lower volume peaks, more harmonic |
-| UI Tap | Quick click | Nearly silent, just tactile |
+1. **Change aspect ratio**: Update from `aspect-[4/5]` to `aspect-[9/16]` with fixed width
 
-### Technical Changes:
-- Lower base frequencies (shift down ~100Hz across the board)
-- Increase fade-in time (attack) from 8ms to 15ms
-- Reduce peak volumes by 20-30%
-- Add subtle detuning for warmth
-- Longer decay tails for smoothness
+2. **Add creator info overlay**:
+   - Fetch post author data (avatar, username)
+   - Display at top-left with small avatar + username
+   - Semi-transparent background for readability
 
-**Files to modify**:
-- `src/lib/premiumSounds.ts` - Refine all sound configurations
+3. **Add "Clip" badge**: Small badge in top-right corner
 
----
+4. **Improve gradient overlays**:
+   - Top gradient for creator info visibility
+   - Bottom gradient for title/caption
 
-## 5. Custom Ringtone Upload Feature
-
-**New Feature**: Allow users to upload custom audio files for message tones and call ringtones.
-
-### Database Schema:
-```sql
-CREATE TABLE user_custom_sounds (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  sound_type TEXT NOT NULL CHECK (sound_type IN ('message_tone', 'call_ringtone')),
-  file_url TEXT NOT NULL,
-  file_name TEXT NOT NULL,
-  duration_seconds NUMERIC(5,2) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_id, sound_type)
-);
-
--- RLS policies
-ALTER TABLE user_custom_sounds ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can manage own sounds" ON user_custom_sounds FOR ALL 
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-```
-
-### Storage:
-- Create new bucket: `custom-sounds` (private, user-scoped)
-
-### UI Components:
-New `CustomRingtoneUploader.tsx` with:
-- File input accepting MP3, WAV, M4A
-- Audio waveform preview (using WebAudio for visualization)
-- Duration validation (message: 5s max, ringtone: 15s max)
-- Trim controls with start/end sliders
-- Preview playback button
-- Save/cancel actions
-
-### Settings Integration:
-Update `NotificationSoundSection.tsx`:
-- Add "Custom Tones" expandable section
-- Show current custom tone name if set
-- Upload button for each category
-- "Reset to default" option
-
-### Sound Playback Updates:
-Update `premiumSounds.ts`:
-- Check localStorage for custom sound preferences
-- Fetch and cache custom audio files
-- Fall back to default if custom fails
-
-**Files to create**:
-- `src/components/settings/CustomRingtoneUploader.tsx`
-- `src/hooks/useCustomSounds.ts`
-
-**Files to modify**:
-- `src/components/settings/NotificationSoundSection.tsx`
-- `src/lib/premiumSounds.ts`
-- Database migration for `user_custom_sounds` table
-
----
-
-## Implementation Order
-
-1. **Toast z-index fix** (quick win, immediate impact)
-2. **Navigation transition fix** (high visibility improvement)
-3. **DM scroll fix** (critical UX issue)
-4. **Sound design refinement** (polish)
-5. **Custom ringtone upload** (new feature)
+5. **Enhanced styling**:
+   - More prominent play button
+   - Subtle glow/shadow effect
+   - Smoother animations on tap
 
 ---
 
 ## Technical Details
 
-### Toast Z-Index Fix (`sonner.tsx`):
-```tsx
-<Sonner
-  position="top-center"
-  toastOptions={{
-    classNames: {
-      toast: "... z-[99998] ..."
-    }
-  }}
-  style={{ zIndex: 99998 }}
-  {...props}
-/>
+### ShareSheet State Changes
 ```
+// Remove these
+- showConfirm: boolean
+- selectedFriend: QuickFriend | null
 
-### Navigation Transition Fix (`AnimatedRoutes.tsx`):
-```tsx
-<AnimatePresence mode="sync" initial={false}>
-  <motion.div
-    key={getRouteKey()}
-    initial={{ opacity: 0.6 }}
-    animate={{ opacity: 1 }}
-    transition={{ duration: 0.1, ease: 'linear' }}
-    className="min-h-screen bg-background"
-  >
-```
+// Add these  
+- selectedFriends: Set<string> (track multiple selections)
 
-### Chat Padding Fix (`ChatView.tsx`):
-```tsx
-// In the messages container
-<div className="... pb-20 md:pb-4 ...">
-```
-
-### Sound Refinement Example (`premiumSounds.ts`):
-```typescript
-notification: {
-  frequencies: [880, 1047, 1319, 1568], // Lower frequencies
-  durations: [0.15, 0.12, 0.10, 0.18],
-  volumes: [0.08, 0.06, 0.05, 0.04], // 30% quieter
-  delays: [0, 0.05, 0.10, 0.15],
+// Friend click handler
+handleFriendToggle(friend) {
+  if (friend.sent) return;
+  setSelectedFriends(prev => {
+    const next = new Set(prev);
+    if (next.has(friend.id)) next.delete(friend.id);
+    else next.add(friend.id);
+    return next;
+  });
 }
+
+// Send handler
+handleSendToSelected() {
+  selectedFriends.forEach(friendId => sendToFriend(friendId));
+}
+```
+
+### SharedPostBubble Data Fetching
+```
+// Extended post data query
+SELECT 
+  posts.id, 
+  posts.media_url, 
+  posts.thumbnail_url, 
+  posts.caption,
+  posts.type,
+  profiles.id as author_id,
+  profiles.username as author_username,
+  profiles.avatar_url as author_avatar
+FROM posts
+JOIN profiles ON posts.author_id = profiles.id
+WHERE posts.id = $postId
 ```
 
 ---
 
-## Expected Outcomes
+## Visual Mockups
 
-- Toasts always visible above all UI elements
-- Chat messages fully scrollable above bottom nav
-- Instant, smooth tab transitions with no black flash
-- Softer, more satisfying notification sounds
-- Users can personalize their notification experience
+### Share Sheet Bottom Bar
+```text
++----------------------------------+
+|          Share                   |
++----------------------------------+
+|  [Search friends...]             |
++----------------------------------+
+|  (o)    (o)    (●)    (o)       |  <- Selected friend has ring
+|  Amy    Ben   Carla   Dan        |
++----------------------------------+
+|  [Story] [Link] [More] [Save]   |
++----------------------------------+
+|                                  |
+|   +-------------------------+    |
+|   |   Send to Carla    →   |    |  <- Animated in
+|   +-------------------------+    |
++----------------------------------+
+```
+
+### Reels-Style DM Bubble
+```text
++------------------+
+| ◯ @username      |  <- Creator info
+|                  |
+|                  |
+|        ▶        |  <- Play button
+|                  |
+|                  |
+| Caption text...  |  <- Title
++------------------+
+  (9:16 aspect)
+```
+
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/components/share/ShareSheet.tsx` | Replace popup modal with bottom send bar, multi-select support |
+| `src/components/chat/SharedPostBubble.tsx` | Reels-style layout with 9:16 ratio, creator overlay |
+
+---
+
+## Testing Checklist
+
+- Share a clip and verify friend selection works with visual ring
+- Verify Send button appears/disappears based on selection
+- Verify sending to multiple friends works
+- Check shared clip appears with Reels-style layout in DM
+- Verify creator info shows correctly on shared clips
+- Test tap navigation on shared clips still works
