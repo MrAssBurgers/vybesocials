@@ -23,7 +23,7 @@ export function useDMConversations(searchQuery: string = '') {
   // Fetch all conversations with proper sorting
   const conversationsQuery = useQuery({
     queryKey: ['dm-conversations', profile?.id],
-    refetchInterval: 5000, // Poll every 5 seconds for instant updates
+    // No polling - rely on realtime for updates (more stable)
     queryFn: async () => {
       if (!profile?.id) return [];
 
@@ -143,9 +143,10 @@ export function useDMConversations(searchQuery: string = '') {
       return result;
     },
     enabled: !!profile?.id,
-    staleTime: 2000, // 2 seconds - refresh quickly for instant reordering
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
+    staleTime: 10000, // 10 seconds - stable caching, realtime handles updates
+    gcTime: 60000,
+    refetchOnWindowFocus: false, // Prevent excessive refetches
+    refetchOnMount: false,
   });
 
   // Auto-create conversations for friends who don't have one
