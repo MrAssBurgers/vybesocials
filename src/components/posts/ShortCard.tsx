@@ -726,6 +726,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         postId={post.id}
         postType="short"
         caption={post.caption}
+        mediaUrl={signedMediaUrl || post.media_url}
       />
     </div>
   );

@@ -130,6 +130,12 @@ export const ShareSheet = memo(function ShareSheet({
           message_type: 'shared_post',
         });
 
+        // Update conversation timestamp so it appears at top of DM list
+        await supabase
+          .from('conversations')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', convId);
+
         // Mark as sent with animation
         setQuickFriends(prev => 
           prev.map(f => f.id === friend.id ? { ...f, sent: true } : f)

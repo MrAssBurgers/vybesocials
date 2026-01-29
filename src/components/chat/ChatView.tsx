@@ -84,6 +84,7 @@ import { VybeViewer } from './VybeViewer';
 import { VideoSendPreview } from './VideoSendPreview';
 import { VideoBubble } from './VideoBubble';
 import { VideoMessageViewer } from './VideoMessageViewer';
+import { SharedPostBubble } from './SharedPostBubble';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
@@ -1637,6 +1638,7 @@ const MessageBubble = memo(function MessageBubble({
   const isMediaMessage = message.media_url && (message.media_type === 'image' || message.media_type === 'gif');
   const isVideoMessage = message.media_url && message.media_type === 'video';
   const isVybeMessage = message.media_url && message.media_type === 'vybe';
+  const isSharedPost = message.message_type === 'shared_post';
 
   return (
     <div className={cn(
@@ -1740,8 +1742,21 @@ const MessageBubble = memo(function MessageBubble({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          {/* Image/GIF message */}
-          {isMediaMessage && (
+          {/* Shared Post - Instagram-style clickable thumbnail */}
+          {isSharedPost && (
+            <div className={message.content && !isVideoMessage && !isMediaMessage ? "mb-2" : ""}>
+              <SharedPostBubble
+                postId={message.content || ''}
+                mediaUrl={message.media_url}
+                mediaType={message.media_type}
+                isOwn={isOwn}
+                onNavigate={onNavigateToPost}
+              />
+            </div>
+          )}
+
+          {/* Image/GIF message (not for shared posts - they use SharedPostBubble) */}
+          {isMediaMessage && !isSharedPost && (
             <div className={message.content ? "mb-2" : ""}>
               <img
                 src={message.media_url}
@@ -1752,17 +1767,9 @@ const MessageBubble = memo(function MessageBubble({
             </div>
           )}
 
-          {/* Video message - Instagram style portrait video with navigation */}
-          {isVideoMessage && (
-            <div 
-              className={cn(message.content ? "mb-2" : "", "relative cursor-pointer group")}
-              onClick={() => {
-                // Navigate to the post - content contains the post ID for shared posts
-                if (message.message_type === 'shared_post' && message.content && onNavigateToPost) {
-                  onNavigateToPost(message.content);
-                }
-              }}
-            >
+          {/* Video message - regular DM video (not shared posts) */}
+          {isVideoMessage && !isSharedPost && (
+            <div className={cn(message.content ? "mb-2" : "", "relative cursor-pointer group")}>
               <div className="relative aspect-[9/16] w-32 sm:w-40 overflow-hidden rounded-xl bg-black">
                 <video
                   src={message.media_url!}
@@ -1781,9 +1788,6 @@ const MessageBubble = memo(function MessageBubble({
                   </div>
                 </div>
               </div>
-              {message.message_type === 'shared_post' && (
-                <p className="text-[10px] text-muted-foreground mt-1 text-center">Tap to view</p>
-              )}
             </div>
           )}
 
