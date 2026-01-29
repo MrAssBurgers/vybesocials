@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, MoreVertical, Eye } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -39,7 +40,10 @@ interface MobileShortCardProps {
 }
 
 /**
- * Simplified ShortCard for mobile/iPad - removes heavy animations that cause freezing
+ * Instagram Reels-style ShortCard for mobile/iPad
+ * - Single tap = toggle mute
+ * - Hold = pause (no overlay)
+ * - Pulsing mute icon when muted
  */
 export const MobileShortCard = memo(function MobileShortCard({ 
   post, 
@@ -58,9 +62,11 @@ export const MobileShortCard = memo(function MobileShortCard({
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [viewCount, setViewCount] = useState(post.view_count || 0);
+  const [isHolding, setIsHolding] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
   const playAttemptRef = useRef<NodeJS.Timeout | null>(null);
+  const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Subscribe to realtime view count updates
   useEffect(() => {
@@ -100,6 +106,20 @@ export const MobileShortCard = memo(function MobileShortCard({
     }
   }, [globalMuted]);
 
+  // Handle hold-to-pause
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isHolding) {
+      video.pause();
+      setIsPlaying(false);
+    } else if (isActive && signedMediaUrl) {
+      video.play().catch(() => {});
+      setIsPlaying(true);
+    }
+  }, [isHolding, isActive, signedMediaUrl]);
+
   // Simplified play/pause for mobile - avoid complex state updates
   useEffect(() => {
     const video = videoRef.current;
@@ -110,7 +130,7 @@ export const MobileShortCard = memo(function MobileShortCard({
       clearTimeout(playAttemptRef.current);
     }
 
-    if (isActive) {
+    if (isActive && !isHolding) {
       // Delay play slightly to allow DOM updates
       playAttemptRef.current = setTimeout(() => {
         video.muted = true; // Always start muted for autoplay
@@ -140,8 +160,10 @@ export const MobileShortCard = memo(function MobileShortCard({
       }, 100);
     } else {
       video.pause();
-      video.currentTime = 0;
-      hasCountedInitialView.current = false;
+      if (!isActive) {
+        video.currentTime = 0;
+        hasCountedInitialView.current = false;
+      }
       setIsPlaying(false);
     }
 
@@ -150,7 +172,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         clearTimeout(playAttemptRef.current);
       }
     };
-  }, [isActive, signedMediaUrl, isVideo, globalMuted, profile]);
+  }, [isActive, signedMediaUrl, isVideo, globalMuted, profile, isHolding]);
 
   const incrementViewCount = async () => {
     try {
@@ -168,9 +190,30 @@ export const MobileShortCard = memo(function MobileShortCard({
     }
   }, [profile, isActive]);
 
+  // Touch handlers for hold-to-pause (Instagram-style)
+  const handleTouchStart = useCallback(() => {
+    holdTimeoutRef.current = setTimeout(() => {
+      setIsHolding(true);
+    }, 150);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+    if (isHolding) {
+      setIsHolding(false);
+    }
+  }, [isHolding]);
+
   const handleTap = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // If we were holding, don't process as tap
+    if (isHolding) return;
+    
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
 
@@ -190,7 +233,7 @@ export const MobileShortCard = memo(function MobileShortCard({
       }
     }
     lastTapTime.current = now;
-  }, [isMuted, onToggleMute, isLiked]);
+  }, [isMuted, onToggleMute, isLiked, isHolding]);
 
   const handleLike = async () => {
     if (!profile) return;
@@ -249,6 +292,12 @@ export const MobileShortCard = memo(function MobileShortCard({
       <div 
         className="absolute inset-0 flex items-center justify-center"
         onClick={handleTap}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onMouseDown={handleTouchStart}
+        onMouseUp={handleTouchEnd}
+        onMouseLeave={handleTouchEnd}
       >
         {/* Loading indicator */}
         {isLoading && !hasError && (
@@ -295,13 +344,29 @@ export const MobileShortCard = memo(function MobileShortCard({
           />
         ) : null}
 
-        {/* Mute indicator */}
-        {isVideo && isMuted && isPlaying && (
-          <div className="absolute top-4 left-4 bg-black/60 px-3 py-1.5 rounded-full text-white text-sm flex items-center gap-2">
-            <VolumeX className="h-4 w-4" />
-            Tap to unmute
-          </div>
-        )}
+        {/* Instagram-style pulsing muted icon - centered, only visible when muted */}
+        <AnimatePresence>
+          {isVideo && isMuted && isPlaying && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ 
+                opacity: [0.6, 0.9, 0.6],
+                scale: [1, 1.1, 1]
+              }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10"
+            >
+              <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
+                <VolumeX className="h-8 w-8 text-white/80" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Gradient overlays */}
