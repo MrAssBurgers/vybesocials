@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
-import { Image, Camera, X, Sparkles } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Image, Camera, X, Sparkles, Zap } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { VYBEHub } from './VYBEHub';
@@ -43,24 +43,21 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
       icon: Image, 
       label: 'Create Post', 
       description: 'Share a photo or video',
-      color: 'from-pink-500 to-rose-500',
-      delay: 0.05,
+      gradient: 'from-rose-500 via-pink-500 to-fuchsia-500',
     },
     { 
       id: 'camera' as const, 
       icon: Camera, 
       label: 'Camera', 
       description: 'Capture a moment',
-      color: 'from-cyan-500 to-blue-500',
-      delay: 0.1,
+      gradient: 'from-cyan-500 via-blue-500 to-indigo-500',
     },
     { 
       id: 'hub' as const, 
       icon: Sparkles, 
       label: 'VYBE Hub', 
       description: 'Marketplace, Events & More',
-      color: 'from-violet-500 to-purple-600',
-      delay: 0.15,
+      gradient: 'from-violet-500 via-purple-500 to-fuchsia-500',
     },
   ];
 
@@ -77,67 +74,120 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Backdrop - CSS transition for performance */}
-            <div
-              className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm animate-fade-in"
+            {/* Backdrop with blur */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-md"
               onClick={onClose}
-              style={{ animationDuration: '150ms' }}
             />
 
-            {/* Menu - Centered on all devices */}
-            <div
-              className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none p-4"
-            >
-              <div 
-                className="liquid-glass overflow-hidden rounded-3xl p-4 w-[90vw] max-w-xs pointer-events-auto animate-slide-up-bounce"
-                onClick={(e) => e.stopPropagation()}
-                style={{ 
-                  transform: 'translateZ(0)',
-                  animationDuration: '300ms',
-                  animationFillMode: 'both'
+            {/* Menu Container - Centered */}
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                transition={{ 
+                  type: 'spring', 
+                  damping: 25, 
+                  stiffness: 350,
+                  mass: 0.8,
                 }}
+                className="relative w-full max-w-sm pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
               >
-                {/* Header */}
-                <div className="text-center mb-4">
-                  <h2 className="text-lg font-bold gradient-text">Create</h2>
-                  <p className="text-xs text-muted-foreground">What do you want to share?</p>
-                </div>
+                {/* Glow effect behind card */}
+                <div className="absolute -inset-4 bg-gradient-to-br from-primary/30 via-accent/20 to-primary/30 rounded-[40px] blur-2xl opacity-60" />
+                
+                {/* Main Card */}
+                <div className="relative bg-card/95 backdrop-blur-xl border border-border/50 rounded-3xl p-6 shadow-2xl overflow-hidden">
+                  {/* Animated gradient border */}
+                  <div className="absolute inset-0 rounded-3xl p-px bg-gradient-to-br from-primary/50 via-transparent to-accent/50 pointer-events-none" />
+                  
+                  {/* Header */}
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="text-center mb-6"
+                  >
+                    <div className="inline-flex items-center gap-2 mb-2">
+                      <motion.div
+                        animate={{ rotate: [0, 10, -10, 0] }}
+                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                      >
+                        <Zap className="w-5 h-5 text-primary" />
+                      </motion.div>
+                      <h2 className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                        Create
+                      </h2>
+                    </div>
+                    <p className="text-sm text-muted-foreground">What do you want to share?</p>
+                  </motion.div>
 
-                {/* Menu Items - CSS animations for performance */}
-                <div className="space-y-2">
-                  {menuItems.map((item, index) => (
-                    <button
-                      key={item.id}
-                      onClick={() => handleAction(item.id)}
-                      className="w-full p-3 rounded-2xl liquid-glass-button flex items-center gap-3 active:scale-[0.97] transition-transform duration-100 touch-manipulation animate-fade-in-up"
-                      style={{ 
-                        animationDelay: `${50 + index * 40}ms`,
-                        animationDuration: '200ms',
-                        animationFillMode: 'both',
-                        transform: 'translateZ(0)'
-                      }}
-                    >
-                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center`}>
-                        <item.icon className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="text-left">
-                        <span className="font-medium text-sm block">{item.label}</span>
-                        <span className="text-xs text-muted-foreground">{item.description}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                  {/* Menu Items */}
+                  <div className="space-y-3">
+                    {menuItems.map((item, index) => (
+                      <motion.button
+                        key={item.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.15 + index * 0.08 }}
+                        onClick={() => handleAction(item.id)}
+                        whileTap={{ scale: 0.97 }}
+                        whileHover={{ scale: 1.02, x: 4 }}
+                        className="w-full p-4 rounded-2xl bg-muted/50 hover:bg-muted/80 border border-border/30 hover:border-border/50 flex items-center gap-4 transition-colors group"
+                      >
+                        {/* Icon with gradient background */}
+                        <motion.div 
+                          whileHover={{ rotate: [0, -10, 10, 0] }}
+                          transition={{ duration: 0.4 }}
+                          className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow`}
+                        >
+                          <item.icon className="h-6 w-6 text-white" />
+                        </motion.div>
+                        
+                        {/* Text */}
+                        <div className="text-left flex-1">
+                          <span className="font-semibold text-base block group-hover:text-primary transition-colors">
+                            {item.label}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            {item.description}
+                          </span>
+                        </div>
+                        
+                        {/* Arrow indicator */}
+                        <motion.div
+                          initial={{ opacity: 0, x: -5 }}
+                          whileHover={{ opacity: 1, x: 0 }}
+                          className="text-muted-foreground"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </motion.div>
+                      </motion.button>
+                    ))}
+                  </div>
 
-                {/* Close Button */}
-                <button
-                  onClick={onClose}
-                  className="w-full mt-4 p-2 rounded-xl text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2 text-sm touch-manipulation animate-fade-in"
-                  style={{ animationDelay: '150ms', animationDuration: '200ms', animationFillMode: 'both' }}
-                >
-                  <X className="h-4 w-4" />
-                  Cancel
-                </button>
-              </div>
+                  {/* Close Button */}
+                  <motion.button
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                    onClick={onClose}
+                    whileTap={{ scale: 0.95 }}
+                    className="w-full mt-5 py-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all flex items-center justify-center gap-2 text-sm font-medium"
+                  >
+                    <X className="h-4 w-4" />
+                    Cancel
+                  </motion.button>
+                </div>
+              </motion.div>
             </div>
           </>
         )}
@@ -145,4 +195,3 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
     </>
   );
 }
-

@@ -435,7 +435,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[9999] pointer-events-auto"
+        className="fixed inset-0 z-[99999] pointer-events-auto"
       >
         {/* Dark overlay with spotlight cutout */}
         <svg
@@ -454,7 +454,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
                   y={spotlight.top}
                   width={spotlight.width}
                   height={spotlight.height}
-                  rx="12"
+                  rx="16"
                   fill="black"
                 />
               )}
@@ -465,7 +465,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
             y="0"
             width="100%"
             height="100%"
-            fill="rgba(0, 0, 0, 0.85)"
+            fill="rgba(0, 0, 0, 0.88)"
             mask="url(#tutorial-spotlight-mask)"
           />
         </svg>
@@ -476,13 +476,13 @@ export const TutorialOverlay = memo(function TutorialOverlay({
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.3 }}
-            className="absolute rounded-xl pointer-events-none"
+            className="absolute rounded-2xl pointer-events-none"
             style={{
-              top: spotlight.top - 4,
-              left: spotlight.left - 4,
-              width: spotlight.width + 8,
-              height: spotlight.height + 8,
-              boxShadow: '0 0 0 4px hsl(var(--primary) / 0.6), 0 0 60px hsl(var(--primary) / 0.5)',
+              top: spotlight.top - 6,
+              left: spotlight.left - 6,
+              width: spotlight.width + 12,
+              height: spotlight.height + 12,
+              boxShadow: '0 0 0 4px hsl(var(--primary) / 0.7), 0 0 80px hsl(var(--primary) / 0.5), 0 0 120px hsl(var(--primary) / 0.3)',
             }}
           />
         )}
@@ -491,7 +491,8 @@ export const TutorialOverlay = memo(function TutorialOverlay({
         <motion.button
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute top-4 right-4 sm:top-6 sm:right-6 z-[10000] flex items-center gap-2 px-4 py-2.5 rounded-full bg-background/95 backdrop-blur-xl border border-border text-sm font-medium hover:bg-background transition-colors shadow-xl"
+          transition={{ delay: 0.2 }}
+          className="absolute top-4 right-4 sm:top-6 sm:right-6 z-[100000] flex items-center gap-2 px-4 py-2.5 rounded-full bg-card/95 backdrop-blur-xl border border-border text-sm font-medium hover:bg-card transition-colors shadow-2xl"
           onClick={handleSkip}
         >
           <X className="w-4 h-4" />
@@ -519,8 +520,8 @@ export const TutorialOverlay = memo(function TutorialOverlay({
             initial={{ opacity: 0, y: 15, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -15, scale: 0.95 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="absolute z-[10000] w-[calc(100%-32px)] max-w-[340px] pointer-events-auto"
+            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
+            className="absolute z-[100000] w-[calc(100%-32px)] max-w-[360px] pointer-events-auto"
             style={{
               top: tooltipPos.top,
               left: tooltipPos.left,
@@ -528,7 +529,9 @@ export const TutorialOverlay = memo(function TutorialOverlay({
               bottom: tooltipPos.bottom,
             }}
           >
-            <div className="liquid-glass-card p-5 rounded-2xl shadow-2xl border-2 border-primary/40 bg-background/98 backdrop-blur-xl">
+            <div className="relative p-6 rounded-3xl shadow-2xl border border-primary/30 bg-card/98 backdrop-blur-2xl overflow-hidden">
+              {/* Gradient glow background */}
+              <div className="absolute -inset-1 bg-gradient-to-br from-primary/20 via-transparent to-accent/20 rounded-3xl blur-xl opacity-60 pointer-events-none" />
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">

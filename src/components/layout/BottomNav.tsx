@@ -11,6 +11,7 @@ import { VYBEHub } from '@/components/hub/VYBEHub';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
 import { navVisibility } from '@/lib/navVisibility';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Singleton scroll direction detection to prevent duplicate listeners
 let scrollDirectionListener: (() => void) | null = null;
@@ -297,23 +298,53 @@ export function BottomNav() {
               if (item.isCreate) {
                 return (
                   <div key={item.path} className="relative flex items-center justify-center" data-tutorial="create-nav">
-                    <button
-                      className="relative flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation group"
+                    <motion.button
+                      className="relative flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation"
                       onClick={handleCreateClick}
+                      whileTap={{ scale: 0.85 }}
+                      whileHover={{ scale: 1.05 }}
                     >
-                      {/* Tutorial highlight ring for create button */}
+                      {/* Animated glow ring when menu is open */}
+                      <AnimatePresence>
+                        {isCreateMenuOpen && (
+                          <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1.3, opacity: 0.6 }}
+                            exit={{ scale: 0.8, opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="absolute inset-0 rounded-full bg-primary/30 blur-md"
+                          />
+                        )}
+                      </AnimatePresence>
+                      
+                      {/* Tutorial highlight ring */}
                       {isHighlighted && (
-                        <div
-                          className="absolute inset-0 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse"
+                        <motion.div
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                          className="absolute -inset-1 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background"
                         />
                       )}
-                      {/* Animated gradient background */}
-                      <div 
-                        className="rounded-xl p-2.5 shadow-lg transition-transform duration-200 ease-out active:scale-90 group-hover:scale-105 create-button-gradient"
+                      
+                      {/* Main button with gradient */}
+                      <motion.div 
+                        animate={{ 
+                          rotate: isCreateMenuOpen ? 45 : 0,
+                          scale: isCreateMenuOpen ? 1.1 : 1,
+                        }}
+                        transition={{ type: 'spring', damping: 15, stiffness: 300 }}
+                        className="rounded-xl p-2.5 shadow-lg create-button-gradient relative overflow-hidden"
                       >
+                        {/* Shine effect */}
+                        <motion.div
+                          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                          initial={{ x: '-100%' }}
+                          animate={isCreateMenuOpen ? { x: '100%' } : { x: '-100%' }}
+                          transition={{ duration: 0.6 }}
+                        />
                         <PlusCircle className="h-5 w-5 text-white relative z-10" />
-                      </div>
-                    </button>
+                      </motion.div>
+                    </motion.button>
                   </div>
                 );
               }
