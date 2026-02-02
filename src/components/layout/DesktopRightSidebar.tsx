@@ -200,7 +200,7 @@ export function DesktopRightSidebar() {
                 ))}
               </div>
             ) : onlineFriends.length > 0 ? (
-              <div className="flex gap-2 overflow-x-auto py-1 scrollbar-hide">
+              <div className="flex gap-2 overflow-x-auto py-1 pl-0.5 scrollbar-hide">
                 {onlineFriends.slice(0, 8).map((friend, i) => (
                   <OnlineFriendAvatar key={friend?.id || i} friend={friend} />
                 ))}
