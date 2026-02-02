@@ -67,8 +67,8 @@ export function useInstantSend(conversationId: string | undefined) {
       return [...old, optimisticMessage];
     });
 
-    // Update conversation list immediately
-    queryClient.setQueryData<any[]>(['conversations', profile.id], (old) => {
+    // Helper to update conversation lists
+    const updateConversationList = (old: any[] | undefined) => {
       if (!old) return old;
       
       return old.map(conv => {
@@ -91,7 +91,11 @@ export function useInstantSend(conversationId: string | undefined) {
         const timeB = new Date(b._sortTime || b.updated_at).getTime();
         return timeB - timeA;
       });
-    });
+    };
+
+    // Update BOTH conversation query keys immediately for instant sync
+    queryClient.setQueryData<any[]>(['conversations', profile.id], updateConversationList);
+    queryClient.setQueryData<any[]>(['dm-conversations', profile.id], updateConversationList);
 
     return tempId;
   }, [conversationId, profile, queryClient]);
