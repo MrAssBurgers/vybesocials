@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
-import { useState, useCallback, useRef, memo, useEffect } from 'react';
+import { useState, useCallback, useRef, memo, useEffect, forwardRef } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { CreateMenuLayer } from '@/components/hub/CreateMenuLayer';
@@ -157,7 +157,7 @@ const NavItem = memo(({
   );
 });
 
-export function BottomNav() {
+export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav(_props, ref) {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -276,6 +276,7 @@ export function BottomNav() {
       />
 
        <nav 
+         ref={ref}
          className="fixed bottom-0 left-0 right-0 w-full pointer-events-auto"
         style={{
           zIndex: 5002,
@@ -368,4 +369,4 @@ export function BottomNav() {
       </nav>
     </>
   );
-}
+}));

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bug, Users, MessageSquare, Bell, Phone, Wifi } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ interface DebugStats {
   cacheSize: number;
 }
 
-export function DebugPanel() {
+export const DebugPanel = memo(forwardRef<HTMLDivElement, object>(function DebugPanel(_props, ref) {
   const [isOpen, setIsOpen] = useState(false);
   const [stats, setStats] = useState<DebugStats>({
     conversationsLoaded: 0,
@@ -81,7 +81,7 @@ export function DebugPanel() {
   }, [queryClient]);
 
   return (
-    <>
+    <div ref={ref}>
       {/* Toggle Button */}
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
@@ -202,6 +202,6 @@ export function DebugPanel() {
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
-}
+}));
