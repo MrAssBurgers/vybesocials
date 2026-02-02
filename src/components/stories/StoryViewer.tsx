@@ -12,6 +12,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { StoryMedia } from './StoryMedia';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { navVisibility } from '@/lib/navVisibility';
 
 interface StoryViewerProps {
   groups: StoryGroup[];
@@ -46,6 +47,14 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   const { data: likeData } = useStoryLikes(currentStory?.id);
 
   const STORY_DURATION = currentStory?.media_type === 'video' ? 15000 : 5000;
+
+  // Hide bottom nav when story viewer is open
+  useEffect(() => {
+    navVisibility.setInStoryViewer(true);
+    return () => {
+      navVisibility.setInStoryViewer(false);
+    };
+  }, []);
 
   // Mark story as viewed
   useEffect(() => {
