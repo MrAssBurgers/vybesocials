@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 interface SwipeToReplyProps {
   children: ReactNode;
   onReply: () => void;
-  isOwn?: boolean;
+  isOwn?: boolean; // Keep for potential future styling differences
   disabled?: boolean;
 }
 
@@ -15,6 +15,7 @@ const MAX_SWIPE = 70;
 
 /**
  * Snapchat-style swipe to reply
+ * - Works on ALL messages (own and others)
  * - Swipe right to reveal reply indicator
  * - Smooth spring animation snaps back
  * - Haptic feedback when threshold crossed
