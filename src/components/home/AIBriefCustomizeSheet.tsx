@@ -53,10 +53,22 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
     setIsLoading(true);
     
     try {
+      // First get the profile ID for this auth user
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile) {
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('ai_brief_preferences')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', profile.id)
         .single();
 
       if (data) {
@@ -80,10 +92,22 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
     haptics.tap();
 
     try {
+      // Get profile ID for this auth user
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile) {
+        toast.error('Profile not found');
+        return;
+      }
+
       const { error } = await supabase
         .from('ai_brief_preferences')
         .upsert({
-          user_id: user.id,
+          user_id: profile.id,
           custom_topics: preferences.custom_topics,
           excluded_topics: preferences.excluded_topics,
           show_images: preferences.show_images,
