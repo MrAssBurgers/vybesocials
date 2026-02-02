@@ -111,7 +111,7 @@ async function showCallNotification(caller: CallUser, callType: CallType, callId
       await registration.showNotification(`VYBE - Incoming ${callTypeLabel} Call`, options);
       return;
     } catch (err) {
-      console.warn('[CallStore] SW notification failed, falling back:', err);
+      if (import.meta.env.DEV) console.warn('[CallStore] SW notification failed, falling back:', err);
     }
   }
   
@@ -150,7 +150,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     setStateInternal(prev => {
       const next = typeof newState === 'function' ? newState(prev) : newState;
       globalCallState = next;
-      console.log('[CallStore] State updated:', next.phase, '| Call ID:', next.call?.id || 'none');
+      if (import.meta.env.DEV) console.log('[CallStore] State updated:', next.phase, '| Call ID:', next.call?.id || 'none');
       return next;
     });
   }, []);
@@ -179,11 +179,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           
           // Use global state to avoid stale closure - CRITICAL for preventing issues during navigation
           if (globalCallState.phase !== 'idle') {
-            console.log('[CallStore] Ignoring incoming call - already in call phase:', globalCallState.phase);
+            if (import.meta.env.DEV) console.log('[CallStore] Ignoring incoming call - already in call phase:', globalCallState.phase);
             return;
           }
 
-          console.log('[CallStore] Incoming call detected:', newCall.id);
+          if (import.meta.env.DEV) console.log('[CallStore] Incoming call detected:', newCall.id);
 
           // Fetch full call data with profiles and conversation info for group calls
           const [callResult, conversationResult] = await Promise.all([
@@ -247,7 +247,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     const callId = state.call?.id;
     if (!callId) return;
 
-    console.log('[CallStore] Subscribing to call status for:', callId);
+    if (import.meta.env.DEV) console.log('[CallStore] Subscribing to call status for:', callId);
     
     const channel = supabase
       .channel(`call-status-${callId}`)
@@ -261,10 +261,10 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         },
         (payload) => {
           const newStatus = (payload.new as any).status;
-          console.log('[CallStore] Call status update received:', newStatus, 'for call:', callId);
+          if (import.meta.env.DEV) console.log('[CallStore] Call status update received:', newStatus, 'for call:', callId);
           
           if (newStatus === 'ended' || newStatus === 'declined' || newStatus === 'missed') {
-            console.log('[CallStore] Remote call ended:', newStatus);
+            if (import.meta.env.DEV) console.log('[CallStore] Remote call ended:', newStatus);
             callSounds.end();
             setState(initialState);
           }
@@ -273,7 +273,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       .subscribe();
 
     return () => {
-      console.log('[CallStore] Unsubscribing from call status for:', callId);
+      if (import.meta.env.DEV) console.log('[CallStore] Unsubscribing from call status for:', callId);
       supabase.removeChannel(channel);
     };
   }, [state.call?.id, setState]);
@@ -296,11 +296,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     
     // Use global state to avoid stale closure issues
     if (globalCallState.phase !== 'idle') {
-      console.warn('[CallStore] Cannot start call, not idle. Current phase:', globalCallState.phase);
+      if (import.meta.env.DEV) console.warn('[CallStore] Cannot start call, not idle. Current phase:', globalCallState.phase);
       return;
     }
 
-    console.log('[CallStore] Starting call:', params);
+    if (import.meta.env.DEV) console.log('[CallStore] Starting call:', params);
     setState({ phase: 'creating', call: null, error: null });
 
     try {
@@ -327,7 +327,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         throw new Error(roomError?.message || roomData?.error || 'Failed to create call room');
       }
 
-      console.log('[CallStore] Room created:', roomData.roomName, 'callId:', roomData.callId);
+      if (import.meta.env.DEV) console.log('[CallStore] Room created:', roomData.roomName, 'callId:', roomData.callId);
 
       // The edge function already created the call record, use its ID
       const callId = roomData.callId;
@@ -373,7 +373,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
   }, [profile?.id, profile?.username, profile?.avatar_url, setState]);
 
   const acceptCall = useCallback((call: CallData) => {
-    console.log('[CallStore] Accepting call:', call.id);
+    if (import.meta.env.DEV) console.log('[CallStore] Accepting call:', call.id);
     premiumSounds.stopAllCallSounds();
     setIncomingCall(null);
 
@@ -383,14 +383,14 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       .update({ status: 'accepted', started_at: new Date().toISOString() })
       .eq('id', call.id)
       .then(() => {
-        console.log('[CallStore] Call status updated to accepted');
+        if (import.meta.env.DEV) console.log('[CallStore] Call status updated to accepted');
       });
 
     setState({ phase: 'joining', call, error: null });
   }, [setState, setIncomingCall]);
 
   const endCall = useCallback(async () => {
-    console.log('[CallStore] Ending call - current phase:', globalCallState.phase);
+    if (import.meta.env.DEV) console.log('[CallStore] Ending call - current phase:', globalCallState.phase);
     premiumSounds.stopAllCallSounds();
 
     // Use global state to get the current call ID (avoids stale closure)
@@ -419,7 +419,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
   }, [setState]);
 
   const dismissIncoming = useCallback(async () => {
-    console.log('[CallStore] Dismissing incoming call');
+    if (import.meta.env.DEV) console.log('[CallStore] Dismissing incoming call');
     premiumSounds.stopAllCallSounds();
 
     // Use global state to get the incoming call (avoids stale closure)
@@ -431,7 +431,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         .update({ status: 'declined' })
         .eq('id', currentIncoming.id);
       
-      console.log('[CallStore] Incoming call declined');
+      if (import.meta.env.DEV) console.log('[CallStore] Incoming call declined');
       
       // Create missed call notification for the receiver (current user declined)
       if (currentIncoming.caller?.id && profile?.id) {
@@ -442,7 +442,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
             actor_id: currentIncoming.caller.id,
             type: 'missed_call',
           });
-        console.log('[CallStore] Missed call notification created');
+        if (import.meta.env.DEV) console.log('[CallStore] Missed call notification created');
       }
     }
 

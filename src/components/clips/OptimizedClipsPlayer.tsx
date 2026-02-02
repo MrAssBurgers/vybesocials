@@ -218,9 +218,6 @@ const ClipItem = memo(function ClipItem({
           onLoadedData={() => setIsLoaded(true)}
           onClick={handleTap}
           onDoubleClick={handleDoubleTap}
-          // iPad/iOS fixes
-          webkit-playsinline="true"
-          x-webkit-airplay="deny"
         />
       )}
 

@@ -152,7 +152,7 @@ export function ChatView() {
   useScreenCapture({
     enabled: !!conversationId,
     onCapture: (event) => {
-      console.log('[ChatView] Capture detected:', event);
+      if (import.meta.env.DEV) console.log('[ChatView] Capture detected:', event);
       if (event.confidence !== 'low') {
         notifyCapture(event.type);
       }
