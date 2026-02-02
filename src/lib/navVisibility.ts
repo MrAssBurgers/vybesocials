@@ -1,6 +1,6 @@
 /**
  * Centralized nav visibility state management.
- * Used to hide bottom nav when inside community chat or when input is focused.
+ * Used to hide bottom nav when inside community chat, story viewer, or when input is focused.
  */
 
 type NavVisibilityListener = (visible: boolean) => void;
@@ -10,9 +10,10 @@ let navVisible = true;
 const listeners = new Set<NavVisibilityListener>();
 let communityInputFocused = false;
 let inCommunityChat = false;
+let inStoryViewer = false;
 
 function updateVisibility() {
-  const shouldBeVisible = !communityInputFocused && !inCommunityChat;
+  const shouldBeVisible = !communityInputFocused && !inCommunityChat && !inStoryViewer;
   if (navVisible !== shouldBeVisible) {
     navVisible = shouldBeVisible;
     listeners.forEach(fn => fn(navVisible));
@@ -53,11 +54,20 @@ export const navVisibility = {
   },
 
   /**
-   * Force show nav (useful when exiting community)
+   * Set whether we're viewing stories (hides nav)
+   */
+  setInStoryViewer(inViewer: boolean) {
+    inStoryViewer = inViewer;
+    updateVisibility();
+  },
+
+  /**
+   * Force show nav (useful when exiting community or stories)
    */
   forceShow() {
     inCommunityChat = false;
     communityInputFocused = false;
+    inStoryViewer = false;
     updateVisibility();
   },
 };
