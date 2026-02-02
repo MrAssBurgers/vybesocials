@@ -42,7 +42,7 @@ export function MobileHeader() {
             <Link
               to="/notifications"
               className={cn(
-                "relative flex items-center justify-center h-8 w-8 sm:h-10 sm:w-10 rounded-full transition-colors",
+                "relative flex items-center justify-center h-8 w-8 sm:h-10 sm:w-10 rounded-full transition-all",
                 isNotificationsActive ? "bg-primary/20" : "hover:bg-muted/50"
               )}
             >
@@ -54,9 +54,19 @@ export function MobileHeader() {
                 {unreadCount > 0 && (
                   <motion.span
                     initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
+                    animate={{ 
+                      scale: 1,
+                      boxShadow: [
+                        '0 0 0 0 hsl(var(--destructive) / 0.4)',
+                        '0 0 0 4px hsl(var(--destructive) / 0)',
+                      ]
+                    }}
                     exit={{ scale: 0 }}
-                    className="absolute top-0.5 right-0.5 h-3 w-3 sm:h-4 sm:w-4 bg-destructive rounded-full flex items-center justify-center text-[7px] sm:text-[9px] text-destructive-foreground font-bold"
+                    transition={{
+                      scale: { type: 'spring', stiffness: 500, damping: 25 },
+                      boxShadow: { duration: 1, repeat: Infinity }
+                    }}
+                    className="absolute -top-0.5 -right-0.5 h-4 w-4 sm:h-5 sm:w-5 bg-destructive rounded-full flex items-center justify-center text-[8px] sm:text-[10px] text-destructive-foreground font-bold"
                   >
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </motion.span>
