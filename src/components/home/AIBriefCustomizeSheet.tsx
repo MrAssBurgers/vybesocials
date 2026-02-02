@@ -130,12 +130,21 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
   };
 
   const addTopic = (topic: string) => {
-    if (!topic.trim()) return;
-    if (preferences.custom_topics.includes(topic)) return;
+    const trimmedTopic = topic.trim();
+    if (!trimmedTopic) return;
+    
+    // Check if topic already exists (case-insensitive)
+    const exists = preferences.custom_topics.some(
+      t => t.toLowerCase() === trimmedTopic.toLowerCase()
+    );
+    if (exists) {
+      toast.info('Topic already added');
+      return;
+    }
     
     setPreferences(prev => ({
       ...prev,
-      custom_topics: [...prev.custom_topics, topic.trim()]
+      custom_topics: [...prev.custom_topics, trimmedTopic]
     }));
     setNewTopic('');
     haptics.tap();

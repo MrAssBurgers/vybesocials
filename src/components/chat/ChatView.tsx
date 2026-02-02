@@ -978,6 +978,7 @@ export function ChatView() {
       >
         {/* Messages container - extra bottom padding on mobile for bottom nav */}
         <div className="flex flex-col gap-0 pb-20 md:pb-4">
+          <AnimatePresence mode="popLayout" initial={false}>
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
             // Instagram/Snapchat spacing rules:
             // Same sender consecutive: 4-6px gap (tight grouping)
@@ -1102,6 +1103,7 @@ export function ChatView() {
               </div>
             );
           })}
+          </AnimatePresence>
 
           {/* Messages now use instant optimistic updates embedded in the messages array */}
 
@@ -1652,10 +1654,23 @@ const MessageBubble = memo(function MessageBubble({
   const isSharedPost = message.message_type === 'shared_post';
 
   return (
-    <div className={cn(
-      'flex w-full group/message relative',
-      isOwn ? 'justify-end' : 'justify-start'
-    )}>
+    <motion.div 
+      key={message.id}
+      layoutId={message.id}
+      className={cn(
+        'flex w-full group/message relative',
+        isOwn ? 'justify-end' : 'justify-start'
+      )}
+      initial={{ opacity: 0, y: 16, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
+      transition={{ 
+        type: 'spring',
+        stiffness: 500,
+        damping: 35,
+        mass: 0.6
+      }}
+    >
       {/* Container for avatar + bubble - left aligned for received */}
       <div className={cn(
         'flex gap-2 sm:gap-2.5 items-end',
@@ -2108,7 +2123,7 @@ const MessageBubble = memo(function MessageBubble({
         )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }, (prevProps, nextProps) => {
   return (
