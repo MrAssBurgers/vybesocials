@@ -265,10 +265,13 @@ export function useViewStory() {
 
       const { error } = await supabase
         .from('story_views')
-        .upsert({
-          story_id: storyId,
-          viewer_id: profile.id,
-        });
+        .upsert(
+          {
+            story_id: storyId,
+            viewer_id: profile.id,
+          },
+          { onConflict: 'story_id,viewer_id', ignoreDuplicates: true }
+        );
 
       if (error) throw error;
     },

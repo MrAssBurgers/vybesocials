@@ -117,18 +117,20 @@ serve(async (req) => {
       );
     }
 
-    // Get user's profile with interests
+    // Get user's profile with interests (query by user_id, not id)
     const { data: userProfile } = await supabase
       .from('profiles')
-      .select('interests, display_name, username')
-      .eq('id', user.id)
+      .select('id, interests, display_name, username')
+      .eq('user_id', user.id)
       .single();
+
+    const profileId = userProfile?.id;
 
     // Get user's custom brief preferences
     const { data: briefPrefs } = await supabase
       .from('ai_brief_preferences')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', profileId)
       .single();
 
     // Combine onboarding interests with custom topics
@@ -141,11 +143,11 @@ serve(async (req) => {
     // Get recent posts from people user follows (last 24 hours)
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     
-    // Get followed users
+    // Get followed users (use profile ID, not auth user ID)
     const { data: follows } = await supabase
       .from('follows')
       .select('following_id')
-      .eq('follower_id', user.id);
+      .eq('follower_id', profileId);
     
     const followingIds = follows?.map(f => f.following_id) || [];
     
@@ -153,14 +155,14 @@ serve(async (req) => {
     let messagesContent = "";
     
     if (followingIds.length > 0) {
-      // Get recent posts from followed users
+      // Get recent posts from followed users (author_id is the profile ID)
       const { data: posts } = await supabase
         .from('posts')
         .select(`
           id, caption, created_at,
-          profiles:user_id(username, display_name)
+          profiles:author_id(username, display_name)
         `)
-        .in('user_id', followingIds)
+        .in('author_id', followingIds)
         .gte('created_at', oneDayAgo)
         .order('created_at', { ascending: false })
         .limit(20);
@@ -183,7 +185,7 @@ serve(async (req) => {
           id, name, is_group, updated_at
         )
       `)
-      .eq('user_id', user.id);
+      .eq('user_id', profileId);
 
     let unreadConvos = 0;
     if (conversations) {

@@ -121,14 +121,19 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     [followingData]
   );
 
-  // Pull to refresh
+  const queryClient = useQueryClient();
+
+  // Pull to refresh with proper cache invalidation
   const handleRefresh = useCallback(async () => {
+    // Force invalidate the cache to ensure fresh data
     if (activeTab === 'foryou') {
+      queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
       await refetchForYou();
     } else {
+      queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
       await refetchFollowing();
     }
-  }, [activeTab, refetchForYou, refetchFollowing]);
+  }, [activeTab, queryClient, refetchForYou, refetchFollowing]);
 
   const { pullDistance, isRefreshing, threshold } = usePullToRefresh({
     onRefresh: handleRefresh,

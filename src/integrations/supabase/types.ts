@@ -5420,7 +5420,19 @@ export type Database = {
         Args: { post_id_param: string }
         Returns: undefined
       }
+      is_call_participant_via_profiles: {
+        Args: { call_id_param: string }
+        Returns: boolean
+      }
       is_conversation_member: { Args: { conv_id: string }; Returns: boolean }
+      is_conversation_member_for_presence: {
+        Args: { conv_id: string }
+        Returns: boolean
+      }
+      is_group_member_via_profiles: {
+        Args: { conv_id: string }
+        Returns: boolean
+      }
       is_member_of_conversation: {
         Args: { _conversation_id: string }
         Returns: boolean

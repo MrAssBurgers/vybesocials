@@ -33,7 +33,7 @@ export function AIRecommendations() {
   const [reason, setReason] = useState('');
   const [hasLoaded, setHasLoaded] = useState(false);
 
-  const fetchRecommendations = async () => {
+  const fetchRecommendations = async (retryCount = 0) => {
     if (!profile) return;
     
     setIsLoading(true);
@@ -53,26 +53,9 @@ export function AIRecommendations() {
       );
 
       if (!response.ok) {
-        if (response.status === 429 || response.status === 402) {
-          // Fallback to regular posts
-          const { data } = await supabase
-            .from('posts')
-            .select(`
-              id, type, media_url, caption, tags, created_at,
-              author:profiles!posts_author_id_fkey(id, username, avatar_url)
-            `)
-            .eq('type', 'post')
-            .order('created_at', { ascending: false })
-            .limit(5);
-          
-          if (data) {
-            const enriched = await enrichPosts(data);
-            setPosts(enriched);
-            setReason('Showing latest posts');
-          }
-          return;
-        }
-        throw new Error('Failed to get recommendations');
+        // Fallback to regular posts for any error
+        await fetchFallbackPosts();
+        return;
       }
 
       const { recommended_ids, reason: aiReason } = await response.json();
@@ -96,13 +79,40 @@ export function AIRecommendations() {
             .filter(Boolean) as Post[];
           setPosts(sorted);
         }
+      } else {
+        // No AI recommendations, use fallback
+        await fetchFallbackPosts();
       }
     } catch (error) {
       console.error('Recommendation error:', error);
-      toast.error('Failed to get recommendations');
+      // Retry once with exponential backoff
+      if (retryCount < 1) {
+        setTimeout(() => fetchRecommendations(retryCount + 1), 1000 * (retryCount + 1));
+        return;
+      }
+      // After retry fails, use fallback
+      await fetchFallbackPosts();
     } finally {
       setIsLoading(false);
       setHasLoaded(true);
+    }
+  };
+
+  const fetchFallbackPosts = async () => {
+    const { data } = await supabase
+      .from('posts')
+      .select(`
+        id, type, media_url, caption, tags, created_at,
+        author:profiles!posts_author_id_fkey(id, username, avatar_url)
+      `)
+      .eq('type', 'post')
+      .order('created_at', { ascending: false })
+      .limit(5);
+    
+    if (data) {
+      const enriched = await enrichPosts(data);
+      setPosts(enriched);
+      setReason('Showing trending posts');
     }
   };
 
@@ -160,7 +170,7 @@ export function AIRecommendations() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={fetchRecommendations}
+          onClick={() => fetchRecommendations()}
           disabled={isLoading}
           className="gap-1"
         >
