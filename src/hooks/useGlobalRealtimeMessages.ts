@@ -5,9 +5,10 @@
  * - Updates conversation list when ANY message arrives
  * - Plays notification sounds for messages from other users
  * - Ensures receiver sees messages instantly without refresh
+ * - Includes deduplication and retry logic for reliability
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -20,12 +21,60 @@ export function setCurrentConversationId(id: string | null) {
   currentConversationId = id;
 }
 
+// Deduplication: Track recently processed message IDs (30 second window)
+const processedMessages = new Map<string, number>();
+const DEDUP_WINDOW_MS = 30000;
+
+function cleanupProcessedMessages() {
+  const now = Date.now();
+  for (const [id, timestamp] of processedMessages) {
+    if (now - timestamp > DEDUP_WINDOW_MS) {
+      processedMessages.delete(id);
+    }
+  }
+}
+
+function isMessageProcessed(messageId: string): boolean {
+  cleanupProcessedMessages();
+  return processedMessages.has(messageId);
+}
+
+function markMessageProcessed(messageId: string) {
+  processedMessages.set(messageId, Date.now());
+}
+
+// Track optimistic messages to prevent duplicates for sender
+const pendingOptimisticMessages = new Map<string, { content: string; senderId: string; timestamp: number }>();
+
+export function registerOptimisticMessage(conversationId: string, content: string, senderId: string) {
+  const key = `${conversationId}:${senderId}:${content?.slice(0, 50)}`;
+  pendingOptimisticMessages.set(key, { content, senderId, timestamp: Date.now() });
+  
+  // Auto-cleanup after 10 seconds
+  setTimeout(() => pendingOptimisticMessages.delete(key), 10000);
+}
+
+function isOptimisticDuplicate(conversationId: string, content: string, senderId: string): boolean {
+  const key = `${conversationId}:${senderId}:${content?.slice(0, 50)}`;
+  const pending = pendingOptimisticMessages.get(key);
+  if (pending && Date.now() - pending.timestamp < 5000) {
+    pendingOptimisticMessages.delete(key);
+    return true;
+  }
+  return false;
+}
+
+// Connection state for retry logic
+let retryCount = 0;
+const MAX_RETRIES = 5;
+
 export function useGlobalRealtimeMessages() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
+  const setupChannel = useCallback(() => {
     if (!profile?.id) return;
 
     // Clean up existing channel
@@ -45,21 +94,53 @@ export function useGlobalRealtimeMessages() {
           const isFromCurrentUser = newMessage.sender_id === profile.id;
           const isViewingConvo = currentConversationId === conversationId;
           
+          // Deduplication check
+          if (isMessageProcessed(newMessage.id)) {
+            console.log('[GlobalRT] Skipping duplicate message:', newMessage.id);
+            return;
+          }
+          markMessageProcessed(newMessage.id);
+          
           console.log('[GlobalRT] Message received:', {
+            id: newMessage.id,
             from: newMessage.sender_id,
             conv: conversationId,
             isFromCurrentUser,
             isViewingConvo,
           });
 
+          // Skip if this is an optimistic duplicate (sender already sees it)
+          if (isFromCurrentUser && isOptimisticDuplicate(conversationId, newMessage.content, newMessage.sender_id)) {
+            console.log('[GlobalRT] Skipping optimistic duplicate for sender');
+            return;
+          }
+
           // If message is from another user, we need to update caches
           if (!isFromCurrentUser) {
-            // Fetch sender profile for display
-            const { data: sender } = await supabase
-              .from('profiles')
-              .select('id, username, avatar_url, display_name')
-              .eq('id', newMessage.sender_id)
-              .maybeSingle();
+            // Try to get sender from cached conversation members first
+            let sender: any = null;
+            const cachedConvos = queryClient.getQueryData<any[]>(['dm-conversations', profile.id]) || 
+                                 queryClient.getQueryData<any[]>(['conversations', profile.id]);
+            
+            if (cachedConvos) {
+              const cachedConvo = cachedConvos.find(c => c.id === conversationId);
+              if (cachedConvo?.members) {
+                const memberProfile = cachedConvo.members.find((m: any) => m.user_id === newMessage.sender_id)?.profile;
+                if (memberProfile) {
+                  sender = memberProfile;
+                }
+              }
+            }
+
+            // Only fetch from DB if not in cache
+            if (!sender) {
+              const { data: fetchedSender } = await supabase
+                .from('profiles')
+                .select('id, username, avatar_url, display_name')
+                .eq('id', newMessage.sender_id)
+                .maybeSingle();
+              sender = fetchedSender;
+            }
 
             const fullMessage = {
               ...newMessage,
@@ -152,6 +233,11 @@ export function useGlobalRealtimeMessages() {
           const updatedMessage = payload.new as any;
           const conversationId = updatedMessage.conversation_id;
 
+          // Deduplication
+          const updateKey = `update:${updatedMessage.id}:${updatedMessage.updated_at || updatedMessage.edited_at}`;
+          if (isMessageProcessed(updateKey)) return;
+          markMessageProcessed(updateKey);
+
           // Update message in cache if user is viewing this conversation
           if (currentConversationId === conversationId) {
             queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
@@ -186,27 +272,49 @@ export function useGlobalRealtimeMessages() {
         console.log('[GlobalRT] Subscription status:', status);
         if (status === 'SUBSCRIBED') {
           console.log('[GlobalRT] ✅ Global realtime connected for user:', profile.id);
+          retryCount = 0; // Reset retry count on successful connection
         }
         if (status === 'CHANNEL_ERROR') {
           console.error('[GlobalRT] ❌ Channel error - will retry');
-          // Retry connection after delay
-          setTimeout(() => {
-            if (channelRef.current) {
-              supabase.removeChannel(channelRef.current);
-              channelRef.current = null;
-            }
-          }, 3000);
+          
+          // Exponential backoff retry
+          if (retryCount < MAX_RETRIES) {
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+            retryCount++;
+            console.log(`[GlobalRT] Retrying in ${delay}ms (attempt ${retryCount}/${MAX_RETRIES})`);
+            
+            if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+            retryTimeoutRef.current = setTimeout(() => {
+              if (channelRef.current) {
+                supabase.removeChannel(channelRef.current);
+                channelRef.current = null;
+              }
+              setupChannel();
+            }, delay);
+          } else {
+            console.error('[GlobalRT] Max retries reached, giving up');
+          }
+        }
+        if (status === 'CLOSED') {
+          console.log('[GlobalRT] Channel closed');
         }
       });
 
     channelRef.current = channel;
+  }, [profile?.id, queryClient]);
+
+  useEffect(() => {
+    setupChannel();
 
     return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
       if (channelRef.current) {
         console.log('[GlobalRT] Cleaning up global channel');
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
-  }, [profile?.id, queryClient]);
+  }, [setupChannel]);
 }
