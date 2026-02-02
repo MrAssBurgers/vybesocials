@@ -1983,7 +1983,7 @@ img, video {
   animation: toast-pill-enter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
 }
 
-/* Animated gradient border overlay */
+/* Animated gradient border overlay - uses user's theme colors */
 .toast-pill::before {
   content: '';
   position: absolute;
@@ -1992,10 +1992,9 @@ img, video {
   padding: 1.5px;
   background: linear-gradient(
     90deg,
-    hsl(var(--neon-pink)),
-    hsl(var(--neon-purple)),
-    hsl(var(--neon-cyan)),
-    hsl(var(--neon-pink))
+    hsl(var(--primary)),
+    hsl(var(--accent)),
+    hsl(var(--primary))
   );
   background-size: 300% 100%;
   animation: toast-border-flow 3s linear infinite;
@@ -2004,7 +2003,7 @@ img, video {
     linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
-  opacity: 0.6;
+  opacity: 0.7;
   pointer-events: none;
 }
 
@@ -2019,7 +2018,7 @@ img, video {
   background: linear-gradient(
     90deg,
     transparent,
-    hsl(var(--foreground) / 0.05),
+    hsl(var(--primary) / 0.1),
     transparent
   );
   animation: toast-shimmer 2s ease-in-out 0.5s;
@@ -2042,7 +2041,7 @@ img, video {
   margin-top: 0.125rem !important;
 }
 
-/* Success variant - Green glow */
+/* Success variant - uses theme success color */
 .toast-pill-success {
   --toast-accent: hsl(var(--success));
 }
@@ -2050,20 +2049,20 @@ img, video {
 .toast-pill-success::before {
   background: linear-gradient(
     90deg,
-    hsl(142 76% 46%),
-    hsl(160 84% 50%),
-    hsl(142 76% 46%)
+    hsl(var(--success)),
+    hsl(var(--accent)),
+    hsl(var(--success))
   ) !important;
   background-size: 200% 100% !important;
-  opacity: 0.8 !important;
+  opacity: 0.85 !important;
 }
 
 .toast-pill-success .toast-pill-title,
 .toast-pill[data-type="success"] [data-title] {
-  color: hsl(142 76% 46%) !important;
+  color: hsl(var(--success)) !important;
 }
 
-/* Error variant - Red glow */
+/* Error variant - uses theme destructive color */
 .toast-pill-error {
   --toast-accent: hsl(var(--destructive));
 }
@@ -2071,20 +2070,20 @@ img, video {
 .toast-pill-error::before {
   background: linear-gradient(
     90deg,
-    hsl(0 84% 60%),
-    hsl(330 100% 60%),
-    hsl(0 84% 60%)
+    hsl(var(--destructive)),
+    hsl(var(--primary)),
+    hsl(var(--destructive))
   ) !important;
   background-size: 200% 100% !important;
-  opacity: 0.8 !important;
+  opacity: 0.85 !important;
 }
 
 .toast-pill-error .toast-pill-title,
 .toast-pill[data-type="error"] [data-title] {
-  color: hsl(0 84% 60%) !important;
+  color: hsl(var(--destructive)) !important;
 }
 
-/* Warning variant - Orange/Yellow glow */
+/* Warning variant - uses theme warning color */
 .toast-pill-warning {
   --toast-accent: hsl(var(--warning));
 }
@@ -2092,20 +2091,20 @@ img, video {
 .toast-pill-warning::before {
   background: linear-gradient(
     90deg,
-    hsl(38 92% 50%),
-    hsl(50 100% 50%),
-    hsl(38 92% 50%)
+    hsl(var(--warning)),
+    hsl(var(--primary)),
+    hsl(var(--warning))
   ) !important;
   background-size: 200% 100% !important;
-  opacity: 0.8 !important;
+  opacity: 0.85 !important;
 }
 
 .toast-pill-warning .toast-pill-title,
 .toast-pill[data-type="warning"] [data-title] {
-  color: hsl(38 92% 50%) !important;
+  color: hsl(var(--warning)) !important;
 }
 
-/* Info variant - Cyan/Blue glow */
+/* Info variant - uses theme accent/primary colors */
 .toast-pill-info {
   --toast-accent: hsl(var(--accent));
 }
@@ -2113,17 +2112,17 @@ img, video {
 .toast-pill-info::before {
   background: linear-gradient(
     90deg,
-    hsl(185 100% 50%),
-    hsl(210 100% 60%),
-    hsl(185 100% 50%)
+    hsl(var(--accent)),
+    hsl(var(--primary)),
+    hsl(var(--accent))
   ) !important;
   background-size: 200% 100% !important;
-  opacity: 0.8 !important;
+  opacity: 0.85 !important;
 }
 
 .toast-pill-info .toast-pill-title,
 .toast-pill[data-type="info"] [data-title] {
-  color: hsl(185 100% 50%) !important;
+  color: hsl(var(--accent)) !important;
 }
 
 /* Action button styling */
