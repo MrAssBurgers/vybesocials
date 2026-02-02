@@ -1350,6 +1350,41 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   animation: typing-bounce 0.8s ease-in-out infinite;
 }
 
+/* Fixed-position typing indicator - stays in place, dots bounce subtly */
+@keyframes fade-in-stable {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+/* Bouncing dots that stay in place - no vertical movement of container */
+@keyframes typing-dot-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-3px);
+  }
+}
+
+.typing-dot-bounce {
+  animation: typing-dot-bounce 1s ease-in-out infinite;
+}
+
 /* Freeze dialogs completely - no animations or transforms */
 [data-state="open"][role="dialog"] .\!transform-none,
 .\!transform-none {
