@@ -184,13 +184,13 @@ export function DesktopRightSidebar() {
       )}
     >
       <ScrollArea className="flex-1 h-full">
-        <div className="p-3 pt-4 space-y-3">
+        <div className="p-3 pt-5 space-y-3">
 
           {/* Online Friends Strip */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Online Friends ({onlineFriends.length})
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Online ({onlineFriends.length})
               </span>
             </div>
             {friendsLoading ? (
