@@ -5,7 +5,7 @@
  * Uses AI content safety scanner to block nude/explicit content
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Shield, ShieldCheck, ShieldX, ShieldAlert, 
@@ -35,18 +35,20 @@ export function DMImageSafetyGate({
   const [dots, setDots] = useState(0);
   const [showAppeal, setShowAppeal] = useState(false);
   const [appealReason, setAppealReason] = useState('');
+  const hasScanned = useRef(false);
 
-  // Start scan when component mounts
+  // Start scan when component mounts - only once
   useEffect(() => {
+    if (hasScanned.current) return;
+    hasScanned.current = true;
+
     const runScan = async () => {
       const scanResult = await scanImage(file);
       
       if (scanResult.result === 'allowed') {
         triggerHaptic('success');
-        // Don't auto-send - user must click Send button
       } else if (scanResult.result === 'warned') {
         triggerHaptic('medium');
-        // Don't auto-send - user must click Send Anyway
       } else if (scanResult.result === 'blocked') {
         triggerHaptic('error');
         onBlocked?.();
@@ -54,7 +56,7 @@ export function DMImageSafetyGate({
     };
     
     runScan();
-  }, [file, scanImage, onBlocked]);
+  }, []);
 
   // Animate dots during scanning
   useEffect(() => {
