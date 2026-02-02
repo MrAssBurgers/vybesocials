@@ -159,8 +159,8 @@ export function useChatPresence(conversationId: string | undefined) {
     joinPresence();
     fetchPresence();
 
-    // Fast heartbeat every 5 seconds for responsive presence
-    heartbeatRef.current = setInterval(joinPresence, 5000);
+    // Fast heartbeat every 3 seconds for responsive presence
+    heartbeatRef.current = setInterval(joinPresence, 3000);
 
     // Subscribe to presence changes
     const presenceChannel = supabase

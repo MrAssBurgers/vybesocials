@@ -1,5 +1,4 @@
-import { memo, useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { memo } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
@@ -15,85 +14,64 @@ interface LiveActivityIndicatorProps {
   isVisible: boolean;
 }
 
-// Get activity config
+// Get activity config - cleaner, professional colors
 const getActivityConfig = (activity: ActivityType) => {
   switch (activity) {
     case 'viewing':
       return {
         icon: Eye,
-        label: 'Looking',
-        color: 'text-green-500',
-        bgColor: 'bg-green-500/20',
-        ringColor: 'ring-green-500/50',
+        label: 'Viewing chat',
+        color: 'text-emerald-500',
+        bgColor: 'bg-emerald-500/15',
+        dotColor: 'bg-emerald-500',
       };
     case 'typing':
       return {
         icon: MessageCircle,
         label: 'Typing',
         color: 'text-primary',
-        bgColor: 'bg-primary/20',
-        ringColor: 'ring-primary/50',
+        bgColor: 'bg-primary/15',
+        dotColor: 'bg-primary',
       };
     case 'recording_voice':
       return {
         icon: Mic,
-        label: 'Recording',
-        color: 'text-red-500',
-        bgColor: 'bg-red-500/20',
-        ringColor: 'ring-red-500/50',
+        label: 'Recording audio',
+        color: 'text-rose-500',
+        bgColor: 'bg-rose-500/15',
+        dotColor: 'bg-rose-500',
       };
     case 'recording_video':
       return {
         icon: Video,
-        label: 'Recording',
-        color: 'text-purple-500',
-        bgColor: 'bg-purple-500/20',
-        ringColor: 'ring-purple-500/50',
+        label: 'Recording video',
+        color: 'text-violet-500',
+        bgColor: 'bg-violet-500/15',
+        dotColor: 'bg-violet-500',
       };
     case 'taking_photo':
       return {
         icon: Camera,
-        label: 'Photo',
+        label: 'Taking photo',
         color: 'text-amber-500',
-        bgColor: 'bg-amber-500/20',
-        ringColor: 'ring-amber-500/50',
+        bgColor: 'bg-amber-500/15',
+        dotColor: 'bg-amber-500',
       };
     default:
       return {
         icon: Eye,
-        label: 'Here',
+        label: 'Online',
         color: 'text-muted-foreground',
         bgColor: 'bg-muted/50',
-        ringColor: 'ring-muted-foreground/30',
+        dotColor: 'bg-muted-foreground',
       };
   }
 };
 
-// Animated dots for typing/recording
-const AnimatedDots = memo(function AnimatedDots({ color }: { color: string }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {[0, 1, 2].map((i) => (
-        <motion.div
-          key={i}
-          className={cn("w-1.5 h-1.5 rounded-full", color.replace('text-', 'bg-'))}
-          animate={{
-            y: [0, -4, 0],
-            opacity: [0.5, 1, 0.5],
-          }}
-          transition={{
-            duration: 0.5,
-            repeat: Infinity,
-            delay: i * 0.12,
-            ease: "easeInOut",
-          }}
-        />
-      ))}
-    </div>
-  );
-});
-
-// Main component - shows user's PFP with activity indicator at bottom of chat
+/**
+ * Live Activity Indicator - shows user's current activity in DMs
+ * Professional, clean design with CSS animations (no framer-motion flickering)
+ */
 export const LiveActivityIndicator = memo(function LiveActivityIndicator({
   avatarUrl,
   username,
@@ -106,84 +84,60 @@ export const LiveActivityIndicator = memo(function LiveActivityIndicator({
   const Icon = config.icon;
   const showDots = activity === 'typing' || activity === 'recording_voice';
 
-  return (
-    <AnimatePresence>
-      {isVisible && activity !== 'idle' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20, scale: 0.8 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 10, scale: 0.9 }}
-          transition={{ type: "spring", stiffness: 400, damping: 25 }}
-          className="flex items-center gap-3 py-2 px-3"
-        >
-          {/* Avatar with animated ring */}
-          <div className="relative">
-            <motion.div
-              className={cn(
-                "absolute inset-0 rounded-full ring-2",
-                config.ringColor
-              )}
-              animate={{
-                scale: [1, 1.15, 1],
-                opacity: [0.5, 0.8, 0.5],
-              }}
-              transition={{
-                duration: 1.5,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-            />
-            <Avatar className="h-9 w-9 relative z-10">
-              <AvatarImage src={signedUrl || undefined} className="object-cover" />
-              <AvatarFallback className={cn("text-xs font-semibold", config.bgColor, config.color)}>
-                {(displayName || username || '?').charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            
-            {/* Activity badge */}
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className={cn(
-                "absolute -bottom-0.5 -right-0.5 p-1 rounded-full z-20",
-                config.bgColor,
-                "border-2 border-background"
-              )}
-            >
-              <Icon className={cn("h-2.5 w-2.5", config.color)} />
-            </motion.div>
-          </div>
+  if (!isVisible || activity === 'idle') return null;
 
-          {/* Activity label with animation */}
-          <div className="flex items-center gap-2">
-            <motion.span
-              key={activity}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className={cn("text-xs font-medium", config.color)}
-            >
-              {displayName || username}
-            </motion.span>
-            
-            {showDots ? (
-              <AnimatedDots color={config.color} />
-            ) : (
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className={cn("text-xs", config.color, "opacity-80")}
-              >
-                {config.label.toLowerCase()}
-              </motion.span>
-            )}
+  return (
+    <div className="flex items-center gap-3 py-2.5 px-3 animate-fade-in">
+      {/* Avatar with activity indicator */}
+      <div className="relative">
+        <Avatar className="h-8 w-8 ring-2 ring-background shadow-sm">
+          <AvatarImage src={signedUrl || undefined} className="object-cover" />
+          <AvatarFallback className="text-xs font-semibold bg-muted">
+            {(displayName || username || '?').charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        
+        {/* Activity dot badge - positioned bottom-right */}
+        <span
+          className={cn(
+            "absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full flex items-center justify-center",
+            "ring-2 ring-background shadow-sm",
+            config.bgColor
+          )}
+        >
+          <Icon className={cn("h-2.5 w-2.5", config.color)} />
+        </span>
+      </div>
+
+      {/* Activity label - clean professional style */}
+      <div className={cn(
+        "flex items-center gap-2 px-3 py-1.5 rounded-full",
+        config.bgColor
+      )}>
+        <span className={cn("text-xs font-medium", config.color)}>
+          {displayName || username}
+        </span>
+        
+        {showDots ? (
+          <div className="flex items-center gap-0.5">
+            <span className={cn("typing-dot h-1 w-1 rounded-full", config.dotColor)} style={{ animationDelay: '0ms' }} />
+            <span className={cn("typing-dot h-1 w-1 rounded-full", config.dotColor)} style={{ animationDelay: '150ms' }} />
+            <span className={cn("typing-dot h-1 w-1 rounded-full", config.dotColor)} style={{ animationDelay: '300ms' }} />
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        ) : (
+          <span className={cn("text-xs opacity-80", config.color)}>
+            {activity === 'viewing' ? '' : config.label.toLowerCase()}
+          </span>
+        )}
+      </div>
+    </div>
   );
 });
 
-// Compact inline version for message list - icon only, no text
+/**
+ * Inline Activity Bubble - compact version for message list
+ * Clean, minimal design matching modern chat apps
+ */
 export const InlineActivityBubble = memo(function InlineActivityBubble({
   avatarUrl,
   username,
@@ -202,69 +156,46 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
   const showDots = activity === 'typing' || activity === 'recording_voice';
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.9 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 10, scale: 0.9 }}
-      transition={{ type: "spring", stiffness: 400, damping: 25 }}
-      className="flex items-end gap-2 mb-2"
-    >
+    <div className="flex items-end gap-2 mb-2 animate-fade-in">
+      {/* Avatar */}
       <div className="relative">
-        {/* Animated ring */}
-        <motion.div
-          className={cn(
-            "absolute inset-0 rounded-full ring-2",
-            config.ringColor
-          )}
-          animate={{
-            scale: [1, 1.15, 1],
-            opacity: [0.5, 0.8, 0.5],
-          }}
-          transition={{
-            duration: 1.5,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-        <Avatar className="h-7 w-7 relative z-10">
+        <Avatar className="h-7 w-7 ring-1 ring-border/50 shadow-sm">
           <AvatarImage src={signedUrl || undefined} className="object-cover" />
-          <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">
+          <AvatarFallback className="text-[10px] font-semibold bg-muted">
             {(username || '?').charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
+        
+        {/* Small activity dot */}
+        <span
+          className={cn(
+            "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full",
+            "ring-2 ring-background",
+            config.dotColor,
+            // Pulse animation for active states
+            (activity === 'typing' || activity === 'recording_voice') && 'animate-pulse'
+          )}
+        />
       </div>
       
-      <motion.div
+      {/* Bubble with activity */}
+      <div
         className={cn(
-          "rounded-2xl rounded-bl-sm px-3 py-2 shadow-lg backdrop-blur-sm",
-          config.bgColor,
-          "border border-border/30"
+          "rounded-2xl rounded-bl-sm px-3 py-2 shadow-sm",
+          "bg-muted/80 backdrop-blur-sm border border-border/30"
         )}
       >
         <div className="flex items-center gap-1.5">
           <Icon className={cn("h-3.5 w-3.5", config.color)} />
           {showDots && (
-            <div className="flex items-center gap-0.5">
-              {[0, 1, 2].map((i) => (
-                <motion.div
-                  key={i}
-                  className={cn("w-1.5 h-1.5 rounded-full", config.color.replace('text-', 'bg-'))}
-                  animate={{
-                    y: [0, -4, 0],
-                    opacity: [0.5, 1, 0.5],
-                  }}
-                  transition={{
-                    duration: 0.5,
-                    repeat: Infinity,
-                    delay: i * 0.12,
-                    ease: "easeInOut",
-                  }}
-                />
-              ))}
+            <div className="flex items-center gap-[3px]">
+              <span className={cn("typing-dot h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '0ms' }} />
+              <span className={cn("typing-dot h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '150ms' }} />
+              <span className={cn("typing-dot h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '300ms' }} />
             </div>
           )}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 });
