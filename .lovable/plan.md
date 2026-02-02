@@ -1,179 +1,149 @@
 
-# Plan: Instagram-Style Share Flow and Reels-Style Shared Clips
+# Push Notifications and Tab Badge Enhancement Plan
 
 ## Overview
-This plan transforms the share sheet to use Instagram's bottom send button pattern (instead of a popup modal) and redesigns how shared clips appear in DMs to match Instagram Reels' visual style.
+This plan implements three key improvements to the notification system:
+
+1. **Reliable Push Notifications** - Ensure push notifications work on all devices (mobile, tablet, desktop browsers)
+2. **Clean & Fresh Mobile/Tablet Notification UI** - Modernize the notifications experience on touch devices  
+3. **Discord/Snapchat-style Tab Notifications** - Show unread count in browser tab title (like "(3) VYBE")
 
 ---
 
-## Part 1: Share Sheet - Bottom Send Button
+## Current System Analysis
 
-### Current Behavior
-- User clicks a friend avatar
-- A modal popup appears asking "Send to [name]?"
-- User must click "Send" in the popup to confirm
+### What's Already Working
+- Service worker (`public/sw.js`) handles push notifications
+- Web Push subscription via `usePushNotifications.ts`
+- Real-time message notifications via `useMessageNotifications.ts`
+- Native browser notifications when page is hidden
+- Unread counts in bottom nav and sidebars
 
-### New Behavior (Instagram-Style)
-- User clicks a friend avatar to select/deselect them (with visual selection ring)
-- A "Send" button appears fixed at the bottom of the sheet
-- Multiple friends can be selected before sending
-- Button shows selected count (e.g., "Send to 2 people")
-
-### Changes to `src/components/share/ShareSheet.tsx`
-
-1. **Replace popup modal with inline selection**:
-   - Remove `showConfirm` state and confirmation modal JSX
-   - Add selection ring around selected friend avatars
-   - Toggle selection on click instead of opening modal
-
-2. **Add bottom Send bar**:
-   - Fixed position at bottom of sheet
-   - Animates in when at least one friend is selected
-   - Shows "Send" with airplane icon
-   - Displays count when multiple selected
-
-3. **Update friend button visuals**:
-   - Add blue/primary ring when selected
-   - Keep sent checkmark for already-sent friends
-   - Animate selection state changes
+### Gaps Identified
+- **No VAPID_PRIVATE_KEY** - The push notification edge function can't send encrypted pushes without the private key
+- **No tab title updates** - Browser tabs don't show unread counts like Discord/Snapchat
+- **Notifications page could be more polished** - Mobile experience needs refresh with modern styling
+- **Push edge function needs Web Push protocol** - Currently using basic fetch, needs proper encryption
 
 ---
 
-## Part 2: Reels-Style Shared Clips in DMs
+## Implementation Plan
 
-### Current Behavior
-- Shared clips appear as 4:5 aspect ratio cards
-- Simple thumbnail with play button overlay
-- Title text at bottom
+### Phase 1: Tab Title Notification Badge (Browser/Desktop)
+Create a new hook that updates the document title with unread counts - exactly like Discord and Snapchat.
 
-### New Behavior (Instagram Reels-Style)
-- Taller 9:16 aspect ratio (like actual Reels)
-- Creator avatar + username overlay at top-left
-- Gradient overlays top and bottom
-- "Reels" or "Clip" label badge
-- View count or caption preview
-- Rounded corners with subtle shadow
+**New file:** `src/hooks/useTabNotificationBadge.ts`
+- Monitors total unread count (messages + notifications)
+- Updates `document.title` dynamically:
+  - No unreads: `VYBE`
+  - With unreads: `(5) VYBE` 
+  - Flashing effect when new message arrives (optional)
+- Works on all browsers (Chrome, Firefox, Safari, Edge)
+- Respects user's current page context
 
-### Changes to `src/components/chat/SharedPostBubble.tsx`
+**Integration in `App.tsx`:**
+- Add the hook to run globally
+- Combine message + notification counts
 
-1. **Change aspect ratio**: Update from `aspect-[4/5]` to `aspect-[9/16]` with fixed width
+### Phase 2: Improved Push Notification Reliability
 
-2. **Add creator info overlay**:
-   - Fetch post author data (avatar, username)
-   - Display at top-left with small avatar + username
-   - Semi-transparent background for readability
+**Edge Function Enhancement:** `supabase/functions/send-push-notification/index.ts`
+- Install web-push compatible library for proper VAPID signing
+- Handle different subscription formats (web, iOS Safari, Android)
+- Add retry logic for failed deliveries
+- Clean up expired/invalid tokens automatically
 
-3. **Add "Clip" badge**: Small badge in top-right corner
+**Service Worker Improvements:** `public/sw.js`
+- Better handling of different notification types
+- iOS-specific handling (Safari has different behavior)
+- Improved action buttons for mobile
+- Better vibration patterns for urgency levels
 
-4. **Improve gradient overlays**:
-   - Top gradient for creator info visibility
-   - Bottom gradient for title/caption
+**Frontend Improvements:**
+- Enhanced `PushNotificationPrompt.tsx` with device-specific messaging
+- Better permission handling for iOS Safari
+- Auto-retry subscription if it expires
 
-5. **Enhanced styling**:
-   - More prominent play button
-   - Subtle glow/shadow effect
-   - Smoother animations on tap
+### Phase 3: Clean & Fresh Mobile/Tablet Notification UI
+
+**Redesigned Notifications Page:** `src/pages/Notifications.tsx`
+- Modern card design with liquid glass styling
+- Larger touch targets for mobile (min 48px)
+- Swipe actions for quick dismiss/mark read
+- Pull-to-refresh functionality
+- Empty state with friendly illustrations
+- Smooth animations with Framer Motion
+- Better avatar/icon sizing for tablets
+
+**Mobile Header Enhancement:** `src/components/layout/MobileHeader.tsx`
+- Animated notification bell with pulse effect
+- Improved badge positioning for notched devices
+- Better touch feedback
 
 ---
 
 ## Technical Details
 
-### ShareSheet State Changes
+### Tab Badge Implementation
 ```
-// Remove these
-- showConfirm: boolean
-- selectedFriend: QuickFriend | null
+// Pattern used by Discord/Snapchat
+const originalTitle = "VYBE";
+const unreadTotal = unreadMessages + unreadNotifications;
 
-// Add these  
-- selectedFriends: Set<string> (track multiple selections)
-
-// Friend click handler
-handleFriendToggle(friend) {
-  if (friend.sent) return;
-  setSelectedFriends(prev => {
-    const next = new Set(prev);
-    if (next.has(friend.id)) next.delete(friend.id);
-    else next.add(friend.id);
-    return next;
-  });
-}
-
-// Send handler
-handleSendToSelected() {
-  selectedFriends.forEach(friendId => sendToFriend(friendId));
+if (unreadTotal > 0) {
+  document.title = `(${unreadTotal > 99 ? "99+" : unreadTotal}) ${originalTitle}`;
+} else {
+  document.title = originalTitle;
 }
 ```
 
-### SharedPostBubble Data Fetching
+### Push Notification Flow Improvement
 ```
-// Extended post data query
-SELECT 
-  posts.id, 
-  posts.media_url, 
-  posts.thumbnail_url, 
-  posts.caption,
-  posts.type,
-  profiles.id as author_id,
-  profiles.username as author_username,
-  profiles.avatar_url as author_avatar
-FROM posts
-JOIN profiles ON posts.author_id = profiles.id
-WHERE posts.id = $postId
+Current:  User → Subscribe → Store token → Edge function (fails without encryption)
+Improved: User → Subscribe → Store token → Edge function with web-push library → Delivery
 ```
+
+### Notification UI Hierarchy (Mobile/Tablet)
+- Pinned notifications (if any)
+- Unread notifications (sorted by time)
+- Read notifications (dimmed, sorted by time)
+- Each card: Avatar (48px) + Icon badge + Text + Time + Action buttons
 
 ---
 
-## Visual Mockups
-
-### Share Sheet Bottom Bar
-```text
-+----------------------------------+
-|          Share                   |
-+----------------------------------+
-|  [Search friends...]             |
-+----------------------------------+
-|  (o)    (o)    (●)    (o)       |  <- Selected friend has ring
-|  Amy    Ben   Carla   Dan        |
-+----------------------------------+
-|  [Story] [Link] [More] [Save]   |
-+----------------------------------+
-|                                  |
-|   +-------------------------+    |
-|   |   Send to Carla    →   |    |  <- Animated in
-|   +-------------------------+    |
-+----------------------------------+
-```
-
-### Reels-Style DM Bubble
-```text
-+------------------+
-| ◯ @username      |  <- Creator info
-|                  |
-|                  |
-|        ▶        |  <- Play button
-|                  |
-|                  |
-| Caption text...  |  <- Title
-+------------------+
-  (9:16 aspect)
-```
-
----
+## Files to Create
+1. `src/hooks/useTabNotificationBadge.ts` - Tab title badge logic
 
 ## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/components/share/ShareSheet.tsx` | Replace popup modal with bottom send bar, multi-select support |
-| `src/components/chat/SharedPostBubble.tsx` | Reels-style layout with 9:16 ratio, creator overlay |
+1. `src/App.tsx` - Add tab badge hook
+2. `src/pages/Notifications.tsx` - Refreshed mobile/tablet UI
+3. `src/components/layout/MobileHeader.tsx` - Enhanced notification indicator
+4. `src/components/notifications/PushNotificationPrompt.tsx` - Device-specific improvements
+5. `public/sw.js` - Enhanced service worker handling
+6. `supabase/functions/send-push-notification/index.ts` - Improved push delivery
+7. `src/hooks/usePushNotifications.ts` - Better subscription management
+8. `src/hooks/useMessageNotifications.ts` - Trigger tab badge updates
 
 ---
 
-## Testing Checklist
+## Expected Behavior After Implementation
 
-- Share a clip and verify friend selection works with visual ring
-- Verify Send button appears/disappears based on selection
-- Verify sending to multiple friends works
-- Check shared clip appears with Reels-style layout in DM
-- Verify creator info shows correctly on shared clips
-- Test tap navigation on shared clips still works
+**On Mobile/Tablet:**
+- Clean, modern notification cards with smooth animations
+- Easy-to-tap buttons (48px+ touch targets)
+- Push notifications arrive reliably
+- Pull-to-refresh support
+- Swipe gestures for quick actions
+
+**On Desktop/Browser:**
+- Tab shows "(3) VYBE" when there are unreads
+- Count updates in real-time as messages arrive
+- Count clears when user reads messages
+- Works across all tabs if multiple VYBE tabs are open
+
+**Push Notifications:**
+- Work reliably on Chrome, Firefox, Safari, Edge
+- Work on iOS Safari (with limitations)
+- Work on Android Chrome
+- Show action buttons where supported
+- Auto-cleanup of expired subscriptions
