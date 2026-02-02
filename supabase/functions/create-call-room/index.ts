@@ -146,12 +146,8 @@ Deno.serve(async (req) => {
           enable_prejoin_ui: false,
           // Video quality optimization
           sfu_switchover: 2, // Switch to SFU with 2+ participants
-          // Enable adaptive bitrate for network resilience
-          enable_trickle_ice: true,
           // Audio quality - prioritize clarity
           experimental_optimize_large_calls: false, // Keep quality high for small calls
-          // Signaling settings
-          signaling_impl: "ws", // WebSocket for lower latency
         },
       }),
     });
