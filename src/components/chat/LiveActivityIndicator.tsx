@@ -136,7 +136,7 @@ export const LiveActivityIndicator = memo(function LiveActivityIndicator({
 
 /**
  * Inline Activity Bubble - compact version for message list
- * Clean, minimal design matching modern chat apps
+ * Fixed position design - stays in place with subtle dot bounce animation
  */
 export const InlineActivityBubble = memo(function InlineActivityBubble({
   avatarUrl,
@@ -156,9 +156,10 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
   const showDots = activity === 'typing' || activity === 'recording_voice';
 
   return (
-    <div className="flex items-end gap-2 mb-2 animate-fade-in">
+    // Fixed position - no vertical animation, just fade in opacity
+    <div className="flex items-end gap-2 mb-2 pl-3 opacity-0 animate-[fade-in-stable_0.2s_ease-out_forwards]">
       {/* Avatar */}
-      <div className="relative">
+      <div className="relative flex-shrink-0">
         <Avatar className="h-7 w-7 ring-1 ring-border/50 shadow-sm">
           <AvatarImage src={signedUrl || undefined} className="object-cover" />
           <AvatarFallback className="text-[10px] font-semibold bg-muted">
@@ -166,19 +167,18 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
           </AvatarFallback>
         </Avatar>
         
-        {/* Small activity dot */}
+        {/* Small activity dot - subtle pulse */}
         <span
           className={cn(
             "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full",
             "ring-2 ring-background",
             config.dotColor,
-            // Pulse animation for active states
-            (activity === 'typing' || activity === 'recording_voice') && 'animate-pulse'
+            "animate-[pulse-subtle_2s_ease-in-out_infinite]"
           )}
         />
       </div>
       
-      {/* Bubble with activity */}
+      {/* Bubble with activity - fixed position */}
       <div
         className={cn(
           "rounded-2xl rounded-bl-sm px-3 py-2 shadow-sm",
@@ -189,9 +189,9 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
           <Icon className={cn("h-3.5 w-3.5", config.color)} />
           {showDots && (
             <div className="flex items-center gap-[3px]">
-              <span className={cn("typing-dot h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '0ms' }} />
-              <span className={cn("typing-dot h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '150ms' }} />
-              <span className={cn("typing-dot h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '300ms' }} />
+              <span className={cn("typing-dot-bounce h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '0ms' }} />
+              <span className={cn("typing-dot-bounce h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '150ms' }} />
+              <span className={cn("typing-dot-bounce h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '300ms' }} />
             </div>
           )}
         </div>
