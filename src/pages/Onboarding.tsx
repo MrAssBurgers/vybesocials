@@ -231,7 +231,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Animated background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <motion.div
@@ -244,7 +244,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       </div>
 
       {/* Header */}
-      <header className="relative z-10 p-3 sm:p-4 flex items-center justify-between">
+      <header className="relative z-10 p-3 sm:p-4 flex items-center justify-between flex-shrink-0">
         <VYBELogo size="md" />
         <Button variant="ghost" onClick={handleSkip} disabled={loading} className="text-muted-foreground text-sm sm:text-base">
           {t('onboarding.skip')}
@@ -252,7 +252,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       </header>
 
       {/* Progress bar */}
-      <div className="relative z-10 px-3 sm:px-4 py-2">
+      <div className="relative z-10 px-3 sm:px-4 py-2 flex-shrink-0">
         <div className="h-1 bg-muted rounded-full overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
@@ -265,60 +265,62 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         </p>
       </div>
 
-      {/* Content */}
-      <main className="relative z-10 flex-1 p-3 sm:p-4 overflow-y-auto">
-        <div className="max-w-lg mx-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={step}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              {/* Username step for new users (Google OAuth) */}
-              {needsUsername && step === 1 && (
-                <UsernameSetup
-                  username={username}
-                  onChange={setUsername}
-                  onValidChange={setUsernameValid}
-                />
-              )}
-              {/* Regular steps - offset by 1 if username step exists */}
-              {(needsUsername ? step === 2 : step === 1) && (
-                <InterestPicker selected={interests} onChange={setInterests} />
-              )}
-              {(needsUsername ? step === 3 : step === 2) && (
-                <CreatorSuggestions
-                  interests={interests}
-                  following={following}
-                  onChange={setFollowing}
-                />
-              )}
-              {(needsUsername ? step === 4 : step === 3) && (
-                <ProfileSetup
-                  data={profileData}
-                  onChange={setProfileData}
-                  username={needsUsername ? username : (profile?.username || '')}
-                />
-              )}
-              {(needsUsername ? step === 5 : step === 4) && (
-                <SensitivitySettings value={sensitivity} onChange={setSensitivity} />
-              )}
-              {(needsUsername ? step === 6 : step === 5) && (
-                <PrivacySettings isPrivate={isPrivate} onChange={setIsPrivate} />
-              )}
-              {(needsUsername ? step === 7 : step === 6) && (
-                <PermissionsSetup onAllRequiredGranted={setPermissionsGranted} />
-              )}
-              {(needsUsername ? step === 8 : step === 7) && (
-                <EmailVerification />
-              )}
-              {(needsUsername ? step === 9 : step === 8) && (
-                <ContactDiscovery onComplete={handleFinish} />
-              )}
-            </motion.div>
-          </AnimatePresence>
+      {/* Content - scrollable area */}
+      <main className="relative z-10 flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        <div className="p-3 sm:p-4">
+          <div className="max-w-lg mx-auto pb-4">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={step}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                {/* Username step for new users (Google OAuth) */}
+                {needsUsername && step === 1 && (
+                  <UsernameSetup
+                    username={username}
+                    onChange={setUsername}
+                    onValidChange={setUsernameValid}
+                  />
+                )}
+                {/* Regular steps - offset by 1 if username step exists */}
+                {(needsUsername ? step === 2 : step === 1) && (
+                  <InterestPicker selected={interests} onChange={setInterests} />
+                )}
+                {(needsUsername ? step === 3 : step === 2) && (
+                  <CreatorSuggestions
+                    interests={interests}
+                    following={following}
+                    onChange={setFollowing}
+                  />
+                )}
+                {(needsUsername ? step === 4 : step === 3) && (
+                  <ProfileSetup
+                    data={profileData}
+                    onChange={setProfileData}
+                    username={needsUsername ? username : (profile?.username || '')}
+                  />
+                )}
+                {(needsUsername ? step === 5 : step === 4) && (
+                  <SensitivitySettings value={sensitivity} onChange={setSensitivity} />
+                )}
+                {(needsUsername ? step === 6 : step === 5) && (
+                  <PrivacySettings isPrivate={isPrivate} onChange={setIsPrivate} />
+                )}
+                {(needsUsername ? step === 7 : step === 6) && (
+                  <PermissionsSetup onAllRequiredGranted={setPermissionsGranted} />
+                )}
+                {(needsUsername ? step === 8 : step === 7) && (
+                  <EmailVerification />
+                )}
+                {(needsUsername ? step === 9 : step === 8) && (
+                  <ContactDiscovery onComplete={handleFinish} />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </main>
 
