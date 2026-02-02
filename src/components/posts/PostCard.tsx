@@ -1,4 +1,4 @@
-import { useState, useRef, memo, useCallback, useMemo } from 'react';
+import { useState, useRef, memo, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -32,17 +32,34 @@ import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 
 // Video player component - maintains the video's native aspect ratio (no cropping)
+// NEVER shows broken placeholder - graceful degradation
 function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
 
-  // Early return for invalid source
+  // Retry loading up to 2 times
+  useEffect(() => {
+    if (hasError && retryCount < 2) {
+      const timer = setTimeout(() => {
+        setHasError(false);
+        setRetryCount(prev => prev + 1);
+      }, 1000 * (retryCount + 1));
+      return () => clearTimeout(timer);
+    }
+  }, [hasError, retryCount]);
+
+  // Invalid URL - show subtle gradient (never broken icon)
   if (!isValidMediaUrl(src)) {
-    return <MediaFallback type="video" caption={caption} />;
+    return (
+      <div className="w-full aspect-video bg-gradient-to-br from-muted/60 via-muted/40 to-muted/20 flex items-end p-4">
+        {caption && <p className="text-sm text-muted-foreground/70 line-clamp-2">✨ {caption}</p>}
+      </div>
+    );
   }
 
   const ratio = dimensions ? dimensions.width / dimensions.height : 9 / 16;
@@ -101,8 +118,13 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     }
   };
 
-  if (hasError) {
-    return <MediaFallback type="video" caption={caption} />;
+  // Failed after retries - show subtle gradient (never broken icon)
+  if (hasError && retryCount >= 2) {
+    return (
+      <div className="w-full aspect-video bg-gradient-to-br from-muted/60 via-muted/40 to-muted/20 flex items-end p-4">
+        {caption && <p className="text-sm text-muted-foreground/70 line-clamp-2">✨ {caption}</p>}
+      </div>
+    );
   }
 
   return (
@@ -157,23 +179,47 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
 }
 
 // Natural aspect ratio image component - NO black padding, natural sizing
+// NEVER shows broken placeholder - graceful degradation
 function NaturalAspectImage({ src, caption }: { src: string; caption?: string }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
 
+  // Retry loading up to 2 times with exponential backoff
+  useEffect(() => {
+    if (hasError && retryCount < 2) {
+      const timer = setTimeout(() => {
+        setHasError(false);
+        setRetryCount(prev => prev + 1);
+      }, 1000 * (retryCount + 1)); // 1s, then 2s
+      return () => clearTimeout(timer);
+    }
+  }, [hasError, retryCount]);
+
+  // Invalid URL - show subtle gradient (never broken icon)
   if (!isValidMediaUrl(src)) {
-    return <MediaFallback type="image" caption={caption} className="aspect-square" />;
+    return (
+      <div className="w-full aspect-[4/5] bg-gradient-to-br from-muted/60 via-muted/40 to-muted/20 flex items-end p-4">
+        {caption && <p className="text-sm text-muted-foreground/70 line-clamp-2">✨ {caption}</p>}
+      </div>
+    );
   }
 
-  if (hasError) {
-    return <MediaFallback type="image" caption={caption} className="aspect-square" />;
+  // Failed after retries - show subtle gradient (never broken icon)
+  if (hasError && retryCount >= 2) {
+    return (
+      <div className="w-full aspect-[4/5] bg-gradient-to-br from-muted/60 via-muted/40 to-muted/20 flex items-end p-4">
+        {caption && <p className="text-sm text-muted-foreground/70 line-clamp-2">✨ {caption}</p>}
+      </div>
+    );
   }
 
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     setDimensions({ width: img.naturalWidth, height: img.naturalHeight });
     setIsLoaded(true);
+    setHasError(false);
   };
 
   // Calculate aspect ratio and determine max height constraint
@@ -184,14 +230,15 @@ function NaturalAspectImage({ src, caption }: { src: string; caption?: string })
   const isWide = aspectRatio > 1.5;
 
   return (
-    <div className="relative w-full flex items-center justify-center bg-transparent">
+    <div className="relative w-full flex items-center justify-center bg-muted/10">
       {/* Skeleton placeholder - maintains space while loading */}
       {!isLoaded && (
-        <div className="w-full aspect-square">
+        <div className="w-full aspect-square bg-gradient-to-br from-muted/40 via-muted/20 to-transparent">
           <MediaSkeleton className="absolute inset-0" />
         </div>
       )}
       <img
+        key={retryCount} // Force remount on retry
         src={src}
         alt={caption || ''}
         className={cn(
