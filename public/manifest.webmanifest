@@ -12,27 +12,27 @@
   "categories": ["social", "entertainment", "lifestyle"],
   "icons": [
     {
-      "src": "/icons/vybe-192.png",
+      "src": "https://eabvbtkxdbttjpdpbmuw.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25",
       "sizes": "192x192",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/icons/vybe-512.png",
+      "src": "https://eabvbtkxdbttjpdpbmuw.supabase.co/functions/v1/generate-pwa-icon?size=512&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/icons/vybe-192.png",
+      "src": "https://eabvbtkxdbttjpdpbmuw.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25",
       "sizes": "192x192",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/vybe-512.png",
+      "src": "https://eabvbtkxdbttjpdpbmuw.supabase.co/functions/v1/generate-pwa-icon?size=512&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "maskable"
     }
   ],
@@ -42,35 +42,35 @@
       "short_name": "Chat",
       "description": "Open your messages",
       "url": "/messages",
-      "icons": [{ "src": "/icons/vybe-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "https://eabvbtkxdbttjpdpbmuw.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
     },
     {
       "name": "Create Post",
       "short_name": "Post",
       "description": "Create a new post",
       "url": "/upload",
-      "icons": [{ "src": "/icons/vybe-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "https://eabvbtkxdbttjpdpbmuw.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
     },
     {
       "name": "Explore",
       "short_name": "Explore",
       "description": "Discover new content",
       "url": "/explore",
-      "icons": [{ "src": "/icons/vybe-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "https://eabvbtkxdbttjpdpbmuw.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
     },
     {
       "name": "Notifications",
       "short_name": "Alerts",
       "description": "Check your notifications",
       "url": "/notifications",
-      "icons": [{ "src": "/icons/vybe-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "https://eabvbtkxdbttjpdpbmuw.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
     },
     {
       "name": "Profile",
       "short_name": "Me",
       "description": "View your profile",
       "url": "/profile",
-      "icons": [{ "src": "/icons/vybe-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "https://eabvbtkxdbttjpdpbmuw.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
     }
   ],
   "protocol_handlers": [
