@@ -73,7 +73,7 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   return (
     <button
       onClick={() => navigate('/messages/ai-autisy')}
-      className="w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 box-border"
+      className="w-full flex items-center gap-3 p-3 rounded-2xl text-left liquid-glass hover:bg-white/10 dark:hover:bg-white/5 active:scale-[0.98] transition-all border border-white/10 hover:border-white/20 mb-2 box-border shadow-sm"
     >
       <div className="relative flex-shrink-0">
         <div className="h-12 w-12 rounded-full gradient-animated flex items-center justify-center shadow-md">
@@ -84,9 +84,9 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
         <div className="flex items-center justify-between mb-0.5 gap-2">
           <span className="font-semibold text-sm flex items-center gap-1.5 min-w-0">
             <span className="truncate">{aiName}</span>
-            <Sparkles className="h-3.5 w-3.5 text-pink-400 flex-shrink-0" />
+            <Sparkles className="h-3.5 w-3.5 text-primary flex-shrink-0" />
           </span>
-          <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-pink-500/10 rounded-full flex-shrink-0">AI</span>
+          <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-primary/10 rounded-full flex-shrink-0">AI</span>
         </div>
         <p className="text-xs text-muted-foreground truncate">{lastAIMessage.slice(0, 40)}...</p>
       </div>
@@ -461,7 +461,7 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
   
   return (
     <div 
-      className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-green-500/20 bg-green-500/5 mb-1.5 cursor-pointer box-border"
+      className="group relative w-full flex items-center gap-3 p-3 rounded-2xl text-left liquid-glass hover:bg-white/10 dark:hover:bg-white/5 active:scale-[0.98] transition-all border border-green-500/30 mb-2 cursor-pointer box-border shadow-sm"
       onClick={handleRowClick}
     >
       <button
@@ -805,7 +805,7 @@ const ConversationItem = memo(function ConversationItem({
           
           {/* Swipeable item - more generous drag for easier swiping */}
           <motion.div 
-            className="relative bg-background rounded-xl overflow-hidden"
+            className="relative rounded-2xl overflow-hidden"
             style={{ x }}
             drag="x"
             dragConstraints={{ left: -120, right: 0 }}
@@ -816,7 +816,7 @@ const ConversationItem = memo(function ConversationItem({
             transition={{ type: 'spring', stiffness: 400, damping: 35 }}
           >
             <div 
-              className="group w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 cursor-pointer box-border"
+              className="group w-full flex items-center gap-3 p-3 rounded-2xl text-left liquid-glass hover:bg-white/10 dark:hover:bg-white/5 active:scale-[0.98] transition-all border border-white/10 hover:border-white/20 cursor-pointer box-border shadow-sm"
               onClick={handleClick}
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
@@ -849,7 +849,7 @@ const ConversationItem = memo(function ConversationItem({
   return (
     <>
       <div 
-        className="group relative w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-accent/50 active:scale-[0.98] transition-all border border-transparent hover:border-border/50 mb-1.5 cursor-pointer box-border"
+        className="group relative w-full flex items-center gap-3 p-3 rounded-2xl text-left liquid-glass hover:bg-white/10 dark:hover:bg-white/5 active:scale-[0.98] transition-all border border-white/10 hover:border-white/20 mb-2 cursor-pointer box-border shadow-sm"
         onClick={handleClick}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
