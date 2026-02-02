@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { 
   TrendingUp, ShoppingBag, Calendar, 
   Volume2, VolumeX, Bookmark, Users, Sparkles, ChevronRight,
-  MessageCircle
+  MessageCircle, LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -70,7 +70,13 @@ const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend
 export function DesktopRightSidebar() {
   const { t } = useTranslation();
   const location = useLocation();
-  const { profile } = useAuth();
+  const navigate = useNavigate();
+  const { profile, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
   const { data: conversations, isLoading: conversationsLoading } = useConversations();
   const { data: friends, isLoading: friendsLoading } = useFriends();
   const { data: events, isLoading: eventsLoading } = useEvents({ upcoming: true });
@@ -405,6 +411,17 @@ export function DesktopRightSidebar() {
           )}
         </div>
       </ScrollArea>
+
+      {/* Logout Button at Bottom */}
+      <div className="p-3 border-t border-white/10">
+        <button
+          onClick={handleSignOut}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
+        >
+          <LogOut className="h-4 w-4" />
+          <span className="text-sm font-medium">{t('auth.logout')}</span>
+        </button>
+      </div>
     </aside>
   );
 }
