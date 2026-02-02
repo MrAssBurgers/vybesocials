@@ -1,96 +1,93 @@
 
-# Fix Posts Not Loading - Filter Old Project URLs
+Goal
+- Fix “Failed to save preferences” in Daily Brief settings so topics/categories can be added and saved reliably.
 
-## Problem Identified
+What’s actually broken (diagnosis)
+- The `ai_brief_preferences.user_id` column is currently constrained to `auth.users(id)` via this foreign key:
+  - `ai_brief_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE`
+- But the app (and the Daily Brief backend function) is now correctly using your app-level profile ID (`profiles.id`) when reading/writing preferences:
+  - Frontend: `AIBriefCustomizeSheet.tsx` upserts with `user_id: profile.id`
+  - Daily Brief generator: `ai-catch-up` reads `.eq('user_id', profileId)`
+- Result: when you click “Save Preferences”, the insert/update fails because `profile.id` is not an `auth.users.id`, so the foreign key rejects it (this presents as “Failed to save preferences” in the UI).
 
-The database contains **55 posts total**, but:
-- **Only 5 posts** have valid media URLs from the current Supabase project (`eabvbtkxdbttjpdpbmuw`)
-- **50 posts** have broken media URLs from an old migrated project (`szthqtnbepupjqjxaduu`)
+Extra important detail
+- There are already existing preference rows in the database (2 rows), and they currently store `auth.users.id` values (not `profiles.id`). So even after fixing saving, we must migrate existing rows so old preferences still load.
 
-The old project's storage no longer exists, so those URLs return 404 errors. The RPC function fetches these posts, but their images/videos fail to load, resulting in empty cards or fallback gradients appearing in the feed.
+Plan (implementation steps)
 
-## Solution
+1) Backend/database fix (required)
+A. Remove the wrong foreign key to the authentication table
+- Drop constraint: `ai_brief_preferences_user_id_fkey` (currently points to `auth.users`)
 
-Filter out posts with old/invalid media URLs **at the database level** using the RPC function. This ensures:
-1. Only posts with valid, loadable media are returned
-2. No wasted network requests for broken URLs
-3. Feed shows only real, viewable content
+B. Migrate existing preference rows from auth user ids -> profile ids
+- Convert existing rows using the mapping: `profiles.user_id (auth id) -> profiles.id (profile id)`
+- SQL concept:
+  - `UPDATE ai_brief_preferences abp SET user_id = p.id FROM profiles p WHERE p.user_id = abp.user_id;`
+- This must happen after dropping the old FK, otherwise the update would immediately violate the existing FK.
 
-## Implementation
+C. Add the correct foreign key to profiles
+- Add: `FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE`
+- This enforces the intended model everywhere: preferences belong to a profile.
 
-### File: Create a new SQL migration
+D. Tighten Row Level Security policies to match the profile-id model (and keep it secure)
+- Keep using `current_profile_id()` but explicitly restrict to signed-in users:
+  - SELECT: allow only where `user_id = current_profile_id()`
+  - INSERT/UPDATE: allow only when `user_id = current_profile_id()`
+  - Add `TO authenticated` on policies
+- Notes:
+  - This makes the table private (no anonymous reading/writing).
+  - This matches how the rest of the app treats profile-owned rows.
 
-Update both `get_posts_with_counts` and `get_following_posts_with_counts` RPC functions to add a filter clause that only includes posts where `media_url` contains the current project ID.
+Deliverable: a new migration SQL file that performs (A→D) in a single transaction.
 
-**Add to WHERE clause:**
-```sql
-AND p.media_url LIKE '%eabvbtkxdbttjpdpbmuw%'
-```
+2) Frontend robustness improvements (recommended, small)
+Even after the DB fix, we should make the UI more resilient and easier to debug:
 
-This filters at the source, preventing broken posts from ever being returned.
+A. Stop re-querying `profiles` in AIBriefCustomizeSheet
+- The app already loads `profile` in `useAuth()` (see `src/lib/auth.tsx`)
+- Update `AIBriefCustomizeSheet.tsx` to use `const { user, profile } = useAuth();` and prefer `profile.id` directly.
+- Fallback behavior if `profile` is temporarily null:
+  - Call `supabase.rpc('claim_profile_by_email')` (same pattern used in AuthProvider) and then re-fetch profile, or block saving with a clear message.
 
-### Alternative: Client-Side Filter (Backup)
+B. Improve the error toast so you don’t get a generic “Failed to save preferences”
+- When `upsert` fails, show a more actionable message:
+  - If it’s a permissions issue: “You don’t have permission to update preferences. Please sign out/in.”
+  - If it’s a constraint/validation issue: “Couldn’t save preferences due to a data mismatch. (We log the details.)”
+- Keep detailed errors in `console.error` for debugging.
 
-If database migration is too disruptive, we can add a client-side filter in `useInfinitePosts.ts`:
+3) Verification / Pass conditions (what we will test)
+A. Preferences saving
+- Open Daily Brief → Settings → add a new category/topic → Save
+- Expected:
+  - Success toast
+  - Sheet closes
+  - Re-open settings: the topic is still there
 
-```typescript
-const CURRENT_PROJECT = 'eabvbtkxdbttjpdpbmuw';
+B. Existing users keep their previous preferences
+- For accounts that already had preferences saved before: verify they load and can be updated.
+- This confirms the migration (auth id → profile id) worked.
 
-function isValidProjectMedia(url: string): boolean {
-  return url.includes(CURRENT_PROJECT);
-}
+C. Daily Brief uses all selected categories
+- After saving, refresh Daily Brief:
+  - Ensure combined interests = onboarding interests + custom topics – excluded topics
+  - Ensure the backend function reads the preference row successfully.
 
-// Filter posts after transform
-const validPosts = posts.filter(p => isValidProjectMedia(p.media_url));
-```
+Risk & edge cases (and how we handle them)
+- If any preference row cannot be mapped to a profile (should be rare), we’ll either:
+  - delete the unmappable row (safe because preferences are non-critical), or
+  - leave it unmigrated and it will fail the new FK (we will avoid this by adding a safety check before re-adding the FK).
+- Realtime / messaging is unaffected by this change.
 
-## Recommended Approach: Database Filter
+Files & areas that will change (once approved)
+- Database migration: new SQL migration under `supabase/migrations/…` to:
+  - drop old FK to auth users
+  - migrate existing data to profile ids
+  - create new FK to profiles
+  - (re)create RLS policies with `TO authenticated`
+- Frontend:
+  - `src/components/home/AIBriefCustomizeSheet.tsx` to use `useAuth().profile` (and optionally add clearer error handling)
 
-The database-level filter is preferred because:
-1. Reduces data transfer (fewer rows returned)
-2. Pagination works correctly (won't have gaps)
-3. Count calculations are accurate
-4. Better performance
-
-## Technical Details
-
-### Migration SQL
-```sql
--- Update get_posts_with_counts to filter valid media URLs
-CREATE OR REPLACE FUNCTION public.get_posts_with_counts(...)
-RETURNS TABLE(...)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  RETURN QUERY
-  WITH post_base AS (
-    SELECT ...
-    FROM posts p
-    WHERE 
-      (p_type IS NULL OR p.type = p_type)
-      AND (p_author_id IS NULL OR p.author_id = p_author_id)
-      AND p.media_url IS NOT NULL
-      AND p.media_url != ''
-      -- NEW: Only include current project media
-      AND p.media_url LIKE '%eabvbtkxdbttjpdpbmuw%'
-    ...
-  )
-  ...
-END;
-$$;
-```
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `supabase/migrations/[new].sql` | Update RPC functions to filter old project URLs |
-
-## Expected Result
-
-- Feed will show only the 2 valid posts (type=post) and 3 shorts
-- No empty/broken cards in the feed
-- Users will see actual content that loads properly
-- Performance improvement from reduced data transfer
+Outcome
+- “Save Preferences” will work immediately.
+- Categories/topics will persist and be used by the Daily Brief generator.
+- No more silent failures caused by the ID-model mismatch.
