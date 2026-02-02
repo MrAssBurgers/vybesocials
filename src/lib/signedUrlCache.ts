@@ -21,11 +21,26 @@ const CACHE_DURATION = 50 * 60 * 1000;
 // Cache failed URLs for 5 minutes to prevent spam
 const FAILED_CACHE_DURATION = 5 * 60 * 1000;
 
+// Current project's Supabase URL for validation
+const CURRENT_SUPABASE_PROJECT = 'eabvbtkxdbttjpdpbmuw';
+
+/**
+ * Check if URL belongs to the current Supabase project
+ */
+function isCurrentProjectUrl(url: string): boolean {
+  return url.includes(CURRENT_SUPABASE_PROJECT);
+}
+
 /**
  * Parse storage URL to get bucket and path
  */
 function parseStorageUrl(url: string): { bucket: string; path: string } | null {
   if (!url) return null;
+  
+  // Only parse URLs from the current project
+  if (!isCurrentProjectUrl(url)) {
+    return null;
+  }
   
   const publicMatch = url.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/);
   if (publicMatch) {
@@ -41,11 +56,13 @@ function parseStorageUrl(url: string): { bucket: string; path: string } | null {
 }
 
 /**
- * Check if URL needs signing (is a Supabase storage URL)
+ * Check if URL needs signing (is a Supabase storage URL from CURRENT project)
  */
 export function needsSigning(url: string | null | undefined): boolean {
   if (!url) return false;
-  return url.includes('/storage/v1/object/public/') || url.includes('/storage/v1/object/sign/');
+  // Only sign URLs from the current project - old project URLs should fail gracefully
+  const isStorageUrl = url.includes('/storage/v1/object/public/') || url.includes('/storage/v1/object/sign/');
+  return isStorageUrl && isCurrentProjectUrl(url);
 }
 
 /**
