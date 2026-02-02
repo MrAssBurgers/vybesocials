@@ -498,6 +498,9 @@ export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackgr
     // === MODE CLASS ===
     root.classList.remove('light', 'dark');
     root.classList.add(tokens.mode === 'light' ? 'light' : 'dark');
+    
+    // Dispatch custom event for dynamic favicon and other theme-dependent features
+    window.dispatchEvent(new CustomEvent('vybeThemeChange', { detail: tokens }));
   } catch (error) {
     console.error('Error applying theme tokens:', error);
   }
