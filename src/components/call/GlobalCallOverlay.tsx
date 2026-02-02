@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { useCallStore, CallData } from '@/lib/callStore';
 import { requestCallMediaPermissions, isAndroid, nextAnimationFrame } from '@/lib/mediaPermissions';
 import { callSounds } from '@/lib/callSounds';
+import { premiumSounds } from '@/lib/premiumSounds';
 import { supabase } from '@/integrations/supabase/client';
 import DailyIframe, { DailyCall, DailyParticipant } from '@daily-co/daily-js';
 import { CallSettingsSheet } from './CallSettingsSheet';
@@ -307,7 +308,7 @@ export function GlobalCallOverlay() {
       clearJoinTimeout();
       
       // CRITICAL: Stop ALL sounds immediately on join to prevent ringing during call
-      callSounds.stopAll();
+      premiumSounds.stopAllCallSounds();
       
       if (stateRef.current.phase !== 'joining') {
         console.log('[CallOverlay] Ignoring joined-meeting (not in joining phase)');
@@ -341,7 +342,7 @@ export function GlobalCallOverlay() {
       }
 
       // Play connect sound (no ringing should be playing at this point)
-      callSounds.connect();
+      premiumSounds.callConnect();
       setPhase('connected');
     });
 
@@ -512,7 +513,7 @@ export function GlobalCallOverlay() {
     if (isLeavingRef.current) return;
 
     // CRITICAL: Stop any lingering sounds when entering joining phase
-    callSounds.stopAll();
+    premiumSounds.stopAllCallSounds();
 
     let cancelled = false;
 
