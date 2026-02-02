@@ -31,7 +31,7 @@ const SUGGESTED_TOPICS = [
 ];
 
 export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated }: AIBriefCustomizeSheetProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [preferences, setPreferences] = useState<Preferences>({
     custom_topics: [],
     excluded_topics: [],
@@ -43,28 +43,16 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (open && user) {
+    if (open && profile?.id) {
       loadPreferences();
     }
-  }, [open, user]);
+  }, [open, profile?.id]);
 
   const loadPreferences = async () => {
-    if (!user) return;
+    if (!profile?.id) return;
     setIsLoading(true);
     
     try {
-      // First get the profile ID for this auth user
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) {
-        setIsLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('ai_brief_preferences')
         .select('*')
@@ -87,23 +75,14 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
   };
 
   const savePreferences = async () => {
-    if (!user) return;
+    if (!profile?.id) {
+      toast.error('Please sign in to save preferences');
+      return;
+    }
     setIsSaving(true);
     haptics.tap();
 
     try {
-      // Get profile ID for this auth user
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) {
-        toast.error('Profile not found');
-        return;
-      }
-
       const { error } = await supabase
         .from('ai_brief_preferences')
         .upsert({
@@ -115,7 +94,15 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error saving preferences:', error);
+        if (error.code === '42501' || error.message?.includes('permission')) {
+          toast.error('Permission denied. Try signing out and back in.');
+        } else {
+          toast.error('Could not save preferences. Please try again.');
+        }
+        return;
+      }
 
       toast.success('Preferences saved!');
       haptics.success();
@@ -123,7 +110,7 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
       onOpenChange(false);
     } catch (error) {
       console.error('Error saving preferences:', error);
-      toast.error('Failed to save preferences');
+      toast.error('Could not save preferences. Please try again.');
     } finally {
       setIsSaving(false);
     }
