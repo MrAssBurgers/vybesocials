@@ -75,8 +75,8 @@ export function usePresence() {
     // Update presence immediately on mount for instant online status
     updatePresence();
 
-    // Update presence every 30 seconds for more responsive online indicators
-    intervalRef.current = setInterval(updatePresence, 30000);
+    // Update presence every 20 seconds for faster online indicators
+    intervalRef.current = setInterval(updatePresence, 20000);
 
     // Debounced visibility change handler
     let visibilityTimeout: NodeJS.Timeout | null = null;
@@ -161,8 +161,8 @@ export function useUserOnlineStatus(userId: string | undefined) {
       return data;
     },
     enabled: !!userId,
-    staleTime: 15000, // 15 seconds stale time for faster updates
-    refetchInterval: 30000, // 30 seconds refetch interval
+    staleTime: 10000, // 10 seconds stale time for faster updates
+    refetchInterval: 20000, // 20 seconds refetch interval
   });
 
   // Subscribe to realtime updates
@@ -242,7 +242,7 @@ export function useUsersOnlineStatus(userIds: string[]) {
       return statusMap;
     },
     enabled: userIds.length > 0,
-    staleTime: 15000, // 15 seconds stale for faster updates
-    refetchInterval: 30000, // 30 seconds check
+    staleTime: 10000, // 10 seconds stale for faster updates
+    refetchInterval: 20000, // 20 seconds check
   });
 }

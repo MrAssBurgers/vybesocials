@@ -201,11 +201,11 @@ export function useLiveActivity(conversationId: string | undefined) {
     joinPresence();
     fetchActivity();
 
-    // Fast heartbeat every 2 seconds for ultra-responsive presence
+    // Fast heartbeat every 1.5 seconds for instant presence updates
     heartbeatRef.current = setInterval(() => {
       joinPresence();
       fetchActivity();
-    }, 2000);
+    }, 1500);
 
     // Realtime subscription for instant updates
     const channel = supabase
