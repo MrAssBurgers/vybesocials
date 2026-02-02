@@ -1,93 +1,127 @@
 
-Goal
-- Fix “Failed to save preferences” in Daily Brief settings so topics/categories can be added and saved reliably.
+# Fix: Enable Real-Time DMs Like Snapchat/Instagram
 
-What’s actually broken (diagnosis)
-- The `ai_brief_preferences.user_id` column is currently constrained to `auth.users(id)` via this foreign key:
-  - `ai_brief_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE`
-- But the app (and the Daily Brief backend function) is now correctly using your app-level profile ID (`profiles.id`) when reading/writing preferences:
-  - Frontend: `AIBriefCustomizeSheet.tsx` upserts with `user_id: profile.id`
-  - Daily Brief generator: `ai-catch-up` reads `.eq('user_id', profileId)`
-- Result: when you click “Save Preferences”, the insert/update fails because `profile.id` is not an `auth.users.id`, so the foreign key rejects it (this presents as “Failed to save preferences” in the UI).
+## Problem Diagnosed
 
-Extra important detail
-- There are already existing preference rows in the database (2 rows), and they currently store `auth.users.id` values (not `profiles.id`). So even after fixing saving, we must migrate existing rows so old preferences still load.
+Messages are not appearing instantly because the `messages` table is **not published for real-time updates**. The subscription in `useGlobalRealtimeMessages` is properly connected, but Postgres isn't sending any events.
 
-Plan (implementation steps)
+**Evidence:**
+Querying `pg_publication_tables WHERE pubname = 'supabase_realtime'` returned:
+- `calls`
+- `live_activity`
+- `friend_drops`
+- `user_backgrounds`
 
-1) Backend/database fix (required)
-A. Remove the wrong foreign key to the authentication table
-- Drop constraint: `ai_brief_preferences_user_id_fkey` (currently points to `auth.users`)
+The `messages` table is missing from this list.
 
-B. Migrate existing preference rows from auth user ids -> profile ids
-- Convert existing rows using the mapping: `profiles.user_id (auth id) -> profiles.id (profile id)`
-- SQL concept:
-  - `UPDATE ai_brief_preferences abp SET user_id = p.id FROM profiles p WHERE p.user_id = abp.user_id;`
-- This must happen after dropping the old FK, otherwise the update would immediately violate the existing FK.
+---
 
-C. Add the correct foreign key to profiles
-- Add: `FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE`
-- This enforces the intended model everywhere: preferences belong to a profile.
+## Solution Overview
 
-D. Tighten Row Level Security policies to match the profile-id model (and keep it secure)
-- Keep using `current_profile_id()` but explicitly restrict to signed-in users:
-  - SELECT: allow only where `user_id = current_profile_id()`
-  - INSERT/UPDATE: allow only when `user_id = current_profile_id()`
-  - Add `TO authenticated` on policies
-- Notes:
-  - This makes the table private (no anonymous reading/writing).
-  - This matches how the rest of the app treats profile-owned rows.
+1. Add the `messages` table to the realtime publication
+2. Also add `conversations` table for conversation list updates
+3. Add a fallback polling mechanism in case realtime drops
+4. Improve deduplication to prevent duplicate messages
 
-Deliverable: a new migration SQL file that performs (A→D) in a single transaction.
+---
 
-2) Frontend robustness improvements (recommended, small)
-Even after the DB fix, we should make the UI more resilient and easier to debug:
+## Implementation Steps
 
-A. Stop re-querying `profiles` in AIBriefCustomizeSheet
-- The app already loads `profile` in `useAuth()` (see `src/lib/auth.tsx`)
-- Update `AIBriefCustomizeSheet.tsx` to use `const { user, profile } = useAuth();` and prefer `profile.id` directly.
-- Fallback behavior if `profile` is temporarily null:
-  - Call `supabase.rpc('claim_profile_by_email')` (same pattern used in AuthProvider) and then re-fetch profile, or block saving with a clear message.
+### Step 1: Database Migration - Enable Realtime
 
-B. Improve the error toast so you don’t get a generic “Failed to save preferences”
-- When `upsert` fails, show a more actionable message:
-  - If it’s a permissions issue: “You don’t have permission to update preferences. Please sign out/in.”
-  - If it’s a constraint/validation issue: “Couldn’t save preferences due to a data mismatch. (We log the details.)”
-- Keep detailed errors in `console.error` for debugging.
+Add the `messages` and `conversations` tables to the Supabase realtime publication so that INSERT, UPDATE, and DELETE events are broadcast to all connected clients.
 
-3) Verification / Pass conditions (what we will test)
-A. Preferences saving
-- Open Daily Brief → Settings → add a new category/topic → Save
-- Expected:
-  - Success toast
-  - Sheet closes
-  - Re-open settings: the topic is still there
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
+```
 
-B. Existing users keep their previous preferences
-- For accounts that already had preferences saved before: verify they load and can be updated.
-- This confirms the migration (auth id → profile id) worked.
+This is the critical fix that will make DMs update instantly.
 
-C. Daily Brief uses all selected categories
-- After saving, refresh Daily Brief:
-  - Ensure combined interests = onboarding interests + custom topics – excluded topics
-  - Ensure the backend function reads the preference row successfully.
+---
 
-Risk & edge cases (and how we handle them)
-- If any preference row cannot be mapped to a profile (should be rare), we’ll either:
-  - delete the unmappable row (safe because preferences are non-critical), or
-  - leave it unmigrated and it will fail the new FK (we will avoid this by adding a safety check before re-adding the FK).
-- Realtime / messaging is unaffected by this change.
+### Step 2: Improve Global Realtime Handler
 
-Files & areas that will change (once approved)
-- Database migration: new SQL migration under `supabase/migrations/…` to:
-  - drop old FK to auth users
-  - migrate existing data to profile ids
-  - create new FK to profiles
-  - (re)create RLS policies with `TO authenticated`
-- Frontend:
-  - `src/components/home/AIBriefCustomizeSheet.tsx` to use `useAuth().profile` (and optionally add clearer error handling)
+Update `src/hooks/useGlobalRealtimeMessages.ts` to be more robust:
 
-Outcome
-- “Save Preferences” will work immediately.
-- Categories/topics will persist and be used by the Daily Brief generator.
-- No more silent failures caused by the ID-model mismatch.
+**A. Better deduplication**
+- Track recently processed message IDs to prevent duplicates (Supabase can send duplicate events)
+- Use a 30-second sliding window for deduplication
+
+**B. Faster cache injection**
+- Remove the async profile fetch for sender - use cached profile from conversation members when available
+- Only fetch profile if not in cache
+
+**C. Retry logic on error**
+- When `CHANNEL_ERROR` occurs, properly retry the subscription with exponential backoff
+- Track connection state and log for debugging
+
+---
+
+### Step 3: Add Polling Fallback
+
+Add a background polling mechanism to `useMessages.ts` that activates only when the realtime connection drops. This ensures messages still arrive even if WebSocket connection fails.
+
+**Fallback behavior:**
+- Check connection status every 30 seconds
+- If realtime is disconnected, poll every 3 seconds
+- When realtime reconnects, stop polling
+- Never duplicate messages (use deduplication)
+
+---
+
+### Step 4: Ensure Sender Messages Update Instantly
+
+The current `useInstantSend` hook adds optimistic messages correctly for the sender. But we need to ensure the real message (with server ID) replaces the temp ID properly without duplication.
+
+**Improvement:**
+- When the realtime handler receives a message that matches a pending temp message (same content, sender, conversation, within 5 seconds), ignore it (already shown optimistically)
+- This prevents the sender from seeing their message twice
+
+---
+
+## Files That Will Change
+
+1. **Database migration** (new file)
+   - Enable realtime for `messages` and `conversations` tables
+
+2. **`src/hooks/useGlobalRealtimeMessages.ts`**
+   - Add message deduplication with sliding window
+   - Add exponential backoff retry on channel errors
+   - Skip processing for messages we already optimistically added
+
+3. **`src/hooks/useMessages.ts`** (minor)
+   - Add optional fallback polling when realtime drops (gated behind connection state)
+
+---
+
+## Pass Conditions
+
+After this fix:
+- Sender sees message instantly (optimistic UI - already works)
+- Receiver sees message instantly (realtime - will work after migration)
+- DM list updates in real time for both users
+- No duplicate messages appear
+- No manual refresh ever required
+- Works even if realtime connection temporarily drops (polling fallback)
+
+---
+
+## Technical Details
+
+### Why This Will Work
+
+The current architecture is correct - the subscription is set up properly. The only missing piece is the database-level publication. Once `messages` is added to `supabase_realtime`, every INSERT will broadcast to all subscribed clients.
+
+The global handler at the App level ensures:
+- All users receive updates regardless of what page they're on
+- Messages are injected into the correct conversation cache
+- Conversation lists are updated with new last_message previews
+- Notification sounds play when not viewing the conversation
+
+### Performance Considerations
+
+- Single global subscription (efficient)
+- Direct cache mutation (no refetch needed)
+- Deduplication prevents wasted renders
+- Polling only activates as fallback, not primary
