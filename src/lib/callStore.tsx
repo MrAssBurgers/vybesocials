@@ -10,6 +10,7 @@ import React, { createContext, useContext, useState, useCallback, useRef, ReactN
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { callSounds } from '@/lib/callSounds';
+import { premiumSounds } from '@/lib/premiumSounds';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'error';
 export type CallType = 'audio' | 'video';
@@ -225,7 +226,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
             };
 
             setIncomingCall(callData);
-            callSounds.startRinging();
+            // Use premium sounds which supports custom ringtones
+            premiumSounds.startRinging();
             
             // Show browser notification with VYBE branding
             showCallNotification(data.caller as CallUser, data.call_type as CallType, data.id, isGroupCall, groupName);
@@ -359,20 +361,20 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       };
 
       // Stop ringback before transitioning to joining - the overlay will handle connected sound
-      callSounds.stopAll();
+      premiumSounds.stopAllCallSounds();
       
       // Transition to joining IMMEDIATELY
       setState({ phase: 'joining', call: callData, error: null });
     } catch (err: any) {
       console.error('[CallStore] Failed to start call:', err);
-      callSounds.stopAll();
+      premiumSounds.stopAllCallSounds();
       setState({ phase: 'error', call: null, error: err.message });
     }
   }, [profile?.id, profile?.username, profile?.avatar_url, setState]);
 
   const acceptCall = useCallback((call: CallData) => {
     console.log('[CallStore] Accepting call:', call.id);
-    callSounds.stopAll();
+    premiumSounds.stopAllCallSounds();
     setIncomingCall(null);
 
     // Update call status in DB
@@ -389,7 +391,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
   const endCall = useCallback(async () => {
     console.log('[CallStore] Ending call - current phase:', globalCallState.phase);
-    callSounds.stopAll();
+    premiumSounds.stopAllCallSounds();
 
     // Use global state to get the current call ID (avoids stale closure)
     const callId = globalCallState.call?.id;
@@ -418,7 +420,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
   const dismissIncoming = useCallback(async () => {
     console.log('[CallStore] Dismissing incoming call');
-    callSounds.stopAll();
+    premiumSounds.stopAllCallSounds();
 
     // Use global state to get the incoming call (avoids stale closure)
     const currentIncoming = globalIncomingCall;
