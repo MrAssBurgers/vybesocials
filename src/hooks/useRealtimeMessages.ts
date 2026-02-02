@@ -187,7 +187,8 @@ export function useRealtimeMessages(conversationId: string | undefined) {
 }
 
 /**
- * Instant conversation list updates
+ * Instant conversation list updates - global listener for new messages
+ * Updates both conversation lists immediately when any message arrives
  */
 export function useRealtimeConversations() {
   const { profile } = useAuth();
@@ -197,20 +198,26 @@ export function useRealtimeConversations() {
     if (!profile?.id) return;
 
     const channel = supabase
-      .channel('instant-conversations')
+      .channel('global-conversations-realtime')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
         async (payload) => {
           const newMessage = payload.new as any;
+          const isFromOther = newMessage.sender_id !== profile.id;
           
-          // Instantly update conversation list - update both query keys
+          // Helper to update conversation lists
           const updateConversations = (old: any[] | undefined) => {
             if (!old) return old;
             
+            const conversationExists = old.some(c => c.id === newMessage.conversation_id);
+            if (!conversationExists) {
+              // New conversation - trigger full refetch
+              return old;
+            }
+            
             const updated = old.map(conv => {
               if (conv.id === newMessage.conversation_id) {
-                const isFromOther = newMessage.sender_id !== profile.id;
                 return {
                   ...conv,
                   last_message: newMessage,
@@ -225,7 +232,7 @@ export function useRealtimeConversations() {
               return conv;
             });
             
-            // Sort by unread first, then most recent (Instagram-style)
+            // Sort by pinned first, then unread, then most recent
             return updated.sort((a, b) => {
               // Pinned first
               if (a.members && b.members) {
@@ -246,22 +253,32 @@ export function useRealtimeConversations() {
             });
           };
           
-          // Update both query keys for consistency
+          // Update both query keys instantly
           queryClient.setQueryData<any[]>(['conversations', profile.id], updateConversations);
           queryClient.setQueryData<any[]>(['dm-conversations', profile.id], updateConversations);
           
-          // Sound is handled by useMessageNotifications to avoid duplicates
+          // If conversation doesn't exist in cache, trigger a refetch
+          const existing = queryClient.getQueryData<any[]>(['conversations', profile.id]);
+          if (existing && !existing.some(c => c.id === newMessage.conversation_id)) {
+            queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
+            queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
+          }
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversation_members' },
         () => {
+          // Member changes need full refetch
           queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
           queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Conversations] Global realtime subscribed');
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
