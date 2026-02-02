@@ -184,7 +184,7 @@ export function DesktopRightSidebar() {
       )}
     >
       <ScrollArea className="flex-1 h-full">
-        <div className="p-3 space-y-3">
+        <div className="p-3 pt-4 space-y-3">
 
           {/* Online Friends Strip */}
           <div>
