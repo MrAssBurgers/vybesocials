@@ -15,11 +15,13 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
+import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { useConversations, useCreateConversation } from '@/hooks/useMessages';
 import { useFriends } from '@/hooks/useFriends';
 import { useEvents } from '@/hooks/useEvents';
 import { useListings } from '@/hooks/useMarketplace';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
+import { useConversationTyping } from '@/hooks/useConversationTyping';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -99,8 +101,14 @@ export function DesktopRightSidebar() {
     return friends.filter(f => f?.id && onlineStatusMap[f.id] === true);
   }, [friends, onlineStatusMap]);
 
-
-
+  // Get conversation IDs for typing subscription
+  const conversationIds = useMemo(() => 
+    (conversations || []).slice(0, 3).map(c => c.id),
+    [conversations]
+  );
+  
+  // Subscribe to typing indicators
+  const { isTyping: checkTyping } = useConversationTyping(conversationIds);
 
   // Get recent conversations with unread messages - memoized
   const recentChats = useMemo(() => {
@@ -113,10 +121,10 @@ export function DesktopRightSidebar() {
         avatar: conv.is_group ? conv.avatar_url : otherMember?.avatar_url,
         lastMessage: conv.last_message?.content,
         hasUnread: conv.unread_count > 0,
-        isTyping: false,
+        isTyping: checkTyping(conv.id),
       };
     });
-  }, [conversations, profile?.id]);
+  }, [conversations, profile?.id, checkTyping]);
 
   // Get upcoming events (filter for future events) - memoized
   const upcomingEvents = useMemo(() => {
@@ -253,7 +261,8 @@ export function DesktopRightSidebar() {
                       <p className="text-xs text-muted-foreground truncate">
                         {chat.isTyping ? (
                           <span className="text-primary flex items-center gap-1">
-                            <Sparkles className="h-3 w-3" /> typing...
+                            <TypingIndicator size="sm" />
+                            <span className="font-medium">typing</span>
                           </span>
                         ) : (
                           chat.lastMessage || 'No messages yet'

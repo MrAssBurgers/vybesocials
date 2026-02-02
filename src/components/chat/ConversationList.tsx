@@ -13,12 +13,14 @@ import { useStories, StoryGroup } from '@/hooks/useStories';
 import { useAcceptedFriendRequests, useDismissAcceptedRequest } from '@/hooks/useAcceptedFriendRequests';
 import { useStreakMap, Streak } from '@/hooks/useStreaks';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useConversationTyping } from '@/hooks/useConversationTyping';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Trash2, Nfc, X, UserCheck, Flame } from 'lucide-react';
@@ -154,6 +156,15 @@ export function ConversationList() {
     [...(pinnedConversations || []), ...(unpinnedConversations || [])],
     [pinnedConversations, unpinnedConversations]
   );
+  
+  // Get all conversation IDs for typing indicator subscription
+  const conversationIds = useMemo(() => 
+    allConversations.map(c => c.id),
+    [allConversations]
+  );
+  
+  // Subscribe to typing indicators for all conversations
+  const { isTyping: checkTyping } = useConversationTyping(conversationIds);
   
   const otherMemberIds = useMemo(() => {
     if (!allConversations.length || !profile?.id) return [];
@@ -335,6 +346,7 @@ export function ConversationList() {
                   conversation={conv}
                   onClick={() => handleConversationClick(conv.id)}
                   isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
+                  isTyping={checkTyping(conv.id)}
                   currentUserId={profile?.id}
                   userRole={otherMemberId ? usersRoles[otherMemberId] : null}
                   onTrash={() => handleTrashConversation(conv.id)}
@@ -379,6 +391,7 @@ export function ConversationList() {
                     conversation={conv}
                     onClick={() => handleConversationClick(conv.id)}
                     isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
+                    isTyping={checkTyping(conv.id)}
                     currentUserId={profile?.id}
                     userRole={otherMemberId ? usersRoles[otherMemberId] : null}
                     onTrash={() => handleTrashConversation(conv.id)}
@@ -506,6 +519,7 @@ const ConversationContent = memo(function ConversationContent({
   memberCount,
   formattedTime,
   isOnline,
+  isTyping,
   currentUserId,
   userRole,
   hasStory,
@@ -585,7 +599,12 @@ const ConversationContent = memo(function ConversationContent({
 
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-1 min-w-0 flex-1">
-            {lastMessage && (
+            {isTyping ? (
+              <div className="flex items-center gap-1.5 text-primary">
+                <TypingIndicator size="sm" />
+                <span className="text-xs font-medium">typing</span>
+              </div>
+            ) : lastMessage ? (
               <>
                 {lastMessage.sender_id === currentUserId && (
                   <span className="flex-shrink-0">
@@ -608,12 +627,11 @@ const ConversationContent = memo(function ConversationContent({
                     : (lastMessage.content?.slice(0, 30) || 'Media') + (lastMessage.content && lastMessage.content.length > 30 ? '...' : '')}
                 </p>
               </>
-            )}
-            {!lastMessage && conversation.is_group && (
+            ) : conversation.is_group ? (
               <p className="text-xs text-muted-foreground truncate">
                 Start chatting
               </p>
-            )}
+            ) : null}
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -634,6 +652,7 @@ const ConversationItem = memo(function ConversationItem({
   conversation, 
   onClick,
   isOnline,
+  isTyping,
   currentUserId,
   userRole,
   onTrash,
@@ -644,6 +663,7 @@ const ConversationItem = memo(function ConversationItem({
   conversation: Conversation; 
   onClick: () => void;
   isOnline?: boolean;
+  isTyping?: boolean;
   currentUserId?: string;
   userRole?: 'admin' | 'moderator' | null;
   onTrash?: () => void;
@@ -751,6 +771,7 @@ const ConversationItem = memo(function ConversationItem({
     memberCount,
     formattedTime,
     isOnline,
+    isTyping,
     currentUserId,
     userRole,
     hasStory,
