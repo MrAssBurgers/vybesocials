@@ -1,13 +1,16 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageSquareHeart, Sparkles, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play } from 'lucide-react';
+import { MessageSquareHeart, Sparkles, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { haptics } from '@/lib/haptics';
 import { resetIntro } from '@/components/intro/IntroFlow';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
+import { InstallAppSheet } from './InstallAppSheet';
 
 export function HelpSection() {
+  const [showInstallSheet, setShowInstallSheet] = useState(false);
   return (
     <div className="space-y-6">
       <motion.div
@@ -79,8 +82,28 @@ export function HelpSection() {
               <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
             </div>
           </Link>
+
+          {/* Install Web App */}
+          <button
+            onClick={() => {
+              haptics.tap();
+              setShowInstallSheet(true);
+            }}
+            className="w-full flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all active:scale-[0.98]"
+          >
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
+              <Download className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <p className="font-medium">Install Web App</p>
+              <p className="text-sm text-muted-foreground">Add VYBE to your home screen</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+          </button>
         </div>
       </motion.div>
+
+      <InstallAppSheet open={showInstallSheet} onOpenChange={setShowInstallSheet} />
 
       {/* Legal Section */}
       <motion.div
