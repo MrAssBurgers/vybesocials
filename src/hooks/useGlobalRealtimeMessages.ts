@@ -1,0 +1,212 @@
+/**
+ * Global Realtime Messages Hook
+ * 
+ * Runs at App level to ensure DM updates happen EVERYWHERE instantly
+ * - Updates conversation list when ANY message arrives
+ * - Plays notification sounds for messages from other users
+ * - Ensures receiver sees messages instantly without refresh
+ */
+
+import { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
+import { callSounds } from '@/lib/callSounds';
+
+// Track the current conversation globally
+let currentConversationId: string | null = null;
+
+export function setCurrentConversationId(id: string | null) {
+  currentConversationId = id;
+}
+
+export function useGlobalRealtimeMessages() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    // Clean up existing channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    // Create a single global channel for all message events
+    const channel = supabase
+      .channel(`global-messages:${profile.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        async (payload) => {
+          const newMessage = payload.new as any;
+          const conversationId = newMessage.conversation_id;
+          const isFromCurrentUser = newMessage.sender_id === profile.id;
+          const isViewingConvo = currentConversationId === conversationId;
+          
+          console.log('[GlobalRT] Message received:', {
+            from: newMessage.sender_id,
+            conv: conversationId,
+            isFromCurrentUser,
+            isViewingConvo,
+          });
+
+          // If message is from another user, we need to update caches
+          if (!isFromCurrentUser) {
+            // Fetch sender profile for display
+            const { data: sender } = await supabase
+              .from('profiles')
+              .select('id, username, avatar_url, display_name')
+              .eq('id', newMessage.sender_id)
+              .maybeSingle();
+
+            const fullMessage = {
+              ...newMessage,
+              sender,
+              views: [],
+              reactions: [],
+            };
+
+            // If user is viewing this conversation, add message to chat
+            if (isViewingConvo) {
+              queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
+                if (!old) return [fullMessage];
+                // Prevent duplicates
+                if (old.some(m => m.id === newMessage.id)) return old;
+                return [...old, fullMessage];
+              });
+            }
+
+            // Play notification sound if NOT viewing this conversation
+            if (!isViewingConvo || document.visibilityState !== 'visible') {
+              callSounds.message();
+            }
+          }
+
+          // Always update conversation lists for both sender and receiver
+          const updateConversations = (old: any[] | undefined) => {
+            if (!old) return old;
+            
+            const conversationExists = old.some(c => c.id === conversationId);
+            if (!conversationExists) {
+              // Conversation not in cache - trigger refetch
+              return old;
+            }
+            
+            return old.map(conv => {
+              if (conv.id === conversationId) {
+                return {
+                  ...conv,
+                  last_message: {
+                    id: newMessage.id,
+                    content: newMessage.content,
+                    media_type: newMessage.media_type,
+                    media_url: newMessage.media_url,
+                    created_at: newMessage.created_at,
+                    sender_id: newMessage.sender_id,
+                  },
+                  updated_at: newMessage.created_at,
+                  _sortTime: newMessage.created_at,
+                  _hasUnread: !isFromCurrentUser && !isViewingConvo,
+                  unread_count: !isFromCurrentUser && !isViewingConvo 
+                    ? (conv.unread_count || 0) + 1 
+                    : conv.unread_count,
+                };
+              }
+              return conv;
+            }).sort((a, b) => {
+              // Pinned first
+              const aIsPinned = a.members?.find((m: any) => m.user_id === profile.id)?.is_pinned;
+              const bIsPinned = b.members?.find((m: any) => m.user_id === profile.id)?.is_pinned;
+              if (aIsPinned && !bIsPinned) return -1;
+              if (!aIsPinned && bIsPinned) return 1;
+              
+              // Then unread
+              if (a._hasUnread && !b._hasUnread) return -1;
+              if (!a._hasUnread && b._hasUnread) return 1;
+              
+              // Then by time
+              const timeA = new Date(a._sortTime || a.updated_at).getTime();
+              const timeB = new Date(b._sortTime || b.updated_at).getTime();
+              return timeB - timeA;
+            });
+          };
+
+          // Update ALL conversation query caches
+          queryClient.setQueryData<any[]>(['conversations', profile.id], updateConversations);
+          queryClient.setQueryData<any[]>(['dm-conversations', profile.id], updateConversations);
+
+          // If conversation doesn't exist in cache, trigger a full refetch
+          const cached = queryClient.getQueryData<any[]>(['dm-conversations', profile.id]);
+          if (cached && !cached.some(c => c.id === conversationId)) {
+            queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
+            queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        (payload) => {
+          const updatedMessage = payload.new as any;
+          const conversationId = updatedMessage.conversation_id;
+
+          // Update message in cache if user is viewing this conversation
+          if (currentConversationId === conversationId) {
+            queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
+              if (!old) return old;
+              
+              if (updatedMessage.is_deleted) {
+                return old.filter(m => m.id !== updatedMessage.id);
+              }
+              
+              return old.map(m => m.id === updatedMessage.id ? { ...m, ...updatedMessage } : m);
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'messages' },
+        (payload) => {
+          const deletedMessage = payload.old as any;
+          const conversationId = deletedMessage.conversation_id;
+
+          // Remove from cache
+          if (currentConversationId === conversationId) {
+            queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
+              if (!old) return old;
+              return old.filter(m => m.id !== deletedMessage.id);
+            });
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[GlobalRT] Subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('[GlobalRT] ✅ Global realtime connected for user:', profile.id);
+        }
+        if (status === 'CHANNEL_ERROR') {
+          console.error('[GlobalRT] ❌ Channel error - will retry');
+          // Retry connection after delay
+          setTimeout(() => {
+            if (channelRef.current) {
+              supabase.removeChannel(channelRef.current);
+              channelRef.current = null;
+            }
+          }, 3000);
+        }
+      });
+
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) {
+        console.log('[GlobalRT] Cleaning up global channel');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [profile?.id, queryClient]);
+}

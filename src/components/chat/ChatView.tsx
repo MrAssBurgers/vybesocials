@@ -14,6 +14,7 @@ import {
 } from '@/hooks/useMessages';
 import { useInstantSend } from '@/hooks/useInstantSend';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
+import { setCurrentConversationId } from '@/hooks/useGlobalRealtimeMessages';
 import { useUnsendForEveryone, useDeleteForMe, useEditMessage } from '@/hooks/useMessageActions';
 import { useInstantReadClear } from '@/hooks/useMessageNotifications';
 import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
@@ -119,7 +120,14 @@ export function ChatView() {
   const { data: conversations } = useConversations();
   const { data: messages, isLoading } = useMessages(conversationId);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
-  // Enable realtime sync for this conversation
+  
+  // Register current conversation for global realtime updates
+  useEffect(() => {
+    setCurrentConversationId(conversationId || null);
+    return () => setCurrentConversationId(null);
+  }, [conversationId]);
+  
+  // Enable realtime sync for this specific conversation (reactions, views, etc.)
   useRealtimeMessages(conversationId);
   const markViewed = useMarkMessageViewed();
   const addReaction = useAddReaction();
