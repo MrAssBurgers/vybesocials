@@ -20,10 +20,11 @@ import { WelcomeHeader } from '@/components/home/WelcomeHeader';
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
 
-// Memoized post list with optimized rendering
+// Memoized post list with optimized rendering - shows immediately with cached data
 const PostList = memo(({ 
   posts, 
-  isLoading, 
+  isLoading,
+  isFetching,
   isFetchingNext, 
   loadMoreRef,
   emptyIcon,
@@ -31,16 +32,18 @@ const PostList = memo(({
 }: { 
   posts: any[]; 
   isLoading: boolean;
+  isFetching: boolean;
   isFetchingNext: boolean;
   loadMoreRef: (node: HTMLDivElement | null) => void;
   emptyIcon: string;
   emptyText: string;
 }) => {
-  if (isLoading) {
+  // Show skeletons only on initial load with NO cached data
+  if (isLoading && posts.length === 0) {
     return <PostSkeletonList count={2} />;
   }
 
-  if (posts.length === 0) {
+  if (!isLoading && posts.length === 0) {
     return (
       <div className="text-center py-12">
         <p className="text-4xl mb-4">{emptyIcon}</p>
@@ -65,6 +68,7 @@ const PostList = memo(({
   // Custom comparison for better memoization
   return (
     prevProps.isLoading === nextProps.isLoading &&
+    prevProps.isFetching === nextProps.isFetching &&
     prevProps.isFetchingNext === nextProps.isFetchingNext &&
     prevProps.posts.length === nextProps.posts.length &&
     prevProps.posts === nextProps.posts
@@ -83,6 +87,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const {
     data: forYouData,
     isLoading: forYouLoading,
+    isFetching: forYouFetching,
     fetchNextPage: fetchNextForYou,
     hasNextPage: hasNextForYou,
     isFetchingNextPage: isFetchingNextForYou,
@@ -92,6 +97,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const {
     data: followingData,
     isLoading: followingLoading,
+    isFetching: followingFetching,
     fetchNextPage: fetchNextFollowing,
     hasNextPage: hasNextFollowing,
     isFetchingNextPage: isFetchingNextFollowing,
@@ -268,6 +274,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
               <PostList
                 posts={forYouPosts}
                 isLoading={forYouLoading}
+                isFetching={forYouFetching}
                 isFetchingNext={isFetchingNextForYou}
                 loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
                 emptyIcon="😴"
@@ -279,6 +286,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
               <PostList
                 posts={followingPosts}
                 isLoading={followingLoading}
+                isFetching={followingFetching}
                 isFetchingNext={isFetchingNextFollowing}
                 loadMoreRef={activeTab === 'following' ? loadMoreRef : () => {}}
                 emptyIcon="👀"
