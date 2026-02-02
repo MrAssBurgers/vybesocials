@@ -1,99 +1,96 @@
 
+# Fix Posts Not Loading - Filter Old Project URLs
 
-# Add Frosted Glass Styling to AI Chat Page
+## Problem Identified
 
-## Overview
-The AI Chat page currently uses flat background colors that lack the premium glass aesthetic used elsewhere in the app. This plan adds the liquid glass frosted effect to key UI elements to improve visual contrast and match the user's VYBE theme.
+The database contains **55 posts total**, but:
+- **Only 5 posts** have valid media URLs from the current Supabase project (`eabvbtkxdbttjpdpbmuw`)
+- **50 posts** have broken media URLs from an old migrated project (`szthqtnbepupjqjxaduu`)
 
-## Elements to Update
+The old project's storage no longer exists, so those URLs return 404 errors. The RPC function fetches these posts, but their images/videos fail to load, resulting in empty cards or fallback gradients appearing in the feed.
 
-### 1. Chat Header Bar
-**Current:** `bg-background/95 backdrop-blur` (basic blur)
-**New:** Full `liquid-glass` effect with theme-aware borders and enhanced blur
+## Solution
 
-### 2. Message Bubbles
-**Current:** 
-- User messages: `bg-primary` (solid primary color)
-- AI messages: `bg-muted` (solid muted color)
+Filter out posts with old/invalid media URLs **at the database level** using the RPC function. This ensures:
+1. Only posts with valid, loadable media are returned
+2. No wasted network requests for broken URLs
+3. Feed shows only real, viewable content
 
-**New:**
-- User messages: Keep `bg-primary` (intentionally solid to stand out)
-- AI messages: Add `liquid-glass-subtle` with theme-aware tint for better contrast against any background image
+## Implementation
 
-### 3. Input Area Bar
-**Current:** `bg-background` (solid background)
-**New:** `liquid-glass` effect with enhanced border for frosted appearance
+### File: Create a new SQL migration
 
-### 4. AI Avatar Ring
-**Current:** `ring-primary/20` (subtle ring)
-**New:** Add subtle glow effect using theme primary color
+Update both `get_posts_with_counts` and `get_following_posts_with_counts` RPC functions to add a filter clause that only includes posts where `media_url` contains the current project ID.
 
-### 5. AI Settings Sheet
-**Current:** Default sheet styling
-**New:** Ensure glass effects are properly inherited through sheet content
-
-## Implementation Details
-
-### File: `src/pages/AIChat.tsx`
-
-**Header (line 292):**
-```tsx
-// Before
-<div className="p-4 border-b border-border flex items-center gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
-
-// After
-<div className="p-4 border-b border-white/10 flex items-center gap-3 liquid-glass sticky top-0 z-10">
+**Add to WHERE clause:**
+```sql
+AND p.media_url LIKE '%eabvbtkxdbttjpdpbmuw%'
 ```
 
-**AI Message Bubbles (lines 353-359):**
-```tsx
-// Before
-message.role === 'user'
-  ? 'bg-primary text-primary-foreground rounded-tr-sm'
-  : 'bg-muted rounded-tl-sm'
+This filters at the source, preventing broken posts from ever being returned.
 
-// After
-message.role === 'user'
-  ? 'bg-primary text-primary-foreground rounded-tr-sm shadow-lg shadow-primary/20'
-  : 'liquid-glass-subtle rounded-tl-sm border border-white/10'
+### Alternative: Client-Side Filter (Backup)
+
+If database migration is too disruptive, we can add a client-side filter in `useInfinitePosts.ts`:
+
+```typescript
+const CURRENT_PROJECT = 'eabvbtkxdbttjpdpbmuw';
+
+function isValidProjectMedia(url: string): boolean {
+  return url.includes(CURRENT_PROJECT);
+}
+
+// Filter posts after transform
+const validPosts = posts.filter(p => isValidProjectMedia(p.media_url));
 ```
 
-**Input Area (line 381):**
-```tsx
-// Before
-<div className="p-4 border-t border-border bg-background">
+## Recommended Approach: Database Filter
 
-// After
-<div className="p-4 border-t border-white/10 liquid-glass">
+The database-level filter is preferred because:
+1. Reduces data transfer (fewer rows returned)
+2. Pagination works correctly (won't have gaps)
+3. Count calculations are accurate
+4. Better performance
+
+## Technical Details
+
+### Migration SQL
+```sql
+-- Update get_posts_with_counts to filter valid media URLs
+CREATE OR REPLACE FUNCTION public.get_posts_with_counts(...)
+RETURNS TABLE(...)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH post_base AS (
+    SELECT ...
+    FROM posts p
+    WHERE 
+      (p_type IS NULL OR p.type = p_type)
+      AND (p_author_id IS NULL OR p.author_id = p_author_id)
+      AND p.media_url IS NOT NULL
+      AND p.media_url != ''
+      -- NEW: Only include current project media
+      AND p.media_url LIKE '%eabvbtkxdbttjpdpbmuw%'
+    ...
+  )
+  ...
+END;
+$$;
 ```
 
-**AI Avatar Enhancement (line 300):**
-```tsx
-// Before
-<div className="h-10 w-10 rounded-full gradient-animated flex items-center justify-center ring-2 ring-primary/20">
+## Files to Modify
 
-// After
-<div className="h-10 w-10 rounded-full gradient-animated flex items-center justify-center ring-2 ring-primary/30 shadow-lg shadow-primary/25">
-```
+| File | Change |
+|------|--------|
+| `supabase/migrations/[new].sql` | Update RPC functions to filter old project URLs |
 
-**Sparkles Icon (line 311):**
-```tsx
-// Before
-<Sparkles className="h-4 w-4 text-pink-400" />
+## Expected Result
 
-// After - Use theme primary color
-<Sparkles className="h-4 w-4 text-primary" />
-```
-
-## Visual Result
-- Header and input areas will have the signature frosted glass blur effect
-- AI message bubbles will have subtle glass effect with semi-transparent background
-- User messages remain solid primary color for clear visual distinction
-- All glass effects automatically adapt to the user's chosen VYBE theme colors
-- Better contrast when custom background images are applied
-
-## Files Changed
-| File | Changes |
-|------|---------|
-| `src/pages/AIChat.tsx` | Add liquid-glass classes to header, input area, and AI message bubbles |
-
+- Feed will show only the 2 valid posts (type=post) and 3 shorts
+- No empty/broken cards in the feed
+- Users will see actual content that loads properly
+- Performance improvement from reduced data transfer
