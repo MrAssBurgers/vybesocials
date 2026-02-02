@@ -1,21 +1,21 @@
 <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Primary pink-purple gradient for left leg -->
+    <!-- Primary gradient for left leg - matches VYBE primary/neon-pink -->
     <linearGradient id="primary-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#e6007a"/>
+      <stop offset="0%" stop-color="#ec4899"/>
       <stop offset="50%" stop-color="#a855f7"/>
-      <stop offset="100%" stop-color="#e6007a"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
     </linearGradient>
     
-    <!-- Accent blue-cyan gradient for right leg -->
+    <!-- Accent gradient for right leg - matches VYBE accent/neon-cyan -->
     <linearGradient id="accent-grad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#06b6d4"/>
-      <stop offset="50%" stop-color="#3b82f6"/>
-      <stop offset="100%" stop-color="#06b6d4"/>
+      <stop offset="50%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#67e8f9"/>
     </linearGradient>
   </defs>
   
-  <!-- Left leg of V - pink/purple -->
+  <!-- Left leg of V - pink/purple gradient -->
   <path
     d="M18 12 L50 88"
     stroke="url(#primary-grad)"
@@ -23,7 +23,7 @@
     stroke-linecap="round"
   />
   
-  <!-- Right leg of V - blue/cyan -->
+  <!-- Right leg of V - cyan/teal gradient -->
   <path
     d="M82 12 L50 88"
     stroke="url(#accent-grad)"
