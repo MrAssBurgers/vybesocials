@@ -36,6 +36,7 @@ import { usePrefetchBackgrounds } from '@/hooks/useUserBackgrounds';
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { useDynamicFavicon } from "@/hooks/useDynamicFavicon";
+import { useDynamicManifest } from "@/hooks/useDynamicManifest";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -108,6 +109,8 @@ function AuthenticatedPreloads() {
   useGlobalRealtimeMessages();
   // Dynamic favicon that syncs with user's VYBE theme colors
   useDynamicFavicon();
+  // Dynamic PWA manifest with theme-colored icons
+  useDynamicManifest();
   return null;
 }
 
