@@ -33,11 +33,15 @@ export function GlobalCallOverlay() {
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Track component mount to detect unexpected unmounts
+  // Track component mount to detect unexpected unmounts - only log in dev mode
   useEffect(() => {
-    console.log('[CallOverlay] Component MOUNTED');
+    if (import.meta.env.DEV) {
+      console.log('[CallOverlay] Component MOUNTED');
+    }
     return () => {
-      console.log('[CallOverlay] Component UNMOUNTING - this should NOT happen during calls!');
+      if (import.meta.env.DEV) {
+        console.log('[CallOverlay] Component UNMOUNTING');
+      }
     };
   }, []);
   
