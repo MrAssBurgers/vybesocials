@@ -31,6 +31,7 @@ import { InvitePopup } from "@/components/invite/InvitePopup";
 import { useBanStatus } from "@/hooks/useBanStatus";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
+import { useGlobalRealtimeMessages } from "@/hooks/useGlobalRealtimeMessages";
 import { usePrefetchBackgrounds } from '@/hooks/useUserBackgrounds';
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
@@ -102,6 +103,8 @@ let hasInitialLoadCompleted = false;
 function AuthenticatedPreloads() {
   // Prefetch user backgrounds for instant settings load
   usePrefetchBackgrounds();
+  // Global realtime messages - ensures DMs update instantly everywhere
+  useGlobalRealtimeMessages();
   return null;
 }
 
