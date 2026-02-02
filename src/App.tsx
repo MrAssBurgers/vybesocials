@@ -17,6 +17,7 @@ import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
 import { GlobalMessageNotifications } from "@/components/notifications/GlobalMessageNotifications";
+import { TabNotificationBadge } from "@/components/notifications/TabNotificationBadge";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
 import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
 import { TutorialProvider } from "@/components/tutorial/TutorialProvider";
@@ -154,6 +155,7 @@ function AppWithPreloader() {
                         <RootBottomNavMount />
                         <PushNotificationPrompt />
                         <GlobalMessageNotifications />
+                        <TabNotificationBadge />
                         <GlobalCallOverlay />
                         <WarningPopup />
                         <InvitePopup />
