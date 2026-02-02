@@ -130,8 +130,8 @@ export function GlobalCallOverlay() {
   useEffect(() => {
     if (preloadVideoRef.current && preloadedStream && cameraReady) {
       preloadVideoRef.current.srcObject = preloadedStream;
-      preloadVideoRef.current.play().catch(console.error);
-      console.log('[CallOverlay] Preloaded camera attached to video element');
+      preloadVideoRef.current.play().catch(() => {});
+      if (import.meta.env.DEV) console.log('[CallOverlay] Preloaded camera attached to video element');
     }
   }, [preloadedStream, cameraReady]);
 
@@ -162,21 +162,21 @@ export function GlobalCallOverlay() {
     if (!daily) return;
     
     const callType = stateRef.current.call?.callType;
-    console.log('[CallOverlay] forceEnableVideoTracks called, callType:', callType);
+    if (import.meta.env.DEV) console.log('[CallOverlay] forceEnableVideoTracks called, callType:', callType);
     
     try {
       // Always enable audio first
       await daily.setLocalAudio(true);
-      console.log('[CallOverlay] Audio enabled');
+      if (import.meta.env.DEV) console.log('[CallOverlay] Audio enabled');
       
       if (callType === 'video') {
         // Force camera on - single attempt
-        console.log('[CallOverlay] Enabling camera...');
+        if (import.meta.env.DEV) console.log('[CallOverlay] Enabling camera...');
         await daily.setLocalVideo(true);
         
         // Quick verification (no retry, just log)
         const local = daily.participants()?.local;
-        console.log('[CallOverlay] Camera enabled, state:', local?.video);
+        if (import.meta.env.DEV) console.log('[CallOverlay] Camera enabled, state:', local?.video);
       } else {
         await daily.setLocalVideo(false);
       }
@@ -195,13 +195,13 @@ export function GlobalCallOverlay() {
     setCameraError(null);
     
     try {
-      console.log('[CallOverlay] User-triggered video retry');
+      if (import.meta.env.DEV) console.log('[CallOverlay] User-triggered video retry');
       await daily.setLocalVideo(true);
       
       // Check result once
       const local = daily.participants()?.local;
       if (local?.video) {
-        console.log('[CallOverlay] Video retry succeeded');
+        if (import.meta.env.DEV) console.log('[CallOverlay] Video retry succeeded');
         setIsVideoOff(false);
       } else {
         setCameraError('Camera not available. Check permissions.');
@@ -219,7 +219,7 @@ export function GlobalCallOverlay() {
     const daily = dailyRef.current;
     if (!daily) return;
     
-    console.log('[CallOverlay] iOS tap-to-start triggered');
+    if (import.meta.env.DEV) console.log('[CallOverlay] iOS tap-to-start triggered');
     setNeedsUserInteraction(false);
     
     try {
@@ -280,7 +280,7 @@ export function GlobalCallOverlay() {
   const getOrCreateDaily = useCallback((): DailyCall => {
     if (dailyRef.current) return dailyRef.current;
 
-    console.log('[CallOverlay] Creating Daily Call Object with CRYSTAL CLEAR HD settings');
+    if (import.meta.env.DEV) console.log('[CallOverlay] Creating Daily Call Object with CRYSTAL CLEAR HD settings');
     
     const daily = DailyIframe.createCallObject({
       subscribeToTracksAutomatically: true,
@@ -300,18 +300,18 @@ export function GlobalCallOverlay() {
 
     // Attach event listeners ONCE
     daily.on('joining-meeting', () => {
-      console.log('[CallOverlay] 📞 joining-meeting event');
+      if (import.meta.env.DEV) console.log('[CallOverlay] 📞 joining-meeting event');
     });
 
     daily.on('joined-meeting', async () => {
-      console.log('[CallOverlay] ✅ joined-meeting event');
+      if (import.meta.env.DEV) console.log('[CallOverlay] ✅ joined-meeting event');
       clearJoinTimeout();
       
       // CRITICAL: Stop ALL sounds immediately on join to prevent ringing during call
       premiumSounds.stopAllCallSounds();
       
       if (stateRef.current.phase !== 'joining') {
-        console.log('[CallOverlay] Ignoring joined-meeting (not in joining phase)');
+        if (import.meta.env.DEV) console.log('[CallOverlay] Ignoring joined-meeting (not in joining phase)');
         return;
       }
 
@@ -323,19 +323,19 @@ export function GlobalCallOverlay() {
         if (remoteAudioRef.current) {
           remoteAudioRef.current.muted = false;
           remoteAudioRef.current.volume = 1;
-          console.log('[CallOverlay] Force-unmuted remote audio element');
+          if (import.meta.env.DEV) console.log('[CallOverlay] Force-unmuted remote audio element');
         }
       }, 100);
 
       // iOS/iPad: Check if we need user interaction for autoplay
       const isIOS = isIOSorIPad();
       if (isIOS && stateRef.current.call?.callType === 'video') {
-        console.log('[CallOverlay] iOS detected - may need user tap for video');
+        if (import.meta.env.DEV) console.log('[CallOverlay] iOS detected - may need user tap for video');
         // Check if video actually started
         setTimeout(() => {
           const local = daily.participants()?.local;
           if (!local?.video && stateRef.current.call?.callType === 'video') {
-            console.log('[CallOverlay] iOS video not started - showing tap overlay');
+            if (import.meta.env.DEV) console.log('[CallOverlay] iOS video not started - showing tap overlay');
             setNeedsUserInteraction(true);
           }
         }, 1000);
@@ -347,7 +347,7 @@ export function GlobalCallOverlay() {
     });
 
     daily.on('left-meeting', () => {
-      console.log('[CallOverlay] 👋 left-meeting event');
+      if (import.meta.env.DEV) console.log('[CallOverlay] 👋 left-meeting event');
       clearJoinTimeout();
       isLeavingRef.current = false;
       setRemoteParticipant(null);
@@ -383,7 +383,7 @@ export function GlobalCallOverlay() {
 
     // Track participants
     daily.on('participant-joined', (event: any) => {
-      console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.session_id);
+      if (import.meta.env.DEV) console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.session_id);
       if (event?.participant && !event.participant.local) {
         setRemoteParticipant(event.participant);
         attachRemoteParticipantVideo(event.participant, remoteVideoRef.current);
@@ -391,7 +391,7 @@ export function GlobalCallOverlay() {
     });
 
     daily.on('participant-left', (event: any) => {
-      console.log('[CallOverlay] 👤 participant-left:', event?.participant?.session_id);
+      if (import.meta.env.DEV) console.log('[CallOverlay] 👤 participant-left:', event?.participant?.session_id);
       if (event?.participant && !event.participant.local) {
         setRemoteParticipant(null);
         setHasRemoteVideo(false);
@@ -425,7 +425,7 @@ export function GlobalCallOverlay() {
       if (!event?.participant || !event?.track) return;
       
       const { participant, track } = event;
-      console.log('[CallOverlay] 🎬 track-started:', participant.local ? 'local' : 'remote', track.kind);
+      if (import.meta.env.DEV) console.log('[CallOverlay] 🎬 track-started:', participant.local ? 'local' : 'remote', track.kind);
       
       if (track.kind === 'video') {
         if (participant.local && localVideoRef.current) {
@@ -437,13 +437,13 @@ export function GlobalCallOverlay() {
         }
       } else if (track.kind === 'audio' && !participant.local) {
         // Attach remote audio track to audio element - CRITICAL for hearing remote user
-        console.log('[CallOverlay] 🔊 Attaching remote audio track');
+        if (import.meta.env.DEV) console.log('[CallOverlay] 🔊 Attaching remote audio track');
         
         // Wait for audio ref to be available (may fire before component fully mounted)
         const attachAudio = () => {
           const audioEl = remoteAudioRef.current;
           if (!audioEl) {
-            console.log('[CallOverlay] Audio ref not ready, retrying...');
+            if (import.meta.env.DEV) console.log('[CallOverlay] Audio ref not ready, retrying...');
             setTimeout(attachAudio, 100);
             return;
           }
@@ -458,9 +458,9 @@ export function GlobalCallOverlay() {
             const playWithRetry = async (attempts = 3) => {
               try {
                 await audioEl.play();
-                console.log('[CallOverlay] ✅ Remote audio playing successfully');
+                if (import.meta.env.DEV) console.log('[CallOverlay] ✅ Remote audio playing successfully');
               } catch (err: any) {
-                console.warn('[CallOverlay] Audio play failed, attempt remaining:', attempts - 1, err);
+                if (import.meta.env.DEV) console.warn('[CallOverlay] Audio play failed, attempt remaining:', attempts - 1, err);
                 if (attempts > 1) {
                   setTimeout(() => playWithRetry(attempts - 1), 200);
                 }
@@ -481,7 +481,7 @@ export function GlobalCallOverlay() {
       if (!event?.participant || !event?.track) return;
       
       const { participant, track } = event;
-      console.log('[CallOverlay] 🎬 track-stopped:', participant.local ? 'local' : 'remote', track.kind);
+      if (import.meta.env.DEV) console.log('[CallOverlay] 🎬 track-stopped:', participant.local ? 'local' : 'remote', track.kind);
       
       if (track.kind === 'video') {
         if (participant.local) {
@@ -492,7 +492,7 @@ export function GlobalCallOverlay() {
           if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
         }
       } else if (track.kind === 'audio' && !participant.local && remoteAudioRef.current) {
-        console.log('[CallOverlay] 🔇 Remote audio track stopped');
+        if (import.meta.env.DEV) console.log('[CallOverlay] 🔇 Remote audio track stopped');
         remoteAudioRef.current.srcObject = null;
       }
     });
@@ -521,7 +521,7 @@ export function GlobalCallOverlay() {
       // Daily object should already be pre-created, but ensure it exists
       const daily = getOrCreateDaily();
       
-      console.log('[CallOverlay] Starting FAST join flow for:', state.call?.roomUrl);
+      if (import.meta.env.DEV) console.log('[CallOverlay] Starting FAST join flow for:', state.call?.roomUrl);
       const joinStart = Date.now();
 
       // INSTANT: Skip permission request if we already have them (speeds up by ~500ms)
@@ -537,7 +537,7 @@ export function GlobalCallOverlay() {
       let permissionOk = true;
       try {
         await requestCallMediaPermissions(state.call!.callType);
-        console.log('[CallOverlay] Permissions OK (' + (Date.now() - joinStart) + 'ms)');
+        if (import.meta.env.DEV) console.log('[CallOverlay] Permissions OK (' + (Date.now() - joinStart) + 'ms)');
       } catch (err: any) {
         console.error('[CallOverlay] Permission denied:', err);
         toast.error(err.message || 'Microphone permission required');
@@ -558,14 +558,14 @@ export function GlobalCallOverlay() {
       }
 
       const token = tokenData.token;
-      console.log('[CallOverlay] Token received (' + (Date.now() - joinStart) + 'ms)');
+      if (import.meta.env.DEV) console.log('[CallOverlay] Token received (' + (Date.now() - joinStart) + 'ms)');
 
       if (cancelled) return;
 
       // Quick check for previous room (usually not needed)
       const meetingState = daily.meetingState();
       if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
-        console.log('[CallOverlay] Leaving previous room');
+        if (import.meta.env.DEV) console.log('[CallOverlay] Leaving previous room');
         await daily.leave();
       }
 
@@ -584,7 +584,7 @@ export function GlobalCallOverlay() {
 
       // Join the room with HIGH QUALITY settings
       try {
-        console.log('[CallOverlay] Calling daily.join() (' + (Date.now() - joinStart) + 'ms)');
+        if (import.meta.env.DEV) console.log('[CallOverlay] Calling daily.join() (' + (Date.now() - joinStart) + 'ms)');
         
         // Join with the room URL and token
         await daily.join({ 
@@ -599,12 +599,12 @@ export function GlobalCallOverlay() {
               maxQuality: 'high', // 720p quality
             },
           });
-          console.log('[CallOverlay] ✅ High quality video enabled');
+          if (import.meta.env.DEV) console.log('[CallOverlay] ✅ High quality video enabled');
         } catch (settingsErr) {
-          console.warn('[CallOverlay] Could not set high quality:', settingsErr);
+          if (import.meta.env.DEV) console.warn('[CallOverlay] Could not set high quality:', settingsErr);
         }
         
-        console.log('[CallOverlay] ✅ Joined! Total time: ' + (Date.now() - joinStart) + 'ms');
+        if (import.meta.env.DEV) console.log('[CallOverlay] ✅ Joined! Total time: ' + (Date.now() - joinStart) + 'ms');
       } catch (err: any) {
         console.error('[CallOverlay] Join failed:', err);
         clearJoinTimeout();

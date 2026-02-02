@@ -53,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const banExpiryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const banSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  // Prevent double-triggering from onAuthStateChange + getSession running simultaneously
+  const authInitializedRef = useRef(false);
 
   // Clear ban expiry timer
   const clearBanExpiryTimer = () => {
@@ -269,6 +271,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        // Skip if already initialized from getSession (prevents double profile fetches)
+        if (!authInitializedRef.current && event === 'INITIAL_SESSION') {
+          return; // Let getSession handle the first initialization
+        }
+        
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -307,6 +314,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session - this restores session from localStorage
     supabase.auth.getSession().then(({ data: { session } }) => {
+      // Mark as initialized so onAuthStateChange skips duplicate handling
+      authInitializedRef.current = true;
+      
       setSession(session);
       setUser(session?.user ?? null);
       

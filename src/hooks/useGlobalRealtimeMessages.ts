@@ -96,22 +96,24 @@ export function useGlobalRealtimeMessages() {
           
           // Deduplication check
           if (isMessageProcessed(newMessage.id)) {
-            console.log('[GlobalRT] Skipping duplicate message:', newMessage.id);
+            if (import.meta.env.DEV) console.log('[GlobalRT] Skipping duplicate message:', newMessage.id);
             return;
           }
           markMessageProcessed(newMessage.id);
           
-          console.log('[GlobalRT] Message received:', {
-            id: newMessage.id,
-            from: newMessage.sender_id,
-            conv: conversationId,
-            isFromCurrentUser,
-            isViewingConvo,
-          });
+          if (import.meta.env.DEV) {
+            console.log('[GlobalRT] Message received:', {
+              id: newMessage.id,
+              from: newMessage.sender_id,
+              conv: conversationId,
+              isFromCurrentUser,
+              isViewingConvo,
+            });
+          }
 
           // Skip if this is an optimistic duplicate (sender already sees it)
           if (isFromCurrentUser && isOptimisticDuplicate(conversationId, newMessage.content, newMessage.sender_id)) {
-            console.log('[GlobalRT] Skipping optimistic duplicate for sender');
+            if (import.meta.env.DEV) console.log('[GlobalRT] Skipping optimistic duplicate for sender');
             return;
           }
 
@@ -269,9 +271,9 @@ export function useGlobalRealtimeMessages() {
         }
       )
       .subscribe((status) => {
-        console.log('[GlobalRT] Subscription status:', status);
+        if (import.meta.env.DEV) console.log('[GlobalRT] Subscription status:', status);
         if (status === 'SUBSCRIBED') {
-          console.log('[GlobalRT] ✅ Global realtime connected for user:', profile.id);
+          if (import.meta.env.DEV) console.log('[GlobalRT] ✅ Global realtime connected for user:', profile.id);
           retryCount = 0; // Reset retry count on successful connection
         }
         if (status === 'CHANNEL_ERROR') {
@@ -281,7 +283,7 @@ export function useGlobalRealtimeMessages() {
           if (retryCount < MAX_RETRIES) {
             const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
             retryCount++;
-            console.log(`[GlobalRT] Retrying in ${delay}ms (attempt ${retryCount}/${MAX_RETRIES})`);
+            if (import.meta.env.DEV) console.log(`[GlobalRT] Retrying in ${delay}ms (attempt ${retryCount}/${MAX_RETRIES})`);
             
             if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
             retryTimeoutRef.current = setTimeout(() => {
@@ -296,7 +298,7 @@ export function useGlobalRealtimeMessages() {
           }
         }
         if (status === 'CLOSED') {
-          console.log('[GlobalRT] Channel closed');
+          if (import.meta.env.DEV) console.log('[GlobalRT] Channel closed');
         }
       });
 
@@ -311,7 +313,7 @@ export function useGlobalRealtimeMessages() {
         clearTimeout(retryTimeoutRef.current);
       }
       if (channelRef.current) {
-        console.log('[GlobalRT] Cleaning up global channel');
+        if (import.meta.env.DEV) console.log('[GlobalRT] Cleaning up global channel');
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
