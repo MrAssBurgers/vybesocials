@@ -216,9 +216,9 @@ export function useConversations() {
     },
     enabled: !!profile?.id,
     staleTime: 60000, // 1 minute cache
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
+    refetchOnWindowFocus: true, // Refetch when user returns to app
+    refetchOnMount: 'always', // Always get fresh data on mount
+    refetchOnReconnect: true, // Refetch when connection is restored
   });
 
   // Real-time subscription for conversations with notification sound
@@ -233,12 +233,7 @@ export function useConversations() {
     };
 
     const channel = supabase
-      .channel('conversations-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversations' },
-        () => queryClient.invalidateQueries({ queryKey: ['conversations'] })
-      )
+      .channel('conversations-sound-trigger')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
@@ -255,8 +250,6 @@ export function useConversations() {
               callSounds.message();
             }
           }
-          
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
         }
       )
       .subscribe();
@@ -264,7 +257,7 @@ export function useConversations() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profile?.id]);
 
   return query;
 }
@@ -307,36 +300,149 @@ export function useMessages(conversationId: string | undefined) {
       return filtered as Message[];
     },
     enabled: !!conversationId && !!profile?.id,
-    staleTime: 30000, // 30 seconds
+    staleTime: 30000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
+    refetchOnMount: 'always', // ALWAYS refetch on mount to ensure fresh data
+    refetchOnReconnect: true, // Refetch when connection is restored
   });
 
-  // Subscribe to real-time updates
+  // Subscribe to real-time updates - instant cache updates, no refetch needed
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId || !profile?.id) return;
 
     const channel = supabase
-      .channel(`messages:${conversationId}`)
+      .channel(`messages-instant:${conversationId}`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
         },
+        async (payload) => {
+          const newMessage = payload.new as any;
+          
+          // Skip if sender is current user (handled by optimistic updates)
+          if (newMessage.sender_id === profile.id) return;
+          
+          // Fetch sender profile for the new message
+          const { data: sender } = await supabase
+            .from('profiles')
+            .select('id, username, avatar_url, display_name')
+            .eq('id', newMessage.sender_id)
+            .maybeSingle();
+          
+          const fullMessage: Message = {
+            ...newMessage,
+            sender,
+            views: [],
+            reactions: [],
+          };
+          
+          // Instantly add to cache - NO refetch needed
+          queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+            if (!old) return [fullMessage];
+            // Check for duplicates (might already exist from optimistic update)
+            if (old.some(m => m.id === newMessage.id)) return old;
+            return [...old, fullMessage];
+          });
+          
+          // Also update conversation list immediately
+          queryClient.setQueryData<any[]>(['conversations', profile.id], (old) => {
+            if (!old) return old;
+            return old.map(conv => {
+              if (conv.id === conversationId) {
+                return {
+                  ...conv,
+                  last_message: fullMessage,
+                  updated_at: newMessage.created_at,
+                  _sortTime: newMessage.created_at,
+                  _hasUnread: true,
+                  unread_count: (conv.unread_count || 0) + 1,
+                };
+              }
+              return conv;
+            }).sort((a, b) => {
+              const timeA = new Date(a._sortTime || a.updated_at).getTime();
+              const timeB = new Date(b._sortTime || b.updated_at).getTime();
+              return timeB - timeA;
+            });
+          });
+          
+          // Also update dm-conversations query
+          queryClient.setQueryData<any[]>(['dm-conversations', profile.id], (old) => {
+            if (!old) return old;
+            return old.map(conv => {
+              if (conv.id === conversationId) {
+                return {
+                  ...conv,
+                  last_message: fullMessage,
+                  updated_at: newMessage.created_at,
+                  _sortTime: newMessage.created_at,
+                  _hasUnread: true,
+                  unread_count: (conv.unread_count || 0) + 1,
+                };
+              }
+              return conv;
+            }).sort((a, b) => {
+              const timeA = new Date(a._sortTime || a.updated_at).getTime();
+              const timeB = new Date(b._sortTime || b.updated_at).getTime();
+              return timeB - timeA;
+            });
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const updatedMessage = payload.new as any;
+          
+          queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+            if (!old) return old;
+            
+            // Handle deleted messages
+            if (updatedMessage.is_deleted) {
+              return old.filter(m => m.id !== updatedMessage.id);
+            }
+            
+            // Handle edits
+            return old.map(m => m.id === updatedMessage.id ? { ...m, ...updatedMessage } : m);
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'message_reactions' },
         () => {
+          // Reactions need full refetch to get user data
           queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'message_views' },
+        () => {
+          // Views need full refetch
+          queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`[Messages] Realtime subscribed for ${conversationId}`);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, queryClient]);
+  }, [conversationId, profile?.id, queryClient]);
 
   return query;
 }
