@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
     // Room expires in 4 hours
     const expireTime = Math.floor(Date.now() / 1000) + 4 * 60 * 60;
 
-    // Create Daily room with HIGH QUALITY settings for FaceTime-like experience
+    // Create Daily room with CRYSTAL CLEAR HD settings for FaceTime-like experience
     const dailyResponse = await fetch("https://api.daily.co/v1/rooms", {
       method: "POST",
       headers: {
@@ -133,21 +133,21 @@ Deno.serve(async (req) => {
         privacy: "private",
         properties: {
           exp: expireTime,
-          // Always allow audio to start ON by default; UI can mute if needed
+          // Always allow audio to start ON by default
           start_audio_off: false,
           // Audio calls should start with video OFF
           start_video_off: type === "audio",
           enable_chat: true,
           enable_screenshare: type === "video",
           max_participants: Math.max(participants.length + 1, 10),
-          // HIGH QUALITY VIDEO SETTINGS - FaceTime-like experience
+          // CRYSTAL CLEAR HD VIDEO SETTINGS
           enable_advanced_chat: false,
           enable_network_ui: false,
           enable_prejoin_ui: false,
-          // Video quality optimization
-          sfu_switchover: 2, // Switch to SFU with 2+ participants
-          // Audio quality - prioritize clarity
-          experimental_optimize_large_calls: false, // Keep quality high for small calls
+          // Switch to SFU with 2+ participants for better quality routing
+          sfu_switchover: 2,
+          // Keep quality high for small calls (no optimization that reduces quality)
+          experimental_optimize_large_calls: false,
         },
       }),
     });

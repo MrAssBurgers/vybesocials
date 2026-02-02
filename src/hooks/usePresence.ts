@@ -72,11 +72,11 @@ export function usePresence() {
 
     logPresence('Initializing presence for user:', profile.id);
 
-    // Debounce initial presence update to avoid rapid calls on mount
-    const initialTimeout = setTimeout(updatePresence, 500);
+    // Update presence immediately on mount for instant online status
+    updatePresence();
 
-    // Update presence every 60 seconds (was 30s - reduce API calls)
-    intervalRef.current = setInterval(updatePresence, 60000);
+    // Update presence every 30 seconds for more responsive online indicators
+    intervalRef.current = setInterval(updatePresence, 30000);
 
     // Debounced visibility change handler
     let visibilityTimeout: NodeJS.Timeout | null = null;
@@ -118,7 +118,6 @@ export function usePresence() {
 
     return () => {
       logPresence('Cleaning up presence');
-      clearTimeout(initialTimeout);
       if (visibilityTimeout) clearTimeout(visibilityTimeout);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -149,12 +148,12 @@ export function useUserOnlineStatus(userId: string | undefined) {
 
       if (error) throw error;
 
-      // Consider user offline if last seen more than 2 minutes ago
+      // Consider user offline if last seen more than 90 seconds ago (more responsive)
       if (data?.is_online) {
         const lastSeen = new Date(data.last_seen_at);
         const now = new Date();
         const diffMs = now.getTime() - lastSeen.getTime();
-        if (diffMs > 2 * 60 * 1000) {
+        if (diffMs > 90 * 1000) {
           return { is_online: false, last_seen_at: data.last_seen_at };
         }
       }
@@ -162,8 +161,8 @@ export function useUserOnlineStatus(userId: string | undefined) {
       return data;
     },
     enabled: !!userId,
-    staleTime: 30000, // 30 seconds stale time
-    refetchInterval: 60000, // 60 seconds refetch interval
+    staleTime: 15000, // 15 seconds stale time for faster updates
+    refetchInterval: 30000, // 30 seconds refetch interval
   });
 
   // Subscribe to realtime updates
@@ -225,8 +224,8 @@ export function useUsersOnlineStatus(userIds: string[]) {
         if (isOnline) {
           const lastSeen = new Date(p.last_seen_at);
           const diffMs = now.getTime() - lastSeen.getTime();
-          // 2 minute threshold
-          if (diffMs > 2 * 60 * 1000) {
+          // 90 second threshold for faster online/offline detection
+          if (diffMs > 90 * 1000) {
             isOnline = false;
           }
         }
@@ -243,7 +242,7 @@ export function useUsersOnlineStatus(userIds: string[]) {
       return statusMap;
     },
     enabled: userIds.length > 0,
-    staleTime: 30000, // 30 seconds stale
-    refetchInterval: 60000, // 60 seconds check
+    staleTime: 15000, // 15 seconds stale for faster updates
+    refetchInterval: 30000, // 30 seconds check
   });
 }

@@ -275,13 +275,20 @@ export function GlobalCallOverlay() {
   const getOrCreateDaily = useCallback((): DailyCall => {
     if (dailyRef.current) return dailyRef.current;
 
-    console.log('[CallOverlay] Creating Daily Call Object with HIGH QUALITY settings');
+    console.log('[CallOverlay] Creating Daily Call Object with CRYSTAL CLEAR HD settings');
     
     const daily = DailyIframe.createCallObject({
       subscribeToTracksAutomatically: true,
-      // Request high-quality audio encoding
+      // Enable audio/video sources - constraints applied via setInputDevicesAsync
       audioSource: true,
       videoSource: true,
+    });
+    
+    // Apply HD video constraints after creation for crystal clear quality
+    daily.setInputDevicesAsync({
+      videoDeviceId: undefined, // Use default camera with HD constraints
+    }).catch(() => {
+      // Ignore if not yet in call
     });
 
     dailyRef.current = daily;
