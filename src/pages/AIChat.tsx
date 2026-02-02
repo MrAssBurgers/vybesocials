@@ -289,7 +289,7 @@ export default function AIChat() {
     <AppLayout>
       <div className="flex flex-col h-[calc(100vh-5rem)] md:h-screen bg-background">
         {/* Header */}
-        <div className="p-4 border-b border-border flex items-center gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+        <div className="p-4 border-b border-white/10 flex items-center gap-3 liquid-glass sticky top-0 z-10">
           <Button variant="ghost" size="icon" onClick={() => navigate('/messages')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -297,7 +297,7 @@ export default function AIChat() {
             className="relative"
             onClick={() => setIsProfileOpen(true)}
           >
-            <div className="h-10 w-10 rounded-full gradient-animated flex items-center justify-center ring-2 ring-primary/20">
+            <div className="h-10 w-10 rounded-full gradient-animated flex items-center justify-center ring-2 ring-primary/30 shadow-lg shadow-primary/25">
               <Bot className="h-5 w-5 text-white" />
             </div>
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
@@ -308,7 +308,7 @@ export default function AIChat() {
           >
             <h2 className="font-semibold flex items-center gap-1">
               {aiName}
-              <Sparkles className="h-4 w-4 text-pink-400" />
+              <Sparkles className="h-4 w-4 text-primary" />
             </h2>
             <p className="text-xs text-muted-foreground">
               Tap to customize AI profile
@@ -354,8 +354,8 @@ export default function AIChat() {
                   className={cn(
                     "rounded-2xl px-4 py-2",
                     message.role === 'user'
-                      ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                      : 'bg-muted rounded-tl-sm'
+                      ? 'bg-primary text-primary-foreground rounded-tr-sm shadow-lg shadow-primary/20'
+                      : 'liquid-glass-subtle rounded-tl-sm border border-white/10'
                   )}
                 >
                   {message.content || (
@@ -378,7 +378,7 @@ export default function AIChat() {
         </div>
 
         {/* Input */}
-        <div className="p-4 border-t border-border bg-background">
+        <div className="p-4 border-t border-white/10 liquid-glass">
           <div className="flex items-center gap-2">
             <Input
               ref={inputRef}
