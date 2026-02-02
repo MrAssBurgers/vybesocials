@@ -1,127 +1,69 @@
 
-# Fix: Enable Real-Time DMs Like Snapchat/Instagram
 
-## Problem Diagnosed
+## Fix PWA App Icon to Match Browser Favicon
 
-Messages are not appearing instantly because the `messages` table is **not published for real-time updates**. The subscription in `useGlobalRealtimeMessages` is properly connected, but Postgres isn't sending any events.
-
-**Evidence:**
-Querying `pg_publication_tables WHERE pubname = 'supabase_realtime'` returned:
-- `calls`
-- `live_activity`
-- `friend_drops`
-- `user_backgrounds`
-
-The `messages` table is missing from this list.
+The installed web app icon currently shows a V logo on a **white rounded rectangle background**. You want it to be **transparent** like the browser favicon, with the V matching your vybe theme colors.
 
 ---
 
-## Solution Overview
+### What needs to change
 
-1. Add the `messages` table to the realtime publication
-2. Also add `conversations` table for conversation list updates
-3. Add a fallback polling mechanism in case realtime drops
-4. Improve deduplication to prevent duplicate messages
+**1. Update the edge function** (`supabase/functions/generate-pwa-icon/index.ts`)
 
----
-
-## Implementation Steps
-
-### Step 1: Database Migration - Enable Realtime
-
-Add the `messages` and `conversations` tables to the Supabase realtime publication so that INSERT, UPDATE, and DELETE events are broadcast to all connected clients.
-
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
+Currently the function adds a white background for "maskable" icons:
+```javascript
+${maskable ? `<rect width="${size}" height="${size}" rx="${size * 0.2}" fill="white"/>` : ''}
 ```
 
-This is the critical fix that will make DMs update instantly.
+The fix:
+- Remove the white background rectangle entirely for all icons
+- Use the same SVG V structure as the favicon (with gradient strokes)
+- Return a transparent SVG that lets the user's home screen color show through
+
+**2. Ensure the dynamic manifest** (`src/hooks/useDynamicManifest.ts`)
+- Already reads CSS variables (`--primary`, `--accent`) correctly
+- Already regenerates the manifest when `vybeThemeChange` fires
+- No changes needed here - it will automatically use the updated edge function
 
 ---
 
-### Step 2: Improve Global Realtime Handler
+### Technical implementation
 
-Update `src/hooks/useGlobalRealtimeMessages.ts` to be more robust:
+**Edge function changes:**
 
-**A. Better deduplication**
-- Track recently processed message IDs to prevent duplicates (Supabase can send duplicate events)
-- Use a 30-second sliding window for deduplication
-
-**B. Faster cache injection**
-- Remove the async profile fetch for sender - use cached profile from conversation members when available
-- Only fetch profile if not in cache
-
-**C. Retry logic on error**
-- When `CHANNEL_ERROR` occurs, properly retry the subscription with exponential backoff
-- Track connection state and log for debugging
-
----
-
-### Step 3: Add Polling Fallback
-
-Add a background polling mechanism to `useMessages.ts` that activates only when the realtime connection drops. This ensures messages still arrive even if WebSocket connection fails.
-
-**Fallback behavior:**
-- Check connection status every 30 seconds
-- If realtime is disconnected, poll every 3 seconds
-- When realtime reconnects, stop polling
-- Never duplicate messages (use deduplication)
+```javascript
+// Remove the maskable background completely
+// Generate same V shape as favicon with theme gradients
+const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 ${size} ${size}" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="primary-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="hsl(${primaryHSL})"/>
+      <stop offset="100%" stop-color="hsl(${primaryHSL} / 0.8)"/>
+    </linearGradient>
+    <linearGradient id="accent-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="hsl(${accentHSL})"/>
+      <stop offset="100%" stop-color="hsl(${accentHSL} / 0.8)"/>
+    </linearGradient>
+  </defs>
+  <!-- V strokes with theme gradients, NO background -->
+  <path d="M${leftX} ${topY} L${centerX} ${bottomY}" stroke="url(#primary-grad)" stroke-width="${strokeWidth}" stroke-linecap="round"/>
+  <path d="M${rightX} ${topY} L${centerX} ${bottomY}" stroke="url(#accent-grad)" stroke-width="${strokeWidth}" stroke-linecap="round"/>
+</svg>`;
+```
 
 ---
 
-### Step 4: Ensure Sender Messages Update Instantly
+### Result
 
-The current `useInstantSend` hook adds optimistic messages correctly for the sender. But we need to ensure the real message (with server ID) replaces the temp ID properly without duplication.
-
-**Improvement:**
-- When the realtime handler receives a message that matches a pending temp message (same content, sender, conversation, within 5 seconds), ignore it (already shown optimistically)
-- This prevents the sender from seeing their message twice
-
----
-
-## Files That Will Change
-
-1. **Database migration** (new file)
-   - Enable realtime for `messages` and `conversations` tables
-
-2. **`src/hooks/useGlobalRealtimeMessages.ts`**
-   - Add message deduplication with sliding window
-   - Add exponential backoff retry on channel errors
-   - Skip processing for messages we already optimistically added
-
-3. **`src/hooks/useMessages.ts`** (minor)
-   - Add optional fallback polling when realtime drops (gated behind connection state)
+After this change:
+- The PWA home screen icon will be a transparent V that matches your current vybe theme colors
+- When you change your theme, the manifest regenerates and new installs get the updated icon
+- Matches exactly the style of the browser favicon
 
 ---
 
-## Pass Conditions
+### Platform note
 
-After this fix:
-- Sender sees message instantly (optimistic UI - already works)
-- Receiver sees message instantly (realtime - will work after migration)
-- DM list updates in real time for both users
-- No duplicate messages appear
-- No manual refresh ever required
-- Works even if realtime connection temporarily drops (polling fallback)
+Some platforms (especially iOS) may display a default background color behind transparent app icons. This is controlled by the device, not the icon itself. On Android and most desktops, the transparent icon will blend with the home screen/dock background.
 
----
-
-## Technical Details
-
-### Why This Will Work
-
-The current architecture is correct - the subscription is set up properly. The only missing piece is the database-level publication. Once `messages` is added to `supabase_realtime`, every INSERT will broadcast to all subscribed clients.
-
-The global handler at the App level ensures:
-- All users receive updates regardless of what page they're on
-- Messages are injected into the correct conversation cache
-- Conversation lists are updated with new last_message previews
-- Notification sounds play when not viewing the conversation
-
-### Performance Considerations
-
-- Single global subscription (efficient)
-- Direct cache mutation (no refetch needed)
-- Deduplication prevents wasted renders
-- Polling only activates as fallback, not primary
