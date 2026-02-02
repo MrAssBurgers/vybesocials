@@ -52,7 +52,7 @@ const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend
       className="flex-shrink-0 group relative hover:scale-105 active:scale-95 transition-transform"
     >
       <div className="relative">
-        <Avatar className="h-8 w-8 ring-2 ring-background group-hover:ring-primary/50 transition-all">
+        <Avatar className="h-10 w-10 ring-2 ring-background group-hover:ring-primary/50 transition-all">
           <AvatarImage src={friend?.avatar_url || undefined} />
           <AvatarFallback className="text-xs bg-gradient-to-br from-pink-500 to-purple-500">
             {friend?.username?.[0]?.toUpperCase() || '?'}
@@ -200,7 +200,7 @@ export function DesktopRightSidebar() {
                 ))}
               </div>
             ) : onlineFriends.length > 0 ? (
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              <div className="flex gap-2 overflow-x-auto py-1 scrollbar-hide">
                 {onlineFriends.slice(0, 8).map((friend, i) => (
                   <OnlineFriendAvatar key={friend?.id || i} friend={friend} />
                 ))}
