@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -13,10 +13,13 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
+import { StyledUsername } from '@/components/ui/StyledUsername';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useQueryClient } from '@tanstack/react-query';
+import { useCreateConversation } from '@/hooks/useMessages';
+import { useChatPrefetch, useNotificationChatPrefetch } from '@/hooks/useChatPrefetch';
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
@@ -25,8 +28,18 @@ export default function NotificationsPage() {
   const { data: friendRequests, refetch: refetchRequests } = useFriendRequests();
   const markRead = useMarkNotificationsRead();
   const respondToRequest = useRespondToFriendRequest();
+  const createConversation = useCreateConversation();
+  const { prefetchConversation } = useChatPrefetch();
   const [activeTab, setActiveTab] = useState('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [transitionState, setTransitionState] = useState<{
+    isAnimating: boolean;
+    sourceRect: DOMRect | null;
+    actor: { id: string; username: string; avatar_url: string | null; display_name: string | null } | null;
+  }>({ isAnimating: false, sourceRect: null, actor: null });
+
+  // Enable notification → chat prefetching
+  useNotificationChatPrefetch();
 
   // Pull to refresh functionality
   const handleRefresh = useCallback(async () => {
@@ -467,9 +480,12 @@ function NotificationCard({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm sm:text-base leading-snug">
-                <span className="font-semibold">
-                  {notification.actor.display_name || notification.actor.username}
-                </span>{' '}
+                <StyledUsername
+                  userId={notification.actor.id}
+                  username={notification.actor.username}
+                  displayName={notification.actor.display_name}
+                  className="font-semibold"
+                />{' '}
                 <span className={isRead ? "text-muted-foreground" : ""}>
                   {getNotificationText(notification.type)}
                 </span>

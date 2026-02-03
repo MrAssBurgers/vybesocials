@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { UserProfileHoverCard } from '@/components/ui/UserProfileHoverCard';
+import { StyledUsername } from '@/components/ui/StyledUsername';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -449,7 +450,11 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
             </div>
             <div>
               <p className="font-semibold text-sm flex items-center gap-1.5">
-                {post.author.display_name || post.author.username}
+                <StyledUsername
+                  userId={post.author.id}
+                  username={post.author.username}
+                  displayName={post.author.display_name}
+                />
                 {authorRole && <ModBadge role={authorRole} />}
                 {isOwner(post.author.username) && <OwnerBadge />}
                 {isOwnerWife(post.author.id) && <OwnerWifeRingBadge />}
