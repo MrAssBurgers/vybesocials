@@ -220,38 +220,36 @@ export function UserProfileHoverCard({
           </div>
         ) : profileData ? (
           <div className="space-y-3">
-            {/* Header */}
-            <div className="flex items-start gap-3">
+            {/* Header - vertical layout to prevent name cutoff */}
+            <div className="flex items-center gap-3">
               <Link to={`/u/${username}`} onClick={(e) => e.stopPropagation()}>
-                <Avatar className="h-14 w-14 ring-2 ring-primary/20">
+                <Avatar className="h-14 w-14 ring-2 ring-primary/20 flex-shrink-0">
                   <AvatarImage src={signedAvatarUrl || undefined} />
                   <AvatarFallback className="text-lg">
                     {username[0].toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
               </Link>
-              <div className="flex-1">
-                <Link 
-                  to={`/u/${username}`} 
-                  className="block hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <StyledUsername
-                      userId={profileData.id}
-                      username={username}
-                      displayName={profileData.display_name}
-                      badgeStyle={displayStyle}
-                      className="font-semibold whitespace-nowrap"
-                    />
-                    {profileData.is_verified && (
-                      <BadgeCheck className="h-4 w-4 text-primary fill-primary/20 flex-shrink-0" />
-                    )}
-                    {isOwner(username) && <OwnerBadge className="flex-shrink-0" />}
-                  </div>
-                  <p className="text-sm text-muted-foreground">@{username}</p>
-                </Link>
-              </div>
+              <Link 
+                to={`/u/${username}`} 
+                className="hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-1.5">
+                  <StyledUsername
+                    userId={profileData.id}
+                    username={username}
+                    displayName={profileData.display_name}
+                    badgeStyle={displayStyle}
+                    className="font-semibold text-base"
+                  />
+                  {profileData.is_verified && (
+                    <BadgeCheck className="h-4 w-4 text-primary fill-primary/20 flex-shrink-0" />
+                  )}
+                  {isOwner(username) && <OwnerBadge className="flex-shrink-0" />}
+                </div>
+                <p className="text-sm text-muted-foreground">@{username}</p>
+              </Link>
             </div>
 
             {/* Bio */}
