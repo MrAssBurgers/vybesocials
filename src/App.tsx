@@ -37,6 +37,7 @@ import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { useDynamicFavicon } from "@/hooks/useDynamicFavicon";
 import { useDynamicManifest } from "@/hooks/useDynamicManifest";
+import { RewardNotificationProvider } from "@/components/battlepass/RewardNotificationProvider";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -154,24 +155,26 @@ function AppWithPreloader() {
             <ThemeTransitionProvider>
               <EasterEggProvider>
                 <CallStoreProvider>
-                  <TooltipProvider>
-                    <Toaster />
-                    <Sonner />
-                    <BrowserRouter>
-                      <TutorialProvider>
-                        <ScrollRestoration />
-                        <AnimatedRoutes />
-                        <RootBottomNavMount />
-                        <PushNotificationPrompt />
-                        <GlobalMessageNotifications />
-                        <TabNotificationBadge />
-                        <GlobalCallOverlay />
-                        <WarningPopup />
-                        <InvitePopup />
-                        <BanCheck />
-                      </TutorialProvider>
-                    </BrowserRouter>
-                  </TooltipProvider>
+                  <RewardNotificationProvider>
+                    <TooltipProvider>
+                      <Toaster />
+                      <Sonner />
+                      <BrowserRouter>
+                        <TutorialProvider>
+                          <ScrollRestoration />
+                          <AnimatedRoutes />
+                          <RootBottomNavMount />
+                          <PushNotificationPrompt />
+                          <GlobalMessageNotifications />
+                          <TabNotificationBadge />
+                          <GlobalCallOverlay />
+                          <WarningPopup />
+                          <InvitePopup />
+                          <BanCheck />
+                        </TutorialProvider>
+                      </BrowserRouter>
+                    </TooltipProvider>
+                  </RewardNotificationProvider>
                 </CallStoreProvider>
               </EasterEggProvider>
             </ThemeTransitionProvider>

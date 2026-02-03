@@ -1,39 +1,49 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, Zap, Trophy, Clock, CheckCircle2, Gift, Flame } from 'lucide-react';
+import { Target, Zap, Trophy, Clock, CheckCircle2, Gift, Flame, Star, ChevronRight } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useChallengesWithProgress } from '@/hooks/useChallenges';
+import { useUnclaimedRewards, useClaimReward, useNextLevelProgress, useBattlePassTiers } from '@/hooks/useBattlePass';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BattlePassSheet } from '@/components/battlepass/BattlePassSheet';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const TYPE_CONFIG = {
   daily: {
     label: 'Daily',
     icon: Zap,
-    color: 'text-yellow-500',
-    bgColor: 'bg-yellow-500/10',
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
   },
   weekly: {
     label: 'Weekly',
     icon: Clock,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-500/10',
+    color: 'text-accent',
+    bgColor: 'bg-accent/10',
   },
   achievement: {
     label: 'Achievement',
     icon: Trophy,
-    color: 'text-purple-500',
-    bgColor: 'bg-purple-500/10',
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
   },
 };
 
 export default function ChallengesHubPage() {
   const { daily, weekly, achievements, all } = useChallengesWithProgress();
+  const { data: unclaimedRewards } = useUnclaimedRewards();
+  const { data: tiers } = useBattlePassTiers();
+  const { currentXP, currentLevel, progressPercent, xpToNextLevel } = useNextLevelProgress();
+  const claimReward = useClaimReward();
   const [activeTab, setActiveTab] = useState<string>('all');
+  const [battlePassOpen, setBattlePassOpen] = useState(false);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
 
   const isLoading = all.length === 0;
   const completedCount = all.filter(c => c.is_completed).length;
@@ -53,6 +63,25 @@ export default function ChallengesHubPage() {
   };
 
   const displayChallenges = getDisplayChallenges();
+
+  const handleClaimReward = async (rewardId: string) => {
+    setClaimingId(rewardId);
+    try {
+      const result = await claimReward.mutateAsync(rewardId);
+      if (result.level_result?.level_up) {
+        toast.success(`🎉 Level Up! You're now level ${result.level_result.new_level}!`);
+      } else {
+        toast.success(`+${result.xp_gained} XP claimed!`);
+      }
+    } catch (error) {
+      toast.error('Failed to claim reward');
+    } finally {
+      setClaimingId(null);
+    }
+  };
+
+  // Get next tier reward for display
+  const nextTier = tiers?.find(t => t.level === currentLevel + 1);
 
   return (
     <AppLayout>
@@ -74,6 +103,112 @@ export default function ChallengesHubPage() {
               </p>
             </div>
           </div>
+
+          {/* Battle Pass Progress Card */}
+          <motion.div
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setBattlePassOpen(true)}
+            className="cursor-pointer mb-4"
+          >
+            <GlassCard className="p-4 border-primary/20">
+              <div className="flex items-center gap-4">
+                {/* Level badge */}
+                <div className={cn(
+                  "relative h-14 w-14 rounded-2xl flex items-center justify-center shrink-0",
+                  "bg-gradient-to-br from-primary/20 via-accent/20 to-primary/20",
+                  "border-2 border-primary/30"
+                )}>
+                  <span className="text-xl font-bold text-primary">{currentLevel}</span>
+                  <motion.div
+                    className="absolute -top-1 -right-1"
+                    animate={{ rotate: [0, 15, -15, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Zap className="h-4 w-4 text-primary fill-primary" />
+                  </motion.div>
+                </div>
+
+                {/* Progress */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-semibold">Level {currentLevel}</span>
+                    <span className="text-sm text-muted-foreground">{currentXP.toLocaleString()} XP</span>
+                  </div>
+                  <Progress value={progressPercent} className="h-2 mb-1" />
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{xpToNextLevel.toLocaleString()} XP to next level</span>
+                    {nextTier && (
+                      <span className="flex items-center gap-1">
+                        <span>{nextTier.reward_icon}</span>
+                        <span>{nextTier.reward_name}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+              </div>
+            </GlassCard>
+          </motion.div>
+
+          {/* Unclaimed Rewards */}
+          {unclaimedRewards && unclaimedRewards.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mb-4"
+            >
+              <GlassCard className="p-4 border-primary/30 bg-primary/5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Gift className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold">Claim Your Rewards!</h3>
+                  <Badge variant="secondary" className="ml-auto">
+                    {unclaimedRewards.length} pending
+                  </Badge>
+                </div>
+                <div className="space-y-2">
+                  {unclaimedRewards.slice(0, 3).map((reward) => (
+                    <motion.div
+                      key={reward.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-center gap-3 p-2 rounded-lg bg-background/50"
+                    >
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Star className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {reward.challenge?.title || 'Challenge Completed'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">+{reward.xp_amount} XP</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleClaimReward(reward.id);
+                        }}
+                        disabled={claimingId === reward.id}
+                        className="shrink-0"
+                      >
+                        {claimingId === reward.id ? (
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                          >
+                            <Star className="h-4 w-4" />
+                          </motion.div>
+                        ) : (
+                          'Claim'
+                        )}
+                      </Button>
+                    </motion.div>
+                  ))}
+                </div>
+              </GlassCard>
+            </motion.div>
+          )}
 
           {/* Stats Cards */}
           <div className="grid grid-cols-2 gap-3">
@@ -236,6 +371,9 @@ export default function ChallengesHubPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Battle Pass Sheet */}
+      <BattlePassSheet open={battlePassOpen} onOpenChange={setBattlePassOpen} />
     </AppLayout>
   );
 }
