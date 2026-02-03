@@ -151,23 +151,33 @@ export function AdminBadgeManager() {
   const handleAwardBadge = async () => {
     if (!selectedBadgeForAward || !awardUsername.trim()) return;
     
-    // Look up user by username
-    const { data: profile, error: profileError } = await supabase
+    // Look up user by username - get both id and user_id for proper resolution
+    const { data: targetProfile, error: profileError } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, user_id')
       .ilike('username', awardUsername.trim())
       .maybeSingle();
     
-    if (profileError || !profile) {
+    if (profileError || !targetProfile) {
       toast.error('User not found');
       return;
     }
     
+    // Use the auth user_id if available, otherwise fall back to profile id
+    // The award_badge RPC will resolve correctly either way
+    const targetUserId = targetProfile.user_id || targetProfile.id;
+    
     try {
       await awardBadge.mutateAsync({
-        userId: profile.id,
+        userId: targetUserId,
         badgeId: selectedBadgeForAward.id,
       });
+      
+      // Invalidate both the target user's badges and display style
+      queryClient.invalidateQueries({ queryKey: ['user-badges', targetProfile.id] });
+      queryClient.invalidateQueries({ queryKey: ['display-style', targetProfile.id] });
+      queryClient.invalidateQueries({ queryKey: ['user-primary-badge', targetProfile.id] });
+      
       toast.success(`Badge awarded to @${awardUsername}`);
       setAwardDialogOpen(false);
       setAwardUsername('');

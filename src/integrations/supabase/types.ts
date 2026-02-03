@@ -4968,6 +4968,30 @@ export type Database = {
           },
         ]
       }
+      user_roles_auth: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_settings: {
         Row: {
           content_language: string[] | null
@@ -5671,6 +5695,10 @@ export type Database = {
       filter_profanity: { Args: { input_text: string }; Returns: string }
       generate_invite_code: { Args: never; Returns: string }
       generate_theme_code: { Args: never; Returns: string }
+      get_auth_id_for_profile: {
+        Args: { _profile_id: string }
+        Returns: string
+      }
       get_comment_count: { Args: { p_post_id: string }; Returns: number }
       get_follower_count: { Args: { profile_id: string }; Returns: number }
       get_following_count: { Args: { profile_id: string }; Returns: number }
@@ -5725,6 +5753,8 @@ export type Database = {
           username: string
         }[]
       }
+      get_owner_auth_id: { Args: never; Returns: string }
+      get_owner_wife_auth_id: { Args: never; Returns: string }
       get_posts_with_counts: {
         Args: {
           p_author_id?: string
@@ -5780,6 +5810,7 @@ export type Database = {
           username: string
         }[]
       }
+      get_profile_id_for_auth: { Args: { _auth_id: string }; Returns: string }
       get_public_profile_by_id: {
         Args: { target_id: string }
         Returns: {
