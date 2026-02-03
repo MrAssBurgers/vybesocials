@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Shield, Plus, Edit2, Trash2, Award, Search, Users, 
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BadgeIcon } from '@/components/badges/BadgeIcon';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -52,6 +53,14 @@ interface BadgeFormData {
   can_be_disabled: boolean;
 }
 
+interface UserSearchResult {
+  id: string;
+  user_id: string | null;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
 const defaultFormData: BadgeFormData = {
   name: '',
   description: '',
@@ -77,6 +86,46 @@ export function AdminBadgeManager() {
   const [awardDialogOpen, setAwardDialogOpen] = useState(false);
   const [selectedBadgeForAward, setSelectedBadgeForAward] = useState<Badge | null>(null);
   const [awardUsername, setAwardUsername] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState<UserSearchResult[]>([]);
+  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Debounced user search
+  useEffect(() => {
+    if (!awardDialogOpen) {
+      setUserSearchResults([]);
+      setSelectedUser(null);
+      return;
+    }
+    
+    const searchTerm = awardUsername.trim();
+    if (searchTerm.length < 2) {
+      setUserSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        // Search by username OR display_name (case insensitive)
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, user_id, username, display_name, avatar_url')
+          .or(`username.ilike.%${searchTerm}%,display_name.ilike.%${searchTerm}%`)
+          .limit(10);
+
+        if (!error && data) {
+          setUserSearchResults(data);
+        }
+      } catch (err) {
+        console.error('User search failed:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [awardUsername, awardDialogOpen]);
 
   const awardBadge = useAwardBadge();
 
@@ -149,22 +198,31 @@ export function AdminBadgeManager() {
   });
 
   const handleAwardBadge = async () => {
-    if (!selectedBadgeForAward || !awardUsername.trim()) return;
+    if (!selectedBadgeForAward) return;
     
-    // Look up user by username - get both id and user_id for proper resolution
-    const { data: targetProfile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, user_id')
-      .ilike('username', awardUsername.trim())
-      .maybeSingle();
+    // Use selected user from dropdown, or search by username if typed manually
+    let targetProfile = selectedUser;
     
-    if (profileError || !targetProfile) {
-      toast.error('User not found');
+    if (!targetProfile && awardUsername.trim()) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, user_id, username, display_name, avatar_url')
+        .or(`username.ilike.${awardUsername.trim()},display_name.ilike.${awardUsername.trim()}`)
+        .maybeSingle();
+      
+      if (error || !data) {
+        toast.error('User not found');
+        return;
+      }
+      targetProfile = data;
+    }
+    
+    if (!targetProfile) {
+      toast.error('Please select a user');
       return;
     }
     
     // Use the auth user_id if available, otherwise fall back to profile id
-    // The award_badge RPC will resolve correctly either way
     const targetUserId = targetProfile.user_id || targetProfile.id;
     
     try {
@@ -178,9 +236,10 @@ export function AdminBadgeManager() {
       queryClient.invalidateQueries({ queryKey: ['display-style', targetProfile.id] });
       queryClient.invalidateQueries({ queryKey: ['user-primary-badge', targetProfile.id] });
       
-      toast.success(`Badge awarded to @${awardUsername}`);
+      toast.success(`Badge awarded to @${targetProfile.username}`);
       setAwardDialogOpen(false);
       setAwardUsername('');
+      setSelectedUser(null);
       setSelectedBadgeForAward(null);
     } catch (err: any) {
       toast.error(err.message);
@@ -521,12 +580,83 @@ export function AdminBadgeManager() {
             )}
             
             <div className="space-y-2">
-              <Label>Username</Label>
-              <Input
-                value={awardUsername}
-                onChange={(e) => setAwardUsername(e.target.value)}
-                placeholder="Enter username..."
-              />
+              <Label>Search User (by @username or display name)</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={awardUsername}
+                  onChange={(e) => {
+                    setAwardUsername(e.target.value);
+                    setSelectedUser(null);
+                  }}
+                  placeholder="Type username or display name..."
+                  className="pl-9"
+                />
+                {isSearching && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              
+              {/* Search Results Dropdown */}
+              {userSearchResults.length > 0 && !selectedUser && (
+                <div className="border rounded-lg bg-popover shadow-lg max-h-48 overflow-y-auto">
+                  {userSearchResults.map((user) => (
+                    <button
+                      key={user.id}
+                      onClick={() => {
+                        setSelectedUser(user);
+                        setAwardUsername(user.display_name || user.username);
+                        setUserSearchResults([]);
+                      }}
+                      className="w-full flex items-center gap-3 p-2 hover:bg-secondary/50 transition-colors text-left"
+                    >
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={user.avatar_url || undefined} />
+                        <AvatarFallback className="text-xs">
+                          {(user.display_name || user.username)[0]?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">
+                          {user.display_name || user.username}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          @{user.username}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              
+              {/* Selected User Preview */}
+              {selectedUser && (
+                <div className="flex items-center gap-3 p-2 bg-primary/10 rounded-lg border border-primary/30">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={selectedUser.avatar_url || undefined} />
+                    <AvatarFallback className="text-xs">
+                      {(selectedUser.display_name || selectedUser.username)[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">
+                      {selectedUser.display_name || selectedUser.username}
+                    </p>
+                    <p className="text-xs text-muted-foreground">@{selectedUser.username}</p>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    onClick={() => {
+                      setSelectedUser(null);
+                      setAwardUsername('');
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
             
             <div className="flex gap-2">
