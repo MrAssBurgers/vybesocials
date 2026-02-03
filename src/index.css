@@ -358,6 +358,117 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     contain-intrinsic-size: 0 500px;
   }
 
+  /* ==========================================
+     MOUTH ZOOM TRANSITION ANIMATIONS
+     Portal-style notification → chat transition
+     ========================================== */
+  
+  @keyframes mouth-zoom {
+    0% {
+      transform: scale(1);
+      border-radius: 16px;
+    }
+    30% {
+      transform: scale(1.5);
+      border-radius: 32px;
+    }
+    60% {
+      transform: scale(2.5);
+      border-radius: 24px;
+    }
+    100% {
+      transform: scale(3.5);
+      border-radius: 0;
+    }
+  }
+
+  @keyframes mouth-glow {
+    0% {
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+    }
+    50% {
+      box-shadow: 0 0 60px 20px hsl(var(--primary) / 0.4);
+    }
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+    }
+  }
+
+  @keyframes depth-emerge {
+    0% {
+      opacity: 0;
+      transform: scale(0.8) translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  @keyframes vignette-pulse {
+    0%, 100% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+
+  @keyframes avatar-pulse-ring {
+    0% {
+      transform: scale(1);
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(2);
+      opacity: 0;
+    }
+  }
+
+  .animate-mouth-zoom {
+    animation: mouth-zoom 0.32s cubic-bezier(0.32, 0, 0.2, 1) forwards;
+  }
+
+  .animate-mouth-glow {
+    animation: mouth-glow 0.4s ease-out forwards;
+  }
+
+  .animate-depth-emerge {
+    animation: depth-emerge 0.25s cubic-bezier(0.2, 0, 0.2, 1) forwards;
+  }
+
+  .animate-vignette-pulse {
+    animation: vignette-pulse 0.35s ease-in-out forwards;
+  }
+
+  .animate-avatar-pulse-ring {
+    animation: avatar-pulse-ring 0.6s ease-out infinite;
+  }
+
+  /* Portal depth vignette effect */
+  .mouth-zoom-vignette {
+    background: radial-gradient(
+      circle at center,
+      transparent 25%,
+      hsl(var(--background) / 0.4) 50%,
+      hsl(var(--background) / 0.9) 100%
+    );
+  }
+
+  /* GPU acceleration for transition elements */
+  .mouth-zoom-container {
+    will-change: transform, border-radius, width, height;
+    contain: strict;
+    backface-visibility: hidden;
+    transform: translate3d(0, 0, 0);
+  }
+
+  /* Perspective for 3D depth effect */
+  .mouth-zoom-perspective {
+    perspective: 1000px;
+    perspective-origin: center center;
+  }
+
   /* Pause ALL non-essential animations during scroll for performance */
   .is-scrolling .gradient-animated,
   .is-scrolling .animate-liquid-wobble,
