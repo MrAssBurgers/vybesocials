@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -25,6 +26,65 @@ export interface FriendRequest {
 
 export function useFriendRequests() {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Real-time subscription for friend requests
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const channel = supabase
+      .channel(`friend-requests:${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'friend_requests',
+          filter: `receiver_id=eq.${profile.id}`,
+        },
+        async (payload) => {
+          console.log('[FriendRequests] New incoming request:', payload.new);
+          
+          // Fetch sender info for the toast
+          const { data: sender } = await supabase
+            .from('profiles')
+            .select('username, display_name, avatar_url')
+            .eq('id', (payload.new as any).sender_id)
+            .single();
+          
+          const name = sender?.display_name || sender?.username || 'Someone';
+          toast.success(`${name} sent you a friend request! 👋`, {
+            duration: 5000,
+          });
+          
+          // Invalidate to refresh the list
+          queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'friend_requests',
+          filter: `sender_id=eq.${profile.id}`,
+        },
+        (payload) => {
+          console.log('[FriendRequests] Request updated (outgoing):', payload.new);
+          const status = (payload.new as any).status;
+          if (status === 'accepted') {
+            toast.success('Your friend request was accepted! 🎉');
+          }
+          queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
+          queryClient.invalidateQueries({ queryKey: ['friends'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, queryClient]);
 
   return useQuery({
     queryKey: ['friend-requests', profile?.id],
@@ -61,9 +121,9 @@ export function useFriendRequests() {
       };
     },
     enabled: !!profile?.id,
-    staleTime: 60000, // 1 minute cache
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    staleTime: 30000, // Reduced to 30 seconds with realtime
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 }
 
