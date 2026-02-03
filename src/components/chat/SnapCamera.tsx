@@ -2,12 +2,15 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { 
   X, SwitchCamera, Type, Check, 
-  Send, Smile, Trash2, Sparkles
+  Send, Smile, Trash2, Sparkles, AlignCenter, AlignLeft, AlignRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
+
+// Snapchat-style text styles
+type TextStyle = 'classic' | 'glow' | 'outline' | 'background' | 'neon';
+type TextAlign = 'left' | 'center' | 'right';
 
 interface TextOverlay {
   id: string;
@@ -17,6 +20,9 @@ interface TextOverlay {
   color: string;
   fontSize: number;
   rotation: number;
+  style: TextStyle;
+  align: TextAlign;
+  backgroundColor?: string;
 }
 
 interface VybeCameraProps {
@@ -25,8 +31,15 @@ interface VybeCameraProps {
   onSend: (imageDataUrl: string) => void;
 }
 
-const VYBE_COLORS = ['#ffffff', '#000000', '#8B5CF6', '#D946EF', '#F97316', '#10B981', '#3B82F6', '#EC4899', '#14B8A6'];
+const VYBE_COLORS = ['#ffffff', '#000000', '#8B5CF6', '#D946EF', '#F97316', '#10B981', '#3B82F6', '#EC4899', '#14B8A6', '#FACC15'];
 const STICKERS = ['✨', '💜', '🔥', '💯', '⚡', '🎉', '💖', '🙌', '🌟', '💫', '🎵', '🦋'];
+const TEXT_STYLES: { id: TextStyle; label: string }[] = [
+  { id: 'classic', label: 'Classic' },
+  { id: 'glow', label: 'Glow' },
+  { id: 'outline', label: 'Outline' },
+  { id: 'background', label: 'Box' },
+  { id: 'neon', label: 'Neon' },
+];
 
 export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const [phase, setPhase] = useState<'camera' | 'edit'>('camera');
@@ -35,9 +48,14 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const [mode, setMode] = useState<'none' | 'text' | 'sticker'>('none');
   const [textOverlays, setTextOverlays] = useState<TextOverlay[]>([]);
   const [currentText, setCurrentText] = useState('');
-  const [currentColor, setCurrentColor] = useState('#8B5CF6');
+  const [currentColor, setCurrentColor] = useState('#ffffff');
+  const [currentStyle, setCurrentStyle] = useState<TextStyle>('classic');
+  const [currentAlign, setCurrentAlign] = useState<TextAlign>('center');
+  const [isTextInputOpen, setIsTextInputOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -98,6 +116,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const [showFlash, setShowFlash] = useState(false);
 
   // Capture photo with flash effect - crops to match the visible preview
+  // IMPORTANT: Mirror the capture for front camera so it matches what user sees
   const handleCapture = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
 
@@ -136,16 +155,25 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     canvas.width = outputWidth;
     canvas.height = outputHeight;
     
+    // Mirror the canvas for front camera to match what user sees in preview
+    if (facingMode === 'user') {
+      ctx.translate(outputWidth, 0);
+      ctx.scale(-1, 1);
+    }
+    
     // Draw the cropped portion to canvas
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
+    
+    // Reset transform
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     const imageDataUrl = canvas.toDataURL('image/jpeg', 0.92);
     setCapturedImage(imageDataUrl);
     setPhase('edit');
     stopCamera();
-  }, [stopCamera]);
+  }, [stopCamera, facingMode]);
 
-  // Add text overlay
+  // Add text overlay - Snapchat style
   const addText = () => {
     if (!currentText.trim()) return;
     haptics.impact();
@@ -155,11 +183,14 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
       x: 50,
       y: 40,
       color: currentColor,
-      fontSize: 28,
+      fontSize: 32,
       rotation: 0,
+      style: currentStyle,
+      align: currentAlign,
+      backgroundColor: currentStyle === 'background' ? currentColor : undefined,
     }]);
     setCurrentText('');
-    setMode('none');
+    setIsTextInputOpen(false);
   };
 
   // Add sticker
@@ -173,7 +204,49 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
       color: '#ffffff',
       fontSize: 56,
       rotation: 0,
+      style: 'classic' as TextStyle,
+      align: 'center' as TextAlign,
     }]);
+  };
+
+  // Open text input (Snapchat-style full screen)
+  const openTextInput = () => {
+    setIsTextInputOpen(true);
+    setMode('text');
+    setTimeout(() => textInputRef.current?.focus(), 100);
+  };
+
+  // Get text style CSS
+  const getTextStyleCSS = (style: TextStyle, color: string): React.CSSProperties => {
+    switch (style) {
+      case 'glow':
+        return {
+          textShadow: `0 0 10px ${color}, 0 0 20px ${color}, 0 0 30px ${color}, 0 0 40px ${color}`,
+        };
+      case 'outline':
+        return {
+          WebkitTextStroke: '2px black',
+          textShadow: 'none',
+        };
+      case 'background':
+        return {
+          backgroundColor: color,
+          color: color === '#ffffff' || color === '#FACC15' ? '#000000' : '#ffffff',
+          padding: '8px 16px',
+          borderRadius: '8px',
+          textShadow: 'none',
+        };
+      case 'neon':
+        return {
+          textShadow: `0 0 5px #fff, 0 0 10px #fff, 0 0 15px ${color}, 0 0 20px ${color}, 0 0 35px ${color}`,
+          color: '#fff',
+        };
+      case 'classic':
+      default:
+        return {
+          textShadow: '2px 2px 8px rgba(0,0,0,0.8), -1px -1px 4px rgba(0,0,0,0.5)',
+        };
+    }
   };
 
   // Handle drag for overlays - using percentages
@@ -209,7 +282,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     setTextOverlays([]);
   };
 
-  // Render final image with overlays
+  // Render final image with overlays - supports all text styles
   const renderFinalImage = useCallback(async (): Promise<string> => {
     if (!capturedImage) throw new Error('No image captured');
 
@@ -239,20 +312,65 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
             ctx.save();
             const x = (overlay.x / 100) * img.width;
             const y = (overlay.y / 100) * img.height;
+            const scaledFontSize = overlay.fontSize * (img.width / 400);
             
             ctx.translate(x, y);
             ctx.rotate((overlay.rotation * Math.PI) / 180);
             
-            ctx.font = `bold ${overlay.fontSize * (img.width / 400)}px sans-serif`;
-            ctx.fillStyle = overlay.color;
-            ctx.textAlign = 'center';
+            ctx.font = `bold ${scaledFontSize}px sans-serif`;
+            ctx.textAlign = overlay.align || 'center';
             ctx.textBaseline = 'middle';
-            ctx.shadowColor = 'rgba(0,0,0,0.6)';
-            ctx.shadowBlur = 6;
-            ctx.shadowOffsetX = 2;
-            ctx.shadowOffsetY = 2;
             
-            ctx.fillText(overlay.text, 0, 0);
+            // Apply style-specific rendering
+            switch (overlay.style) {
+              case 'glow':
+                ctx.shadowColor = overlay.color;
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = overlay.color;
+                ctx.fillText(overlay.text, 0, 0);
+                ctx.fillText(overlay.text, 0, 0); // Double draw for stronger glow
+                break;
+                
+              case 'outline':
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 4;
+                ctx.fillStyle = overlay.color;
+                ctx.strokeText(overlay.text, 0, 0);
+                ctx.fillText(overlay.text, 0, 0);
+                break;
+                
+              case 'background':
+                const metrics = ctx.measureText(overlay.text);
+                const padding = scaledFontSize * 0.4;
+                const bgWidth = metrics.width + padding * 2;
+                const bgHeight = scaledFontSize * 1.4;
+                
+                ctx.fillStyle = overlay.color;
+                ctx.fillRect(-bgWidth / 2, -bgHeight / 2, bgWidth, bgHeight);
+                
+                ctx.fillStyle = overlay.color === '#ffffff' || overlay.color === '#FACC15' ? '#000000' : '#ffffff';
+                ctx.fillText(overlay.text, 0, 0);
+                break;
+                
+              case 'neon':
+                ctx.shadowColor = overlay.color;
+                ctx.shadowBlur = 15;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(overlay.text, 0, 0);
+                ctx.fillText(overlay.text, 0, 0);
+                break;
+                
+              case 'classic':
+              default:
+                ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                ctx.shadowBlur = 8;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+                ctx.fillStyle = overlay.color;
+                ctx.fillText(overlay.text, 0, 0);
+                break;
+            }
+            
             ctx.restore();
           });
 
@@ -442,12 +560,12 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 draggable={false}
               />
 
-              {/* Text Overlays */}
+              {/* Text Overlays - with style support */}
               {textOverlays.map(overlay => (
                 <motion.div
                   key={overlay.id}
                   className={cn(
-                    "absolute touch-none select-none cursor-grab active:cursor-grabbing",
+                    "absolute touch-none select-none cursor-grab active:cursor-grabbing whitespace-pre-wrap max-w-[90%]",
                     draggedId === overlay.id && "z-50"
                   )}
                   style={{
@@ -455,11 +573,14 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                     top: `${overlay.y}%`,
                     x: '-50%',
                     y: '-50%',
-                    color: overlay.color,
+                    color: overlay.style === 'background' 
+                      ? (overlay.color === '#ffffff' || overlay.color === '#FACC15' ? '#000000' : '#ffffff')
+                      : overlay.color,
                     fontSize: overlay.fontSize,
-                    textShadow: '2px 2px 8px rgba(0,0,0,0.7)',
                     fontWeight: 'bold',
                     rotate: overlay.rotation,
+                    textAlign: overlay.align,
+                    ...getTextStyleCSS(overlay.style, overlay.color),
                   }}
                   drag
                   dragMomentum={false}
@@ -493,104 +614,180 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
               </div>
             </div>
 
-            {/* Tools Bar */}
-            <div className="absolute bottom-28 left-0 right-0 px-4 z-20">
-              <AnimatePresence mode="wait">
-                {mode === 'text' && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="space-y-3"
-                  >
-                    <div className="flex gap-2">
-                      <Input
-                        value={currentText}
-                        onChange={(e) => setCurrentText(e.target.value)}
-                        placeholder="Add text..."
-                        className="flex-1 bg-black/60 border-white/30 text-white placeholder:text-white/50 backdrop-blur-sm"
-                        autoFocus
-                        onKeyDown={(e) => e.key === 'Enter' && addText()}
-                      />
-                      <Button onClick={addText} size="icon" className="bg-gradient-to-r from-primary to-accent text-white">
-                        <Check className="h-5 w-5" />
+            {/* Snapchat-style Full Screen Text Input */}
+            <AnimatePresence>
+              {isTextInputOpen && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-30 bg-black/80 backdrop-blur-md flex flex-col"
+                >
+                  {/* Text Input Header */}
+                  <div className="flex items-center justify-between p-4 safe-area-inset-top">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => { setIsTextInputOpen(false); setMode('none'); }}
+                      className="text-white"
+                    >
+                      Cancel
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      {/* Alignment toggle */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setCurrentAlign(prev => 
+                          prev === 'left' ? 'center' : prev === 'center' ? 'right' : 'left'
+                        )}
+                        className="text-white h-10 w-10"
+                      >
+                        {currentAlign === 'left' && <AlignLeft className="h-5 w-5" />}
+                        {currentAlign === 'center' && <AlignCenter className="h-5 w-5" />}
+                        {currentAlign === 'right' && <AlignRight className="h-5 w-5" />}
                       </Button>
                     </div>
-                    <div className="flex gap-2 justify-center py-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={addText}
+                      disabled={!currentText.trim()}
+                      className="text-white font-semibold"
+                    >
+                      Done
+                    </Button>
+                  </div>
+
+                  {/* Text Style Selector */}
+                  <div className="px-4 pb-3">
+                    <div className="flex gap-2 justify-center overflow-x-auto py-2 scrollbar-hide">
+                      {TEXT_STYLES.map(style => (
+                        <button
+                          key={style.id}
+                          onClick={() => setCurrentStyle(style.id)}
+                          className={cn(
+                            "px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap",
+                            currentStyle === style.id 
+                              ? "bg-white text-black" 
+                              : "bg-white/20 text-white hover:bg-white/30"
+                          )}
+                        >
+                          {style.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Main Text Input Area */}
+                  <div className="flex-1 flex items-center justify-center px-6">
+                    <textarea
+                      ref={textInputRef}
+                      value={currentText}
+                      onChange={(e) => setCurrentText(e.target.value)}
+                      placeholder="Type something..."
+                      className={cn(
+                        "w-full bg-transparent border-none outline-none resize-none font-bold",
+                        "placeholder:text-white/40 text-3xl leading-tight",
+                        currentAlign === 'left' && "text-left",
+                        currentAlign === 'center' && "text-center",
+                        currentAlign === 'right' && "text-right"
+                      )}
+                      style={{
+                        color: currentStyle === 'background' 
+                          ? (currentColor === '#ffffff' || currentColor === '#FACC15' ? '#000000' : '#ffffff')
+                          : currentColor,
+                        ...getTextStyleCSS(currentStyle, currentColor),
+                        maxHeight: '40vh',
+                      }}
+                      rows={3}
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Color Picker */}
+                  <div className="px-4 pb-8 safe-area-inset-bottom">
+                    <div className="flex gap-3 justify-center py-3 overflow-x-auto scrollbar-hide">
                       {VYBE_COLORS.map(color => (
                         <button
                           key={color}
                           onClick={() => setCurrentColor(color)}
                           className={cn(
-                            "w-8 h-8 rounded-full border-2 transition-all duration-200",
-                            currentColor === color ? "scale-125 border-white ring-2 ring-white/50" : "border-white/30 hover:scale-110"
+                            "w-8 h-8 rounded-full border-2 transition-all duration-200 flex-shrink-0",
+                            currentColor === color 
+                              ? "scale-125 border-white ring-2 ring-white/50" 
+                              : "border-white/30 hover:scale-110"
                           )}
                           style={{ backgroundColor: color }}
                         />
                       ))}
                     </div>
-                  </motion.div>
-                )}
-
-                {mode === 'sticker' && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="flex gap-3 overflow-x-auto py-3 px-2 scrollbar-hide bg-black/40 backdrop-blur-sm rounded-2xl"
-                  >
-                    {STICKERS.map(sticker => (
-                      <motion.button
-                        key={sticker}
-                        onClick={() => addSticker(sticker)}
-                        className="text-4xl p-1 flex-shrink-0"
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        {sticker}
-                      </motion.button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Mode Buttons */}
-              <div className="flex justify-center gap-4 mt-3">
-                <Button
-                  variant={mode === 'text' ? 'default' : 'ghost'}
-                  size="icon"
-                  onClick={() => setMode(mode === 'text' ? 'none' : 'text')}
-                  className={cn(
-                    "rounded-full h-12 w-12 transition-all",
-                    mode === 'text' ? "bg-gradient-to-r from-primary to-accent" : "text-white bg-black/40 backdrop-blur-sm hover:bg-black/60"
-                  )}
-                >
-                  <Type className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant={mode === 'sticker' ? 'default' : 'ghost'}
-                  size="icon"
-                  onClick={() => setMode(mode === 'sticker' ? 'none' : 'sticker')}
-                  className={cn(
-                    "rounded-full h-12 w-12 transition-all",
-                    mode === 'sticker' ? "bg-gradient-to-r from-primary to-accent" : "text-white bg-black/40 backdrop-blur-sm hover:bg-black/60"
-                  )}
-                >
-                  <Smile className="h-5 w-5" />
-                </Button>
-              </div>
-              
-              {/* Tip */}
-              {textOverlays.length > 0 && mode === 'none' && (
-                <motion.p 
-                  className="text-center text-xs text-white/60 mt-2"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                >
-                  Double-tap to remove • Drag to move
-                </motion.p>
+                  </div>
+                </motion.div>
               )}
-            </div>
+            </AnimatePresence>
+
+            {/* Tools Bar - only show when text input is closed */}
+            {!isTextInputOpen && (
+              <div className="absolute bottom-28 left-0 right-0 px-4 z-20">
+                <AnimatePresence mode="wait">
+                  {mode === 'sticker' && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      className="flex gap-3 overflow-x-auto py-3 px-2 scrollbar-hide bg-black/40 backdrop-blur-sm rounded-2xl"
+                    >
+                      {STICKERS.map(sticker => (
+                        <motion.button
+                          key={sticker}
+                          onClick={() => addSticker(sticker)}
+                          className="text-4xl p-1 flex-shrink-0"
+                          whileHover={{ scale: 1.2 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          {sticker}
+                        </motion.button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Mode Buttons */}
+                <div className="flex justify-center gap-4 mt-3">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={openTextInput}
+                    className="rounded-full h-12 w-12 text-white bg-black/40 backdrop-blur-sm hover:bg-black/60"
+                  >
+                    <Type className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    variant={mode === 'sticker' ? 'default' : 'ghost'}
+                    size="icon"
+                    onClick={() => setMode(mode === 'sticker' ? 'none' : 'sticker')}
+                    className={cn(
+                      "rounded-full h-12 w-12 transition-all",
+                      mode === 'sticker' ? "bg-gradient-to-r from-primary to-accent" : "text-white bg-black/40 backdrop-blur-sm hover:bg-black/60"
+                    )}
+                  >
+                    <Smile className="h-5 w-5" />
+                  </Button>
+                </div>
+                
+                {/* Tip */}
+                {textOverlays.length > 0 && mode === 'none' && (
+                  <motion.p 
+                    className="text-center text-xs text-white/60 mt-2"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    Double-tap to remove • Drag to move
+                  </motion.p>
+                )}
+              </div>
+            )}
 
             {/* Send Button */}
             <div className="absolute bottom-4 left-4 right-4 safe-area-inset-bottom">
