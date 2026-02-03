@@ -21,6 +21,7 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 import { VYBEHub } from '@/components/hub/VYBEHub';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useMyServers } from '@/hooks/useServers';
+import { StyledUsername } from '@/components/ui/StyledUsername';
 
 interface NavItemData {
   icon: LucideIcon;
@@ -194,7 +195,12 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm truncate flex items-center gap-1.5">
-                  {profile.username}
+                  <StyledUsername
+                    userId={profile.id}
+                    username={profile.username}
+                    displayName={profile.display_name}
+                    className="truncate"
+                  />
                   {isOwner(profile.username) && <OwnerBadge />}
                 </p>
                 <p className="text-xs text-muted-foreground">View profile</p>
