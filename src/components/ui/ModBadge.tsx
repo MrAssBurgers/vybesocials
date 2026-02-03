@@ -18,17 +18,26 @@ export const ModBadge = memo(forwardRef<HTMLSpanElement, ModBadgeProps>(
       <span
         ref={ref}
         className={cn(
-          'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium',
+          'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold',
           isAdmin
-            ? 'bg-gradient-to-r from-red-500/20 to-rose-500/20 text-red-400 border border-red-500/30'
-            : 'bg-gradient-to-r from-violet-500/20 to-purple-500/20 text-violet-400 border border-violet-500/30',
+            ? 'bg-gradient-to-r from-red-600/30 to-rose-600/30 border border-red-500/50'
+            : 'bg-gradient-to-r from-slate-400/20 to-zinc-500/20 border border-slate-400/40',
           className
         )}
+        style={isAdmin ? {
+          // Neon shiny red for admin
+          color: 'hsl(0 100% 65%)',
+          textShadow: '0 0 8px hsla(0, 100%, 60%, 0.5), 0 0 16px hsla(0, 100%, 50%, 0.3)',
+        } : {
+          // Silver metallic for mod  
+          color: 'hsl(220 10% 75%)',
+          textShadow: '0 1px 2px rgba(255,255,255,0.3)',
+        }}
       >
         {isAdmin ? (
-          <ShieldCheck className="h-3 w-3" />
+          <ShieldCheck className="h-3 w-3" style={{ filter: 'drop-shadow(0 0 4px hsla(0, 100%, 60%, 0.5))' }} />
         ) : (
-          <Shield className="h-3 w-3" />
+          <Shield className="h-3 w-3" style={{ filter: 'brightness(1.1)' }} />
         )}
         {showLabel && <span>{isAdmin ? 'Admin' : 'Mod'}</span>}
       </span>

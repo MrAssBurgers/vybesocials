@@ -23,18 +23,22 @@ export function OwnerWifeRingBadge({ className }: OwnerWifeRingBadgeProps) {
               className
             )}
           >
-            {/* Animated gradient ring */}
+            {/* Burgundy gradient ring - static, elegant */}
             <span 
-              className="absolute inset-0 rounded-full animate-spin opacity-90"
+              className="absolute inset-0 rounded-full opacity-90"
               style={{ 
-                background: 'conic-gradient(from 0deg, hsl(var(--neon-pink)), hsl(var(--neon-purple)), hsl(var(--neon-pink)))',
-                animationDuration: '3s',
+                background: 'conic-gradient(from 0deg, hsl(345 60% 35%), hsl(330 70% 25%), hsl(350 65% 45%), hsl(345 60% 35%))',
               }} 
             />
             {/* Inner circle background */}
             <span className="absolute inset-[2px] rounded-full bg-background" />
-            {/* Ring emoji */}
-            <span className="relative z-10 text-sm">💍</span>
+            {/* Ring emoji with subtle shine */}
+            <span 
+              className="relative z-10 text-sm"
+              style={{
+                filter: 'drop-shadow(0 0 2px hsla(345, 60%, 40%, 0.5))',
+              }}
+            >💍</span>
           </span>
         </TooltipTrigger>
         <TooltipContent>

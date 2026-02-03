@@ -88,9 +88,14 @@ export function ProfileSection() {
               </div>
               <div className="flex-1 min-w-0 pb-1">
                 <div className="flex items-center gap-2">
-                  <h2 className="font-bold text-lg truncate group-hover:text-primary transition-colors">
-                    @{profile?.username}
-                  </h2>
+                  <StyledUsername
+                    userId={profile?.id || ''}
+                    username={profile?.username || 'username'}
+                    displayName={profile?.display_name}
+                    className="font-bold text-lg truncate"
+                    showAtSymbol={true}
+                    preferDisplayName={false}
+                  />
                   <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                 </div>
                 <p className="text-sm text-muted-foreground">View your public profile</p>

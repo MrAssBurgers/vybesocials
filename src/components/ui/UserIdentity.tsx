@@ -2,6 +2,7 @@ import { useState, useEffect, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StyledUsername } from '@/components/ui/StyledUsername';
 import { 
   getCachedProfile, 
   fetchProfileById, 
@@ -108,9 +109,13 @@ export const UserIdentity = memo(function UserIdentity({
           </AvatarFallback>
         </Avatar>
       )}
-      <span className="font-medium text-sm truncate">
-        {profile?.display_name || `@${resolvedUsername}`}
-      </span>
+      <StyledUsername
+        userId={userId}
+        username={resolvedUsername}
+        displayName={profile?.display_name}
+        className="font-medium text-sm truncate"
+        preferDisplayName={true}
+      />
     </div>
   );
 
@@ -182,7 +187,7 @@ export const UserAvatar = memo(function UserAvatar({
 });
 
 /**
- * UserName - Just the display name, never a raw ID
+ * UserName - Display name with badge styling, never a raw ID
  */
 export const UserName = memo(function UserName({
   userId,
@@ -221,7 +226,14 @@ export const UserName = memo(function UserName({
     fetchProfileById(userId).then(setProfile);
   }, [userId, username, displayName]);
 
-  const name = profile?.display_name || (showAt ? `@${profile?.username || 'user'}` : profile?.username || 'User');
-
-  return <span className={className}>{name}</span>;
+  return (
+    <StyledUsername
+      userId={userId}
+      username={profile?.username || 'user'}
+      displayName={profile?.display_name}
+      className={className}
+      showAtSymbol={showAt}
+      preferDisplayName={!showAt}
+    />
+  );
 });
