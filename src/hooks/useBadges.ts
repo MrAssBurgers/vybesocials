@@ -61,25 +61,37 @@ export function useUserBadges(userId: string | undefined) {
     queryFn: async () => {
       if (!userId) return [];
       
+      // Use the new RPC function that resolves profile ID → auth user_id
       const { data, error } = await supabase
-        .from('user_badges')
-        .select(`
-          *,
-          badge:badges(*)
-        `)
-        .eq('user_id', userId)
-        .order('earned_at', { ascending: false });
+        .rpc('get_user_badges_by_profile', { p_profile_id: userId });
       
       if (error) throw error;
       
-      // Filter expired badges and map to expected shape
-      const now = new Date();
-      return (data || [])
-        .filter(ub => !ub.expires_at || new Date(ub.expires_at) > now)
-        .map(ub => ({
-          ...ub,
-          badge: ub.badge as Badge,
-        })) as UserBadge[];
+      // Map the flat response to the expected shape
+      return (data || []).map((row: any) => ({
+        id: row.id,
+        user_id: row.user_id,
+        badge_id: row.badge_id,
+        is_pinned: row.is_pinned,
+        pin_order: row.pin_order,
+        is_primary: row.is_primary,
+        show_effect: row.show_effect,
+        earned_at: row.earned_at,
+        expires_at: row.expires_at,
+        badge: {
+          id: row.badge_id,
+          name: row.badge_name,
+          description: row.badge_description,
+          icon: row.badge_icon,
+          category: row.badge_category,
+          priority: row.badge_priority,
+          gradient_from: row.badge_gradient_from,
+          gradient_to: row.badge_gradient_to,
+          gradient_via: row.badge_gradient_via,
+          effect: row.badge_effect,
+          is_animated: row.badge_is_animated,
+        } as Badge,
+      })) as UserBadge[];
     },
     enabled: !!userId,
     staleTime: 1000 * 60 * 5,

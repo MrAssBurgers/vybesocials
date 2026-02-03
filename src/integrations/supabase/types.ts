@@ -5794,6 +5794,30 @@ export type Database = {
         }[]
       }
       get_server_role: { Args: { p_server_id: string }; Returns: string }
+      get_user_badges_by_profile: {
+        Args: { p_profile_id: string }
+        Returns: {
+          badge_category: string
+          badge_description: string
+          badge_effect: string
+          badge_gradient_from: string
+          badge_gradient_to: string
+          badge_gradient_via: string
+          badge_icon: string
+          badge_id: string
+          badge_is_animated: boolean
+          badge_name: string
+          badge_priority: number
+          earned_at: string
+          expires_at: string
+          id: string
+          is_pinned: boolean
+          is_primary: boolean
+          pin_order: number
+          show_effect: boolean
+          user_id: string
+        }[]
+      }
       get_user_primary_badge: {
         Args: { p_user_id: string }
         Returns: {

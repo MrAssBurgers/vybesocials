@@ -108,19 +108,16 @@ export const StyledUsername = memo(function StyledUsername({
     );
   }
 
-  // Shine sweep animation
-  if (badge?.is_animated && badge.effect === 'shine') {
+  // Static shiny/metallic texture effect (no animation)
+  if (badge?.effect === 'shine') {
+    const shinyStyle = {
+      ...style,
+      textShadow: '0 1px 2px rgba(255,255,255,0.4), 0 0 8px rgba(255,255,255,0.15)',
+      filter: 'contrast(1.1) brightness(1.08)',
+    };
     return (
-      <span className={cn('relative inline-block', className)}>
-        <span style={style} className={cn('font-semibold', effectClass)}>
-          {nameToShow}
-        </span>
-        <motion.span
-          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none"
-          style={{ maskImage: 'linear-gradient(to right, transparent, white, transparent)' }}
-          animate={{ x: ['-100%', '200%'] }}
-          transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
-        />
+      <span style={shinyStyle} className={cn('font-semibold', className)}>
+        {nameToShow}
       </span>
     );
   }
