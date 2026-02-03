@@ -20,7 +20,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { EditPostDialog } from './EditPostDialog';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
-import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
+import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { useTogglePin } from '@/hooks/usePosts';
 import { useUserRole } from '@/hooks/useModeration';
@@ -452,7 +452,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 {post.author.display_name || post.author.username}
                 {authorRole && <ModBadge role={authorRole} />}
                 {isOwner(post.author.username) && <OwnerBadge />}
-                {isOwnerWife(post.author.id) && <PrincessBadge />}
+                {isOwnerWife(post.author.id) && <OwnerWifeRingBadge />}
                 {post.is_pinned && (
                   <Badge variant="secondary" className="text-xs px-1.5 py-0">
                     <Pin className="h-3 w-3 mr-1" />

@@ -34,7 +34,7 @@ import { TrashBin } from './TrashBin';
 import { StreakIndicator } from './StreakIndicator';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
-import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
+import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useUsersRoles } from '@/hooks/useUserRoleById';
@@ -578,7 +578,7 @@ const ConversationContent = memo(function ConversationContent({
               </span>
             )}
             {!conversation.is_group && otherMember && isOwner(otherMember.username || '') && <OwnerBadge />}
-            {!conversation.is_group && otherMember && isOwnerWife(otherMember.id) && <PrincessBadge />}
+            {!conversation.is_group && otherMember && isOwnerWife(otherMember.id) && <OwnerWifeRingBadge />}
             {/* Streak indicator - Snapchat style */}
             {!conversation.is_group && streak && streak.streak_count > 0 && (
               <StreakIndicator 

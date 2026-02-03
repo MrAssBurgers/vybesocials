@@ -22,7 +22,7 @@ import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
-import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
+import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { CommentSheet } from '@/components/comments/CommentSheet';
@@ -687,7 +687,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           </Link>
           {authorRole && <ModBadge role={authorRole} className="shadow-md" />}
           {isOwner(post.author.username) && <OwnerBadge />}
-          {isOwnerWife(post.author.id) && <PrincessBadge />}
+          {isOwnerWife(post.author.id) && <OwnerWifeRingBadge />}
           <div className="flex items-center gap-1 text-white/80 text-sm">
             <Eye className="h-4 w-4" />
             <span>{formatViewCount(viewCount)}</span>

@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { haptics } from '@/lib/haptics';
+import { BadgeSettingsSection } from '@/components/settings/BadgeSettingsSection';
 
 export function ProfileSection() {
   const { t } = useTranslation();
@@ -158,6 +159,9 @@ export function ProfileSection() {
           </Button>
         </div>
       </motion.div>
+
+      {/* Badge Settings - only shows if user has badges */}
+      <BadgeSettingsSection />
     </div>
   );
 }

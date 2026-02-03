@@ -19,6 +19,8 @@ interface Profile {
   interests?: string[] | null;
   onboarding_completed?: boolean | null;
   is_private?: boolean | null;
+  is_verified?: boolean | null;
+  badge_settings?: Record<string, boolean> | null;
 }
 
 interface BanInfo {
@@ -182,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .limit(1);
 
       if (!error && data?.[0]) {
-        const profileData = data[0];
+        const profileData = data[0] as unknown as Profile;
         setProfile(profileData);
         // Cache profile for instant lookups elsewhere
         setCachedProfile({
@@ -234,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .limit(1);
 
       if (!afterEnsureError && afterEnsure?.[0]) {
-        const profileData = afterEnsure[0];
+        const profileData = afterEnsure[0] as unknown as Profile;
         setProfile(profileData);
         // Cache profile for instant lookups elsewhere
         setCachedProfile({
@@ -415,7 +417,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(updates as Record<string, unknown>)
         .eq('id', profile.id);
 
       if (error) throw error;

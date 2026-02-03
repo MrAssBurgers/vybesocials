@@ -93,7 +93,7 @@ import { useUserOnlineStatus } from '@/hooks/usePresence';
 import { DMSafetyGate } from './DMSafetyGate';
 import { GroupInfoSheet } from './GroupInfoSheet';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
-import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
+import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { StreakIndicator } from './StreakIndicator';
 import { useStreakWithUser } from '@/hooks/useStreaks';
 import { DMImageSafetyGate } from './DMImageSafetyGate';
@@ -855,7 +855,7 @@ export function ChatView() {
           <h2 className="font-semibold text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
             {displayName}
             {!isGroupChat && otherMember?.id && isOwner(otherMember.username || '') && <OwnerBadge />}
-            {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <PrincessBadge />}
+            {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <OwnerWifeRingBadge />}
             {/* Streak indicator in header */}
             {!isGroupChat && streak && streak.streak_count > 0 && (
               <StreakIndicator 
