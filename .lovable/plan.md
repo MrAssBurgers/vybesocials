@@ -1,208 +1,283 @@
 
-  <goals>
-    <item>Make display name text color/style consistent everywhere a user name appears (including “View profile” surfaces) using the badge the user has equipped, with staff roles always overriding.</item>
-    <item>Fix “giving badges doesn’t work”.</item>
-    <item>Lock the Owner badge so it can never be granted/used by anyone except the owner.</item>
-    <item>Give Admin/Mod/Wife identity clear, premium colors: Admin neon shiny red, Mod silver, Wife burgundy (both the small role chip and the display-name styling).</item>
-    <item>Remove the “View” button from in-app message toasts, and make tapping the notification/toast smoothly mouth-zoom into the correct chat (no dead tap, minimal lag).</item>
-    <item>Revamp the Badge Library experience so it looks fresh/clean and supports equipping/pinning in a clear way.</item>
-  </goals>
+## Comprehensive Feature & Fix Implementation Plan
 
-  <what-is-broken-today (based on repo + backend state already inspected)>
-    <item><b>Badge awarding uses the wrong ID type</b>: <code>user_badges.user_id</code> currently stores authentication user IDs, but the Admin Badge Manager looks up <code>profiles.id</code> and passes that into <code>award_badge</code>. Result: the badge is inserted for a different ID, so it appears “not granted”.</item>
-    <item><b>Role checks are inconsistent</b>: the <code>has_role(auth.uid(), ...)</code> helper is written as if roles are stored by auth user id, but the current <code>user_roles</code> table actually references <code>profiles(id)</code>. This makes “admin-only” policies/functions unreliable and can block staff-only badge operations.</item>
-    <item><b>“View” button still appears</b> because it’s coming from the DM toast in <code>useMessageNotifications</code> (Sonner toast action label “View”), not the Notifications page list.</item>
-    <item><b>Tap does nothing / lag</b> in toasts because the current toast action uses <code>window.location.href</code> (full navigation) and does not trigger the mouth-zoom transition; also creating/finding the DM conversation can be slow if we always hit the network.</item>
-    <item><b>Name styling mismatch persists in some surfaces</b> because many components still render <code>display_name || username</code> as plain text (or via <code>UserIdentity/UserName</code>), bypassing <code>StyledUsername</code>.</item>
-    <item><b>“Equipped badge” concept is not wired</b>: the DB has <code>user_badges.is_primary</code>, but <code>get_user_primary_badge</code> currently returns by priority, not by “equipped”, so users can’t reliably choose the style they want.</item>
-  </what-is-broken-today>
+This plan addresses all the requested changes across multiple areas of the VYBE app.
 
-  <solution-overview>
-    <item><b>Unify identity resolution</b>: treat “name styling source-of-truth” as a single backend RPC that returns the correct style for any user by resolving staff roles + equipped badge.</item>
-    <item><b>Make all name renderers converge</b>: update <code>UserIdentity</code> / <code>UserName</code> to render <code>StyledUsername</code> internally so most of the app becomes consistent without hunting every single surface.</item>
-    <item><b>Fix badge granting at the root</b>: make <code>award_badge</code> accept either a profile id or auth user id and resolve correctly; enforce “exclusive badges” (Owner, Wife) in the function.</item>
-    <item><b>Fix role storage + checks</b>: introduce a new roles table keyed by auth user id, migrate existing data, and update <code>has_role</code> + RLS policies to use it.</item>
-    <item><b>Notifications</b>: remove toast action button, make the toast itself clickable and trigger mouth-zoom; move the mouth-zoom provider to the app root and optimize “open chat” to prefer cached existing conversation IDs.</item>
-    <item><b>Badge visuals</b>: update badge definitions (gradients/effects) and role chips to match your desired Admin/Mod/Wife palette.</item>
-    <item><b>Badge Library revamp</b>: redesigned layout with “My Style” (equip), “Pinned” (profile row), and “All Badges” sections, with clean locked states and clear actions.</item>
-  </solution-overview>
+---
 
-  <implementation-phases>
-    <phase name="Phase 1 — Fix correctness fast (granting + notifications + mismatches)">
-      <backend-changes>
-        <item>
-          <b>Roles: add auth-keyed roles table</b>
-          <ul>
-            <li>Create <code>public.user_roles_auth</code> keyed by auth user id (no client-side hacks; server validated).</li>
-            <li>Migrate existing rows from <code>public.user_roles</code> (profile-id keyed) by mapping <code>profiles.id → profiles.user_id</code>.</li>
-            <li>Update <code>public.has_role(_user_id, _role)</code> to check <code>user_roles_auth</code>.</li>
-            <li>Update RLS policies that rely on <code>has_role(auth.uid(), ...)</code> (badges/challenges admin policies) so admin tooling works.</li>
-          </ul>
-        </item>
-        <item>
-          <b>Fix award_badge</b>
-          <ul>
-            <li>Update <code>public.award_badge(p_user_id, p_badge_id,...)</code> to accept either <code>profiles.id</code> or auth id:
-              <ul>
-                <li>If <code>p_user_id</code> matches a profile row, resolve <code>profiles.user_id</code> as the real target auth id.</li>
-                <li>Else treat <code>p_user_id</code> as auth id.</li>
-              </ul>
-            </li>
-            <li>Enforce permissions: only admins (via <code>has_role(auth.uid(),'admin')</code>) and the owner can award to others.</li>
-            <li>Enforce exclusivity: if badge name/category is Owner, only allow if target is the owner; if “Owner’s Wife”, only allow if target is the configured wife user.</li>
-            <li>Return a clear error message when blocked so the UI can show “This badge is exclusive”.</li>
-          </ul>
-        </item>
-        <item>
-          <b>Equipped display style: update get_user_primary_badge</b>
-          <ul>
-            <li>Make the RPC resolve style in this order:
-              <ol>
-                <li>Owner override (by owner username or a dedicated owner role) → Owner styling always wins.</li>
-                <li>Staff roles override (Admin / Moderator / Owner’s Wife) → pick highest staff priority.</li>
-                <li>User equipped badge (<code>user_badges.is_primary = true</code>) if set.</li>
-                <li>Fallback to highest-priority earned badge.</li>
-              </ol>
-            </li>
-            <li>Respect “staff can’t be disabled”: staff styling ignores <code>show_effect</code> toggles.</li>
-          </ul>
-        </item>
-        <item>
-          <b>Retroactive unlock reliability</b>
-          <ul>
-            <li>Keep using <code>sync_my_challenge_progress()</code> on login (already called by <code>useRetroactiveSync</code>).</li>
-            <li>Update the function (if needed) to ensure it resolves the correct profile id even when profiles have legacy rows; and that it always inserts into <code>user_badges</code> with the resolved auth id.</li>
-            <li>Add safety: <code>ON CONFLICT (user_id, badge_id) DO NOTHING</code> (already present) + ensure <code>badge_id</code> is never null on new inserts.</li>
-          </ul>
-        </item>
-      </backend-changes>
+### 1. Remove Line Texture from Frosted Glass
 
-      <frontend-changes>
-        <item>
-          <b>Fix AdminBadgeManager awarding</b>
-          <ul>
-            <li>When searching a user by username, select both <code>profiles.id</code> and <code>profiles.user_id</code>.</li>
-            <li>Pass the correct target id to <code>award_badge</code> (prefer <code>profiles.user_id</code> if present; otherwise pass <code>profiles.id</code> and rely on the new resolver in <code>award_badge</code>).</li>
-            <li>After awarding/removing: invalidate the recipient’s <code>user-badges</code> + <code>display-style</code> queries so it updates immediately.</li>
-          </ul>
-        </item>
-        <item>
-          <b>Global name consistency: upgrade UserIdentity/UserName</b>
-          <ul>
-            <li>Update <code>src/components/ui/UserIdentity.tsx</code> so the displayed name uses <code>&lt;StyledUsername /&gt;</code> (instead of plain text).</li>
-            <li>Update the <code>UserName</code> helper component similarly.</li>
-            <li>This single change will automatically fix many “still doesn’t match” surfaces that currently use <code>UserIdentity</code>/<code>UserName</code>.</li>
-          </ul>
-        </item>
-        <item>
-          <b>Settings “View profile” mismatch</b>
-          <ul>
-            <li>In <code>ProfileSection</code>, replace the plain <code>@username</code> header with <code>StyledUsername</code> so the preview matches what others see.</li>
-          </ul>
-        </item>
-        <item>
-          <b>Notifications: remove View + make tap mouth-zoom</b>
-          <ul>
-            <li>In <code>useMessageNotifications</code>:
-              <ul>
-                <li>Remove the Sonner <code>action: { label: 'View', ... }</code> so the button disappears.</li>
-                <li>Make the toast clickable: clicking anywhere on the toast triggers mouth-zoom into the DM.</li>
-              </ul>
-            </li>
-            <li>Move <code>MouthZoomProvider</code> to the app root (wrap the router content) so it’s available from anywhere, including global toasts.</li>
-            <li>Optimize lag: in the transition, try to find an existing conversation ID from cached conversations first; only call “create conversation” if none exists.</li>
-          </ul>
-        </item>
-      </frontend-changes>
+**Current Issue:** The frosted glass elements have a subtle noise/line texture that creates a pattern overlay effect.
 
-      <ui-style-changes (quick wins)>
-        <item><b>Role chip colors</b>: update <code>ModBadge</code> to use:
-          <ul>
-            <li>Admin: neon shiny red (stronger red gradient + subtle shine/glow).</li>
-            <li>Mod: silver (cool gray gradient, metallic look).</li>
-          </ul>
-        </item>
-        <item><b>Wife badge</b>: update <code>OwnerWifeRingBadge</code> to a burgundy palette (and optionally reduce motion if you want it less “busy”).</item>
-      </ui-style-changes>
-    </phase>
+**Solution:** Remove the `::before` pseudo-element that creates the noise texture in the `liquid-glass` CSS class.
 
-    <phase name="Phase 2 — True ‘equipped badge’ + clean badge system UX">
-      <backend-changes>
-        <item>
-          <b>Equipping a badge</b>
-          <ul>
-            <li>Add an RPC or safe update path to set exactly one <code>user_badges.is_primary</code> for a user (and unset others) with proper access control.</li>
-            <li>Ensure staff overrides remain non-configurable.</li>
-          </ul>
-        </item>
-      </backend-changes>
+**Files to modify:**
+- `src/index.css` - Remove or disable the noise texture in `.liquid-glass::before` by setting `display: none` or commenting out the background-image
 
-      <frontend-changes>
-        <item>
-          <b>Revamp Badge Library</b> (<code>src/pages/BadgeLibrary.tsx</code>)
-          <ul>
-            <li>Top “My Identity” card:
-              <ul>
-                <li>Shows your current styled name preview.</li>
-                <li>Shows which badge is equipped (or “Highest priority badge”).</li>
-              </ul>
-            </li>
-            <li>“My Badges” section:
-              <ul>
-                <li>Earned badges only.</li>
-                <li>Actions per badge: Equip (sets primary), Pin (up to 3), Toggle effect (for non-staff badges).</li>
-              </ul>
-            </li>
-            <li>“All Badges” section:
-              <ul>
-                <li>Cleaner locked cards: show requirement text (unlock_requirement/unlock_threshold) instead of just a lock overlay.</li>
-                <li>Highlight staff-exclusive badges (Owner / Wife) as “Exclusive”.</li>
-              </ul>
-            </li>
-            <li>Visual polish: consistent spacing, fewer overlays, better typography, modern empty states.</li>
-          </ul>
-        </item>
-        <item>
-          <b>Replace remaining plain-name renderers</b>
-          <ul>
-            <li>Systematically update high-traffic surfaces still using <code>display_name || username</code> (e.g., conversation list rows, member lists, friend requests, live panels) to render <code>StyledUsername</code> or <code>UserIdentity</code> (now upgraded to styled).</li>
-            <li>Where performance matters (large lists), pass preloaded style if already available, or batch-load styles for the visible set.</li>
-          </ul>
-        </item>
-      </frontend-changes>
-    </phase>
+---
 
-    <phase name="Phase 3 — Staff colors + exclusivity done ‘right’">
-      <backend-changes>
-        <item>
-          <b>Staff style definition source</b>
-          <ul>
-            <li>Ensure badges table has definitive rows for Admin/Moderator/Owner/Wife with the exact gradients/effects you want.</li>
-            <li>Update the style RPC to pull those rows so changing colors is just data, not code.</li>
-          </ul>
-        </item>
-        <item>
-          <b>Hard lock exclusives</b>
-          <ul>
-            <li>Owner badge cannot be inserted for non-owner in any code path (award RPC + sync RPC).</li>
-            <li>Wife badge cannot be inserted for any user except the configured wife user.</li>
-          </ul>
-        </item>
-      </backend-changes>
-    </phase>
-  </implementation-phases>
+### 2. Fix Hold-to-Manage DMs (Prevent Triggering While Scrolling)
 
-  <acceptance-checklist>
-    <item>Badge granting from the admin panel works immediately (recipient sees it in their library, and their name styling updates after refresh or instantly via cache invalidation).</item>
-    <item>Owner badge cannot be granted to anyone else (attempt shows a clear error).</item>
-    <item>Admin = neon shiny red, Mod = silver, Wife = burgundy in both the small badge chip and the display name styling.</item>
-    <item>No “View” button on message toasts; tapping the toast mouth-zooms into the correct DM; no dead clicks.</item>
-    <item>Name styling matches across: sidebar, settings “view profile” card, profile page header, hover cards, posts, comments, conversation list, notifications list, and message toasts.</item>
-    <item>Users who completed challenges in the past get their badge unlocked on login (retroactive sync) and it shows in their library.</item>
-  </acceptance-checklist>
+**Current Issue:** The long-press gesture to open conversation options triggers even when the user is scrolling, causing accidental opens.
 
-  <notes / risks>
-    <item>Changing the roles storage to auth-keyed is necessary for secure, reliable admin checks. We will migrate existing role rows so nothing is lost.</item>
-    <item>There are legacy profile rows with <code>profiles.user_id</code> missing; the updated functions will be defensive, but long-term we should ensure profile creation/claim always writes <code>user_id</code>.</item>
-    <item>To keep UI fast, we’ll prioritize “centralizing name rendering” (UserIdentity/UserName → StyledUsername) and only add batching if we see performance issues in very large lists.</item>
-  </notes>
+**Solution:** Track scroll/drag state and cancel the long-press timer if the user is actively scrolling. Add a movement threshold check.
+
+**Files to modify:**
+- `src/components/chat/ConversationList.tsx` - In the `ConversationItem` component:
+  - Add a touch movement tracker
+  - Cancel long-press timer if touch moves more than 10px
+  - Check if currently dragging (swiping) before triggering long-press
+
+---
+
+### 3. Fix Create Menu and VYBE Hub Animation Glitches
+
+**Current Issue:** The opening animations are choppy/glitchy due to complex spring configurations and multiple animated elements.
+
+**Solution:** Optimize the animation configurations for smoother performance:
+- Use simpler spring configurations with lower stiffness
+- Add `will-change: transform` for GPU acceleration
+- Reduce staggered animation delays
+- Use `transform: translateZ(0)` to force GPU layer
+
+**Files to modify:**
+- `src/components/hub/CreateMenu.tsx` - Optimize spring config and add GPU acceleration
+- `src/components/hub/VYBEHub.tsx` - Same optimizations, reduce animation complexity
+
+---
+
+### 4. Show Calls as In-Chat Messages (Instagram-Style)
+
+**Current Issue:** Calls show as separate notifications rather than appearing in the DM chat history like Instagram.
+
+**Solution:** Create a system message type for calls that displays in the chat:
+- When a call ends, insert a message into the conversation with call metadata
+- Display with appropriate icon (video/phone), duration, and timestamp
+- No notification toast for call events - just the in-chat indicator
+
+**Files to modify:**
+- `src/components/call/GlobalCallOverlay.tsx` - On call end, insert a system message into the conversation
+- `src/hooks/useMessages.ts` or create new hook - Add function to insert call system message
+- `src/components/chat/ChatView.tsx` - Render call system messages with proper icons and formatting
+- Create new `src/components/chat/CallSystemMessage.tsx` - Component for rendering call history in chat
+
+**Database changes:**
+- Add a migration to create call history messages or use existing message type with metadata
+
+---
+
+### 5. Auto-Hide Bottom Controls in FaceTime When Inactive
+
+**Current Issue:** The bottom control bar in video calls remains visible, potentially blocking content.
+
+**Solution:** Mirror the header auto-hide behavior for the bottom bar:
+- Add `showFooter` state that auto-hides after 3 seconds
+- Show on touch/hover/tap
+- Hide when inactive
+
+**Files to modify:**
+- `src/components/call/GlobalCallOverlay.tsx`:
+  - Add `showFooter` state
+  - Add footer hover zone at bottom
+  - Apply same visibility logic as header
+
+---
+
+### 6. Referral Progress Awards Badges
+
+**Current Issue:** The referral milestones display badges visually but don't actually award them to the user.
+
+**Solution:** When a user reaches a milestone (1, 3, 10 invites), automatically grant the corresponding badge.
+
+**Files to modify:**
+- `src/hooks/useInvites.ts` - Add logic to check milestones and award badges when `totalRedemptions` increases
+- Add a `useEffect` that monitors invite count and awards badges via database insert
+
+**Database changes:**
+- May need a trigger or edge function to award badges when invite count reaches milestones
+
+---
+
+### 7. Tutorial Opens Required Pages Before Showing Steps
+
+**Current Issue:** When the tutorial goes to a step that requires a specific page (like Settings), it doesn't navigate there first.
+
+**Solution:** The navigation logic exists but may not be fully working. Ensure `executeStepAction` navigates to required routes before highlighting elements.
+
+**Files to modify:**
+- `src/components/tutorial/TutorialOverlay.tsx` - Verify and fix `executeStepAction` to properly navigate and wait for page load
+- `src/components/tutorial/tutorialSteps.ts` - Ensure all steps have correct `requiresRoute` values
+
+---
+
+### 8. Smaller DM Notification with Cool Animation
+
+**Current Issue:** The message notification toast is too large and lacks a premium animation when tapped.
+
+**Solution:** 
+- Reduce toast padding and size
+- The MouthZoom animation already exists but ensure it triggers properly
+- Make the notification more compact (smaller avatar, tighter spacing)
+
+**Files to modify:**
+- `src/components/notifications/MessageNotificationToast.tsx` - Reduce size (smaller avatar, less padding)
+- Verify `MouthZoomProvider` is properly mounted in the app
+
+---
+
+### 9. Identify Vybe Snaps in Chat and Notifications
+
+**Current Issue:** Vybe snaps appear as "Voice" or generic media instead of being identified as "VYBE".
+
+**Solution:** Add a `vybe` media type and update display logic.
+
+**Files to modify:**
+- `src/components/chat/ConversationList.tsx` - In `ConversationContent`, add check for `media_type === 'vybe'` to display "🌟 VYBE"
+- `src/components/chat/ChatView.tsx` - Handle vybe type with appropriate icon and styling
+- When sending a vybe, set `media_type: 'vybe'` instead of `'image'`
+
+---
+
+### 10. Vybe Open State Sync + Prevent Re-Viewing
+
+**Current Issue:** When a Vybe is opened, it doesn't sync the viewed state to both users, and can sometimes be viewed multiple times.
+
+**Solution:** 
+- When a Vybe is opened, update a `viewed_at` field on the message
+- Mark as viewed in database immediately
+- Prevent re-opening if already viewed
+
+**Files to modify:**
+- `src/components/chat/VybeViewer.tsx` - On open, call an update to mark as viewed
+- `src/hooks/useMessages.ts` - Add mutation to mark Vybe as viewed
+- Update message rendering to not allow opening if already viewed
+
+**Database changes:**
+- Add `viewed_at` column to messages table or use existing metadata field
+
+---
+
+### 11. Revamp Vybe Camera UI with Text Filters
+
+**Current Issue:** The Vybe camera editor needs enhanced text styling options.
+
+**Solution:** Add text filters/styles:
+- Font selection
+- Text background options (outline, shadow, solid background)
+- Text alignment
+
+**Files to modify:**
+- `src/components/chat/SnapCamera.tsx`:
+  - Add font selection (3-4 font options)
+  - Add text style presets (glow, outline, box background)
+  - Fix camera inversion issue (front camera should mirror, back camera should not)
+
+---
+
+### 12. Fix Camera Inversion
+
+**Current Issue:** The camera preview is inverted (mirrored when it shouldn't be or vice versa).
+
+**Solution:** Only mirror the front-facing camera (`user` mode), not the back camera (`environment` mode).
+
+**Files to modify:**
+- `src/components/chat/SnapCamera.tsx` - Apply `scaleX(-1)` only when `facingMode === 'user'`
+
+---
+
+### 13. Overall Animation Smoothness
+
+**Current Issue:** General animation glitchiness throughout the app.
+
+**Solution:** 
+- Add `will-change: transform` to animated elements
+- Use simpler spring configs
+- Ensure GPU acceleration on all animated containers
+- Reduce animation complexity during scroll
+
+**Files to modify:**
+- `src/lib/motion.ts` - Update spring configs for smoother animations
+- `src/index.css` - Add more performance optimizations
+
+---
+
+## Technical Details
+
+### Animation Optimization Pattern
+```typescript
+// Smoother spring config
+transition={{ 
+  type: 'spring', 
+  stiffness: 300, // Reduced from 400+
+  damping: 30,    // Increased for less bounce
+  mass: 0.8,      // Lower mass for quicker response
+}}
+```
+
+### Scroll-Safe Long Press Pattern
+```typescript
+const touchStartPos = useRef<{x: number, y: number} | null>(null);
+
+const handleTouchStart = (e: TouchEvent) => {
+  touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  longPressTimer = setTimeout(() => {
+    // Only trigger if no significant movement
+    setOptionsOpen(true);
+  }, 500);
+};
+
+const handleTouchMove = (e: TouchEvent) => {
+  if (!touchStartPos.current) return;
+  const dx = e.touches[0].clientX - touchStartPos.current.x;
+  const dy = e.touches[0].clientY - touchStartPos.current.y;
+  if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+    clearTimeout(longPressTimer);
+  }
+};
+```
+
+### Call System Message Format
+```typescript
+interface CallSystemMessage {
+  type: 'system';
+  system_type: 'call';
+  call_type: 'video' | 'audio';
+  call_status: 'completed' | 'missed' | 'declined';
+  duration_seconds?: number;
+  started_at: string;
+}
+```
+
+---
+
+## Implementation Priority
+
+1. **High Priority (Core UX fixes)**
+   - Remove glass texture
+   - Fix hold-to-manage scroll issue
+   - Fix animation glitches
+   - Fix camera inversion
+
+2. **Medium Priority (Feature enhancements)**
+   - Calls in DM chat
+   - Bottom bar auto-hide
+   - Smaller notifications
+   - Vybe identification
+
+3. **Lower Priority (Polish)**
+   - Referral badges
+   - Tutorial navigation
+   - Vybe viewed state sync
+   - Vybe camera UI revamp
+
+---
+
+## Summary
+
+This plan covers 13 distinct improvements across the VYBE app, focusing on:
+- **Visual polish**: Removing unwanted textures, smoother animations
+- **UX fixes**: Preventing accidental gestures, proper navigation
+- **Feature enhancements**: Instagram-style call history, badge rewards
+- **Technical improvements**: GPU acceleration, optimized animations
+
+The changes span CSS, React components, hooks, and potentially database migrations.
