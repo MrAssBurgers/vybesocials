@@ -9,6 +9,7 @@ interface PermissionItem {
   id: string;
   name: string;
   description: string;
+  hint: string;
   icon: typeof Bell;
   isRequired: boolean;
   mobileOnly?: boolean;
@@ -19,6 +20,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'notifications',
     name: 'Notifications',
     description: 'Get alerts for messages, calls & updates',
+    hint: 'Select "Allow" to receive notifications',
     icon: Bell,
     isRequired: true,
   },
@@ -26,6 +28,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'camera',
     name: 'Camera',
     description: 'Take photos & record videos',
+    hint: 'Choose "Allow" when prompted',
     icon: Camera,
     isRequired: false,
   },
@@ -33,6 +36,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'microphone',
     name: 'Microphone',
     description: 'Voice messages & video calls',
+    hint: 'Choose "Allow" when prompted',
     icon: Mic,
     isRequired: false,
   },
@@ -40,6 +44,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'motion',
     name: 'Motion & Sensors',
     description: 'Shake detection & gesture controls',
+    hint: 'Select "Allow" for FriendDrop features',
     icon: Smartphone,
     isRequired: false,
     mobileOnly: true,
@@ -48,6 +53,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'location',
     name: 'Location',
     description: 'Find nearby friends & local events',
+    hint: 'Select "Always Allow" or "Allow While Using"',
     icon: MapPin,
     isRequired: false,
   },
@@ -55,6 +61,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'haptics',
     name: 'Haptics & Vibration',
     description: 'Tactile feedback for interactions',
+    hint: 'Tap to enable vibration',
     icon: Vibrate,
     isRequired: false,
     mobileOnly: true,
@@ -63,6 +70,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'contacts',
     name: 'Contacts',
     description: 'Find friends already on VYBE',
+    hint: 'Choose "Allow Access" when prompted',
     icon: Users,
     isRequired: false,
   },
@@ -453,6 +461,12 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
                   <p className="text-sm text-muted-foreground mt-0.5">
                     {permission.description}
                   </p>
+                  {/* Show hint when requesting or pending */}
+                  {(isRequesting || (!isGranted && !isDenied && !isUnsupported)) && (
+                    <p className="text-xs text-primary mt-1 font-medium">
+                      💡 {permission.hint}
+                    </p>
+                  )}
                 </div>
 
                 {/* Action Button */}
