@@ -202,7 +202,7 @@ export function UserProfileHoverCard({
         {children}
       </HoverCardTrigger>
       <HoverCardContent 
-        className="w-72 p-4" 
+        className="w-auto min-w-64 max-w-80 p-4" 
         side="top" 
         align="start"
         sideOffset={8}
@@ -230,26 +230,26 @@ export function UserProfileHoverCard({
                   </AvatarFallback>
                 </Avatar>
               </Link>
-              <div className="flex-1 min-w-0 overflow-hidden">
+              <div className="flex-1">
                 <Link 
                   to={`/u/${username}`} 
                   className="block hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <StyledUsername
                       userId={profileData.id}
                       username={username}
                       displayName={profileData.display_name}
                       badgeStyle={displayStyle}
-                      className="font-semibold"
+                      className="font-semibold whitespace-nowrap"
                     />
                     {profileData.is_verified && (
                       <BadgeCheck className="h-4 w-4 text-primary fill-primary/20 flex-shrink-0" />
                     )}
                     {isOwner(username) && <OwnerBadge className="flex-shrink-0" />}
                   </div>
-                  <p className="text-sm text-muted-foreground truncate">@{username}</p>
+                  <p className="text-sm text-muted-foreground">@{username}</p>
                 </Link>
               </div>
             </div>
