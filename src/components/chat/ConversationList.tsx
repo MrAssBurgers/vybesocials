@@ -626,7 +626,9 @@ const ConversationContent = memo(function ConversationContent({
                   </span>
                 )}
                 <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">
-                  {lastMessage.media_type === 'image' 
+                  {lastMessage.media_type === 'vybe' 
+                    ? '🌟 VYBE'
+                    : lastMessage.media_type === 'image' 
                     ? '📷 Photo' 
                     : lastMessage.media_type === 'video'
                     ? '📹 Video'
@@ -687,6 +689,8 @@ const ConversationItem = memo(function ConversationItem({
   const [isDeleting, setIsDeleting] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef(false);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const isDraggingRef = useRef(false);
   
   // Swipe gesture handling - more generous transforms for better UX
   const x = useMotionValue(0);
@@ -695,6 +699,7 @@ const ConversationItem = memo(function ConversationItem({
   const backgroundColor = useTransform(x, [-60, 0], ['hsl(var(--destructive))', 'transparent']);
   
   const handleDragEnd = useCallback((event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    isDraggingRef.current = false;
     if (info.offset.x < SWIPE_THRESHOLD && onTrash) {
       setIsDeleting(true);
       setTimeout(() => {
@@ -702,17 +707,63 @@ const ConversationItem = memo(function ConversationItem({
       }, 200);
     }
   }, [onTrash]);
+
+  const handleDragStart = useCallback(() => {
+    isDraggingRef.current = true;
+    // Cancel long press when dragging starts
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
   
-  // Long press handlers
-  const handleTouchStart = useCallback(() => {
+  // Long press handlers with scroll/movement detection
+  const handleTouchStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
     isLongPressRef.current = false;
+    isDraggingRef.current = false;
+    
+    // Store initial touch position
+    if ('touches' in e) {
+      touchStartPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    } else {
+      touchStartPosRef.current = { x: e.clientX, y: e.clientY };
+    }
+    
     longPressTimerRef.current = setTimeout(() => {
-      isLongPressRef.current = true;
-      setOptionsOpen(true);
+      // Only trigger if not dragging/scrolling
+      if (!isDraggingRef.current) {
+        isLongPressRef.current = true;
+        setOptionsOpen(true);
+      }
     }, 500);
   }, []);
 
+  const handleTouchMove = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    if (!touchStartPosRef.current) return;
+    
+    let currentX: number, currentY: number;
+    if ('touches' in e) {
+      currentX = e.touches[0].clientX;
+      currentY = e.touches[0].clientY;
+    } else {
+      currentX = e.clientX;
+      currentY = e.clientY;
+    }
+    
+    const dx = Math.abs(currentX - touchStartPosRef.current.x);
+    const dy = Math.abs(currentY - touchStartPosRef.current.y);
+    
+    // If moved more than 10px in any direction, cancel long press (scrolling detected)
+    if (dx > 10 || dy > 10) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    }
+  }, []);
+
   const handleTouchEnd = useCallback(() => {
+    touchStartPosRef.current = null;
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
@@ -720,7 +771,7 @@ const ConversationItem = memo(function ConversationItem({
   }, []);
 
   const handleClick = useCallback(() => {
-    if (!isLongPressRef.current) {
+    if (!isLongPressRef.current && !isDraggingRef.current) {
       onClick();
     }
   }, [onClick]);
@@ -821,6 +872,7 @@ const ConversationItem = memo(function ConversationItem({
             dragConstraints={{ left: -120, right: 0 }}
             dragElastic={0.1}
             dragMomentum={false}
+            onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             animate={isDeleting ? { x: -400, opacity: 0 } : { x: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 35 }}
@@ -829,8 +881,10 @@ const ConversationItem = memo(function ConversationItem({
               className="group w-full flex items-center gap-3 p-3 rounded-2xl text-left liquid-glass hover:bg-white/10 dark:hover:bg-white/5 active:scale-[0.98] transition-all border border-white/10 hover:border-white/20 cursor-pointer box-border shadow-sm"
               onClick={handleClick}
               onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
               onMouseDown={handleTouchStart}
+              onMouseMove={handleTouchMove}
               onMouseUp={handleTouchEnd}
               onMouseLeave={handleTouchEnd}
             >

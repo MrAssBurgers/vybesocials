@@ -74,11 +74,12 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
           >
             {/* High-tech popup */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.85, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{ type: "spring", damping: 25, stiffness: 400 }}
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: "tween", duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="pointer-events-auto"
+              style={{ willChange: 'transform, opacity' }}
             >
               {/* Outer glow ring */}
               <div className="relative">
@@ -130,16 +131,16 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
                   
                   {/* Menu items */}
                   <div className="relative z-10 flex flex-col gap-2">
-                    {menuItems.map((item, index) => (
+                  {menuItems.map((item, index) => (
                       <motion.button
                         key={item.path}
                         onClick={() => handleNavigate(item.path)}
-                        initial={{ opacity: 0, x: -30 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.08, type: "spring", stiffness: 300 }}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.03 + index * 0.03, duration: 0.2 }}
                         whileTap={{ scale: 0.98 }}
-                        whileHover={{ scale: 1.02, x: 4 }}
-                        className="group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-primary/30 transition-all duration-300 overflow-hidden"
+                        className="group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-primary/30 transition-all duration-200 overflow-hidden"
+                        style={{ willChange: 'transform, opacity' }}
                       >
                         {/* Hover glow */}
                         <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-accent/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

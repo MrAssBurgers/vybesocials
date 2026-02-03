@@ -6,29 +6,44 @@ import { haptics } from '@/lib/haptics';
 
 interface VybeViewerProps {
   mediaUrl: string;
+  messageId?: string; // Added to track viewed state
   senderName?: string;
   senderAvatar?: string;
   isOpen: boolean;
+  isViewed?: boolean; // Track if already viewed
   onClose: () => void;
   onReply?: () => void;
+  onViewed?: () => void; // Callback when vybe is viewed
 }
 
 export function VybeViewer({ 
   mediaUrl, 
+  messageId,
   senderName,
   senderAvatar,
   isOpen, 
+  isViewed = false,
   onClose,
-  onReply 
+  onReply,
+  onViewed,
 }: VybeViewerProps) {
   const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [showReplyHint, setShowReplyHint] = useState(false);
+  const [hasMarkedViewed, setHasMarkedViewed] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
   const startTime = useRef<number>(0);
 
   const VYBE_DURATION = 5000; // 5 seconds like Snapchat
+  
+  // Mark vybe as viewed when opened - triggers callback for parent to handle
+  useEffect(() => {
+    if (isOpen && messageId && !isViewed && !hasMarkedViewed) {
+      setHasMarkedViewed(true);
+      onViewed?.();
+    }
+  }, [isOpen, messageId, isViewed, hasMarkedViewed, onViewed]);
 
   // Progress timer - auto close after duration
   useEffect(() => {

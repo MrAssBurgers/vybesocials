@@ -338,7 +338,10 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
             <video
               ref={videoRef}
               className="w-full h-full object-cover"
-              style={{ objectFit: 'cover' }}
+              style={{ 
+                objectFit: 'cover',
+                transform: facingMode === 'user' ? 'scaleX(-1)' : 'none'
+              }}
               playsInline
               muted
               autoPlay

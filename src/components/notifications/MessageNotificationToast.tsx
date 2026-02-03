@@ -55,29 +55,25 @@ export const MessageNotificationToast = memo(function MessageNotificationToast({
       ref={containerRef}
       onClick={handleClick}
       className={cn(
-        "flex items-center gap-3 p-3 cursor-pointer w-full",
-        "hover:bg-accent/50 transition-colors rounded-lg",
-        "active:scale-[0.98] transition-transform"
+        "flex items-center gap-2.5 p-2 cursor-pointer w-full max-w-[280px]",
+        "hover:bg-accent/50 transition-all rounded-xl",
+        "active:scale-[0.97] duration-150"
       )}
     >
-      <Avatar className="h-10 w-10 ring-2 ring-primary/20 flex-shrink-0">
+      <Avatar className="h-8 w-8 ring-2 ring-primary/20 flex-shrink-0">
         <AvatarImage src={senderAvatar || undefined} />
-        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground">
+        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground text-xs">
           {senderName[0]?.toUpperCase()}
         </AvatarFallback>
       </Avatar>
       
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm text-foreground truncate">
+        <p className="font-medium text-xs text-foreground truncate">
           {senderName}
         </p>
-        <p className="text-xs text-muted-foreground truncate">
+        <p className="text-[11px] text-muted-foreground truncate">
           {messagePreview}
         </p>
-      </div>
-      
-      <div className="text-xs text-muted-foreground/60">
-        now
       </div>
     </div>
   );

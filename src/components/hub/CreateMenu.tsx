@@ -79,25 +79,25 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.15 }}
               className="fixed inset-0 bg-black/60 backdrop-blur-md"
-              style={{ zIndex: 2147483646 }}
+              style={{ zIndex: 2147483646, willChange: 'opacity' }}
               onClick={onClose}
             />
 
             {/* Menu Container - Centered */}
             <div className="fixed inset-0 flex items-center justify-center pointer-events-none p-4" style={{ zIndex: 2147483647 }}>
               <motion.div
-                initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ 
-                  type: 'spring', 
-                  damping: 25, 
-                  stiffness: 350,
-                  mass: 0.8,
+                  type: 'tween',
+                  duration: 0.2,
+                  ease: [0.25, 0.46, 0.45, 0.94],
                 }}
                 className="relative w-full max-w-sm pointer-events-auto"
+                style={{ willChange: 'transform, opacity' }}
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Glow effect behind card */}
@@ -134,13 +134,13 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
                     {menuItems.map((item, index) => (
                       <motion.button
                         key={item.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.15 + index * 0.08 }}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.05 + index * 0.03, duration: 0.2 }}
                         onClick={() => handleAction(item.id)}
-                        whileTap={{ scale: 0.97 }}
-                        whileHover={{ scale: 1.02, x: 4 }}
+                        whileTap={{ scale: 0.98 }}
                         className="w-full p-4 rounded-2xl bg-muted/50 hover:bg-muted/80 border border-border/30 hover:border-border/50 flex items-center gap-4 transition-colors group"
+                        style={{ willChange: 'transform, opacity' }}
                       >
                         {/* Icon with gradient background */}
                         <motion.div 

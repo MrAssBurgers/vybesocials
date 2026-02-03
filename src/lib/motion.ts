@@ -4,10 +4,10 @@
 export const MOTION_CONFIG = {
   // Spring configs for different use cases
   spring: {
-    snappy: { type: 'spring', stiffness: 500, damping: 30 } as const,
-    gentle: { type: 'spring', stiffness: 300, damping: 25 } as const,
-    bouncy: { type: 'spring', stiffness: 400, damping: 15 } as const,
-    slow: { type: 'spring', stiffness: 200, damping: 20 } as const,
+    snappy: { type: 'spring', stiffness: 400, damping: 28 } as const,
+    gentle: { type: 'spring', stiffness: 250, damping: 22 } as const,
+    bouncy: { type: 'spring', stiffness: 350, damping: 18 } as const,
+    slow: { type: 'spring', stiffness: 180, damping: 22 } as const,
   },
   
   // Duration presets (in seconds)
