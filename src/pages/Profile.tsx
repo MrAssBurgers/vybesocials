@@ -25,7 +25,8 @@ import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/compone
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useLiveFollowerCount } from '@/hooks/useLiveFollowerCount';
 import { useUserBadges, useUserPrimaryBadge } from '@/hooks/useBadges';
-import { StyledDisplayName, BadgeRow } from '@/components/badges';
+import { BadgeRow } from '@/components/badges';
+import { StyledUsername } from '@/components/ui/StyledUsername';
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -223,14 +224,13 @@ export default function ProfilePage() {
                 {/* Display Name with Badge Styling */}
                 {profile.display_name && (
                   <h1 className="text-2xl font-bold flex items-center gap-2">
-                    {primaryBadge ? (
-                      <StyledDisplayName 
-                        name={profile.display_name} 
-                        badge={primaryBadge}
-                      />
-                    ) : (
-                      profile.display_name
-                    )}
+                    <StyledUsername
+                      userId={profile.id}
+                      username={profile.username}
+                      displayName={profile.display_name}
+                      preferDisplayName={true}
+                      className="text-2xl font-bold"
+                    />
                     {showOwnerBadge && isOwner(profile.username) && <OwnerBadge />}
                     {showOwnerWifeBadge && isOwnerWife(profile.id) && <OwnerWifeRingBadge />}
                     {showModBadge && profileRole && <ModBadge role={profileRole} />}
@@ -238,10 +238,13 @@ export default function ProfilePage() {
                 )}
                 {/* Username */}
                 <p className={`${profile.display_name ? 'text-muted-foreground text-sm' : 'text-2xl font-bold'} flex items-center gap-2`}>
-                  {!profile.display_name && primaryBadge ? (
-                    <StyledDisplayName 
-                      name={`@${profile.username}`} 
-                      badge={primaryBadge}
+                  {!profile.display_name ? (
+                    <StyledUsername
+                      userId={profile.id}
+                      username={profile.username}
+                      showAtSymbol={true}
+                      preferDisplayName={false}
+                      className="text-2xl font-bold"
                     />
                   ) : (
                     `@${profile.username}`

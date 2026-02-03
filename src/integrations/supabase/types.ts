@@ -5807,10 +5807,9 @@ export type Database = {
           name: string
         }[]
       }
-      grant_owner_all_badges: {
-        Args: { p_owner_user_id: string }
-        Returns: undefined
-      }
+      grant_owner_all_badges:
+        | { Args: never; Returns: undefined }
+        | { Args: { p_owner_user_id: string }; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -5856,6 +5855,10 @@ export type Database = {
       sync_my_challenge_progress: { Args: never; Returns: undefined }
       sync_user_challenge_progress: {
         Args: { p_user_id: string }
+        Returns: undefined
+      }
+      trigger_badge_sync_for_user: {
+        Args: { p_username: string }
         Returns: undefined
       }
       use_theme_code: { Args: { p_code: string }; Returns: string }

@@ -97,7 +97,7 @@ import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBa
 import { StreakIndicator } from './StreakIndicator';
 import { useStreakWithUser } from '@/hooks/useStreaks';
 import { DMImageSafetyGate } from './DMImageSafetyGate';
-
+import { StyledUsername } from '@/components/ui/StyledUsername';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
 // Theme color mapping - now includes both bubble and text classes
@@ -853,7 +853,17 @@ export function ChatView() {
         
         <div className="flex-1 min-w-0">
           <h2 className="font-semibold text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
-            {displayName}
+            {/* Styled display name with badge gradients */}
+            {!isGroupChat && otherMember?.id ? (
+              <StyledUsername
+                userId={otherMember.id}
+                username={otherMember.username || ''}
+                displayName={otherMember.display_name}
+                preferDisplayName={true}
+              />
+            ) : (
+              displayName
+            )}
             {!isGroupChat && otherMember?.id && isOwner(otherMember.username || '') && <OwnerBadge />}
             {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <OwnerWifeRingBadge />}
             {/* Streak indicator in header */}
