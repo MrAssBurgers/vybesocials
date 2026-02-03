@@ -230,26 +230,26 @@ export function UserProfileHoverCard({
                   </AvatarFallback>
                 </Avatar>
               </Link>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 overflow-hidden">
                 <Link 
                   to={`/u/${username}`} 
                   className="block hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
-                <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <StyledUsername
                       userId={profileData.id}
                       username={username}
                       displayName={profileData.display_name}
                       badgeStyle={displayStyle}
-                      className="font-semibold truncate"
+                      className="font-semibold"
                     />
                     {profileData.is_verified && (
                       <BadgeCheck className="h-4 w-4 text-primary fill-primary/20 flex-shrink-0" />
                     )}
-                    {isOwner(username) && <OwnerBadge />}
+                    {isOwner(username) && <OwnerBadge className="flex-shrink-0" />}
                   </div>
-                  <p className="text-sm text-muted-foreground">@{username}</p>
+                  <p className="text-sm text-muted-foreground truncate">@{username}</p>
                 </Link>
               </div>
             </div>
