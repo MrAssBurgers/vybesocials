@@ -5798,6 +5798,7 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: {
           badge_id: string
+          category: string
           effect: string
           gradient_from: string
           gradient_to: string
@@ -5805,6 +5806,7 @@ export type Database = {
           icon: string
           is_animated: boolean
           name: string
+          priority: number
         }[]
       }
       grant_owner_all_badges:
@@ -5854,7 +5856,7 @@ export type Database = {
       }
       sync_my_challenge_progress: { Args: never; Returns: undefined }
       sync_user_challenge_progress: {
-        Args: { p_user_id: string }
+        Args: { p_auth_user_id: string }
         Returns: undefined
       }
       trigger_badge_sync_for_user: {
