@@ -16,6 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
+import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useConversations, useCreateConversation } from '@/hooks/useMessages';
 import { useFriends } from '@/hooks/useFriends';
 import { useEvents } from '@/hooks/useEvents';
@@ -122,6 +123,8 @@ export function DesktopRightSidebar() {
         lastMessage: conv.last_message?.content,
         hasUnread: conv.unread_count > 0,
         isTyping: checkTyping(conv.id),
+        otherUserId: conv.is_group ? null : otherMember?.id,
+        isGroup: conv.is_group,
       };
     });
   }, [conversations, profile?.id, checkTyping]);
@@ -257,7 +260,17 @@ export function DesktopRightSidebar() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{chat.name}</p>
+                      <p className="font-medium text-sm truncate">
+                        {chat.otherUserId ? (
+                          <StyledUsername
+                            userId={chat.otherUserId}
+                            username={chat.name || 'Unknown'}
+                            displayName={chat.name}
+                          />
+                        ) : (
+                          chat.name
+                        )}
+                      </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {chat.isTyping ? (
                           <span className="text-primary flex items-center gap-1">
