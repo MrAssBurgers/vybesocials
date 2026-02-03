@@ -5636,6 +5636,7 @@ export type Database = {
         Returns: string
       }
       calculate_level_from_xp: { Args: { p_xp: number }; Returns: number }
+      check_and_grant_owner_badges: { Args: never; Returns: undefined }
       claim_challenge_reward: {
         Args: { p_reward_id: string; p_user_id: string }
         Returns: Json
@@ -5806,6 +5807,10 @@ export type Database = {
           name: string
         }[]
       }
+      grant_owner_all_badges: {
+        Args: { p_owner_user_id: string }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -5846,6 +5851,11 @@ export type Database = {
       }
       set_active_background: {
         Args: { p_background_id: string }
+        Returns: undefined
+      }
+      sync_my_challenge_progress: { Args: never; Returns: undefined }
+      sync_user_challenge_progress: {
+        Args: { p_user_id: string }
         Returns: undefined
       }
       use_theme_code: { Args: { p_code: string }; Returns: string }
