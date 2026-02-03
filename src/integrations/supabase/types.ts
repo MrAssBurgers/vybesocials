@@ -151,6 +151,69 @@ export type Database = {
           },
         ]
       }
+      badges: {
+        Row: {
+          can_be_disabled: boolean | null
+          category: Database["public"]["Enums"]["badge_category"]
+          created_at: string | null
+          description: string | null
+          effect: string | null
+          gradient_from: string | null
+          gradient_to: string | null
+          gradient_via: string | null
+          icon: string
+          id: string
+          is_active: boolean | null
+          is_animated: boolean | null
+          is_staff_badge: boolean | null
+          name: string
+          priority: number
+          unlock_requirement: string | null
+          unlock_threshold: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          can_be_disabled?: boolean | null
+          category: Database["public"]["Enums"]["badge_category"]
+          created_at?: string | null
+          description?: string | null
+          effect?: string | null
+          gradient_from?: string | null
+          gradient_to?: string | null
+          gradient_via?: string | null
+          icon: string
+          id?: string
+          is_active?: boolean | null
+          is_animated?: boolean | null
+          is_staff_badge?: boolean | null
+          name: string
+          priority?: number
+          unlock_requirement?: string | null
+          unlock_threshold?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          can_be_disabled?: boolean | null
+          category?: Database["public"]["Enums"]["badge_category"]
+          created_at?: string | null
+          description?: string | null
+          effect?: string | null
+          gradient_from?: string | null
+          gradient_to?: string | null
+          gradient_via?: string | null
+          icon?: string
+          id?: string
+          is_active?: boolean | null
+          is_animated?: boolean | null
+          is_staff_badge?: boolean | null
+          name?: string
+          priority?: number
+          unlock_requirement?: string | null
+          unlock_threshold?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       blocked_users: {
         Row: {
           blocked_id: string
@@ -439,6 +502,121 @@ export type Database = {
             columns: ["receiver_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenge_progress: {
+        Row: {
+          challenge_id: string
+          completed_at: string | null
+          created_at: string | null
+          current_count: number | null
+          id: string
+          is_completed: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          completed_at?: string | null
+          created_at?: string | null
+          current_count?: number | null
+          id?: string
+          is_completed?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          completed_at?: string | null
+          created_at?: string | null
+          current_count?: number | null
+          id?: string
+          is_completed?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_progress_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenge_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "challenge_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenge_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenges: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          ends_at: string | null
+          id: string
+          is_active: boolean | null
+          requirement_count: number | null
+          requirement_type: string
+          reward_badge_id: string | null
+          reward_xp: number | null
+          starts_at: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          requirement_count?: number | null
+          requirement_type: string
+          reward_badge_id?: string | null
+          reward_xp?: number | null
+          starts_at?: string | null
+          title: string
+          type: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          requirement_count?: number | null
+          requirement_type?: string
+          reward_badge_id?: string | null
+          reward_xp?: number | null
+          starts_at?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenges_reward_badge_id_fkey"
+            columns: ["reward_badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
             referencedColumns: ["id"]
           },
         ]
@@ -4325,30 +4503,80 @@ export type Database = {
       }
       user_badges: {
         Row: {
+          awarded_by: string | null
+          badge_id: string | null
           badge_name: string
           badge_type: string
           earned_at: string
+          expires_at: string | null
           id: string
+          is_pinned: boolean | null
+          is_primary: boolean | null
           metadata: Json | null
+          pin_order: number | null
+          show_effect: boolean | null
           user_id: string
         }
         Insert: {
+          awarded_by?: string | null
+          badge_id?: string | null
           badge_name: string
           badge_type: string
           earned_at?: string
+          expires_at?: string | null
           id?: string
+          is_pinned?: boolean | null
+          is_primary?: boolean | null
           metadata?: Json | null
+          pin_order?: number | null
+          show_effect?: boolean | null
           user_id: string
         }
         Update: {
+          awarded_by?: string | null
+          badge_id?: string | null
           badge_name?: string
           badge_type?: string
           earned_at?: string
+          expires_at?: string | null
           id?: string
+          is_pinned?: boolean | null
+          is_primary?: boolean | null
           metadata?: Json | null
+          pin_order?: number | null
+          show_effect?: boolean | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_awarded_by_fkey"
+            columns: ["awarded_by"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_badges_awarded_by_fkey"
+            columns: ["awarded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_badges_awarded_by_fkey"
+            columns: ["awarded_by"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_bans: {
         Row: {
@@ -5277,6 +5505,15 @@ export type Database = {
       }
     }
     Functions: {
+      award_badge: {
+        Args: {
+          p_awarded_by?: string
+          p_badge_id: string
+          p_expires_at?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       claim_profile_by_email: { Args: never; Returns: string }
       cleanup_old_friend_drops: { Args: never; Returns: undefined }
       create_default_rooms: {
@@ -5430,6 +5667,19 @@ export type Database = {
         }[]
       }
       get_server_role: { Args: { p_server_id: string }; Returns: string }
+      get_user_primary_badge: {
+        Args: { p_user_id: string }
+        Returns: {
+          badge_id: string
+          effect: string
+          gradient_from: string
+          gradient_to: string
+          gradient_via: string
+          icon: string
+          is_animated: boolean
+          name: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -5476,6 +5726,14 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user" | "owner_wife"
+      badge_category:
+        | "role"
+        | "patreon"
+        | "referral"
+        | "challenge"
+        | "achievement"
+        | "beta"
+        | "special"
       group_role: "owner" | "admin" | "member"
     }
     CompositeTypes: {
@@ -5605,6 +5863,15 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user", "owner_wife"],
+      badge_category: [
+        "role",
+        "patreon",
+        "referral",
+        "challenge",
+        "achievement",
+        "beta",
+        "special",
+      ],
       group_role: ["owner", "admin", "member"],
     },
   },

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Award, Crown, Shield, BadgeCheck, Heart } from 'lucide-react';
+import { Award, Crown, Shield, BadgeCheck, Heart, ChevronRight } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,8 @@ import { isOwner } from '@/components/ui/OwnerBadge';
 import { isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useQueryClient } from '@tanstack/react-query';
+import { useUserBadges } from '@/hooks/useBadges';
+import { BadgeRow } from '@/components/badges';
 
 interface BadgeSettings {
   show_owner_badge: boolean;
@@ -33,15 +36,29 @@ export function BadgeSettingsSection() {
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState<BadgeSettings>(defaultSettings);
   const { data: userRole } = useUserRoleById(profile?.id);
+  const { data: userBadges } = useUserBadges(profile?.id);
   
   // Determine which badges the user has
   const hasOwnerBadge = isOwner(profile?.username);
   const hasOwnerWifeBadge = isOwnerWife(profile?.id);
   const hasModBadge = !!userRole;
   const hasVerifiedBadge = profile?.is_verified;
+  const hasEarnedBadges = (userBadges?.length || 0) > 0;
+  
+  // Transform user badges for display
+  const displayBadges = userBadges?.slice(0, 5).map(ub => ({
+    id: ub.badge.id,
+    icon: ub.badge.icon,
+    name: ub.badge.name,
+    description: ub.badge.description,
+    gradient_from: ub.badge.gradient_from,
+    gradient_to: ub.badge.gradient_to,
+    effect: ub.badge.effect,
+    is_animated: ub.badge.is_animated,
+  })) || [];
   
   // Check if user has any badges at all
-  const hasAnyBadge = hasOwnerBadge || hasOwnerWifeBadge || hasModBadge || hasVerifiedBadge;
+  const hasAnyBadge = hasOwnerBadge || hasOwnerWifeBadge || hasModBadge || hasVerifiedBadge || hasEarnedBadges;
 
   useEffect(() => {
     if (profile?.badge_settings) {
@@ -105,6 +122,25 @@ export function BadgeSettingsSection() {
       </p>
 
       <div className="space-y-4">
+        {/* Badge Library Link */}
+        <Link to="/badges" className="block">
+          <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 hover:border-primary/40 transition-colors">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                <Award className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <span className="font-medium">Badge Library</span>
+                <p className="text-xs text-muted-foreground">View all badges & challenges</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {displayBadges.length > 0 && <BadgeRow badges={displayBadges} maxVisible={3} size="xs" />}
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </div>
+        </Link>
+        
         {/* Owner Badge */}
         {hasOwnerBadge && (
           <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">

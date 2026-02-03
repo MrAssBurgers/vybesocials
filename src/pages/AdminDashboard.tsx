@@ -13,13 +13,14 @@ import { useUserRole, useReports, useContentFlags, useUpdateReport, useUpdateFla
 import { useAllWarnings, useAllBans, useUnbanUser } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
 import { formatDistanceToNow } from 'date-fns';
-import { Shield, Flag, AlertTriangle, Users, Ban, CheckCircle, XCircle, Eye, UserPlus, Trash2, Crown, Megaphone, MessageSquareWarning, Video, FileText, Gavel, ImageIcon } from 'lucide-react';
+import { Shield, Flag, AlertTriangle, Users, Ban, CheckCircle, XCircle, Eye, UserPlus, Trash2, Crown, Megaphone, MessageSquareWarning, Video, FileText, Gavel, ImageIcon, Award } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { CreateAnnouncementDialog } from '@/components/announcements/CreateAnnouncementDialog';
 import { MemeBanManager } from '@/components/admin/MemeBanManager';
+import { AdminBadgeManager } from '@/components/admin/AdminBadgeManager';
 
 // Hook to search users for adding roles
 function useSearchUsers(searchTerm: string) {
@@ -317,6 +318,10 @@ export default function AdminDashboard() {
               <TabsTrigger value="meme-bans" className="text-xs sm:text-sm flex-shrink-0">
                 <ImageIcon className="h-3 w-3 mr-1" />
                 Meme Bans
+              </TabsTrigger>
+              <TabsTrigger value="badges" className="text-xs sm:text-sm flex-shrink-0">
+                <Award className="h-3 w-3 mr-1" />
+                Badges
               </TabsTrigger>
               <TabsTrigger value="roles" className="text-xs sm:text-sm flex-shrink-0">Roles</TabsTrigger>
             </TabsList>
@@ -735,6 +740,15 @@ export default function AdminDashboard() {
                     </div>
                   </ScrollArea>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Badges Tab */}
+          <TabsContent value="badges">
+            <Card className="liquid-glass">
+              <CardContent className="p-6">
+                <AdminBadgeManager />
               </CardContent>
             </Card>
           </TabsContent>
