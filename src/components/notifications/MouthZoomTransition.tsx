@@ -1,10 +1,11 @@
-import { memo, useCallback, useState, createContext, useContext, useRef } from 'react';
+import { memo, useCallback, useState, createContext, useContext, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useCreateConversation } from '@/hooks/useMessages';
 import { useChatPrefetch } from '@/hooks/useChatPrefetch';
 import { triggerHaptic } from '@/lib/haptics';
+import { registerMouthZoomTrigger, unregisterMouthZoomTrigger } from '@/lib/mouthZoomBridge';
 
 interface TransitionState {
   isAnimating: boolean;
@@ -58,16 +59,14 @@ export const MouthZoomProvider = memo(function MouthZoomProvider({
   });
   const conversationPromiseRef = useRef<Promise<any> | null>(null);
 
-  const startTransition = useCallback(async (
-    e: React.MouseEvent | React.TouchEvent,
+  // Core animation logic - accepts a rect directly
+  const startTransitionFromRect = useCallback(async (
+    rect: DOMRect,
     userId: string,
     username: string,
     avatarUrl: string | null,
     displayName: string | null,
   ) => {
-    const element = (e.currentTarget as HTMLElement);
-    const rect = element.getBoundingClientRect();
-    
     // Haptic feedback immediately
     triggerHaptic('light');
     
@@ -120,6 +119,25 @@ export const MouthZoomProvider = memo(function MouthZoomProvider({
       });
     }
   }, [createConversation, navigate, prefetchConversation]);
+
+  // Wrapper for event-based calls (used by components)
+  const startTransition = useCallback(async (
+    e: React.MouseEvent | React.TouchEvent,
+    userId: string,
+    username: string,
+    avatarUrl: string | null,
+    displayName: string | null,
+  ) => {
+    const element = (e.currentTarget as HTMLElement);
+    const rect = element.getBoundingClientRect();
+    return startTransitionFromRect(rect, userId, username, avatarUrl, displayName);
+  }, [startTransitionFromRect]);
+
+  // Register with global bridge for notification clicks
+  useEffect(() => {
+    registerMouthZoomTrigger(startTransitionFromRect);
+    return () => unregisterMouthZoomTrigger();
+  }, [startTransitionFromRect]);
 
   const contextValue: MouthZoomContextValue = {
     startTransition,

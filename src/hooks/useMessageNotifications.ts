@@ -3,8 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { premiumSounds } from '@/lib/premiumSounds';
-import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { showMessageNotification } from '@/components/notifications/MessageNotificationToast';
 
 /**
  * VYBE v1.1 - Perfect Message Notifications
@@ -72,15 +71,6 @@ export function useMessageNotifications() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const processedMessagesRef = useRef<Set<string>>(new Set());
-  const navigateRef = useRef<ReturnType<typeof useNavigate> | null>(null);
-  
-  // Try to get navigate - only works inside Router context
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    navigateRef.current = useNavigate();
-  } catch {
-    // Not in router context - will fallback to window.location
-  }
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -158,25 +148,15 @@ export function useMessageNotifications() {
             
             // Store conversation ID for navigation
             const conversationId = newMessage.conversation_id;
-            const navigate = navigateRef.current;
             
-            // Show clickable toast - clicking anywhere navigates to chat
-            // No action button per design spec - using custom description for click handling
-            const toastId = toast(senderName, {
-              description: messagePreview,
-              duration: 3000,
-              action: {
-                label: 'Open',
-                onClick: () => {
-                  toast.dismiss(toastId);
-                  if (navigate) {
-                    navigate(`/messages/${conversationId}`);
-                  } else {
-                    window.location.href = `/messages/${conversationId}`;
-                  }
-                },
-              },
-            });
+            // Show custom notification with mouth zoom animation
+            showMessageNotification(
+              newMessage.sender_id,
+              senderName,
+              sender?.avatar_url || null,
+              messagePreview,
+              conversationId,
+            );
             
             // Show native notification if page hidden or not focused
             if (document.hidden || !document.hasFocus()) {
