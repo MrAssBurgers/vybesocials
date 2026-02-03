@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Heart, MessageCircle, UserPlus, UserCheck, Check, X, 
-  Users, PhoneMissed, Gem, Bell, RefreshCw, Sparkles 
+  Users, PhoneMissed, Gem, Bell, RefreshCw, Sparkles, Target 
 } from 'lucide-react';
 import { useNotifications, useMarkNotificationsRead, NotificationType } from '@/hooks/useNotifications';
 import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends';
@@ -158,15 +158,25 @@ export default function NotificationsPage() {
               )}
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/invite-friends')}
-            className="relative group h-10 w-10 sm:h-11 sm:w-11 rounded-xl"
-          >
-            <Gem className="h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
-            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-accent rounded-full animate-pulse" />
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/challenges')}
+              className="relative group h-10 w-10 sm:h-11 sm:w-11 rounded-xl"
+            >
+              <Target className="h-5 w-5 text-accent group-hover:scale-110 transition-transform" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/invite-friends')}
+              className="relative group h-10 w-10 sm:h-11 sm:w-11 rounded-xl"
+            >
+              <Gem className="h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
+              <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-accent rounded-full animate-pulse" />
+            </Button>
+          </div>
         </motion.div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

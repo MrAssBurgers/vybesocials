@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, Eye, MoreHorizontal } from 'lucide-react';
+import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, Eye, MoreHorizontal, Award } from 'lucide-react';
 import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/useProfile';
 import { usePosts } from '@/hooks/usePosts';
 import { useSavedPosts } from '@/hooks/useSavedPosts';
@@ -24,6 +24,8 @@ import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useLiveFollowerCount } from '@/hooks/useLiveFollowerCount';
+import { useUserBadges, useUserPrimaryBadge } from '@/hooks/useBadges';
+import { StyledDisplayName, BadgeRow } from '@/components/badges';
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -45,6 +47,10 @@ export default function ProfilePage() {
   
   // Live follower count for real-time updates
   const liveFollowerCount = useLiveFollowerCount(profile?.id);
+  
+  // Fetch user's badges
+  const { data: userBadges } = useUserBadges(profile?.id);
+  const { data: primaryBadge } = useUserPrimaryBadge(profile?.id);
 
   // Own-profile check should be identity-based (usernames can have case/whitespace)
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
@@ -54,6 +60,18 @@ export default function ProfilePage() {
   const showOwnerBadge = badgeSettings.show_owner_badge !== false;
   const showOwnerWifeBadge = badgeSettings.show_owner_wife_badge !== false;
   const showModBadge = badgeSettings.show_mod_badge !== false;
+  
+  // Transform user badges for BadgeRow
+  const displayBadges = userBadges?.slice(0, 5).map(ub => ({
+    id: ub.badge.id,
+    icon: ub.badge.icon,
+    name: ub.badge.name,
+    description: ub.badge.description,
+    gradient_from: ub.badge.gradient_from,
+    gradient_to: ub.badge.gradient_to,
+    effect: ub.badge.effect,
+    is_animated: ub.badge.is_animated,
+  })) || [];
 
   // Mark any DM conversation with this user as read when viewing their profile
   useEffect(() => {
@@ -202,10 +220,17 @@ export default function ProfilePage() {
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
               <div className="flex flex-col">
-                {/* Display Name */}
+                {/* Display Name with Badge Styling */}
                 {profile.display_name && (
                   <h1 className="text-2xl font-bold flex items-center gap-2">
-                    {profile.display_name}
+                    {primaryBadge ? (
+                      <StyledDisplayName 
+                        name={profile.display_name} 
+                        badge={primaryBadge}
+                      />
+                    ) : (
+                      profile.display_name
+                    )}
                     {showOwnerBadge && isOwner(profile.username) && <OwnerBadge />}
                     {showOwnerWifeBadge && isOwnerWife(profile.id) && <OwnerWifeRingBadge />}
                     {showModBadge && profileRole && <ModBadge role={profileRole} />}
@@ -213,11 +238,25 @@ export default function ProfilePage() {
                 )}
                 {/* Username */}
                 <p className={`${profile.display_name ? 'text-muted-foreground text-sm' : 'text-2xl font-bold'} flex items-center gap-2`}>
-                  @{profile.username}
+                  {!profile.display_name && primaryBadge ? (
+                    <StyledDisplayName 
+                      name={`@${profile.username}`} 
+                      badge={primaryBadge}
+                    />
+                  ) : (
+                    `@${profile.username}`
+                  )}
                   {!profile.display_name && showOwnerBadge && isOwner(profile.username) && <OwnerBadge />}
                   {!profile.display_name && showOwnerWifeBadge && isOwnerWife(profile.id) && <OwnerWifeRingBadge />}
                   {!profile.display_name && showModBadge && profileRole && <ModBadge role={profileRole} />}
                 </p>
+                
+                {/* Badge Row */}
+                {displayBadges.length > 0 && (
+                  <div className="mt-2">
+                    <BadgeRow badges={displayBadges} maxVisible={5} size="sm" />
+                  </div>
+                )}
               </div>
               {isOwnProfile ? (
                 <Link to="/settings">

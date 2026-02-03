@@ -2285,3 +2285,69 @@ img, video {
     animation: none !important;
   }
 }
+
+/* ========================================
+   BADGE EFFECTS
+   Premium badge styling animations
+   ======================================== */
+
+@keyframes badge-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes badge-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px hsl(var(--primary) / 0.6));
+  }
+}
+
+@keyframes badge-shine {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 200%;
+  }
+}
+
+.animate-shimmer {
+  background-size: 200% 200%;
+  animation: badge-shimmer 3s linear infinite;
+}
+
+.animate-badge-pulse {
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+
+.animate-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.animate-shine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: badge-shine 2s ease-in-out infinite;
+  animation-delay: 1s;
+}
