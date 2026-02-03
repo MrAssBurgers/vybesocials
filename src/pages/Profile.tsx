@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FriendButton } from '@/components/friends/FriendButton';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
-import { PrincessBadge, isOwnerWife } from '@/components/ui/PrincessBadge';
+import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { ClipsGrid } from '@/components/posts/ClipsGrid';
 import { MutualFriendsDisplay } from '@/components/profile/MutualFriendsDisplay';
 import { toast } from 'sonner';
@@ -48,6 +48,12 @@ export default function ProfilePage() {
 
   // Own-profile check should be identity-based (usernames can have case/whitespace)
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
+
+  // Badge visibility settings - default to true if not set
+  const badgeSettings = (profile as any)?.badge_settings || {};
+  const showOwnerBadge = badgeSettings.show_owner_badge !== false;
+  const showOwnerWifeBadge = badgeSettings.show_owner_wife_badge !== false;
+  const showModBadge = badgeSettings.show_mod_badge !== false;
 
   // Mark any DM conversation with this user as read when viewing their profile
   useEffect(() => {
@@ -200,17 +206,17 @@ export default function ProfilePage() {
                 {profile.display_name && (
                   <h1 className="text-2xl font-bold flex items-center gap-2">
                     {profile.display_name}
-                    {isOwner(profile.username) && <OwnerBadge />}
-                    {isOwnerWife(profile.id) && <PrincessBadge />}
-                    {profileRole && <ModBadge role={profileRole} />}
+                    {showOwnerBadge && isOwner(profile.username) && <OwnerBadge />}
+                    {showOwnerWifeBadge && isOwnerWife(profile.id) && <OwnerWifeRingBadge />}
+                    {showModBadge && profileRole && <ModBadge role={profileRole} />}
                   </h1>
                 )}
                 {/* Username */}
                 <p className={`${profile.display_name ? 'text-muted-foreground text-sm' : 'text-2xl font-bold'} flex items-center gap-2`}>
                   @{profile.username}
-                  {!profile.display_name && isOwner(profile.username) && <OwnerBadge />}
-                  {!profile.display_name && isOwnerWife(profile.id) && <PrincessBadge />}
-                  {!profile.display_name && profileRole && <ModBadge role={profileRole} />}
+                  {!profile.display_name && showOwnerBadge && isOwner(profile.username) && <OwnerBadge />}
+                  {!profile.display_name && showOwnerWifeBadge && isOwnerWife(profile.id) && <OwnerWifeRingBadge />}
+                  {!profile.display_name && showModBadge && profileRole && <ModBadge role={profileRole} />}
                 </p>
               </div>
               {isOwnProfile ? (

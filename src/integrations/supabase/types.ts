@@ -3001,6 +3001,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          badge_settings: Json | null
           bio: string | null
           coins_balance: number | null
           created_at: string
@@ -3029,6 +3030,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
           created_at?: string
@@ -3057,6 +3059,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
           created_at?: string
