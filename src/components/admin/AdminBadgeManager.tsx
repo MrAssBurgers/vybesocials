@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Shield, Plus, Edit2, Trash2, Award, Search, Users, 
-  Save, X, Loader2 
+  Save, X, Loader2, Eye, UserMinus
 } from 'lucide-react';
 import { useAllBadges, useAwardBadge, useRemoveBadge, Badge } from '@/hooks/useBadges';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,8 +17,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BadgeIcon } from '@/components/badges/BadgeIcon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { StyledUsername } from '@/components/ui/StyledUsername';
 import { toast } from 'sonner';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 
 const CATEGORY_OPTIONS = [
   { value: 'role', label: 'Role (Staff)' },
@@ -61,6 +63,17 @@ interface UserSearchResult {
   avatar_url: string | null;
 }
 
+interface BadgeHolder {
+  id: string;
+  user_id: string;
+  badge_id: string;
+  earned_at: string;
+  profile_id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
 const defaultFormData: BadgeFormData = {
   name: '',
   description: '',
@@ -89,6 +102,72 @@ export function AdminBadgeManager() {
   const [userSearchResults, setUserSearchResults] = useState<UserSearchResult[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [holdersDialogOpen, setHoldersDialogOpen] = useState(false);
+  const [selectedBadgeForHolders, setSelectedBadgeForHolders] = useState<Badge | null>(null);
+
+  const removeBadge = useRemoveBadge();
+
+  // Fetch badge holders when dialog opens
+  const { data: badgeHolders, isLoading: holdersLoading, refetch: refetchHolders } = useQuery({
+    queryKey: ['badge-holders', selectedBadgeForHolders?.id],
+    queryFn: async (): Promise<BadgeHolder[]> => {
+      if (!selectedBadgeForHolders) return [];
+      
+      const { data, error } = await supabase
+        .from('user_badges')
+        .select('id, user_id, badge_id, earned_at')
+        .eq('badge_id', selectedBadgeForHolders.id);
+      
+      if (error) throw error;
+      if (!data || data.length === 0) return [];
+      
+      // Get profile info for each holder
+      const userIds = data.map(h => h.user_id);
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, user_id, username, display_name, avatar_url')
+        .or(`user_id.in.(${userIds.join(',')}),id.in.(${userIds.join(',')})`);
+      
+      const profileMap = new Map();
+      profiles?.forEach(p => {
+        profileMap.set(p.user_id, p);
+        profileMap.set(p.id, p);
+      });
+      
+      return data.map(h => {
+        const profile = profileMap.get(h.user_id);
+        return {
+          ...h,
+          profile_id: profile?.id || h.user_id,
+          username: profile?.username || 'Unknown',
+          display_name: profile?.display_name || null,
+          avatar_url: profile?.avatar_url || null,
+        };
+      });
+    },
+    enabled: holdersDialogOpen && !!selectedBadgeForHolders,
+  });
+
+  const handleRemoveBadge = async (holder: BadgeHolder) => {
+    if (!confirm(`Remove badge from @${holder.username}?`)) return;
+    
+    try {
+      await removeBadge.mutateAsync({
+        userId: holder.user_id,
+        badgeId: holder.badge_id,
+      });
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['badge-holders', holder.badge_id] });
+      queryClient.invalidateQueries({ queryKey: ['user-badges', holder.profile_id] });
+      queryClient.invalidateQueries({ queryKey: ['display-style', holder.profile_id] });
+      
+      toast.success(`Badge removed from @${holder.username}`);
+      refetchHolders();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
 
   // Debounced user search
   useEffect(() => {
@@ -339,10 +418,22 @@ export function AdminBadgeManager() {
                   {badge.category} • Priority {badge.priority}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <Button
                   size="icon"
                   variant="ghost"
+                  title="View holders"
+                  onClick={() => {
+                    setSelectedBadgeForHolders(badge);
+                    setHoldersDialogOpen(true);
+                  }}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  title="Award badge"
                   onClick={() => {
                     setSelectedBadgeForAward(badge);
                     setAwardDialogOpen(true);
@@ -353,6 +444,7 @@ export function AdminBadgeManager() {
                 <Button
                   size="icon"
                   variant="ghost"
+                  title="Edit badge"
                   onClick={() => openEditDialog(badge)}
                 >
                   <Edit2 className="h-4 w-4" />
@@ -361,6 +453,7 @@ export function AdminBadgeManager() {
                   size="icon"
                   variant="ghost"
                   className="text-destructive"
+                  title="Delete badge"
                   onClick={() => {
                     if (confirm('Delete this badge?')) {
                       deleteBadge.mutate(badge.id);
@@ -676,6 +769,92 @@ export function AdminBadgeManager() {
                 Award Badge
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Badge Holders Dialog */}
+      <Dialog open={holdersDialogOpen} onOpenChange={setHoldersDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedBadgeForHolders && (
+                <>
+                  <BadgeIcon
+                    icon={selectedBadgeForHolders.icon}
+                    name={selectedBadgeForHolders.name}
+                    gradient_from={selectedBadgeForHolders.gradient_from}
+                    gradient_to={selectedBadgeForHolders.gradient_to}
+                    size="sm"
+                    showTooltip={false}
+                  />
+                  <span>{selectedBadgeForHolders.name} Holders</span>
+                </>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <ScrollArea className="max-h-[60vh]">
+            <div className="space-y-2 py-2">
+              {holdersLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : !badgeHolders || badgeHolders.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No one has this badge yet</p>
+                </div>
+              ) : (
+                badgeHolders.map((holder) => (
+                  <div
+                    key={holder.id}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                  >
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={holder.avatar_url || undefined} />
+                      <AvatarFallback>
+                        {(holder.display_name || holder.username)[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <StyledUsername
+                        userId={holder.profile_id}
+                        username={holder.username}
+                        displayName={holder.display_name}
+                        className="font-medium text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        @{holder.username} • {new Date(holder.earned_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      title="Remove badge"
+                      onClick={() => handleRemoveBadge(holder)}
+                      disabled={removeBadge.isPending}
+                    >
+                      {removeBadge.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <UserMinus className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+          
+          <div className="flex justify-between items-center pt-2 border-t">
+            <p className="text-sm text-muted-foreground">
+              {badgeHolders?.length || 0} holder{(badgeHolders?.length || 0) !== 1 ? 's' : ''}
+            </p>
+            <Button variant="outline" onClick={() => setHoldersDialogOpen(false)}>
+              Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
