@@ -1,0 +1,16 @@
+-- Drop old constraint and add new one with all notification types
+ALTER TABLE public.notifications DROP CONSTRAINT notifications_type_check;
+
+ALTER TABLE public.notifications ADD CONSTRAINT notifications_type_check 
+  CHECK (type = ANY (ARRAY[
+    'like'::text, 
+    'comment'::text, 
+    'follow'::text, 
+    'friend_request'::text, 
+    'friend_accepted'::text, 
+    'friend_declined'::text, 
+    'message'::text, 
+    'mention'::text,
+    'missed_call'::text,
+    'announcement'::text
+  ]));
