@@ -94,12 +94,12 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       case 3: return profileData.firstName.length > 0 && profileData.lastName.length > 0;
       case 4: return true; // Sensitivity
       case 5: return true; // Privacy
-      case 6: return permissionsGranted; // Permissions - must have required permissions
+      case 6: return true; // Permissions - always allow proceeding (optional)
       case 7: return true; // Email verification is optional
       case 8: return true; // Contact discovery is optional
       default: return true;
     }
-  }, [needsUsername, step, usernameValid, interests.length, profileData.firstName.length, profileData.lastName.length, permissionsGranted]);
+  }, [needsUsername, step, usernameValid, interests.length, profileData.firstName.length, profileData.lastName.length]);
 
   const handleNext = () => {
     if (step < TOTAL_STEPS) {

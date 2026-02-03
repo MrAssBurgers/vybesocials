@@ -22,7 +22,7 @@ const PERMISSIONS: PermissionItem[] = [
     description: 'Get alerts for messages, calls & updates',
     hint: 'Select "Allow" to receive notifications',
     icon: Bell,
-    isRequired: true,
+    isRequired: false, // Not required - may be blocked in some browsers/contexts
   },
   {
     id: 'camera',
@@ -218,27 +218,60 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
         case 'notifications':
           if ('Notification' in window) {
             try {
-              // Request permission and wait for result
-              const result = await Notification.requestPermission();
-              console.log('[Permissions] Notification permission result:', result);
+              // Check if we're in an iframe or restricted context
+              const isInIframe = window !== window.top;
               
-              if (result === 'granted') {
-                setPermissionStates(prev => ({ ...prev, notifications: 'granted' }));
-              } else if (result === 'denied') {
-                setPermissionStates(prev => ({ ...prev, notifications: 'denied' }));
+              if (isInIframe) {
+                // In iframe context, notifications may be blocked
+                // Check if already granted via permissions API
+                if ('permissions' in navigator) {
+                  try {
+                    const notifPerm = await navigator.permissions.query({ name: 'notifications' as PermissionName });
+                    if (notifPerm.state === 'granted') {
+                      setPermissionStates(prev => ({ ...prev, notifications: 'granted' }));
+                      break;
+                    }
+                  } catch {
+                    // Permissions API may not support notifications query
+                  }
+                }
+                
+                // Try to request anyway, but handle failure gracefully
+                try {
+                  const result = await Notification.requestPermission();
+                  console.log('[Permissions] Notification permission result:', result);
+                  
+                  if (result === 'granted') {
+                    setPermissionStates(prev => ({ ...prev, notifications: 'granted' }));
+                  } else if (result === 'denied') {
+                    setPermissionStates(prev => ({ ...prev, notifications: 'denied' }));
+                  } else {
+                    // Mark as granted to allow proceeding - they can enable later in settings
+                    setPermissionStates(prev => ({ ...prev, notifications: 'granted' }));
+                  }
+                } catch {
+                  // If request fails in iframe, allow user to proceed
+                  console.log('[Permissions] Notification request blocked (iframe context)');
+                  setPermissionStates(prev => ({ ...prev, notifications: 'granted' }));
+                }
               } else {
-                // 'default' means the user dismissed the prompt without choosing
-                setPermissionStates(prev => ({ ...prev, notifications: 'pending' }));
+                // Normal context - request permission normally
+                const result = await Notification.requestPermission();
+                console.log('[Permissions] Notification permission result:', result);
+                
+                if (result === 'granted') {
+                  setPermissionStates(prev => ({ ...prev, notifications: 'granted' }));
+                } else if (result === 'denied') {
+                  setPermissionStates(prev => ({ ...prev, notifications: 'denied' }));
+                } else {
+                  // 'default' means dismissed - allow proceeding
+                  setPermissionStates(prev => ({ ...prev, notifications: 'granted' }));
+                }
               }
             } catch (error) {
               console.error('[Permissions] Notification request error:', error);
-              // Some browsers require user gesture - check current state
-              const currentState = Notification.permission;
-              setPermissionStates(prev => ({
-                ...prev,
-                notifications: currentState === 'granted' ? 'granted' : 
-                              currentState === 'denied' ? 'denied' : 'pending'
-              }));
+              // Allow proceeding if request fails
+              setPermissionStates(prev => ({ ...prev, notifications: 'granted' }));
             }
           } else {
             setPermissionStates(prev => ({ ...prev, notifications: 'unsupported' }));
