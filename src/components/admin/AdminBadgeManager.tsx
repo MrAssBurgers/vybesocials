@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Shield, Plus, Edit2, Trash2, Award, Search, Users, 
-  Save, X, Loader2, Eye, UserMinus
+  Save, X, Loader2, UserMinus
 } from 'lucide-react';
 import { useAllBadges, useAwardBadge, useRemoveBadge, Badge } from '@/hooks/useBadges';
 import { supabase } from '@/integrations/supabase/client';
@@ -96,27 +96,25 @@ export function AdminBadgeManager() {
   const [editingBadge, setEditingBadge] = useState<Badge | null>(null);
   const [formData, setFormData] = useState<BadgeFormData>(defaultFormData);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [awardDialogOpen, setAwardDialogOpen] = useState(false);
-  const [selectedBadgeForAward, setSelectedBadgeForAward] = useState<Badge | null>(null);
+  const [manageUsersDialogOpen, setManageUsersDialogOpen] = useState(false);
+  const [selectedBadgeForManage, setSelectedBadgeForManage] = useState<Badge | null>(null);
   const [awardUsername, setAwardUsername] = useState('');
   const [userSearchResults, setUserSearchResults] = useState<UserSearchResult[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const [holdersDialogOpen, setHoldersDialogOpen] = useState(false);
-  const [selectedBadgeForHolders, setSelectedBadgeForHolders] = useState<Badge | null>(null);
 
   const removeBadge = useRemoveBadge();
 
   // Fetch badge holders when dialog opens
   const { data: badgeHolders, isLoading: holdersLoading, refetch: refetchHolders } = useQuery({
-    queryKey: ['badge-holders', selectedBadgeForHolders?.id],
+    queryKey: ['badge-holders', selectedBadgeForManage?.id],
     queryFn: async (): Promise<BadgeHolder[]> => {
-      if (!selectedBadgeForHolders) return [];
+      if (!selectedBadgeForManage) return [];
       
       const { data, error } = await supabase
         .from('user_badges')
         .select('id, user_id, badge_id, earned_at')
-        .eq('badge_id', selectedBadgeForHolders.id);
+        .eq('badge_id', selectedBadgeForManage.id);
       
       if (error) throw error;
       if (!data || data.length === 0) return [];
@@ -145,7 +143,7 @@ export function AdminBadgeManager() {
         };
       });
     },
-    enabled: holdersDialogOpen && !!selectedBadgeForHolders,
+    enabled: manageUsersDialogOpen && !!selectedBadgeForManage,
   });
 
   const handleRemoveBadge = async (holder: BadgeHolder) => {
@@ -171,7 +169,7 @@ export function AdminBadgeManager() {
 
   // Debounced user search
   useEffect(() => {
-    if (!awardDialogOpen) {
+    if (!manageUsersDialogOpen) {
       setUserSearchResults([]);
       setSelectedUser(null);
       return;
@@ -194,7 +192,10 @@ export function AdminBadgeManager() {
           .limit(10);
 
         if (!error && data) {
-          setUserSearchResults(data);
+          // Filter out users who already have this badge
+          const holderUserIds = badgeHolders?.map(h => h.user_id) || [];
+          const filteredData = data.filter(u => !holderUserIds.includes(u.user_id || u.id));
+          setUserSearchResults(filteredData);
         }
       } catch (err) {
         console.error('User search failed:', err);
@@ -204,7 +205,7 @@ export function AdminBadgeManager() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [awardUsername, awardDialogOpen]);
+  }, [awardUsername, manageUsersDialogOpen, badgeHolders]);
 
   const awardBadge = useAwardBadge();
 
@@ -277,7 +278,7 @@ export function AdminBadgeManager() {
   });
 
   const handleAwardBadge = async () => {
-    if (!selectedBadgeForAward) return;
+    if (!selectedBadgeForManage) return;
     
     // Use selected user from dropdown, or search by username if typed manually
     let targetProfile = selectedUser;
@@ -307,19 +308,19 @@ export function AdminBadgeManager() {
     try {
       await awardBadge.mutateAsync({
         userId: targetUserId,
-        badgeId: selectedBadgeForAward.id,
+        badgeId: selectedBadgeForManage.id,
       });
       
       // Invalidate both the target user's badges and display style
       queryClient.invalidateQueries({ queryKey: ['user-badges', targetProfile.id] });
       queryClient.invalidateQueries({ queryKey: ['display-style', targetProfile.id] });
       queryClient.invalidateQueries({ queryKey: ['user-primary-badge', targetProfile.id] });
+      queryClient.invalidateQueries({ queryKey: ['badge-holders', selectedBadgeForManage.id] });
       
       toast.success(`Badge awarded to @${targetProfile.username}`);
-      setAwardDialogOpen(false);
       setAwardUsername('');
       setSelectedUser(null);
-      setSelectedBadgeForAward(null);
+      refetchHolders();
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -422,21 +423,10 @@ export function AdminBadgeManager() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  title="View holders"
+                  title="Manage users"
                   onClick={() => {
-                    setSelectedBadgeForHolders(badge);
-                    setHoldersDialogOpen(true);
-                  }}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  title="Award badge"
-                  onClick={() => {
-                    setSelectedBadgeForAward(badge);
-                    setAwardDialogOpen(true);
+                    setSelectedBadgeForManage(badge);
+                    setManageUsersDialogOpen(true);
                   }}
                 >
                   <Users className="h-4 w-4" />
@@ -650,30 +640,34 @@ export function AdminBadgeManager() {
         </DialogContent>
       </Dialog>
 
-      {/* Award Badge Dialog */}
-      <Dialog open={awardDialogOpen} onOpenChange={setAwardDialogOpen}>
-        <DialogContent>
+      {/* Manage Users Dialog (combined add + view holders) */}
+      <Dialog open={manageUsersDialogOpen} onOpenChange={setManageUsersDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Award Badge</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedBadgeForManage && (
+                <>
+                  <BadgeIcon
+                    icon={selectedBadgeForManage.icon}
+                    name={selectedBadgeForManage.name}
+                    gradient_from={selectedBadgeForManage.gradient_from}
+                    gradient_to={selectedBadgeForManage.gradient_to}
+                    size="sm"
+                    showTooltip={false}
+                  />
+                  <span>Manage {selectedBadgeForManage.name}</span>
+                </>
+              )}
+            </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
-            {selectedBadgeForAward && (
-              <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
-                <BadgeIcon
-                  icon={selectedBadgeForAward.icon}
-                  name={selectedBadgeForAward.name}
-                  gradient_from={selectedBadgeForAward.gradient_from}
-                  gradient_to={selectedBadgeForAward.gradient_to}
-                  size="md"
-                  showTooltip={false}
-                />
-                <span className="font-medium">{selectedBadgeForAward.name}</span>
-              </div>
-            )}
-            
-            <div className="space-y-2">
-              <Label>Search User (by @username or display name)</Label>
+          <div className="flex-1 overflow-hidden flex flex-col gap-4">
+            {/* Add User Section */}
+            <div className="space-y-2 pb-3 border-b">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Add User
+              </Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -682,7 +676,7 @@ export function AdminBadgeManager() {
                     setAwardUsername(e.target.value);
                     setSelectedUser(null);
                   }}
-                  placeholder="Type username or display name..."
+                  placeholder="Search by username or display name..."
                   className="pl-9"
                 />
                 {isSearching && (
@@ -692,7 +686,7 @@ export function AdminBadgeManager() {
               
               {/* Search Results Dropdown */}
               {userSearchResults.length > 0 && !selectedUser && (
-                <div className="border rounded-lg bg-popover shadow-lg max-h-48 overflow-y-auto">
+                <div className="border rounded-lg bg-popover shadow-lg max-h-32 overflow-y-auto">
                   {userSearchResults.map((user) => (
                     <button
                       key={user.id}
@@ -722,7 +716,7 @@ export function AdminBadgeManager() {
                 </div>
               )}
               
-              {/* Selected User Preview */}
+              {/* Selected User Preview with Award Button */}
               {selectedUser && (
                 <div className="flex items-center gap-3 p-2 bg-primary/10 rounded-lg border border-primary/30">
                   <Avatar className="h-8 w-8">
@@ -738,6 +732,20 @@ export function AdminBadgeManager() {
                     <p className="text-xs text-muted-foreground">@{selectedUser.username}</p>
                   </div>
                   <Button
+                    size="sm"
+                    onClick={handleAwardBadge}
+                    disabled={awardBadge.isPending}
+                  >
+                    {awardBadge.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add
+                      </>
+                    )}
+                  </Button>
+                  <Button
                     size="icon"
                     variant="ghost"
                     className="h-6 w-6"
@@ -752,108 +760,73 @@ export function AdminBadgeManager() {
               )}
             </div>
             
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setAwardDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="flex-1"
-                onClick={handleAwardBadge}
-                disabled={awardBadge.isPending}
-              >
-                {awardBadge.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Award Badge
-              </Button>
+            {/* Current Holders Section */}
+            <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+              <Label className="text-sm font-medium flex items-center gap-2 mb-2">
+                <Users className="h-4 w-4" />
+                Current Holders ({badgeHolders?.length || 0})
+              </Label>
+              
+              <ScrollArea className="flex-1">
+                <div className="space-y-2 pr-2">
+                  {holdersLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : !badgeHolders || badgeHolders.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No one has this badge yet</p>
+                      <p className="text-xs mt-1">Search above to add users</p>
+                    </div>
+                  ) : (
+                    badgeHolders.map((holder) => (
+                      <div
+                        key={holder.id}
+                        className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                      >
+                        <Avatar className="h-9 w-9">
+                          <AvatarImage src={holder.avatar_url || undefined} />
+                          <AvatarFallback>
+                            {(holder.display_name || holder.username)[0]?.toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <StyledUsername
+                            userId={holder.profile_id}
+                            username={holder.username}
+                            displayName={holder.display_name}
+                            className="font-medium text-sm"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            @{holder.username} • {new Date(holder.earned_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          title="Remove badge"
+                          onClick={() => handleRemoveBadge(holder)}
+                          disabled={removeBadge.isPending}
+                        >
+                          {removeBadge.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <UserMinus className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Badge Holders Dialog */}
-      <Dialog open={holdersDialogOpen} onOpenChange={setHoldersDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {selectedBadgeForHolders && (
-                <>
-                  <BadgeIcon
-                    icon={selectedBadgeForHolders.icon}
-                    name={selectedBadgeForHolders.name}
-                    gradient_from={selectedBadgeForHolders.gradient_from}
-                    gradient_to={selectedBadgeForHolders.gradient_to}
-                    size="sm"
-                    showTooltip={false}
-                  />
-                  <span>{selectedBadgeForHolders.name} Holders</span>
-                </>
-              )}
-            </DialogTitle>
-          </DialogHeader>
           
-          <ScrollArea className="max-h-[60vh]">
-            <div className="space-y-2 py-2">
-              {holdersLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : !badgeHolders || badgeHolders.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No one has this badge yet</p>
-                </div>
-              ) : (
-                badgeHolders.map((holder) => (
-                  <div
-                    key={holder.id}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                  >
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={holder.avatar_url || undefined} />
-                      <AvatarFallback>
-                        {(holder.display_name || holder.username)[0]?.toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <StyledUsername
-                        userId={holder.profile_id}
-                        username={holder.username}
-                        displayName={holder.display_name}
-                        className="font-medium text-sm"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        @{holder.username} • {new Date(holder.earned_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      title="Remove badge"
-                      onClick={() => handleRemoveBadge(holder)}
-                      disabled={removeBadge.isPending}
-                    >
-                      {removeBadge.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <UserMinus className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-          </ScrollArea>
-          
-          <div className="flex justify-between items-center pt-2 border-t">
-            <p className="text-sm text-muted-foreground">
-              {badgeHolders?.length || 0} holder{(badgeHolders?.length || 0) !== 1 ? 's' : ''}
-            </p>
-            <Button variant="outline" onClick={() => setHoldersDialogOpen(false)}>
-              Close
+          <div className="flex justify-end pt-3 border-t">
+            <Button variant="outline" onClick={() => setManageUsersDialogOpen(false)}>
+              Done
             </Button>
           </div>
         </DialogContent>
