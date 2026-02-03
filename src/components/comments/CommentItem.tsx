@@ -16,6 +16,7 @@ import { useDeleteComment } from '@/hooks/useComments';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { StyledUsername } from '@/components/ui/StyledUsername';
 
 interface CommentItemProps {
   comment: {
@@ -79,9 +80,14 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
             <div className="flex items-baseline gap-2 flex-wrap">
               <Link 
                 to={`/u/${comment.user.username}`}
-                className="font-semibold text-sm hover:underline"
+                className="hover:underline"
               >
-                {comment.user.username}
+                <StyledUsername
+                  userId={comment.user.id}
+                  username={comment.user.username}
+                  className="font-semibold text-sm"
+                  preferDisplayName={false}
+                />
               </Link>
               {hasText && (
                 <span className="text-sm break-words">{comment.text}</span>

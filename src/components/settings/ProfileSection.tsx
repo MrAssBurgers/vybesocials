@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, Camera, AtSign, FileText, Save } from 'lucide-react';
+import { ChevronRight, Camera, AtSign, FileText, Save, Sparkles, Eye } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,8 @@ import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { haptics } from '@/lib/haptics';
 import { BadgeSettingsSection } from '@/components/settings/BadgeSettingsSection';
+import { StyledUsername } from '@/components/ui/StyledUsername';
+import { useUserPrimaryBadge } from '@/hooks/useBadges';
 
 export function ProfileSection() {
   const { t } = useTranslation();
@@ -22,6 +24,9 @@ export function ProfileSection() {
     username: profile?.username || '',
     bio: profile?.bio || '',
   });
+  
+  // Fetch primary badge for display name styling preview
+  const { data: primaryBadge } = useUserPrimaryBadge(profile?.id);
 
   const handleSave = async () => {
     setLoading(true);
@@ -159,6 +164,47 @@ export function ProfileSection() {
           </Button>
         </div>
       </motion.div>
+
+      {/* Display Name Preview - Live Preview */}
+      {primaryBadge && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="liquid-glass-card p-4 sm:p-6"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Eye className="w-4 h-4 text-primary" />
+            <h3 className="font-semibold text-sm">Display Name Preview</h3>
+          </div>
+          
+          <div className="p-4 rounded-xl bg-secondary/30 border border-border/50">
+            <p className="text-xs text-muted-foreground mb-2">How others see your name:</p>
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10">
+                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarFallback className="bg-primary text-primary-foreground">
+                  {profile?.username?.[0]?.toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <StyledUsername
+                  userId={profile?.id || ''}
+                  username={profile?.username || 'username'}
+                  displayName={profile?.display_name}
+                  className="text-lg font-bold"
+                />
+                <p className="text-xs text-muted-foreground">@{profile?.username}</p>
+              </div>
+            </div>
+          </div>
+          
+          <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
+            <Sparkles className="w-3 h-3" />
+            Your name styling is based on your highest-priority badge
+          </p>
+        </motion.div>
+      )}
 
       {/* Badge Settings - only shows if user has badges */}
       <BadgeSettingsSection />

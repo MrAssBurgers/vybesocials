@@ -37,6 +37,7 @@ import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
+import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useUsersRoles } from '@/hooks/useUserRoleById';
 import { AvatarRing } from '@/components/ui/AvatarRing';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -570,7 +571,16 @@ const ConversationContent = memo(function ConversationContent({
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5 gap-2">
           <div className="flex items-center gap-1 min-w-0 flex-1">
-            <span className="font-semibold text-sm truncate">{displayName}</span>
+            {!conversation.is_group && otherMember ? (
+              <StyledUsername
+                userId={otherMember.id}
+                username={otherMember.username || 'User'}
+                displayName={otherMember.display_name}
+                className="font-semibold text-sm truncate"
+              />
+            ) : (
+              <span className="font-semibold text-sm truncate">{displayName}</span>
+            )}
             {!conversation.is_group && userRole && <ModBadge role={userRole} />}
             {conversation.is_group && (
               <span className="text-[9px] text-muted-foreground bg-muted px-1 py-0.5 rounded-full flex-shrink-0">
