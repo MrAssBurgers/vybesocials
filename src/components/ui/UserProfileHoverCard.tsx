@@ -13,6 +13,8 @@ import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { MessageCircle, UserPlus, UserCheck, BadgeCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutualFriendsWithUser } from '@/components/profile/MutualFriendsDisplay';
+import { StyledUsername } from '@/components/ui/StyledUsername';
+import { useDisplayStyle } from '@/hooks/useDisplayStyle';
 
 interface UserProfileHoverCardProps {
   username: string;
@@ -154,6 +156,9 @@ export function UserProfileHoverCard({
   const { data: profileData, isLoading } = useHoverProfile(username, isOpen);
   const followMutation = useFollow();
   
+  // Fetch display style for badge-based name coloring
+  const { data: displayStyle } = useDisplayStyle(profileData?.id);
+  
   const signedAvatarUrl = useSignedUrl(profileData?.avatar_url || avatarUrl);
   
   const isOwnProfile = currentUser?.username === username;
@@ -231,13 +236,19 @@ export function UserProfileHoverCard({
                   className="block hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <p className="font-semibold truncate flex items-center gap-1">
-                    {profileData.display_name || username}
+                <div className="flex items-center gap-1">
+                    <StyledUsername
+                      userId={profileData.id}
+                      username={username}
+                      displayName={profileData.display_name}
+                      badgeStyle={displayStyle}
+                      className="font-semibold truncate"
+                    />
                     {profileData.is_verified && (
-                      <BadgeCheck className="h-4 w-4 text-primary fill-primary/20" />
+                      <BadgeCheck className="h-4 w-4 text-primary fill-primary/20 flex-shrink-0" />
                     )}
                     {isOwner(username) && <OwnerBadge />}
-                  </p>
+                  </div>
                   <p className="text-sm text-muted-foreground">@{username}</p>
                 </Link>
               </div>
