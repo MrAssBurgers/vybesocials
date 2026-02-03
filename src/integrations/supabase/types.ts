@@ -214,6 +214,45 @@ export type Database = {
         }
         Relationships: []
       }
+      battle_pass_tiers: {
+        Row: {
+          created_at: string
+          id: string
+          is_premium: boolean
+          level: number
+          reward_description: string | null
+          reward_icon: string
+          reward_id: string | null
+          reward_name: string
+          reward_type: string
+          xp_required: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_premium?: boolean
+          level: number
+          reward_description?: string | null
+          reward_icon?: string
+          reward_id?: string | null
+          reward_name: string
+          reward_type: string
+          xp_required: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_premium?: boolean
+          level?: number
+          reward_description?: string | null
+          reward_icon?: string
+          reward_id?: string | null
+          reward_name?: string
+          reward_type?: string
+          xp_required?: number
+        }
+        Relationships: []
+      }
       blocked_users: {
         Row: {
           blocked_id: string
@@ -564,6 +603,54 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenge_rewards: {
+        Row: {
+          badge_id: string | null
+          challenge_id: string
+          claimed_at: string | null
+          created_at: string
+          id: string
+          is_claimed: boolean
+          user_id: string
+          xp_amount: number
+        }
+        Insert: {
+          badge_id?: string | null
+          challenge_id: string
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          is_claimed?: boolean
+          user_id: string
+          xp_amount: number
+        }
+        Update: {
+          badge_id?: string | null
+          challenge_id?: string
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          is_claimed?: boolean
+          user_id?: string
+          xp_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_rewards_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenge_rewards_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
             referencedColumns: ["id"]
           },
         ]
@@ -4765,6 +4852,36 @@ export type Database = {
           },
         ]
       }
+      user_levels: {
+        Row: {
+          created_at: string
+          current_level: number
+          id: string
+          total_xp: number
+          unclaimed_rewards: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_level?: number
+          id?: string
+          total_xp?: number
+          unclaimed_rewards?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_level?: number
+          id?: string
+          total_xp?: number
+          unclaimed_rewards?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_presence: {
         Row: {
           id: string
@@ -5505,6 +5622,10 @@ export type Database = {
       }
     }
     Functions: {
+      add_user_xp: {
+        Args: { p_user_id: string; p_xp_amount: number }
+        Returns: Json
+      }
       award_badge: {
         Args: {
           p_awarded_by?: string
@@ -5513,6 +5634,11 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      calculate_level_from_xp: { Args: { p_xp: number }; Returns: number }
+      claim_challenge_reward: {
+        Args: { p_reward_id: string; p_user_id: string }
+        Returns: Json
       }
       claim_profile_by_email: { Args: never; Returns: string }
       cleanup_old_friend_drops: { Args: never; Returns: undefined }

@@ -123,13 +123,18 @@ export function useUpdateChallengeProgress() {
     }) => {
       if (!profile) throw new Error('Not authenticated');
       
-      // Upsert progress
+      // Get current progress
       const { data: existing } = await supabase
         .from('challenge_progress')
         .select('*')
         .eq('user_id', profile.id)
         .eq('challenge_id', challengeId)
         .maybeSingle();
+      
+      // If already completed, skip
+      if (existing?.is_completed) {
+        return { isCompleted: true, newCount: existing.current_count, wasAlreadyCompleted: true };
+      }
       
       const newCount = (existing?.current_count || 0) + increment;
       
@@ -142,6 +147,7 @@ export function useUpdateChallengeProgress() {
       
       const isCompleted = newCount >= (challenge?.requirement_count || 1);
       
+      // Upsert progress - the trigger will create the reward if completed
       const { error } = await supabase
         .from('challenge_progress')
         .upsert({
@@ -157,19 +163,15 @@ export function useUpdateChallengeProgress() {
       
       if (error) throw error;
       
-      // If completed and has badge reward, award it
-      if (isCompleted && challenge?.reward_badge_id) {
-        await supabase.rpc('award_badge', {
-          p_user_id: profile.id,
-          p_badge_id: challenge.reward_badge_id,
-        });
-      }
-      
-      return { isCompleted, newCount };
+      return { isCompleted, newCount, wasAlreadyCompleted: false };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['challenge-progress', profile?.id] });
-      queryClient.invalidateQueries({ queryKey: ['user-badges', profile?.id] });
+      if (data.isCompleted && !data.wasAlreadyCompleted) {
+        // Invalidate rewards to show the new claimable reward
+        queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile?.id] });
+        queryClient.invalidateQueries({ queryKey: ['user-badges', profile?.id] });
+      }
     },
   });
 }
