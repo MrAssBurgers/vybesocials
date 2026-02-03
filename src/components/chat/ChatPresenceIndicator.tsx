@@ -2,6 +2,8 @@ import { memo } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
+import { StyledUsername } from '@/components/ui/StyledUsername';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface PresenceUser {
   user_id: string;
@@ -20,6 +22,7 @@ interface ChatPresenceIndicatorProps {
 /**
  * Individual presence avatar - clean, professional design
  * Uses CSS animations for smooth, flicker-free typing indicators
+ * Shows badge-styled username in tooltip
  */
 const PresenceAvatar = memo(function PresenceAvatar({
   user,
@@ -31,38 +34,50 @@ const PresenceAvatar = memo(function PresenceAvatar({
   const signedUrl = useSignedUrl(user.avatar_url);
 
   return (
-    <div className="relative animate-scale-in">
-      {/* Avatar with subtle ring */}
-      <Avatar className={cn(
-        "h-7 w-7 ring-2 shadow-sm transition-all duration-200",
-        isTyping 
-          ? "ring-primary" 
-          : "ring-background"
-      )}>
-        <AvatarImage src={signedUrl || undefined} className="object-cover" />
-        <AvatarFallback className="text-[10px] font-semibold bg-muted">
-          {user.username?.charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="relative animate-scale-in cursor-pointer">
+          {/* Avatar with subtle ring */}
+          <Avatar className={cn(
+            "h-7 w-7 ring-2 shadow-sm transition-all duration-200",
+            isTyping 
+              ? "ring-primary" 
+              : "ring-background"
+          )}>
+            <AvatarImage src={signedUrl || undefined} className="object-cover" />
+            <AvatarFallback className="text-[10px] font-semibold bg-muted">
+              {user.username?.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
 
-      {/* Typing bubble - positioned above avatar */}
-      {isTyping && (
-        <div className="absolute -top-5 left-1/2 -translate-x-1/2 animate-fade-in">
-          <div className="bg-muted/90 backdrop-blur-sm rounded-full px-2 py-1 shadow-sm border border-border/30 flex items-center gap-[3px]">
-            <span className="typing-dot h-1 w-1 bg-primary rounded-full" style={{ animationDelay: '0ms' }} />
-            <span className="typing-dot h-1 w-1 bg-primary rounded-full" style={{ animationDelay: '150ms' }} />
-            <span className="typing-dot h-1 w-1 bg-primary rounded-full" style={{ animationDelay: '300ms' }} />
-          </div>
-          {/* Tail pointing down */}
-          <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-muted/90 rotate-45 border-r border-b border-border/30" />
+          {/* Typing bubble - positioned above avatar */}
+          {isTyping && (
+            <div className="absolute -top-5 left-1/2 -translate-x-1/2 animate-fade-in">
+              <div className="bg-muted/90 backdrop-blur-sm rounded-full px-2 py-1 shadow-sm border border-border/30 flex items-center gap-[3px]">
+                <span className="typing-dot h-1 w-1 bg-primary rounded-full" style={{ animationDelay: '0ms' }} />
+                <span className="typing-dot h-1 w-1 bg-primary rounded-full" style={{ animationDelay: '150ms' }} />
+                <span className="typing-dot h-1 w-1 bg-primary rounded-full" style={{ animationDelay: '300ms' }} />
+              </div>
+              {/* Tail pointing down */}
+              <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-muted/90 rotate-45 border-r border-b border-border/30" />
+            </div>
+          )}
+
+          {/* Online dot when not typing */}
+          {!isTyping && (
+            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
+          )}
         </div>
-      )}
-
-      {/* Online dot when not typing */}
-      {!isTyping && (
-        <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
-      )}
-    </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="px-2 py-1">
+        <StyledUsername
+          userId={user.user_id}
+          username={user.username}
+          displayName={user.display_name}
+          className="text-sm"
+        />
+      </TooltipContent>
+    </Tooltip>
   );
 });
 

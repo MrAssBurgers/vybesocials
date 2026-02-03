@@ -5821,13 +5821,13 @@ export type Database = {
       get_user_primary_badge: {
         Args: { p_user_id: string }
         Returns: {
-          badge_id: string
           category: string
           effect: string
           gradient_from: string
           gradient_to: string
           gradient_via: string
           icon: string
+          id: string
           is_animated: boolean
           name: string
           priority: number
