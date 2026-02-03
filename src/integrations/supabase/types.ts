@@ -4592,8 +4592,8 @@ export type Database = {
         Row: {
           awarded_by: string | null
           badge_id: string | null
-          badge_name: string
-          badge_type: string
+          badge_name: string | null
+          badge_type: string | null
           earned_at: string
           expires_at: string | null
           id: string
@@ -4607,8 +4607,8 @@ export type Database = {
         Insert: {
           awarded_by?: string | null
           badge_id?: string | null
-          badge_name: string
-          badge_type: string
+          badge_name?: string | null
+          badge_type?: string | null
           earned_at?: string
           expires_at?: string | null
           id?: string
@@ -4622,8 +4622,8 @@ export type Database = {
         Update: {
           awarded_by?: string | null
           badge_id?: string | null
-          badge_name?: string
-          badge_type?: string
+          badge_name?: string | null
+          badge_type?: string | null
           earned_at?: string
           expires_at?: string | null
           id?: string

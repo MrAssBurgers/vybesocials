@@ -12,37 +12,53 @@ import { isOwner } from '@/components/ui/OwnerBadge';
 export function useRetroactiveSync() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const hasSynced = useRef(false);
+  const lastSyncedUserId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!profile?.id || hasSynced.current) return;
+    // Reset sync flag if user changed
+    if (profile?.id !== lastSyncedUserId.current) {
+      lastSyncedUserId.current = null;
+    }
+    
+    if (!profile?.id || lastSyncedUserId.current === profile.id) return;
 
     const syncProgress = async () => {
       try {
+        console.log('[RetroactiveSync] Starting sync for:', profile.username);
+        
         // Sync retroactive challenge progress for this user
-        // This grants badges to users who have already completed requirements
-        await supabase.rpc('sync_my_challenge_progress');
+        const { error: syncError } = await supabase.rpc('sync_my_challenge_progress');
+        if (syncError) {
+          console.error('[RetroactiveSync] Challenge sync error:', syncError);
+        } else {
+          console.log('[RetroactiveSync] Challenge progress synced');
+        }
         
         // If owner, grant all badges
         if (isOwner(profile.username)) {
-          await supabase.rpc('check_and_grant_owner_badges');
+          console.log('[RetroactiveSync] Granting owner badges...');
+          const { error: ownerError } = await supabase.rpc('check_and_grant_owner_badges');
+          if (ownerError) {
+            console.error('[RetroactiveSync] Owner badge error:', ownerError);
+          } else {
+            console.log('[RetroactiveSync] Owner badges granted');
+          }
         }
         
-        // Invalidate queries to refresh data with new badges
-        queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
-        queryClient.invalidateQueries({ queryKey: ['user-badges', profile.id] });
-        queryClient.invalidateQueries({ queryKey: ['user-primary-badge', profile.id] });
-        queryClient.invalidateQueries({ queryKey: ['display-style', profile.id] });
-        queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards'] });
-        queryClient.invalidateQueries({ queryKey: ['user-level'] });
+        // Invalidate all badge/display queries to refresh data
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['challenge-progress'] }),
+          queryClient.invalidateQueries({ queryKey: ['user-badges'] }),
+          queryClient.invalidateQueries({ queryKey: ['user-primary-badge'] }),
+          queryClient.invalidateQueries({ queryKey: ['display-style'] }),
+          queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards'] }),
+          queryClient.invalidateQueries({ queryKey: ['user-level'] }),
+        ]);
         
-        hasSynced.current = true;
-        
-        if (import.meta.env.DEV) {
-          console.log('[RetroactiveSync] Completed sync for user:', profile.username);
-        }
+        lastSyncedUserId.current = profile.id;
+        console.log('[RetroactiveSync] Completed sync for:', profile.username);
       } catch (error) {
-        console.error('Failed to sync retroactive progress:', error);
+        console.error('[RetroactiveSync] Failed:', error);
       }
     };
 
