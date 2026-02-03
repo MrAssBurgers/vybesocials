@@ -13,7 +13,7 @@ import { useUserRole } from '@/hooks/useModeration';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
 import { VYBELogo } from '@/components/ui/VYBELogo';
-
+import { StyledUsername } from '@/components/ui/StyledUsername';
 export function Sidebar() {
   const { t } = useTranslation();
   const location = useLocation();
@@ -122,8 +122,17 @@ export function Sidebar() {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <span className="font-semibold text-sm flex items-center gap-1.5 truncate text-foreground">
-              {profile?.username || t('nav.profile')}
+            <span className="font-semibold text-sm flex items-center gap-1.5 truncate">
+              {profile ? (
+                <StyledUsername
+                  userId={profile.id}
+                  username={profile.username}
+                  displayName={profile.display_name}
+                  className="truncate"
+                />
+              ) : (
+                t('nav.profile')
+              )}
               {isOwner(profile?.username) && <OwnerBadge />}
             </span>
             <span className="text-xs text-muted-foreground">View profile</span>
