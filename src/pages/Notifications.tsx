@@ -20,6 +20,8 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCreateConversation } from '@/hooks/useMessages';
 import { useChatPrefetch, useNotificationChatPrefetch } from '@/hooks/useChatPrefetch';
+import { MouthZoomProvider, useMouthZoom } from '@/components/notifications/MouthZoomTransition';
+import { useNotificationHoverPrefetch } from '@/hooks/useMouthZoomTransition';
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
@@ -128,6 +130,7 @@ export default function NotificationsPage() {
   const readNotifications = notifications?.filter(n => n.read) || [];
 
   return (
+    <MouthZoomProvider>
     <AppLayout>
       <div className="max-w-xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-24">
         {/* Pull to refresh indicator */}
@@ -406,6 +409,7 @@ export default function NotificationsPage() {
         </Tabs>
       </div>
     </AppLayout>
+    </MouthZoomProvider>
   );
 }
 
@@ -437,6 +441,13 @@ function NotificationCard({
   getNotificationText,
   isRead 
 }: NotificationCardProps) {
+  const { startTransition } = useMouthZoom();
+  const { onHover } = useNotificationHoverPrefetch();
+  
+  // Determine if this notification should use the mouth zoom transition
+  const isMessageNotification = notification.type === 'message' || 
+    notification.type === 'friend_accepted';
+  
   const linkTo = notification.type === 'friend_request' ||
     notification.type === 'friend_accepted' ||
     notification.type === 'friend_declined' ||
@@ -446,64 +457,95 @@ function NotificationCard({
         ? `/p/${notification.post_id}`
         : `/u/${notification.actor.username}`;
 
+  // Handle click for message notifications - trigger mouth zoom
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    if (isMessageNotification) {
+      e.preventDefault();
+      e.stopPropagation();
+      startTransition(
+        e,
+        notification.actor.id,
+        notification.actor.username,
+        notification.actor.avatar_url,
+        notification.actor.display_name
+      );
+    }
+  }, [isMessageNotification, notification.actor, startTransition]);
+
+  // Prefetch on hover for message notifications
+  const handleMouseEnter = useCallback(() => {
+    if (isMessageNotification) {
+      onHover(notification.actor.id);
+    }
+  }, [isMessageNotification, notification.actor.id, onHover]);
+
+  const cardContent = (
+    <GlassCard 
+      interactive
+      className={cn(
+        "p-4 sm:p-5 transition-all cursor-pointer",
+        isRead && "opacity-70",
+        isMessageNotification && "hover:ring-2 hover:ring-primary/30"
+      )}
+    >
+      <div className="flex items-center gap-3 sm:gap-4">
+        <div className="relative flex-shrink-0">
+          <Avatar className={cn(
+            "h-12 w-12 sm:h-14 sm:w-14 transition-all",
+            !isRead && "ring-2 ring-primary/30 ring-offset-2 ring-offset-background"
+          )}>
+            <AvatarImage src={notification.actor.avatar_url || undefined} />
+            <AvatarFallback className="text-base sm:text-lg bg-gradient-to-br from-primary/50 to-accent/50">
+              {notification.actor.username[0].toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className={cn(
+            "absolute -bottom-1 -right-1 p-1.5 rounded-full",
+            isRead ? "bg-muted" : "bg-background shadow-md"
+          )}>
+            {getNotificationIcon(notification.type)}
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm sm:text-base leading-snug">
+            <StyledUsername
+              userId={notification.actor.id}
+              username={notification.actor.username}
+              displayName={notification.actor.display_name}
+              className="font-semibold"
+            />{' '}
+            <span className={isRead ? "text-muted-foreground" : ""}>
+              {getNotificationText(notification.type)}
+            </span>
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+          </p>
+        </div>
+        {!notification.read && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="w-2.5 h-2.5 rounded-full bg-primary flex-shrink-0"
+          />
+        )}
+      </div>
+    </GlassCard>
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03, duration: 0.2 }}
+      onMouseEnter={handleMouseEnter}
+      onClick={isMessageNotification ? handleClick : undefined}
     >
-      <Link to={linkTo}>
-        <GlassCard 
-          interactive
-          className={cn(
-            "p-4 sm:p-5 transition-all",
-            isRead && "opacity-70"
-          )}
-        >
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="relative flex-shrink-0">
-              <Avatar className={cn(
-                "h-12 w-12 sm:h-14 sm:w-14 transition-all",
-                !isRead && "ring-2 ring-primary/30 ring-offset-2 ring-offset-background"
-              )}>
-                <AvatarImage src={notification.actor.avatar_url || undefined} />
-                <AvatarFallback className="text-base sm:text-lg bg-gradient-to-br from-primary/50 to-accent/50">
-                  {notification.actor.username[0].toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className={cn(
-                "absolute -bottom-1 -right-1 p-1.5 rounded-full",
-                isRead ? "bg-muted" : "bg-background shadow-md"
-              )}>
-                {getNotificationIcon(notification.type)}
-              </div>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm sm:text-base leading-snug">
-                <StyledUsername
-                  userId={notification.actor.id}
-                  username={notification.actor.username}
-                  displayName={notification.actor.display_name}
-                  className="font-semibold"
-                />{' '}
-                <span className={isRead ? "text-muted-foreground" : ""}>
-                  {getNotificationText(notification.type)}
-                </span>
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-              </p>
-            </div>
-            {!notification.read && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="w-2.5 h-2.5 rounded-full bg-primary flex-shrink-0"
-              />
-            )}
-          </div>
-        </GlassCard>
-      </Link>
+      {isMessageNotification ? (
+        <div className="mouth-zoom-container">{cardContent}</div>
+      ) : (
+        <Link to={linkTo}>{cardContent}</Link>
+      )}
     </motion.div>
   );
 }
