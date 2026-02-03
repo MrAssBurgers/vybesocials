@@ -114,10 +114,18 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
         contacts: 'pending',
       };
 
-      // Check notifications
+      // Check notifications - handle all possible states
       if ('Notification' in window) {
-        states.notifications = Notification.permission === 'granted' ? 'granted' : 
-                              Notification.permission === 'denied' ? 'denied' : 'pending';
+        const permission = Notification.permission;
+        if (permission === 'granted') {
+          states.notifications = 'granted';
+        } else if (permission === 'denied') {
+          states.notifications = 'denied';
+        } else {
+          states.notifications = 'pending';
+        }
+      } else {
+        states.notifications = 'unsupported';
       }
 
       // Check camera/microphone via permissions API
@@ -137,15 +145,22 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
         } catch {
           // Permissions API might not support microphone
         }
+      }
 
-        // Check geolocation permission
+      // Check geolocation separately - more reliable across browsers
+      if ('geolocation' in navigator) {
         try {
-          const geo = await navigator.permissions.query({ name: 'geolocation' });
-          states.location = geo.state === 'granted' ? 'granted' : 
-                           geo.state === 'denied' ? 'denied' : 'pending';
+          if ('permissions' in navigator) {
+            const geo = await navigator.permissions.query({ name: 'geolocation' });
+            states.location = geo.state === 'granted' ? 'granted' : 
+                             geo.state === 'denied' ? 'denied' : 'pending';
+          }
         } catch {
-          // Geolocation check failed
+          // Geolocation permissions query not supported, leave as pending
+          states.location = 'pending';
         }
+      } else {
+        states.location = 'unsupported';
       }
 
       // Check motion sensors - DeviceMotionEvent requires permission on iOS 13+
@@ -194,11 +209,31 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
       switch (permissionId) {
         case 'notifications':
           if ('Notification' in window) {
-            const result = await Notification.requestPermission();
-            setPermissionStates(prev => ({
-              ...prev,
-              notifications: result === 'granted' ? 'granted' : result === 'denied' ? 'denied' : 'pending'
-            }));
+            try {
+              // Request permission and wait for result
+              const result = await Notification.requestPermission();
+              console.log('[Permissions] Notification permission result:', result);
+              
+              if (result === 'granted') {
+                setPermissionStates(prev => ({ ...prev, notifications: 'granted' }));
+              } else if (result === 'denied') {
+                setPermissionStates(prev => ({ ...prev, notifications: 'denied' }));
+              } else {
+                // 'default' means the user dismissed the prompt without choosing
+                setPermissionStates(prev => ({ ...prev, notifications: 'pending' }));
+              }
+            } catch (error) {
+              console.error('[Permissions] Notification request error:', error);
+              // Some browsers require user gesture - check current state
+              const currentState = Notification.permission;
+              setPermissionStates(prev => ({
+                ...prev,
+                notifications: currentState === 'granted' ? 'granted' : 
+                              currentState === 'denied' ? 'denied' : 'pending'
+              }));
+            }
+          } else {
+            setPermissionStates(prev => ({ ...prev, notifications: 'unsupported' }));
           }
           break;
 
@@ -255,16 +290,53 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
           break;
 
         case 'location':
-          try {
-            await new Promise<GeolocationPosition>((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject, {
-                timeout: 10000,
-                maximumAge: 0
+          if ('geolocation' in navigator) {
+            try {
+              await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(
+                  (position) => {
+                    console.log('[Permissions] Location granted');
+                    resolve(position);
+                  },
+                  (error) => {
+                    console.error('[Permissions] Location error:', error.code, error.message);
+                    reject(error);
+                  },
+                  {
+                    timeout: 15000,
+                    maximumAge: 0,
+                    enableHighAccuracy: false // Less strict, more likely to succeed
+                  }
+                );
               });
-            });
-            setPermissionStates(prev => ({ ...prev, location: 'granted' }));
-          } catch {
-            setPermissionStates(prev => ({ ...prev, location: 'denied' }));
+              setPermissionStates(prev => ({ ...prev, location: 'granted' }));
+            } catch (error: any) {
+              // GeolocationPositionError codes:
+              // 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT
+              if (error?.code === 1) {
+                setPermissionStates(prev => ({ ...prev, location: 'denied' }));
+              } else {
+                // Position unavailable or timeout - permission might still be granted
+                // Check via permissions API if available
+                try {
+                  if ('permissions' in navigator) {
+                    const geo = await navigator.permissions.query({ name: 'geolocation' });
+                    setPermissionStates(prev => ({
+                      ...prev,
+                      location: geo.state === 'granted' ? 'granted' : 
+                               geo.state === 'denied' ? 'denied' : 'pending'
+                    }));
+                  } else {
+                    // Can't determine, mark as denied for safety
+                    setPermissionStates(prev => ({ ...prev, location: 'denied' }));
+                  }
+                } catch {
+                  setPermissionStates(prev => ({ ...prev, location: 'denied' }));
+                }
+              }
+            }
+          } else {
+            setPermissionStates(prev => ({ ...prev, location: 'unsupported' }));
           }
           break;
 
