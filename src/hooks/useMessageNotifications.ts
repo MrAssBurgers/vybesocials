@@ -160,14 +160,15 @@ export function useMessageNotifications() {
             const conversationId = newMessage.conversation_id;
             const navigate = navigateRef.current;
             
-            // Show clickable toast - no action button, use action with View label
-            // But clicking navigates smoothly via React Router
-            toast(senderName, {
+            // Show clickable toast - clicking anywhere navigates to chat
+            // No action button per design spec - using custom description for click handling
+            const toastId = toast(senderName, {
               description: messagePreview,
               duration: 3000,
               action: {
-                label: 'View',
+                label: 'Open',
                 onClick: () => {
+                  toast.dismiss(toastId);
                   if (navigate) {
                     navigate(`/messages/${conversationId}`);
                   } else {
