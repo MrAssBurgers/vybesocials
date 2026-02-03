@@ -115,6 +115,10 @@ export function GlobalCallOverlay() {
   const [showHeader, setShowHeader] = useState(true);
   const headerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
+  // Footer visibility state - auto-hide like header
+  const [showFooter, setShowFooter] = useState(true);
+  const footerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
   // INSTANT CAMERA: Preload camera for video calls - start as soon as call begins
   const isVideoCall = state.call?.callType === 'video';
   const isActiveCall = state.phase !== 'idle';
@@ -1061,20 +1065,27 @@ export function GlobalCallOverlay() {
     if (state.phase === 'idle') {
       setIsMinimized(false);
       setShowHeader(true);
+      setShowFooter(true);
     }
   }, [state.phase]);
 
-  // Auto-hide header after 3 seconds when connected
+  // Auto-hide header and footer after 3 seconds when connected
   useEffect(() => {
     if (isConnected && !isMinimized) {
       headerTimeoutRef.current = setTimeout(() => {
         setShowHeader(false);
+      }, 3000);
+      footerTimeoutRef.current = setTimeout(() => {
+        setShowFooter(false);
       }, 3000);
     }
     
     return () => {
       if (headerTimeoutRef.current) {
         clearTimeout(headerTimeoutRef.current);
+      }
+      if (footerTimeoutRef.current) {
+        clearTimeout(footerTimeoutRef.current);
       }
     };
   }, [isConnected, isMinimized]);
@@ -1092,6 +1103,37 @@ export function GlobalCallOverlay() {
       headerTimeoutRef.current = setTimeout(() => {
         setShowHeader(false);
       }, 1500);
+    }
+  }, [isConnected]);
+
+  // Footer hover handlers
+  const handleFooterAreaEnter = useCallback(() => {
+    if (footerTimeoutRef.current) {
+      clearTimeout(footerTimeoutRef.current);
+    }
+    setShowFooter(true);
+  }, []);
+
+  const handleFooterAreaLeave = useCallback(() => {
+    if (isConnected) {
+      footerTimeoutRef.current = setTimeout(() => {
+        setShowFooter(false);
+      }, 1500);
+    }
+  }, [isConnected]);
+
+  // Show both when screen is tapped
+  const handleScreenTap = useCallback(() => {
+    setShowHeader(true);
+    setShowFooter(true);
+    
+    // Reset timers
+    if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current);
+    if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current);
+    
+    if (isConnected) {
+      headerTimeoutRef.current = setTimeout(() => setShowHeader(false), 3000);
+      footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 3000);
     }
   }, [isConnected]);
 
@@ -1144,11 +1186,15 @@ export function GlobalCallOverlay() {
 
             {/* Audio element is now rendered outside this block to stay mounted when minimized */}
 
-            {/* Video Container */}
+            {/* Video Container - tap to show controls */}
             {isVideoCall && (
               <>
                 {/* Remote Video - Full Screen with GPU acceleration */}
-                <div className="absolute inset-0" style={{ willChange: 'contents' }}>
+                <div 
+                  className="absolute inset-0" 
+                  style={{ willChange: 'contents' }}
+                  onClick={handleScreenTap}
+                >
                   {/* Always render the video element so tracks can attach even before we have state */}
                   <video
                     ref={remoteVideoRef}
@@ -1494,12 +1540,17 @@ export function GlobalCallOverlay() {
               )}
             </AnimatePresence>
 
-            {/* Modern Control Bar */}
+            {/* Modern Control Bar - Auto-hide like header */}
             <motion.div
               initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2, type: "spring", damping: 25 }}
+              animate={{ 
+                y: showFooter ? 0 : 100, 
+                opacity: showFooter ? 1 : 0 
+              }}
+              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="absolute bottom-0 left-0 right-0 pb-10 pointer-events-auto"
+              onMouseEnter={handleFooterAreaEnter}
+              onMouseLeave={handleFooterAreaLeave}
             >
               <div className="flex justify-center">
                 <div className="inline-flex items-center gap-3 p-3 rounded-2xl backdrop-blur-xl bg-white/10 border border-white/10 shadow-2xl">

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { analytics } from '@/lib/analytics';
+import { useEffect, useRef } from 'react';
 
 interface Invite {
   id: string;
@@ -147,11 +148,14 @@ export function useRegenerateInvite() {
 /**
  * Get invite stats (redemptions count)
  * Refetches frequently to show new redemptions quickly
+ * Also automatically awards badges for milestones
  */
 export function useInviteStats() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const awardedMilestonesRef = useRef<Set<number>>(new Set());
   
-  return useQuery({
+  const query = useQuery({
     queryKey: ['invite-stats', user?.id],
     queryFn: async () => {
       if (!user?.id) return { totalRedemptions: 0, recentRedemptions: [] };
@@ -216,6 +220,55 @@ export function useInviteStats() {
     refetchInterval: 1000,
     staleTime: 0,
   });
+
+  // Award badges when milestones are reached
+  useEffect(() => {
+    const awardBadgeForMilestone = async (milestone: number, badgeName: string) => {
+      if (!user?.id || awardedMilestonesRef.current.has(milestone)) return;
+      
+      try {
+        // Check if user already has this badge
+        const { data: existingBadge } = await supabase
+          .from('user_badges')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('badge_type', `invite_${milestone}`)
+          .maybeSingle();
+        
+        if (existingBadge) {
+          awardedMilestonesRef.current.add(milestone);
+          return;
+        }
+        
+        // Award the badge
+        const { error } = await supabase
+          .from('user_badges')
+          .insert({
+            user_id: user.id,
+            badge_type: `invite_${milestone}`,
+            badge_name: badgeName,
+            metadata: { invites: milestone },
+          });
+        
+        if (!error) {
+          awardedMilestonesRef.current.add(milestone);
+          toast.success(`🎖️ Badge unlocked: ${badgeName}!`);
+          queryClient.invalidateQueries({ queryKey: ['user-badges'] });
+        }
+      } catch (err) {
+        console.error('Failed to award badge:', err);
+      }
+    };
+
+    const total = query.data?.totalRedemptions || 0;
+    
+    // Check milestones and award badges
+    if (total >= 1) awardBadgeForMilestone(1, 'First Invite');
+    if (total >= 3) awardBadgeForMilestone(3, 'Rising Star');
+    if (total >= 10) awardBadgeForMilestone(10, 'Early Builder');
+  }, [query.data?.totalRedemptions, user?.id, queryClient]);
+
+  return query;
 }
 
 /**
