@@ -195,6 +195,22 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     stopCamera();
   }, [stopCamera, facingMode]);
 
+  // Stop video recording
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    
+    setIsRecording(false);
+    setRecordingProgress(0);
+    haptics.success();
+  }, []);
+
   // Start video recording
   const startRecording = useCallback(async () => {
     if (!streamRef.current) return;
@@ -212,9 +228,14 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
         ...audioStream.getAudioTracks()
       ]);
       
-      const mediaRecorder = new MediaRecorder(combinedStream, {
-        mimeType: 'video/webm;codecs=vp9'
-      });
+      // Check supported mimeTypes
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
+        ? 'video/webm;codecs=vp9'
+        : MediaRecorder.isTypeSupported('video/webm')
+          ? 'video/webm'
+          : 'video/mp4';
+      
+      const mediaRecorder = new MediaRecorder(combinedStream, { mimeType });
       
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -223,7 +244,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
       };
       
       mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
         const videoUrl = URL.createObjectURL(blob);
         setCapturedVideo(videoUrl);
         setIsVideoMode(true);
@@ -255,23 +276,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
       // Fallback to photo if audio fails
       handleCapture();
     }
-  }, [stopCamera, handleCapture]);
-
-  // Stop video recording
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-    
-    setIsRecording(false);
-    setRecordingProgress(0);
-    haptics.success();
-  }, []);
+  }, [stopCamera, stopRecording, handleCapture]);
 
   // Handle capture button press - tap for photo, hold for video
   const handleCaptureStart = useCallback(() => {
