@@ -701,6 +701,10 @@ export function ChatView() {
 
   const handleReply = useCallback((msg: Message) => {
     setReplyingTo(msg);
+    // Auto-focus input and bring up keyboard after swipe-to-reply
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
   }, []);
 
   const clearReply = useCallback(() => {
@@ -1670,8 +1674,6 @@ const MessageBubble = memo(function MessageBubble({
     return /iPad|iPhone|iPod/.test(ua) || (ua.includes('Mac') && 'ontouchend' in document);
   }, []);
 
-  // Determine if this is a newly received message (for special pop animation)
-  const isNewIncoming = !isOwn && message.id.startsWith('temp-') === false;
 
   return (
     <motion.div 
@@ -1683,36 +1685,35 @@ const MessageBubble = memo(function MessageBubble({
       )}
       initial={{ 
         opacity: 0, 
-        y: isIOSSafari ? 8 : 20,
-        scale: isIOSSafari ? 1 : (isOwn ? 0.9 : 0.85),
-        // Incoming messages pop from the left, outgoing from the right
-        x: isOwn ? 15 : -15
+        // Own messages: fly in from right; Others: pop from left
+        x: isOwn ? 30 : -20,
+        y: isIOSSafari ? 6 : 12,
+        scale: isIOSSafari ? 1 : 0.92,
       }}
       animate={{ 
         opacity: 1, 
+        x: 0,
         y: 0, 
         scale: 1,
-        x: 0
       }}
       exit={{ 
         opacity: 0, 
-        scale: isIOSSafari ? 1 : 0.9, 
-        transition: { duration: isIOSSafari ? 0.1 : 0.15 } 
+        scale: 0.95, 
+        x: isOwn ? 20 : -10,
+        transition: { duration: 0.12 } 
       }}
       transition={isIOSSafari 
-        ? { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] } // cubic-bezier for easeOut
+        ? { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }
         : { 
             type: 'spring', 
-            stiffness: 450, 
-            damping: 28, 
-            mass: 0.5,
-            // Slightly different timing for incoming vs outgoing
-            delay: isOwn ? 0 : 0.02
+            stiffness: 380, 
+            damping: 32, 
+            mass: 0.6,
           }
       }
       style={{
         willChange: 'transform, opacity',
-        transform: 'translateZ(0)', // Force GPU acceleration
+        transform: 'translateZ(0)',
       }}
     >
       {/* Container for avatar + bubble - left aligned for received */}

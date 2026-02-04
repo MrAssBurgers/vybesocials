@@ -1,24 +1,23 @@
-import { useState, useRef, useCallback, ReactNode } from 'react';
-import { motion, useMotionValue, useTransform, useSpring, PanInfo } from 'framer-motion';
+import { useRef, useCallback, ReactNode } from 'react';
+import { motion, useMotionValue, useTransform, PanInfo, animate } from 'framer-motion';
 import { Reply } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SwipeToReplyProps {
   children: ReactNode;
   onReply: () => void;
-  isOwn?: boolean; // Keep for potential future styling differences
+  isOwn?: boolean;
   disabled?: boolean;
 }
 
-const SWIPE_THRESHOLD = 50;
-const MAX_SWIPE = 70;
+const SWIPE_THRESHOLD = 60;
+const MAX_SWIPE = 80;
 
 /**
- * Snapchat-style swipe to reply
- * - Works on ALL messages (own and others)
- * - Swipe right to reveal reply indicator
- * - Smooth spring animation snaps back
- * - Haptic feedback when threshold crossed
+ * Snapchat-style swipe to reply - Clean, satisfying gesture
+ * - Smooth spring physics
+ * - Clean icon reveal
+ * - Haptic feedback at threshold
  */
 export function SwipeToReply({ 
   children, 
@@ -26,26 +25,18 @@ export function SwipeToReply({
   isOwn = false,
   disabled = false
 }: SwipeToReplyProps) {
-  const [hasTriggered, setHasTriggered] = useState(false);
-  const triggeredRef = useRef(false);
+  const hasTriggeredRef = useRef(false);
   
   // Raw motion value for drag
-  const rawX = useMotionValue(0);
+  const x = useMotionValue(0);
   
-  // Spring for smooth snap-back animation (Snapchat feel)
-  const x = useSpring(rawX, {
-    stiffness: 400,
-    damping: 30,
-    mass: 0.8
-  });
+  // Reply icon transforms - smooth reveal
+  const replyOpacity = useTransform(x, [0, 30, SWIPE_THRESHOLD], [0, 0.5, 1]);
+  const replyScale = useTransform(x, [0, SWIPE_THRESHOLD], [0.5, 1]);
+  const replyX = useTransform(x, [0, SWIPE_THRESHOLD], [-10, 8]);
   
-  // Reply icon transforms - appears from left
-  const replyOpacity = useTransform(rawX, [0, 20, SWIPE_THRESHOLD], [0, 0.3, 1]);
-  const replyScale = useTransform(rawX, [0, SWIPE_THRESHOLD], [0.6, 1]);
-  const replyX = useTransform(rawX, [0, SWIPE_THRESHOLD], [-20, 0]);
-  
-  // Background indicator
-  const bgOpacity = useTransform(rawX, [0, SWIPE_THRESHOLD], [0, 0.1]);
+  // Icon rotation for satisfaction
+  const replyRotate = useTransform(x, [0, SWIPE_THRESHOLD, MAX_SWIPE], [-45, 0, 10]);
 
   const handleDrag = useCallback((
     _event: MouseEvent | TouchEvent | PointerEvent,
@@ -53,43 +44,55 @@ export function SwipeToReply({
   ) => {
     if (disabled) return;
     
-    // Only allow right swipe
-    const offsetX = Math.max(0, Math.min(info.offset.x, MAX_SWIPE));
-    rawX.set(offsetX);
+    // Only allow right swipe with resistance at max
+    const rawX = info.offset.x;
+    const clampedX = Math.max(0, Math.min(rawX, MAX_SWIPE));
     
-    // Trigger haptic when crossing threshold (once per gesture)
-    if (offsetX >= SWIPE_THRESHOLD && !triggeredRef.current) {
-      triggeredRef.current = true;
-      setHasTriggered(true);
-      
+    // Add resistance near the max
+    const resistance = clampedX > SWIPE_THRESHOLD ? 0.3 : 1;
+    const finalX = clampedX > SWIPE_THRESHOLD 
+      ? SWIPE_THRESHOLD + (clampedX - SWIPE_THRESHOLD) * resistance
+      : clampedX;
+    
+    x.set(finalX);
+    
+    // Haptic at threshold (once per gesture)
+    if (finalX >= SWIPE_THRESHOLD && !hasTriggeredRef.current) {
+      hasTriggeredRef.current = true;
       if ('vibrate' in navigator) {
-        navigator.vibrate(15);
+        navigator.vibrate(10);
       }
-    } else if (offsetX < SWIPE_THRESHOLD && triggeredRef.current) {
-      triggeredRef.current = false;
-      setHasTriggered(false);
+    } else if (finalX < SWIPE_THRESHOLD * 0.8) {
+      hasTriggeredRef.current = false;
     }
-  }, [disabled, rawX]);
+  }, [disabled, x]);
 
   const handleDragEnd = useCallback((
     _event: MouseEvent | TouchEvent | PointerEvent, 
     info: PanInfo
   ) => {
+    const currentX = x.get();
+    
     // Fire reply if we crossed threshold
-    if (info.offset.x >= SWIPE_THRESHOLD) {
+    if (currentX >= SWIPE_THRESHOLD) {
       onReply();
       
-      // Extra haptic on release
+      // Success haptic
       if ('vibrate' in navigator) {
-        navigator.vibrate([10, 30, 10]);
+        navigator.vibrate([8, 50, 8]);
       }
     }
     
-    // Always snap back to origin
-    rawX.set(0);
-    triggeredRef.current = false;
-    setHasTriggered(false);
-  }, [onReply, rawX]);
+    // Smooth spring back to origin
+    animate(x, 0, {
+      type: 'spring',
+      stiffness: 500,
+      damping: 35,
+      mass: 0.8,
+    });
+    
+    hasTriggeredRef.current = false;
+  }, [onReply, x]);
 
   if (disabled) {
     return <>{children}</>;
@@ -97,25 +100,21 @@ export function SwipeToReply({
 
   return (
     <div className="relative overflow-visible">
-      {/* Reply indicator - positioned to the left */}
+      {/* Reply indicator - clean circle icon */}
       <motion.div
-        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pl-2"
+        className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none"
         style={{ 
           opacity: replyOpacity,
           scale: replyScale,
-          x: replyX
+          x: replyX,
+          rotate: replyRotate,
         }}
       >
         <div className={cn(
-          "h-9 w-9 rounded-full flex items-center justify-center transition-colors duration-150",
-          hasTriggered 
-            ? "bg-primary shadow-lg shadow-primary/30" 
-            : "bg-muted/80"
+          "h-8 w-8 rounded-full flex items-center justify-center shadow-lg",
+          "bg-primary text-primary-foreground"
         )}>
-          <Reply className={cn(
-            "h-4 w-4 transition-colors duration-150",
-            hasTriggered ? "text-primary-foreground" : "text-muted-foreground"
-          )} />
+          <Reply className="h-4 w-4" />
         </div>
       </motion.div>
 
@@ -128,13 +127,8 @@ export function SwipeToReply({
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
         style={{ x }}
-        className="touch-pan-y cursor-grab active:cursor-grabbing"
+        className="touch-pan-y"
       >
-        {/* Subtle background indicator */}
-        <motion.div 
-          className="absolute inset-0 rounded-[20px] bg-primary pointer-events-none"
-          style={{ opacity: bgOpacity }}
-        />
         {children}
       </motion.div>
     </div>
