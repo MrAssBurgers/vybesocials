@@ -85,7 +85,7 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
         </>
       )}
       
-      {/* The V icon - outline style */}
+      {/* The V icon - outline style, no background */}
       <svg
         viewBox="0 0 100 100"
         fill="none"
