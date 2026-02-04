@@ -93,7 +93,7 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
         </>
       )}
       
-      {/* The V icon */}
+      {/* The V icon - outline style */}
       <svg
         viewBox="0 0 100 100"
         fill="none"
@@ -113,28 +113,22 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
           </linearGradient>
         </defs>
         
-        {/* Left leg of V - primary color */}
+        {/* Left leg of V - outline stroke */}
         <path
-          d="M18 12 L50 88"
+          d="M22 15 L50 82"
           stroke={`url(#${uniqueId}-primary)`}
-          strokeWidth="16"
+          strokeWidth="8"
           strokeLinecap="round"
+          fill="none"
         />
         
-        {/* Right leg of V - accent color */}
+        {/* Right leg of V - outline stroke */}
         <path
-          d="M82 12 L50 88"
+          d="M78 15 L50 82"
           stroke={`url(#${uniqueId}-accent)`}
-          strokeWidth="16"
+          strokeWidth="8"
           strokeLinecap="round"
-        />
-        
-        {/* Center glow point */}
-        <circle
-          cx="50"
-          cy="88"
-          r="4"
-          className="fill-foreground"
+          fill="none"
         />
       </svg>
     </div>

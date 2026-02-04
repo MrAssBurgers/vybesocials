@@ -426,10 +426,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
                 />
               ) : (
-                <>
-                  <VybeMiniIcon size={18} showSparkles className="mr-2" />
-                  {isLogin ? t('auth.login') : t('auth.signup')}
-                </>
+                isLogin ? t('auth.login') : t('auth.signup')
               )}
             </Button>
           </form>
