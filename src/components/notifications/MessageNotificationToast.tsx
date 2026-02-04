@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { triggerMouthZoom, isMouthZoomAvailable } from '@/lib/mouthZoomBridge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 interface MessageNotificationToastProps {
   toastId: string | number;
@@ -17,7 +17,7 @@ interface MessageNotificationToastProps {
 /**
  * Custom message notification toast with mouth zoom animation
  * Clicking triggers the portal transition to chat
- * Uses touch-manipulation to prevent outline glitches on hold
+ * Fixed: Static container prevents outline shift during press
  */
 export const MessageNotificationToast = memo(function MessageNotificationToast({
   toastId,
@@ -60,69 +60,86 @@ export const MessageNotificationToast = memo(function MessageNotificationToast({
   }, [toastId, senderId, senderName, senderAvatar, conversationId]);
 
   return (
+    // Static outer container - NEVER animates, prevents outline shift
     <div 
       ref={containerRef}
-      onClick={handleClick}
-      onPointerDown={() => setIsPressed(true)}
-      onPointerUp={() => setIsPressed(false)}
-      onPointerLeave={() => setIsPressed(false)}
-      className="touch-manipulation select-none"
-      style={{ outline: 'none' }}
+      className="relative"
+      style={{ 
+        // Fixed dimensions prevent layout shift
+        width: '300px',
+        maxWidth: '100%',
+      }}
     >
-      <motion.div
-        initial={{ opacity: 0, y: -20, scale: 0.9 }}
-        animate={{ 
-          opacity: isExiting ? 0 : 1, 
-          y: isExiting ? -10 : 0, 
-          scale: isExiting ? 0.95 : (isPressed ? 0.96 : 1)
-        }}
-        transition={{ 
-          type: 'spring',
-          stiffness: 500,
-          damping: 35,
-          mass: 0.5
-        }}
-        className={cn(
-          "flex items-center gap-2.5 p-3 cursor-pointer w-full max-w-[300px]",
-          "bg-background/95 backdrop-blur-xl rounded-2xl",
-          "shadow-lg shadow-black/10 border border-border/50"
-        )}
+      {/* Clickable area with NO outline/focus styles */}
+      <div
+        onClick={handleClick}
+        onPointerDown={() => setIsPressed(true)}
+        onPointerUp={() => setIsPressed(false)}
+        onPointerLeave={() => setIsPressed(false)}
+        onPointerCancel={() => setIsPressed(false)}
+        className="touch-manipulation select-none cursor-pointer"
         style={{ 
-          willChange: 'transform, opacity',
           outline: 'none',
           WebkitTapHighlightColor: 'transparent',
+          // Prevent any focus ring
+          boxShadow: 'none',
         }}
+        tabIndex={-1}
       >
-        {/* Avatar */}
-        <Avatar className={cn(
-          "h-10 w-10 ring-2 ring-primary/30 flex-shrink-0 shadow-md transition-transform duration-100",
-          isPressed && "scale-95"
-        )}>
-          <AvatarImage src={senderAvatar || undefined} />
-          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground text-sm font-semibold">
-            {senderName[0]?.toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm text-foreground truncate">
-            {senderName}
-          </p>
-          <p className="text-xs text-muted-foreground truncate">
-            {messagePreview}
-          </p>
-        </div>
-        
-        {/* Arrow indicator */}
-        <div className={cn(
-          "text-muted-foreground transition-all duration-100",
-          isPressed ? "opacity-50 translate-x-0.5" : "opacity-30"
-        )}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
-      </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: -20, scale: 0.9 }}
+          animate={{ 
+            opacity: isExiting ? 0 : 1, 
+            y: isExiting ? -10 : 0, 
+            scale: isExiting ? 0.95 : (isPressed ? 0.96 : 1)
+          }}
+          transition={{ 
+            type: 'spring',
+            stiffness: 500,
+            damping: 35,
+            mass: 0.5
+          }}
+          className={cn(
+            "flex items-center gap-2.5 p-3 w-full",
+            "bg-background/95 backdrop-blur-xl rounded-2xl",
+            "shadow-lg shadow-black/10 border border-border/50"
+          )}
+          style={{ 
+            willChange: 'transform, opacity',
+            transform: 'translateZ(0)',
+          }}
+        >
+          {/* Avatar */}
+          <Avatar className={cn(
+            "h-10 w-10 ring-2 ring-primary/30 flex-shrink-0 shadow-md transition-transform duration-100",
+            isPressed && "scale-95"
+          )}>
+            <AvatarImage src={senderAvatar || undefined} />
+            <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground text-sm font-semibold">
+              {senderName[0]?.toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-foreground truncate">
+              {senderName}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {messagePreview}
+            </p>
+          </div>
+          
+          {/* Arrow indicator */}
+          <div className={cn(
+            "text-muted-foreground transition-all duration-100",
+            isPressed ? "opacity-50 translate-x-0.5" : "opacity-30"
+          )}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 });
@@ -151,8 +168,12 @@ export function showMessageNotification(
     {
       duration: 4000,
       position: 'top-center',
-      // Remove default sonner animation since we handle it ourselves
-      className: '!bg-transparent !border-none !shadow-none !p-0',
+      // Remove default sonner styles completely
+      className: '!bg-transparent !border-none !shadow-none !p-0 !outline-none',
+      style: {
+        outline: 'none',
+        boxShadow: 'none',
+      },
     }
   );
   

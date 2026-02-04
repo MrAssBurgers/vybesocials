@@ -1489,6 +1489,44 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   animation: typing-dot-bounce 1s ease-in-out infinite;
 }
 
+/* Message pop-in animation for incoming messages */
+@keyframes message-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.85) translateX(-10px);
+  }
+  50% {
+    transform: scale(1.02) translateX(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateX(0);
+  }
+}
+
+/* Message fly-out animation for sent messages */
+@keyframes message-fly-out {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateX(15px);
+  }
+  60% {
+    transform: scale(1.01) translateX(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateX(0);
+  }
+}
+
+.message-pop-in {
+  animation: message-pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.message-fly-out {
+  animation: message-fly-out 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
 /* Freeze dialogs completely - no animations or transforms */
 [data-state="open"][role="dialog"] .\!transform-none,
 .\!transform-none {
