@@ -837,3 +837,35 @@ export function useMarkConversationReadByUser() {
     },
   });
 }
+
+/**
+ * Mark a vybe (media message) as viewed - stores viewed_at timestamp
+ * This prevents re-opening viewed vybes after refresh
+ */
+export function useMarkVybeViewed() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      if (!profile?.id) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('messages')
+        .update({ viewed_at: new Date().toISOString() })
+        .eq('id', messageId);
+
+      if (error) throw error;
+      return messageId;
+    },
+    onSuccess: (messageId) => {
+      // Update the local cache to reflect viewed state
+      queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, (old) => {
+        if (!old) return old;
+        return old.map(msg => 
+          msg.id === messageId ? { ...msg, viewed_at: new Date().toISOString() } : msg
+        );
+      });
+    },
+  });
+}

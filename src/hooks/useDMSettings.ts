@@ -117,6 +117,53 @@ export function useDMSettings(conversationId: string | undefined) {
   };
 }
 
+/**
+ * Hook to get the effective content safety settings for a DM
+ * Returns the stricter setting between both users
+ */
+export function useCrossUserSafetySettings(conversationId: string | undefined) {
+  const { profile } = useAuth();
+  
+  return useQuery({
+    queryKey: ['cross-user-safety', conversationId, profile?.id],
+    queryFn: async () => {
+      if (!conversationId || !profile?.id) return { requiresScan: true, level: 'protected' };
+      
+      // Get both users' sensitivity preferences
+      const { data: members } = await supabase
+        .from('conversation_members')
+        .select(`
+          user_id,
+          profile:profiles!user_id(sensitivity_preference)
+        `)
+        .eq('conversation_id', conversationId);
+      
+      if (!members?.length) return { requiresScan: true, level: 'protected' };
+      
+      // Get sensitivity levels
+      const levels = members.map(m => {
+        const pref = (m.profile as any)?.sensitivity_preference || 'protected';
+        return pref;
+      });
+      
+      // If either user has 'protected', require full scanning
+      if (levels.includes('protected')) {
+        return { requiresScan: true, level: 'protected', message: 'This chat requires content scanning for safety' };
+      }
+      
+      // If either user has 'moderate', show warnings
+      if (levels.includes('moderate')) {
+        return { requiresScan: true, level: 'moderate', message: 'Content will be scanned with warnings' };
+      }
+      
+      // Both users are 'unfiltered' - no scanning required
+      return { requiresScan: false, level: 'unfiltered' };
+    },
+    enabled: !!conversationId && !!profile?.id,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
 // Hook for memory pins
 export function useMessagePins(conversationId: string | undefined) {
   const { profile } = useAuth();

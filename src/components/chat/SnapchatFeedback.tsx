@@ -188,6 +188,21 @@ interface LivePresenceBarProps {
   isInChat?: boolean;
 }
 
+// Animated typing dots - CSS based for smoothness
+const TypingDots = memo(function TypingDots() {
+  return (
+    <span className="inline-flex items-center ml-0.5">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="w-1 h-1 mx-[1px] rounded-full bg-current typing-dot"
+          style={{ animationDelay: `${i * 150}ms` }}
+        />
+      ))}
+    </span>
+  );
+});
+
 // Live presence bar showing real-time status
 export const LivePresenceBar = memo(function LivePresenceBar({
   isOnline,
@@ -196,71 +211,40 @@ export const LivePresenceBar = memo(function LivePresenceBar({
   username,
   isInChat,
 }: LivePresenceBarProps) {
-  const [dots, setDots] = useState('');
-
-  // Animate dots when typing
-  useEffect(() => {
-    if (!isTyping) {
-      setDots('');
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setDots(prev => prev.length >= 3 ? '' : prev + '.');
-    }, 400);
-
-    return () => clearInterval(interval);
-  }, [isTyping]);
-
-  const getStatusText = () => {
-    if (isTyping) return `typing${dots}`;
-    if (isInChat) return 'in chat';
-    if (isOnline) return 'online';
+  // Simple status text without the dots (dots are animated separately)
+  const getStaticStatusText = () => {
+    if (isInChat && !isTyping) return 'in chat';
+    if (isOnline && !isTyping) return 'online';
     if (lastSeen) return `last seen ${lastSeen}`;
     return 'offline';
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="flex items-center gap-1.5"
-    >
+    <div className="flex items-center gap-1.5">
       {/* Status dot */}
-      <motion.div
+      <div
         className={cn(
-          "w-2 h-2 rounded-full",
-          isTyping ? "bg-primary" : isOnline ? "bg-green-500" : "bg-muted-foreground/50"
+          "w-2 h-2 rounded-full transition-colors duration-200",
+          isTyping ? "bg-primary animate-pulse" : isOnline ? "bg-green-500" : "bg-muted-foreground/50"
         )}
-        animate={isTyping ? {
-          scale: [1, 1.3, 1],
-          opacity: [1, 0.7, 1],
-        } : isOnline ? {
-          scale: [1, 1.15, 1],
-        } : {}}
-        transition={{ 
-          duration: isTyping ? 0.6 : 2, 
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
       />
       
-      {/* Status text */}
-      <AnimatePresence mode="wait">
-        <motion.span
-          key={getStatusText()}
-          initial={{ opacity: 0, y: -5 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 5 }}
+      {/* Status text - typing has static "typing" + animated dots */}
+      {isTyping ? (
+        <span className="text-xs font-medium text-primary">
+          typing<TypingDots />
+        </span>
+      ) : (
+        <span
           className={cn(
-            "text-xs font-medium",
-            isTyping ? "text-primary" : isOnline ? "text-green-500" : "text-muted-foreground"
+            "text-xs font-medium transition-colors duration-200",
+            isOnline ? "text-green-500" : "text-muted-foreground"
           )}
         >
-          {getStatusText()}
-        </motion.span>
-      </AnimatePresence>
-    </motion.div>
+          {getStaticStatusText()}
+        </span>
+      )}
+    </div>
   );
 });
 
