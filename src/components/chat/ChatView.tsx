@@ -274,13 +274,17 @@ export function ChatView() {
     }
   }, [conversationId, profile?.id, queryClient, otherMembers]);
 
-  // Auto-mark messages as read
+  // Auto-mark messages as read (EXCEPT VYBEs which require explicit tap-to-view)
   useEffect(() => {
     if (!messages || !profile?.id || !conversationId) return;
 
     const unreadMessages = messages.filter((msg) => {
       if (msg.sender_id === profile.id) return false;
       if (hasMarkedReadRef.current.has(msg.id)) return false;
+      
+      // Skip VYBE messages - they require explicit tap-to-view
+      if (msg.media_type === 'vybe') return false;
+      
       const hasMyView = msg.views?.some((v) => v.user_id === profile.id);
       return !hasMyView;
     });
