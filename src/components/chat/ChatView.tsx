@@ -1670,6 +1670,9 @@ const MessageBubble = memo(function MessageBubble({
     return /iPad|iPhone|iPod/.test(ua) || (ua.includes('Mac') && 'ontouchend' in document);
   }, []);
 
+  // Determine if this is a newly received message (for special pop animation)
+  const isNewIncoming = !isOwn && message.id.startsWith('temp-') === false;
+
   return (
     <motion.div 
       key={message.id}
@@ -1678,12 +1681,34 @@ const MessageBubble = memo(function MessageBubble({
         'flex w-full group/message relative',
         isOwn ? 'justify-end' : 'justify-start'
       )}
-      initial={{ opacity: 0, y: isIOSSafari ? 8 : 16, scale: isIOSSafari ? 1 : 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: isIOSSafari ? 1 : 0.9, transition: { duration: isIOSSafari ? 0.1 : 0.15 } }}
+      initial={{ 
+        opacity: 0, 
+        y: isIOSSafari ? 8 : 20,
+        scale: isIOSSafari ? 1 : (isOwn ? 0.9 : 0.85),
+        // Incoming messages pop from the left, outgoing from the right
+        x: isOwn ? 15 : -15
+      }}
+      animate={{ 
+        opacity: 1, 
+        y: 0, 
+        scale: 1,
+        x: 0
+      }}
+      exit={{ 
+        opacity: 0, 
+        scale: isIOSSafari ? 1 : 0.9, 
+        transition: { duration: isIOSSafari ? 0.1 : 0.15 } 
+      }}
       transition={isIOSSafari 
-        ? { duration: 0.15, ease: [0.25, 0.1, 0.25, 1] } // cubic-bezier for easeOut
-        : { type: 'spring', stiffness: 500, damping: 35, mass: 0.6 }
+        ? { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] } // cubic-bezier for easeOut
+        : { 
+            type: 'spring', 
+            stiffness: 450, 
+            damping: 28, 
+            mass: 0.5,
+            // Slightly different timing for incoming vs outgoing
+            delay: isOwn ? 0 : 0.02
+          }
       }
       style={{
         willChange: 'transform, opacity',
