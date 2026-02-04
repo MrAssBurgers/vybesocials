@@ -658,20 +658,66 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 onMouseLeave={handleCaptureEnd}
                 className="relative w-20 h-20 rounded-full flex items-center justify-center"
               >
-                {/* Outer ring with gradient - shows recording progress */}
-                <div className="absolute inset-0 rounded-full border-4 border-white/90 bg-gradient-to-br from-primary/20 to-accent/20 backdrop-blur-sm" />
+                {/* Outer ring with theme gradient - Snapchat-style recording ring */}
+                <div 
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background: isRecording 
+                      ? `conic-gradient(
+                          hsl(var(--primary)) 0deg,
+                          hsl(var(--accent)) 90deg,
+                          hsl(var(--primary)) 180deg,
+                          hsl(var(--accent)) 270deg,
+                          hsl(var(--primary)) 360deg
+                        )`
+                      : 'transparent',
+                    padding: isRecording ? '4px' : '0',
+                    WebkitMask: isRecording ? 'none' : undefined,
+                  }}
+                >
+                  {/* Inner mask for ring effect when recording */}
+                  {isRecording && (
+                    <div className="w-full h-full rounded-full bg-black" />
+                  )}
+                </div>
                 
-                {/* Recording progress ring */}
+                {/* Static outer ring when not recording */}
+                {!isRecording && (
+                  <div className="absolute inset-0 rounded-full border-4 border-white/90 bg-gradient-to-br from-primary/20 to-accent/20 backdrop-blur-sm" />
+                )}
+                
+                {/* Animated gradient ring when recording - rotates around button */}
                 {isRecording && (
-                  <svg className="absolute inset-0 w-full h-full -rotate-90">
+                  <motion.div
+                    className="absolute inset-[-4px] rounded-full"
+                    style={{
+                      background: `conic-gradient(
+                        from ${recordingProgress * 3.6}deg,
+                        hsl(var(--primary)) 0%,
+                        hsl(var(--accent)) 25%,
+                        hsl(var(--primary)) 50%,
+                        hsl(var(--accent)) 75%,
+                        hsl(var(--primary)) 100%
+                      )`,
+                      WebkitMask: 'radial-gradient(circle, transparent 36px, black 36px)',
+                      mask: 'radial-gradient(circle, transparent 36px, black 36px)',
+                    }}
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                  />
+                )}
+                
+                {/* Progress indicator overlay - shows how much time is left */}
+                {isRecording && (
+                  <svg className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] -rotate-90">
                     <circle
-                      cx="40"
-                      cy="40"
-                      r="36"
+                      cx="44"
+                      cy="44"
+                      r="40"
                       fill="none"
-                      stroke="#ef4444"
-                      strokeWidth="4"
-                      strokeDasharray={`${recordingProgress * 2.26} 226`}
+                      stroke="rgba(0,0,0,0.3)"
+                      strokeWidth="8"
+                      strokeDasharray={`${recordingProgress * 2.51} 251`}
                       className="transition-all duration-100"
                     />
                   </svg>
@@ -680,9 +726,9 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 {/* Inner button - changes to red square when recording */}
                 <motion.div 
                   className={cn(
-                    "shadow-lg transition-all duration-200",
+                    "shadow-lg transition-all duration-200 z-10",
                     isRecording 
-                      ? "w-8 h-8 rounded-lg bg-red-500" 
+                      ? "w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent" 
                       : "w-16 h-16 rounded-full bg-white"
                   )}
                   animate={isRecording ? { scale: [1, 1.1, 1] } : {}}
@@ -758,12 +804,14 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
             >
               {isVideoMode && capturedVideo ? (
                 <video
+                  key={capturedVideo}
                   src={capturedVideo}
-                  className="w-full h-full object-contain pointer-events-none select-none"
+                  className="w-full h-full object-cover pointer-events-none select-none"
                   autoPlay
                   loop
-                  muted
                   playsInline
+                  controls={false}
+                  onError={(e) => console.error('[SnapCamera] Video playback error:', e)}
                 />
               ) : capturedImage ? (
                 <img
