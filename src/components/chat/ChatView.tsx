@@ -196,6 +196,7 @@ export function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const hasMarkedReadRef = useRef<Set<string>>(new Set());
@@ -441,7 +442,8 @@ export function ChatView() {
     const text = messageText.trim();
     
     // Trigger flying bubble animation before clearing text
-    triggerFlyingBubble(text, inputRef.current, messagesContainerRef.current);
+    // Use inputContainerRef for better positioning on mobile
+    triggerFlyingBubble(text, inputContainerRef.current, messagesContainerRef.current);
     
     setMessageText('');
     setTyping(false);
@@ -1278,6 +1280,7 @@ export function ChatView() {
             replyingTo={replyingTo}
             isPending={false}
             inputRef={inputRef}
+            inputContainerRef={inputContainerRef}
             fileInputRef={fileInputRef}
             handleInputChange={handleInputChange}
             handleKeyPress={handleKeyPress}
@@ -1312,6 +1315,7 @@ export function ChatView() {
           replyingTo={replyingTo}
           isPending={false}
           inputRef={inputRef}
+          inputContainerRef={inputContainerRef}
           fileInputRef={fileInputRef}
           handleInputChange={handleInputChange}
           handleKeyPress={handleKeyPress}
@@ -1350,6 +1354,7 @@ const MessageInputArea = memo(function MessageInputArea({
   replyingTo,
   isPending,
   inputRef,
+  inputContainerRef,
   fileInputRef,
   handleInputChange,
   handleKeyPress,
@@ -1381,6 +1386,7 @@ const MessageInputArea = memo(function MessageInputArea({
   replyingTo: Message | null;
   isPending: boolean;
   inputRef: React.RefObject<HTMLInputElement>;
+  inputContainerRef: React.RefObject<HTMLDivElement>;
   fileInputRef: React.RefObject<HTMLInputElement>;
   handleInputChange: (value: string) => void;
   handleKeyPress: (e: React.KeyboardEvent) => void;
@@ -1448,7 +1454,7 @@ const MessageInputArea = memo(function MessageInputArea({
             isUploading={isUploadingMedia}
           />
         ) : (
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div ref={inputContainerRef} className="flex items-center gap-1 sm:gap-2">
             <Toybox
               onImageSelect={async (file) => {
                 const dt = new DataTransfer();

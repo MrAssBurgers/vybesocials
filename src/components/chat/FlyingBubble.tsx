@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -25,53 +25,55 @@ export const FlyingBubble = memo(function FlyingBubble({
 }: FlyingBubbleProps) {
   useEffect(() => {
     if (isVisible) {
-      // Animation completes in 300ms
-      const timer = setTimeout(onComplete, 300);
+      // Animation completes in 350ms
+      const timer = setTimeout(onComplete, 350);
       return () => clearTimeout(timer);
     }
   }, [isVisible, onComplete]);
+
+  // Truncate long messages for the flying bubble
+  const displayText = text.length > 50 ? text.slice(0, 50) + '...' : text;
 
   return (
     <AnimatePresence>
       {isVisible && (
         <motion.div
-          className="fixed pointer-events-none z-50"
+          className="fixed pointer-events-none z-[100]"
           initial={{
-            x: startPosition.x,
-            y: startPosition.y,
-            scale: 0.6,
-            opacity: 0,
+            left: startPosition.x,
+            top: startPosition.y,
+            scale: 0.8,
+            opacity: 0.9,
           }}
           animate={{
-            x: endPosition.x,
-            y: endPosition.y,
+            left: endPosition.x,
+            top: endPosition.y,
             scale: 1,
             opacity: 1,
           }}
           exit={{
-            scale: 0.9,
+            scale: 0.95,
             opacity: 0,
           }}
           transition={{
             type: 'spring',
-            stiffness: 400,
-            damping: 30,
-            mass: 0.8,
+            stiffness: 300,
+            damping: 28,
+            mass: 0.6,
           }}
           style={{
-            willChange: 'transform, opacity',
-            transform: 'translateZ(0)',
+            willChange: 'transform, opacity, left, top',
           }}
         >
           <div
             className={cn(
-              'px-4 py-2.5 rounded-2xl rounded-br-lg max-w-[260px]',
+              'px-4 py-2.5 rounded-2xl rounded-br-md max-w-[240px]',
               themeColor.bubble,
               themeColor.text,
-              'shadow-lg'
+              'shadow-xl'
             )}
           >
-            <p className="text-sm break-words">{text}</p>
+            <p className="text-sm break-words whitespace-pre-wrap">{displayText}</p>
           </div>
         </motion.div>
       )}
@@ -89,36 +91,46 @@ export function useFlyingBubble() {
     endPosition: { x: number; y: number };
   } | null>(null);
 
-  const triggerFlyingBubble = (
+  const triggerFlyingBubble = useCallback((
     text: string,
     inputElement: HTMLElement | null,
     messagesContainer: HTMLElement | null
   ) => {
-    if (!inputElement || !messagesContainer) {
+    if (!inputElement || !messagesContainer || !text.trim()) {
+      console.log('[FlyingBubble] Missing elements:', { 
+        hasInput: !!inputElement, 
+        hasContainer: !!messagesContainer,
+        hasText: !!text.trim()
+      });
       return;
     }
 
     const inputRect = inputElement.getBoundingClientRect();
     const containerRect = messagesContainer.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
 
-    // Start from center of input
-    const startX = inputRect.left + inputRect.width / 2 - 130; // Center bubble
-    const startY = inputRect.top - 40;
+    // Start position: above the input, centered on it
+    const bubbleWidth = Math.min(240, viewportWidth - 32);
+    const startX = inputRect.left + (inputRect.width / 2) - (bubbleWidth / 2);
+    const startY = inputRect.top - 50;
 
-    // End at top-right of messages area (where new message will appear)
-    const endX = containerRect.right - 280;
-    const endY = containerRect.bottom - 100;
+    // End position: bottom-right of messages container (where sent messages appear)
+    // For mobile, align to the right side with padding
+    const endX = Math.min(containerRect.right - bubbleWidth - 16, viewportWidth - bubbleWidth - 16);
+    const endY = containerRect.bottom - 80;
+
+    console.log('[FlyingBubble] Triggering animation:', { startX, startY, endX, endY });
 
     setFlyingBubble({
       text,
       startPosition: { x: startX, y: startY },
       endPosition: { x: endX, y: endY },
     });
-  };
+  }, []);
 
-  const clearFlyingBubble = () => {
+  const clearFlyingBubble = useCallback(() => {
     setFlyingBubble(null);
-  };
+  }, []);
 
   return {
     flyingBubble,
