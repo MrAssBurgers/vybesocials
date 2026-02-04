@@ -443,20 +443,25 @@ function NotificationCard({
 }: NotificationCardProps) {
   const { startTransition } = useMouthZoom();
   const { onHover } = useNotificationHoverPrefetch();
+  const navigate = useNavigate();
   
-  // All notifications from users should open their chat
-  const isUserNotification = !!notification.actor?.id;
+  // Determine where this notification should navigate to
+  // - Like/Comment notifications → go to the post
+  // - Message notifications → go to chat (with animation)
+  // - Friend request/accepted/follow → go to profile
+  const shouldGoToPost = (notification.type === 'like' || notification.type === 'comment') && notification.post_id;
+  const shouldGoToChat = notification.type === 'message';
   
-  // Fallback link for non-user notifications
-  const fallbackLink = notification.post_id
-    ? `/p/${notification.post_id}`
-    : `/u/${notification.actor.username}`;
-
-  // Handle click - always trigger mouth zoom to chat for user notifications
+  // Handle click - route to appropriate destination
   const handleClick = useCallback((e: React.MouseEvent) => {
-    if (isUserNotification) {
-      e.preventDefault();
-      e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (shouldGoToPost && notification.post_id) {
+      // Navigate to the post using native anchor for hash navigation
+      window.location.href = `/p/${notification.post_id}`;
+    } else if (shouldGoToChat && notification.actor?.id) {
+      // Use mouth zoom animation for chat navigation
       startTransition(
         e,
         notification.actor.id,
@@ -464,15 +469,18 @@ function NotificationCard({
         notification.actor.avatar_url,
         notification.actor.display_name
       );
+    } else {
+      // Default: go to user profile
+      navigate(`/u/${notification.actor.username}`);
     }
-  }, [isUserNotification, notification.actor, startTransition]);
+  }, [shouldGoToPost, shouldGoToChat, notification, startTransition, navigate]);
 
-  // Prefetch on hover
+  // Prefetch on hover for chat notifications
   const handleMouseEnter = useCallback(() => {
-    if (isUserNotification) {
+    if (shouldGoToChat && notification.actor?.id) {
       onHover(notification.actor.id);
     }
-  }, [isUserNotification, notification.actor.id, onHover]);
+  }, [shouldGoToChat, notification.actor?.id, onHover]);
 
   return (
     <motion.div
@@ -481,16 +489,19 @@ function NotificationCard({
       transition={{ delay: index * 0.03, duration: 0.2 }}
       onMouseEnter={handleMouseEnter}
       onClick={handleClick}
-      className="cursor-pointer"
+      className="cursor-pointer select-none"
     >
       <GlassCard 
         interactive
         className={cn(
-          "p-4 sm:p-5 transition-all active:scale-[0.98]",
+          "p-4 sm:p-5 transition-transform duration-150",
+          "active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+          // Prevent outline glitch on hold
+          "outline-none touch-manipulation",
           isRead && "opacity-70"
         )}
       >
-        <div className="flex items-center gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 pointer-events-none">
           <div className="relative flex-shrink-0">
             <Avatar className={cn(
               "h-12 w-12 sm:h-14 sm:w-14 transition-all",
