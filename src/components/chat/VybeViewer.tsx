@@ -1,16 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Reply, Camera, Sparkles } from 'lucide-react';
+import { X, Reply, Camera, Sparkles, Eye } from 'lucide-react';
 import { haptics } from '@/lib/haptics';
 
 interface VybeViewerProps {
   mediaUrl: string;
-  messageId?: string; // Added to track viewed state
+  messageId?: string; // Track viewed state
   senderName?: string;
   senderAvatar?: string;
   isOpen: boolean;
-  isViewed?: boolean; // Track if already viewed
+  isViewed?: boolean; // Track if already viewed (from server)
+  isOwn?: boolean; // Whether current user sent this VYBE
   onClose: () => void;
   onReply?: () => void;
   onViewed?: () => void; // Callback when vybe is viewed
@@ -23,6 +24,7 @@ export function VybeViewer({
   senderAvatar,
   isOpen, 
   isViewed = false,
+  isOwn = false,
   onClose,
   onReply,
   onViewed,
@@ -37,13 +39,22 @@ export function VybeViewer({
 
   const VYBE_DURATION = 5000; // 5 seconds like Snapchat
   
+  // CRITICAL: Check server truth - if already viewed and not owner, close immediately
+  useEffect(() => {
+    if (isOpen && isViewed && !isOwn) {
+      console.log('[VybeViewer] Already viewed on server, closing');
+      onClose();
+      return;
+    }
+  }, [isOpen, isViewed, isOwn, onClose]);
+  
   // Mark vybe as viewed when opened - triggers callback for parent to handle
   useEffect(() => {
-    if (isOpen && messageId && !isViewed && !hasMarkedViewed) {
+    if (isOpen && messageId && !isViewed && !hasMarkedViewed && !isOwn) {
       setHasMarkedViewed(true);
       onViewed?.();
     }
-  }, [isOpen, messageId, isViewed, hasMarkedViewed, onViewed]);
+  }, [isOpen, messageId, isViewed, hasMarkedViewed, isOwn, onViewed]);
 
   // Progress timer - auto close after duration
   useEffect(() => {

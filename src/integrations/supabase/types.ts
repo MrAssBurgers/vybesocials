@@ -3207,6 +3207,7 @@ export type Database = {
           author_id: string
           caption: string | null
           created_at: string
+          has_profanity: boolean | null
           id: string
           is_pinned: boolean | null
           is_sensitive: boolean | null
@@ -3220,6 +3221,7 @@ export type Database = {
           author_id: string
           caption?: string | null
           created_at?: string
+          has_profanity?: boolean | null
           id?: string
           is_pinned?: boolean | null
           is_sensitive?: boolean | null
@@ -3233,6 +3235,7 @@ export type Database = {
           author_id?: string
           caption?: string | null
           created_at?: string
+          has_profanity?: boolean | null
           id?: string
           is_pinned?: boolean | null
           is_sensitive?: boolean | null

@@ -57,13 +57,20 @@ export function useRealtimeMessages(conversationId: string | undefined) {
         },
         (payload) => {
           const updatedMessage = payload.new as any;
+          const oldMessage = payload.old as any;
           
           // Handle deleted messages - remove from cache instantly
           if (updatedMessage.is_deleted) {
             removeMessageFromCache(updatedMessage.id);
           } else {
-            // Handle edits - update in cache instantly
+            // Handle edits and viewed_at updates - update in cache instantly
+            // This includes realtime "Opened" status for VYBE snaps
             updateMessageInCache(updatedMessage);
+            
+            // If viewed_at just changed (VYBE was opened), log for debugging
+            if (updatedMessage.viewed_at && !oldMessage?.viewed_at) {
+              console.log('[ConvRT] VYBE viewed:', updatedMessage.id);
+            }
           }
         }
       )

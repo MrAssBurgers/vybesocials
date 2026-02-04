@@ -136,7 +136,7 @@ export const LiveActivityIndicator = memo(function LiveActivityIndicator({
 
 /**
  * Inline Activity Bubble - compact version for message list
- * Fixed position design - stays in place with subtle dot bounce animation
+ * Fixed position design - no vertical animations, only opacity fade + dot bounce
  */
 export const InlineActivityBubble = memo(function InlineActivityBubble({
   avatarUrl,
@@ -156,13 +156,16 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
   const showDots = activity === 'typing' || activity === 'recording_voice';
 
   return (
-    // Fixed position - no vertical animation, just fade in opacity
-    <div className="flex items-end gap-2 mb-2 pl-3 opacity-0 animate-[fade-in-stable_0.2s_ease-out_forwards]">
-      {/* Avatar */}
-      <div className="relative flex-shrink-0">
-        <Avatar className="h-7 w-7 ring-1 ring-border/50 shadow-sm">
+    // Fixed height container - prevents layout shift
+    <div 
+      className="h-12 flex items-end gap-2.5 mb-2 pl-3"
+      style={{ minHeight: '48px' }}
+    >
+      {/* Avatar - matches message avatar size (h-8 w-8) */}
+      <div className="relative flex-shrink-0 animate-fade-in">
+        <Avatar className="h-8 w-8 ring-2 ring-border/50 shadow-sm">
           <AvatarImage src={signedUrl || undefined} className="object-cover" />
-          <AvatarFallback className="text-[10px] font-semibold bg-muted">
+          <AvatarFallback className="text-xs font-semibold bg-muted">
             {(username || '?').charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
@@ -170,18 +173,18 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
         {/* Small activity dot - subtle pulse */}
         <span
           className={cn(
-            "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full",
+            "absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full",
             "ring-2 ring-background",
             config.dotColor,
-            "animate-[pulse-subtle_2s_ease-in-out_infinite]"
+            "animate-pulse"
           )}
         />
       </div>
       
-      {/* Bubble with activity - fixed position */}
+      {/* Typing bubble - opacity fade only, no position animation */}
       <div
         className={cn(
-          "rounded-2xl rounded-bl-sm px-3 py-2 shadow-sm",
+          "rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-sm animate-fade-in",
           "bg-muted/80 backdrop-blur-sm border border-border/30"
         )}
       >

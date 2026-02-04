@@ -1558,11 +1558,20 @@ const MessageBubble = memo(function MessageBubble({
   onNavigateToPost?: (postId: string) => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
-  const [vybeViewed, setVybeViewed] = useState(false);
+  // For VYBE snaps: check if ANY view exists (server truth)
+  const hasAnyViews = message.views && message.views.length > 0;
+  const [vybeViewed, setVybeViewed] = useState(hasAnyViews);
   const [showVybeViewer, setShowVybeViewer] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const longPressRef = useRef<NodeJS.Timeout | null>(null);
   const menuOpenedRef = useRef(false);
+  
+  // Sync local state with server truth when message updates (realtime)
+  useEffect(() => {
+    if (hasAnyViews && !vybeViewed) {
+      setVybeViewed(true);
+    }
+  }, [hasAnyViews, vybeViewed]);
 
   const repliedMessage = useMemo(() => 
     message.reply_to_id ? allMessages?.find(m => m.id === message.reply_to_id) : null,
@@ -1985,15 +1994,19 @@ const MessageBubble = memo(function MessageBubble({
               {!isOwn && (
                 <VybeViewer
                   mediaUrl={message.media_url || ''}
+                  messageId={message.id}
                   senderName={sender?.username}
                   senderAvatar={sender?.avatar_url}
                   isOpen={showVybeViewer}
+                  isViewed={hasAnyViews}
+                  isOwn={false}
                   onClose={() => {
                     setShowVybeViewer(false);
                     setVybeViewed(true);
                     onView();
                   }}
                   onReply={onReply}
+                  onViewed={onView}
                 />
               )}
             </div>

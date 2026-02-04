@@ -60,17 +60,12 @@ export const MessageNotificationToast = memo(function MessageNotificationToast({
   }, [toastId, senderId, senderName, senderAvatar, conversationId]);
 
   return (
-    // Static outer container - NEVER animates, prevents outline shift
+    // Static outer container - fixed dimensions prevent layout shifts
     <div 
       ref={containerRef}
-      className="relative"
-      style={{ 
-        // Fixed dimensions prevent layout shift
-        width: '300px',
-        maxWidth: '100%',
-      }}
+      className="relative w-[300px] max-w-full"
     >
-      {/* Clickable area with NO outline/focus styles */}
+      {/* Clickable area with complete isolation from focus styles */}
       <div
         onClick={handleClick}
         onPointerDown={() => setIsPressed(true)}
@@ -81,17 +76,20 @@ export const MessageNotificationToast = memo(function MessageNotificationToast({
         style={{ 
           outline: 'none',
           WebkitTapHighlightColor: 'transparent',
-          // Prevent any focus ring
           boxShadow: 'none',
         }}
         tabIndex={-1}
       >
+        {/* Animated inner content - scale only, no border/outline changes */}
         <motion.div
           initial={{ opacity: 0, y: -20, scale: 0.9 }}
           animate={{ 
             opacity: isExiting ? 0 : 1, 
             y: isExiting ? -10 : 0, 
-            scale: isExiting ? 0.95 : (isPressed ? 0.96 : 1)
+            scale: isExiting ? 0.95 : (isPressed ? 0.98 : 1),
+            boxShadow: isPressed 
+              ? '0 2px 8px rgba(0,0,0,0.08)'
+              : '0 4px 20px rgba(0,0,0,0.12)'
           }}
           transition={{ 
             type: 'spring',
@@ -102,16 +100,20 @@ export const MessageNotificationToast = memo(function MessageNotificationToast({
           className={cn(
             "flex items-center gap-2.5 p-3 w-full",
             "bg-background/95 backdrop-blur-xl rounded-2xl",
-            "shadow-lg shadow-black/10 border border-border/50"
+            "border border-border/50",
+            // Ensure no outline styles can leak through
+            "!outline-none focus:!outline-none focus-visible:!outline-none"
           )}
           style={{ 
             willChange: 'transform, opacity',
             transform: 'translateZ(0)',
+            outline: 'none !important',
           }}
         >
           {/* Avatar */}
           <Avatar className={cn(
-            "h-10 w-10 ring-2 ring-primary/30 flex-shrink-0 shadow-md transition-transform duration-100",
+            "h-10 w-10 ring-2 ring-primary/30 flex-shrink-0 shadow-md",
+            "transition-transform duration-100",
             isPressed && "scale-95"
           )}>
             <AvatarImage src={senderAvatar || undefined} />
