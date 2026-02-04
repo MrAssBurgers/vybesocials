@@ -4118,6 +4118,41 @@ export type Database = {
           },
         ]
       }
+      snap_recipients: {
+        Row: {
+          created_at: string
+          id: string
+          message_id: string
+          opened: boolean | null
+          opened_at: string | null
+          recipient_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_id: string
+          opened?: boolean | null
+          opened_at?: string | null
+          recipient_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_id?: string
+          opened?: boolean | null
+          opened_at?: string | null
+          recipient_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "snap_recipients_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stories: {
         Row: {
           aspect_ratio: number | null
