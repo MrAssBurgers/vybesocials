@@ -155,17 +155,27 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     canvas.width = outputWidth;
     canvas.height = outputHeight;
     
-    // Mirror the canvas for front camera to match what user sees in preview
+    // For front camera: draw to temp canvas first, then mirror to main canvas
+    // This ensures the captured image matches exactly what user sees in the preview
     if (facingMode === 'user') {
-      ctx.translate(outputWidth, 0);
-      ctx.scale(-1, 1);
+      // Create temp canvas to draw raw video
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = outputWidth;
+      tempCanvas.height = outputHeight;
+      const tempCtx = tempCanvas.getContext('2d');
+      if (tempCtx) {
+        // Draw the cropped portion to temp canvas
+        tempCtx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
+        // Now mirror and draw to main canvas
+        ctx.translate(outputWidth, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(tempCanvas, 0, 0);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      }
+    } else {
+      // Back camera: draw directly without mirroring
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
     }
-    
-    // Draw the cropped portion to canvas
-    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
-    
-    // Reset transform
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     const imageDataUrl = canvas.toDataURL('image/jpeg', 0.92);
     setCapturedImage(imageDataUrl);
