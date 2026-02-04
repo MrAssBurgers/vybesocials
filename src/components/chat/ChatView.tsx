@@ -634,42 +634,140 @@ export function ChatView() {
     setShowImageSafetyGate(true);
   }, [conversationId, profile?.id]);
 
-  // Handle vybe camera send - uploads base64 image and sends as vybe
-  const handleVybeSend = useCallback(async (imageDataUrl: string) => {
+  // Handle vybe camera send - uploads base64 image or blob video and sends as vybe
+  const handleVybeSend = useCallback(async (mediaDataUrl: string) => {
     if (!conversationId || !profile?.id) return;
+
+    // Check if this is a video blob URL (from recorded video)
+    const isVideo = mediaDataUrl.startsWith('blob:');
 
     setIsUploadingMedia(true);
 
     try {
-      // Properly convert base64 data URL to blob with correct mime type
-      const base64Data = imageDataUrl.split(',')[1];
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'image/jpeg' });
-      
-      const fileName = `${profile.user_id}/${Date.now()}_vybe.jpg`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('chat-media')
-        .upload(fileName, blob, {
-          contentType: 'image/jpeg',
-          cacheControl: '31536000',
+      if (isVideo) {
+        // Video vybe - fetch the blob, convert to File, and run safety scan
+        const response = await fetch(mediaDataUrl);
+        const videoBlob = await response.blob();
+        const videoFile = new File([videoBlob], `vybe_${Date.now()}.webm`, { type: videoBlob.type || 'video/webm' });
+        
+        // Run safety scan on video
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(videoFile);
         });
 
-      if (uploadError) throw uploadError;
+        const { data: scanResult, error: scanError } = await supabase.functions.invoke('scan-video-safety', {
+          body: {
+            videoBase64: base64,
+            mimeType: videoFile.type,
+          },
+        });
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('chat-media')
-        .getPublicUrl(fileName);
+        if (scanError) {
+          console.error('Video safety scan error:', scanError);
+          toast.error('Safety scan failed. Please try again.');
+          return;
+        }
 
-      // Send as 'vybe' type for streak tracking
-      await sendMedia(publicUrl, 'vybe', viewMode, replyingTo?.id);
-      setReplyingTo(null);
-      toast.success('VYBE sent! ✨');
+        // Check scan result
+        if (scanResult?.result === 'blocked') {
+          toast.error(scanResult.message || 'Video contains content that violates community guidelines.');
+          return;
+        }
+
+        if (scanResult?.result === 'error') {
+          toast.error('Could not verify video safety. Please try again.');
+          return;
+        }
+
+        // Video passed safety check - upload and send
+        const fileName = `${profile.user_id}/${Date.now()}_vybe.webm`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('chat-media')
+          .upload(fileName, videoFile, {
+            contentType: videoFile.type,
+            cacheControl: '31536000',
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('chat-media')
+          .getPublicUrl(fileName);
+
+        // Send as video vybe for streak tracking
+        await sendMedia(publicUrl, 'vybe', viewMode, replyingTo?.id);
+        setReplyingTo(null);
+        
+        // Revoke the blob URL to free memory
+        URL.revokeObjectURL(mediaDataUrl);
+        
+        toast.success('Video VYBE sent! 🎬✨');
+      } else {
+        // Image vybe - existing logic with safety scan
+        const base64Data = mediaDataUrl.split(',')[1];
+        
+        // Run safety scan on image
+        const { data: scanResult, error: scanError } = await supabase.functions.invoke('scan-content-safety', {
+          body: {
+            type: 'image',
+            content: base64Data,
+            fileName: 'vybe.jpg',
+          },
+        });
+
+        if (scanError) {
+          console.error('Image safety scan error:', scanError);
+          toast.error('Safety scan failed. Please try again.');
+          return;
+        }
+
+        // Check scan result
+        if (scanResult?.result === 'blocked') {
+          toast.error(scanResult.message || 'Image contains content that violates community guidelines.');
+          return;
+        }
+
+        if (scanResult?.result === 'error') {
+          toast.error('Could not verify image safety. Please try again.');
+          return;
+        }
+
+        // Image passed safety check - upload and send
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'image/jpeg' });
+        
+        const fileName = `${profile.user_id}/${Date.now()}_vybe.jpg`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('chat-media')
+          .upload(fileName, blob, {
+            contentType: 'image/jpeg',
+            cacheControl: '31536000',
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('chat-media')
+          .getPublicUrl(fileName);
+
+        // Send as 'vybe' type for streak tracking
+        await sendMedia(publicUrl, 'vybe', viewMode, replyingTo?.id);
+        setReplyingTo(null);
+        toast.success('VYBE sent! ✨');
+      }
     } catch (error) {
       console.error('Failed to send vybe:', error);
       toast.error('Failed to send VYBE');
