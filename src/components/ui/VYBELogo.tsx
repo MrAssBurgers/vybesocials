@@ -47,15 +47,16 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
         initial={isSplash ? { scale: 0.5, opacity: 0 } : undefined}
         animate={isSplash ? { scale: 1, opacity: 1 } : undefined}
       >
-        {/* Neon V Logo SVG - minimal drop-shadow to avoid color film on mobile */}
+        {/* Neon V Logo SVG - NO drop-shadow on non-splash to prevent color film on mobile */}
         <svg
           viewBox="0 0 100 100"
           fill="none"
           className={cn(icon, 'relative z-10 vybe-logo-animated')}
           style={{
+            // Only apply subtle shadow on splash screen, none otherwise to prevent artifacts
             filter: isSplash 
-              ? 'drop-shadow(0 0 6px hsl(var(--primary) / 0.4)) drop-shadow(0 0 12px hsl(var(--primary) / 0.2))'
-              : 'drop-shadow(0 0 2px hsl(var(--primary) / 0.3))',
+              ? 'drop-shadow(0 0 4px hsl(var(--primary) / 0.3))'
+              : 'none',
           }}
         >
           <defs>

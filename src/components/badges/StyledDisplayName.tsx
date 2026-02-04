@@ -90,12 +90,12 @@ export const StyledDisplayName = memo(function StyledDisplayName({
     );
   }
 
-  // Static shiny/metallic texture effect (no animation, no filter to avoid color film)
+  // Static shiny/metallic texture effect - NO filters to avoid color film on mobile
   if (badge?.effect === 'shine') {
     const shinyStyle = {
       ...style,
-      textShadow: '0 1px 2px rgba(255,255,255,0.3)',
-      // Removed filter to prevent color film/glow on mobile
+      textShadow: '0 1px 1px rgba(255,255,255,0.2)',
+      // Explicitly no filter property - prevents glow artifacts on mobile/tablet
     };
     return (
       <Component style={shinyStyle} className={cn('font-bold', className)}>
@@ -104,15 +104,25 @@ export const StyledDisplayName = memo(function StyledDisplayName({
     );
   }
 
-  // Static gradient or pulse effect
+  // Static gradient - NO pulse filter animation to avoid color film artifacts
+  if (badge?.effect === 'pulse') {
+    return (
+      <motion.span
+        style={style}
+        className={cn('font-bold', className)}
+        animate={{ opacity: [1, 0.85, 1] }}
+        transition={{ duration: 2, repeat: Infinity }}
+      >
+        {name}
+      </motion.span>
+    );
+  }
+
+  // Static gradient or glow effect - use opacity animation instead of filter
   return (
     <motion.span
       style={style}
       className={cn('font-bold', effectClass, className)}
-      animate={badge?.effect === 'pulse' ? { 
-        filter: ['drop-shadow(0 0 4px hsl(var(--primary)/0.3))', 'drop-shadow(0 0 12px hsl(var(--primary)/0.6))', 'drop-shadow(0 0 4px hsl(var(--primary)/0.3))']
-      } : undefined}
-      transition={badge?.effect === 'pulse' ? { duration: 2, repeat: Infinity } : undefined}
     >
       {name}
     </motion.span>

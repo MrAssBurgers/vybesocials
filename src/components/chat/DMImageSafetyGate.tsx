@@ -188,23 +188,31 @@ export function DMImageSafetyGate({
             transition={{ duration: 0.5 }}
           />
           
-          {/* Scanning overlay */}
+          {/* Scanning overlay - premium, subtle animation */}
           <AnimatePresence>
             {isScanning && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/50 flex items-center justify-center"
+                className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center"
               >
+                {/* Scanning line animation */}
                 <motion.div
-                  className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/20 to-transparent"
-                  animate={{ y: ['0%', '100%', '0%'] }}
+                  className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent"
+                  animate={{ y: [0, 200, 0] }}
                   transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
                 />
-                <div className="flex items-center gap-2 text-white z-10">
-                  <Eye className="h-5 w-5 animate-pulse" />
-                  <span className="text-sm font-medium">Analyzing...</span>
+                
+                {/* Center icon and text */}
+                <div className="flex flex-col items-center gap-2 z-10">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                  >
+                    <Shield className="h-6 w-6 text-primary" />
+                  </motion.div>
+                  <p className="text-xs text-muted-foreground font-medium">Checking content...</p>
                 </div>
               </motion.div>
             )}
