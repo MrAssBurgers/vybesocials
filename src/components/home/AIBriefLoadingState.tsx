@@ -14,23 +14,14 @@ export const GeneratingScreen = memo(function GeneratingScreen() {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
       >
+        {/* Spinning V - no sparkles, rotates from center */}
         <motion.div
-          className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center"
-          animate={{ 
-            boxShadow: [
-              "0 0 20px hsl(var(--primary)/0.2)",
-              "0 0 40px hsl(var(--primary)/0.4)",
-              "0 0 20px hsl(var(--primary)/0.2)"
-            ]
-          }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          className="w-20 h-20 flex items-center justify-center"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+          style={{ transformOrigin: 'center center' }}
         >
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-          >
-            <VybeMiniIcon size={40} showSparkles />
-          </motion.div>
+          <VybeMiniIcon size={48} showSparkles={false} animated={false} />
         </motion.div>
         
         {/* Orbiting dots */}
