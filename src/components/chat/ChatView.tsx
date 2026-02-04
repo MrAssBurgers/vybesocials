@@ -82,7 +82,7 @@ import {
 import { Toybox } from './Toybox';
 import { SnapCamera } from './SnapCamera';
 import { VybeViewer } from './VybeViewer';
-import { FlyingBubble, useFlyingBubble } from './FlyingBubble';
+// Flying bubble removed - messages now pop in like iMessage
 import { VideoSendPreview } from './VideoSendPreview';
 import { VideoBubble } from './VideoBubble';
 import { VideoMessageViewer } from './VideoMessageViewer';
@@ -203,8 +203,6 @@ export function ChatView() {
   const lastReadSyncedForConversationRef = useRef<string | null>(null);
   const messageNotifsClearedForConversationRef = useRef<string | null>(null);
   
-  // Flying bubble animation for send effect
-  const { flyingBubble, triggerFlyingBubble, clearFlyingBubble } = useFlyingBubble();
 
   const conversation = useMemo(() => 
     conversations?.find((c) => c.id === conversationId),
@@ -441,17 +439,13 @@ export function ChatView() {
 
     const text = messageText.trim();
     
-    // Trigger flying bubble animation before clearing text
-    // Use inputContainerRef for better positioning on mobile
-    triggerFlyingBubble(text, inputContainerRef.current, messagesContainerRef.current);
-    
     setMessageText('');
     setTyping(false);
 
     // Use instant send for immediate optimistic UI
     sendText(text, viewMode, replyingTo?.id);
     setReplyingTo(null);
-  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText, triggerFlyingBubble]);
+  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText]);
 
   // sendWithReply is now handled by useInstantSend's sendText
 
@@ -852,17 +846,6 @@ export function ChatView() {
         )}
       </AnimatePresence>
 
-      {/* Flying Bubble Animation - renders on send */}
-      {flyingBubble && (
-        <FlyingBubble
-          text={flyingBubble.text}
-          isVisible={true}
-          startPosition={flyingBubble.startPosition}
-          endPosition={flyingBubble.endPosition}
-          onComplete={clearFlyingBubble}
-          themeColor={THEME_COLORS[settings?.theme || 'default'] || THEME_COLORS.default}
-        />
-      )}
 
       {/* Header - fixed height, compact on mobile */}
       <header className="flex-shrink-0 h-14 sm:h-16 px-2 sm:px-4 border-b border-border flex items-center gap-2 sm:gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20">
