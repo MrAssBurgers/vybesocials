@@ -49,7 +49,7 @@ export function DMImageSafetyGate({
         triggerHaptic('success');
       } else if (scanResult.result === 'warned') {
         triggerHaptic('medium');
-      } else if (scanResult.result === 'blocked') {
+      } else if (scanResult.result === 'blocked' || scanResult.result === 'error') {
         triggerHaptic('error');
         onBlocked?.();
       }
@@ -111,6 +111,16 @@ export function DMImageSafetyGate({
             <ShieldX className="h-12 w-12 text-destructive" />
           </motion.div>
         );
+      case 'error':
+        return (
+          <motion.div
+            initial={{ scale: 0, rotate: -10 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+          >
+            <ShieldAlert className="h-12 w-12 text-destructive" />
+          </motion.div>
+        );
       default:
         return <Shield className="h-12 w-12 text-muted-foreground" />;
     }
@@ -126,6 +136,8 @@ export function DMImageSafetyGate({
         return 'Sensitive Content';
       case 'blocked':
         return 'Cannot Send';
+      case 'error':
+        return 'Scan Failed';
       default:
         return 'Checking...';
     }
@@ -142,6 +154,8 @@ export function DMImageSafetyGate({
         return 'This image may be sensitive. You can still send it.';
       case 'blocked':
         return 'This image cannot be sent because it may contain inappropriate content.';
+      case 'error':
+        return 'Safety scan failed. For your protection, this image cannot be sent. Please try again.';
       default:
         return '';
     }
@@ -154,6 +168,7 @@ export function DMImageSafetyGate({
       case 'warned':
         return 'from-amber-500/20 to-amber-500/5 border-amber-500/30';
       case 'blocked':
+      case 'error':
         return 'from-destructive/20 to-destructive/5 border-destructive/30';
       default:
         return 'from-primary/10 to-primary/5 border-border';
@@ -339,6 +354,19 @@ export function DMImageSafetyGate({
                 >
                   <AlertTriangle className="h-4 w-4" />
                   Appeal Decision
+                </Button>
+              </motion.div>
+            )}
+
+            {result === 'error' && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="flex flex-col gap-3 pt-2"
+              >
+                <Button onClick={onCancel} className="w-full">
+                  Try Again
                 </Button>
               </motion.div>
             )}

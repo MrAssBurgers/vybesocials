@@ -12,7 +12,7 @@ import { Shield, ShieldCheck, ShieldAlert, ShieldX, Loader2, AlertTriangle, Volu
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-export type SafetyResult = 'scanning' | 'allowed' | 'warned' | 'blocked';
+export type SafetyResult = 'scanning' | 'allowed' | 'warned' | 'blocked' | 'error';
 
 interface ContentSafetyScannerProps {
   isScanning: boolean;
@@ -58,6 +58,8 @@ export function ContentSafetyScanner({
         return <ShieldCheck className="h-16 w-16 text-amber-500" />;
       case 'blocked':
         return <ShieldX className="h-16 w-16 text-destructive" />;
+      case 'error':
+        return <ShieldAlert className="h-16 w-16 text-destructive" />;
       default:
         return <Shield className="h-16 w-16 text-muted-foreground" />;
     }
@@ -73,6 +75,8 @@ export function ContentSafetyScanner({
         return 'Content Allowed';
       case 'blocked':
         return 'Content Not Allowed';
+      case 'error':
+        return 'Scan Failed';
       default:
         return 'Content Safety';
     }
@@ -89,6 +93,8 @@ export function ContentSafetyScanner({
         return 'This content is allowed but may be sensitive to some viewers. You can proceed with posting.';
       case 'blocked':
         return 'This content cannot be posted. Please choose different content.';
+      case 'error':
+        return 'Safety scan failed. For your protection, this content cannot be shared. Please try again.';
       default:
         return '';
     }
@@ -101,6 +107,7 @@ export function ContentSafetyScanner({
       case 'warned':
         return 'border-amber-500/30 bg-amber-500/5';
       case 'blocked':
+      case 'error':
         return 'border-destructive/30 bg-destructive/5';
       default:
         return 'border-border bg-card/50';
@@ -254,6 +261,12 @@ export function ContentSafetyScanner({
                 </Button>
               )}
             </>
+          )}
+
+          {result === 'error' && (
+            <Button onClick={onCancel} variant="default" className="w-full">
+              Try Again
+            </Button>
           )}
         </div>
       )}
