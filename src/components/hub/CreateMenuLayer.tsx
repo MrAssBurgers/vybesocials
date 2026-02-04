@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Image, Sparkles, Zap } from "lucide-react";
+import { Camera, Image, Zap } from "lucide-react";
+import { VybeMiniIcon } from "@/components/ui/VybeMiniIcon";
 
 import { triggerHaptic } from "@/lib/haptics";
 import { playSound } from "@/lib/sounds";
@@ -68,7 +69,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
       },
       {
         id: "hub" as const,
-        icon: Sparkles,
+        icon: Zap, // Using Zap since VybeMiniIcon is a component, not a Lucide icon
         label: "Hub",
         subtitle: "Create more",
         gradient: "from-primary via-accent to-primary",

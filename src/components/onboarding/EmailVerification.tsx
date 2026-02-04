@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Mail, Shield, CheckCircle, Loader2, Sparkles } from 'lucide-react';
+import { Mail, Shield, CheckCircle, Loader2 } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -118,10 +119,14 @@ export function EmailVerification({ onVerified }: EmailVerificationProps) {
         <div className="grid grid-cols-2 gap-2">
           {[
             { icon: Shield, text: 'Account Security' },
-            { icon: Sparkles, text: 'Full Access' },
+            { icon: null, text: 'Full Access', useVybe: true },
           ].map((benefit, i) => (
             <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-lg bg-card/80 backdrop-blur-md border border-border/50">
-              <benefit.icon className="w-5 h-5 text-primary" />
+              {benefit.useVybe ? (
+                <VybeMiniIcon size={20} showSparkles />
+              ) : benefit.icon ? (
+                <benefit.icon className="w-5 h-5 text-primary" />
+              ) : null}
               <span className="text-xs text-center">{benefit.text}</span>
             </div>
           ))}

@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Send, X, Sparkles, Plus, Loader2 } from 'lucide-react';
+import { Send, X, Plus, Loader2 } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -153,7 +154,7 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
       >
         <SheetHeader className="flex-shrink-0 pb-3 border-b border-border/50">
           <SheetTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <VybeMiniIcon size={20} showSparkles />
             Customize Your Brief
           </SheetTitle>
         </SheetHeader>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Check, QrCode, Users, Gift, Star, Sparkles, Share2 } from 'lucide-react';
+import { Copy, Check, QrCode, Users, Gift, Star, Share2 } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -168,7 +169,7 @@ export default function InviteFriends() {
               Reward Progress
             </h2>
             <Badge variant="secondary" className="gap-1">
-              <Sparkles className="h-3 w-3" />
+              <VybeMiniIcon size={12} showSparkles />
               {currentCount} invited
             </Badge>
           </div>

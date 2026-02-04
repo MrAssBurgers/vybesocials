@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState, useMemo } from 'react';
-import { Sparkles, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 
 interface ThemeWaveAnimationProps {
   isActive: boolean;
@@ -224,7 +225,7 @@ export function ThemeWaveAnimation({
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.2 }}
                     >
-                      <Sparkles className="w-4 h-4" />
+                      <VybeMiniIcon size={16} showSparkles />
                       Your VYBE is ready
                     </motion.p>
                   </div>

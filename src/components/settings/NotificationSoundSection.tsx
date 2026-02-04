@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, MessageCircle, Phone, Sparkles, Volume2, VolumeX, Play, ChevronDown, Music } from 'lucide-react';
+import { Bell, MessageCircle, Phone, Volume2, VolumeX, Play, ChevronDown, Music } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -148,7 +149,7 @@ export function NotificationSoundSection() {
             <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-background flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-primary" />
+                  <VybeMiniIcon size={16} showSparkles />
                 </div>
                 <div>
                   <p className="font-medium text-sm">Interface</p>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Palette, Sparkles, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon, Share2, Zap, Timer, Volume2, Image, Layers, Pencil } from 'lucide-react';
+import { Palette, RotateCcw, Check, RefreshCw, Wand2, Sun, Moon, Share2, Zap, Timer, Volume2, Image, Layers, Pencil } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -456,7 +457,7 @@ export function DesignYourVybe() {
                       </>
                     ) : (
                       <>
-                        <Sparkles className="h-4 w-4 mr-2" />
+                        <VybeMiniIcon size={16} showSparkles className="mr-2" />
                         Generate
                       </>
                     )}
@@ -638,7 +639,7 @@ export function DesignYourVybe() {
               {/* Animation Style */}
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Sparkles className="h-3 w-3" />
+                  <VybeMiniIcon size={12} showSparkles />
                   Style
                 </Label>
                 <div className="grid grid-cols-4 gap-2">

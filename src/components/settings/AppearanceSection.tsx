@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Sun, Moon, Monitor, Zap, Layers, Contrast, Paintbrush, Sparkles } from 'lucide-react';
+import { Sun, Moon, Monitor, Zap, Layers, Contrast, Paintbrush } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useTheme } from '@/lib/theme';
 import { useGlassIntensity } from '@/components/ui/glass/GlassIntensityProvider';
 import { Label } from '@/components/ui/label';
@@ -79,7 +80,7 @@ export function AppearanceSection() {
       >
         <div className="flex items-start gap-4 mb-6">
           <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-6 h-6 text-accent" />
+            <VybeMiniIcon size={24} showSparkles />
           </div>
           <div>
             <h3 className="font-semibold text-base mb-1">Visual Effects</h3>

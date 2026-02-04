@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquarePlus, ThumbsUp, Bug, Lightbulb, Sparkles, MoreHorizontal, Filter } from 'lucide-react';
+import { MessageSquarePlus, ThumbsUp, Bug, Lightbulb, MoreHorizontal, Filter } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,10 +37,10 @@ import { useUserRole } from '@/hooks/useModeration';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-const typeIcons = {
+const typeIcons: Record<string, React.ComponentType<{ className?: string }> | null> = {
   bug: Bug,
   feature: Lightbulb,
-  improvement: Sparkles,
+  improvement: null, // Uses VybeMiniIcon instead
   other: MessageSquarePlus,
 };
 
@@ -64,7 +65,8 @@ function FeedbackCard({ feedback }: { feedback: Feedback }) {
   const updateStatus = useUpdateFeedbackStatus();
 
   const isAdmin = role === 'admin' || role === 'moderator';
-  const TypeIcon = typeIcons[feedback.type] || MessageSquarePlus;
+  const TypeIcon = typeIcons[feedback.type];
+  const isImprovement = feedback.type === 'improvement';
 
   const handleLike = () => {
     if (!profile) return;
@@ -100,7 +102,13 @@ function FeedbackCard({ feedback }: { feedback: Feedback }) {
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className={cn('text-xs', typeColors[feedback.type])}>
-                <TypeIcon className="h-3 w-3 mr-1" />
+                {isImprovement ? (
+                  <VybeMiniIcon size={12} showSparkles className="mr-1" />
+                ) : TypeIcon ? (
+                  <TypeIcon className="h-3 w-3 mr-1" />
+                ) : (
+                  <MessageSquarePlus className="h-3 w-3 mr-1" />
+                )}
                 {feedback.type}
               </Badge>
               <Badge variant="secondary" className={cn('text-xs', statusColors[feedback.status])}>

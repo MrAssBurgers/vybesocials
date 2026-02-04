@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, memo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, TrendingUp, ExternalLink, AlertCircle, Sun, Moon, Sunset, MessageCircle, Globe, ChevronDown, Sparkles, Settings } from 'lucide-react';
+import { RefreshCw, TrendingUp, ExternalLink, AlertCircle, Sun, Moon, Sunset, MessageCircle, Globe, ChevronDown, Settings } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -386,7 +387,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                 >
                   <div className="flex items-start gap-3">
                     <div className="p-2 rounded-xl bg-primary/20 flex-shrink-0">
-                      <Sparkles className="h-4 w-4 text-primary" />
+                      <VybeMiniIcon size={16} showSparkles />
                     </div>
                     <div className="flex-1">
                       <p className="text-sm text-foreground leading-relaxed">

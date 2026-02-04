@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageSquareHeart, Sparkles, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play, Download } from 'lucide-react';
+import { MessageSquareHeart, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play, Download } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { haptics } from '@/lib/haptics';
 import { resetIntro } from '@/components/intro/IntroFlow';
@@ -41,7 +42,7 @@ export function HelpSection() {
             className="w-full flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all active:scale-[0.98]"
           >
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-white" />
+              <VybeMiniIcon size={20} showSparkles className="text-white" />
             </div>
             <div className="flex-1 text-left min-w-0">
               <p className="font-medium">Interactive Tutorial</p>

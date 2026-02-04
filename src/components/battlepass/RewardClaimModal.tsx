@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gift, Sparkles, Star, Trophy, X } from 'lucide-react';
+import { Gift, Star, Trophy, X } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ChallengeReward, useClaimReward } from '@/hooks/useBattlePass';
@@ -107,7 +108,7 @@ export function RewardClaimModal({ reward, open, onClose }: RewardClaimModalProp
                 animate={{ rotate: 360 }}
                 transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
               >
-                <Sparkles className="h-6 w-6 text-yellow-500" />
+                <VybeMiniIcon size={24} showSparkles />
               </motion.div>
             </motion.div>
 
@@ -168,7 +169,7 @@ export function RewardClaimModal({ reward, open, onClose }: RewardClaimModalProp
                     animate={{ rotate: 360 }}
                     transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                   >
-                    <Sparkles className="h-5 w-5" />
+                    <VybeMiniIcon size={20} showSparkles />
                   </motion.div>
                 ) : (
                   <>

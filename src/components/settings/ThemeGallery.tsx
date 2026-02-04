@@ -1,6 +1,7 @@
 import { useState, useMemo, memo, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, User, Search, TrendingUp, Sparkles, Pencil, Check, X } from 'lucide-react';
+import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, User, Search, TrendingUp, Pencil, Check, X } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -348,7 +349,7 @@ export function ThemeGallery() {
             {/* Popular Section Header (only when not searching) */}
             {!searchQuery && publicThemes && publicThemes.length > 0 && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Sparkles className="h-4 w-4 text-primary" />
+                <VybeMiniIcon size={16} showSparkles />
                 <span>Sorted by popularity</span>
               </div>
             )}

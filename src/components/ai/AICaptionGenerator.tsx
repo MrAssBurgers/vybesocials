@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Loader2, RefreshCw, Check } from 'lucide-react';
+import { Loader2, RefreshCw, Check } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
@@ -77,7 +78,7 @@ export function AICaptionGenerator({ tags, contentType, onSelectCaption }: AICap
           ) : captions.length > 0 ? (
             <RefreshCw className="h-4 w-4" />
           ) : (
-            <Sparkles className="h-4 w-4" />
+            <VybeMiniIcon size={16} showSparkles />
           )}
           {isLoading ? 'Generating...' : captions.length > 0 ? 'Regenerate' : 'AI Caption'}
         </Button>

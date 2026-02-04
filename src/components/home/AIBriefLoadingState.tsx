@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, TrendingUp, MessageCircle, Globe, ChevronDown, Zap } from 'lucide-react';
+import { TrendingUp, MessageCircle, Globe, ChevronDown, Zap } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 
 // Generating screen with animated sparkles
 export const GeneratingScreen = memo(function GeneratingScreen() {
@@ -28,7 +29,7 @@ export const GeneratingScreen = memo(function GeneratingScreen() {
             animate={{ rotate: 360 }}
             transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
           >
-            <Sparkles className="h-10 w-10 text-primary" />
+            <VybeMiniIcon size={40} showSparkles />
           </motion.div>
         </motion.div>
         
