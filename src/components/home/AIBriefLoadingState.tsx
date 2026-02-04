@@ -3,47 +3,42 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, MessageCircle, Globe, ChevronDown, Zap } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 
-// Generating screen with animated sparkles
+// Generating screen with clean spinning V animation
 export const GeneratingScreen = memo(function GeneratingScreen() {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-4">
-      {/* Animated logo/icon */}
+    <div className="flex flex-col items-center justify-center py-20 px-4">
+      {/* Centered spinning V with glow ring */}
       <motion.div
-        className="relative mb-6"
+        className="relative mb-8"
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
       >
-        {/* Spinning V - no sparkles, rotates from center */}
+        {/* Outer glow ring */}
         <motion.div
-          className="w-20 h-20 flex items-center justify-center"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: 'center center' }}
-        >
-          <VybeMiniIcon size={72} showSparkles={false} animated={false} />
-        </motion.div>
+          className="absolute inset-0 rounded-full"
+          style={{
+            width: 100,
+            height: 100,
+            left: '50%',
+            top: '50%',
+            marginLeft: -50,
+            marginTop: -50,
+            background: 'radial-gradient(circle, hsl(var(--primary) / 0.15) 0%, transparent 70%)',
+          }}
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        />
         
-        {/* Orbiting dots */}
-        {[0, 1, 2].map((i) => (
-          <motion.div
-            key={i}
-            className="absolute w-2 h-2 rounded-full bg-accent"
-            style={{ top: '50%', left: '50%' }}
-            animate={{
-              x: [0, 40, 0, -40, 0],
-              y: [-40, 0, 40, 0, -40],
-              scale: [1, 0.8, 1, 0.8, 1],
-              opacity: [1, 0.6, 1, 0.6, 1],
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              delay: i * 1,
-              ease: "easeInOut"
-            }}
-          />
-        ))}
+        {/* Spinning V container */}
+        <motion.div
+          className="relative flex items-center justify-center"
+          style={{ width: 80, height: 80 }}
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+        >
+          <VybeMiniIcon size={64} showSparkles={false} animated={false} />
+        </motion.div>
       </motion.div>
 
       {/* Text */}
@@ -51,38 +46,29 @@ export const GeneratingScreen = memo(function GeneratingScreen() {
         className="text-center"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.4 }}
+        transition={{ delay: 0.3, duration: 0.4 }}
       >
-        <h3 className="text-lg font-semibold text-foreground mb-2">
+        <h3 className="text-lg font-semibold text-foreground mb-1">
           Crafting Your Brief
         </h3>
-        <p className="text-sm text-muted-foreground max-w-[200px]">
-          Gathering the latest updates tailored just for you...
+        <p className="text-sm text-muted-foreground">
+          Gathering updates just for you...
         </p>
       </motion.div>
 
-      {/* Progress dots */}
+      {/* Animated loading bar */}
       <motion.div 
-        className="flex gap-1.5 mt-6"
+        className="w-32 h-1 bg-muted/30 rounded-full mt-6 overflow-hidden"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
+        transition={{ delay: 0.5 }}
       >
-        {[0, 1, 2].map((i) => (
-          <motion.div
-            key={i}
-            className="w-2 h-2 rounded-full bg-primary/40"
-            animate={{
-              backgroundColor: ["hsl(var(--primary)/0.4)", "hsl(var(--primary))", "hsl(var(--primary)/0.4)"],
-              scale: [1, 1.2, 1]
-            }}
-            transition={{
-              duration: 1,
-              repeat: Infinity,
-              delay: i * 0.2,
-            }}
-          />
-        ))}
+        <motion.div
+          className="h-full rounded-full bg-gradient-to-r from-primary via-accent to-primary"
+          style={{ width: '40%' }}
+          animate={{ x: ['-100%', '250%'] }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+        />
       </motion.div>
     </div>
   );
