@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useCallback } from 'react';
+import { memo, useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -25,10 +25,16 @@ export const FlyingBubble = memo(function FlyingBubble({
   onComplete,
   themeColor = { bubble: 'bg-primary', text: 'text-primary-foreground' },
 }: FlyingBubbleProps) {
+  const hasAnimatedRef = useRef(false);
+
   useEffect(() => {
-    if (isVisible) {
-      // Animation completes in 280ms
-      const timer = setTimeout(onComplete, 280);
+    if (isVisible && !hasAnimatedRef.current) {
+      hasAnimatedRef.current = true;
+      // Animation completes in 320ms
+      const timer = setTimeout(() => {
+        onComplete();
+        hasAnimatedRef.current = false;
+      }, 320);
       return () => clearTimeout(timer);
     }
   }, [isVisible, onComplete]);
@@ -36,64 +42,72 @@ export const FlyingBubble = memo(function FlyingBubble({
   // Truncate long messages for the flying bubble
   const displayText = text.length > 50 ? text.slice(0, 50) + '...' : text;
 
-  // Calculate the delta for transform animation
+  // Calculate movement deltas
   const deltaX = endPosition.x - startPosition.x;
   const deltaY = endPosition.y - startPosition.y;
   
-  // Arc offset - bubble curves upward during flight
-  const arcHeight = Math.min(80, Math.abs(deltaY) * 0.3);
+  // Arc curve - bubble rises then falls
+  const arcHeight = Math.min(60, Math.abs(deltaY) * 0.25);
 
   const bubbleContent = (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {isVisible && (
         <motion.div
-          className="fixed pointer-events-none z-[100000]"
+          key="flying-bubble"
+          className="fixed pointer-events-none"
           style={{
             left: startPosition.x,
             top: startPosition.y,
+            zIndex: 99999,
             willChange: 'transform, opacity',
           }}
           initial={{
             x: 0,
             y: 0,
-            scale: 0.7,
-            opacity: 1,
+            scale: 0.5,
+            opacity: 0,
           }}
           animate={{
             x: deltaX,
             y: deltaY,
             scale: 1,
-            opacity: 0.85,
+            opacity: 1,
           }}
           exit={{
-            scale: 0.9,
             opacity: 0,
+            scale: 0.95,
           }}
           transition={{
             type: 'spring',
-            stiffness: 500,
-            damping: 35,
-            mass: 0.5,
+            stiffness: 400,
+            damping: 32,
+            mass: 0.8,
           }}
         >
-          {/* Arc effect using a nested motion div */}
+          {/* Arc trajectory using nested div */}
           <motion.div
             initial={{ y: 0 }}
-            animate={{ y: [0, -arcHeight, 0] }}
+            animate={{ 
+              y: [0, -arcHeight, 0],
+            }}
             transition={{
-              duration: 0.28,
-              ease: [0.2, 0.8, 0.4, 1],
+              duration: 0.32,
+              ease: [0.25, 0.1, 0.25, 1],
+              times: [0, 0.4, 1],
             }}
           >
             <div
               className={cn(
-                'px-4 py-2.5 rounded-2xl rounded-br-md max-w-[240px]',
+                'px-4 py-2.5 rounded-2xl rounded-br-md max-w-[220px]',
                 themeColor.bubble,
                 themeColor.text,
-                'shadow-2xl shadow-black/20'
+                'shadow-xl'
               )}
+              style={{
+                boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+              }}
             >
-              <p className="text-sm break-words whitespace-pre-wrap leading-snug">
+              <p className="text-sm break-words whitespace-pre-wrap leading-snug font-medium">
                 {displayText}
               </p>
             </div>
@@ -103,7 +117,7 @@ export const FlyingBubble = memo(function FlyingBubble({
     </AnimatePresence>
   );
 
-  // Render via portal at body level to escape all CSS transform contexts
+  // Render via portal at body level
   if (typeof document === 'undefined') return null;
   
   return createPortal(bubbleContent, document.body);
@@ -133,28 +147,32 @@ export function useFlyingBubble() {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    // Estimate bubble width (max 240px)
-    const bubbleWidth = Math.min(240, viewportWidth - 32);
+    // Estimate bubble width
+    const bubbleWidth = Math.min(220, viewportWidth * 0.6);
     
-    // Start position: centered above the input field
-    const startX = inputRect.left + (inputRect.width / 2) - (bubbleWidth / 2);
-    const startY = inputRect.top - 60;
+    // START: Center of input area, right-aligned (where send button is)
+    const startX = inputRect.right - bubbleWidth - 16;
+    const startY = inputRect.top - 50;
 
-    // End position: right side of viewport where sent messages appear
-    // Mobile: right-aligned with padding
-    // Desktop: slightly more centered
+    // END: Right side of screen, higher up where messages appear
+    // Account for mobile vs desktop
     const isMobile = viewportWidth < 640;
-    const endX = isMobile 
-      ? viewportWidth - bubbleWidth - 16  // Right edge with padding
-      : viewportWidth * 0.6;              // 60% from left on desktop
     
-    // End Y: around 60% down the viewport (where messages typically are)
-    const endY = viewportHeight * 0.55;
+    // Messages appear right-aligned, so end position should be there too
+    const endX = isMobile 
+      ? viewportWidth - bubbleWidth - 12
+      : viewportWidth - bubbleWidth - 24;
+    
+    // End Y: Higher in the viewport where the message list is
+    // Typically around 50-60% of viewport height
+    const endY = messagesContainer 
+      ? messagesContainer.getBoundingClientRect().bottom - 100
+      : viewportHeight * 0.5;
 
     setFlyingBubble({
       text,
       startPosition: { x: startX, y: startY },
-      endPosition: { x: endX, y: endY },
+      endPosition: { x: endX, y: Math.max(100, endY) },
     });
   }, []);
 
