@@ -704,64 +704,67 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 
                 {/* Static outer ring when not recording */}
                 {!isRecording && (
-                  <div className="absolute inset-0 rounded-full border-4 border-white/90 bg-gradient-to-br from-primary/20 to-accent/20 backdrop-blur-sm" />
+                  <div className="absolute inset-0 rounded-full border-4 border-white/90" />
                 )}
                 
-                {/* Animated gradient ring when recording - rotates around button */}
+                {/* Snapchat-style progressive fill ring - starts empty, fills as you hold */}
                 {isRecording && (
-                  <motion.div
-                    className="absolute inset-[-4px] rounded-full"
-                    style={{
-                      background: `conic-gradient(
-                        from ${recordingProgress * 3.6}deg,
-                        hsl(var(--primary)) 0%,
-                        hsl(var(--accent)) 25%,
-                        hsl(var(--primary)) 50%,
-                        hsl(var(--accent)) 75%,
-                        hsl(var(--primary)) 100%
-                      )`,
-                      WebkitMask: 'radial-gradient(circle, transparent 36px, black 36px)',
-                      mask: 'radial-gradient(circle, transparent 36px, black 36px)',
-                    }}
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                  />
-                )}
-                
-                {/* Progress indicator overlay - shows how much time is left */}
-                {isRecording && (
-                  <svg className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] -rotate-90">
+                  <svg 
+                    className="absolute inset-[-6px] w-[calc(100%+12px)] h-[calc(100%+12px)]"
+                    style={{ transform: 'rotate(-90deg)' }}
+                  >
+                    {/* Background ring (subtle gray track) */}
                     <circle
-                      cx="44"
-                      cy="44"
-                      r="40"
+                      cx="50%"
+                      cy="50%"
+                      r="42"
                       fill="none"
-                      stroke="rgba(0,0,0,0.3)"
-                      strokeWidth="8"
-                      strokeDasharray={`${recordingProgress * 2.51} 251`}
-                      className="transition-all duration-100"
+                      stroke="rgba(255,255,255,0.15)"
+                      strokeWidth="6"
                     />
+                    {/* Progress ring - fills progressively */}
+                    <circle
+                      cx="50%"
+                      cy="50%"
+                      r="42"
+                      fill="none"
+                      stroke="url(#snapProgressGradient)"
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                      strokeDasharray="264"
+                      strokeDashoffset={264 - (recordingProgress / 100) * 264}
+                      style={{ transition: 'stroke-dashoffset 50ms linear' }}
+                    />
+                    {/* Gradient definition */}
+                    <defs>
+                      <linearGradient id="snapProgressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="hsl(var(--primary))" />
+                        <stop offset="50%" stopColor="hsl(var(--accent))" />
+                        <stop offset="100%" stopColor="hsl(var(--primary))" />
+                      </linearGradient>
+                    </defs>
                   </svg>
                 )}
                 
                 {/* Inner button - changes to red square when recording */}
                 <motion.div 
                   className={cn(
-                    "shadow-lg transition-all duration-200 z-10",
+                    "shadow-lg z-10",
                     isRecording 
-                      ? "w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent" 
+                      ? "w-7 h-7 rounded-md bg-red-500" 
                       : "w-16 h-16 rounded-full bg-white"
                   )}
-                  animate={isRecording ? { scale: [1, 1.1, 1] } : {}}
-                  transition={{ duration: 0.5, repeat: isRecording ? Infinity : 0 }}
+                  initial={false}
+                  animate={isRecording ? { scale: 1 } : { scale: 1 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
                 />
                 
                 {/* Pulsing ring effect - only when not recording */}
                 {!isRecording && (
                   <motion.div
-                    className="absolute inset-0 rounded-full border-2 border-white/50"
-                    animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                    className="absolute inset-0 rounded-full border-2 border-white/40"
+                    animate={{ scale: [1, 1.1, 1], opacity: [0.4, 0, 0.4] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
                   />
                 )}
               </motion.button>
