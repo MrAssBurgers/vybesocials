@@ -12,8 +12,8 @@ interface VybeMiniIconProps {
 let iconIdCounter = 0;
 
 /**
- * Mini VYBE "V" icon with optional sparkles - themed to user's primary/accent colors
- * Use this in place of Sparkles icons throughout the app
+ * Mini VYBE "V" icon with sparkles - themed to user's primary/accent colors
+ * Outline style with floating sparkle dots around the V
  */
 export const VybeMiniIcon = memo(function VybeMiniIcon({ 
   size = 16,
@@ -23,73 +23,65 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
 }: VybeMiniIconProps) {
   const uniqueId = `vybe-mini-${++iconIdCounter}`;
   
+  // Sparkle positions around the V
+  const sparkles = [
+    { x: '85%', y: '10%', size: 3, delay: 0 },
+    { x: '10%', y: '15%', size: 2, delay: 0.3 },
+    { x: '90%', y: '45%', size: 2.5, delay: 0.6 },
+    { x: '5%', y: '50%', size: 2, delay: 0.9 },
+    { x: '75%', y: '75%', size: 2, delay: 0.4 },
+    { x: '25%', y: '70%', size: 1.5, delay: 0.7 },
+  ];
+  
   return (
     <div 
       className={cn('relative inline-flex items-center justify-center', className)}
       style={{ width: size, height: size }}
     >
-      {/* Sparkle particles around the V */}
-      {showSparkles && animated && (
+      {/* Floating sparkle dots around the V */}
+      {showSparkles && (
         <>
-          {/* Top-right sparkle */}
-          <motion.div
-            className="absolute w-1 h-1 rounded-full bg-accent"
-            style={{ top: '0%', right: '5%' }}
-            animate={{ 
-              scale: [0, 1, 0],
-              opacity: [0, 1, 0],
-            }}
-            transition={{ 
-              duration: 1.5, 
-              repeat: Infinity, 
-              delay: 0,
-              ease: 'easeInOut'
-            }}
-          />
-          {/* Top-left sparkle */}
-          <motion.div
-            className="absolute w-0.5 h-0.5 rounded-full bg-primary"
-            style={{ top: '10%', left: '10%' }}
-            animate={{ 
-              scale: [0, 1, 0],
-              opacity: [0, 1, 0],
-            }}
-            transition={{ 
-              duration: 1.5, 
-              repeat: Infinity, 
-              delay: 0.5,
-              ease: 'easeInOut'
-            }}
-          />
-          {/* Right sparkle */}
-          <motion.div
-            className="absolute w-0.5 h-0.5 rounded-full bg-accent"
-            style={{ top: '40%', right: '0%' }}
-            animate={{ 
-              scale: [0, 1, 0],
-              opacity: [0, 1, 0],
-            }}
-            transition={{ 
-              duration: 1.5, 
-              repeat: Infinity, 
-              delay: 1,
-              ease: 'easeInOut'
-            }}
-          />
-        </>
-      )}
-      
-      {/* Static sparkle dots for non-animated version */}
-      {showSparkles && !animated && (
-        <>
-          <div 
-            className="absolute w-1 h-1 rounded-full bg-accent/70"
-            style={{ top: '0%', right: '5%' }}
-          />
-          <div 
-            className="absolute w-0.5 h-0.5 rounded-full bg-primary/70"
-            style={{ top: '10%', left: '10%' }}
-          />
+          {sparkles.map((sparkle, i) => (
+            animated ? (
+              <motion.div
+                key={i}
+                className="absolute rounded-full"
+                style={{ 
+                  left: sparkle.x, 
+                  top: sparkle.y,
+                  width: sparkle.size,
+                  height: sparkle.size,
+                  background: i % 2 === 0 
+                    ? 'hsl(var(--accent))' 
+                    : 'hsl(var(--primary))',
+                }}
+                animate={{ 
+                  scale: [0.5, 1, 0.5],
+                  opacity: [0.4, 1, 0.4],
+                }}
+                transition={{ 
+                  duration: 1.8, 
+                  repeat: Infinity, 
+                  delay: sparkle.delay,
+                  ease: 'easeInOut'
+                }}
+              />
+            ) : (
+              <div
+                key={i}
+                className="absolute rounded-full"
+                style={{ 
+                  left: sparkle.x, 
+                  top: sparkle.y,
+                  width: sparkle.size,
+                  height: sparkle.size,
+                  background: i % 2 === 0 
+                    ? 'hsl(var(--accent) / 0.7)' 
+                    : 'hsl(var(--primary) / 0.7)',
+                }}
+              />
+            )
+          ))}
         </>
       )}
       
@@ -97,7 +89,7 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
       <svg
         viewBox="0 0 100 100"
         fill="none"
-        style={{ width: size * 0.85, height: size * 0.85 }}
+        style={{ width: size * 0.7, height: size * 0.7 }}
       >
         <defs>
           {/* Primary gradient for left leg */}
@@ -117,7 +109,7 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
         <path
           d="M22 15 L50 82"
           stroke={`url(#${uniqueId}-primary)`}
-          strokeWidth="8"
+          strokeWidth="10"
           strokeLinecap="round"
           fill="none"
         />
@@ -126,7 +118,7 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
         <path
           d="M78 15 L50 82"
           stroke={`url(#${uniqueId}-accent)`}
-          strokeWidth="8"
+          strokeWidth="10"
           strokeLinecap="round"
           fill="none"
         />
