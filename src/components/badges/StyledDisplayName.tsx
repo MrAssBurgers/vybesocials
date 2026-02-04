@@ -1,6 +1,5 @@
 import { memo, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
 
 export interface BadgeStyle {
   gradient_from?: string | null;
@@ -20,6 +19,9 @@ interface StyledDisplayNameProps {
 /**
  * StyledDisplayName - Renders a user's display name with badge-based styling
  * Includes gradient colors and effects based on their highest priority badge
+ * 
+ * IMPORTANT: Uses inline styles with explicit background-clip to prevent
+ * any background color leakage (yellow rectangles, etc.)
  */
 export const StyledDisplayName = memo(function StyledDisplayName({
   name,
@@ -27,48 +29,9 @@ export const StyledDisplayName = memo(function StyledDisplayName({
   className,
   as: Component = 'span',
 }: StyledDisplayNameProps) {
-  const style = useMemo((): React.CSSProperties => {
-    if (!badge?.gradient_from || !badge?.gradient_to) {
-      return {};
-    }
-    
-    const from = `hsl(${badge.gradient_from})`;
-    const to = `hsl(${badge.gradient_to})`;
-    const via = badge.gradient_via ? `hsl(${badge.gradient_via})` : null;
-    
-    const gradient = via 
-      ? `linear-gradient(135deg, ${from}, ${via}, ${to})`
-      : `linear-gradient(135deg, ${from}, ${to})`;
-    
-    return {
-      background: gradient,
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      color: 'transparent', // Fallback for non-webkit browsers
-      backgroundSize: badge.is_animated ? '200% 200%' : '100% 100%',
-    };
-  }, [badge]);
-
-  const effectClass = useMemo(() => {
-    if (!badge?.effect) return '';
-    
-    switch (badge.effect) {
-      case 'glow':
-        return 'drop-shadow-[0_0_8px_hsl(var(--primary)/0.5)]';
-      case 'shimmer':
-        return 'animate-shimmer';
-      case 'pulse':
-        return 'animate-badge-pulse';
-      case 'shine':
-        return 'animate-shine';
-      default:
-        return '';
-    }
-  }, [badge?.effect]);
-
   const hasGradient = badge?.gradient_from && badge?.gradient_to;
 
+  // No gradient - render plain text
   if (!hasGradient) {
     return (
       <Component className={className}>
@@ -77,55 +40,37 @@ export const StyledDisplayName = memo(function StyledDisplayName({
     );
   }
 
-  // Animated gradient shift
-  if (badge?.is_animated && badge.effect === 'shimmer') {
-    return (
-      <motion.span
-        animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-        style={style}
-        className={cn('font-bold', effectClass, className)}
-      >
-        {name}
-      </motion.span>
-    );
-  }
+  const from = `hsl(${badge.gradient_from})`;
+  const to = `hsl(${badge.gradient_to})`;
+  const via = badge.gradient_via ? `hsl(${badge.gradient_via})` : null;
+  
+  const gradient = via 
+    ? `linear-gradient(135deg, ${from}, ${via}, ${to})`
+    : `linear-gradient(135deg, ${from}, ${to})`;
 
-  // Static shiny/metallic texture effect - NO filters to avoid color film on mobile
+  // Base style for gradient text - MUST have all these properties to prevent background leakage
+  const gradientStyle: React.CSSProperties = {
+    background: gradient,
+    backgroundClip: 'text',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    color: 'transparent',
+    // Ensure no box background shows through
+    backgroundColor: 'transparent',
+    boxShadow: 'none',
+  };
+
+  // Add text shadow for shine effect (no filter to avoid artifacts)
   if (badge?.effect === 'shine') {
-    const shinyStyle = {
-      ...style,
-      textShadow: '0 1px 1px rgba(255,255,255,0.2)',
-      // Explicitly no filter property - prevents glow artifacts on mobile/tablet
-    };
-    return (
-      <Component style={shinyStyle} className={cn('font-bold', className)}>
-        {name}
-      </Component>
-    );
+    gradientStyle.textShadow = '0 1px 1px rgba(255,255,255,0.2)';
   }
 
-  // Static gradient - NO pulse filter animation to avoid color film artifacts
-  if (badge?.effect === 'pulse') {
-    return (
-      <motion.span
-        style={style}
-        className={cn('font-bold', className)}
-        animate={{ opacity: [1, 0.85, 1] }}
-        transition={{ duration: 2, repeat: Infinity }}
-      >
-        {name}
-      </motion.span>
-    );
-  }
-
-  // Static gradient or glow effect - use opacity animation instead of filter
   return (
-    <motion.span
-      style={style}
-      className={cn('font-bold', effectClass, className)}
+    <Component 
+      style={gradientStyle} 
+      className={cn('font-bold inline', className)}
     >
       {name}
-    </motion.span>
+    </Component>
   );
 });
