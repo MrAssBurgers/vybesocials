@@ -23,7 +23,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Sparkles, Bot, UsersRound, Trash2, Nfc, X, UserCheck, Flame } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Bot, UsersRound, Trash2, Nfc, X, UserCheck, Flame } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
@@ -85,7 +86,7 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
         <div className="flex items-center justify-between mb-0.5 gap-2">
           <span className="font-semibold text-sm flex items-center gap-1.5 min-w-0">
             <span className="truncate">{aiName}</span>
-            <Sparkles className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+            <VybeMiniIcon size={14} showSparkles className="flex-shrink-0" />
           </span>
           <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-primary/10 rounded-full flex-shrink-0">AI</span>
         </div>

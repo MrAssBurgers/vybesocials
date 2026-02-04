@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Loader2, X, Wand2, RefreshCw, Type, Upload, Bot, Image, Video } from 'lucide-react';
+import { Loader2, X, Wand2, RefreshCw, Type, Upload, Bot, Image, Video } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -333,7 +334,7 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
                 className="w-full"
                 size="lg"
               >
-                <Sparkles className="w-4 h-4 mr-2" />
+                <VybeMiniIcon size={16} showSparkles className="mr-2" />
                 Generate {mode === 'video' ? 'Video' : 'Image'}
               </Button>
             </motion.div>

@@ -8,7 +8,8 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Sparkles, Loader2, FileText } from 'lucide-react';
+import { Loader2, FileText } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useAIChatSummary } from '@/hooks/useAIMessageAssist';
 import { Message } from '@/hooks/useMessages';
 
@@ -55,7 +56,7 @@ export const ChatSummarySheet = memo(function ChatSummarySheet({
       <SheetContent side="bottom" className="h-[40vh] rounded-t-3xl">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <VybeMiniIcon size={20} showSparkles />
             Chat Summary
           </SheetTitle>
         </SheetHeader>

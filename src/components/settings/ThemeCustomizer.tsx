@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Palette, 
-  Sparkles, 
   Check, 
   RefreshCw, 
   Wand2, 
@@ -17,6 +16,7 @@ import {
   Timer,
   Pencil
 } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -293,7 +293,7 @@ export function ThemeCustomizer() {
             {isGenerating ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
             ) : (
-              <Sparkles className="h-4 w-4" />
+              <VybeMiniIcon size={16} showSparkles />
             )}
           </Button>
         </div>

@@ -2,8 +2,9 @@ import { useState, memo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Search, Heart, Download, Star, TrendingUp, Clock, 
-  Palette, User, Sparkles, Code
+  Palette, User, Code
 } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -228,7 +229,7 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <VybeMiniIcon size={20} showSparkles />
             Theme Marketplace
           </CardTitle>
           <CardDescription>

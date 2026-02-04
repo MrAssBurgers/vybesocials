@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Star, Lock, Check, Gift, Trophy, Sparkles } from 'lucide-react';
+import { Star, Lock, Check, Gift, Trophy } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +23,7 @@ export function BattlePassSheet({ open, onOpenChange }: BattlePassSheetProps) {
   const getRewardTypeIcon = (type: string) => {
     switch (type) {
       case 'badge': return <Trophy className="h-4 w-4" />;
-      case 'cosmetic': return <Sparkles className="h-4 w-4" />;
+      case 'cosmetic': return <VybeMiniIcon size={16} showSparkles />;
       case 'effect': return <Star className="h-4 w-4" />;
       case 'title': return <Gift className="h-4 w-4" />;
       default: return <Gift className="h-4 w-4" />;

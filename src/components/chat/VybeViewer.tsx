@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Reply, Camera, Sparkles, Eye } from 'lucide-react';
+import { X, Reply, Camera, Eye } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { haptics } from '@/lib/haptics';
 
 interface VybeViewerProps {
@@ -195,7 +196,7 @@ export function VybeViewer({
                 <div className="flex items-center gap-2">
                   <p className="text-white font-bold text-sm">{senderName || 'VYBE'}</p>
                   <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-primary/50 to-accent/50 backdrop-blur-sm">
-                    <Sparkles className="h-3 w-3 text-white" />
+                    <VybeMiniIcon size={12} showSparkles />
                     <span className="text-[10px] text-white font-semibold">VYBE</span>
                   </div>
                 </div>

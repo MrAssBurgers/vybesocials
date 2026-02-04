@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, Camera, AtSign, FileText, Save, Sparkles, Eye } from 'lucide-react';
+import { ChevronRight, Camera, AtSign, FileText, Save, Eye } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -205,7 +206,7 @@ export function ProfileSection() {
           </div>
           
           <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
-            <Sparkles className="w-3 h-3" />
+            <VybeMiniIcon size={12} showSparkles />
             Your name styling is based on your highest-priority badge
           </p>
         </motion.div>

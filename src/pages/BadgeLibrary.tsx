@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Award, Lock, Search, Filter, Sparkles } from 'lucide-react';
+import { Award, Lock, Search, Filter } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAllBadges, useUserBadges } from '@/hooks/useBadges';
 import { useAuth } from '@/lib/auth';
@@ -209,7 +210,7 @@ export default function BadgeLibraryPage() {
               className="text-center py-16"
             >
               <GlassCard className="p-8 inline-block">
-                <Sparkles className="h-12 w-12 text-primary mx-auto mb-4" />
+                <VybeMiniIcon size={48} showSparkles className="mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No badges found</h3>
                 <p className="text-sm text-muted-foreground">
                   Try adjusting your search or category filter.

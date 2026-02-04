@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, Globe } from 'lucide-react';
+import { Globe } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { haptics } from '@/lib/haptics';
@@ -63,7 +64,7 @@ export function WelcomeHeader() {
             className="w-full h-12 gap-2 bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 hover:from-primary/30 hover:via-accent/30 hover:to-primary/30 border border-primary/20 text-foreground backdrop-blur-sm transition-all duration-300"
             variant="ghost"
           >
-            <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+            <VybeMiniIcon size={16} showSparkles animated />
             <span>Your Daily Brief</span>
             <Globe className="h-3.5 w-3.5 text-accent ml-1" />
             <span className="text-xs text-muted-foreground ml-1">• Live</span>

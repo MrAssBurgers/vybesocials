@@ -2,7 +2,8 @@ import { useState, forwardRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ChevronRight, Sparkles, Settings } from 'lucide-react';
+import { LogOut, ChevronRight, Settings } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useAuth } from '@/lib/auth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -198,7 +199,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
               >
                 <div className="flex items-center justify-center gap-2 mb-1">
                   <div className="gradient-static rounded-lg p-1">
-                    <Sparkles className="w-4 h-4 text-white" />
+                    <VybeMiniIcon size={16} showSparkles />
                   </div>
                   <span className="font-display font-black text-lg gradient-text">VYBE</span>
                 </div>
