@@ -43,7 +43,7 @@ const TEXT_STYLES: { id: TextStyle; label: string }[] = [
 ];
 
 export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
-  const [phase, setPhase] = useState<'camera' | 'edit'>('camera');
+  const [phase, setPhase] = useState<'camera' | 'edit' | 'sending'>('camera');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [capturedVideo, setCapturedVideo] = useState<string | null>(null);
   const [isVideoMode, setIsVideoMode] = useState(false);
@@ -59,6 +59,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingProgress, setRecordingProgress] = useState(0);
+  const [sendingStatus, setSendingStatus] = useState<'uploading' | 'scanning' | 'sending' | 'done' | 'error'>('uploading');
   
   const textInputRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -66,6 +67,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isHoldingRef = useRef(false);
+  const audioStreamRef = useRef<MediaStream | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -196,7 +198,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     stopCamera();
   }, [stopCamera, facingMode]);
 
-  // Stop video recording
+  // Stop video recording - auto sends the video
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
@@ -208,7 +210,6 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     }
     
     setIsRecording(false);
-    setRecordingProgress(0);
     haptics.success();
   }, []);
 
@@ -224,6 +225,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     try {
       // Get audio stream and combine with video
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = audioStream;
       const combinedStream = new MediaStream([
         ...streamRef.current.getVideoTracks(),
         ...audioStream.getAudioTracks()
@@ -247,13 +249,31 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
       mediaRecorder.onstop = () => {
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
         const videoUrl = URL.createObjectURL(blob);
-        setCapturedVideo(videoUrl);
-        setIsVideoMode(true);
-        setPhase('edit');
-        stopCamera();
         
         // Stop audio tracks
-        audioStream.getTracks().forEach(track => track.stop());
+        audioStreamRef.current?.getTracks().forEach(track => track.stop());
+        audioStreamRef.current = null;
+        
+        // Auto-send the video immediately - show sending phase
+        setPhase('sending');
+        setSendingStatus('uploading');
+        setRecordingProgress(0);
+        stopCamera();
+        
+        // Send in background
+        onSend(videoUrl);
+        
+        // Close camera after brief delay to show "sending" feedback
+        setTimeout(() => {
+          setCapturedImage(null);
+          setCapturedVideo(null);
+          setIsVideoMode(false);
+          setPhase('camera');
+          setTextOverlays([]);
+          setMode('none');
+          setIsSending(false);
+          onClose();
+        }, 800);
       };
       
       mediaRecorderRef.current = mediaRecorder;
@@ -277,7 +297,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
       // Fallback to photo if audio fails
       handleCapture();
     }
-  }, [stopCamera, stopRecording, handleCapture]);
+  }, [stopCamera, stopRecording, handleCapture, onSend, onClose]);
 
   // Handle capture button press - tap for photo, hold for video
   const handleCaptureStart = useCallback(() => {
@@ -302,7 +322,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     }
     
     if (isRecording) {
-      // Was recording - stop it
+      // Was recording - stop it (this will auto-send)
       stopRecording();
     } else {
       // Quick tap - take photo
@@ -1083,6 +1103,71 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 )}
               </motion.button>
             </div>
+          </motion.div>
+        )}
+
+        {/* Sending Phase - Auto-send video feedback */}
+        {phase === 'sending' && (
+          <motion.div
+            key="sending"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="flex-1 flex flex-col items-center justify-center bg-black"
+          >
+            <motion.div 
+              className="relative w-32 h-32 flex items-center justify-center"
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 400 }}
+            >
+              {/* Animated gradient ring */}
+              <motion.div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: `conic-gradient(
+                    from 0deg,
+                    hsl(var(--primary)) 0%,
+                    hsl(var(--accent)) 25%,
+                    hsl(var(--primary)) 50%,
+                    hsl(var(--accent)) 75%,
+                    hsl(var(--primary)) 100%
+                  )`,
+                  WebkitMask: 'radial-gradient(circle, transparent 52px, black 52px)',
+                  mask: 'radial-gradient(circle, transparent 52px, black 52px)',
+                }}
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+              />
+              
+              {/* Inner circle with icon */}
+              <div className="absolute inset-3 rounded-full bg-black flex items-center justify-center">
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                >
+                  <VybeMiniIcon size={40} showSparkles />
+                </motion.div>
+              </div>
+            </motion.div>
+            
+            <motion.p
+              className="text-white font-semibold text-lg mt-6"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              Sending VYBE...
+            </motion.p>
+            
+            <motion.p
+              className="text-white/60 text-sm mt-2"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+            >
+              🎬 Video sent!
+            </motion.p>
           </motion.div>
         )}
       </AnimatePresence>
