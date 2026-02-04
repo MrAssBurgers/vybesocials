@@ -1719,17 +1719,12 @@ const MessageBubble = memo(function MessageBubble({
   const isSharedPost = message.message_type === 'shared_post';
 
   return (
-    <motion.div 
+    <div 
       id={`message-${message.id}`}
-      key={message.id}
       className={cn(
         'flex w-full group/message relative rounded-lg',
         isOwn ? 'justify-end' : 'justify-start'
       )}
-      initial={{ opacity: 0, scale: 0.97 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.97 }}
-      transition={{ duration: 0.1, ease: 'easeOut' }}
     >
       {/* Container for avatar + bubble - left aligned for received */}
       <div className={cn(
@@ -2189,7 +2184,7 @@ const MessageBubble = memo(function MessageBubble({
         )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }, (prevProps, nextProps) => {
   return (
