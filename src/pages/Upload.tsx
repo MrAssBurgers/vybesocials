@@ -340,34 +340,37 @@ export default function UploadPage() {
         </div>
       )}
       <div className="max-w-2xl mx-auto p-4 pb-24 space-y-6">
+        {/* Frosted glass backdrop for content visibility */}
+        <div className="fixed inset-0 -z-10 bg-background/60 backdrop-blur-md" />
+        
         {/* Mobile/Tablet back button */}
         {isMobileOrTablet && (
           <button
             onClick={() => navigate('/home')}
-            className="w-10 h-10 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center transition-colors mb-2"
+            className="w-10 h-10 rounded-full bg-background/80 backdrop-blur-sm border border-border/50 hover:bg-background flex items-center justify-center transition-colors mb-2 shadow-lg"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
         )}
-        <h1 className="text-2xl font-bold">Create Post</h1>
+        <h1 className="text-2xl font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">Create Post</h1>
         <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Content Type</label>
+          <label className="text-sm font-medium text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">Content Type</label>
           <div className="grid grid-cols-3 gap-2">
             {contentTypes.map((type) => (
               <button key={type.id} onClick={() => setContentType(type.id as 'post' | 'short' | 'video')}
-                className={`p-3 rounded-xl border-2 transition-all ${contentType === type.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
-                <type.icon className={`w-6 h-6 mx-auto mb-1 ${contentType === type.id ? 'text-primary' : 'text-muted-foreground'}`} />
+                className={`p-3 rounded-xl border-2 transition-all backdrop-blur-sm shadow-lg ${contentType === type.id ? 'border-primary bg-primary/20' : 'border-border/60 bg-background/70 hover:border-primary/50'}`}>
+                <type.icon className={`w-6 h-6 mx-auto mb-1 ${contentType === type.id ? 'text-primary' : 'text-foreground/80'}`} />
                 <p className={`text-sm font-medium ${contentType === type.id ? 'text-primary' : 'text-foreground'}`}>{type.label}</p>
-                <p className="text-xs text-muted-foreground">{type.description}</p>
+                <p className="text-xs text-foreground/70">{type.description}</p>
               </button>
             ))}
           </div>
         </div>
         
         <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Media</label>
+          <label className="text-sm font-medium text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">Media</label>
           {preview ? (
-            <div className="relative rounded-xl overflow-hidden bg-muted">
+            <div className="relative rounded-xl overflow-hidden bg-background/80 backdrop-blur-sm border border-border/50 shadow-lg">
               {file?.type.startsWith('video/') ? (
                 <video 
                   src={preview} 
@@ -378,22 +381,22 @@ export default function UploadPage() {
               ) : (
                 <img src={preview} alt="Preview" className="w-full max-h-96 object-contain" />
               )}
-              <button onClick={clearFile} className="absolute top-2 right-2 p-2 rounded-full bg-background/80 hover:bg-background"><X className="w-4 h-4" /></button>
+              <button onClick={clearFile} className="absolute top-2 right-2 p-2 rounded-full bg-background/90 hover:bg-background shadow-lg border border-border/50"><X className="w-4 h-4" /></button>
             </div>
           ) : (
             <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${isDragging ? 'border-primary bg-primary/10 scale-[1.02]' : 'border-border hover:border-primary/50'}`}>
-              <UploadIcon className={`w-12 h-12 mx-auto mb-4 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
-              <p className={`text-lg font-medium mb-2 ${isDragging ? 'text-primary' : 'text-foreground'}`}>{isDragging ? 'Drop to upload' : 'Drag and drop your file here'}</p>
-              <p className="text-sm text-muted-foreground mb-4">or click to browse</p>
+              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer backdrop-blur-sm shadow-lg ${isDragging ? 'border-primary bg-primary/20 scale-[1.02]' : 'border-border/60 bg-background/70 hover:border-primary/50'}`}>
+              <UploadIcon className={`w-12 h-12 mx-auto mb-4 ${isDragging ? 'text-primary' : 'text-foreground/70'}`} />
+              <p className={`text-lg font-medium mb-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] ${isDragging ? 'text-primary' : 'text-foreground'}`}>{isDragging ? 'Drop to upload' : 'Drag and drop your file here'}</p>
+              <p className="text-sm text-foreground/70 mb-4">or click to browse</p>
               <div className="flex flex-wrap gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
-                <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Plus className="w-4 h-4 mr-2" />Choose File</Button>
-                <Button variant="outline" onClick={() => setShowCamera(true)}><CameraIcon className="w-4 h-4 mr-2" />Camera</Button>
-                <Button variant="outline" onClick={() => setShowAIVideoGenerator(true)} className="bg-primary/10 border-primary/30 hover:border-primary/50">
+                <Button variant="outline" className="bg-background/80 border-border/60 shadow-md" onClick={() => fileInputRef.current?.click()}><Plus className="w-4 h-4 mr-2" />Choose File</Button>
+                <Button variant="outline" className="bg-background/80 border-border/60 shadow-md" onClick={() => setShowCamera(true)}><CameraIcon className="w-4 h-4 mr-2" />Camera</Button>
+                <Button variant="outline" onClick={() => setShowAIVideoGenerator(true)} className="bg-primary/20 border-primary/50 hover:border-primary/70 shadow-md">
                   <Wand2 className="w-4 h-4 mr-2 text-primary" />AI Video
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground mt-4">Supports: JPG, PNG, GIF, WebP, MP4, WebM • Videos up to 2GB, no duration limit</p>
+              <p className="text-xs text-foreground/60 mt-4">Supports: JPG, PNG, GIF, WebP, MP4, WebM • Videos up to 2GB, no duration limit</p>
             </div>
           )}
           <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleInputChange} className="hidden" />
