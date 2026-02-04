@@ -15,7 +15,7 @@ const sizes = {
   lg: { icon: 'w-8 h-8', text: 'text-lg', gap: 'gap-2', strokeWidth: 13 },
   xl: { icon: 'w-10 h-10', text: 'text-xl', gap: 'gap-2', strokeWidth: 12 },
   '2xl': { icon: 'w-16 h-16 sm:w-20 sm:h-20', text: 'text-2xl', gap: 'gap-3', strokeWidth: 12 },
-  'splash': { icon: 'w-28 h-28 sm:w-36 sm:h-36', text: 'text-3xl', gap: 'gap-4', strokeWidth: 14 },
+  'splash': { icon: 'w-24 h-24 sm:w-32 sm:h-32', text: 'text-3xl', gap: 'gap-4', strokeWidth: 14 },
 };
 
 // Generate unique IDs to avoid conflicts when multiple logos are rendered
