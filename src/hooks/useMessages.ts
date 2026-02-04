@@ -90,8 +90,9 @@ export function useUnreadMessagesCount() {
       return totalUnread;
     },
     enabled: !!profile?.id,
-    staleTime: 60000, // 1 minute
-    refetchInterval: 120000, // Check every 2 minutes
+    staleTime: 30000, // 30 seconds - faster updates for badge sync
+    refetchInterval: 60000, // Check every minute
+    refetchOnWindowFocus: true, // Ensure fresh count when user returns
   });
 }
 

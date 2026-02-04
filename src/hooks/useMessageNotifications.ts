@@ -225,8 +225,14 @@ export function useInstantReadClear(conversationId: string | undefined) {
       .eq('conversation_id', conversationId)
       .eq('user_id', profile.id);
     
-    // Force immediate invalidation to sync badge count everywhere
-    queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+    // Optimistically decrement the tab badge count immediately
+    queryClient.setQueryData(['unread-messages-count', profile.id], (old: number | undefined) => {
+      return Math.max(0, (old || 1) - 1);
+    });
+    
+    // Force immediate invalidation to sync badge count everywhere (with profile.id for correct query key)
+    queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
+    queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
     queryClient.invalidateQueries({ queryKey: ['conversations'] });
   }, [conversationId, profile?.id, queryClient]);
 

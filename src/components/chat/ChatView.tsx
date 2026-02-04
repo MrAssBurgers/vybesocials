@@ -1663,22 +1663,31 @@ const MessageBubble = memo(function MessageBubble({
   const isVybeMessage = message.media_url && message.media_type === 'vybe';
   const isSharedPost = message.message_type === 'shared_post';
 
+  // Detect iOS Safari for optimized animations
+  const isIOSSafari = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent;
+    return /iPad|iPhone|iPod/.test(ua) || (ua.includes('Mac') && 'ontouchend' in document);
+  }, []);
+
   return (
     <motion.div 
       key={message.id}
-      layoutId={message.id}
+      layoutId={isIOSSafari ? undefined : message.id}
       className={cn(
         'flex w-full group/message relative',
         isOwn ? 'justify-end' : 'justify-start'
       )}
-      initial={{ opacity: 0, y: 16, scale: 0.95 }}
+      initial={{ opacity: 0, y: isIOSSafari ? 8 : 16, scale: isIOSSafari ? 1 : 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
-      transition={{ 
-        type: 'spring',
-        stiffness: 500,
-        damping: 35,
-        mass: 0.6
+      exit={{ opacity: 0, scale: isIOSSafari ? 1 : 0.9, transition: { duration: isIOSSafari ? 0.1 : 0.15 } }}
+      transition={isIOSSafari 
+        ? { duration: 0.15, ease: [0.25, 0.1, 0.25, 1] } // cubic-bezier for easeOut
+        : { type: 'spring', stiffness: 500, damping: 35, mass: 0.6 }
+      }
+      style={{
+        willChange: 'transform, opacity',
+        transform: 'translateZ(0)', // Force GPU acceleration
       }}
     >
       {/* Container for avatar + bubble - left aligned for received */}
