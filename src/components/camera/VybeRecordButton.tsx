@@ -81,6 +81,16 @@ export function VybeRecordButton({
   const lastPhaseRef = useRef(-1);
   const particleIdRef = useRef(0);
   
+  // SVG calculations - ring sits just outside the button
+  const buttonSize = 80; // w-20 = 80px
+  const strokeWidth = 4;
+  const ringPadding = 6; // gap between button edge and ring
+  const svgSize = buttonSize + (ringPadding + strokeWidth) * 2;
+  const center = svgSize / 2;
+  const radius = (buttonSize / 2) + ringPadding;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (progress / 100) * circumference;
+  
   const elapsedSeconds = (progress / 100) * maxDuration;
   const currentColor = useMemo(() => getCurrentColor(elapsedSeconds), [elapsedSeconds]);
   
@@ -110,42 +120,37 @@ export function VybeRecordButton({
     const spawnRate = 100 + (progress * 2); // 100ms to 300ms
     const interval = setInterval(() => {
       const angle = Math.random() * Math.PI * 2;
-      const distance = 45 + Math.random() * 10;
+      const distance = radius + 5 + Math.random() * 10;
       setParticles(prev => [
         ...prev.slice(-20), // Keep max 20 particles
         {
           id: particleIdRef.current++,
-          x: 40 + Math.cos(angle) * distance,
-          y: 40 + Math.sin(angle) * distance,
+          x: center + Math.cos(angle) * distance,
+          y: center + Math.sin(angle) * distance,
           angle: angle * (180 / Math.PI),
         },
       ]);
     }, spawnRate);
     
     return () => clearInterval(interval);
-  }, [isRecording, progress]);
-  
-  // SVG calculations
-  const radius = 38;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (progress / 100) * circumference;
+  }, [isRecording, progress, center, radius]);
   
   return (
-    <div className="relative w-20 h-20 flex items-center justify-center">
+    <div className="relative flex items-center justify-center" style={{ width: svgSize, height: svgSize }}>
       {/* Particle effects */}
       <AnimatePresence>
         {particles.map((particle) => (
           <motion.div
             key={particle.id}
             initial={{ 
-              x: particle.x - 40, 
-              y: particle.y - 40, 
+              x: particle.x - center, 
+              y: particle.y - center, 
               scale: 0.5, 
               opacity: 1 
             }}
             animate={{ 
-              x: (particle.x - 40) * 1.5, 
-              y: (particle.y - 40) * 1.5, 
+              x: (particle.x - center) * 1.5, 
+              y: (particle.y - center) * 1.5, 
               scale: 0, 
               opacity: 0 
             }}
@@ -159,6 +164,40 @@ export function VybeRecordButton({
           />
         ))}
       </AnimatePresence>
+      
+      {/* Progress ring SVG - always rendered, but hidden when not recording */}
+      <svg 
+        className="absolute inset-0 pointer-events-none"
+        width={svgSize}
+        height={svgSize}
+        style={{ transform: 'rotate(-90deg)' }}
+      >
+        {/* Background track */}
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke={isRecording ? "rgba(255,255,255,0.15)" : "transparent"}
+          strokeWidth={strokeWidth}
+        />
+        {/* Progress arc */}
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke={isRecording ? currentColor : "transparent"}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          style={{
+            filter: isRecording ? `drop-shadow(0 0 4px ${currentColor}) drop-shadow(0 0 8px ${currentColor})` : 'none',
+            transition: 'stroke 0.3s ease, stroke-dashoffset 50ms linear',
+          }}
+        />
+      </svg>
       
       {/* Main button */}
       <motion.button
@@ -183,40 +222,6 @@ export function VybeRecordButton({
             }}
             transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut' }}
           />
-        )}
-        
-        {/* Progress ring SVG */}
-        {isRecording && (
-          <svg 
-            className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)]"
-            style={{ transform: 'rotate(-90deg)' }}
-          >
-            {/* Background track */}
-            <circle
-              cx="44"
-              cy="44"
-              r={radius}
-              fill="none"
-              stroke="rgba(255,255,255,0.15)"
-              strokeWidth="5"
-            />
-            {/* Progress arc */}
-            <motion.circle
-              cx="44"
-              cy="44"
-              r={radius}
-              fill="none"
-              stroke={currentColor}
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              style={{
-                filter: `drop-shadow(0 0 4px ${currentColor}) drop-shadow(0 0 8px ${currentColor})`,
-                transition: 'stroke 0.3s ease, stroke-dashoffset 50ms linear',
-              }}
-            />
-          </svg>
         )}
         
         {/* Growing/pulsing glow behind button when recording */}
