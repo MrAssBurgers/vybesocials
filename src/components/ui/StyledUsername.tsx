@@ -48,7 +48,7 @@ export const StyledUsername = memo(function StyledUsername({
     return showAtSymbol ? `@${username}` : username;
   }, [preferDisplayName, displayName, showAtSymbol, username]);
   
-  const style = useMemo(() => {
+  const style = useMemo((): React.CSSProperties => {
     if (!badge?.gradient_from || !badge?.gradient_to) {
       return {};
     }
@@ -66,6 +66,7 @@ export const StyledUsername = memo(function StyledUsername({
       backgroundClip: 'text',
       WebkitBackgroundClip: 'text',
       WebkitTextFillColor: 'transparent',
+      color: 'transparent', // Fallback for non-webkit browsers
       backgroundSize: badge.is_animated ? '200% 200%' : '100% 100%',
     };
   }, [badge]);

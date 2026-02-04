@@ -27,7 +27,7 @@ export const StyledDisplayName = memo(function StyledDisplayName({
   className,
   as: Component = 'span',
 }: StyledDisplayNameProps) {
-  const style = useMemo(() => {
+  const style = useMemo((): React.CSSProperties => {
     if (!badge?.gradient_from || !badge?.gradient_to) {
       return {};
     }
@@ -45,6 +45,7 @@ export const StyledDisplayName = memo(function StyledDisplayName({
       backgroundClip: 'text',
       WebkitBackgroundClip: 'text',
       WebkitTextFillColor: 'transparent',
+      color: 'transparent', // Fallback for non-webkit browsers
       backgroundSize: badge.is_animated ? '200% 200%' : '100% 100%',
     };
   }, [badge]);
