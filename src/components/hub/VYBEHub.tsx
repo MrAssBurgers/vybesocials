@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, Calendar, X, Shield, Users, Sparkles } from 'lucide-react';
+import { ShoppingBag, Calendar, X, Shield, Users } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { useUserRole } from '@/hooks/useModeration';
@@ -119,7 +120,7 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
                       animate={{ rotate: 360 }}
                       transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
                     >
-                      <Sparkles className="w-4 h-4 text-primary" />
+                      <VybeMiniIcon size={16} showSparkles />
                     </motion.div>
                     <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">
                       VYBE Hub
@@ -128,7 +129,7 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
                       animate={{ rotate: -360 }}
                       transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
                     >
-                      <Sparkles className="w-4 h-4 text-primary" />
+                      <VybeMiniIcon size={16} showSparkles />
                     </motion.div>
                   </div>
                   
