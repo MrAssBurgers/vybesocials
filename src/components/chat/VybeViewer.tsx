@@ -37,7 +37,7 @@ export function VybeViewer({
   const isLongPress = useRef(false);
   const startTime = useRef<number>(0);
 
-  const VYBE_DURATION = 5000; // 5 seconds like Snapchat
+  const VYBE_DURATION = 5000; // 5 seconds display time
   
   // CRITICAL: Check server truth - if already viewed and not owner, close immediately
   useEffect(() => {
@@ -48,10 +48,13 @@ export function VybeViewer({
     }
   }, [isOpen, isViewed, isOwn, onClose]);
   
-  // Mark vybe as viewed when opened - triggers callback for parent to handle
+  // Mark vybe as viewed IMMEDIATELY when opened - triggers callback for parent to handle
+  // This ensures "Opened" status shows to sender right away
   useEffect(() => {
     if (isOpen && messageId && !isViewed && !hasMarkedViewed && !isOwn) {
+      console.log('[VybeViewer] Marking as viewed immediately');
       setHasMarkedViewed(true);
+      // Call onViewed immediately - don't wait
       onViewed?.();
     }
   }, [isOpen, messageId, isViewed, hasMarkedViewed, isOwn, onViewed]);

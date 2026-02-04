@@ -44,6 +44,8 @@ const TEXT_STYLES: { id: TextStyle; label: string }[] = [
 export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const [phase, setPhase] = useState<'camera' | 'edit'>('camera');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [capturedVideo, setCapturedVideo] = useState<string | null>(null);
+  const [isVideoMode, setIsVideoMode] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [mode, setMode] = useState<'none' | 'text' | 'sticker'>('none');
   const [textOverlays, setTextOverlays] = useState<TextOverlay[]>([]);
@@ -54,13 +56,22 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const [isTextInputOpen, setIsTextInputOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingProgress, setRecordingProgress] = useState(0);
   
   const textInputRef = useRef<HTMLTextAreaElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isHoldingRef = useRef(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  const MAX_RECORDING_DURATION = 10000; // 10 seconds max
 
   // Start camera
   const startCamera = useCallback(async () => {
@@ -179,9 +190,119 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
 
     const imageDataUrl = canvas.toDataURL('image/jpeg', 0.92);
     setCapturedImage(imageDataUrl);
+    setIsVideoMode(false);
     setPhase('edit');
     stopCamera();
   }, [stopCamera, facingMode]);
+
+  // Start video recording
+  const startRecording = useCallback(async () => {
+    if (!streamRef.current) return;
+    
+    haptics.impact();
+    setIsRecording(true);
+    setRecordingProgress(0);
+    recordedChunksRef.current = [];
+    
+    try {
+      // Get audio stream and combine with video
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const combinedStream = new MediaStream([
+        ...streamRef.current.getVideoTracks(),
+        ...audioStream.getAudioTracks()
+      ]);
+      
+      const mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType: 'video/webm;codecs=vp9'
+      });
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const videoUrl = URL.createObjectURL(blob);
+        setCapturedVideo(videoUrl);
+        setIsVideoMode(true);
+        setPhase('edit');
+        stopCamera();
+        
+        // Stop audio tracks
+        audioStream.getTracks().forEach(track => track.stop());
+      };
+      
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(100); // Collect data every 100ms
+      
+      // Progress timer
+      const startTime = Date.now();
+      recordingTimerRef.current = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min((elapsed / MAX_RECORDING_DURATION) * 100, 100);
+        setRecordingProgress(progress);
+        
+        if (elapsed >= MAX_RECORDING_DURATION) {
+          stopRecording();
+        }
+      }, 50);
+      
+    } catch (error) {
+      console.error('[SnapCamera] Failed to start recording:', error);
+      setIsRecording(false);
+      // Fallback to photo if audio fails
+      handleCapture();
+    }
+  }, [stopCamera, handleCapture]);
+
+  // Stop video recording
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    
+    setIsRecording(false);
+    setRecordingProgress(0);
+    haptics.success();
+  }, []);
+
+  // Handle capture button press - tap for photo, hold for video
+  const handleCaptureStart = useCallback(() => {
+    isHoldingRef.current = true;
+    
+    // Start hold timer - if held for 300ms, start recording
+    holdTimerRef.current = setTimeout(() => {
+      if (isHoldingRef.current) {
+        startRecording();
+      }
+    }, 300);
+  }, [startRecording]);
+
+  // Handle capture button release
+  const handleCaptureEnd = useCallback(() => {
+    isHoldingRef.current = false;
+    
+    // Clear hold timer
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    
+    if (isRecording) {
+      // Was recording - stop it
+      stopRecording();
+    } else {
+      // Quick tap - take photo
+      handleCapture();
+    }
+  }, [isRecording, stopRecording, handleCapture]);
 
   // Add text overlay - Snapchat style
   const addText = () => {
@@ -403,41 +524,56 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   // Close and reset
   const handleClose = useCallback(() => {
     stopCamera();
+    stopRecording();
     setCapturedImage(null);
+    setCapturedVideo(null);
+    setIsVideoMode(false);
     setPhase('camera');
     setTextOverlays([]);
     setMode('none');
     setIsSending(false);
     setCurrentText('');
     onClose();
-  }, [stopCamera, onClose]);
+  }, [stopCamera, stopRecording, onClose]);
 
-  // Send the vybe
+  // Send the vybe (image or video)
   const handleSend = useCallback(async () => {
-    if (!capturedImage || isSending) return;
+    if ((!capturedImage && !capturedVideo) || isSending) return;
 
     setIsSending(true);
     haptics.success();
 
     try {
-      const finalImage = await renderFinalImage();
-      onSend(finalImage);
-      handleClose();
+      if (isVideoMode && capturedVideo) {
+        // Send video directly (no overlay support for video yet)
+        onSend(capturedVideo);
+        handleClose();
+      } else if (capturedImage) {
+        const finalImage = await renderFinalImage();
+        onSend(finalImage);
+        handleClose();
+      }
     } catch (error) {
       console.error('Failed to send vybe:', error);
-      // Try sending original image as fallback
+      // Try sending original as fallback
       try {
-        onSend(capturedImage);
+        if (isVideoMode && capturedVideo) {
+          onSend(capturedVideo);
+        } else if (capturedImage) {
+          onSend(capturedImage);
+        }
         handleClose();
       } catch {
         setIsSending(false);
       }
     }
-  }, [capturedImage, isSending, renderFinalImage, onSend, handleClose]);
+  }, [capturedImage, capturedVideo, isVideoMode, isSending, renderFinalImage, onSend, handleClose]);
 
-  // Retake photo
+  // Retake photo/video
   const handleRetake = () => {
     setCapturedImage(null);
+    setCapturedVideo(null);
+    setIsVideoMode(false);
     setTextOverlays([]);
     setMode('none');
     setPhase('camera');
@@ -507,50 +643,102 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
               </Button>
             </div>
 
-            {/* Capture button - enhanced */}
+            {/* Capture button - tap for photo, hold for video */}
             <div className="absolute bottom-10 left-0 right-0 flex justify-center safe-area-inset-bottom">
               <motion.button
-                onClick={handleCapture}
+                onTouchStart={handleCaptureStart}
+                onTouchEnd={handleCaptureEnd}
+                onMouseDown={handleCaptureStart}
+                onMouseUp={handleCaptureEnd}
+                onMouseLeave={handleCaptureEnd}
                 className="relative w-20 h-20 rounded-full flex items-center justify-center"
-                whileTap={{ scale: 0.9 }}
               >
-                {/* Outer ring with gradient */}
+                {/* Outer ring with gradient - shows recording progress */}
                 <div className="absolute inset-0 rounded-full border-4 border-white/90 bg-gradient-to-br from-primary/20 to-accent/20 backdrop-blur-sm" />
-                {/* Inner button */}
+                
+                {/* Recording progress ring */}
+                {isRecording && (
+                  <svg className="absolute inset-0 w-full h-full -rotate-90">
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r="36"
+                      fill="none"
+                      stroke="#ef4444"
+                      strokeWidth="4"
+                      strokeDasharray={`${recordingProgress * 2.26} 226`}
+                      className="transition-all duration-100"
+                    />
+                  </svg>
+                )}
+                
+                {/* Inner button - changes to red square when recording */}
                 <motion.div 
-                  className="w-16 h-16 rounded-full bg-white shadow-lg"
-                  whileTap={{ scale: 0.9 }}
+                  className={cn(
+                    "shadow-lg transition-all duration-200",
+                    isRecording 
+                      ? "w-8 h-8 rounded-lg bg-red-500" 
+                      : "w-16 h-16 rounded-full bg-white"
+                  )}
+                  animate={isRecording ? { scale: [1, 1.1, 1] } : {}}
+                  transition={{ duration: 0.5, repeat: isRecording ? Infinity : 0 }}
                 />
-                {/* Pulsing ring effect */}
-                <motion.div
-                  className="absolute inset-0 rounded-full border-2 border-white/50"
-                  animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                />
+                
+                {/* Pulsing ring effect - only when not recording */}
+                {!isRecording && (
+                  <motion.div
+                    className="absolute inset-0 rounded-full border-2 border-white/50"
+                    animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                )}
               </motion.button>
             </div>
-
-            {/* Vybe streak indicator */}
-            <div className="absolute bottom-36 left-0 right-0 flex justify-center px-4">
-              <motion.div 
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-primary/50 to-accent/50 backdrop-blur-xl border border-white/30 shadow-lg"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3, type: 'spring' }}
-              >
+            
+            {/* Recording indicator */}
+            <AnimatePresence>
+              {isRecording && (
                 <motion.div
-                  animate={{ rotate: [0, 15, -15, 0] }}
-                  transition={{ duration: 2, repeat: Infinity }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute bottom-36 left-0 right-0 flex justify-center"
                 >
-                  <Sparkles className="h-4 w-4 text-white" />
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/80 backdrop-blur-sm">
+                    <motion.div 
+                      className="w-2 h-2 rounded-full bg-white"
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ duration: 0.8, repeat: Infinity }}
+                    />
+                    <span className="text-sm text-white font-semibold">Recording...</span>
+                  </div>
                 </motion.div>
-                <span className="text-sm text-white font-semibold">Send a VYBE to keep the streak!</span>
-              </motion.div>
-            </div>
+              )}
+            </AnimatePresence>
+
+            {/* Vybe streak indicator - hide when recording */}
+            {!isRecording && (
+              <div className="absolute bottom-36 left-0 right-0 flex justify-center px-4">
+                <motion.div 
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-primary/50 to-accent/50 backdrop-blur-xl border border-white/30 shadow-lg"
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.3, type: 'spring' }}
+                >
+                  <motion.div
+                    animate={{ rotate: [0, 15, -15, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Sparkles className="h-4 w-4 text-white" />
+                  </motion.div>
+                  <span className="text-sm text-white font-semibold">Tap for photo, hold for video</span>
+                </motion.div>
+              </div>
+            )}
           </motion.div>
         )}
 
-        {phase === 'edit' && capturedImage && (
+        {phase === 'edit' && (capturedImage || capturedVideo) && (
           <motion.div
             key="edit"
             initial={{ opacity: 0 }}
@@ -558,17 +746,28 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
             exit={{ opacity: 0 }}
             className="flex-1 relative flex flex-col"
           >
-            {/* Captured image with overlays */}
+            {/* Captured media with overlays */}
             <div 
               ref={containerRef} 
               className="flex-1 relative overflow-hidden touch-none"
             >
-              <img
-                src={capturedImage}
-                alt="Captured"
-                className="w-full h-full object-contain pointer-events-none select-none"
-                draggable={false}
-              />
+              {isVideoMode && capturedVideo ? (
+                <video
+                  src={capturedVideo}
+                  className="w-full h-full object-contain pointer-events-none select-none"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                />
+              ) : capturedImage ? (
+                <img
+                  src={capturedImage}
+                  alt="Captured"
+                  className="w-full h-full object-contain pointer-events-none select-none"
+                  draggable={false}
+                />
+              ) : null}
 
               {/* Text Overlays - with style support */}
               {textOverlays.map(overlay => (
