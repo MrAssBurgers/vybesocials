@@ -1,283 +1,177 @@
 
-## Comprehensive Feature & Fix Implementation Plan
+# Fix Plan: Camera Inversion, DM Animation Lag, and Badge Sync
 
-This plan addresses all the requested changes across multiple areas of the VYBE app.
+## Issues Identified
 
----
+### 1. Camera Still Bugged in Vybe Snap
+**Problem:** The camera preview is mirrored for the front camera (`scaleX(-1)`), BUT the captured image also needs to correctly apply this mirroring. Currently:
+- Line 159-162: Canvas mirroring IS implemented in `handleCapture`
+- Line 461: Video preview IS mirrored with `transform: facingMode === 'user' ? 'scaleX(-1)' : 'none'`
 
-### 1. Remove Line Texture from Frosted Glass
+**Root Cause:** The canvas capture draws the raw video feed, then applies `scaleX(-1)` transform. However, this approach might have issues with certain devices where the video feed is already hardware-mirrored. Additionally, the mirroring needs to account for object-fit cropping calculations.
 
-**Current Issue:** The frosted glass elements have a subtle noise/line texture that creates a pattern overlay effect.
+**Solution:** Refactor the capture logic to:
+1. Always capture the raw video frame first
+2. Apply mirroring AFTER cropping calculation for front camera
+3. Add a debug mode to verify the output matches the preview
 
-**Solution:** Remove the `::before` pseudo-element that creates the noise texture in the `liquid-glass` CSS class.
+### 2. DM Sending Animation Glitchy on iPhone/iPad
+**Problem:** The message sending animation is laggy and choppy on iOS Safari devices.
 
-**Files to modify:**
-- `src/index.css` - Remove or disable the noise texture in `.liquid-glass::before` by setting `display: none` or commenting out the background-image
+**Root Cause:** 
+- Framer Motion animations with complex spring configs cause jank on mobile WebKit
+- Multiple simultaneous animation properties (opacity, scale, translateY) without GPU acceleration
+- The chat view scroll-to-bottom is fighting with the new message animation
 
----
+**Solution:**
+- Optimize message entrance animations in ChatView to use simpler `ease` transitions instead of springs on mobile
+- Add `will-change: transform` and `transform: translateZ(0)` for GPU acceleration
+- Use `opacity` and `transform` only (not layout properties)
+- Detect iOS/Safari and use CSS transitions instead of Framer Motion springs
 
-### 2. Fix Hold-to-Manage DMs (Prevent Triggering While Scrolling)
+### 3. DM Badge Doesn't Sync When Viewing
+**Problem:** When you view a DM, the unread badge on the messages tab (bottom nav and sidebar) doesn't immediately clear.
 
-**Current Issue:** The long-press gesture to open conversation options triggers even when the user is scrolling, causing accidental opens.
+**Root Cause:** 
+- `useInstantReadClear` updates `last_read_at` in the database
+- It invalidates `['unread-messages-count']` and `['conversations']` queries
+- BUT BottomNav and DesktopLeftSidebar use `useUnreadMessagesCount` which has its own query key: `['unread-messages-count', profile?.id]` 
+- The invalidation doesn't include the profile ID in the query key, causing a mismatch
 
-**Solution:** Track scroll/drag state and cancel the long-press timer if the user is actively scrolling. Add a movement threshold check.
-
-**Files to modify:**
-- `src/components/chat/ConversationList.tsx` - In the `ConversationItem` component:
-  - Add a touch movement tracker
-  - Cancel long-press timer if touch moves more than 10px
-  - Check if currently dragging (swiping) before triggering long-press
-
----
-
-### 3. Fix Create Menu and VYBE Hub Animation Glitches
-
-**Current Issue:** The opening animations are choppy/glitchy due to complex spring configurations and multiple animated elements.
-
-**Solution:** Optimize the animation configurations for smoother performance:
-- Use simpler spring configurations with lower stiffness
-- Add `will-change: transform` for GPU acceleration
-- Reduce staggered animation delays
-- Use `transform: translateZ(0)` to force GPU layer
-
-**Files to modify:**
-- `src/components/hub/CreateMenu.tsx` - Optimize spring config and add GPU acceleration
-- `src/components/hub/VYBEHub.tsx` - Same optimizations, reduce animation complexity
-
----
-
-### 4. Show Calls as In-Chat Messages (Instagram-Style)
-
-**Current Issue:** Calls show as separate notifications rather than appearing in the DM chat history like Instagram.
-
-**Solution:** Create a system message type for calls that displays in the chat:
-- When a call ends, insert a message into the conversation with call metadata
-- Display with appropriate icon (video/phone), duration, and timestamp
-- No notification toast for call events - just the in-chat indicator
-
-**Files to modify:**
-- `src/components/call/GlobalCallOverlay.tsx` - On call end, insert a system message into the conversation
-- `src/hooks/useMessages.ts` or create new hook - Add function to insert call system message
-- `src/components/chat/ChatView.tsx` - Render call system messages with proper icons and formatting
-- Create new `src/components/chat/CallSystemMessage.tsx` - Component for rendering call history in chat
-
-**Database changes:**
-- Add a migration to create call history messages or use existing message type with metadata
+**Solution:**
+- Fix the query invalidation to use the full query key pattern
+- Add immediate optimistic update for the unread count
+- Ensure realtime subscription properly triggers badge refresh
 
 ---
 
-### 5. Auto-Hide Bottom Controls in FaceTime When Inactive
+## Implementation Details
 
-**Current Issue:** The bottom control bar in video calls remains visible, potentially blocking content.
+### File: `src/components/chat/SnapCamera.tsx`
 
-**Solution:** Mirror the header auto-hide behavior for the bottom bar:
-- Add `showFooter` state that auto-hides after 3 seconds
-- Show on touch/hover/tap
-- Hide when inactive
+**Changes:**
+1. Fix camera capture mirroring for front camera:
+   - Move the canvas mirroring to happen correctly with the crop calculation
+   - Ensure the transform is applied AFTER drawing to match the visible preview exactly
 
-**Files to modify:**
-- `src/components/call/GlobalCallOverlay.tsx`:
-  - Add `showFooter` state
-  - Add footer hover zone at bottom
-  - Apply same visibility logic as header
-
----
-
-### 6. Referral Progress Awards Badges
-
-**Current Issue:** The referral milestones display badges visually but don't actually award them to the user.
-
-**Solution:** When a user reaches a milestone (1, 3, 10 invites), automatically grant the corresponding badge.
-
-**Files to modify:**
-- `src/hooks/useInvites.ts` - Add logic to check milestones and award badges when `totalRedemptions` increases
-- Add a `useEffect` that monitors invite count and awards badges via database insert
-
-**Database changes:**
-- May need a trigger or edge function to award badges when invite count reaches milestones
-
----
-
-### 7. Tutorial Opens Required Pages Before Showing Steps
-
-**Current Issue:** When the tutorial goes to a step that requires a specific page (like Settings), it doesn't navigate there first.
-
-**Solution:** The navigation logic exists but may not be fully working. Ensure `executeStepAction` navigates to required routes before highlighting elements.
-
-**Files to modify:**
-- `src/components/tutorial/TutorialOverlay.tsx` - Verify and fix `executeStepAction` to properly navigate and wait for page load
-- `src/components/tutorial/tutorialSteps.ts` - Ensure all steps have correct `requiresRoute` values
-
----
-
-### 8. Smaller DM Notification with Cool Animation
-
-**Current Issue:** The message notification toast is too large and lacks a premium animation when tapped.
-
-**Solution:** 
-- Reduce toast padding and size
-- The MouthZoom animation already exists but ensure it triggers properly
-- Make the notification more compact (smaller avatar, tighter spacing)
-
-**Files to modify:**
-- `src/components/notifications/MessageNotificationToast.tsx` - Reduce size (smaller avatar, less padding)
-- Verify `MouthZoomProvider` is properly mounted in the app
-
----
-
-### 9. Identify Vybe Snaps in Chat and Notifications
-
-**Current Issue:** Vybe snaps appear as "Voice" or generic media instead of being identified as "VYBE".
-
-**Solution:** Add a `vybe` media type and update display logic.
-
-**Files to modify:**
-- `src/components/chat/ConversationList.tsx` - In `ConversationContent`, add check for `media_type === 'vybe'` to display "🌟 VYBE"
-- `src/components/chat/ChatView.tsx` - Handle vybe type with appropriate icon and styling
-- When sending a vybe, set `media_type: 'vybe'` instead of `'image'`
-
----
-
-### 10. Vybe Open State Sync + Prevent Re-Viewing
-
-**Current Issue:** When a Vybe is opened, it doesn't sync the viewed state to both users, and can sometimes be viewed multiple times.
-
-**Solution:** 
-- When a Vybe is opened, update a `viewed_at` field on the message
-- Mark as viewed in database immediately
-- Prevent re-opening if already viewed
-
-**Files to modify:**
-- `src/components/chat/VybeViewer.tsx` - On open, call an update to mark as viewed
-- `src/hooks/useMessages.ts` - Add mutation to mark Vybe as viewed
-- Update message rendering to not allow opening if already viewed
-
-**Database changes:**
-- Add `viewed_at` column to messages table or use existing metadata field
-
----
-
-### 11. Revamp Vybe Camera UI with Text Filters
-
-**Current Issue:** The Vybe camera editor needs enhanced text styling options.
-
-**Solution:** Add text filters/styles:
-- Font selection
-- Text background options (outline, shadow, solid background)
-- Text alignment
-
-**Files to modify:**
-- `src/components/chat/SnapCamera.tsx`:
-  - Add font selection (3-4 font options)
-  - Add text style presets (glow, outline, box background)
-  - Fix camera inversion issue (front camera should mirror, back camera should not)
-
----
-
-### 12. Fix Camera Inversion
-
-**Current Issue:** The camera preview is inverted (mirrored when it shouldn't be or vice versa).
-
-**Solution:** Only mirror the front-facing camera (`user` mode), not the back camera (`environment` mode).
-
-**Files to modify:**
-- `src/components/chat/SnapCamera.tsx` - Apply `scaleX(-1)` only when `facingMode === 'user'`
-
----
-
-### 13. Overall Animation Smoothness
-
-**Current Issue:** General animation glitchiness throughout the app.
-
-**Solution:** 
-- Add `will-change: transform` to animated elements
-- Use simpler spring configs
-- Ensure GPU acceleration on all animated containers
-- Reduce animation complexity during scroll
-
-**Files to modify:**
-- `src/lib/motion.ts` - Update spring configs for smoother animations
-- `src/index.css` - Add more performance optimizations
-
----
-
-## Technical Details
-
-### Animation Optimization Pattern
 ```typescript
-// Smoother spring config
-transition={{ 
-  type: 'spring', 
-  stiffness: 300, // Reduced from 400+
-  damping: 30,    // Increased for less bounce
-  mass: 0.8,      // Lower mass for quicker response
-}}
-```
-
-### Scroll-Safe Long Press Pattern
-```typescript
-const touchStartPos = useRef<{x: number, y: number} | null>(null);
-
-const handleTouchStart = (e: TouchEvent) => {
-  touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  longPressTimer = setTimeout(() => {
-    // Only trigger if no significant movement
-    setOptionsOpen(true);
-  }, 500);
-};
-
-const handleTouchMove = (e: TouchEvent) => {
-  if (!touchStartPos.current) return;
-  const dx = e.touches[0].clientX - touchStartPos.current.x;
-  const dy = e.touches[0].clientY - touchStartPos.current.y;
-  if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
-    clearTimeout(longPressTimer);
+// In handleCapture, around line 158-168:
+// Draw first, then if front camera, flip the entire result
+if (facingMode === 'user') {
+  // Create temp canvas, draw video to it
+  // Then draw flipped result to main canvas
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = outputWidth;
+  tempCanvas.height = outputHeight;
+  const tempCtx = tempCanvas.getContext('2d');
+  if (tempCtx) {
+    tempCtx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
+    ctx.translate(outputWidth, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(tempCanvas, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
-};
-```
-
-### Call System Message Format
-```typescript
-interface CallSystemMessage {
-  type: 'system';
-  system_type: 'call';
-  call_type: 'video' | 'audio';
-  call_status: 'completed' | 'missed' | 'declined';
-  duration_seconds?: number;
-  started_at: string;
+} else {
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
 }
 ```
 
+### File: `src/components/chat/ChatView.tsx`
+
+**Changes:**
+1. Optimize message entrance animations for iOS:
+   - Detect iOS/Safari using user agent
+   - Use simpler CSS transitions on iOS instead of spring animations
+   - Add GPU acceleration classes
+
+2. In the message rendering section (around where messages are mapped):
+```typescript
+// Add iOS detection at top of component
+const isIOSSafari = useMemo(() => {
+  if (typeof window === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /iPad|iPhone|iPod/.test(ua) || (ua.includes('Mac') && 'ontouchend' in document);
+}, []);
+
+// For message animations, use simpler config on iOS:
+const messageVariants = isIOSSafari ? {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.15, ease: 'easeOut' }
+} : {
+  initial: { opacity: 0, y: 12, scale: 0.95 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  transition: { type: 'spring', stiffness: 500, damping: 35 }
+};
+```
+
+3. Add GPU acceleration to message containers:
+```typescript
+style={{ 
+  willChange: 'transform, opacity',
+  transform: 'translateZ(0)',
+}}
+```
+
+### File: `src/hooks/useMessageNotifications.ts`
+
+**Changes:**
+1. Fix query key pattern in `useInstantReadClear` to include profile ID:
+
+```typescript
+// Around line 229-230, change:
+queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+
+// To:
+queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
+```
+
+2. Add immediate optimistic decrement of unread count:
+```typescript
+// Before the database update, also update the tab badge count
+queryClient.setQueryData(['unread-messages-count', profile.id], (old: number | undefined) => {
+  return Math.max(0, (old || 0) - 1); // Optimistically decrement
+});
+```
+
+### File: `src/hooks/useMessages.ts`
+
+**Changes:**
+1. Reduce staleTime for faster updates when badge needs to sync:
+```typescript
+staleTime: 30000, // 30 seconds instead of 60
+refetchOnWindowFocus: true, // Add this
+```
+
+### File: `src/hooks/useTabNotificationBadge.ts`
+
+**Changes:**
+1. The duplicate `useUnreadMessagesCount` function here should use the same query key as the one exported from useMessages.ts, OR we should consolidate them.
+
+2. Fix the query to use the same key pattern:
+```typescript
+queryKey: ['unread-messages-count', profile?.id],
+```
+(This already matches - the issue is the invalidation calls)
+
 ---
 
-## Implementation Priority
+## Summary of Changes
 
-1. **High Priority (Core UX fixes)**
-   - Remove glass texture
-   - Fix hold-to-manage scroll issue
-   - Fix animation glitches
-   - Fix camera inversion
-
-2. **Medium Priority (Feature enhancements)**
-   - Calls in DM chat
-   - Bottom bar auto-hide
-   - Smaller notifications
-   - Vybe identification
-
-3. **Lower Priority (Polish)**
-   - Referral badges
-   - Tutorial navigation
-   - Vybe viewed state sync
-   - Vybe camera UI revamp
+| File | Change Type | Purpose |
+|------|-------------|---------|
+| `src/components/chat/SnapCamera.tsx` | Bug fix | Fix front camera mirroring on capture |
+| `src/components/chat/ChatView.tsx` | Performance | Optimize animations for iOS/Safari |
+| `src/hooks/useMessageNotifications.ts` | Bug fix | Fix query key pattern for badge sync |
+| `src/hooks/useMessages.ts` | Enhancement | Faster staleTime for badge updates |
 
 ---
 
-## Summary
-
-This plan covers 13 distinct improvements across the VYBE app, focusing on:
-- **Visual polish**: Removing unwanted textures, smoother animations
-- **UX fixes**: Preventing accidental gestures, proper navigation
-- **Feature enhancements**: Instagram-style call history, badge rewards
-- **Technical improvements**: GPU acceleration, optimized animations
-
-The changes span CSS, React components, hooks, and potentially database migrations.
+## Testing Checklist
+- [ ] Front camera capture shows correctly mirrored image
+- [ ] Back camera capture is not mirrored
+- [ ] DM sending animation is smooth on iPhone
+- [ ] DM sending animation is smooth on iPad
+- [ ] Unread badge clears immediately when opening a DM
+- [ ] Badge count syncs across bottom nav and sidebar
+- [ ] Badge updates in real-time when new messages arrive
