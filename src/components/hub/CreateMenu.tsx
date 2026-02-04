@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Image, Camera, X, Sparkles, Zap } from 'lucide-react';
+import { Image, Camera, X, Zap } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { VYBEHub } from './VYBEHub';
@@ -54,7 +55,7 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
     },
     { 
       id: 'hub' as const, 
-      icon: Sparkles, 
+      icon: Zap, 
       label: 'VYBE Hub', 
       description: 'Marketplace, Events & More',
       gradient: 'from-violet-500 via-purple-500 to-fuchsia-500',

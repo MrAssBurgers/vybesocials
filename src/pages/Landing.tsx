@@ -10,7 +10,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
-import { Sparkles, Eye, EyeOff, AlertTriangle, X } from 'lucide-react';
+import { Eye, EyeOff, AlertTriangle, X } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { IntroFlow, hasSeenIntro, checkIntroStatus } from '@/components/intro/IntroFlow';
@@ -426,7 +427,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 />
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 mr-2" />
+                  <VybeMiniIcon size={18} showSparkles className="mr-2" />
                   {isLogin ? t('auth.login') : t('auth.signup')}
                 </>
               )}

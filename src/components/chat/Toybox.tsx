@@ -15,10 +15,10 @@ import {
   Pin,
   Clock,
   Settings,
-  Sparkles,
   Shield,
   SmilePlus
 } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useUserRole } from '@/hooks/useModeration';
 import { Button } from '@/components/ui/button';
 import { 
@@ -359,7 +359,7 @@ export const Toybox = memo(function Toybox({
           >
             <div className="flex items-center justify-between mb-3">
               <span className="font-semibold text-sm flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
+                <VybeMiniIcon size={16} showSparkles />
                 DM Features
               </span>
               <Button 
@@ -436,7 +436,7 @@ export const Toybox = memo(function Toybox({
                 className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-primary/10 to-purple-500/10 border border-primary/20 hover:border-primary/40 transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
+                  <VybeMiniIcon size={20} showSparkles />
                   <span className="font-medium text-sm">DM Features</span>
                 </div>
                 <ChevronRight className="h-4 w-4 text-primary" />

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, UserPlus, X } from 'lucide-react';
+import { UserPlus, X } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 
@@ -95,7 +96,7 @@ export function GuestAuthPrompt({
               
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-                  <Sparkles className="w-8 h-8 text-primary" />
+                  <VybeMiniIcon size={32} showSparkles />
                 </div>
                 
                 <div>
