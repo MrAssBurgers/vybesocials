@@ -24,52 +24,55 @@ export function useLiveActivity(conversationId: string | undefined) {
   const activityRef = useRef<ActivityType>('idle');
   const lastActivityUpdateRef = useRef<number>(0);
 
-  // Set my current activity - instant updates
-  const setActivity = useCallback(async (activity: ActivityType) => {
+  // Set my current activity - fire-and-forget (non-blocking)
+  const setActivity = useCallback((activity: ActivityType) => {
     if (!conversationId || !profile?.id) return;
     
-    // Debounce rapid updates (max once per 100ms)
+    // Debounce rapid updates (max once per 300ms for same state)
     const now = Date.now();
-    if (now - lastActivityUpdateRef.current < 100 && activity === activityRef.current) return;
+    if (now - lastActivityUpdateRef.current < 300 && activity === activityRef.current) return;
     lastActivityUpdateRef.current = now;
     activityRef.current = activity;
 
-    try {
-      if (activity === 'idle') {
-        // Remove activity indicator
-        await supabase
-          .from('typing_indicators')
-          .delete()
-          .eq('conversation_id', conversationId)
-          .eq('user_id', profile.id);
-      } else {
-        // Upsert with activity type in metadata
-        await supabase
-          .from('typing_indicators')
-          .upsert(
-            {
-              conversation_id: conversationId,
-              user_id: profile.id,
-              started_at: new Date().toISOString(),
-            },
-            { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
-          );
-        
-        // Also update presence with activity
-        await supabase
-          .from('chat_presence')
-          .upsert(
-            {
-              conversation_id: conversationId,
-              user_id: profile.id,
-              last_seen_at: new Date().toISOString(),
-            },
-            { onConflict: 'conversation_id,user_id' }
-          );
+    // Fire-and-forget - don't await, don't block
+    const updateActivity = async () => {
+      try {
+        if (activity === 'idle') {
+          await supabase
+            .from('typing_indicators')
+            .delete()
+            .eq('conversation_id', conversationId)
+            .eq('user_id', profile.id);
+        } else {
+          await supabase
+            .from('typing_indicators')
+            .upsert(
+              {
+                conversation_id: conversationId,
+                user_id: profile.id,
+                started_at: new Date().toISOString(),
+              },
+              { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
+            );
+          
+          await supabase
+            .from('chat_presence')
+            .upsert(
+              {
+                conversation_id: conversationId,
+                user_id: profile.id,
+                last_seen_at: new Date().toISOString(),
+              },
+              { onConflict: 'conversation_id,user_id' }
+            );
+        }
+      } catch (error) {
+        // Silent fail - non-critical
       }
-    } catch (error) {
-      // Silent fail - non-critical
-    }
+    };
+    
+    // Execute async but don't wait
+    updateActivity();
   }, [conversationId, profile?.id]);
 
   // Quick helpers for specific activities

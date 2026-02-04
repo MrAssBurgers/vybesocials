@@ -28,10 +28,11 @@ export function useChatPresence(conversationId: string | undefined) {
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastTypingStateRef = useRef<boolean>(false);
 
-  // Instant setTyping function - no delay for starting, slight delay for stopping
+  // Fire-and-forget setTyping - never blocks the main thread
   const setTyping = useCallback((isTyping: boolean) => {
     // Skip if no change
     if (lastTypingStateRef.current === isTyping) return;
+    lastTypingStateRef.current = isTyping;
     
     const cid = conversationIdRef.current;
     const pid = profileIdRef.current;
@@ -40,14 +41,11 @@ export function useChatPresence(conversationId: string | undefined) {
     // Clear pending debounce
     if (typingDebounceRef.current) {
       clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
     }
 
-    // For starting typing: instant update
-    // For stopping typing: slight delay to prevent flicker
-    const delay = isTyping ? 0 : 100;
-    
-    typingDebounceRef.current = setTimeout(async () => {
-      lastTypingStateRef.current = isTyping;
+    // Fire-and-forget async operation
+    const updateTyping = async () => {
       try {
         if (isTyping) {
           await supabase
@@ -70,7 +68,14 @@ export function useChatPresence(conversationId: string | undefined) {
       } catch (error) {
         // Silent fail for typing - non-critical
       }
-    }, delay);
+    };
+    
+    // Execute without blocking - use microtask for typing start, slight delay for stop
+    if (isTyping) {
+      queueMicrotask(updateTyping);
+    } else {
+      typingDebounceRef.current = setTimeout(updateTyping, 100);
+    }
   }, []);
 
   // Setup presence and subscriptions
