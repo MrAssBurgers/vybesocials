@@ -845,6 +845,13 @@ export type Database = {
             foreignKeyName: "channels_server_id_fkey"
             columns: ["server_id"]
             isOneToOne: false
+            referencedRelation: "public_servers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channels_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
             referencedRelation: "servers"
             referencedColumns: ["id"]
           },
@@ -2432,6 +2439,13 @@ export type Database = {
             foreignKeyName: "live_activity_community_id_fkey"
             columns: ["community_id"]
             isOneToOne: false
+            referencedRelation: "public_servers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_activity_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
             referencedRelation: "servers"
             referencedColumns: ["id"]
           },
@@ -3807,6 +3821,13 @@ export type Database = {
             foreignKeyName: "server_members_server_id_fkey"
             columns: ["server_id"]
             isOneToOne: false
+            referencedRelation: "public_servers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "server_members_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
             referencedRelation: "servers"
             referencedColumns: ["id"]
           },
@@ -3912,6 +3933,13 @@ export type Database = {
             columns: ["server_id"]
             isOneToOne: false
             referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "server_notifications_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "public_servers"
             referencedColumns: ["id"]
           },
           {
@@ -5496,6 +5524,13 @@ export type Database = {
             foreignKeyName: "server_members_server_id_fkey"
             columns: ["community_id"]
             isOneToOne: false
+            referencedRelation: "public_servers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "server_members_server_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
             referencedRelation: "servers"
             referencedColumns: ["id"]
           },
@@ -5536,6 +5571,7 @@ export type Database = {
       public_profiles: {
         Row: {
           avatar_url: string | null
+          badge_settings: Json | null
           bio: string | null
           coins_balance: number | null
           created_at: string | null
@@ -5547,7 +5583,6 @@ export type Database = {
           is_private: boolean | null
           is_verified: boolean | null
           language: string | null
-          last_name: string | null
           link_url: string | null
           location: string | null
           onboarding_completed: boolean | null
@@ -5559,6 +5594,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
           created_at?: string | null
@@ -5570,7 +5606,6 @@ export type Database = {
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
-          last_name?: string | null
           link_url?: string | null
           location?: string | null
           onboarding_completed?: boolean | null
@@ -5582,6 +5617,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
           created_at?: string | null
@@ -5593,7 +5629,6 @@ export type Database = {
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
-          last_name?: string | null
           link_url?: string | null
           location?: string | null
           onboarding_completed?: boolean | null
@@ -5604,6 +5639,73 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      public_servers: {
+        Row: {
+          active_now_count: number | null
+          banner_url: string | null
+          cover_url: string | null
+          created_at: string | null
+          description: string | null
+          icon_url: string | null
+          id: string | null
+          is_public: boolean | null
+          member_count: number | null
+          name: string | null
+          owner_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          active_now_count?: number | null
+          banner_url?: string | null
+          cover_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon_url?: string | null
+          id?: string | null
+          is_public?: boolean | null
+          member_count?: number | null
+          name?: string | null
+          owner_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          active_now_count?: number | null
+          banner_url?: string | null
+          cover_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon_url?: string | null
+          id?: string | null
+          is_public?: boolean | null
+          member_count?: number | null
+          name?: string | null
+          owner_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "servers_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "servers_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servers_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rooms: {
         Row: {
@@ -5645,6 +5747,13 @@ export type Database = {
             columns: ["community_id"]
             isOneToOne: false
             referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channels_server_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "public_servers"
             referencedColumns: ["id"]
           },
           {
@@ -5894,6 +6003,7 @@ export type Database = {
         Args: { post_id_param: string }
         Returns: undefined
       }
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_call_participant_via_profiles: {
         Args: { call_id_param: string }
         Returns: boolean
@@ -5931,6 +6041,16 @@ export type Database = {
         Returns: undefined
       }
       use_theme_code: { Args: { p_code: string }; Returns: string }
+      validate_invite_code: {
+        Args: { _code: string }
+        Returns: {
+          expires_at: string
+          id: string
+          invite_code: string
+          max_uses: number
+          use_count: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user" | "owner_wife"
