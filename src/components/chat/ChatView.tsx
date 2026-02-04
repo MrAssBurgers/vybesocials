@@ -80,7 +80,7 @@ import {
   Play
 } from 'lucide-react';
 import { Toybox } from './Toybox';
-import { SnapCamera } from './SnapCamera';
+import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
 import { VybeViewer } from './VybeViewer';
 // Flying bubble removed - messages now pop in like iMessage
 import { VideoSendPreview } from './VideoSendPreview';
@@ -635,11 +635,8 @@ export function ChatView() {
   }, [conversationId, profile?.id]);
 
   // Handle vybe camera send - uploads base64 image or blob video and sends as vybe
-  const handleVybeSend = useCallback(async (mediaDataUrl: string) => {
+  const handleVybeSend = useCallback(async (mediaDataUrl: string, isVideo: boolean = false) => {
     if (!conversationId || !profile?.id) return;
-
-    // Check if this is a video blob URL (from recorded video)
-    const isVideo = mediaDataUrl.startsWith('blob:');
 
     setIsUploadingMedia(true);
 
@@ -1334,7 +1331,7 @@ export function ChatView() {
 
 
       {/* VYBE Camera Modal */}
-      <SnapCamera
+      <VybeSnapCamera
         isOpen={showSnapCamera}
         onClose={() => setShowSnapCamera(false)}
         onSend={handleVybeSend}
