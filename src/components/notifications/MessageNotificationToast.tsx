@@ -60,66 +60,70 @@ export const MessageNotificationToast = memo(function MessageNotificationToast({
   }, [toastId, senderId, senderName, senderAvatar, conversationId]);
 
   return (
-    <motion.div
+    <div 
       ref={containerRef}
       onClick={handleClick}
       onPointerDown={() => setIsPressed(true)}
       onPointerUp={() => setIsPressed(false)}
       onPointerLeave={() => setIsPressed(false)}
-      initial={{ opacity: 0, y: -20, scale: 0.9 }}
-      animate={{ 
-        opacity: isExiting ? 0 : 1, 
-        y: isExiting ? -10 : 0, 
-        scale: isExiting ? 0.95 : (isPressed ? 0.97 : 1)
-      }}
-      transition={{ 
-        type: 'spring',
-        stiffness: 500,
-        damping: 35,
-        mass: 0.5
-      }}
-      className={cn(
-        "flex items-center gap-2.5 p-3 cursor-pointer w-full max-w-[300px]",
-        "bg-background/95 backdrop-blur-xl rounded-2xl",
-        "shadow-lg shadow-black/10 border border-border/50",
-        "touch-manipulation select-none outline-none",
-        // Prevent outline glitches
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-      )}
-      style={{ willChange: 'transform, opacity' }}
+      className="touch-manipulation select-none"
+      style={{ outline: 'none' }}
     >
-      {/* Avatar with glow effect */}
       <motion.div
-        animate={{ scale: isPressed ? 0.95 : 1 }}
-        transition={{ duration: 0.1 }}
+        initial={{ opacity: 0, y: -20, scale: 0.9 }}
+        animate={{ 
+          opacity: isExiting ? 0 : 1, 
+          y: isExiting ? -10 : 0, 
+          scale: isExiting ? 0.95 : (isPressed ? 0.96 : 1)
+        }}
+        transition={{ 
+          type: 'spring',
+          stiffness: 500,
+          damping: 35,
+          mass: 0.5
+        }}
+        className={cn(
+          "flex items-center gap-2.5 p-3 cursor-pointer w-full max-w-[300px]",
+          "bg-background/95 backdrop-blur-xl rounded-2xl",
+          "shadow-lg shadow-black/10 border border-border/50"
+        )}
+        style={{ 
+          willChange: 'transform, opacity',
+          outline: 'none',
+          WebkitTapHighlightColor: 'transparent',
+        }}
       >
-        <Avatar className="h-10 w-10 ring-2 ring-primary/30 flex-shrink-0 shadow-md">
+        {/* Avatar */}
+        <Avatar className={cn(
+          "h-10 w-10 ring-2 ring-primary/30 flex-shrink-0 shadow-md transition-transform duration-100",
+          isPressed && "scale-95"
+        )}>
           <AvatarImage src={senderAvatar || undefined} />
           <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground text-sm font-semibold">
             {senderName[0]?.toUpperCase()}
           </AvatarFallback>
         </Avatar>
+        
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm text-foreground truncate">
+            {senderName}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">
+            {messagePreview}
+          </p>
+        </div>
+        
+        {/* Arrow indicator */}
+        <div className={cn(
+          "text-muted-foreground transition-all duration-100",
+          isPressed ? "opacity-50 translate-x-0.5" : "opacity-30"
+        )}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
       </motion.div>
-      
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm text-foreground truncate">
-          {senderName}
-        </p>
-        <p className="text-xs text-muted-foreground truncate">
-          {messagePreview}
-        </p>
-      </div>
-      
-      {/* Subtle arrow indicator */}
-      <motion.div
-        animate={{ x: isPressed ? 2 : 0, opacity: isPressed ? 0.5 : 0.3 }}
-        className="text-muted-foreground"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </motion.div>
-    </motion.div>
+    </div>
   );
 });
 

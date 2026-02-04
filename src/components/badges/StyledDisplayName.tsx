@@ -90,12 +90,12 @@ export const StyledDisplayName = memo(function StyledDisplayName({
     );
   }
 
-  // Static shiny/metallic texture effect (no animation)
+  // Static shiny/metallic texture effect (no animation, no filter to avoid color film)
   if (badge?.effect === 'shine') {
     const shinyStyle = {
       ...style,
-      textShadow: '0 1px 2px rgba(255,255,255,0.4), 0 0 8px rgba(255,255,255,0.15)',
-      filter: 'contrast(1.1) brightness(1.08)',
+      textShadow: '0 1px 2px rgba(255,255,255,0.3)',
+      // Removed filter to prevent color film/glow on mobile
     };
     return (
       <Component style={shinyStyle} className={cn('font-bold', className)}>

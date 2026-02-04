@@ -74,23 +74,18 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
           >
             {/* High-tech popup */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.92 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ type: "tween", duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
               className="pointer-events-auto"
-              style={{ willChange: 'transform, opacity' }}
+              style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
             >
               {/* Outer glow ring */}
               <div className="relative">
-                {/* Animated gradient border */}
-                <motion.div 
-                  className="absolute -inset-[2px] rounded-[28px] bg-gradient-to-r from-primary via-accent to-primary opacity-60 blur-sm"
-                  animate={{ 
-                    backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-                  }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                  style={{ backgroundSize: "200% 200%" }}
+                {/* Static gradient border - no animation for performance */}
+                <div 
+                  className="absolute -inset-[2px] rounded-[28px] bg-gradient-to-r from-primary via-accent to-primary opacity-50 blur-sm"
                 />
                 
                 {/* Main card */}
@@ -135,32 +130,28 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
                       <motion.button
                         key={item.path}
                         onClick={() => handleNavigate(item.path)}
-                        initial={{ opacity: 0, y: 8 }}
+                        initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.03 + index * 0.03, duration: 0.2 }}
+                        transition={{ delay: 0.02 + index * 0.02, duration: 0.15, ease: 'easeOut' }}
                         whileTap={{ scale: 0.98 }}
-                        className="group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-primary/30 transition-all duration-200 overflow-hidden"
-                        style={{ willChange: 'transform, opacity' }}
+                        className="group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-primary/30 transition-colors duration-150 overflow-hidden"
+                        style={{ transform: 'translateZ(0)' }}
                       >
                         {/* Hover glow */}
                         <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-accent/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                         
                         {/* Icon */}
                         <div className="relative">
-                          <motion.div
-                            whileHover={{ rotate: [0, -10, 10, 0] }}
-                            transition={{ duration: 0.4 }}
-                            className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} p-[1px]`}
+                          <div
+                            className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} p-[1px] group-hover:scale-105 transition-transform duration-150`}
                           >
                             <div className="w-full h-full rounded-xl bg-card/80 flex items-center justify-center backdrop-blur-sm">
                               <item.icon className="h-5 w-5 text-primary" />
                             </div>
-                          </motion.div>
-                          {/* Icon pulse */}
-                          <motion.div 
-                            className={`absolute inset-0 rounded-xl bg-gradient-to-br ${item.gradient} opacity-0 group-hover:opacity-40 blur-md transition-opacity`}
-                            animate={{ scale: [1, 1.2, 1] }}
-                            transition={{ duration: 2, repeat: Infinity }}
+                          </div>
+                          {/* Subtle hover glow */}
+                          <div 
+                            className={`absolute inset-0 rounded-xl bg-gradient-to-br ${item.gradient} opacity-0 group-hover:opacity-30 blur-md transition-opacity duration-150`}
                           />
                         </div>
                         

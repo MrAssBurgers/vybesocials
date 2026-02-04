@@ -37,15 +37,15 @@ const PresenceAvatar = memo(function PresenceAvatar({
     <Tooltip>
       <TooltipTrigger asChild>
         <div className="relative animate-scale-in cursor-pointer">
-          {/* Avatar with subtle ring */}
+          {/* Avatar with subtle ring - increased size to match message bubbles */}
           <Avatar className={cn(
-            "h-7 w-7 ring-2 shadow-sm transition-all duration-200",
+            "h-8 w-8 ring-2 shadow-sm transition-all duration-200",
             isTyping 
               ? "ring-primary" 
               : "ring-background"
           )}>
             <AvatarImage src={signedUrl || undefined} className="object-cover" />
-            <AvatarFallback className="text-[10px] font-semibold bg-muted">
+            <AvatarFallback className="text-[11px] font-semibold bg-muted">
               {user.username?.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -97,7 +97,7 @@ export const ChatPresenceIndicator = memo(function ChatPresenceIndicator({
 
   return (
     <div className="animate-fade-in pointer-events-none select-none">
-      <div className="flex items-end justify-start gap-1.5 py-2 pt-3">
+      <div className="flex items-end justify-start gap-2.5 py-2 pt-3">
         {displayUsers.map((user) => (
           <PresenceAvatar
             key={user.user_id}
@@ -108,7 +108,7 @@ export const ChatPresenceIndicator = memo(function ChatPresenceIndicator({
 
         {/* Overflow count */}
         {remainingCount > 0 && (
-          <div className="h-7 w-7 rounded-full bg-muted/80 backdrop-blur-sm flex items-center justify-center text-[10px] font-semibold text-muted-foreground ring-2 ring-background shadow-sm animate-scale-in">
+          <div className="h-8 w-8 rounded-full bg-muted/80 backdrop-blur-sm flex items-center justify-center text-[11px] font-semibold text-muted-foreground ring-2 ring-background shadow-sm animate-scale-in">
             +{remainingCount}
           </div>
         )}

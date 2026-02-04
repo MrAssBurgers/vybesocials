@@ -8,7 +8,8 @@ import { UsernameSetup } from '@/components/onboarding/UsernameSetup';
 import { InterestPicker } from '@/components/onboarding/InterestPicker';
 import { CreatorSuggestions } from '@/components/onboarding/CreatorSuggestions';
 import { ProfileSetup } from '@/components/onboarding/ProfileSetup';
-import { SensitivitySettings } from '@/components/onboarding/SensitivitySettings';
+import { SensitivitySettings, SensitivityLevel } from '@/components/onboarding/SensitivitySettings';
+import { AgeSetup } from '@/components/onboarding/AgeSetup';
 import { EmailVerification } from '@/components/onboarding/EmailVerification';
 import { ContactDiscovery } from '@/components/onboarding/ContactDiscovery';
 import { PrivacySettings } from '@/components/onboarding/PrivacySettings';
@@ -19,8 +20,6 @@ import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 // Invite mode stage type - must match InviteRedeem state machine
 type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
-
-type SensitivityLevel = 'standard' | 'restricted' | 'open';
 
 interface OnboardingProps {
   onInviteNavigate?: (stage: InviteStage) => void;
@@ -34,8 +33,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   
   // Check if user needs to set username (Google OAuth users without profile)
   const needsUsername = !profile?.username;
-  // Total steps: username(optional) + interests + creators + profile + sensitivity + privacy + permissions + email + contacts
-  const TOTAL_STEPS = needsUsername ? 9 : 8;
+  // Total steps: username(optional) + age + interests + creators + profile + sensitivity + privacy + permissions + email + contacts
+  const TOTAL_STEPS = needsUsername ? 10 : 9;
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -55,8 +54,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     avatarPreview: null as string | null,
     avatarFile: null as File | null,
   });
-  const [sensitivity, setSensitivity] = useState<SensitivityLevel>('standard');
+  const [sensitivity, setSensitivity] = useState<SensitivityLevel>('protected');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
+  const [userAge, setUserAge] = useState<number | undefined>(undefined);
 
   // Initialize displayName from username when available
   useEffect(() => {
@@ -89,17 +90,18 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     
     const actualStep = needsUsername ? step - 1 : step;
     switch (actualStep) {
-      case 1: return interests.length >= 3;
-      case 2: return true; // Can skip following
-      case 3: return profileData.firstName.length > 0 && profileData.lastName.length > 0;
-      case 4: return true; // Sensitivity
-      case 5: return true; // Privacy
-      case 6: return true; // Permissions - always allow proceeding (optional)
-      case 7: return true; // Email verification is optional
-      case 8: return true; // Contact discovery is optional
+      case 1: return dateOfBirth !== null && (userAge === undefined || userAge >= 13); // Age step
+      case 2: return interests.length >= 3;
+      case 3: return true; // Can skip following
+      case 4: return profileData.firstName.length > 0 && profileData.lastName.length > 0;
+      case 5: return true; // Sensitivity
+      case 6: return true; // Privacy
+      case 7: return true; // Permissions - always allow proceeding (optional)
+      case 8: return true; // Email verification is optional
+      case 9: return true; // Contact discovery is optional
       default: return true;
     }
-  }, [needsUsername, step, usernameValid, interests.length, profileData.firstName.length, profileData.lastName.length]);
+  }, [needsUsername, step, usernameValid, dateOfBirth, userAge, interests.length, profileData.firstName.length, profileData.lastName.length]);
 
   const handleNext = () => {
     if (step < TOTAL_STEPS) {
@@ -155,6 +157,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           interests: interests,
           sensitivity_preference: sensitivity,
           is_private: isPrivate,
+          date_of_birth: dateOfBirth?.toISOString().split('T')[0] || null,
           onboarding_completed: true,
         }, {
           onConflict: 'user_id',
@@ -285,37 +288,45 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
                     onValidChange={setUsernameValid}
                   />
                 )}
-                {/* Regular steps - offset by 1 if username step exists */}
+                {/* Age step - new step before interests */}
                 {(needsUsername ? step === 2 : step === 1) && (
+                  <AgeSetup
+                    value={dateOfBirth}
+                    onChange={setDateOfBirth}
+                    onAgeCalculated={setUserAge}
+                  />
+                )}
+                {/* Regular steps - offset by 2 if username step exists, 1 otherwise */}
+                {(needsUsername ? step === 3 : step === 2) && (
                   <InterestPicker selected={interests} onChange={setInterests} />
                 )}
-                {(needsUsername ? step === 3 : step === 2) && (
+                {(needsUsername ? step === 4 : step === 3) && (
                   <CreatorSuggestions
                     interests={interests}
                     following={following}
                     onChange={setFollowing}
                   />
                 )}
-                {(needsUsername ? step === 4 : step === 3) && (
+                {(needsUsername ? step === 5 : step === 4) && (
                   <ProfileSetup
                     data={profileData}
                     onChange={setProfileData}
                     username={needsUsername ? username : (profile?.username || '')}
                   />
                 )}
-                {(needsUsername ? step === 5 : step === 4) && (
-                  <SensitivitySettings value={sensitivity} onChange={setSensitivity} />
-                )}
                 {(needsUsername ? step === 6 : step === 5) && (
-                  <PrivacySettings isPrivate={isPrivate} onChange={setIsPrivate} />
+                  <SensitivitySettings value={sensitivity} onChange={setSensitivity} userAge={userAge} />
                 )}
                 {(needsUsername ? step === 7 : step === 6) && (
-                  <PermissionsSetup onAllRequiredGranted={setPermissionsGranted} />
+                  <PrivacySettings isPrivate={isPrivate} onChange={setIsPrivate} />
                 )}
                 {(needsUsername ? step === 8 : step === 7) && (
-                  <EmailVerification />
+                  <PermissionsSetup onAllRequiredGranted={setPermissionsGranted} />
                 )}
                 {(needsUsername ? step === 9 : step === 8) && (
+                  <EmailVerification />
+                )}
+                {(needsUsername ? step === 10 : step === 9) && (
                   <ContactDiscovery onComplete={handleFinish} />
                 )}
               </motion.div>

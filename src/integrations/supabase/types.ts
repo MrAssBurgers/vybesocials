@@ -2710,6 +2710,7 @@ export type Database = {
           reply_to_id: string | null
           sender_id: string
           view_mode: string | null
+          viewed_at: string | null
           voice_segments: Json | null
         }
         Insert: {
@@ -2734,6 +2735,7 @@ export type Database = {
           reply_to_id?: string | null
           sender_id: string
           view_mode?: string | null
+          viewed_at?: string | null
           voice_segments?: Json | null
         }
         Update: {
@@ -2758,6 +2760,7 @@ export type Database = {
           reply_to_id?: string | null
           sender_id?: string
           view_mode?: string | null
+          viewed_at?: string | null
           voice_segments?: Json | null
         }
         Relationships: [
@@ -3265,11 +3268,13 @@ export type Database = {
       }
       profiles: {
         Row: {
+          age_verified: boolean | null
           avatar_url: string | null
           badge_settings: Json | null
           bio: string | null
           coins_balance: number | null
           created_at: string
+          date_of_birth: string | null
           display_name: string | null
           email: string | null
           first_name: string | null
@@ -3294,11 +3299,13 @@ export type Database = {
           username: string
         }
         Insert: {
+          age_verified?: boolean | null
           avatar_url?: string | null
           badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
           created_at?: string
+          date_of_birth?: string | null
           display_name?: string | null
           email?: string | null
           first_name?: string | null
@@ -3323,11 +3330,13 @@ export type Database = {
           username: string
         }
         Update: {
+          age_verified?: boolean | null
           avatar_url?: string | null
           badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
           created_at?: string
+          date_of_birth?: string | null
           display_name?: string | null
           email?: string | null
           first_name?: string | null
