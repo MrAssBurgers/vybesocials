@@ -1,4 +1,5 @@
 import { memo, useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -12,8 +13,9 @@ interface FlyingBubbleProps {
 }
 
 /**
- * Flying message bubble animation
- * Creates a smooth arc from input to message position when sending
+ * Flying message bubble animation with portal rendering
+ * Uses GPU-accelerated transforms for smooth 60fps animation
+ * Renders at document.body level to escape CSS transform contexts
  */
 export const FlyingBubble = memo(function FlyingBubble({
   text,
@@ -25,8 +27,8 @@ export const FlyingBubble = memo(function FlyingBubble({
 }: FlyingBubbleProps) {
   useEffect(() => {
     if (isVisible) {
-      // Animation completes in 350ms
-      const timer = setTimeout(onComplete, 350);
+      // Animation completes in 280ms
+      const timer = setTimeout(onComplete, 280);
       return () => clearTimeout(timer);
     }
   }, [isVisible, onComplete]);
@@ -34,55 +36,82 @@ export const FlyingBubble = memo(function FlyingBubble({
   // Truncate long messages for the flying bubble
   const displayText = text.length > 50 ? text.slice(0, 50) + '...' : text;
 
-  return (
+  // Calculate the delta for transform animation
+  const deltaX = endPosition.x - startPosition.x;
+  const deltaY = endPosition.y - startPosition.y;
+  
+  // Arc offset - bubble curves upward during flight
+  const arcHeight = Math.min(80, Math.abs(deltaY) * 0.3);
+
+  const bubbleContent = (
     <AnimatePresence>
       {isVisible && (
         <motion.div
-          className="fixed pointer-events-none z-[100]"
-          initial={{
+          className="fixed pointer-events-none z-[100000]"
+          style={{
             left: startPosition.x,
             top: startPosition.y,
-            scale: 0.8,
-            opacity: 0.9,
+            willChange: 'transform, opacity',
           }}
-          animate={{
-            left: endPosition.x,
-            top: endPosition.y,
-            scale: 1,
+          initial={{
+            x: 0,
+            y: 0,
+            scale: 0.7,
             opacity: 1,
           }}
+          animate={{
+            x: deltaX,
+            y: deltaY,
+            scale: 1,
+            opacity: 0.85,
+          }}
           exit={{
-            scale: 0.95,
+            scale: 0.9,
             opacity: 0,
           }}
           transition={{
             type: 'spring',
-            stiffness: 300,
-            damping: 28,
-            mass: 0.6,
-          }}
-          style={{
-            willChange: 'transform, opacity, left, top',
+            stiffness: 500,
+            damping: 35,
+            mass: 0.5,
           }}
         >
-          <div
-            className={cn(
-              'px-4 py-2.5 rounded-2xl rounded-br-md max-w-[240px]',
-              themeColor.bubble,
-              themeColor.text,
-              'shadow-xl'
-            )}
+          {/* Arc effect using a nested motion div */}
+          <motion.div
+            initial={{ y: 0 }}
+            animate={{ y: [0, -arcHeight, 0] }}
+            transition={{
+              duration: 0.28,
+              ease: [0.2, 0.8, 0.4, 1],
+            }}
           >
-            <p className="text-sm break-words whitespace-pre-wrap">{displayText}</p>
-          </div>
+            <div
+              className={cn(
+                'px-4 py-2.5 rounded-2xl rounded-br-md max-w-[240px]',
+                themeColor.bubble,
+                themeColor.text,
+                'shadow-2xl shadow-black/20'
+              )}
+            >
+              <p className="text-sm break-words whitespace-pre-wrap leading-snug">
+                {displayText}
+              </p>
+            </div>
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
   );
+
+  // Render via portal at body level to escape all CSS transform contexts
+  if (typeof document === 'undefined') return null;
+  
+  return createPortal(bubbleContent, document.body);
 });
 
 /**
  * Hook to manage flying bubble animation state
+ * Calculates positions relative to viewport for portal rendering
  */
 export function useFlyingBubble() {
   const [flyingBubble, setFlyingBubble] = useState<{
@@ -96,30 +125,31 @@ export function useFlyingBubble() {
     inputElement: HTMLElement | null,
     messagesContainer: HTMLElement | null
   ) => {
-    if (!inputElement || !messagesContainer || !text.trim()) {
-      console.log('[FlyingBubble] Missing elements:', { 
-        hasInput: !!inputElement, 
-        hasContainer: !!messagesContainer,
-        hasText: !!text.trim()
-      });
+    if (!inputElement || !text.trim()) {
       return;
     }
 
     const inputRect = inputElement.getBoundingClientRect();
-    const containerRect = messagesContainer.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
 
-    // Start position: above the input, centered on it
+    // Estimate bubble width (max 240px)
     const bubbleWidth = Math.min(240, viewportWidth - 32);
+    
+    // Start position: centered above the input field
     const startX = inputRect.left + (inputRect.width / 2) - (bubbleWidth / 2);
-    const startY = inputRect.top - 50;
+    const startY = inputRect.top - 60;
 
-    // End position: bottom-right of messages container (where sent messages appear)
-    // For mobile, align to the right side with padding
-    const endX = Math.min(containerRect.right - bubbleWidth - 16, viewportWidth - bubbleWidth - 16);
-    const endY = containerRect.bottom - 80;
-
-    console.log('[FlyingBubble] Triggering animation:', { startX, startY, endX, endY });
+    // End position: right side of viewport where sent messages appear
+    // Mobile: right-aligned with padding
+    // Desktop: slightly more centered
+    const isMobile = viewportWidth < 640;
+    const endX = isMobile 
+      ? viewportWidth - bubbleWidth - 16  // Right edge with padding
+      : viewportWidth * 0.6;              // 60% from left on desktop
+    
+    // End Y: around 60% down the viewport (where messages typically are)
+    const endY = viewportHeight * 0.55;
 
     setFlyingBubble({
       text,

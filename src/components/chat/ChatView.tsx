@@ -860,6 +860,7 @@ export function ChatView() {
           startPosition={flyingBubble.startPosition}
           endPosition={flyingBubble.endPosition}
           onComplete={clearFlyingBubble}
+          themeColor={THEME_COLORS[settings?.theme || 'default'] || THEME_COLORS.default}
         />
       )}
 
