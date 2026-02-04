@@ -109,7 +109,7 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
         <path
           d="M22 15 L50 82"
           stroke={`url(#${uniqueId}-primary)`}
-          strokeWidth="10"
+          strokeWidth="14"
           strokeLinecap="round"
           fill="none"
         />
@@ -118,7 +118,7 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
         <path
           d="M78 15 L50 82"
           stroke={`url(#${uniqueId}-accent)`}
-          strokeWidth="10"
+          strokeWidth="14"
           strokeLinecap="round"
           fill="none"
         />
