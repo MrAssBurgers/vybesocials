@@ -392,28 +392,41 @@ export function ChatView() {
     };
   }, [conversationId, notifyScreenshot]);
 
-  // Handle typing indicator - instant updates for both users
+  // Handle typing indicator - instant input, deferred typing updates
+  const typingUpdateScheduledRef = useRef(false);
+  
   const handleInputChange = useCallback((value: string) => {
-    // Update text immediately - no blocking
+    // Update text IMMEDIATELY - this is the critical path
     setMessageText(value);
     
-    // Instant typing indicator update for live feedback
+    // Schedule typing indicator update (non-blocking)
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
     if (value.length > 0) {
-      setTyping(true);
-      setLiveTyping(true);
-      
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
+      // Only send typing indicator once per burst, not every keystroke
+      if (!typingUpdateScheduledRef.current) {
+        typingUpdateScheduledRef.current = true;
+        // Use queueMicrotask to defer network calls after render
+        queueMicrotask(() => {
+          setTyping(true);
+          setLiveTyping(true);
+        });
       }
       
+      // Reset typing indicator after pause
       typingTimeoutRef.current = setTimeout(() => {
+        typingUpdateScheduledRef.current = false;
         setTyping(false);
         setLiveTyping(false);
-      }, 2000); // Faster timeout for snappier feel
-    } else if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      setTyping(false);
-      setLiveTyping(false);
+      }, 2000);
+    } else {
+      typingUpdateScheduledRef.current = false;
+      queueMicrotask(() => {
+        setTyping(false);
+        setLiveTyping(false);
+      });
     }
   }, [setTyping, setLiveTyping]);
 
