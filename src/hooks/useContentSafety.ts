@@ -8,7 +8,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type SafetyResult = 'scanning' | 'allowed' | 'warned' | 'blocked';
+export type SafetyResult = 'scanning' | 'allowed' | 'warned' | 'blocked' | 'error';
 
 interface SafetyCheckResult {
   result: SafetyResult;
@@ -62,9 +62,10 @@ export function useContentSafety() {
       return safetyResult;
     } catch (err: any) {
       console.error('Safety scan error:', err);
-      setResult('allowed');
-      setMessage('Safety check unavailable. Content will be reviewed.');
-      return { result: 'allowed', message: 'Safety check unavailable' };
+      const errorMessage = 'Safety scan failed. For your protection, this content cannot be shared. Please try again.';
+      setResult('error');
+      setMessage(errorMessage);
+      return { result: 'error', message: errorMessage };
     } finally {
       setIsScanning(false);
     }
@@ -118,9 +119,10 @@ export function useContentSafety() {
       return safetyResult;
     } catch (err: any) {
       console.error('Video safety scan error:', err);
-      setResult('allowed');
-      setMessage('Safety check unavailable. Content will be reviewed.');
-      return { result: 'allowed', message: 'Safety check unavailable' };
+      const errorMessage = 'Video safety scan failed. For your protection, this content cannot be shared. Please try again.';
+      setResult('error');
+      setMessage(errorMessage);
+      return { result: 'error', message: errorMessage };
     } finally {
       setIsScanning(false);
     }
@@ -155,8 +157,10 @@ export function useContentSafety() {
       return safetyResult;
     } catch (err: any) {
       console.error('Safety scan error:', err);
-      setResult('allowed');
-      return { result: 'allowed' };
+      const errorMessage = 'Text safety scan failed. Please try again.';
+      setResult('error');
+      setMessage(errorMessage);
+      return { result: 'error', message: errorMessage };
     } finally {
       setIsScanning(false);
     }
