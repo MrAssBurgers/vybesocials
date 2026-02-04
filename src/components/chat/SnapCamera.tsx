@@ -2,9 +2,10 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { 
   X, SwitchCamera, Type, Check, 
-  Send, Smile, Trash2, Sparkles, AlignCenter, AlignLeft, AlignRight
+  Send, Smile, Trash2, AlignCenter, AlignLeft, AlignRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
 
@@ -640,7 +641,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 animate={{ scale: 1 }}
                 transition={{ type: 'spring', stiffness: 500 }}
               >
-                <Sparkles className="h-4 w-4 text-white" />
+                <VybeMiniIcon size={18} showSparkles />
                 <span className="text-sm text-white font-bold tracking-wide">VYBE</span>
               </motion.div>
               <Button variant="ghost" size="icon" onClick={handleSwitchCamera} className="text-white bg-black/40 rounded-full backdrop-blur-sm hover:bg-black/60">
@@ -780,7 +781,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                     animate={{ rotate: [0, 15, -15, 0] }}
                     transition={{ duration: 2, repeat: Infinity }}
                   >
-                    <Sparkles className="h-4 w-4 text-white" />
+                    <VybeMiniIcon size={18} showSparkles />
                   </motion.div>
                   <span className="text-sm text-white font-semibold">Tap for photo, hold for video</span>
                 </motion.div>
@@ -864,7 +865,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 <X className="h-6 w-6" />
               </Button>
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary/40 to-accent/40 backdrop-blur-sm">
-                <Sparkles className="h-4 w-4 text-white" />
+                <VybeMiniIcon size={16} showSparkles />
                 <span className="text-xs text-white font-bold">VYBE</span>
               </div>
               <div className="flex gap-2">
@@ -1075,7 +1076,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                   />
                 ) : (
                   <>
-                    <Sparkles className="h-5 w-5" />
+                    <VybeMiniIcon size={20} showSparkles />
                     Send VYBE
                     <Send className="h-5 w-5" />
                   </>
