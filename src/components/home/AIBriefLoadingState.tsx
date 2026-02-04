@@ -21,7 +21,7 @@ export const GeneratingScreen = memo(function GeneratingScreen() {
           transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
           style={{ transformOrigin: 'center center' }}
         >
-          <VybeMiniIcon size={48} showSparkles={false} animated={false} />
+          <VybeMiniIcon size={72} showSparkles={false} animated={false} />
         </motion.div>
         
         {/* Orbiting dots */}

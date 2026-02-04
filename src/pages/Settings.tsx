@@ -198,9 +198,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
                 className="text-center py-4 text-muted-foreground"
               >
                 <div className="flex items-center justify-center gap-2 mb-1">
-                  <div className="gradient-static rounded-lg p-1">
-                    <VybeMiniIcon size={16} showSparkles />
-                  </div>
+                  <VybeMiniIcon size={24} showSparkles />
                   <span className="font-display font-black text-lg gradient-text">VYBE</span>
                 </div>
                 <p className="text-xs">v{APP_VERSION}</p>
