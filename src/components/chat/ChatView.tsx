@@ -703,12 +703,27 @@ export function ChatView() {
     setReplyingTo(msg);
     // Auto-focus input and bring up keyboard after swipe-to-reply
     requestAnimationFrame(() => {
-      inputRef.current?.focus();
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
     });
   }, []);
 
   const clearReply = useCallback(() => {
     setReplyingTo(null);
+  }, []);
+
+  // Scroll to a specific message by ID with highlight
+  const scrollToMessage = useCallback((messageId: string) => {
+    const element = document.getElementById(`message-${messageId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Add highlight flash
+      element.classList.add('animate-pulse', 'ring-2', 'ring-primary/50');
+      setTimeout(() => {
+        element.classList.remove('animate-pulse', 'ring-2', 'ring-primary/50');
+      }, 1500);
+    }
   }, []);
 
   // Memoize message items to prevent re-renders - using stable keys
@@ -1112,6 +1127,7 @@ export function ChatView() {
                     profileId={profile?.id}
                     isEmojiOnly={isEmojiOnly}
                     onNavigateToPost={(postId) => navigate(`/shorts?id=${postId}`)}
+                    onScrollToMessage={scrollToMessage}
                   />
                 </SwipeToReply>
               </div>
@@ -1537,6 +1553,7 @@ const MessageBubble = memo(function MessageBubble({
   profileId,
   isEmojiOnly = false,
   onNavigateToPost,
+  onScrollToMessage,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -1556,6 +1573,7 @@ const MessageBubble = memo(function MessageBubble({
   profileId?: string;
   isEmojiOnly?: boolean;
   onNavigateToPost?: (postId: string) => void;
+  onScrollToMessage?: (messageId: string) => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
   // For VYBE snaps: check if ANY view exists (server truth)
@@ -1686,10 +1704,11 @@ const MessageBubble = memo(function MessageBubble({
 
   return (
     <motion.div 
+      id={`message-${message.id}`}
       key={message.id}
       layoutId={isIOSSafari ? undefined : message.id}
       className={cn(
-        'flex w-full group/message relative',
+        'flex w-full group/message relative rounded-lg transition-all duration-300',
         isOwn ? 'justify-end' : 'justify-start'
       )}
       initial={{ 
@@ -1744,11 +1763,13 @@ const MessageBubble = memo(function MessageBubble({
 
         {/* Message content wrapper - auto width based on content */}
         <div className={cn('flex flex-col', isOwn ? 'items-end' : 'items-start')}>
-        {/* Reply preview - clear spacing with rounded container */}
+        {/* Reply preview - clickable to scroll to original message */}
         {repliedMessage && (
-          <div
+          <button
+            onClick={() => onScrollToMessage?.(repliedMessage.id)}
             className={cn(
-              "text-[10px] sm:text-[11px] px-3.5 py-2.5 sm:px-4 sm:py-2.5 rounded-2xl mb-1.5 max-w-full",
+              "text-[10px] sm:text-[11px] px-3.5 py-2.5 sm:px-4 sm:py-2.5 rounded-2xl mb-1.5 max-w-full text-left",
+              "cursor-pointer hover:opacity-80 active:scale-[0.98] transition-all",
               isOwn 
                 ? "bg-primary/15 text-primary-foreground/70 rounded-br-lg" 
                 : "bg-muted/50 text-muted-foreground rounded-bl-lg"
@@ -1761,7 +1782,7 @@ const MessageBubble = memo(function MessageBubble({
             <p className="truncate opacity-75 text-[11px]">
               {repliedMessage.content || (repliedMessage.media_type === 'image' ? '📷 Photo' : '🎤 Voice')}
             </p>
-          </div>
+          </button>
         )}
 
         {/* Shared Post - render directly without bubble wrapper */}
