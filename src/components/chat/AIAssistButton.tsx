@@ -8,7 +8,6 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { 
-  Sparkles, 
   Loader2, 
   MessageSquare, 
   Type, 
@@ -16,6 +15,7 @@ import {
   CheckCircle,
   Wand2,
 } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useAIMessageAssist, type AIAssistAction } from '@/hooks/useAIMessageAssist';
 import { Message } from '@/hooks/useMessages';
 import { toast } from 'sonner';
@@ -101,13 +101,13 @@ export const AIAssistButton = memo(function AIAssistButton({
           {isProcessing ? (
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
           ) : (
-            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+            <VybeMiniIcon size={18} showSparkles />
           )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48">
         <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-          <Sparkles className="h-3 w-3" />
+          <VybeMiniIcon size={12} showSparkles={false} />
           AI Assist
         </div>
         <DropdownMenuSeparator />

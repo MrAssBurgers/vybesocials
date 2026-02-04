@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, memo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Sparkles, HelpCircle } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
@@ -547,7 +548,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-primary" />
+                    <VybeMiniIcon size={18} showSparkles />
                   </div>
                   <span className="text-xs font-semibold text-muted-foreground tracking-wide">
                     Step {currentStep + 1} of {totalSteps}
@@ -620,7 +621,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
                   {currentStep === totalSteps - 1 ? (
                     <>
                       Get Started
-                      <Sparkles className="w-4 h-4" />
+                      <VybeMiniIcon size={18} showSparkles />
                     </>
                   ) : (
                     <>

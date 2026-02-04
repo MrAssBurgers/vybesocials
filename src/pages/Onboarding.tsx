@@ -16,7 +16,8 @@ import { PrivacySettings } from '@/components/onboarding/PrivacySettings';
 import { PermissionsSetup } from '@/components/onboarding/PermissionsSetup';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
-import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { toast } from 'sonner';
 // Invite mode stage type - must match InviteRedeem state machine
 type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
@@ -365,7 +366,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
               className="flex items-center gap-1 sm:gap-2 gradient-animated text-sm sm:text-base"
             >
               {loading ? 'Saving...' : t('onboarding.finish')}
-              <Sparkles className="w-4 h-4" />
+              <VybeMiniIcon size={18} showSparkles />
             </Button>
           )}
         </div>

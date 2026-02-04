@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Users, MessageCircle, Phone, Sparkles, Heart } from 'lucide-react';
+import { ChevronRight, Users, MessageCircle, Phone, Heart } from 'lucide-react';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useAccessibility } from '@/providers/AccessibilityProvider';
@@ -32,7 +33,7 @@ const slides = [
       { icon: Users, text: 'See when friends are actually here' },
       { icon: MessageCircle, text: 'Chats that feel alive' },
       { icon: Phone, text: 'Calls that just work' },
-      { icon: Sparkles, text: 'AI that adapts to you' },
+      { icon: Heart, text: 'AI that adapts to you' },
     ],
   },
   {
@@ -238,7 +239,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
               size="lg"
               onClick={onComplete}
             >
-              <Sparkles className="w-4 h-4 mr-2" />
+              <VybeMiniIcon size={18} showSparkles className="mr-2" />
               Create Account
             </Button>
             <Button
