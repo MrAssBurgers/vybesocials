@@ -82,6 +82,7 @@ import {
 import { Toybox } from './Toybox';
 import { SnapCamera } from './SnapCamera';
 import { VybeViewer } from './VybeViewer';
+import { FlyingBubble, useFlyingBubble } from './FlyingBubble';
 import { VideoSendPreview } from './VideoSendPreview';
 import { VideoBubble } from './VideoBubble';
 import { VideoMessageViewer } from './VideoMessageViewer';
@@ -193,12 +194,16 @@ export function ChatView() {
   const [pendingSafetyImage, setPendingSafetyImage] = useState<{ url: string; file: File } | null>(null);
   const [showImageSafetyGate, setShowImageSafetyGate] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const hasMarkedReadRef = useRef<Set<string>>(new Set());
   const lastReadSyncedForConversationRef = useRef<string | null>(null);
   const messageNotifsClearedForConversationRef = useRef<string | null>(null);
+  
+  // Flying bubble animation for send effect
+  const { flyingBubble, triggerFlyingBubble, clearFlyingBubble } = useFlyingBubble();
 
   const conversation = useMemo(() => 
     conversations?.find((c) => c.id === conversationId),
@@ -434,13 +439,17 @@ export function ChatView() {
     if (!messageText.trim() || !conversationId) return;
 
     const text = messageText.trim();
+    
+    // Trigger flying bubble animation before clearing text
+    triggerFlyingBubble(text, inputRef.current, messagesContainerRef.current);
+    
     setMessageText('');
     setTyping(false);
 
     // Use instant send for immediate optimistic UI
     sendText(text, viewMode, replyingTo?.id);
     setReplyingTo(null);
-  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText]);
+  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText, triggerFlyingBubble]);
 
   // sendWithReply is now handled by useInstantSend's sendText
 
@@ -841,6 +850,17 @@ export function ChatView() {
         )}
       </AnimatePresence>
 
+      {/* Flying Bubble Animation - renders on send */}
+      {flyingBubble && (
+        <FlyingBubble
+          text={flyingBubble.text}
+          isVisible={true}
+          startPosition={flyingBubble.startPosition}
+          endPosition={flyingBubble.endPosition}
+          onComplete={clearFlyingBubble}
+        />
+      )}
+
       {/* Header - fixed height, compact on mobile */}
       <header className="flex-shrink-0 h-14 sm:h-16 px-2 sm:px-4 border-b border-border flex items-center gap-2 sm:gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20">
         <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10">
@@ -1005,6 +1025,7 @@ export function ChatView() {
 
       {/* Messages - scrollable area with edge-to-edge bubbles */}
       <div 
+        ref={messagesContainerRef}
         className={cn(
           "flex-1 overflow-y-auto overflow-x-hidden min-h-0",
           "px-3 sm:px-4 py-3 sm:py-4",
