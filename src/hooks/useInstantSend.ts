@@ -332,9 +332,12 @@ export function useInstantSend(conversationId: string | undefined) {
 
       updateProgress(10);
 
-      // Upload to Supabase storage
+      // Upload to Supabase storage - MUST use profile.user_id (auth ID) for RLS
+      if (!profile.user_id) {
+        throw new Error('Account not ready - please refresh and try again');
+      }
       const fileExt = file.name.split('.').pop() || 'mp4';
-      const fileName = `${profile.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const fileName = `${profile.user_id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
       
       updateProgress(30);
       

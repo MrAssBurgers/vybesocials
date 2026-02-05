@@ -56,14 +56,15 @@ export function useUserLevel() {
   const { profile } = useAuth();
 
   return useQuery({
-    queryKey: ['user-level', profile?.id],
+    queryKey: ['user-level', profile?.user_id],
     queryFn: async () => {
-      if (!profile) return null;
+      // user_levels.user_id references auth.users.id, so we use profile.user_id
+      if (!profile?.user_id) return null;
       
       const { data, error } = await supabase
         .from('user_levels')
         .select('*')
-        .eq('user_id', profile.id)
+        .eq('user_id', profile.user_id)
         .maybeSingle();
       
       if (error) throw error;
@@ -72,7 +73,7 @@ export function useUserLevel() {
       if (!data) {
         const { data: newData, error: insertError } = await supabase
           .from('user_levels')
-          .insert({ user_id: profile.id })
+          .insert({ user_id: profile.user_id })
           .select()
           .single();
         
@@ -88,7 +89,7 @@ export function useUserLevel() {
         unclaimed_rewards: (Array.isArray(data.unclaimed_rewards) ? data.unclaimed_rewards : []) as unknown as VybePassReward[],
       } as UserLevel;
     },
-    enabled: !!profile,
+    enabled: !!profile?.user_id,
     staleTime: 1000 * 60 * 2,
   });
 }
@@ -119,9 +120,10 @@ export function useUnclaimedRewards() {
   const { profile } = useAuth();
 
   return useQuery({
-    queryKey: ['unclaimed-rewards', profile?.id],
+    queryKey: ['unclaimed-rewards', profile?.user_id],
     queryFn: async () => {
-      if (!profile) return [];
+      // challenge_rewards.user_id references auth.users.id, so we use profile.user_id
+      if (!profile?.user_id) return [];
       
       const { data, error } = await supabase
         .from('challenge_rewards')
@@ -129,14 +131,14 @@ export function useUnclaimedRewards() {
           *,
           challenge:challenges(title, description)
         `)
-        .eq('user_id', profile.id)
+        .eq('user_id', profile.user_id)
         .eq('is_claimed', false)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data as ChallengeReward[];
     },
-    enabled: !!profile,
+    enabled: !!profile?.user_id,
     staleTime: 1000 * 30,
   });
 }
@@ -150,7 +152,8 @@ export function useClaimReward() {
 
   return useMutation({
     mutationFn: async (rewardId: string) => {
-      if (!profile) throw new Error('Not authenticated');
+      // claim_challenge_reward expects profile.id (it translates internally)
+      if (!profile?.id) throw new Error('Not authenticated');
       
       const { data, error } = await supabase.rpc('claim_challenge_reward', {
         p_user_id: profile.id,
@@ -174,9 +177,10 @@ export function useClaimReward() {
       return result;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile?.id] });
-      queryClient.invalidateQueries({ queryKey: ['user-level', profile?.id] });
-      queryClient.invalidateQueries({ queryKey: ['user-badges', profile?.id] });
+      // Invalidate using auth ID
+      queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile?.user_id] });
+      queryClient.invalidateQueries({ queryKey: ['user-level', profile?.user_id] });
+      queryClient.invalidateQueries({ queryKey: ['user-badges', profile?.user_id] });
       
       if (data.level_result?.level_up) {
         toast.success(`🎉 Level Up! You're now level ${data.level_result.new_level}!`, {
@@ -197,17 +201,18 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
   callbackRef.current = onNewReward;
 
   useEffect(() => {
-    if (!profile) return;
+    // challenge_rewards.user_id is auth ID
+    if (!profile?.user_id) return;
 
     const channel = supabase
-      .channel(`challenge-rewards-${profile.id}`)
+      .channel(`challenge-rewards-${profile.user_id}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'challenge_rewards',
-          filter: `user_id=eq.${profile.id}`,
+          filter: `user_id=eq.${profile.user_id}`,
         },
         async (payload) => {
           if (import.meta.env.DEV) {
@@ -222,7 +227,7 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
             .single();
           
           if (reward) {
-            queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile.id] });
+            queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile.user_id] });
             callbackRef.current?.(reward as ChallengeReward);
             
             // Show toast notification
@@ -246,7 +251,7 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profile?.user_id, queryClient]);
 }
 
 /**
@@ -257,23 +262,24 @@ export function useRealtimeLevelUpdates() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!profile) return;
+    // user_levels.user_id is auth ID
+    if (!profile?.user_id) return;
 
     const channel = supabase
-      .channel(`user-level-${profile.id}`)
+      .channel(`user-level-${profile.user_id}`)
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
           table: 'user_levels',
-          filter: `user_id=eq.${profile.id}`,
+          filter: `user_id=eq.${profile.user_id}`,
         },
         (payload) => {
           if (import.meta.env.DEV) {
             console.log('[VybePass] Level updated:', payload);
           }
-          queryClient.invalidateQueries({ queryKey: ['user-level', profile.id] });
+          queryClient.invalidateQueries({ queryKey: ['user-level', profile.user_id] });
         }
       )
       .subscribe();
@@ -281,7 +287,7 @@ export function useRealtimeLevelUpdates() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profile?.user_id, queryClient]);
 }
 
 /**
@@ -292,7 +298,8 @@ export function useRealtimeChallengeProgress() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!profile) return;
+    // challenge_progress.user_id is profile.id (not auth ID)
+    if (!profile?.id) return;
 
     const channel = supabase
       .channel(`challenge-progress-${profile.id}`)
@@ -365,7 +372,8 @@ export function useGrantPostXP() {
 
   return useMutation({
     mutationFn: async (contentType: string = 'post') => {
-      if (!profile) throw new Error('Not authenticated');
+      // grant_post_xp expects profile.id (it translates internally)
+      if (!profile?.id) throw new Error('Not authenticated');
       
       const { data, error } = await supabase.rpc('grant_post_xp', {
         p_user_id: profile.id,
@@ -376,7 +384,8 @@ export function useGrantPostXP() {
       return data as { success: boolean; xp_granted: number; content_type: string; level_result: any };
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['user-level', profile?.id] });
+      // Invalidate using auth ID for user_levels
+      queryClient.invalidateQueries({ queryKey: ['user-level', profile?.user_id] });
       
       // Show XP toast
       toast.success(`+${data.xp_granted} XP for your ${data.content_type}!`, {
