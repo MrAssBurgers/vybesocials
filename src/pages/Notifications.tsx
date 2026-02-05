@@ -21,6 +21,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCreateConversation } from '@/hooks/useMessages';
 import { useChatPrefetch, useNotificationChatPrefetch } from '@/hooks/useChatPrefetch';
 import { MouthZoomProvider, useMouthZoom } from '@/components/notifications/MouthZoomTransition';
+import { NotificationTransitionProvider, useNotificationTransition } from '@/components/notifications/NotificationTransitionProvider';
 import { useNotificationHoverPrefetch } from '@/hooks/useMouthZoomTransition';
 
 export default function NotificationsPage() {
@@ -130,6 +131,7 @@ export default function NotificationsPage() {
   const readNotifications = notifications?.filter(n => n.read) || [];
 
   return (
+    <NotificationTransitionProvider>
     <MouthZoomProvider>
     <AppLayout>
       <div className="max-w-xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-24">
@@ -410,6 +412,7 @@ export default function NotificationsPage() {
       </div>
     </AppLayout>
     </MouthZoomProvider>
+    </NotificationTransitionProvider>
   );
 }
 
@@ -441,7 +444,8 @@ function NotificationCard({
   getNotificationText,
   isRead 
 }: NotificationCardProps) {
-  const { startTransition } = useMouthZoom();
+  const { startTransition: startChatTransition } = useMouthZoom();
+  const { triggerTransition } = useNotificationTransition();
   const { onHover } = useNotificationHoverPrefetch();
   const navigate = useNavigate();
   
@@ -452,17 +456,20 @@ function NotificationCard({
   const shouldGoToPost = (notification.type === 'like' || notification.type === 'comment') && notification.post_id;
   const shouldGoToChat = notification.type === 'message';
   
-  // Handle click - route to appropriate destination
+  // Handle click - route to appropriate destination with smooth transitions
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (shouldGoToPost && notification.post_id) {
-      // Navigate to the post using native anchor for hash navigation
-      window.location.href = `/p/${notification.post_id}`;
+      // Animate transition to post
+      triggerTransition(e, {
+        type: 'post',
+        postId: notification.post_id,
+      });
     } else if (shouldGoToChat && notification.actor?.id) {
       // Use mouth zoom animation for chat navigation
-      startTransition(
+      startChatTransition(
         e,
         notification.actor.id,
         notification.actor.username,
@@ -470,10 +477,16 @@ function NotificationCard({
         notification.actor.display_name
       );
     } else {
-      // Default: go to user profile
-      navigate(`/u/${notification.actor.username}`);
+      // Animate transition to profile
+      triggerTransition(e, {
+        type: 'profile',
+        userId: notification.actor.id,
+        username: notification.actor.username,
+        avatarUrl: notification.actor.avatar_url,
+        displayName: notification.actor.display_name,
+      });
     }
-  }, [shouldGoToPost, shouldGoToChat, notification, startTransition, navigate]);
+  }, [shouldGoToPost, shouldGoToChat, notification, startChatTransition, triggerTransition]);
 
   // Prefetch on hover for chat notifications
   const handleMouseEnter = useCallback(() => {
