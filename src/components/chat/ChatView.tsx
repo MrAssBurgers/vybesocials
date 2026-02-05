@@ -2083,7 +2083,7 @@ const MessageBubble = memo(function MessageBubble({
         {!isSharedPost && (
         <div
           className={cn(
-            'relative rounded-[20px] break-words select-none group/bubble',
+            'relative rounded-[20px] break-words overflow-hidden select-none group/bubble max-w-full',
             // Padding: 14-16px horizontal, 10-12px vertical
             isEmojiOnly 
               ? 'px-3 py-2' // Reduced padding for emoji
@@ -2327,11 +2327,11 @@ const MessageBubble = memo(function MessageBubble({
             <p className="text-[13px] sm:text-sm italic opacity-75 leading-[1.4]">Message viewed</p>
           ) : message.content ? (
             <p className={cn(
-              "whitespace-pre-wrap leading-[1.4]",
+              "whitespace-pre-wrap leading-[1.4] break-words overflow-wrap-anywhere",
               isEmojiOnly 
                 ? "text-2xl sm:text-3xl" // Larger font for emoji-only
                 : "text-[14px] sm:text-[15px]" // Readable size
-            )}>{message.content}</p>
+            )} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{message.content}</p>
           ) : null}
 
           {message.view_mode !== 'permanent' && (
