@@ -28,8 +28,8 @@ export function VybeRecordButton({
   
   // SVG calculations - ring sits just outside the button
   const buttonSize = 80; // w-20 = 80px
-  const strokeWidth = 4;
-  const ringPadding = 6; // gap between button edge and ring
+  const strokeWidth = 6; // Thicker ring for visibility
+  const ringPadding = 8; // gap between button edge and ring
   const svgSize = buttonSize + (ringPadding + strokeWidth) * 2;
   const center = svgSize / 2;
   const radius = (buttonSize / 2) + ringPadding;
@@ -102,11 +102,34 @@ export function VybeRecordButton({
         style={{ transform: 'rotate(-90deg)' }}
       >
         <defs>
-          <linearGradient id="vybe-ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="hsl(var(--primary))" />
-            <stop offset="50%" stopColor="hsl(var(--accent))" />
-            <stop offset="100%" stopColor="hsl(var(--primary))" />
+          {/* Animated gradient with bright, saturated colors */}
+          <linearGradient id="vybe-ring-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="hsl(var(--primary))">
+              <animate attributeName="stop-color" 
+                values="hsl(var(--primary)); hsl(var(--accent)); hsl(var(--primary))" 
+                dur="2s" repeatCount="indefinite" />
+            </stop>
+            <stop offset="50%" stopColor="hsl(var(--accent))">
+              <animate attributeName="stop-color" 
+                values="hsl(var(--accent)); hsl(var(--primary)); hsl(var(--accent))" 
+                dur="2s" repeatCount="indefinite" />
+            </stop>
+            <stop offset="100%" stopColor="hsl(var(--primary))">
+              <animate attributeName="stop-color" 
+                values="hsl(var(--primary)); hsl(var(--accent)); hsl(var(--primary))" 
+                dur="2s" repeatCount="indefinite" />
+            </stop>
           </linearGradient>
+          {/* Glow filter for bright neon effect */}
+          <filter id="vybe-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feFlood floodColor="hsl(var(--primary))" floodOpacity="0.8" />
+            <feComposite in2="blur" operator="in" />
+            <feMerge>
+              <feMergeNode />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
         {/* Background track */}
         <circle
@@ -114,7 +137,7 @@ export function VybeRecordButton({
           cy={center}
           r={radius}
           fill="none"
-          stroke={isRecording ? "rgba(255,255,255,0.15)" : "transparent"}
+          stroke={isRecording ? "rgba(255,255,255,0.2)" : "transparent"}
           strokeWidth={strokeWidth}
         />
         {/* Progress arc */}
@@ -130,7 +153,7 @@ export function VybeRecordButton({
           strokeDasharray={circumference}
           strokeDashoffset={circumference}
           style={{
-            filter: isRecording ? 'drop-shadow(0 0 8px hsl(var(--primary) / 0.6))' : 'none',
+            filter: isRecording ? 'url(#vybe-glow)' : 'none',
             willChange: 'stroke-dashoffset',
           }}
         />
@@ -154,16 +177,24 @@ export function VybeRecordButton({
         {/* Static outer ring when not recording */}
         {!isRecording && (
           <div 
-            className="absolute inset-0 rounded-full border-[3px] border-white/90"
+            className="absolute inset-0 rounded-full border-4 border-white/90"
+            style={{
+              boxShadow: '0 0 20px rgba(255,255,255,0.3)',
+            }}
           />
         )}
         
         {/* Glow behind button when recording - GPU accelerated */}
         {isRecording && (
           <div
-            className="absolute inset-0 rounded-full"
+            className="absolute rounded-full animate-pulse"
             style={{ 
-              background: 'radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 70%)',
+              width: '120%',
+              height: '120%',
+              left: '-10%',
+              top: '-10%',
+              background: 'radial-gradient(circle, hsl(var(--primary) / 0.5) 0%, hsl(var(--accent) / 0.2) 50%, transparent 70%)',
+              animationDuration: '1s',
             }}
           />
         )}
@@ -181,7 +212,7 @@ export function VybeRecordButton({
             height: isRecording ? 24 : 64,
             borderRadius: isRecording ? 6 : 32,
             boxShadow: isRecording 
-              ? '0 0 16px hsl(var(--primary) / 0.5)'
+              ? '0 0 20px hsl(var(--primary) / 0.7), 0 0 40px hsl(var(--accent) / 0.4)'
               : '0 2px 6px rgba(0,0,0,0.3)',
           }}
         />
