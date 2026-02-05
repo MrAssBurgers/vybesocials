@@ -41,7 +41,42 @@ export function useScreenCapture({ enabled = true, onCapture }: UseScreenCapture
     }
   }, [onCapture]);
 
-  // SCREENSHOT DETECTION - Combined signals approach (Snapchat-style)
+  // KEYBOARD SHORTCUT DETECTION for screenshots
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Windows/Linux PrintScreen
+      if (e.key === 'PrintScreen') {
+        console.log('[ScreenCapture] PrintScreen keyboard shortcut detected');
+        triggerCapture({ type: 'screenshot', timestamp: new Date(), confidence: 'high' });
+        return;
+      }
+      
+      // Mac screenshot shortcuts: Cmd+Shift+3, Cmd+Shift+4, Cmd+Shift+5
+      if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
+        console.log('[ScreenCapture] Mac screenshot shortcut detected:', e.key);
+        triggerCapture({ type: 'screenshot', timestamp: new Date(), confidence: 'high' });
+        return;
+      }
+      
+      // Windows Snipping Tool: Win+Shift+S
+      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 's') {
+        console.log('[ScreenCapture] Win+Shift+S (Snipping Tool) detected');
+        triggerCapture({ type: 'screenshot', timestamp: new Date(), confidence: 'high' });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyDown, true); // PrintScreen fires on keyup on some systems
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyDown, true);
+    };
+  }, [enabled, triggerCapture]);
+
+  // SCREENSHOT DETECTION - Combined signals approach (Snapchat-style) with relaxed timings
   useEffect(() => {
     if (!enabled) return;
 
@@ -60,7 +95,7 @@ export function useScreenCapture({ enabled = true, onCapture }: UseScreenCapture
       setTimeout(() => { navigationOccurred.current = false; }, 1000);
     };
 
-    // Track visibility changes
+    // Track visibility changes with RELAXED timing thresholds
     const handleVisibilityChange = () => {
       if (document.hidden) {
         lastVisibilityHidden.current = Date.now();
@@ -69,21 +104,28 @@ export function useScreenCapture({ enabled = true, onCapture }: UseScreenCapture
         // Document became visible again
         const hiddenDuration = Date.now() - lastVisibilityHidden.current;
         
-        // Screenshot signal: Very brief visibility change (50-800ms)
-        // Normal tab switch is usually longer
-        if (wasHiddenRecently.current && hiddenDuration > 50 && hiddenDuration < 800) {
-          // Wait a tiny bit to check if it's combined with blur/focus
+        // RELAXED: Screenshot signal: 50-2000ms (was 50-800ms)
+        // This captures tab switches where user takes screenshot and returns
+        if (wasHiddenRecently.current && hiddenDuration > 50 && hiddenDuration < 2000) {
           setTimeout(() => {
             if (!navigationOccurred.current && isActivelyViewingChat.current) {
-              // Check if blur also happened around same time
-              const blurWasRecent = (Date.now() - lastBlurTime.current) < 1000;
+              const blurWasRecent = (Date.now() - lastBlurTime.current) < 2500;
               
               if (blurWasRecent) {
-                console.log('[ScreenCapture] Screenshot pattern detected: visibility + blur combo');
+                // Combined signals = high confidence
+                console.log('[ScreenCapture] Screenshot pattern: visibility + blur combo');
                 triggerCapture({
                   type: 'screenshot',
                   timestamp: new Date(),
                   confidence: 'high'
+                });
+              } else if (hiddenDuration < 1000) {
+                // Single visibility signal with very short duration = medium confidence
+                console.log('[ScreenCapture] Screenshot pattern: quick visibility change only');
+                triggerCapture({
+                  type: 'screenshot',
+                  timestamp: new Date(),
+                  confidence: 'medium'
                 });
               }
             }
@@ -93,7 +135,7 @@ export function useScreenCapture({ enabled = true, onCapture }: UseScreenCapture
       }
     };
 
-    // Track blur/focus for screenshot detection
+    // Track blur/focus for screenshot detection with RELAXED timing
     const handleBlur = () => {
       lastBlurTime.current = Date.now();
     };
@@ -101,22 +143,29 @@ export function useScreenCapture({ enabled = true, onCapture }: UseScreenCapture
     const handleFocus = () => {
       const blurDuration = Date.now() - lastBlurTime.current;
       
-      // Screenshot pattern: Very brief blur (100-1000ms) 
-      // Combined with no navigation and active chat viewing
-      if (blurDuration > 100 && blurDuration < 1000 && !navigationOccurred.current && isActivelyViewingChat.current) {
-        // Clear any pending check
+      // RELAXED: Screenshot pattern: 100-3000ms blur (was 100-1000ms)
+      // This captures longer tab switches where screenshot occurs
+      if (blurDuration > 100 && blurDuration < 3000 && !navigationOccurred.current && isActivelyViewingChat.current) {
         if (blurFocusTimeout) clearTimeout(blurFocusTimeout);
         
-        // Wait briefly to combine with visibility signal
         blurFocusTimeout = setTimeout(() => {
-          const visibilityWasRecent = (Date.now() - lastVisibilityHidden.current) < 1500;
+          const visibilityWasRecent = (Date.now() - lastVisibilityHidden.current) < 2500;
           
           if (visibilityWasRecent) {
+            // Combined signals = high confidence
             console.log('[ScreenCapture] Screenshot pattern: blur+focus combo, duration:', blurDuration);
             triggerCapture({
               type: 'screenshot',
               timestamp: new Date(),
               confidence: 'high'
+            });
+          } else if (blurDuration < 1500) {
+            // Single blur signal with short duration = medium confidence
+            console.log('[ScreenCapture] Screenshot pattern: quick blur only, duration:', blurDuration);
+            triggerCapture({
+              type: 'screenshot',
+              timestamp: new Date(),
+              confidence: 'medium'
             });
           }
         }, 150);
