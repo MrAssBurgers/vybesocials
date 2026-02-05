@@ -5849,6 +5849,7 @@ export type Database = {
       }
       ensure_profile: { Args: never; Returns: string }
       filter_profanity: { Args: { input_text: string }; Returns: string }
+      force_sync_my_challenges: { Args: never; Returns: undefined }
       generate_invite_code: { Args: never; Returns: string }
       generate_theme_code: { Args: never; Returns: string }
       get_auth_id_for_profile: {

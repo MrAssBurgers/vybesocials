@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, Camera, AtSign, FileText, Save, Eye } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -16,9 +17,11 @@ import { haptics } from '@/lib/haptics';
 import { BadgeSettingsSection } from '@/components/settings/BadgeSettingsSection';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useUserPrimaryBadge } from '@/hooks/useBadges';
+import { supabase } from '@/integrations/supabase/client';
 
 export function ProfileSection() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const { profile, updateProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -38,6 +41,11 @@ export function ProfileSection() {
         bio: formData.bio,
       });
       if (error) throw error;
+      
+      // Sync challenges after profile update
+      await supabase.rpc('force_sync_my_challenges');
+      queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
+      
       haptics.success();
       toast.success('Profile updated successfully!');
     } catch (error: any) {
