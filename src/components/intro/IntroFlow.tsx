@@ -215,21 +215,24 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
       
       {/* Bottom navigation */}
       <div className="relative z-10 p-6 pb-8 safe-area-bottom space-y-5">
-        {/* Progress indicators - pill style with iOS fix */}
-        <div className="flex justify-center gap-2">
+        {/* Progress indicators - flat pill style matching desktop */}
+        <div className="flex justify-center items-center gap-2">
           {slides.map((_, index) => (
-            <button
+            <div
               key={index}
               onClick={() => setCurrentSlide(index)}
-              className={`rounded-full transition-all duration-300 ${
+              role="button"
+              tabIndex={0}
+              className={`transition-all duration-300 cursor-pointer ${
                 index === currentSlide 
                   ? 'bg-gradient-to-r from-primary to-accent' 
                   : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
               }`}
               style={{
-                height: '8px',
-                width: index === currentSlide ? '32px' : '8px',
-                minWidth: index === currentSlide ? '32px' : '8px',
+                height: '6px',
+                width: index === currentSlide ? '28px' : '28px',
+                borderRadius: '3px',
+                opacity: index === currentSlide ? 1 : 0.4,
               }}
               aria-label={`Go to slide ${index + 1}`}
             />
