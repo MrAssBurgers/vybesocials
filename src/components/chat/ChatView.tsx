@@ -651,6 +651,7 @@ export function ChatView() {
 
   // Handle vybe camera send - uploads base64 image or blob video and sends as vybe
   // Uses optimistic UI - message appears immediately as "sending" then updates to "sent"
+  // Phase-based error handling for better debugging
   const handleVybeSend = useCallback(async (mediaDataUrl: string, isVideo: boolean = false) => {
     if (!conversationId || !profile?.id) return;
     
@@ -660,8 +661,16 @@ export function ChatView() {
       return;
     }
 
+    // Validate mediaDataUrl is valid
+    if (!mediaDataUrl || mediaDataUrl === 'undefined' || mediaDataUrl.length < 10) {
+      toast.error('Invalid media data - please try again');
+      console.error('[VYBE] Invalid mediaDataUrl:', mediaDataUrl?.substring(0, 50));
+      return;
+    }
+
     // Generate temp ID for optimistic UI
     const tempId = `vybe-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    let phase = 'init';
     
     // Show optimistic message IMMEDIATELY - don't wait for safety scan
     queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
@@ -697,17 +706,43 @@ export function ChatView() {
     setShowSnapCamera(false);
     toast.success(isVideo ? 'Sending video VYBE... 🎬' : 'Sending VYBE... ✨', { id: `vybe-${tempId}` });
 
+    // Helper to mark message as failed with specific error
+    const markFailed = (error: string, phaseInfo: string) => {
+      console.error(`[VYBE] Failed at ${phaseInfo}:`, error);
+      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+        if (!old) return old;
+        return old.map(m => m.id === tempId ? { ...m, _failed: true, _error: error } as any : m);
+      });
+      toast.error(`Failed: ${error}`, { id: `vybe-${tempId}`, duration: 5000 });
+    };
+
     try {
       let mediaUrl: string;
       let uploadFile: File;
       
       if (isVideo) {
-        // Video vybe - fetch the blob and convert to File
-        const response = await fetch(mediaDataUrl);
-        const videoBlob = await response.blob();
+        // PHASE 1: Fetch blob from URL
+        phase = 'blob-fetch';
+        let videoBlob: Blob;
+        try {
+          const response = await fetch(mediaDataUrl);
+          if (!response.ok) {
+            throw new Error(`Fetch failed: ${response.status}`);
+          }
+          videoBlob = await response.blob();
+          if (!videoBlob || videoBlob.size === 0) {
+            throw new Error('Empty video blob');
+          }
+        } catch (fetchErr: any) {
+          markFailed('Could not load video', phase);
+          URL.revokeObjectURL(mediaDataUrl);
+          return;
+        }
+        
         uploadFile = new File([videoBlob], `vybe_${Date.now()}.webm`, { type: videoBlob.type || 'video/webm' });
         
-        // Run safety scan on video (with timeout to prevent blocking)
+        // PHASE 2: Safety scan (non-blocking - timeout to 'allowed')
+        phase = 'safety-scan';
         const scanPromise = (async () => {
           try {
             const base64 = await new Promise<string>((resolve, reject) => {
@@ -728,26 +763,23 @@ export function ChatView() {
             });
 
             if (scanError) {
-              console.warn('Video safety scan error:', scanError);
-              return { result: 'allowed' }; // Allow on scan error - log for review
+              console.warn('[VYBE] Video safety scan error:', scanError);
+              return { result: 'allowed' };
             }
             
             return scanResult;
           } catch (err) {
-            console.warn('Video scan timeout/error:', err);
-            return { result: 'allowed' }; // Allow on timeout - log for review
+            console.warn('[VYBE] Video scan timeout/error:', err);
+            return { result: 'allowed' };
           }
         })();
         
-        // Race scan with 15s timeout
         const scanResult = await Promise.race([
           scanPromise,
           new Promise<{ result: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 15000))
         ]);
 
-        // Check scan result - only block on explicit block
         if (scanResult?.result === 'blocked') {
-          // Remove optimistic message
           queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => 
             old?.filter(m => m.id !== tempId) || []
           );
@@ -756,7 +788,8 @@ export function ChatView() {
           return;
         }
 
-        // Upload video - use profile.user_id (auth ID) for storage RLS
+        // PHASE 3: Upload to storage
+        phase = 'storage-upload';
         const fileName = `${profile.user_id}/${Date.now()}_vybe.webm`;
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
@@ -765,19 +798,36 @@ export function ChatView() {
             cacheControl: '31536000',
           });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          markFailed(`Upload failed: ${uploadError.message}`, phase);
+          URL.revokeObjectURL(mediaDataUrl);
+          return;
+        }
 
         const { data: { publicUrl } } = supabase.storage
           .from('chat-media')
           .getPublicUrl(fileName);
         
+        // Validate URL
+        if (!publicUrl || publicUrl.includes('undefined')) {
+          markFailed('Failed to get media URL', phase);
+          URL.revokeObjectURL(mediaDataUrl);
+          return;
+        }
+        
         mediaUrl = publicUrl;
         URL.revokeObjectURL(mediaDataUrl);
       } else {
         // Image vybe
+        phase = 'image-parse';
         const base64Data = mediaDataUrl.split(',')[1];
+        if (!base64Data || base64Data.length < 10) {
+          markFailed('Invalid image data', phase);
+          return;
+        }
         
-        // Run safety scan on image (with timeout)
+        // PHASE 2: Safety scan (non-blocking)
+        phase = 'safety-scan';
         const scanPromise = (async () => {
           try {
             const { data: scanResult, error: scanError } = await supabase.functions.invoke('scan-content-safety', {
@@ -789,24 +839,22 @@ export function ChatView() {
             });
 
             if (scanError) {
-              console.warn('Image safety scan error:', scanError);
+              console.warn('[VYBE] Image safety scan error:', scanError);
               return { result: 'allowed' };
             }
             
             return scanResult;
           } catch (err) {
-            console.warn('Image scan timeout/error:', err);
+            console.warn('[VYBE] Image scan timeout/error:', err);
             return { result: 'allowed' };
           }
         })();
         
-        // Race scan with 10s timeout
         const scanResult = await Promise.race([
           scanPromise,
           new Promise<{ result: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 10000))
         ]);
 
-        // Check scan result - only block on explicit block
         if (scanResult?.result === 'blocked') {
           queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => 
             old?.filter(m => m.id !== tempId) || []
@@ -815,7 +863,8 @@ export function ChatView() {
           return;
         }
 
-        // Upload image
+        // PHASE 3: Upload image
+        phase = 'storage-upload';
         const byteCharacters = atob(base64Data);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -832,16 +881,28 @@ export function ChatView() {
             cacheControl: '31536000',
           });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          markFailed(`Upload failed: ${uploadError.message}`, phase);
+          return;
+        }
 
         const { data: { publicUrl } } = supabase.storage
           .from('chat-media')
           .getPublicUrl(fileName);
         
+        // Validate URL
+        if (!publicUrl || publicUrl.includes('undefined')) {
+          markFailed('Failed to get media URL', phase);
+          return;
+        }
+        
         mediaUrl = publicUrl;
       }
 
-      // Insert real message in database
+      // PHASE 4: Insert message into database
+      phase = 'db-insert';
+      console.log('[VYBE] Inserting message with mediaUrl:', mediaUrl?.substring(0, 80));
+      
       const expiresAt = viewMode === '24h' 
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
@@ -867,7 +928,13 @@ export function ChatView() {
         `)
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('[VYBE] DB insert error:', insertError);
+        markFailed(`Send failed: ${insertError.message}`, phase);
+        return;
+      }
+
+      console.log('[VYBE] Message inserted successfully:', realMessage?.id);
 
       // Replace optimistic message with real one
       queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
@@ -888,15 +955,15 @@ export function ChatView() {
       toast.success(isVideo ? 'Video VYBE sent! 🎬✨' : 'VYBE sent! ✨', { id: `vybe-${tempId}` });
       
     } catch (error: any) {
-      console.error('Failed to send vybe:', error);
+      console.error(`[VYBE] Unexpected error at phase ${phase}:`, error);
       
       // Mark message as failed in UI
       queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
         if (!old) return old;
-        return old.map(m => m.id === tempId ? { ...m, _failed: true } as any : m);
+        return old.map(m => m.id === tempId ? { ...m, _failed: true, _error: error?.message } as any : m);
       });
       
-      toast.error('Failed to send VYBE. Tap to retry.', { id: `vybe-${tempId}` });
+      toast.error(`Failed to send VYBE: ${error?.message || 'Unknown error'}`, { id: `vybe-${tempId}`, duration: 5000 });
     }
   }, [conversationId, profile, viewMode, replyingTo?.id, queryClient]);
 
