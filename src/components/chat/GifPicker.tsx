@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, memo, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { Search, X, Loader2, TrendingUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, X, Loader2, TrendingUp, Clock, Star, Heart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useGifFavorites, SavedGif } from '@/hooks/useGifFavorites';
+import { cn } from '@/lib/utils';
 
-// Tenor API v1 - free public key for basic usage
+// Tenor API v2
 const TENOR_API_KEY = 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
 const TENOR_BASE_URL = 'https://tenor.googleapis.com/v2';
 
@@ -30,15 +32,19 @@ interface GifPickerProps {
   onClose: () => void;
 }
 
+type TabType = 'trending' | 'recent' | 'favorites' | 'search';
+
 export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPickerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [gifs, setGifs] = useState<TenorGif[]>([]);
   const [nextPos, setNextPos] = useState<string>('');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('trending');
   const scrollRef = useRef<HTMLDivElement>(null);
   
   const debouncedQuery = useDebouncedValue(searchQuery, 400);
+  const { favorites, recent, addRecent, toggleFavorite, isFavorite } = useGifFavorites();
 
   // Fetch trending or search results
   const fetchGifs = useCallback(async (query: string, pos?: string) => {
@@ -75,29 +81,40 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
     }
   }, []);
 
+  // Switch to search mode when typing
+  useEffect(() => {
+    if (debouncedQuery.trim()) {
+      setActiveTab('search');
+    }
+  }, [debouncedQuery]);
+
   // Initial load and search
   useEffect(() => {
+    if (activeTab === 'recent' || activeTab === 'favorites') return;
+    
     const loadGifs = async () => {
       setIsLoading(true);
-      const { gifs: newGifs, next } = await fetchGifs(debouncedQuery);
+      const query = activeTab === 'search' ? debouncedQuery : '';
+      const { gifs: newGifs, next } = await fetchGifs(query);
       setGifs(newGifs);
       setNextPos(next);
       setIsLoading(false);
     };
     
     loadGifs();
-  }, [debouncedQuery, fetchGifs]);
+  }, [debouncedQuery, fetchGifs, activeTab]);
 
   // Load more on scroll
   const handleLoadMore = useCallback(async () => {
-    if (!nextPos || isLoadingMore) return;
+    if (!nextPos || isLoadingMore || activeTab === 'recent' || activeTab === 'favorites') return;
     
     setIsLoadingMore(true);
-    const { gifs: moreGifs, next } = await fetchGifs(debouncedQuery, nextPos);
+    const query = activeTab === 'search' ? debouncedQuery : '';
+    const { gifs: moreGifs, next } = await fetchGifs(query, nextPos);
     setGifs(prev => [...prev, ...moreGifs]);
     setNextPos(next);
     setIsLoadingMore(false);
-  }, [nextPos, isLoadingMore, debouncedQuery, fetchGifs]);
+  }, [nextPos, isLoadingMore, debouncedQuery, fetchGifs, activeTab]);
 
   // Infinite scroll detection
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -109,28 +126,162 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
     }
   }, [handleLoadMore, isLoadingMore, nextPos]);
 
-  const handleSelect = useCallback((gif: TenorGif) => {
-    // Prefer tinygif for smaller file size, fallback to gif
-    const gifUrl = gif.media_formats.tinygif?.url || gif.media_formats.gif?.url || '';
+  const handleSelect = useCallback((gif: TenorGif | SavedGif) => {
+    // Get URL based on gif type
+    let gifUrl: string;
+    let previewUrl: string;
+    
+    if ('media_formats' in gif) {
+      // TenorGif
+      gifUrl = gif.media_formats.gif?.url || gif.media_formats.tinygif?.url || '';
+      previewUrl = gif.media_formats.tinygif?.url || gifUrl;
+    } else {
+      // SavedGif
+      gifUrl = gif.url;
+      previewUrl = gif.previewUrl;
+    }
+    
     if (gifUrl) {
+      // Add to recent
+      addRecent({
+        id: gif.id,
+        url: gifUrl,
+        previewUrl: previewUrl,
+        title: gif.title,
+      });
       onSelect(gifUrl);
     }
-  }, [onSelect]);
+  }, [onSelect, addRecent]);
 
+  const handleToggleFavorite = useCallback((gif: TenorGif, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const gifUrl = gif.media_formats.gif?.url || gif.media_formats.tinygif?.url || '';
+    const previewUrl = gif.media_formats.tinygif?.url || gifUrl;
+    
+    toggleFavorite({
+      id: gif.id,
+      url: gifUrl,
+      previewUrl: previewUrl,
+      title: gif.title,
+    });
+  }, [toggleFavorite]);
+
+  const handleTabChange = useCallback((tab: TabType) => {
+    setActiveTab(tab);
+    if (tab !== 'search') {
+      setSearchQuery('');
+    }
+  }, []);
+
+  // Category buttons for quick search
   const categories = [
-    { key: 'trending', label: 'Trending', query: '' },
     { key: 'reactions', label: 'Reactions', query: 'reactions' },
     { key: 'happy', label: '😊', query: 'happy' },
     { key: 'love', label: '❤️', query: 'love' },
     { key: 'funny', label: '😂', query: 'funny' },
     { key: 'sad', label: '😢', query: 'sad' },
     { key: 'yes', label: '👍', query: 'yes agree' },
-    { key: 'no', label: '👎', query: 'no nope' },
   ];
 
   const handleCategoryClick = useCallback((query: string) => {
     setSearchQuery(query);
+    setActiveTab('search');
   }, []);
+
+  // Render grid items
+  const renderGifGrid = () => {
+    if (activeTab === 'recent') {
+      if (recent.length === 0) {
+        return (
+          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+            <Clock className="h-8 w-8 mb-2 opacity-50" />
+            <p className="text-sm">No recent GIFs</p>
+            <p className="text-xs mt-1">GIFs you send will appear here</p>
+          </div>
+        );
+      }
+      return (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2">
+          {recent.map((gif) => (
+            <GifGridItem
+              key={gif.id}
+              id={gif.id}
+              imageUrl={gif.previewUrl}
+              title={gif.title}
+              isFavorited={isFavorite(gif.id)}
+              onSelect={() => handleSelect(gif)}
+              onToggleFavorite={(e) => {
+                e.stopPropagation();
+                toggleFavorite(gif);
+              }}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    if (activeTab === 'favorites') {
+      if (favorites.length === 0) {
+        return (
+          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+            <Star className="h-8 w-8 mb-2 opacity-50" />
+            <p className="text-sm">No favorite GIFs</p>
+            <p className="text-xs mt-1">Tap the star to save GIFs</p>
+          </div>
+        );
+      }
+      return (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2">
+          {favorites.map((gif) => (
+            <GifGridItem
+              key={gif.id}
+              id={gif.id}
+              imageUrl={gif.previewUrl}
+              title={gif.title}
+              isFavorited={true}
+              onSelect={() => handleSelect(gif)}
+              onToggleFavorite={(e) => {
+                e.stopPropagation();
+                toggleFavorite(gif);
+              }}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    // Trending or Search results
+    return (
+      <>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2">
+          {gifs.map((gif) => (
+            <GifGridItem
+              key={gif.id}
+              id={gif.id}
+              imageUrl={gif.media_formats.tinygif?.url || gif.media_formats.gif?.url || ''}
+              title={gif.title}
+              isFavorited={isFavorite(gif.id)}
+              onSelect={() => handleSelect(gif)}
+              onToggleFavorite={(e) => handleToggleFavorite(gif, e)}
+            />
+          ))}
+        </div>
+        
+        {isLoadingMore && (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        
+        {gifs.length === 0 && !isLoading && (
+          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+            <span className="text-2xl mb-2">🔍</span>
+            <p className="text-sm">No GIFs found</p>
+          </div>
+        )}
+      </>
+    );
+  };
 
   return (
     <motion.div
@@ -164,21 +315,59 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
         </div>
       </div>
 
-      {/* Categories */}
-      <div className="px-2 pb-2 flex gap-1.5 overflow-x-auto no-scrollbar">
-        {categories.map(({ key, label, query }) => (
-          <Button
-            key={key}
-            variant={searchQuery === query ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => handleCategoryClick(query)}
-            className="h-8 px-3 text-xs flex-shrink-0 whitespace-nowrap"
-          >
-            {key === 'trending' && <TrendingUp className="h-3.5 w-3.5 mr-1.5" />}
-            {label}
-          </Button>
-        ))}
+      {/* Tabs: Trending, Recent, Favorites */}
+      <div className="px-2 pb-2 flex gap-1.5 border-b border-border">
+        <Button
+          variant={activeTab === 'trending' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => handleTabChange('trending')}
+          className="h-8 px-3 text-xs flex-shrink-0"
+        >
+          <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
+          Trending
+        </Button>
+        <Button
+          variant={activeTab === 'recent' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => handleTabChange('recent')}
+          className="h-8 px-3 text-xs flex-shrink-0"
+        >
+          <Clock className="h-3.5 w-3.5 mr-1.5" />
+          Recent
+          {recent.length > 0 && (
+            <span className="ml-1 text-[10px] opacity-70">({recent.length})</span>
+          )}
+        </Button>
+        <Button
+          variant={activeTab === 'favorites' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => handleTabChange('favorites')}
+          className="h-8 px-3 text-xs flex-shrink-0"
+        >
+          <Star className="h-3.5 w-3.5 mr-1.5" />
+          Favorites
+          {favorites.length > 0 && (
+            <span className="ml-1 text-[10px] opacity-70">({favorites.length})</span>
+          )}
+        </Button>
       </div>
+
+      {/* Categories (only show for trending/search) */}
+      {(activeTab === 'trending' || activeTab === 'search') && (
+        <div className="px-2 py-1.5 flex gap-1.5 overflow-x-auto no-scrollbar">
+          {categories.map(({ key, label, query }) => (
+            <Button
+              key={key}
+              variant={searchQuery === query ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => handleCategoryClick(query)}
+              className="h-7 px-2.5 text-xs flex-shrink-0 whitespace-nowrap"
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {/* GIF Grid */}
       <ScrollArea className="h-64 sm:h-80" onScrollCapture={handleScroll}>
@@ -188,42 +377,76 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2">
-                {gifs.map((gif) => (
-                  <motion.button
-                    key={gif.id}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => handleSelect(gif)}
-                    className="aspect-square rounded-lg overflow-hidden bg-muted hover:ring-2 hover:ring-primary transition-all"
-                  >
-                    <img
-                      src={gif.media_formats.tinygif?.url || gif.media_formats.gif?.url}
-                      alt={gif.title || 'GIF'}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  </motion.button>
-                ))}
-              </div>
-              
-              {isLoadingMore && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              )}
-              
-              {gifs.length === 0 && !isLoading && (
-                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
-                  <span className="text-2xl mb-2">🔍</span>
-                  <p className="text-sm">No GIFs found</p>
-                </div>
-              )}
-            </>
+            renderGifGrid()
           )}
         </div>
       </ScrollArea>
+    </motion.div>
+  );
+});
+
+// Separate component for grid items with favorite button
+interface GifGridItemProps {
+  id: string;
+  imageUrl: string;
+  title?: string;
+  isFavorited: boolean;
+  onSelect: () => void;
+  onToggleFavorite: (e: React.MouseEvent) => void;
+}
+
+const GifGridItem = memo(function GifGridItem({
+  id,
+  imageUrl,
+  title,
+  isFavorited,
+  onSelect,
+  onToggleFavorite,
+}: GifGridItemProps) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <motion.div
+      className="relative aspect-square rounded-lg overflow-hidden bg-muted group"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={onSelect}
+        className="w-full h-full hover:ring-2 hover:ring-primary transition-all"
+      >
+        <img
+          src={imageUrl}
+          alt={title || 'GIF'}
+          className="w-full h-full object-cover"
+          loading="lazy"
+        />
+      </motion.button>
+      
+      {/* Favorite button overlay */}
+      <AnimatePresence>
+        {(isHovered || isFavorited) && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.15 }}
+            onClick={onToggleFavorite}
+            className={cn(
+              "absolute top-1 right-1 p-1.5 rounded-full backdrop-blur-sm transition-colors",
+              isFavorited 
+                ? "bg-accent text-accent-foreground" 
+                : "bg-background/50 text-foreground hover:bg-background/70"
+            )}
+          >
+            <Star 
+              className={cn("h-3.5 w-3.5", isFavorited && "fill-current")} 
+            />
+          </motion.button>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 });
