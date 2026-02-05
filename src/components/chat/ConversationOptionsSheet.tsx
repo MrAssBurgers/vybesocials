@@ -17,6 +17,7 @@ import { useTrashConversation } from '@/hooks/useTrashedConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+ import { useAuth } from '@/lib/auth';
 
 interface ConversationOptionsSheetProps {
   open: boolean;
@@ -44,6 +45,7 @@ export function ConversationOptionsSheet({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const trashConversation = useTrashConversation();
+   const { profile } = useAuth();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isTogglingMute, setIsTogglingMute] = useState(false);
   const [isTogglingPin, setIsTogglingPin] = useState(false);
@@ -60,18 +62,21 @@ export function ConversationOptionsSheet({
   const handleToggleMute = async () => {
     setIsTogglingMute(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+       if (!profile?.id) {
+         toast.error('Please log in to update settings');
+         return;
+       }
 
       const { error } = await supabase
         .from('conversation_members')
         .update({ is_muted: !isMuted })
         .eq('conversation_id', conversationId)
-        .eq('user_id', user.id);
+         .eq('user_id', profile.id);
 
       if (error) throw error;
 
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+       queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
+       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       toast.success(isMuted ? 'Notifications enabled' : 'Notifications muted');
       onOpenChange(false);
     } catch (error) {
@@ -85,17 +90,20 @@ export function ConversationOptionsSheet({
   const handleTogglePin = async () => {
     setIsTogglingPin(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+       if (!profile?.id) {
+         toast.error('Please log in to update settings');
+         return;
+       }
 
       const { error } = await supabase
         .from('conversation_members')
         .update({ is_pinned: !isPinned })
         .eq('conversation_id', conversationId)
-        .eq('user_id', user.id);
+         .eq('user_id', profile.id);
 
       if (error) throw error;
 
+       queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       toast.success(isPinned ? 'Unpinned' : 'Pinned to top');
       onOpenChange(false);
