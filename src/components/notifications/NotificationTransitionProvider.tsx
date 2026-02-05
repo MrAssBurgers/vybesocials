@@ -1,10 +1,10 @@
-import { memo, useState, createContext, useContext, useCallback, useRef } from 'react';
+import { memo, useState, createContext, useContext, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Heart, MessageCircle, UserPlus, FileText } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
-import { cn } from '@/lib/utils';
+
 
 type TransitionType = 'chat' | 'post' | 'profile';
 
@@ -61,7 +61,17 @@ export const NotificationTransitionProvider = memo(function NotificationTransiti
     sourceRect: null,
     target: null,
   });
-  const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const animationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (animationTimeoutRef.current) {
+        clearTimeout(animationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const triggerTransition = useCallback((
     e: React.MouseEvent | React.TouchEvent,
@@ -110,8 +120,9 @@ export const NotificationTransitionProvider = memo(function NotificationTransiti
           break;
       }
 
-      // Reset after navigation
+      // Reset after navigation (if still mounted)
       requestAnimationFrame(() => {
+        if (!isMountedRef.current) return;
         setTransition({
           isAnimating: false,
           sourceRect: null,
@@ -134,18 +145,6 @@ export const NotificationTransitionProvider = memo(function NotificationTransiti
     ? transition.sourceRect.top + transition.sourceRect.height / 2 
     : 0;
 
-  // Get icon for transition type
-  const getTransitionIcon = () => {
-    if (!transition.target) return null;
-    switch (transition.target.type) {
-      case 'post':
-        return <Heart className="h-6 w-6 text-primary fill-primary" />;
-      case 'profile':
-        return <UserPlus className="h-6 w-6 text-primary" />;
-      default:
-        return <MessageCircle className="h-6 w-6 text-primary" />;
-    }
-  };
 
   return (
     <NotificationTransitionContext.Provider value={contextValue}>
