@@ -159,14 +159,31 @@ export function VybeRecordButton({
         />
       </svg>
       
-      {/* Main button */}
+      {/* Main button - uses Pointer Events for reliable mobile behavior */}
       <button
         ref={buttonRef}
-        onTouchStart={!disabled ? onCaptureStart : undefined}
-        onTouchEnd={!disabled ? onCaptureEnd : undefined}
-        onMouseDown={!disabled ? onCaptureStart : undefined}
-        onMouseUp={!disabled ? onCaptureEnd : undefined}
-        onMouseLeave={isRecording ? onCaptureEnd : undefined}
+        onPointerDown={(e) => {
+          if (disabled) return;
+          e.preventDefault();
+          buttonRef.current?.setPointerCapture(e.pointerId);
+          onCaptureStart();
+        }}
+        onPointerUp={(e) => {
+          if (disabled) return;
+          buttonRef.current?.releasePointerCapture(e.pointerId);
+          onCaptureEnd();
+        }}
+        onPointerCancel={(e) => {
+          if (disabled) return;
+          buttonRef.current?.releasePointerCapture(e.pointerId);
+          onCaptureEnd();
+        }}
+        onPointerLeave={(e) => {
+          // Only trigger if recording and pointer not captured
+          if (isRecording && !buttonRef.current?.hasPointerCapture(e.pointerId)) {
+            onCaptureEnd();
+          }
+        }}
         disabled={disabled}
         className={cn(
           "relative w-20 h-20 rounded-full flex items-center justify-center touch-none",

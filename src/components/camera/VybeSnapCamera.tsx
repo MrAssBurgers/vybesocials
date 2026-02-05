@@ -48,6 +48,11 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pinchStartRef = useRef<number | null>(null);
   
+  // NEW: Refs for reliable finalization (fixes race condition)
+  const segmentsRef = useRef<RecordingSegment[]>([]);
+  const shouldFinalizeOnStopRef = useRef(false);
+  const isRecordingRef = useRef(false);
+  
   // Start camera
   const startCamera = useCallback(async () => {
     try {
@@ -191,8 +196,33 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       const duration = Date.now() - recordingStartTimeRef.current;
       
       if (blob.size > 0 && duration > 100) {
-        setSegments(prev => [...prev, { blob, duration }]);
+        // Push to ref synchronously (source of truth)
+        segmentsRef.current = [...segmentsRef.current, { blob, duration }];
         totalRecordedTimeRef.current += duration;
+        // Update React state for UI
+        setSegments([...segmentsRef.current]);
+      }
+      
+      // If we should finalize (user released or max duration), do it now
+      if (shouldFinalizeOnStopRef.current) {
+        shouldFinalizeOnStopRef.current = false;
+        
+        // Merge all segments
+        const allSegments = segmentsRef.current;
+        if (allSegments.length > 0) {
+          const finalMimeType = allSegments[0].blob.type;
+          const mergedBlob = new Blob(allSegments.map(s => s.blob), { type: finalMimeType });
+          const videoUrl = URL.createObjectURL(mergedBlob);
+          
+          setCapturedMedia({ url: videoUrl, type: 'video' });
+          setPhase('edit');
+          
+          // Stop camera after finalizing
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+          }
+        }
       }
     };
     
@@ -207,6 +237,7 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     
     haptics.impact();
     setIsRecording(true);
+    isRecordingRef.current = true;
     
     // Calculate remaining time
     const remainingTime = MAX_RECORDING_DURATION * 1000 - totalRecordedTimeRef.current;
@@ -225,8 +256,10 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       progressRef.current = progress;
       
       if (progress >= 100) {
+        // Max duration reached - request finalization
+        shouldFinalizeOnStopRef.current = true;
         stopRecording();
-      } else {
+      } else if (isRecordingRef.current) {
         progressFrameRef.current = requestAnimationFrame(updateProgress);
       }
     };
@@ -240,6 +273,8 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
 
   // Stop recording
   const stopRecording = useCallback(() => {
+    isRecordingRef.current = false;
+    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -259,19 +294,8 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     haptics.success();
   }, []);
 
-  // Finalize and merge segments
-  const finalizeRecording = useCallback(async () => {
-    if (segments.length === 0) return;
-    
-    // Merge all segments into one blob
-    const mimeType = segments[0].blob.type;
-    const mergedBlob = new Blob(segments.map(s => s.blob), { type: mimeType });
-    const videoUrl = URL.createObjectURL(mergedBlob);
-    
-    setCapturedMedia({ url: videoUrl, type: 'video' });
-    setPhase('edit');
-    stopCamera();
-  }, [segments, stopCamera]);
+  // Note: finalizeRecording is now handled inside mediaRecorder.onstop
+  // when shouldFinalizeOnStopRef.current === true
 
   // Take photo
   const takePhoto = useCallback(() => {
@@ -345,18 +369,15 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       holdTimerRef.current = null;
     }
     
-    if (isRecording) {
+    // Use ref for reliable check (avoids stale closure)
+    if (isRecordingRef.current) {
+      // Signal that we want to finalize when onstop fires
+      shouldFinalizeOnStopRef.current = true;
       stopRecording();
-      // After stopping, check if we have segments to finalize
-      setTimeout(() => {
-        if (segments.length > 0 || recordedChunksRef.current.length > 0) {
-          finalizeRecording();
-        }
-      }, 200);
     } else {
       takePhoto();
     }
-  }, [isRecording, stopRecording, segments, finalizeRecording, takePhoto]);
+  }, [stopRecording, takePhoto]);
 
   // Handle send from editor
   const handleEditorSend = useCallback((mediaUrl: string) => {
@@ -376,6 +397,11 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
 
   // Handle close
   const handleClose = useCallback(() => {
+    // Clear finalization flags
+    shouldFinalizeOnStopRef.current = false;
+    segmentsRef.current = [];
+    isRecordingRef.current = false;
+    
     stopCamera();
     stopRecording();
     setCapturedMedia(null);
@@ -385,6 +411,19 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     setPhase('camera');
     onClose();
   }, [stopCamera, stopRecording, onClose]);
+  
+  // Visibility change handler - stop recording if page goes background
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && isRecordingRef.current) {
+        shouldFinalizeOnStopRef.current = true;
+        stopRecording();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [stopRecording]);
 
   if (!isOpen) return null;
 
