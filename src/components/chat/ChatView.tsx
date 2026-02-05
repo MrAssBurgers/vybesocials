@@ -555,7 +555,7 @@ export function ChatView() {
       // Compress image for faster upload
       const compressedBlob = await compressImage(file);
       const fileExt = file.type === 'image/png' ? 'png' : 'jpg';
-      const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
+      const fileName = `${profile.id}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
@@ -583,7 +583,7 @@ export function ChatView() {
       setIsUploadingMedia(false);
       uploadingRef.current = false;
     }
-  }, [conversationId, profile?.id, profile?.user_id, compressImage, sendMediaMessage]);
+  }, [conversationId, profile?.id, compressImage, sendMediaMessage]);
 
   const handleVoiceRecordingComplete = useCallback(async (blob: Blob) => {
     if (!conversationId || !profile?.id) return;
@@ -591,7 +591,7 @@ export function ChatView() {
     setIsUploadingMedia(true);
 
     try {
-      const fileName = `${profile.user_id}/${Date.now()}.webm`;
+      const fileName = `${profile.id}/${Date.now()}.webm`;
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
@@ -735,8 +735,8 @@ export function ChatView() {
           return;
         }
 
-        // Upload video
-        const fileName = `${profile.user_id}/${Date.now()}_vybe.webm`;
+        // Upload video - use profile.id which matches auth.uid() for RLS
+        const fileName = `${profile.id}/${Date.now()}_vybe.webm`;
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
           .upload(fileName, uploadFile, {
@@ -803,7 +803,7 @@ export function ChatView() {
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: 'image/jpeg' });
         
-        const fileName = `${profile.user_id}/${Date.now()}_vybe.jpg`;
+        const fileName = `${profile.id}/${Date.now()}_vybe.jpg`;
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
           .upload(fileName, blob, {
