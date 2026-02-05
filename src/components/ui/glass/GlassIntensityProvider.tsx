@@ -12,6 +12,7 @@ interface GlassIntensityContextType {
   getSaturation: () => string;
   getBrightness: () => string;
   isScrolling: boolean;
+  isIOS: boolean;
 }
 
 const GlassIntensityContext = createContext<GlassIntensityContextType | undefined>(undefined);
@@ -22,16 +23,35 @@ const INTENSITY_CONFIG = {
   max: { blur: '60px', saturation: '250%', brightness: '1.08' },
 };
 
+// iOS-reduced intensity config
+const IOS_INTENSITY_CONFIG = {
+  calm: { blur: '8px', saturation: '120%', brightness: '1.02' },
+  normal: { blur: '10px', saturation: '130%', brightness: '1.03' },
+  max: { blur: '12px', saturation: '140%', brightness: '1.04' },
+};
+
 // Detect if device is mobile for default high contrast
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false;
   return window.innerWidth < 768 || 'ontouchstart' in window;
 };
 
+// Detect iOS Safari
+const isIOSDevice = () => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent.toLowerCase();
+  const platform = navigator.platform?.toLowerCase() || '';
+  return /iphone|ipad|ipod/.test(ua) || (/mac/.test(platform) && navigator.maxTouchPoints > 1);
+};
+
 export function GlassIntensityProvider({ children }: { children: ReactNode }) {
+  const [isIOS] = useState(() => isIOSDevice());
+  
   const [intensity, setIntensityState] = useState<GlassIntensity>(() => {
     if (typeof window === 'undefined') return 'normal';
-    return (localStorage.getItem('vybe-glass-intensity') as GlassIntensity) || 'normal';
+    const stored = localStorage.getItem('vybe-glass-intensity') as GlassIntensity;
+    // Default to 'calm' on iOS for better performance
+    return stored || (isIOSDevice() ? 'calm' : 'normal');
   });
   
   const [contrast, setContrastState] = useState<ContrastMode>(() => {
@@ -74,7 +94,7 @@ export function GlassIntensityProvider({ children }: { children: ReactNode }) {
         isCurrentlyScrolling = false;
         setIsScrolling(false);
         document.documentElement.classList.remove('is-scrolling');
-      }, 150);
+      }, isIOS ? 100 : 150); // Faster reset on iOS
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -83,7 +103,7 @@ export function GlassIntensityProvider({ children }: { children: ReactNode }) {
       clearTimeout(scrollTimeout);
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, []);
+  }, [isIOS]);
 
   const setIntensity = useCallback((newIntensity: GlassIntensity) => {
     setIntensityState(newIntensity);
@@ -93,7 +113,8 @@ export function GlassIntensityProvider({ children }: { children: ReactNode }) {
     setContrastState(newContrast);
   }, []);
 
-  const config = INTENSITY_CONFIG[intensity];
+  // Use reduced config on iOS
+  const config = isIOS ? IOS_INTENSITY_CONFIG[intensity] : INTENSITY_CONFIG[intensity];
   
   const getBlur = useCallback(() => config.blur, [config.blur]);
   const getSaturation = useCallback(() => config.saturation, [config.saturation]);
@@ -108,7 +129,8 @@ export function GlassIntensityProvider({ children }: { children: ReactNode }) {
       getBlur, 
       getSaturation, 
       getBrightness,
-      isScrolling
+      isScrolling,
+      isIOS,
     }}>
       {children}
     </GlassIntensityContext.Provider>
@@ -128,6 +150,7 @@ export function useGlassIntensity() {
       getSaturation: () => '200%',
       getBrightness: () => '1.05',
       isScrolling: false,
+      isIOS: false,
     };
   }
   return context;

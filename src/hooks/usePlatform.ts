@@ -22,30 +22,55 @@ interface PlatformInfo {
   prefersHighContrast: boolean;
   connectionType: 'slow' | 'fast' | 'offline' | 'unknown';
   isLowPowerMode: boolean;
+  isIOSSafari: boolean;
 }
 
+// Cache platform detection results (they don't change)
+let cachedPlatform: PlatformType | null = null;
+let cachedIsIOSSafari: boolean | null = null;
+
 function detectPlatform(): PlatformType {
+  if (cachedPlatform !== null) return cachedPlatform;
   if (typeof navigator === 'undefined') return 'unknown';
   
   const ua = navigator.userAgent.toLowerCase();
   const platform = navigator.platform?.toLowerCase() || '';
   
   if (/iphone|ipad|ipod/.test(ua) || /mac/.test(platform) && navigator.maxTouchPoints > 1) {
-    return 'ios';
+    cachedPlatform = 'ios';
+    return cachedPlatform;
   }
   if (/android/.test(ua)) {
-    return 'android';
+    cachedPlatform = 'android';
+    return cachedPlatform;
   }
   if (/win/.test(platform)) {
-    return 'windows';
+    cachedPlatform = 'windows';
+    return cachedPlatform;
   }
   if (/mac/.test(platform)) {
-    return 'macos';
+    cachedPlatform = 'macos';
+    return cachedPlatform;
   }
   if (/linux/.test(platform)) {
-    return 'linux';
+    cachedPlatform = 'linux';
+    return cachedPlatform;
   }
-  return 'unknown';
+  cachedPlatform = 'unknown';
+  return cachedPlatform;
+}
+
+function detectIOSSafari(): boolean {
+  if (cachedIsIOSSafari !== null) return cachedIsIOSSafari;
+  if (typeof navigator === 'undefined') return false;
+  
+  const ua = navigator.userAgent.toLowerCase();
+  const platform = navigator.platform?.toLowerCase() || '';
+  const isIOS = /iphone|ipad|ipod/.test(ua) || (/mac/.test(platform) && navigator.maxTouchPoints > 1);
+  const isSafari = /safari/.test(ua) && !/chrome/.test(ua) && !/crios/.test(ua);
+  
+  cachedIsIOSSafari = isIOS && isSafari;
+  return cachedIsIOSSafari;
 }
 
 function detectDevice(): DeviceType {
@@ -68,6 +93,9 @@ function detectDevice(): DeviceType {
 
 function detectPerformanceTier(): PerformanceTier {
   if (typeof navigator === 'undefined') return 'medium';
+  
+  // iOS Safari gets 'low' tier due to poor backdrop-filter performance
+  if (detectIOSSafari()) return 'low';
   
   // Check hardware concurrency (CPU cores)
   const cores = navigator.hardwareConcurrency || 4;
@@ -160,6 +188,7 @@ export function usePlatform(): PlatformInfo {
     prefersHighContrast: false,
     connectionType: 'unknown',
     isLowPowerMode: false,
+    isIOSSafari: detectIOSSafari(),
   }));
 
   useEffect(() => {
@@ -184,6 +213,7 @@ export function usePlatform(): PlatformInfo {
       prefersHighContrast,
       connectionType: getConnectionType(),
       isLowPowerMode: false,
+      isIOSSafari: detectIOSSafari(),
     });
 
     // Listen for changes

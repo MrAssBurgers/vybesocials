@@ -3,13 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, MessageCircle, Globe, ChevronDown, Zap } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 
-// Generating screen with clean spinning V animation
+// Generating screen with spinning V animation + orbiting sparkles
 export const GeneratingScreen = memo(function GeneratingScreen() {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4">
-      {/* Centered spinning V with glow ring */}
+      {/* Centered spinning V with glow ring + orbiting sparkles */}
       <motion.div
         className="relative mb-8"
+        data-allow-animation="true"
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
@@ -30,6 +31,27 @@ export const GeneratingScreen = memo(function GeneratingScreen() {
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         />
         
+        {/* Orbiting sparkles - CSS-only for iOS performance */}
+        <div 
+          className="absolute"
+          style={{
+            width: 100,
+            height: 100,
+            left: '50%',
+            top: '50%',
+            marginLeft: -50,
+            marginTop: -50,
+          }}
+          data-allow-animation="true"
+        >
+          <div className="orbit-sparkle" style={{ animationDelay: '0s' }} />
+          <div className="orbit-sparkle" style={{ animationDelay: '-0.5s' }} />
+          <div className="orbit-sparkle" style={{ animationDelay: '-1s' }} />
+          <div className="orbit-sparkle" style={{ animationDelay: '-1.5s' }} />
+          <div className="orbit-sparkle" style={{ animationDelay: '-2s' }} />
+          <div className="orbit-sparkle" style={{ animationDelay: '-2.5s' }} />
+        </div>
+        
         {/* Spinning V container */}
         <motion.div
           className="relative flex items-center justify-center"
@@ -37,7 +59,7 @@ export const GeneratingScreen = memo(function GeneratingScreen() {
           animate={{ rotate: 360 }}
           transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
         >
-          <VybeMiniIcon size={64} showSparkles={false} animated={false} />
+          <VybeMiniIcon size={64} showSparkles animated />
         </motion.div>
       </motion.div>
 
