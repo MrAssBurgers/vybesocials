@@ -215,17 +215,22 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
       
       {/* Bottom navigation */}
       <div className="relative z-10 p-6 pb-8 safe-area-bottom space-y-5">
-        {/* Progress dots - pill style */}
+        {/* Progress indicators - pill style with iOS fix */}
         <div className="flex justify-center gap-2">
           {slides.map((_, index) => (
             <button
               key={index}
               onClick={() => setCurrentSlide(index)}
-              className={`h-2 rounded-full transition-all duration-300 ${
+              className={`rounded-full transition-all duration-300 ${
                 index === currentSlide 
-                  ? 'w-8 bg-gradient-to-r from-primary to-accent' 
-                  : 'w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50'
+                  ? 'bg-gradient-to-r from-primary to-accent' 
+                  : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
               }`}
+              style={{
+                height: '8px',
+                width: index === currentSlide ? '32px' : '8px',
+                minWidth: index === currentSlide ? '32px' : '8px',
+              }}
               aria-label={`Go to slide ${index + 1}`}
             />
           ))}
