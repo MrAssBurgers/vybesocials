@@ -2,7 +2,7 @@
  * Shared authentication utilities for edge functions
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.90.1";
 
 export interface AuthResult {
   authenticated: boolean;
