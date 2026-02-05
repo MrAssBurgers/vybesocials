@@ -130,11 +130,15 @@ export function useDMConversations(searchQuery: string = '') {
         if (aIsPinned && !bIsPinned) return -1;
         if (!aIsPinned && bIsPinned) return 1;
 
-        // Then unread conversations
-        if (a._hasUnread && !b._hasUnread) return -1;
-        if (!a._hasUnread && b._hasUnread) return 1;
+       // If both are pinned, keep stable order (by conversation creation date)
+       if (aIsPinned && bIsPinned) {
+         return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+       }
 
-        // Then by last activity
+       // For unpinned: unread first, then by last activity
+       if (a._hasUnread && !b._hasUnread) return -1;
+       if (!a._hasUnread && b._hasUnread) return 1;
+       
         const timeA = new Date(a._sortTime).getTime();
         const timeB = new Date(b._sortTime).getTime();
         return timeB - timeA;
