@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface VybeMiniIconProps {
@@ -21,14 +21,20 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
   animated = true,
   showSparkles = true,
 }: VybeMiniIconProps) {
-  const uniqueId = `vybe-mini-${++iconIdCounter}`;
+  const uniqueId = useMemo(() => `vybe-mini-${++iconIdCounter}`, []);
   
-  // Sparkle positions around the V - reduced from 6 to 4 for performance
+  // Sparkle positions strategically placed around the V shape
   const sparkles = [
-    { x: '85%', y: '15%', size: 3, delay: 0 },
-    { x: '10%', y: '20%', size: 2, delay: 0.45 },
-    { x: '90%', y: '60%', size: 2.5, delay: 0.9 },
-    { x: '5%', y: '65%', size: 2, delay: 1.35 },
+    // Top corners - bright accents
+    { x: '92%', y: '8%', baseSize: 0.22, delay: 0, isAccent: true },
+    { x: '8%', y: '12%', baseSize: 0.18, delay: 0.3, isAccent: false },
+    // Mid sides - smaller sparkles
+    { x: '95%', y: '45%', baseSize: 0.15, delay: 0.6, isAccent: false },
+    { x: '5%', y: '50%', baseSize: 0.15, delay: 0.9, isAccent: true },
+    // Near bottom point - larger glow
+    { x: '50%', y: '95%', baseSize: 0.2, delay: 1.2, isAccent: true },
+    // Extra sparkle at tip
+    { x: '65%', y: '75%', baseSize: 0.12, delay: 1.5, isAccent: false },
   ];
   
   return (
@@ -39,31 +45,54 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
       {/* Floating sparkle dots around the V - CSS animations for iOS perf */}
       {showSparkles && (
         <>
-          {sparkles.map((sparkle, i) => {
-            const isAccent = i % 2 === 0;
-            return (
+          {sparkles.map((sparkle, i) => (
+            <div
+              key={i}
+              className="absolute"
+              style={{ 
+                left: sparkle.x, 
+                top: sparkle.y,
+                transform: 'translate(-50%, -50%) translateZ(0)',
+              }}
+            >
+              {/* Outer glow layer */}
               <div
-                key={i}
                 className={cn(
-                  "absolute rounded-full",
+                  "absolute rounded-full blur-[1px]",
+                  animated && "animate-pulse",
+                  sparkle.isAccent ? "bg-accent/40" : "bg-primary/40"
+                )}
+                style={{ 
+                  width: size * sparkle.baseSize * 1.8,
+                  height: size * sparkle.baseSize * 1.8,
+                  left: '50%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  animationDelay: `${sparkle.delay}s`,
+                  animationDuration: '2s',
+                }}
+              />
+              {/* Core sparkle - bright center */}
+              <div
+                className={cn(
+                  "relative rounded-full",
                   animated && "animate-pulse"
                 )}
                 style={{ 
-                  left: sparkle.x, 
-                  top: sparkle.y,
-                  width: sparkle.size,
-                  height: sparkle.size,
-                  background: isAccent 
+                  width: size * sparkle.baseSize,
+                  height: size * sparkle.baseSize,
+                  background: sparkle.isAccent 
                     ? 'hsl(var(--accent))' 
                     : 'hsl(var(--primary))',
-                  opacity: animated ? undefined : 0.7,
-                  animationDelay: animated ? `${sparkle.delay}s` : undefined,
-                  animationDuration: animated ? '1.8s' : undefined,
-                  transform: 'translateZ(0)',
+                  boxShadow: sparkle.isAccent
+                    ? '0 0 4px 1px hsl(var(--accent) / 0.6), 0 0 8px 2px hsl(var(--accent) / 0.3)'
+                    : '0 0 4px 1px hsl(var(--primary) / 0.6), 0 0 8px 2px hsl(var(--primary) / 0.3)',
+                  animationDelay: `${sparkle.delay}s`,
+                  animationDuration: '2s',
                 }}
               />
-            );
-          })}
+            </div>
+          ))}
         </>
       )}
       
@@ -76,15 +105,24 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
         <defs>
           {/* Primary gradient for left leg */}
           <linearGradient id={`${uniqueId}-primary`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="hsl(var(--primary))" />
-            <stop offset="100%" stopColor="hsl(var(--primary) / 0.8)" />
+            <stop offset="0%" stopColor="hsl(var(--primary) / 1)" />
+            <stop offset="100%" stopColor="hsl(var(--primary) / 0.85)" />
           </linearGradient>
           
           {/* Accent gradient for right leg */}
           <linearGradient id={`${uniqueId}-accent`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="hsl(var(--accent))" />
-            <stop offset="100%" stopColor="hsl(var(--accent) / 0.8)" />
+            <stop offset="0%" stopColor="hsl(var(--accent) / 1)" />
+            <stop offset="100%" stopColor="hsl(var(--accent) / 0.85)" />
           </linearGradient>
+          
+          {/* Glow filter for the V strokes */}
+          <filter id={`${uniqueId}-glow`} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
         
         {/* Left leg of V - outline stroke */}
@@ -94,6 +132,7 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
           strokeWidth="14"
           strokeLinecap="round"
           fill="none"
+          filter={`url(#${uniqueId}-glow)`}
         />
         
         {/* Right leg of V - outline stroke */}
@@ -103,6 +142,7 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
           strokeWidth="14"
           strokeLinecap="round"
           fill="none"
+          filter={`url(#${uniqueId}-glow)`}
         />
       </svg>
     </div>
