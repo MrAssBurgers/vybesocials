@@ -265,7 +265,10 @@ const MessageBubble = memo(function MessageBubble({
           )}
 
           <div className="flex items-start gap-2">
-            <p className="text-sm text-foreground break-words flex-1 leading-relaxed">
+            <p 
+              className="text-sm text-foreground break-words flex-1 leading-relaxed min-w-0"
+              style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+            >
               {message.content}
               {message.is_edited && (
                 <span className="text-[10px] text-muted-foreground/50 ml-1">(edited)</span>
