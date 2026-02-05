@@ -1,269 +1,93 @@
 
-# Buttery Smooth Performance Across All Platforms + AI Brief Sparkles Fix
+## What’s going wrong (root cause)
+Right now the VYBE Snap camera that’s actually used in DMs is `src/components/camera/VybeSnapCamera.tsx` (it’s mounted from `src/components/chat/ChatView.tsx`).
 
-## Overview
-This plan addresses:
-1. **Global performance optimization** - Make the app 60fps smooth on all devices (web, PWA, native iOS/Android)
-2. **AI Brief spinning V animation fix** - Perfect the sparkle animation for the daily brief loading state
+In `VybeSnapCamera`, releasing the record button calls `stopRecording()`, and then it tries to “finalize” (merge segments and move to the edit screen) using a `setTimeout(..., 200)`.
 
----
+The problem: the last segment is only appended inside `MediaRecorder.onstop`, which is asynchronous. So when the timeout runs, `segments` is often still empty (especially for the most common case: a single segment). `finalizeRecording()` then returns early (`if (segments.length === 0) return;`), and the UI stays on the camera screen — which feels like “nothing happens”.
 
-## Root Cause Analysis
+So even if recording actually stops, the transition to the editor can fail due to timing/state lag.
 
-### Current Performance Issues Found
+## Goal
+When you release after holding to record:
+1) recording stops reliably
+2) the video is finalized
+3) you are taken immediately to the edit screen (`VybeSnapEditor`) where you can then send
 
-| Issue | Location | Impact |
-|-------|----------|--------|
-| **`setInterval(50ms)` for recording progress** | `VybeSnapCamera.tsx` line 216, `SnapCamera.tsx` line 284 | Causes React re-renders every 50ms, triggers full VDOM diffing |
-| **Framer Motion on spinning V** | `AIBriefLoadingState.tsx` line 56-63 | Motion overhead when CSS `@keyframes` would be smoother |
-| **Nested animation conflicts** | VybeMiniIcon sparkles + parent rotation | Sparkles inside rotation cause cumulative transforms |
-| **iOS animation override too aggressive** | `index.css` line 59-64 | Forces ALL animations to 0.15s, breaks intentional animations |
-| **Heavy `backdrop-blur-xl`** | 24 files, 150+ instances | iOS Safari struggles with blur >12px |
+## Implementation plan (code changes)
+### 1) Fix finalize timing: finalize on `MediaRecorder.onstop` (not via a timeout)
+**File:** `src/components/camera/VybeSnapCamera.tsx`
 
-### AI Brief Animation Specific Issues
-1. **Spinning container has Framer Motion `animate={{ rotate: 360 }}`** - Overhead when CSS `@keyframes` is smoother
-2. **VybeMiniIcon sparkles use `animate-pulse`** - Conflicting with parent rotation
-3. **Orbiting sparkles positioned relative to wrong center** - They orbit relative to their container, not the V
-4. **Glow ring pulse uses Framer Motion** - Should be pure CSS
+- Introduce refs to avoid relying on React state timing:
+  - `segmentsRef = useRef<RecordingSegment[]>([])` as the “source of truth” for segments
+  - `shouldFinalizeOnStopRef = useRef(false)` to indicate “this stop is the final stop (user released / max duration reached)”
+  - `isRecordingRef = useRef(false)` to avoid stale `isRecording` reads during fast interactions
 
----
+- Update `startRecordingSegment()`’s `mediaRecorder.onstop` to:
+  1) build the segment blob
+  2) push it into `segmentsRef.current` synchronously
+  3) call `setSegments([...segmentsRef.current])` for UI
+  4) if `shouldFinalizeOnStopRef.current === true`, immediately merge **all** blobs in `segmentsRef.current` into one final blob, create the URL, then:
+     - `setCapturedMedia({ url, type: 'video' })`
+     - `setPhase('edit')`
+     - `stopCamera()`
+     - reset `shouldFinalizeOnStopRef.current = false`
 
-## Technical Implementation
+- Remove the current `setTimeout(... finalizeRecording ...)` flow from `handleCaptureEnd`. That timeout is the fragile part.
 
-### 1. Replace Recording `setInterval` with `requestAnimationFrame`
+### 2) Make “stop” explicitly request finalization
+**File:** `src/components/camera/VybeSnapCamera.tsx`
 
-**Files:** `VybeSnapCamera.tsx`, `SnapCamera.tsx`, `Camera.tsx`
+- Change the “release” path to:
+  - set `shouldFinalizeOnStopRef.current = true`
+  - call `stopRecording()` which triggers the `onstop` handler
+  - do not attempt to finalize anywhere else
 
-**Before (Laggy):**
-```tsx
-recordingTimerRef.current = setInterval(() => {
-  setRecordingProgress(progress); // Re-render every 50ms!
-}, 50);
-```
+- Also do the same when the max duration is reached (auto-stop):
+  - before calling `stopRecording()` at 30s, set `shouldFinalizeOnStopRef.current = true` so it will still go to the editor automatically.
 
-**After (Smooth):**
-```tsx
-const updateProgress = () => {
-  const elapsed = Date.now() - startTime;
-  const progress = Math.min((elapsed / (MAX_DURATION * 1000)) * 100, 100);
-  
-  // Update ref, not state - only update state every 100ms for UI
-  progressRef.current = progress;
-  
-  if (progress < 100 && isRecording) {
-    frameRef.current = requestAnimationFrame(updateProgress);
-  }
-};
-frameRef.current = requestAnimationFrame(updateProgress);
+### 3) Make the release event more reliable on mobile (optional but recommended)
+Even with finalize fixed, it’s worth hardening the “finger release” event so it always fires in mobile/PWA/native webview edge cases.
 
-// Separate interval for UI updates (less frequent)
-uiUpdateRef.current = setInterval(() => {
-  setRecordingProgress(progressRef.current);
-}, 100); // 10fps UI updates instead of 20fps
-```
+**File:** `src/components/camera/VybeRecordButton.tsx`
 
-### 2. Convert AI Brief Spinning V to Pure CSS
+- Add `onTouchCancel` → call `onCaptureEnd()`
+- Consider switching from mixed touch/mouse handlers to **Pointer Events** (like you already attempted in the older `SnapCamera.tsx`), and use pointer capture:
+  - on pointer down: `buttonRef.current?.setPointerCapture(e.pointerId)`
+  - on pointer up/cancel: release + `onCaptureEnd()`
 
-**File:** `AIBriefLoadingState.tsx`
+This ensures you still get the “up” event even if the finger drifts off the button slightly.
 
-**Current (Framer Motion):**
-```tsx
-<motion.div
-  animate={{ rotate: 360 }}
-  transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
->
-  <VybeMiniIcon ... />
-</motion.div>
-```
+### 4) Cleanup safety (prevents weird stuck states)
+**File:** `src/components/camera/VybeSnapCamera.tsx`
 
-**After (Pure CSS):**
-```tsx
-<div className="spin-smooth" data-allow-animation="true">
-  <VybeMiniIcon ... />
-</div>
-```
+- Ensure `handleClose` stops recording and clears flags:
+  - `shouldFinalizeOnStopRef.current = false`
+  - `segmentsRef.current = []`
+  - stop active MediaRecorder if needed
+- Add a small effect to stop recording if the page goes background (`visibilitychange`), so it can’t get stuck recording silently.
 
-**New CSS in `index.css`:**
-```css
-@keyframes spin-smooth {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+## Verification checklist (what you should see after)
+1) Open DM → open VYBE camera → hold record 2–5 seconds → release  
+   - Recording stops
+   - Immediately transitions to the edit screen (video preview loop)
+2) Tap quickly (no hold) still takes a photo and goes to editor
+3) Hold record, flip camera mid-record, then release  
+   - Still transitions to editor
+   - Video plays as a single merged clip
+4) Test on:
+   - iPhone Safari (or installed app)
+   - Android Chrome
+   - Desktop (mouse)
 
-.spin-smooth {
-  animation: spin-smooth 2.5s linear infinite;
-  will-change: transform;
-  transform: translateZ(0);
-}
-```
+## Notes (mobile/native)
+If you’re running this as a true native build (Capacitor): after pulling the updated code you’ll want to run `npx cap sync` so the native projects pick up the changes.
 
-### 3. Fix Orbiting Sparkles Animation
-
-**Current Issue:** Sparkles orbit correctly but the visual is disconnected from the spinning V
-
-**Solution:**
-- Remove sparkles from inside VybeMiniIcon (they rotate with the V, breaking the orbit)
-- Keep only the outer `.orbit-sparkle` elements
-- Fix positioning to center around the spinning V
-
-**File:** `AIBriefLoadingState.tsx`
-```tsx
-{/* VybeMiniIcon WITHOUT sparkles - they're added externally */}
-<VybeMiniIcon size={64} showSparkles={false} animated={false} />
-```
-
-**Ensure orbit sparkle container is centered:**
-```tsx
-<div 
-  className="absolute inset-0 flex items-center justify-center"
-  data-allow-animation="true"
->
-  {/* 6 orbit sparkles positioned correctly */}
-  {[0, 1, 2, 3, 4, 5].map((i) => (
-    <div 
-      key={i}
-      className="orbit-sparkle"
-      style={{ animationDelay: `${-i * 0.5}s` }}
-    />
-  ))}
-</div>
-```
-
-### 4. Convert Glow Ring to Pure CSS
-
-**Before (Framer Motion):**
-```tsx
-<motion.div
-  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
-  transition={{ duration: 2, repeat: Infinity }}
-/>
-```
-
-**After (CSS):**
-```tsx
-<div className="glow-ring-pulse" data-allow-animation="true" />
-```
-
-**New CSS:**
-```css
-@keyframes glow-ring-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.5; }
-  50% { transform: scale(1.2); opacity: 0.8; }
-}
-
-.glow-ring-pulse {
-  animation: glow-ring-pulse 2s ease-in-out infinite;
-  will-change: transform, opacity;
-  transform: translateZ(0);
-}
-```
-
-### 5. Fix iOS Animation Override
-
-**Current Problem (`index.css` line 59-64):**
-```css
-.platform-ios *,
-.platform-ios *::before,
-.platform-ios *::after {
-  animation-duration: 0.15s !important;  /* Breaks intentional animations! */
-  transition-duration: 0.15s !important;
-}
-```
-
-**Solution:** Only target non-essential animations, respect `data-allow-animation`:
-```css
-/* iOS: Speed up NON-essential animations only */
-.platform-ios *:not([data-allow-animation="true"]):not([data-allow-animation="true"] *) {
-  transition-duration: 0.15s !important;
-}
-
-/* Never override keyframe animations - let them run at intended speed */
-.platform-ios *[class*="animate-"]:not(.animate-spin):not(.animate-pulse) {
-  animation-duration: 0.15s !important;
-}
-
-/* Explicitly allow certain animations to run normally */
-.platform-ios .spin-smooth,
-.platform-ios .glow-ring-pulse,
-.platform-ios .orbit-sparkle,
-.platform-ios [data-allow-animation="true"],
-.platform-ios [data-allow-animation="true"] * {
-  animation-duration: unset !important;
-  transition-duration: unset !important;
-}
-```
-
-### 6. Global Performance Improvements
-
-**a) Add `contain` properties for layout isolation:**
-```css
-.post-card, article, .message-bubble {
-  contain: layout style paint;
-}
-
-.feed-container, .chat-messages {
-  contain: layout;
-  will-change: scroll-position;
-}
-```
-
-**b) Reduce blur on ALL mobile devices (not just iOS):**
-```css
-.device-mobile .liquid-glass,
-.device-mobile .liquid-glass-card {
-  backdrop-filter: blur(10px) saturate(130%) !important;
-  -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
-}
-```
-
-**c) Reduce particle count for low-perf devices:**
-In `VybeRecordButton.tsx`:
-```tsx
-const particleCount = isLowPerf ? 4 : 8;
-```
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/components/home/AIBriefLoadingState.tsx` | Replace Framer Motion with pure CSS, fix sparkle positioning |
-| `src/index.css` | Add new keyframes, fix iOS animation overrides, add mobile blur reductions |
-| `src/components/camera/VybeSnapCamera.tsx` | Use RAF for progress, reduce state updates |
-| `src/components/chat/SnapCamera.tsx` | Use RAF for progress, reduce state updates |
-| `src/components/camera/Camera.tsx` | Use RAF for recording duration |
-| `src/components/camera/VybeRecordButton.tsx` | Reduce particles on low-perf devices |
-| `src/components/ui/VybeMiniIcon.tsx` | Add prop to disable internal sparkles when used in spinning context |
-
----
-
-## Performance Targets
-
-| Metric | Current | Target |
-|--------|---------|--------|
-| Recording animation FPS | ~40fps (iPhone Safari) | 60fps |
-| AI Brief spinner | Janky, conflicting animations | Smooth, 60fps |
-| Feed scrolling | Occasional jank | Butter-smooth |
-| Blur rendering time | Variable | <16ms per frame |
-
----
-
-## Implementation Order
-
-1. **CSS changes first** - Immediate impact, zero risk
-2. **AI Brief loading animation** - Most visible fix
-3. **Recording RAF conversion** - Performance-critical
-4. **Mobile blur reductions** - Global improvement
-
----
-
-## Validation Checklist
-
-After implementation:
-- Test AI Brief loading animation on iPhone Safari - should be perfectly smooth
-- Record a video on iPhone - progress ring should animate at 60fps
-- Scroll the feed rapidly - no dropped frames
-- Open popups/sheets - smooth spring animations
-- Test on Android Chrome - should feel equally smooth
-- Test on desktop browsers - no regressions
+## Next feature ideas
+<lov-actions>
+  <lov-suggestion message="Test the VYBE Snap flow end-to-end on mobile: hold to record, release to open editor, then send (also test camera flip mid-record).">Verify it works end-to-end</lov-suggestion>
+  <lov-suggestion message="Add a 1-tap 'Retake' action in the editor for both photo and video (returns to camera with the same settings).">Add Retake button</lov-suggestion>
+  <lov-suggestion message="Add a visible 'Recording…' timer (MM:SS) and a subtle haptic tick every 5 seconds for better feedback.">Add recording timer + haptics</lov-suggestion>
+  <lov-suggestion message="Add basic video trimming (start/end handles) in the editor before sending.">Add video trim</lov-suggestion>
+  <lov-suggestion message="Improve reliability by adding a fallback: if onstop doesn’t fire within 1s after stop, show an error + Retake.">Add onstop timeout fallback</lov-suggestion>
+</lov-actions>
