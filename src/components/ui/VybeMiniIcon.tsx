@@ -12,7 +12,7 @@ let iconIdCounter = 0;
 
 /**
  * Mini VYBE "V" icon with sparkles - themed to user's primary/accent colors
- * Fun outline style with playful floating dots
+ * Cool outline style with twinkling star sparkles
  * Uses CSS animations for iOS performance
  */
 export const VybeMiniIcon = memo(function VybeMiniIcon({ 
@@ -28,51 +28,11 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
       className={cn('relative inline-flex items-center justify-center', className)}
       style={{ width: size, height: size }}
     >
-      {/* Playful floating dots */}
-      {showSparkles && (
-        <>
-          <div
-            className={cn("absolute rounded-full bg-accent", animated && "animate-bounce")}
-            style={{ 
-              right: '5%', 
-              top: '10%',
-              width: size * 0.15,
-              height: size * 0.15,
-              animationDuration: '2s',
-              animationDelay: '0s',
-            }}
-          />
-          <div
-            className={cn("absolute rounded-full bg-primary", animated && "animate-bounce")}
-            style={{ 
-              left: '8%', 
-              top: '20%',
-              width: size * 0.12,
-              height: size * 0.12,
-              animationDuration: '2.5s',
-              animationDelay: '0.5s',
-            }}
-          />
-          <div
-            className={cn("absolute rounded-full bg-accent/80", animated && "animate-bounce")}
-            style={{ 
-              left: '50%', 
-              bottom: '2%',
-              width: size * 0.1,
-              height: size * 0.1,
-              transform: 'translateX(-50%)',
-              animationDuration: '2.2s',
-              animationDelay: '1s',
-            }}
-          />
-        </>
-      )}
-      
-      {/* The V icon */}
+      {/* The V icon with star sparkles */}
       <svg
-        viewBox="0 0 100 100"
+        viewBox="0 0 100 110"
         fill="none"
-        style={{ width: size * 0.65, height: size * 0.65 }}
+        style={{ width: size, height: size }}
       >
         <defs>
           <linearGradient id={`${uniqueId}-primary`} x1="0%" y1="0%" x2="100%" y2="100%">
@@ -85,18 +45,59 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
           </linearGradient>
         </defs>
         
+        {/* Left leg of V */}
         <path
-          d="M20 15 L50 85"
+          d="M25 20 L50 90"
           stroke={`url(#${uniqueId}-primary)`}
-          strokeWidth="14"
+          strokeWidth="12"
           strokeLinecap="round"
         />
+        
+        {/* Right leg of V */}
         <path
-          d="M80 15 L50 85"
+          d="M75 20 L50 90"
           stroke={`url(#${uniqueId}-accent)`}
-          strokeWidth="14"
+          strokeWidth="12"
           strokeLinecap="round"
         />
+        
+        {/* Star sparkles ✦ */}
+        {showSparkles && (
+          <>
+            {/* Top right star - accent color, larger */}
+            <g 
+              className={cn(animated && "animate-pulse")} 
+              style={{ transformOrigin: '88px 12px', animationDuration: '2s' }}
+            >
+              <path
+                d="M88 6 L89.5 10 L94 12 L89.5 14 L88 18 L86.5 14 L82 12 L86.5 10 Z"
+                fill="hsl(var(--accent))"
+              />
+            </g>
+            
+            {/* Top left star - primary color, medium */}
+            <g 
+              className={cn(animated && "animate-pulse")} 
+              style={{ transformOrigin: '12px 16px', animationDuration: '2.5s', animationDelay: '0.4s' }}
+            >
+              <path
+                d="M12 11 L13.2 14 L16.5 16 L13.2 18 L12 21 L10.8 18 L7.5 16 L10.8 14 Z"
+                fill="hsl(var(--primary))"
+              />
+            </g>
+            
+            {/* Bottom center star - accent, small */}
+            <g 
+              className={cn(animated && "animate-pulse")} 
+              style={{ transformOrigin: '50px 104px', animationDuration: '2.2s', animationDelay: '0.8s' }}
+            >
+              <path
+                d="M50 100 L51 102.5 L54 104 L51 105.5 L50 108 L49 105.5 L46 104 L49 102.5 Z"
+                fill="hsl(var(--accent))"
+              />
+            </g>
+          </>
+        )}
       </svg>
     </div>
   );
