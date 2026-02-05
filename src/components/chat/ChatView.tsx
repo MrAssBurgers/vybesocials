@@ -830,8 +830,12 @@ export function ChatView() {
         .insert({
           conversation_id: conversationId,
           sender_id: profile.id,
+          topic: 'general',
+          extension: 'text',
+          content: null,
           media_url: mediaUrl,
           media_type: 'vybe',
+          message_type: 'text',
           view_mode: viewMode,
           expires_at: expiresAt,
           reply_to_id: replyingTo?.id,
