@@ -75,6 +75,10 @@ export const StyledUsername = memo(function StyledUsername({
     // Ensure no box background shows through
     backgroundColor: 'transparent',
     boxShadow: 'none',
+    // Prevent inheritance issues
+    display: 'inline',
+    padding: 0,
+    margin: 0,
   };
 
   // Add text shadow for shine effect (no filter to avoid artifacts)
@@ -85,7 +89,7 @@ export const StyledUsername = memo(function StyledUsername({
   return (
     <span 
       style={gradientStyle} 
-      className={cn('font-semibold inline', className)}
+      className={cn(className)}
     >
       {nameToShow}
     </span>
