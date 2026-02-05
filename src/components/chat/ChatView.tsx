@@ -552,10 +552,18 @@ export function ChatView() {
     setIsUploadingMedia(true);
 
     try {
+      // Guard: ensure profile.user_id (auth ID) exists for storage RLS
+      if (!profile.user_id) {
+        toast.error('Account not ready yet, please refresh and try again');
+        setIsUploadingMedia(false);
+        uploadingRef.current = false;
+        return;
+      }
+      
       // Compress image for faster upload
       const compressedBlob = await compressImage(file);
       const fileExt = file.type === 'image/png' ? 'png' : 'jpg';
-      const fileName = `${profile.id}/${Date.now()}.${fileExt}`;
+      const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
@@ -591,7 +599,14 @@ export function ChatView() {
     setIsUploadingMedia(true);
 
     try {
-      const fileName = `${profile.id}/${Date.now()}.webm`;
+      // Guard: ensure profile.user_id (auth ID) exists for storage RLS
+      if (!profile.user_id) {
+        toast.error('Account not ready yet, please refresh and try again');
+        setIsUploadingMedia(false);
+        return;
+      }
+      
+      const fileName = `${profile.user_id}/${Date.now()}.webm`;
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
@@ -638,6 +653,12 @@ export function ChatView() {
   // Uses optimistic UI - message appears immediately as "sending" then updates to "sent"
   const handleVybeSend = useCallback(async (mediaDataUrl: string, isVideo: boolean = false) => {
     if (!conversationId || !profile?.id) return;
+    
+    // Guard: ensure profile.user_id (auth ID) exists for storage RLS
+    if (!profile.user_id) {
+      toast.error('Account not ready yet, please refresh and try again');
+      return;
+    }
 
     // Generate temp ID for optimistic UI
     const tempId = `vybe-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -735,8 +756,8 @@ export function ChatView() {
           return;
         }
 
-        // Upload video - use profile.id which matches auth.uid() for RLS
-        const fileName = `${profile.id}/${Date.now()}_vybe.webm`;
+        // Upload video - use profile.user_id (auth ID) for storage RLS
+        const fileName = `${profile.user_id}/${Date.now()}_vybe.webm`;
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
           .upload(fileName, uploadFile, {
@@ -803,7 +824,7 @@ export function ChatView() {
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: 'image/jpeg' });
         
-        const fileName = `${profile.id}/${Date.now()}_vybe.jpg`;
+        const fileName = `${profile.user_id}/${Date.now()}_vybe.jpg`;
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
           .upload(fileName, blob, {

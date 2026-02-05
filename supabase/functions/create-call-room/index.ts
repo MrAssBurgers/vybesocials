@@ -51,15 +51,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get user's profile ID
-    const { data: profile, error: profileError } = await supabase
+    // Get user's profile ID - with ensure fallback
+    let profile: { id: string } | null = null;
+    let profileError: any = null;
+    
+    // First attempt: get existing profile
+    const { data: existingProfile, error: lookupError } = await supabase
       .from("profiles")
       .select("id")
       .eq("user_id", user.id)
       .single();
 
-    if (profileError || !profile) {
-      return new Response(JSON.stringify({ error: "Profile not found" }), {
+    if (!lookupError && existingProfile) {
+      profile = existingProfile;
+    } else {
+      // Profile not found - try to ensure it exists via RPC
+      console.log("Profile not found, attempting to create via ensure_profile...");
+      const { data: ensuredId, error: ensureError } = await supabase.rpc("ensure_profile");
+      
+      if (ensureError) {
+        console.error("ensure_profile failed:", ensureError);
+        profileError = ensureError;
+      } else if (ensuredId) {
+        profile = { id: ensuredId as string };
+      }
+    }
+
+    if (!profile) {
+      console.error("Failed to get/create profile:", profileError);
+      return new Response(JSON.stringify({ error: "Profile not found - please refresh and try again" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
