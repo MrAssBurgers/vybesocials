@@ -150,7 +150,7 @@ export function ChatView() {
   useInstantReadClear(conversationId);
   
   // Snapchat-style screen capture detection
-  useScreenCapture({
+  const { setActivelyViewingChat } = useScreenCapture({
     enabled: !!conversationId,
     onCapture: (event) => {
       if (import.meta.env.DEV) console.log('[ChatView] Capture detected:', event);
@@ -159,6 +159,14 @@ export function ChatView() {
       }
     }
   });
+  
+  // Update chat active state for accurate screenshot detection when leaving/entering tab
+  useEffect(() => {
+    if (conversationId) {
+      setActivelyViewingChat(true);
+    }
+    return () => setActivelyViewingChat(false);
+  }, [conversationId, setActivelyViewingChat]);
   
   // v1.1: AI Smart Replies
   const { suggestions: smartReplies, generateReplies, clearSuggestions } = useAISmartReplies();
