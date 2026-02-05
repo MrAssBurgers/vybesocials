@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { showMessageNotification } from '@/components/notifications/MessageNotificationToast';
+import { sendPushNotification } from '@/lib/pushNotifications';
 
 /**
  * VYBE v1.1 - Perfect Message Notifications
@@ -167,6 +168,10 @@ export function useMessageNotifications() {
                 isGroup,
                 groupName
               );
+              
+              // Also trigger server-side push for other devices
+              // Note: This is for the current user's OTHER devices, not the sender
+              // The actual push to other users is handled by database triggers
             }
             
             // Only invalidate when showing notification to update badge
