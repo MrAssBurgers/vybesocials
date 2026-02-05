@@ -1,116 +1,115 @@
 
-Goal: Restore DM reliability (send/receive text + VYBE snaps + media), fix core DM mechanics (unsend/delete/etc.), restore calls, and make challenges/XP actually work again with no refresh.
+# Fix VYBE Snap Sending Issues
 
-What I found (root causes)
-1) Messages are failing at the database level due to a trigger that tries to queue an HTTP request with a NULL URL
-- There is a trigger `on_message_insert_notify` on `public.messages` that calls `public.notify_message_recipients()`.
-- That function uses `net.http_post(url := current_setting('app.settings.supabase_url', true) || '/functions/v1/send-push-notification', ...)`.
-- In this environment, those settings are NULL:
-  - `current_setting('app.settings.supabase_url', true)` = NULL
-  - `current_setting('app.settings.service_role_key', true)` = NULL
-- Result: Postgres error “null value in column "url" of relation "http_request_queue" violates not-null constraint”, which can abort the message INSERT. That explains “can’t send anything”.
+## Root Causes Identified
 
-2) Media/VYBE uploads likely fail because file paths were changed to use `profile.id/…`, but storage upload policy requires `auth.uid()` folder
-- Storage policy for `chat-media` bucket: `auth.uid()::text = (storage.foldername(name))[1]`
-- That means upload paths must be `${authUserId}/...` (typically `profile.user_id`), not `${profile.id}/...`.
-- So even if text messages start working again, snaps/images/audio/video can still fail until we revert to auth-based paths.
+After thorough investigation, I found **two key issues** causing VYBE snaps to fail:
 
-3) Challenges/XP are broken by mixed “profile id” vs “auth id” usage plus incorrect RLS on challenge_progress
-- `challenge_progress.user_id` references `profiles.id`, but its RLS policies currently check `auth.uid() = user_id`, which will never match.
-- `user_levels.user_id` and `challenge_rewards.user_id` reference auth users, but the frontend `useVybePass` is querying/inserting using `profile.id` (causing FK errors like `user_levels_user_id_fkey`).
-- `sync_my_challenge_progress()` currently selects `profiles WHERE id = auth.uid()` (incorrect) and inserts `challenge_rewards` using a profile id (incorrect for that FK). That can make “Sync” and progression appear broken.
+### Issue 1: Messages Not Being Inserted (Critical)
+- Storage uploads **work correctly** - files are being created in `chat-media` bucket with proper paths (`profile.user_id/...`)
+- However, **no messages from today (Feb 5) exist in the database**
+- The DB shows messages from Feb 4, but uploads from today have no corresponding message records
+- This means the message INSERT is failing silently somewhere in the code flow
 
-Plan (implementation steps)
+### Issue 2: Possible Error Swallowing
+- The catch block at line 890 logs to console but the user may not notice the toast
+- The optimistic UI shows the message, but if the insert fails, it stays marked as `_failed` without clear visual feedback
 
-A) Hotfix: Make message INSERTs impossible to break (backend migration)
-1) Patch `public.notify_message_recipients()` so it can never fail the message insert:
-   - If required settings are missing, do nothing and immediately `RETURN NEW`.
-   - Wrap `net.http_post` call in a `BEGIN … EXCEPTION WHEN OTHERS THEN … END;` so any networking/queue error is swallowed.
-   - This keeps messaging functional even if push is misconfigured.
-2) (Optional but recommended) Temporarily disable the `on_message_insert_notify` trigger entirely (or keep it enabled but safe as above).
-   - The app already sends pushes client-side; DB-level push should never block chats.
+## Investigation Summary
 
-B) Fix DM media + VYBE snap sending paths (frontend)
-1) Revert all `chat-media` upload fileName paths to use the authenticated user id folder:
-   - Use `${profile.user_id}/${Date.now()}...` everywhere we upload to `chat-media`.
-   - This applies to:
-     - VYBE image/video sends in `ChatView`
-     - Image upload flow (safety gate approved image)
-     - Voice messages
-     - Video sends in `useInstantSend.sendVideo`
-2) Add a clear guard:
-   - If `!profile?.user_id`, show a toast like “Account not ready yet, please retry” and block upload (prevents silent failures).
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Storage Upload Paths | ✅ Fixed | Now using `profile.user_id` correctly |
+| Storage RLS Policy | ✅ Working | Files being uploaded successfully |
+| Message Trigger (notify_message_recipients) | ✅ Fixed | Returns early if settings NULL, exception-wrapped |
+| Other Triggers (challenges, streaks) | ✅ Checked | All SECURITY DEFINER, shouldn't fail |
+| Messages Table | ❓ Suspect | No new rows despite successful uploads |
 
-C) Fix “can’t receive messages / realtime feels dead” (frontend + backend sanity)
-1) Ensure realtime tables are in the publication (they are already: messages, conversations, calls, etc.). Keep as-is.
-2) After message INSERTs stop failing (Step A), verify the receiver gets realtime INSERT events:
-   - If not, we’ll inspect message SELECT RLS conditions again, but the biggest blocker right now is the failing insert trigger.
+## Proposed Fixes
 
-D) Repair challenges + VYBE Pass XP end-to-end (backend migration + frontend)
-1) Fix challenge_progress RLS policies (critical):
-   - Replace `auth.uid() = user_id` with `current_profile_id() = user_id` for SELECT and ALL.
-   - This makes the UI able to read and write its own progress rows.
-2) Fix `sync_my_challenge_progress()`:
-   - Get the user’s profile id with `SELECT id FROM profiles WHERE user_id = auth.uid()`.
-   - Never insert into `challenge_rewards` with a profile id:
-     - Either rely entirely on the existing `on_challenge_completed` trigger (preferred), or insert using `auth.uid()` if still needed.
-3) Fix `force_sync_my_challenges()` to call the corrected sync function.
-4) Fix frontend `useVybePass` to use auth user id for auth-owned tables:
-   - `user_levels.user_id` filters/inserts must use `profile.user_id` (auth id), not `profile.id`.
-   - `challenge_rewards.user_id` queries/subscriptions must use `profile.user_id`.
-   - Keep challenge_progress using `profile.id` (profile id), because that table is profile-owned.
-5) Add a small “ID sanity helper” (frontend):
-   - A single function that returns `{ profileId, authUserId }` and asserts both exist, used across pass/challenges.
+### A) Add Better Error Logging & Toast Feedback
+Currently, errors are logged to console but users may not see them. We need:
+1. More prominent error toasts that stay visible longer
+2. Log specific error details to help debug
 
-E) Fix calls (edge function hardening + UI)
-1) Harden `create-call-room` backend function:
-   - If profile lookup `.eq('user_id', user.id)` fails, call a backend RPC to ensure a profile exists (e.g. `ensure_profile()` / `claim_profile_by_email()` flow) and retry once.
-   - This prevents “Profile not found” from blocking calls for users whose profile link isn’t ready yet.
-2) Validate calls table RLS remains compatible (it uses `current_profile_id()` which should work once profiles are linked correctly).
+### B) Fix Potential Race Condition in Video Path
+In `handleVybeSend`, the video blob fetch + safety scan + upload flow could have timing issues. The code:
+```typescript
+const response = await fetch(mediaDataUrl); // Fetching blob URL
+const videoBlob = await response.blob();
+```
+If `mediaDataUrl` (a blob URL) is revoked too early or the fetch fails, the entire chain breaks.
 
-F) Clean up the profile-link trigger so it doesn’t break account claiming (backend migration)
-1) Update `link_profile_to_auth()` trigger logic:
-   - Do NOT set `user_id = id` for unclaimed/imported profiles.
-   - Instead: `NEW.user_id := COALESCE(NEW.user_id, auth.uid());`
-   - If `auth.uid()` is NULL (admin import), leave `user_id` NULL so `claim_profile_by_email()` can claim later.
-2) This reduces “ghost profile” issues that break DMs between pre-created profiles and real signups.
+### C) Add Retry Logic with Exponential Backoff
+Message inserts can fail transiently. Add retry logic.
 
-Testing checklist (end-to-end, two accounts)
-1) Create/open a DM, send text → should insert instantly and appear on other account without refresh.
-2) Send:
-   - image
-   - voice
-   - video
-   - VYBE image
-   - VYBE video
-   Verify upload succeeds (no storage permission errors) and receiver can open it.
-3) Unsend a message → should disappear for both users (realtime UPDATE).
-4) Start a call → receiver should see ringing UI; accept/decline should update status.
-5) Challenges:
-   - Open Challenges → progress loads (not empty due to RLS).
-   - Do an action (send message/post/comment) → progress updates live (realtime).
-6) VYBE Pass:
-   - Post something → XP increments and level row exists without FK errors.
+### D) Verify RLS Policy Execution
+Test that the INSERT policy is passing by checking the subquery logic.
 
-Files / areas that will be modified once you approve implementation
-Backend (migrations):
-- Patch `notify_message_recipients()` and its trigger behavior
-- Fix challenge_progress RLS policies
-- Fix sync_my_challenge_progress() + force_sync_my_challenges()
-- Fix link_profile_to_auth() trigger function
+## Implementation Plan
 
-Frontend:
-- `src/components/chat/ChatView.tsx` (upload paths + guards)
-- `src/hooks/useInstantSend.ts` (video upload path)
-- `src/hooks/useVybePass.ts` (use `profile.user_id` for user_levels + challenge_rewards)
-- `supabase/functions/create-call-room/index.ts` (profile ensure/retry)
+### Step 1: Add Defensive Checks in handleVybeSend
+```typescript
+// Before insert, verify mediaUrl is valid
+if (!mediaUrl || mediaUrl.includes('undefined')) {
+  throw new Error('Media upload failed - URL is invalid');
+}
+```
 
-Rollout order (to stabilize fastest)
-1) Backend hotfix for message trigger (unblocks all sends)
-2) Frontend media/VYBE upload path fix
-3) Challenge/VYBE Pass ID + RLS fixes
-4) Calls hardening
+### Step 2: Add Explicit Error Handling for Each Phase
+Split the try/catch into phases with specific error messages:
+- Phase 1: Blob fetch
+- Phase 2: Safety scan  
+- Phase 3: Storage upload
+- Phase 4: Database insert
 
-Notes on scope
-- This plan focuses on “nothing works” blockers first (message inserts + storage RLS + broken RLS on challenge_progress + auth/profile ID mismatches).
-- After core DM reliability is restored, we can iterate on DM polish (typing indicators, vanish modes, read receipts edge cases) without risking system-wide failure.
+### Step 3: Add Better Visual Feedback for Failed Messages
+Create a visible "failed to send" indicator with retry button.
+
+### Step 4: Verify Database Insert Works
+Add a test that the RLS policy allows the insert before assuming success.
+
+## Files to Modify
+
+1. **`src/components/chat/ChatView.tsx`**
+   - Add phase-specific error handling in `handleVybeSend`
+   - Add defensive URL validation before DB insert
+   - Add retry mechanism for failed inserts
+   - Improve toast feedback (duration, action buttons)
+
+2. **`src/components/chat/MessageBubble.tsx`** (if exists)
+   - Add visual indicator for `_failed` messages
+   - Add tap-to-retry functionality
+
+## Technical Details
+
+### Current Flow (with failure point)
+```text
+1. User taps Send in VybeSnapEditor
+2. handleVybeSend called with mediaDataUrl (blob URL)
+3. Optimistic message added to cache ✅
+4. Toast shows "Sending VYBE..." ✅
+5. Fetch blob from URL ⚠️ (Can fail if URL invalid)
+6. Safety scan (with timeout) ✅
+7. Upload to storage ✅ (Files exist in bucket)
+8. Get public URL ⚠️ (Could be undefined?)
+9. INSERT into messages ❌ (Failing silently)
+10. Replace optimistic with real message ❌ (Never happens)
+```
+
+### Proposed Flow
+```text
+1. User taps Send in VybeSnapEditor
+2. handleVybeSend with validation checks
+3. Phase-wrapped try/catch for each step
+4. Explicit URL validation before INSERT
+5. Retry logic for transient failures
+6. Clear visual feedback on failure
+```
+
+## Expected Outcome
+After implementation:
+- VYBE snaps will send reliably
+- Users will see clear error messages if something fails
+- Failed messages will be visually distinct with retry option
+- Console logs will help diagnose any remaining issues
