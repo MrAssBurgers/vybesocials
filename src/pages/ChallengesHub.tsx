@@ -5,14 +5,14 @@ import { Target, Zap, Trophy, Clock, CheckCircle2, Gift, Flame, Star, ChevronRig
 import { useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useChallengesWithProgress, CHALLENGE_ROUTES } from '@/hooks/useChallenges';
-import { useUnclaimedRewards, useClaimReward, useNextLevelProgress, useBattlePassTiers } from '@/hooks/useBattlePass';
+import { useUnclaimedRewards, useClaimReward, useNextLevelProgress, useVybePassTiers } from '@/hooks/useVybePass';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BattlePassSheet } from '@/components/battlepass/BattlePassSheet';
+import { VybePassSheet } from '@/components/vybepass/VybePassSheet';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -43,11 +43,11 @@ export default function ChallengesHubPage() {
   const queryClient = useQueryClient();
   const { daily, weekly, achievements, all } = useChallengesWithProgress();
   const { data: unclaimedRewards } = useUnclaimedRewards();
-  const { data: tiers } = useBattlePassTiers();
+  const { data: tiers } = useVybePassTiers();
   const { currentXP, currentLevel, progressPercent, xpToNextLevel } = useNextLevelProgress();
   const claimReward = useClaimReward();
   const [activeTab, setActiveTab] = useState<string>('all');
-  const [battlePassOpen, setBattlePassOpen] = useState(false);
+  const [vybePassOpen, setVybePassOpen] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -148,10 +148,10 @@ export default function ChallengesHubPage() {
             </Button>
           </div>
 
-          {/* Battle Pass Progress Card */}
+          {/* VYBE Pass Progress Card */}
           <motion.div
             whileTap={{ scale: 0.98 }}
-            onClick={() => setBattlePassOpen(true)}
+            onClick={() => setVybePassOpen(true)}
             className="cursor-pointer mb-4"
           >
             <GlassCard className="p-4 border-primary/20">
@@ -425,8 +425,8 @@ export default function ChallengesHubPage() {
         </AnimatePresence>
       </div>
 
-      {/* Battle Pass Sheet */}
-      <BattlePassSheet open={battlePassOpen} onOpenChange={setBattlePassOpen} />
+      {/* VYBE Pass Sheet */}
+      <VybePassSheet open={vybePassOpen} onOpenChange={setVybePassOpen} />
     </AppLayout>
   );
 }

@@ -38,7 +38,7 @@ import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { useDynamicFavicon } from "@/hooks/useDynamicFavicon";
 import { useDynamicManifest } from "@/hooks/useDynamicManifest";
-import { RewardNotificationProvider } from "@/components/battlepass/RewardNotificationProvider";
+import { RewardNotificationProvider } from "@/components/vybepass/RewardNotificationProvider";
 import { useDailyLoginChallenge } from "@/hooks/useDailyLogin";
 
 // Expose query client for error recovery
