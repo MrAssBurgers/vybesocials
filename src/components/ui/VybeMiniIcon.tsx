@@ -12,7 +12,7 @@ let iconIdCounter = 0;
 
 /**
  * Mini VYBE "V" icon with sparkles - themed to user's primary/accent colors
- * Premium outline style with elegant twinkling star accents
+ * Fun outline style with playful floating dots
  * Uses CSS animations for iOS performance
  */
 export const VybeMiniIcon = memo(function VybeMiniIcon({ 
@@ -28,62 +28,75 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
       className={cn('relative inline-flex items-center justify-center', className)}
       style={{ width: size, height: size }}
     >
-      {/* The V icon with integrated sparkle stars */}
+      {/* Playful floating dots */}
+      {showSparkles && (
+        <>
+          <div
+            className={cn("absolute rounded-full bg-accent", animated && "animate-bounce")}
+            style={{ 
+              right: '5%', 
+              top: '10%',
+              width: size * 0.15,
+              height: size * 0.15,
+              animationDuration: '2s',
+              animationDelay: '0s',
+            }}
+          />
+          <div
+            className={cn("absolute rounded-full bg-primary", animated && "animate-bounce")}
+            style={{ 
+              left: '8%', 
+              top: '20%',
+              width: size * 0.12,
+              height: size * 0.12,
+              animationDuration: '2.5s',
+              animationDelay: '0.5s',
+            }}
+          />
+          <div
+            className={cn("absolute rounded-full bg-accent/80", animated && "animate-bounce")}
+            style={{ 
+              left: '50%', 
+              bottom: '2%',
+              width: size * 0.1,
+              height: size * 0.1,
+              transform: 'translateX(-50%)',
+              animationDuration: '2.2s',
+              animationDelay: '1s',
+            }}
+          />
+        </>
+      )}
+      
+      {/* The V icon */}
       <svg
-        viewBox="0 0 120 120"
+        viewBox="0 0 100 100"
         fill="none"
-        style={{ width: size, height: size }}
+        style={{ width: size * 0.65, height: size * 0.65 }}
       >
         <defs>
           <linearGradient id={`${uniqueId}-primary`} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="hsl(var(--primary))" />
-            <stop offset="100%" stopColor="hsl(var(--primary) / 0.75)" />
+            <stop offset="100%" stopColor="hsl(var(--primary) / 0.8)" />
           </linearGradient>
           <linearGradient id={`${uniqueId}-accent`} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="hsl(var(--accent))" />
-            <stop offset="100%" stopColor="hsl(var(--accent) / 0.75)" />
+            <stop offset="100%" stopColor="hsl(var(--accent) / 0.8)" />
           </linearGradient>
         </defs>
         
-        {/* Left leg of V */}
         <path
-          d="M32 25 L60 95"
+          d="M20 15 L50 85"
           stroke={`url(#${uniqueId}-primary)`}
-          strokeWidth="12"
+          strokeWidth="14"
           strokeLinecap="round"
         />
-        
-        {/* Right leg of V */}
         <path
-          d="M88 25 L60 95"
+          d="M80 15 L50 85"
           stroke={`url(#${uniqueId}-accent)`}
-          strokeWidth="12"
+          strokeWidth="14"
           strokeLinecap="round"
         />
-        
-        {/* Sparkle stars - 4-point star shapes */}
-        {showSparkles && (
-          <g className={animated ? 'animate-pulse' : ''} style={{ animationDuration: '3s' }}>
-            {/* Top right star */}
-            <path
-              d="M100 18 L102 22 L106 24 L102 26 L100 30 L98 26 L94 24 L98 22 Z"
-              fill="hsl(var(--accent))"
-              opacity="0.9"
-            />
-            {/* Top left star - smaller */}
-            <path
-              d="M18 22 L19.5 25 L22.5 26.5 L19.5 28 L18 31 L16.5 28 L13.5 26.5 L16.5 25 Z"
-              fill="hsl(var(--primary))"
-              opacity="0.8"
-            />
-            {/* Bottom star - tiny accent */}
-            <path
-              d="M60 108 L61 110.5 L63.5 112 L61 113.5 L60 116 L59 113.5 L56.5 112 L59 110.5 Z"
-              fill="hsl(var(--accent))"
-              opacity="0.7"
-            />
-          </g>
-        )}
       </svg>
     </div>
   );
