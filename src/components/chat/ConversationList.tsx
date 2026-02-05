@@ -331,36 +331,6 @@ export function ConversationList() {
           <AutisyAIChatRow />
         </div>
 
-        {pinnedConversations.length > 0 && (
-          <div className="p-3 space-y-1 w-full box-border">
-            <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
-              <Pin className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{t('messages.pinned')}</span>
-            </p>
-            {pinnedConversations.map((conv) => {
-              const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
-              const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
-              const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
-              const streak = otherMemberId ? streakMap.get(otherMemberId) : undefined;
-              return (
-                <ConversationItem
-                  key={conv.id}
-                  conversation={conv}
-                  onClick={() => handleConversationClick(conv.id)}
-                  isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
-                  isTyping={checkTyping(conv.id)}
-                  currentUserId={profile?.id}
-                  userRole={otherMemberId ? usersRoles[otherMemberId] : null}
-                  onTrash={() => handleTrashConversation(conv.id)}
-                  hasStory={hasStory}
-                  storyGroup={storyGroup}
-                  streak={streak}
-                />
-              );
-            })}
-          </div>
-        )}
-
         <div className="p-3 pb-24 space-y-1 w-full box-border">
           {/* Accepted Friend Requests as Chat Notifications */}
           {acceptedRequests && acceptedRequests.length > 0 && (
@@ -376,12 +346,35 @@ export function ConversationList() {
             </>
           )}
           
-          {unpinnedConversations.length > 0 ? (
+         {(pinnedConversations.length > 0 || unpinnedConversations.length > 0) ? (
             <>
               <p className="text-xs font-medium text-muted-foreground px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
                 <MessageCircle className="h-3.5 w-3.5 flex-shrink-0" />
                 <span className="truncate">All Messages</span>
               </p>
+             {/* Pinned conversations at the top */}
+             {pinnedConversations.map((conv) => {
+               const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
+               const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
+               const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
+               const streak = otherMemberId ? streakMap.get(otherMemberId) : undefined;
+               return (
+                 <ConversationItem
+                   key={conv.id}
+                   conversation={conv}
+                   onClick={() => handleConversationClick(conv.id)}
+                   isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
+                   isTyping={checkTyping(conv.id)}
+                   currentUserId={profile?.id}
+                   userRole={otherMemberId ? usersRoles[otherMemberId] : null}
+                   onTrash={() => handleTrashConversation(conv.id)}
+                   hasStory={hasStory}
+                   storyGroup={storyGroup}
+                   streak={streak}
+                 />
+               );
+             })}
+             {/* Unpinned conversations below */}
               {unpinnedConversations.map((conv) => {
                 const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
                 const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
