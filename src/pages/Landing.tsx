@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
-import { Eye, EyeOff, AlertTriangle, X } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { VYBELogo } from '@/components/ui/VYBELogo';
@@ -53,7 +53,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showIntro, setShowIntro] = useState<boolean | null>(null); // null = still checking
-  const [showDbNotice, setShowDbNotice] = useState(true);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -256,31 +255,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         className="relative z-10 w-full max-w-md mx-4"
       >
         <div className="glass-card rounded-3xl p-8 gradient-border">
-          {/* Database Reset Notice */}
-          <AnimatePresence>
-            {showDbNotice && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mb-6"
-              >
-                <Alert className="bg-amber-500/15 border-amber-500/50 text-amber-400">
-                  <AlertTriangle className="h-4 w-4 text-amber-400" />
-                  <AlertDescription className="text-amber-300 text-sm pr-6">
-                    <strong>Returning user?</strong> Sign up with the same email you used before to reclaim your profile, posts, and friends. New users can sign up normally! 💜
-                  </AlertDescription>
-                  <button 
-                    onClick={() => setShowDbNotice(false)}
-                    className="absolute top-3 right-3 text-red-400 hover:text-red-300 transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </Alert>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           {/* Centered Logo with subtle glow */}
           <div className="flex flex-col items-center mb-8 relative">
             {/* Static glow behind logo for better performance */}
