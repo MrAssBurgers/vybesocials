@@ -201,7 +201,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     stopCamera();
   }, [stopCamera, facingMode]);
 
-  // Stop video recording - auto sends the video
+  // Stop video recording - goes to edit phase for review before sending
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
@@ -218,7 +218,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     }
     
     setIsRecording(false);
-    setRecordingProgress(progressRef.current);
+    setRecordingProgress(0);
     haptics.success();
   }, []);
 
@@ -263,26 +263,11 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
         audioStreamRef.current?.getTracks().forEach(track => track.stop());
         audioStreamRef.current = null;
         
-        // Auto-send the video immediately - show sending phase
-        setPhase('sending');
-        setSendingStatus('uploading');
-        setRecordingProgress(0);
+        // Go to edit phase so user can review/add text before sending
+        setCapturedVideo(videoUrl);
+        setIsVideoMode(true);
+        setPhase('edit');
         stopCamera();
-        
-        // Send in background
-        onSend(videoUrl);
-        
-        // Close camera after brief delay to show "sending" feedback
-        setTimeout(() => {
-          setCapturedImage(null);
-          setCapturedVideo(null);
-          setIsVideoMode(false);
-          setPhase('camera');
-          setTextOverlays([]);
-          setMode('none');
-          setIsSending(false);
-          onClose();
-        }, 800);
       };
       
       mediaRecorderRef.current = mediaRecorder;
