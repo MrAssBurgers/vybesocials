@@ -1,93 +1,368 @@
 
-## What’s going wrong (root cause)
-Right now the VYBE Snap camera that’s actually used in DMs is `src/components/camera/VybeSnapCamera.tsx` (it’s mounted from `src/components/chat/ChatView.tsx`).
+# Fix Challenges Networking and Completion Notifications
 
-In `VybeSnapCamera`, releasing the record button calls `stopRecording()`, and then it tries to “finalize” (merge segments and move to the edit screen) using a `setTimeout(..., 200)`.
+## Problem Summary
+The challenges system currently has several issues preventing it from working properly:
 
-The problem: the last segment is only appended inside `MediaRecorder.onstop`, which is asynchronous. So when the timeout runs, `segments` is often still empty (especially for the most common case: a single segment). `finalizeRecording()` then returns early (`if (segments.length === 0) return;`), and the UI stays on the camera screen — which feels like “nothing happens”.
+1. **User actions are not tracked in real-time** - Creating posts, comments, starting conversations, etc. does not update challenge progress
+2. **Challenge completion notifications don't appear** - The realtime subscription for rewards isn't working
+3. **Progress only syncs on login** - Users have to log out and back in to see updated progress
 
-So even if recording actually stops, the transition to the editor can fail due to timing/state lag.
+## Solution Overview
+We'll implement automatic challenge tracking using database triggers that fire when users perform actions, enable realtime for the challenge_rewards table, and ensure the notification modal appears immediately when a challenge is completed.
 
-## Goal
-When you release after holding to record:
-1) recording stops reliably
-2) the video is finalized
-3) you are taken immediately to the edit screen (`VybeSnapEditor`) where you can then send
+---
 
-## Implementation plan (code changes)
-### 1) Fix finalize timing: finalize on `MediaRecorder.onstop` (not via a timeout)
-**File:** `src/components/camera/VybeSnapCamera.tsx`
+## Technical Implementation
 
-- Introduce refs to avoid relying on React state timing:
-  - `segmentsRef = useRef<RecordingSegment[]>([])` as the “source of truth” for segments
-  - `shouldFinalizeOnStopRef = useRef(false)` to indicate “this stop is the final stop (user released / max duration reached)”
-  - `isRecordingRef = useRef(false)` to avoid stale `isRecording` reads during fast interactions
+### 1. Enable Realtime for Challenge Rewards Table
+Add the `challenge_rewards` table to the realtime publication so the frontend can receive instant notifications.
 
-- Update `startRecordingSegment()`’s `mediaRecorder.onstop` to:
-  1) build the segment blob
-  2) push it into `segmentsRef.current` synchronously
-  3) call `setSegments([...segmentsRef.current])` for UI
-  4) if `shouldFinalizeOnStopRef.current === true`, immediately merge **all** blobs in `segmentsRef.current` into one final blob, create the URL, then:
-     - `setCapturedMedia({ url, type: 'video' })`
-     - `setPhase('edit')`
-     - `stopCamera()`
-     - reset `shouldFinalizeOnStopRef.current = false`
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE public.challenge_rewards;
+```
 
-- Remove the current `setTimeout(... finalizeRecording ...)` flow from `handleCaptureEnd`. That timeout is the fragile part.
+### 2. Create Database Triggers for Automatic Progress Tracking
+Create triggers on the action tables (posts, comments, messages, likes, follows, etc.) that automatically update challenge progress when users perform actions.
 
-### 2) Make “stop” explicitly request finalization
-**File:** `src/components/camera/VybeSnapCamera.tsx`
+**New database function: `increment_challenge_progress`**
+```sql
+CREATE OR REPLACE FUNCTION increment_challenge_progress(
+  p_user_id uuid,
+  p_requirement_type text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+DECLARE
+  v_challenge RECORD;
+  v_current_count int;
+  v_is_completed boolean;
+BEGIN
+  -- Find all active challenges matching this requirement type
+  FOR v_challenge IN 
+    SELECT id, requirement_count, reward_badge_id, reward_xp
+    FROM challenges 
+    WHERE is_active = true 
+    AND requirement_type = p_requirement_type
+  LOOP
+    -- Get current progress
+    SELECT current_count INTO v_current_count
+    FROM challenge_progress
+    WHERE user_id = p_user_id AND challenge_id = v_challenge.id;
+    
+    -- Skip if already completed
+    IF v_current_count IS NOT NULL THEN
+      SELECT is_completed INTO v_is_completed
+      FROM challenge_progress
+      WHERE user_id = p_user_id AND challenge_id = v_challenge.id;
+      
+      IF v_is_completed THEN
+        CONTINUE;
+      END IF;
+    END IF;
+    
+    v_current_count := COALESCE(v_current_count, 0) + 1;
+    v_is_completed := v_current_count >= v_challenge.requirement_count;
+    
+    -- Upsert progress (trigger_challenge_completed handles reward creation)
+    INSERT INTO challenge_progress (user_id, challenge_id, current_count, is_completed, completed_at, updated_at)
+    VALUES (
+      p_user_id, 
+      v_challenge.id, 
+      v_current_count, 
+      v_is_completed,
+      CASE WHEN v_is_completed THEN now() ELSE NULL END,
+      now()
+    )
+    ON CONFLICT (user_id, challenge_id) 
+    DO UPDATE SET 
+      current_count = v_current_count,
+      is_completed = v_is_completed,
+      completed_at = CASE WHEN v_is_completed AND challenge_progress.completed_at IS NULL THEN now() ELSE challenge_progress.completed_at END,
+      updated_at = now()
+    WHERE NOT challenge_progress.is_completed;
+  END LOOP;
+END;
+$$;
+```
 
-- Change the “release” path to:
-  - set `shouldFinalizeOnStopRef.current = true`
-  - call `stopRecording()` which triggers the `onstop` handler
-  - do not attempt to finalize anywhere else
+**Triggers for each action type:**
 
-- Also do the same when the max duration is reached (auto-stop):
-  - before calling `stopRecording()` at 30s, set `shouldFinalizeOnStopRef.current = true` so it will still go to the editor automatically.
+```sql
+-- Posts trigger
+CREATE OR REPLACE FUNCTION on_post_created()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+BEGIN
+  PERFORM increment_challenge_progress(NEW.author_id, 'post');
+  RETURN NEW;
+END;
+$$;
 
-### 3) Make the release event more reliable on mobile (optional but recommended)
-Even with finalize fixed, it’s worth hardening the “finger release” event so it always fires in mobile/PWA/native webview edge cases.
+CREATE TRIGGER trigger_post_challenge
+AFTER INSERT ON posts
+FOR EACH ROW
+EXECUTE FUNCTION on_post_created();
 
-**File:** `src/components/camera/VybeRecordButton.tsx`
+-- Comments trigger  
+CREATE OR REPLACE FUNCTION on_comment_created()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+BEGIN
+  PERFORM increment_challenge_progress(NEW.user_id, 'comment');
+  RETURN NEW;
+END;
+$$;
 
-- Add `onTouchCancel` → call `onCaptureEnd()`
-- Consider switching from mixed touch/mouse handlers to **Pointer Events** (like you already attempted in the older `SnapCamera.tsx`), and use pointer capture:
-  - on pointer down: `buttonRef.current?.setPointerCapture(e.pointerId)`
-  - on pointer up/cancel: release + `onCaptureEnd()`
+CREATE TRIGGER trigger_comment_challenge
+AFTER INSERT ON comments
+FOR EACH ROW
+EXECUTE FUNCTION on_comment_created();
 
-This ensures you still get the “up” event even if the finger drifts off the button slightly.
+-- Messages trigger
+CREATE OR REPLACE FUNCTION on_message_sent()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+BEGIN
+  PERFORM increment_challenge_progress(NEW.sender_id, 'message');
+  RETURN NEW;
+END;
+$$;
 
-### 4) Cleanup safety (prevents weird stuck states)
-**File:** `src/components/camera/VybeSnapCamera.tsx`
+CREATE TRIGGER trigger_message_challenge
+AFTER INSERT ON messages
+FOR EACH ROW
+EXECUTE FUNCTION on_message_sent();
 
-- Ensure `handleClose` stops recording and clears flags:
-  - `shouldFinalizeOnStopRef.current = false`
-  - `segmentsRef.current = []`
-  - stop active MediaRecorder if needed
-- Add a small effect to stop recording if the page goes background (`visibilitychange`), so it can’t get stuck recording silently.
+-- Likes trigger
+CREATE OR REPLACE FUNCTION on_like_created()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+BEGIN
+  PERFORM increment_challenge_progress(NEW.user_id, 'like');
+  RETURN NEW;
+END;
+$$;
 
-## Verification checklist (what you should see after)
-1) Open DM → open VYBE camera → hold record 2–5 seconds → release  
-   - Recording stops
-   - Immediately transitions to the edit screen (video preview loop)
-2) Tap quickly (no hold) still takes a photo and goes to editor
-3) Hold record, flip camera mid-record, then release  
-   - Still transitions to editor
-   - Video plays as a single merged clip
-4) Test on:
-   - iPhone Safari (or installed app)
-   - Android Chrome
-   - Desktop (mouse)
+CREATE TRIGGER trigger_like_challenge
+AFTER INSERT ON likes
+FOR EACH ROW
+EXECUTE FUNCTION on_like_created();
 
-## Notes (mobile/native)
-If you’re running this as a true native build (Capacitor): after pulling the updated code you’ll want to run `npx cap sync` so the native projects pick up the changes.
+-- Follows trigger
+CREATE OR REPLACE FUNCTION on_follow_created()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+BEGIN
+  -- Follower gets credit for following someone
+  PERFORM increment_challenge_progress(NEW.follower_id, 'follow');
+  -- Followee gets credit for gaining a follower
+  PERFORM increment_challenge_progress(NEW.following_id, 'follower');
+  RETURN NEW;
+END;
+$$;
 
-## Next feature ideas
-<lov-actions>
-  <lov-suggestion message="Test the VYBE Snap flow end-to-end on mobile: hold to record, release to open editor, then send (also test camera flip mid-record).">Verify it works end-to-end</lov-suggestion>
-  <lov-suggestion message="Add a 1-tap 'Retake' action in the editor for both photo and video (returns to camera with the same settings).">Add Retake button</lov-suggestion>
-  <lov-suggestion message="Add a visible 'Recording…' timer (MM:SS) and a subtle haptic tick every 5 seconds for better feedback.">Add recording timer + haptics</lov-suggestion>
-  <lov-suggestion message="Add basic video trimming (start/end handles) in the editor before sending.">Add video trim</lov-suggestion>
-  <lov-suggestion message="Improve reliability by adding a fallback: if onstop doesn’t fire within 1s after stop, show an error + Retake.">Add onstop timeout fallback</lov-suggestion>
-</lov-actions>
+CREATE TRIGGER trigger_follow_challenge
+AFTER INSERT ON follows
+FOR EACH ROW
+EXECUTE FUNCTION on_follow_created();
+
+-- Conversation member trigger (for new_conversation)
+CREATE OR REPLACE FUNCTION on_conversation_joined()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+BEGIN
+  PERFORM increment_challenge_progress(NEW.user_id, 'new_conversation');
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trigger_conversation_challenge
+AFTER INSERT ON conversation_members
+FOR EACH ROW
+EXECUTE FUNCTION on_conversation_joined();
+
+-- Referrals trigger (for invite challenges)
+CREATE OR REPLACE FUNCTION on_referral_confirmed()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+BEGIN
+  IF NEW.confirmed = true AND (OLD IS NULL OR OLD.confirmed = false) THEN
+    PERFORM increment_challenge_progress(NEW.referrer_id, 'invite');
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trigger_referral_challenge
+AFTER INSERT OR UPDATE ON referrals
+FOR EACH ROW
+EXECUTE FUNCTION on_referral_confirmed();
+```
+
+### 3. Add Realtime Subscription for Challenge Progress Updates
+Update the frontend to also subscribe to `challenge_progress` updates for real-time UI updates.
+
+**File: `src/hooks/useBattlePass.ts`**
+Add a new hook to subscribe to progress changes:
+
+```typescript
+export function useRealtimeChallengeProgress() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!profile) return;
+
+    const channel = supabase
+      .channel(`challenge-progress-${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'challenge_progress',
+          filter: `user_id=eq.${profile.id}`,
+        },
+        (payload) => {
+          // Invalidate queries to refresh UI
+          queryClient.invalidateQueries({ queryKey: ['challenge-progress', profile.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, queryClient]);
+}
+```
+
+### 4. Enable Realtime for challenge_progress Table
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE public.challenge_progress;
+```
+
+### 5. Update RewardNotificationProvider
+Ensure the reward notification modal has better error handling and add the progress subscription.
+
+**File: `src/components/battlepass/RewardNotificationProvider.tsx`**
+- Add `useRealtimeChallengeProgress()` to keep UI in sync
+- Add console logging for debugging realtime events
+
+### 6. Add Daily Login Challenge Tracking
+Create a hook that triggers the login challenge on app load.
+
+**File: `src/hooks/useDailyLogin.ts`** (new file)
+```typescript
+import { useEffect, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
+
+export function useDailyLoginChallenge() {
+  const { profile } = useAuth();
+  const triggeredRef = useRef(false);
+
+  useEffect(() => {
+    if (!profile?.id || triggeredRef.current) return;
+    
+    const triggerLogin = async () => {
+      triggeredRef.current = true;
+      
+      // Call RPC to track daily login
+      await supabase.rpc('track_daily_login');
+    };
+
+    triggerLogin();
+  }, [profile?.id]);
+}
+```
+
+**New RPC function:**
+```sql
+CREATE OR REPLACE FUNCTION track_daily_login()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+DECLARE
+  v_profile_id uuid;
+  v_last_login date;
+BEGIN
+  -- Get profile ID from auth
+  SELECT id INTO v_profile_id FROM profiles WHERE user_id = auth.uid();
+  IF v_profile_id IS NULL THEN RETURN; END IF;
+  
+  -- Check last login date
+  SELECT DATE(completed_at) INTO v_last_login
+  FROM challenge_progress cp
+  JOIN challenges c ON c.id = cp.challenge_id
+  WHERE cp.user_id = v_profile_id 
+  AND c.requirement_type = 'login'
+  AND c.type = 'daily'
+  ORDER BY cp.completed_at DESC
+  LIMIT 1;
+  
+  -- Only credit if hasn't logged in today
+  IF v_last_login IS NULL OR v_last_login < CURRENT_DATE THEN
+    PERFORM increment_challenge_progress(v_profile_id, 'login');
+  END IF;
+END;
+$$;
+```
+
+### 7. Update App.tsx to Include Daily Login Hook
+Add the daily login challenge hook to `AuthenticatedPreloads` component.
+
+---
+
+## Files Changed Summary
+
+| File | Change |
+|------|--------|
+| Database migration | Add `increment_challenge_progress` function and triggers for all action tables |
+| Database migration | Enable realtime for `challenge_rewards` and `challenge_progress` tables |
+| Database migration | Add `track_daily_login` RPC function |
+| `src/hooks/useBattlePass.ts` | Add `useRealtimeChallengeProgress` hook |
+| `src/hooks/useDailyLogin.ts` | New file - daily login tracking |
+| `src/components/battlepass/RewardNotificationProvider.tsx` | Add progress subscription |
+| `src/App.tsx` | Add daily login hook to `AuthenticatedPreloads` |
+
+---
+
+## Expected Behavior After Implementation
+
+1. **Create a post** → Progress bar updates instantly, notification appears when challenge completes
+2. **Leave a comment** → Same instant feedback
+3. **Send a message** → Same instant feedback  
+4. **Start a new conversation** → Same instant feedback
+5. **Follow someone** → Both you and the followed user get credit
+6. **Log in daily** → Daily check-in challenge completes with notification
+7. **Invite a friend** → When they confirm, you get challenge credit
+
+The notification modal will pop up immediately with the XP reward, and users can claim it right from the modal.
