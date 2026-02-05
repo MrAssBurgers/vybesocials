@@ -1,67 +1,125 @@
 
-# Fix VYBE Snap "Opened" Bug
+# Performance Optimization and AI Brief Sparkles
 
-## Problem Identified
-When you send a VYBE snap, it immediately shows "Opened" to you (the sender) before the recipient has actually tapped to view it.
+## Overview
+This plan addresses two issues:
+1. **iPhone lag** - The recording button animations are janky on iPhones due to Framer Motion overhead, frequent state updates, and non-GPU-optimized animations
+2. **Missing sparkles** - The rotating V icon during daily brief generation should have animated sparkles
 
-## Root Cause
-The auto-mark-as-read logic in `ChatView.tsx` (lines 277-294) automatically marks ALL incoming messages as "viewed" when the chat is opened. This includes VYBE messages, which should only be marked as viewed when the recipient explicitly taps "TAP TO VIEW".
+## Root Cause Analysis
 
-**The flow causing the bug:**
-1. Sender sends a VYBE message
-2. Recipient's chat receives the message via realtime
-3. The auto-mark effect runs and calls `markViewed.mutate()` for the VYBE
-4. This inserts a row into `message_views` table
-5. Sender sees `message.views.length > 0` so UI shows "Opened" immediately
+### Why iPhone Lags
+1. **Framer Motion AnimatePresence for particles** - Creates/destroys DOM nodes rapidly, causing layout thrashing
+2. **State updates every 50ms** - `setInterval` updating `recordingProgress` triggers re-renders too frequently
+3. **Color interpolation on every render** - Recalculating colors repeatedly
+4. **Box-shadow animations** - Not GPU-accelerated; causes compositing issues on iOS Safari
+5. **Inline styles with JavaScript values** - Forces style recalculations
 
-## Solution
-Exclude VYBE messages (`media_type === 'vybe'`) from the auto-mark-as-read logic. VYBEs should only be marked as viewed when:
-1. The recipient explicitly taps "TAP TO VIEW"
-2. The `VybeViewer` component opens and calls `onViewed()`
+### Performance Fixes
 
----
+## Technical Implementation
 
-## Technical Changes
+### 1. VybeRecordButton - Complete Performance Rewrite
 
-### File: `src/components/chat/ChatView.tsx`
-**Location:** Lines 277-294 (auto-mark messages as read effect)
+**Key optimizations:**
+- Replace Framer Motion particles with pure CSS animations using `@keyframes`
+- Use `requestAnimationFrame` instead of `setInterval` for progress updates
+- Pre-calculate colors and use CSS custom properties
+- Replace `box-shadow` with `filter: drop-shadow()` (GPU-accelerated)
+- Add `will-change: transform` hints and `translateZ(0)` for GPU layers
+- Use `useMemo` to cache color calculations
+- Reduce particle count and use CSS transforms only (no opacity animations)
+- Add `touch-action: none` to prevent iOS scroll interference
 
-**Change:** Add a filter to exclude VYBE messages from auto-marking:
-
-```tsx
-// Auto-mark messages as read (EXCEPT VYBEs which require explicit tap-to-view)
-useEffect(() => {
-  if (!messages || !profile?.id || !conversationId) return;
-
-  const unreadMessages = messages.filter((msg) => {
-    if (msg.sender_id === profile.id) return false;
-    if (hasMarkedReadRef.current.has(msg.id)) return false;
-    
-    // Skip VYBE messages - they require explicit tap-to-view
-    if (msg.media_type === 'vybe') return false;
-    
-    const hasMyView = msg.views?.some((v) => v.user_id === profile.id);
-    return !hasMyView;
-  });
-
-  if (unreadMessages.length === 0) return;
-
-  unreadMessages.forEach((msg) => {
-    hasMarkedReadRef.current.add(msg.id);
-    markViewed.mutate(msg.id);
-  });
-}, [messages, profile?.id, conversationId, markViewed]);
+**Code approach:**
+```text
++------------------------------------------+
+|  Before (Laggy)         After (Smooth)   |
++------------------------------------------+
+|  Framer Motion          Pure CSS         |
+|  particles              @keyframes       |
+|                                          |
+|  setInterval(50ms)      requestAnimationFrame |
+|                                          |
+|  box-shadow glow        filter: drop-shadow |
+|                                          |
+|  useMemo color          CSS variables    |
+|  on every tick          updated rarely   |
++------------------------------------------+
 ```
 
----
+### 2. AIBriefLoadingState - Add Sparkles to Rotating V
 
-## Expected Behavior After Fix
+**Changes:**
+- Enable `showSparkles={true}` on the VybeMiniIcon
+- Add orbiting sparkle particles around the spinning V
+- Use CSS animations for sparkles (not Framer Motion) for consistency
+- Add subtle glow pulse effect
 
-**Sender's view:**
-1. Sends VYBE → Shows "Sent" state with gradient background
-2. When recipient taps and views → Shows "Opened" state (via realtime update)
+**Visual design:**
+```text
+       ★
+    ✧     ★
+      ( V )   ← Spinning V icon
+    ★     ✧
+       ★
+        
+Stars orbit and pulse around the V
+```
 
-**Recipient's view:**
-1. Receives VYBE → Shows "TAP TO VIEW" button with animated gradient
-2. Taps to view → VybeViewer opens fullscreen with 5-second timer
-3. After viewing → Shows "Opened" state (cannot view again)
+### 3. Platform-Aware Animation Reduction
+
+**For low-performance devices:**
+- Disable particles entirely on `performanceTier === 'low'`
+- Reduce animation complexity when `prefersReducedMotion` is true
+- Use simpler color transitions (fewer interpolation steps)
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/components/camera/VybeRecordButton.tsx` | Complete rewrite for GPU-optimized animations |
+| `src/components/home/AIBriefLoadingState.tsx` | Add sparkles to GeneratingScreen |
+| `src/components/ui/VybeMiniIcon.tsx` | Ensure sparkles work well when animated prop is true during rotation |
+
+## Implementation Details
+
+### VybeRecordButton Optimizations
+
+1. **Replace particle system:**
+   - Use CSS `@keyframes` for particle animations
+   - Pre-render 8-12 particles with staggered `animation-delay`
+   - Use `transform: scale() translate()` only (GPU)
+   - Remove AnimatePresence overhead
+
+2. **Progress ring optimization:**
+   - Use `stroke-dashoffset` animation with CSS transitions
+   - Apply `transform: translateZ(0)` for GPU layer promotion
+   - Use `will-change: stroke-dashoffset` during recording only
+
+3. **Color phase handling:**
+   - Calculate color once per phase change (every 5 seconds)
+   - Update CSS custom property `--ring-color` instead of inline style
+   - Remove per-frame color interpolation
+
+4. **Button morphing:**
+   - Use CSS transitions instead of Framer Motion `animate`
+   - Add `transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1)`
+
+### AIBriefLoadingState Sparkles
+
+1. **Enable sparkles on VybeMiniIcon:**
+   - Change `showSparkles={false}` to `showSparkles={true}`
+   - Add `animated={true}` to enable pulsing
+
+2. **Add orbiting particles:**
+   - Create 6 small sparkle dots
+   - Use CSS `@keyframes orbit` animation
+   - Stagger animation delays for natural feel
+   - Colors alternate between primary and accent
+
+## Expected Results
+- 60fps smooth recording button on all iPhones
+- Reduced battery drain during recording
+- Beautiful sparkle effect during brief generation
+- Consistent animations across all device types
