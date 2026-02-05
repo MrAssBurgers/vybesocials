@@ -70,6 +70,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const uiUpdateRef = useRef<NodeJS.Timeout | null>(null);
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isHoldingRef = useRef(false);
+  const isRecordingRef = useRef(false);
   const audioStreamRef = useRef<MediaStream | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -218,6 +219,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     }
     
     setIsRecording(false);
+    isRecordingRef.current = false;
     setRecordingProgress(0);
     haptics.success();
   }, []);
@@ -228,6 +230,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     
     haptics.impact();
     setIsRecording(true);
+    isRecordingRef.current = true;
     setRecordingProgress(0);
     recordedChunksRef.current = [];
     
@@ -313,7 +316,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     }, 300);
   }, [startRecording]);
 
-  // Handle capture button release
+  // Handle capture button release - use ref to avoid stale closure
   const handleCaptureEnd = useCallback(() => {
     isHoldingRef.current = false;
     
@@ -323,14 +326,15 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
       holdTimerRef.current = null;
     }
     
-    if (isRecording) {
-      // Was recording - stop it (this will auto-send)
+    // Use ref instead of state to avoid stale closure
+    if (isRecordingRef.current) {
+      // Was recording - stop it and go to edit phase
       stopRecording();
     } else {
       // Quick tap - take photo
       handleCapture();
     }
-  }, [isRecording, stopRecording, handleCapture]);
+  }, [stopRecording, handleCapture]);
 
   // Add text overlay - Snapchat style
   const addText = () => {
@@ -674,12 +678,11 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
             {/* Capture button - tap for photo, hold for video */}
             <div className="absolute bottom-10 left-0 right-0 flex justify-center safe-area-inset-bottom">
               <motion.button
-                onTouchStart={handleCaptureStart}
-                onTouchEnd={handleCaptureEnd}
-                onMouseDown={handleCaptureStart}
-                onMouseUp={handleCaptureEnd}
-                onMouseLeave={handleCaptureEnd}
-                className="relative w-20 h-20 rounded-full flex items-center justify-center"
+                onPointerDown={handleCaptureStart}
+                onPointerUp={handleCaptureEnd}
+                onPointerCancel={handleCaptureEnd}
+                onPointerLeave={handleCaptureEnd}
+                className="relative w-20 h-20 rounded-full flex items-center justify-center touch-none"
               >
                 {/* Outer ring with theme gradient - Snapchat-style recording ring */}
                 <div 
