@@ -1,209 +1,116 @@
 
+Goal: Restore DM reliability (send/receive text + VYBE snaps + media), fix core DM mechanics (unsend/delete/etc.), restore calls, and make challenges/XP actually work again with no refresh.
 
-# Fix Challenge Tracking System & Add Navigation
+What I found (root causes)
+1) Messages are failing at the database level due to a trigger that tries to queue an HTTP request with a NULL URL
+- There is a trigger `on_message_insert_notify` on `public.messages` that calls `public.notify_message_recipients()`.
+- That function uses `net.http_post(url := current_setting('app.settings.supabase_url', true) || '/functions/v1/send-push-notification', ...)`.
+- In this environment, those settings are NULL:
+  - `current_setting('app.settings.supabase_url', true)` = NULL
+  - `current_setting('app.settings.service_role_key', true)` = NULL
+- Result: Postgres error “null value in column "url" of relation "http_request_queue" violates not-null constraint”, which can abort the message INSERT. That explains “can’t send anything”.
 
-## Problems Identified
+2) Media/VYBE uploads likely fail because file paths were changed to use `profile.id/…`, but storage upload policy requires `auth.uid()` folder
+- Storage policy for `chat-media` bucket: `auth.uid()::text = (storage.foldername(name))[1]`
+- That means upload paths must be `${authUserId}/...` (typically `profile.user_id`), not `${profile.id}/...`.
+- So even if text messages start working again, snaps/images/audio/video can still fail until we revert to auth-based paths.
 
-### 1. Triggers Not Created for All Actions
-The migration that added triggers is missing:
-- **No `complete_profile` trigger** on profiles table - profile updates don't track the challenge
-- **No `referral` trigger** - referral confirmations aren't being tracked
-- Existing triggers work (comment trigger incremented from 0 to 1) but weren't retroactive
+3) Challenges/XP are broken by mixed “profile id” vs “auth id” usage plus incorrect RLS on challenge_progress
+- `challenge_progress.user_id` references `profiles.id`, but its RLS policies currently check `auth.uid() = user_id`, which will never match.
+- `user_levels.user_id` and `challenge_rewards.user_id` reference auth users, but the frontend `useVybePass` is querying/inserting using `profile.id` (causing FK errors like `user_levels_user_id_fkey`).
+- `sync_my_challenge_progress()` currently selects `profiles WHERE id = auth.uid()` (incorrect) and inserts `challenge_rewards` using a profile id (incorrect for that FK). That can make “Sync” and progression appear broken.
 
-### 2. Sync Function Not Updating Existing Progress
-- `sync_my_challenge_progress()` exists but doesn't run on every profile update
-- User has 3 comments but only 1 is counted (sync ran before other 2 comments were made)
-- `complete_profile` check requires BOTH `avatar_url` AND `display_name` - too strict
+Plan (implementation steps)
 
-### 3. No Navigation from Challenges
-- Clicking a challenge doesn't take users to where they can complete it
+A) Hotfix: Make message INSERTs impossible to break (backend migration)
+1) Patch `public.notify_message_recipients()` so it can never fail the message insert:
+   - If required settings are missing, do nothing and immediately `RETURN NEW`.
+   - Wrap `net.http_post` call in a `BEGIN … EXCEPTION WHEN OTHERS THEN … END;` so any networking/queue error is swallowed.
+   - This keeps messaging functional even if push is misconfigured.
+2) (Optional but recommended) Temporarily disable the `on_message_insert_notify` trigger entirely (or keep it enabled but safe as above).
+   - The app already sends pushes client-side; DB-level push should never block chats.
 
----
+B) Fix DM media + VYBE snap sending paths (frontend)
+1) Revert all `chat-media` upload fileName paths to use the authenticated user id folder:
+   - Use `${profile.user_id}/${Date.now()}...` everywhere we upload to `chat-media`.
+   - This applies to:
+     - VYBE image/video sends in `ChatView`
+     - Image upload flow (safety gate approved image)
+     - Voice messages
+     - Video sends in `useInstantSend.sendVideo`
+2) Add a clear guard:
+   - If `!profile?.user_id`, show a toast like “Account not ready yet, please retry” and block upload (prevents silent failures).
 
-## Solution
+C) Fix “can’t receive messages / realtime feels dead” (frontend + backend sanity)
+1) Ensure realtime tables are in the publication (they are already: messages, conversations, calls, etc.). Keep as-is.
+2) After message INSERTs stop failing (Step A), verify the receiver gets realtime INSERT events:
+   - If not, we’ll inspect message SELECT RLS conditions again, but the biggest blocker right now is the failing insert trigger.
 
-### Database Changes
+D) Repair challenges + VYBE Pass XP end-to-end (backend migration + frontend)
+1) Fix challenge_progress RLS policies (critical):
+   - Replace `auth.uid() = user_id` with `current_profile_id() = user_id` for SELECT and ALL.
+   - This makes the UI able to read and write its own progress rows.
+2) Fix `sync_my_challenge_progress()`:
+   - Get the user’s profile id with `SELECT id FROM profiles WHERE user_id = auth.uid()`.
+   - Never insert into `challenge_rewards` with a profile id:
+     - Either rely entirely on the existing `on_challenge_completed` trigger (preferred), or insert using `auth.uid()` if still needed.
+3) Fix `force_sync_my_challenges()` to call the corrected sync function.
+4) Fix frontend `useVybePass` to use auth user id for auth-owned tables:
+   - `user_levels.user_id` filters/inserts must use `profile.user_id` (auth id), not `profile.id`.
+   - `challenge_rewards.user_id` queries/subscriptions must use `profile.user_id`.
+   - Keep challenge_progress using `profile.id` (profile id), because that table is profile-owned.
+5) Add a small “ID sanity helper” (frontend):
+   - A single function that returns `{ profileId, authUserId }` and asserts both exist, used across pass/challenges.
 
-#### 1. Add Profile Update Trigger
-Create a trigger on `profiles` table that checks profile completion when profile is updated:
+E) Fix calls (edge function hardening + UI)
+1) Harden `create-call-room` backend function:
+   - If profile lookup `.eq('user_id', user.id)` fails, call a backend RPC to ensure a profile exists (e.g. `ensure_profile()` / `claim_profile_by_email()` flow) and retry once.
+   - This prevents “Profile not found” from blocking calls for users whose profile link isn’t ready yet.
+2) Validate calls table RLS remains compatible (it uses `current_profile_id()` which should work once profiles are linked correctly).
 
-```sql
-CREATE OR REPLACE FUNCTION on_profile_updated()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = 'public'
-AS $$
-BEGIN
-  -- Check if profile is now "complete" (has avatar_url OR display_name OR bio)
-  IF (NEW.avatar_url IS NOT NULL OR NEW.display_name IS NOT NULL OR NEW.bio IS NOT NULL AND LENGTH(NEW.bio) > 0)
-     AND (OLD.avatar_url IS NULL AND OLD.display_name IS NULL AND (OLD.bio IS NULL OR LENGTH(OLD.bio) = 0)) THEN
-    PERFORM increment_challenge_progress(NEW.id, 'complete_profile');
-  END IF;
-  RETURN NEW;
-END;
-$$;
+F) Clean up the profile-link trigger so it doesn’t break account claiming (backend migration)
+1) Update `link_profile_to_auth()` trigger logic:
+   - Do NOT set `user_id = id` for unclaimed/imported profiles.
+   - Instead: `NEW.user_id := COALESCE(NEW.user_id, auth.uid());`
+   - If `auth.uid()` is NULL (admin import), leave `user_id` NULL so `claim_profile_by_email()` can claim later.
+2) This reduces “ghost profile” issues that break DMs between pre-created profiles and real signups.
 
-CREATE TRIGGER trigger_profile_challenge
-AFTER UPDATE ON profiles
-FOR EACH ROW
-EXECUTE FUNCTION on_profile_updated();
-```
+Testing checklist (end-to-end, two accounts)
+1) Create/open a DM, send text → should insert instantly and appear on other account without refresh.
+2) Send:
+   - image
+   - voice
+   - video
+   - VYBE image
+   - VYBE video
+   Verify upload succeeds (no storage permission errors) and receiver can open it.
+3) Unsend a message → should disappear for both users (realtime UPDATE).
+4) Start a call → receiver should see ringing UI; accept/decline should update status.
+5) Challenges:
+   - Open Challenges → progress loads (not empty due to RLS).
+   - Do an action (send message/post/comment) → progress updates live (realtime).
+6) VYBE Pass:
+   - Post something → XP increments and level row exists without FK errors.
 
-#### 2. Add Referral Trigger
-```sql
-CREATE OR REPLACE FUNCTION on_referral_confirmed()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = 'public'
-AS $$
-BEGIN
-  IF NEW.confirmed = true AND (OLD IS NULL OR OLD.confirmed = false) THEN
-    PERFORM increment_challenge_progress(NEW.referrer_id, 'invite');
-  END IF;
-  RETURN NEW;
-END;
-$$;
+Files / areas that will be modified once you approve implementation
+Backend (migrations):
+- Patch `notify_message_recipients()` and its trigger behavior
+- Fix challenge_progress RLS policies
+- Fix sync_my_challenge_progress() + force_sync_my_challenges()
+- Fix link_profile_to_auth() trigger function
 
-CREATE TRIGGER trigger_referral_challenge
-AFTER INSERT OR UPDATE ON referrals
-FOR EACH ROW
-EXECUTE FUNCTION on_referral_confirmed();
-```
+Frontend:
+- `src/components/chat/ChatView.tsx` (upload paths + guards)
+- `src/hooks/useInstantSend.ts` (video upload path)
+- `src/hooks/useVybePass.ts` (use `profile.user_id` for user_levels + challenge_rewards)
+- `supabase/functions/create-call-room/index.ts` (profile ensure/retry)
 
-#### 3. Fix sync_my_challenge_progress Profile Check
-Make the `complete_profile` requirement more lenient (any of: avatar, display_name, or bio):
+Rollout order (to stabilize fastest)
+1) Backend hotfix for message trigger (unblocks all sends)
+2) Frontend media/VYBE upload path fix
+3) Challenge/VYBE Pass ID + RLS fixes
+4) Calls hardening
 
-```sql
-WHEN 'complete_profile' THEN
-  SELECT CASE 
-    WHEN avatar_url IS NOT NULL 
-      OR display_name IS NOT NULL 
-      OR (bio IS NOT NULL AND LENGTH(bio) > 0) 
-    THEN 1 
-    ELSE 0 
-  END INTO v_current_count
-  FROM profiles WHERE id = v_profile_id;
-```
-
-#### 4. Create Manual Sync RPC
-Add an RPC that can be called to force-sync all challenges:
-
-```sql
-CREATE OR REPLACE FUNCTION force_sync_my_challenges()
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = 'public'
-AS $$
-BEGIN
-  PERFORM sync_my_challenge_progress();
-END;
-$$;
-```
-
----
-
-### Frontend Changes
-
-#### 1. Add Challenge Route Mapping
-In `src/hooks/useChallenges.ts`, add a mapping from requirement_type to route:
-
-```typescript
-export const CHALLENGE_ROUTES: Record<string, string> = {
-  'post': '/upload',
-  'comment': '/explore',
-  'like': '/explore', 
-  'follow': '/explore',
-  'follower': '/u/me', // Their own profile
-  'message': '/messages',
-  'new_conversation': '/messages/new',
-  'complete_profile': '/settings',
-  'invite': '/invite',
-  'login': '/', // No navigation needed
-};
-```
-
-#### 2. Update ChallengesHub.tsx
-Make challenge cards clickable with navigation:
-
-```typescript
-import { useNavigate } from 'react-router-dom';
-import { CHALLENGE_ROUTES } from '@/hooks/useChallenges';
-
-// In component:
-const navigate = useNavigate();
-
-const handleChallengeClick = (challenge: Challenge) => {
-  if (challenge.is_completed) return; // Don't navigate if completed
-  
-  const route = CHALLENGE_ROUTES[challenge.requirement_type];
-  if (route) {
-    toast.info(`Complete this challenge: ${challenge.title}`);
-    navigate(route);
-  }
-};
-
-// Update GlassCard to be clickable:
-<GlassCard 
-  className={cn(
-    "p-4 relative overflow-hidden cursor-pointer hover:border-primary/40 transition-colors",
-    challenge.is_completed && "border-primary/30 bg-primary/5"
-  )}
-  onClick={() => handleChallengeClick(challenge)}
->
-```
-
-#### 3. Add Manual Sync Button
-Add a "Sync Progress" button in ChallengesHub that calls the RPC:
-
-```typescript
-const handleSyncProgress = async () => {
-  try {
-    const { error } = await supabase.rpc('force_sync_my_challenges');
-    if (error) throw error;
-    
-    // Invalidate queries to refresh
-    queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
-    toast.success('Challenges synced!');
-  } catch (error) {
-    toast.error('Failed to sync challenges');
-  }
-};
-```
-
-#### 4. Trigger Sync on Profile Save
-In `ProfileSection.tsx`, after saving profile, call sync:
-
-```typescript
-const handleSave = async () => {
-  // ... existing save logic
-  
-  // Sync challenges after profile update
-  await supabase.rpc('force_sync_my_challenges');
-  queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
-};
-```
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| New migration | Add profile trigger, referral trigger, fix sync function, add force_sync RPC |
-| `src/hooks/useChallenges.ts` | Add CHALLENGE_ROUTES mapping |
-| `src/pages/ChallengesHub.tsx` | Add click navigation, sync button |
-| `src/components/settings/ProfileSection.tsx` | Trigger sync after save |
-
----
-
-## Expected Behavior After Fix
-
-1. **Profile completion**: Update your profile → "First Steps" challenge completes
-2. **Leaving comments**: Comments trigger updates the progress bar in real-time
-3. **Click on challenge**: Tapping "Engaged" (comment challenge) → navigates to Explore page
-4. **Sync button**: Tapping "Sync" recalculates all progress from actual data
-5. **All previous actions counted**: Your 3 comments will show 3/10 progress after sync
-
+Notes on scope
+- This plan focuses on “nothing works” blockers first (message inserts + storage RLS + broken RLS on challenge_progress + auth/profile ID mismatches).
+- After core DM reliability is restored, we can iterate on DM polish (typing indicators, vanish modes, read receipts edge cases) without risking system-wide failure.
