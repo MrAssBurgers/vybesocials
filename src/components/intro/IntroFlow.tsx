@@ -229,9 +229,11 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
                   : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
               }`}
               style={{
-                height: '4px',
-                width: '32px',
-                borderRadius: '2px',
+                display: 'block',
+                height: '2px',
+                width: '40px',
+                borderRadius: '999px',
+                flexShrink: 0,
                 opacity: index === currentSlide ? 1 : 0.4,
               }}
               aria-label={`Go to slide ${index + 1}`}
