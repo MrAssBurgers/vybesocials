@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, Zap, Trophy, Clock, CheckCircle2, Gift, Flame, Star, ChevronRight } from 'lucide-react';
+import { Target, Zap, Trophy, Clock, CheckCircle2, Gift, Flame, Star, ChevronRight, RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { useChallengesWithProgress } from '@/hooks/useChallenges';
+import { useChallengesWithProgress, CHALLENGE_ROUTES } from '@/hooks/useChallenges';
 import { useUnclaimedRewards, useClaimReward, useNextLevelProgress, useBattlePassTiers } from '@/hooks/useBattlePass';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { Progress } from '@/components/ui/progress';
@@ -13,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { BattlePassSheet } from '@/components/battlepass/BattlePassSheet';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const TYPE_CONFIG = {
   daily: {
@@ -36,6 +39,8 @@ const TYPE_CONFIG = {
 };
 
 export default function ChallengesHubPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { daily, weekly, achievements, all } = useChallengesWithProgress();
   const { data: unclaimedRewards } = useUnclaimedRewards();
   const { data: tiers } = useBattlePassTiers();
@@ -44,6 +49,33 @@ export default function ChallengesHubPage() {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [battlePassOpen, setBattlePassOpen] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleChallengeClick = (challenge: typeof all[0]) => {
+    if (challenge.is_completed) return;
+    
+    const route = CHALLENGE_ROUTES[challenge.requirement_type];
+    if (route) {
+      toast.info(`Complete this challenge: ${challenge.title}`);
+      navigate(route);
+    }
+  };
+
+  const handleSyncProgress = async () => {
+    setSyncing(true);
+    try {
+      const { error } = await supabase.rpc('force_sync_my_challenges');
+      if (error) throw error;
+      
+      await queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
+      await queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards'] });
+      toast.success('Challenges synced!');
+    } catch (error) {
+      toast.error('Failed to sync challenges');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const isLoading = all.length === 0;
   const completedCount = all.filter(c => c.is_completed).length;
@@ -92,16 +124,28 @@ export default function ChallengesHubPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-6"
         >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-              <Target className="h-6 w-6 text-primary" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                <Target className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold">Challenges</h1>
+                <p className="text-sm text-muted-foreground">
+                  Complete challenges to earn badges and XP
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold">Challenges</h1>
-              <p className="text-sm text-muted-foreground">
-                Complete challenges to earn badges and XP
-              </p>
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleSyncProgress}
+              disabled={syncing}
+              className="shrink-0"
+              title="Sync progress"
+            >
+              <RefreshCw className={cn("h-5 w-5", syncing && "animate-spin")} />
+            </Button>
           </div>
 
           {/* Battle Pass Progress Card */}
@@ -284,72 +328,81 @@ export default function ChallengesHubPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.05 }}
                   >
-                    <GlassCard 
+                    <div 
                       className={cn(
-                        "p-4 relative overflow-hidden",
-                        challenge.is_completed && "border-primary/30 bg-primary/5"
+                        !challenge.is_completed && "cursor-pointer"
                       )}
+                      onClick={() => handleChallengeClick(challenge)}
                     >
-                      <div className="flex items-start gap-4">
-                        {/* Icon */}
-                        <div className={cn(
-                          "h-12 w-12 rounded-xl flex items-center justify-center shrink-0",
-                          config?.bgColor || 'bg-secondary'
-                        )}>
-                          {challenge.is_completed ? (
-                            <CheckCircle2 className="h-6 w-6 text-primary" />
-                          ) : (
-                            <Icon className={cn("h-6 w-6", config?.color)} />
-                          )}
+                      <GlassCard 
+                        className={cn(
+                          "p-4 relative overflow-hidden transition-colors",
+                          challenge.is_completed 
+                            ? "border-primary/30 bg-primary/5" 
+                            : "hover:border-primary/40"
+                        )}
+                      >
+                        <div className="flex items-start gap-4">
+                          {/* Icon */}
+                          <div className={cn(
+                            "h-12 w-12 rounded-xl flex items-center justify-center shrink-0",
+                            config?.bgColor || 'bg-secondary'
+                          )}>
+                            {challenge.is_completed ? (
+                              <CheckCircle2 className="h-6 w-6 text-primary" />
+                            ) : (
+                              <Icon className={cn("h-6 w-6", config?.color)} />
+                            )}
+                          </div>
+                          
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold truncate">{challenge.title}</h3>
+                              <Badge variant="secondary" className="shrink-0">
+                                {config?.label}
+                              </Badge>
+                            </div>
+                            
+                            {challenge.description && (
+                              <p className="text-sm text-muted-foreground mb-2 line-clamp-1">
+                                {challenge.description}
+                              </p>
+                            )}
+                            
+                            {/* Progress */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">
+                                  {challenge.current_count} / {challenge.requirement_count}
+                                </span>
+                                <span className="text-primary flex items-center gap-1">
+                                  <Gift className="h-3 w-3" />
+                                  +{challenge.reward_xp} XP
+                                </span>
+                              </div>
+                              <Progress 
+                                value={challenge.progress_percentage} 
+                                className="h-1.5"
+                              />
+                            </div>
+                          </div>
                         </div>
                         
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold truncate">{challenge.title}</h3>
-                            <Badge variant="secondary" className="shrink-0">
-                              {config?.label}
+                        {/* Completed overlay */}
+                        {challenge.is_completed && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="absolute top-2 right-2"
+                          >
+                            <Badge className="bg-primary text-primary-foreground">
+                              ✓ Complete
                             </Badge>
-                          </div>
-                          
-                          {challenge.description && (
-                            <p className="text-sm text-muted-foreground mb-2 line-clamp-1">
-                              {challenge.description}
-                            </p>
-                          )}
-                          
-                          {/* Progress */}
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-muted-foreground">
-                                {challenge.current_count} / {challenge.requirement_count}
-                              </span>
-                              <span className="text-primary flex items-center gap-1">
-                                <Gift className="h-3 w-3" />
-                                +{challenge.reward_xp} XP
-                              </span>
-                            </div>
-                            <Progress 
-                              value={challenge.progress_percentage} 
-                              className="h-1.5"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Completed overlay */}
-                      {challenge.is_completed && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="absolute top-2 right-2"
-                        >
-                          <Badge className="bg-primary text-primary-foreground">
-                            ✓ Complete
-                          </Badge>
-                        </motion.div>
-                      )}
-                    </GlassCard>
+                          </motion.div>
+                        )}
+                      </GlassCard>
+                    </div>
                   </motion.div>
                 );
               })}

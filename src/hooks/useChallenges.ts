@@ -2,6 +2,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 
+/**
+ * Maps challenge requirement_type to the route where users can complete it
+ */
+export const CHALLENGE_ROUTES: Record<string, string> = {
+  'post': '/upload',
+  'comment': '/explore',
+  'like': '/explore',
+  'follow': '/explore',
+  'follower': '/u/me',
+  'message': '/messages',
+  'new_conversation': '/messages',
+  'complete_profile': '/settings',
+  'invite': '/invite',
+  'login': '/', // No navigation needed
+};
+
 export interface Challenge {
   id: string;
   title: string;
