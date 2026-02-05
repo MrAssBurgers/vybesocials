@@ -11,10 +11,12 @@ import {
   Shield, ShieldCheck, ShieldX, ShieldAlert, 
   Loader2, X, Send, AlertTriangle, Eye
 } from 'lucide-react';
+ import { Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useContentSafety, SafetyResult } from '@/hooks/useContentSafety';
 import { triggerHaptic } from '@/lib/haptics';
+ import { isCurrentUserOwner } from '@/lib/ownerBypass';
 
 interface DMImageSafetyGateProps {
   file: File;
@@ -31,11 +33,12 @@ export function DMImageSafetyGate({
   onCancel,
   onBlocked,
 }: DMImageSafetyGateProps) {
-  const { scanImage, isScanning, result, message, submitAppeal } = useContentSafety();
+   const { scanImage, isScanning, result, message, submitAppeal, bypassEnabled } = useContentSafety();
   const [dots, setDots] = useState(0);
   const [showAppeal, setShowAppeal] = useState(false);
   const [appealReason, setAppealReason] = useState('');
   const hasScanned = useRef(false);
+   const [ownerBypass, setOwnerBypass] = useState(false);
 
   // Start scan when component mounts - only once
   useEffect(() => {
@@ -43,6 +46,18 @@ export function DMImageSafetyGate({
     hasScanned.current = true;
 
     const runScan = async () => {
+       // Check owner bypass first
+       const isOwner = await isCurrentUserOwner();
+       if (isOwner) {
+         setOwnerBypass(true);
+         triggerHaptic('success');
+         // Auto-approve after brief delay
+         setTimeout(() => {
+           onApproved();
+         }, 500);
+         return;
+       }
+ 
       const scanResult = await scanImage(file);
       
       if (scanResult.result === 'allowed') {
@@ -78,6 +93,17 @@ export function DMImageSafetyGate({
   };
 
   const getIcon = () => {
+     if (ownerBypass) {
+       return (
+         <motion.div
+           initial={{ scale: 0 }}
+           animate={{ scale: 1 }}
+           transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+         >
+           <Crown className="h-12 w-12 text-primary" />
+         </motion.div>
+       );
+     }
     switch (result) {
       case 'scanning':
         return <Loader2 className="h-12 w-12 text-primary animate-spin" />;
@@ -127,6 +153,7 @@ export function DMImageSafetyGate({
   };
 
   const getTitle = () => {
+     if (ownerBypass) return 'Owner Bypass Active';
     switch (result) {
       case 'scanning':
         return `Checking Image${'.'.repeat(dots)}`;
@@ -144,6 +171,7 @@ export function DMImageSafetyGate({
   };
 
   const getDescription = () => {
+     if (ownerBypass) return 'Sending without content scan...';
     if (message) return message;
     switch (result) {
       case 'scanning':
@@ -162,6 +190,7 @@ export function DMImageSafetyGate({
   };
 
   const getBgClass = () => {
+     if (ownerBypass) return 'from-primary/20 to-primary/5 border-primary/30';
     switch (result) {
       case 'allowed':
         return 'from-emerald-500/20 to-emerald-500/5 border-emerald-500/30';
