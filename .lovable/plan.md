@@ -1,115 +1,114 @@
 
-# Fix VYBE Snap Sending Issues
+# Fix Screenshot Detection When Leaving Tab in Chat
 
-## Root Causes Identified
+## Problem
+The current screenshot detection in `useScreenCapture.ts` uses timing-based heuristics (blur/focus duration, visibility change duration) to detect screenshots. This approach fails when users leave the tab because:
 
-After thorough investigation, I found **two key issues** causing VYBE snaps to fail:
+1. The detection requires both blur AND visibility signals to occur within tight timing windows (50-800ms visibility, 100-1000ms blur)
+2. When switching tabs, these timings are often longer than the detection thresholds
+3. No detection of keyboard shortcuts (PrintScreen, Cmd+Shift on Mac)
+4. The `isActivelyViewingChat` flag isn't being updated properly when navigating
 
-### Issue 1: Messages Not Being Inserted (Critical)
-- Storage uploads **work correctly** - files are being created in `chat-media` bucket with proper paths (`profile.user_id/...`)
-- However, **no messages from today (Feb 5) exist in the database**
-- The DB shows messages from Feb 4, but uploads from today have no corresponding message records
-- This means the message INSERT is failing silently somewhere in the code flow
+## Solution
+Improve screenshot detection with multiple approaches:
 
-### Issue 2: Possible Error Swallowing
-- The catch block at line 890 logs to console but the user may not notice the toast
-- The optimistic UI shows the message, but if the insert fails, it stays marked as `_failed` without clear visual feedback
+### 1. Add Keyboard Shortcut Detection
+Listen for common screenshot keyboard shortcuts:
+- Windows: PrintScreen, Alt+PrintScreen, Win+Shift+S
+- Mac: Cmd+Shift+3 (full screen), Cmd+Shift+4 (selection), Cmd+Shift+5 (screenshot menu)
 
-## Investigation Summary
+### 2. Relax Timing Constraints
+- Increase visibility change threshold from 50-800ms to 50-2000ms
+- Increase blur duration threshold from 100-1000ms to 100-2000ms
+- This captures more tab-switch scenarios where users screenshot and return
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Storage Upload Paths | ✅ Fixed | Now using `profile.user_id` correctly |
-| Storage RLS Policy | ✅ Working | Files being uploaded successfully |
-| Message Trigger (notify_message_recipients) | ✅ Fixed | Returns early if settings NULL, exception-wrapped |
-| Other Triggers (challenges, streaks) | ✅ Checked | All SECURITY DEFINER, shouldn't fail |
-| Messages Table | ❓ Suspect | No new rows despite successful uploads |
+### 3. Single-Signal Detection
+- Trigger on EITHER visibility OR blur signal with medium confidence (not just when combined)
+- Keep high confidence for combined signals
 
-## Proposed Fixes
-
-### A) Add Better Error Logging & Toast Feedback
-Currently, errors are logged to console but users may not see them. We need:
-1. More prominent error toasts that stay visible longer
-2. Log specific error details to help debug
-
-### B) Fix Potential Race Condition in Video Path
-In `handleVybeSend`, the video blob fetch + safety scan + upload flow could have timing issues. The code:
-```typescript
-const response = await fetch(mediaDataUrl); // Fetching blob URL
-const videoBlob = await response.blob();
-```
-If `mediaDataUrl` (a blob URL) is revoked too early or the fetch fails, the entire chain breaks.
-
-### C) Add Retry Logic with Exponential Backoff
-Message inserts can fail transiently. Add retry logic.
-
-### D) Verify RLS Policy Execution
-Test that the INSERT policy is passing by checking the subquery logic.
-
-## Implementation Plan
-
-### Step 1: Add Defensive Checks in handleVybeSend
-```typescript
-// Before insert, verify mediaUrl is valid
-if (!mediaUrl || mediaUrl.includes('undefined')) {
-  throw new Error('Media upload failed - URL is invalid');
-}
-```
-
-### Step 2: Add Explicit Error Handling for Each Phase
-Split the try/catch into phases with specific error messages:
-- Phase 1: Blob fetch
-- Phase 2: Safety scan  
-- Phase 3: Storage upload
-- Phase 4: Database insert
-
-### Step 3: Add Better Visual Feedback for Failed Messages
-Create a visible "failed to send" indicator with retry button.
-
-### Step 4: Verify Database Insert Works
-Add a test that the RLS policy allows the insert before assuming success.
+### 4. Update Chat Active State
+- Ensure `setActivelyViewingChat(true)` is called when entering a chat
+- Ensure `setActivelyViewingChat(false)` is called when leaving
 
 ## Files to Modify
 
-1. **`src/components/chat/ChatView.tsx`**
-   - Add phase-specific error handling in `handleVybeSend`
-   - Add defensive URL validation before DB insert
-   - Add retry mechanism for failed inserts
-   - Improve toast feedback (duration, action buttons)
+**src/hooks/useScreenCapture.ts**
+- Add keyboard event listener for screenshot shortcuts
+- Relax timing thresholds for visibility/blur detection
+- Add single-signal detection with medium confidence
+- Improve detection logic to handle tab switches better
 
-2. **`src/components/chat/MessageBubble.tsx`** (if exists)
-   - Add visual indicator for `_failed` messages
-   - Add tap-to-retry functionality
+**src/components/chat/ChatView.tsx**
+- Call `setActivelyViewingChat(true)` when chat mounts
+- Call `setActivelyViewingChat(false)` when chat unmounts or navigates away
 
 ## Technical Details
 
-### Current Flow (with failure point)
-```text
-1. User taps Send in VybeSnapEditor
-2. handleVybeSend called with mediaDataUrl (blob URL)
-3. Optimistic message added to cache ✅
-4. Toast shows "Sending VYBE..." ✅
-5. Fetch blob from URL ⚠️ (Can fail if URL invalid)
-6. Safety scan (with timeout) ✅
-7. Upload to storage ✅ (Files exist in bucket)
-8. Get public URL ⚠️ (Could be undefined?)
-9. INSERT into messages ❌ (Failing silently)
-10. Replace optimistic with real message ❌ (Never happens)
+### Keyboard Shortcut Detection
+```typescript
+const handleKeyDown = (e: KeyboardEvent) => {
+  // Windows PrintScreen
+  if (e.key === 'PrintScreen') {
+    triggerCapture({ type: 'screenshot', timestamp: new Date(), confidence: 'high' });
+    return;
+  }
+  
+  // Mac screenshot shortcuts: Cmd+Shift+3, Cmd+Shift+4, Cmd+Shift+5
+  if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
+    triggerCapture({ type: 'screenshot', timestamp: new Date(), confidence: 'high' });
+    return;
+  }
+  
+  // Windows Snipping Tool: Win+Shift+S
+  if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 's') {
+    triggerCapture({ type: 'screenshot', timestamp: new Date(), confidence: 'high' });
+  }
+};
 ```
 
-### Proposed Flow
-```text
-1. User taps Send in VybeSnapEditor
-2. handleVybeSend with validation checks
-3. Phase-wrapped try/catch for each step
-4. Explicit URL validation before INSERT
-5. Retry logic for transient failures
-6. Clear visual feedback on failure
+### Relaxed Timing Thresholds
+```typescript
+// Before: 50-800ms visibility, 100-1000ms blur
+// After: 50-2000ms visibility, 100-3000ms blur
+
+// Visibility change detection
+if (hiddenDuration > 50 && hiddenDuration < 2000) {
+  // ...trigger with medium confidence for single signal
+}
+
+// Blur/focus detection  
+if (blurDuration > 100 && blurDuration < 3000) {
+  // ...trigger with medium confidence for single signal
+}
+
+// Combined signals = high confidence
+if (blurWasRecent && visibilityWasRecent) {
+  // ...trigger with high confidence
+}
 ```
 
-## Expected Outcome
+### Chat Active State Management
+```typescript
+// In ChatView.tsx
+const { setActivelyViewingChat } = useScreenCapture({
+  enabled: !!conversationId,
+  onCapture: (event) => { /* ... */ }
+});
+
+// Set active when chat mounts/changes
+useEffect(() => {
+  if (conversationId) {
+    setActivelyViewingChat(true);
+  }
+  return () => setActivelyViewingChat(false);
+}, [conversationId, setActivelyViewingChat]);
+```
+
+## Testing
 After implementation:
-- VYBE snaps will send reliably
-- Users will see clear error messages if something fails
-- Failed messages will be visually distinct with retry option
-- Console logs will help diagnose any remaining issues
+1. Open a chat conversation
+2. Take a screenshot using keyboard shortcut (Cmd+Shift+4 on Mac, PrintScreen on Windows)
+3. Verify screenshot alert appears
+4. Switch to another tab, take screenshot, return to chat
+5. Verify screenshot alert appears
+6. Switch tabs normally (without screenshot) - should NOT trigger false positive
