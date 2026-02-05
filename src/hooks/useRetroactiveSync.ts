@@ -24,13 +24,15 @@ export function useRetroactiveSync() {
 
     const syncProgress = async () => {
       try {
-        console.log('[RetroactiveSync] Starting sync for:', profile.username);
+        if (import.meta.env.DEV) {
+          console.log('[RetroactiveSync] Starting sync for:', profile.username);
+        }
         
         // Sync retroactive challenge progress for this user
         const { error: syncError } = await supabase.rpc('sync_my_challenge_progress');
         if (syncError) {
           console.error('[RetroactiveSync] Challenge sync error:', syncError);
-        } else {
+        } else if (import.meta.env.DEV) {
           console.log('[RetroactiveSync] Challenge progress synced');
         }
         
