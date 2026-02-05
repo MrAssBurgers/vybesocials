@@ -6,16 +6,14 @@ import { cn } from '@/lib/utils';
 import { CameraFilters, CAMERA_FILTERS, getFilterCSS } from './CameraFilters';
 import { CameraEditor } from './CameraEditor';
 import { CameraShareSheet } from './CameraShareSheet';
-import { CameraSafetyGate } from './CameraSafetyGate';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
-import { SafetyResult } from '@/hooks/useContentSafety';
 
 interface CameraProps {
   onClose: () => void;
 }
 
-type CameraState = 'capture' | 'edit' | 'share' | 'scanning';
+type CameraState = 'capture' | 'edit' | 'share';
 
 export function Camera({ onClose }: CameraProps) {
   const [state, setState] = useState<CameraState>('capture');
@@ -210,18 +208,6 @@ export function Camera({ onClose }: CameraProps) {
     }
   };
 
-  // Handle safety scan result
-  const handleScanComplete = (result: SafetyResult) => {
-    if (result === 'blocked') {
-      // Go back to capture
-      setCapturedMedia(null);
-      setState('capture');
-    } else {
-      // Proceed to share
-      setState('share');
-    }
-  };
-
   // Render based on state
   if (state === 'edit' && capturedMedia) {
     return (
@@ -229,23 +215,11 @@ export function Camera({ onClose }: CameraProps) {
         mediaUrl={capturedMedia.url}
         mediaType={capturedMedia.type}
         filter={currentFilter}
-        onSave={() => setState('scanning')}
+        onSave={() => setState('share')}
         onCancel={() => {
           setCapturedMedia(null);
           setState('capture');
         }}
-      />
-    );
-  }
-
-  // AI Safety Scanning state
-  if (state === 'scanning' && capturedMedia?.file) {
-    return (
-      <CameraSafetyGate
-        file={capturedMedia.file}
-        mediaType={capturedMedia.type}
-        onResult={handleScanComplete}
-        onCancel={() => setState('edit')}
       />
     );
   }
