@@ -38,6 +38,9 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const progressFrameRef = useRef<number | null>(null);
+  const progressRef = useRef(0);
+  const uiUpdateRef = useRef<NodeJS.Timeout | null>(null);
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isHoldingRef = useRef(false);
   const recordingStartTimeRef = useRef(0);
@@ -212,17 +215,27 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     startRecordingSegment();
     
     // Progress timer
-    const startTime = Date.now();
-    recordingTimerRef.current = setInterval(() => {
-      const currentSegmentTime = Date.now() - startTime;
+    const recordingStartTime = Date.now();
+    
+    // RAF for smooth 60fps progress tracking (updates ref, not state)
+    const updateProgress = () => {
+      const currentSegmentTime = Date.now() - recordingStartTime;
       const totalTime = totalRecordedTimeRef.current + currentSegmentTime;
       const progress = Math.min((totalTime / (MAX_RECORDING_DURATION * 1000)) * 100, 100);
-      setRecordingProgress(progress);
+      progressRef.current = progress;
       
       if (progress >= 100) {
         stopRecording();
+      } else {
+        progressFrameRef.current = requestAnimationFrame(updateProgress);
       }
-    }, 50);
+    };
+    progressFrameRef.current = requestAnimationFrame(updateProgress);
+    
+    // Separate UI update at 10fps (100ms) for React state - reduces VDOM diffing
+    uiUpdateRef.current = setInterval(() => {
+      setRecordingProgress(progressRef.current);
+    }, 100);
   }, [startRecordingSegment]);
 
   // Stop recording
@@ -231,12 +244,18 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       mediaRecorderRef.current.stop();
     }
     
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
+    if (progressFrameRef.current) {
+      cancelAnimationFrame(progressFrameRef.current);
+      progressFrameRef.current = null;
+    }
+    
+    if (uiUpdateRef.current) {
+      clearInterval(uiUpdateRef.current);
+      uiUpdateRef.current = null;
     }
     
     setIsRecording(false);
+    setRecordingProgress(progressRef.current); // Final sync
     haptics.success();
   }, []);
 

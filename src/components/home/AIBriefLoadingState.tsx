@@ -8,16 +8,10 @@ export const GeneratingScreen = memo(function GeneratingScreen() {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4">
       {/* Centered spinning V with glow ring + orbiting sparkles */}
-      <motion.div
-        className="relative mb-8"
-        data-allow-animation="true"
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      >
-        {/* Outer glow ring */}
-        <motion.div
-          className="absolute inset-0 rounded-full"
+      <div className="relative mb-8" data-allow-animation="true">
+        {/* Outer glow ring - pure CSS for 60fps on iOS */}
+        <div
+          className="absolute rounded-full glow-ring-pulse"
           style={{
             width: 100,
             height: 100,
@@ -27,8 +21,6 @@ export const GeneratingScreen = memo(function GeneratingScreen() {
             marginTop: -50,
             background: 'radial-gradient(circle, hsl(var(--primary) / 0.15) 0%, transparent 70%)',
           }}
-          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         />
         
         {/* Orbiting sparkles - CSS-only for iOS performance */}
@@ -44,54 +36,44 @@ export const GeneratingScreen = memo(function GeneratingScreen() {
           }}
           data-allow-animation="true"
         >
-          <div className="orbit-sparkle" style={{ animationDelay: '0s' }} />
-          <div className="orbit-sparkle" style={{ animationDelay: '-0.5s' }} />
-          <div className="orbit-sparkle" style={{ animationDelay: '-1s' }} />
-          <div className="orbit-sparkle" style={{ animationDelay: '-1.5s' }} />
-          <div className="orbit-sparkle" style={{ animationDelay: '-2s' }} />
-          <div className="orbit-sparkle" style={{ animationDelay: '-2.5s' }} />
+          <div className="orbit-sparkle" />
+          <div className="orbit-sparkle" />
+          <div className="orbit-sparkle" />
+          <div className="orbit-sparkle" />
+          <div className="orbit-sparkle" />
+          <div className="orbit-sparkle" />
         </div>
         
-        {/* Spinning V container */}
-        <motion.div
-          className="relative flex items-center justify-center"
+        {/* Spinning V container - pure CSS for buttery smooth rotation */}
+        <div
+          className="relative flex items-center justify-center spin-smooth"
           style={{ width: 80, height: 80 }}
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+          data-allow-animation="true"
         >
-          <VybeMiniIcon size={64} showSparkles animated />
-        </motion.div>
-      </motion.div>
+          <VybeMiniIcon size={64} showSparkles={false} animated={false} />
+        </div>
+      </div>
 
       {/* Text */}
-      <motion.div
-        className="text-center"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.4 }}
-      >
+      <div className="text-center">
         <h3 className="text-lg font-semibold text-foreground mb-1">
           Crafting Your Brief
         </h3>
         <p className="text-sm text-muted-foreground">
           Gathering updates just for you...
         </p>
-      </motion.div>
+      </div>
 
-      {/* Animated loading bar */}
-      <motion.div 
+      {/* Animated loading bar - pure CSS */}
+      <div 
         className="w-32 h-1 bg-muted/30 rounded-full mt-6 overflow-hidden"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
+        data-allow-animation="true"
       >
-        <motion.div
-          className="h-full rounded-full bg-gradient-to-r from-primary via-accent to-primary"
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-primary via-accent to-primary loading-bar-slide"
           style={{ width: '40%' }}
-          animate={{ x: ['-100%', '250%'] }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
         />
-      </motion.div>
+      </div>
     </div>
   );
 });

@@ -65,6 +65,9 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const progressFrameRef = useRef<number | null>(null);
+  const progressRef = useRef(0);
+  const uiUpdateRef = useRef<NodeJS.Timeout | null>(null);
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isHoldingRef = useRef(false);
   const audioStreamRef = useRef<MediaStream | null>(null);
@@ -204,12 +207,18 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
       mediaRecorderRef.current.stop();
     }
     
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
+    if (progressFrameRef.current) {
+      cancelAnimationFrame(progressFrameRef.current);
+      progressFrameRef.current = null;
+    }
+    
+    if (uiUpdateRef.current) {
+      clearInterval(uiUpdateRef.current);
+      uiUpdateRef.current = null;
     }
     
     setIsRecording(false);
+    setRecordingProgress(progressRef.current);
     haptics.success();
   }, []);
 
@@ -279,17 +288,25 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start(100); // Collect data every 100ms
       
-      // Progress timer
-      const startTime = Date.now();
-      recordingTimerRef.current = setInterval(() => {
-        const elapsed = Date.now() - startTime;
+      // RAF for smooth 60fps progress tracking
+      const recordingStartTime = Date.now();
+      const updateProgress = () => {
+        const elapsed = Date.now() - recordingStartTime;
         const progress = Math.min((elapsed / MAX_RECORDING_DURATION) * 100, 100);
-        setRecordingProgress(progress);
+        progressRef.current = progress;
         
         if (elapsed >= MAX_RECORDING_DURATION) {
           stopRecording();
+        } else {
+          progressFrameRef.current = requestAnimationFrame(updateProgress);
         }
-      }, 50);
+      };
+      progressFrameRef.current = requestAnimationFrame(updateProgress);
+      
+      // UI update at 10fps for React state
+      uiUpdateRef.current = setInterval(() => {
+        setRecordingProgress(progressRef.current);
+      }, 100);
       
     } catch (error) {
       console.error('[SnapCamera] Failed to start recording:', error);
