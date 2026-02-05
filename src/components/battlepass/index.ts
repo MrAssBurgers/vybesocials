@@ -1,4 +1,5 @@
-export { BattlePassProgress } from './BattlePassProgress';
-export { BattlePassSheet } from './BattlePassSheet';
-export { RewardClaimModal } from './RewardClaimModal';
-export { RewardNotificationProvider, useRewardNotifications } from './RewardNotificationProvider';
+// Re-export from new vybepass location for backwards compatibility
+export { VybePassProgress as BattlePassProgress } from '../vybepass/VybePassProgress';
+export { VybePassSheet as BattlePassSheet } from '../vybepass/VybePassSheet';
+export { RewardClaimModal } from '../vybepass/RewardClaimModal';
+export { RewardNotificationProvider, useRewardNotifications } from '../vybepass/RewardNotificationProvider';

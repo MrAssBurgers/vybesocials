@@ -6024,6 +6024,10 @@ export type Database = {
       grant_owner_all_badges:
         | { Args: never; Returns: undefined }
         | { Args: { p_owner_user_id: string }; Returns: undefined }
+      grant_post_xp: {
+        Args: { p_content_type?: string; p_user_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
