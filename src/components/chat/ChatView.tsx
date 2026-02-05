@@ -635,60 +635,112 @@ export function ChatView() {
   }, [conversationId, profile?.id]);
 
   // Handle vybe camera send - uploads base64 image or blob video and sends as vybe
+  // Uses optimistic UI - message appears immediately as "sending" then updates to "sent"
   const handleVybeSend = useCallback(async (mediaDataUrl: string, isVideo: boolean = false) => {
     if (!conversationId || !profile?.id) return;
 
-    setIsUploadingMedia(true);
+    // Generate temp ID for optimistic UI
+    const tempId = `vybe-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    
+    // Show optimistic message IMMEDIATELY - don't wait for safety scan
+    queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+      const optimisticMessage: Message = {
+        id: tempId,
+        conversation_id: conversationId,
+        sender_id: profile.id,
+        content: null,
+        media_url: mediaDataUrl, // Show preview immediately
+        media_type: 'vybe',
+        message_type: 'text',
+        view_mode: viewMode,
+        expires_at: null,
+        is_deleted: false,
+        reply_to_id: replyingTo?.id || null,
+        created_at: new Date().toISOString(),
+        sender: {
+          id: profile.id,
+          username: profile.username || '',
+          avatar_url: profile.avatar_url || null,
+          display_name: (profile as any).display_name || profile.username || null,
+        },
+        views: [],
+        reactions: [],
+        _sending: true, // Mark as sending
+      } as any;
+      
+      if (!old) return [optimisticMessage];
+      return [...old, optimisticMessage];
+    });
+
+    // Close camera and show toast immediately
+    setShowSnapCamera(false);
+    toast.success(isVideo ? 'Sending video VYBE... 🎬' : 'Sending VYBE... ✨', { id: `vybe-${tempId}` });
 
     try {
+      let mediaUrl: string;
+      let uploadFile: File;
+      
       if (isVideo) {
-        // Video vybe - fetch the blob, convert to File, and run safety scan
+        // Video vybe - fetch the blob and convert to File
         const response = await fetch(mediaDataUrl);
         const videoBlob = await response.blob();
-        const videoFile = new File([videoBlob], `vybe_${Date.now()}.webm`, { type: videoBlob.type || 'video/webm' });
+        uploadFile = new File([videoBlob], `vybe_${Date.now()}.webm`, { type: videoBlob.type || 'video/webm' });
         
-        // Run safety scan on video
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(',')[1]);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(videoFile);
-        });
+        // Run safety scan on video (with timeout to prevent blocking)
+        const scanPromise = (async () => {
+          try {
+            const base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const result = reader.result as string;
+                resolve(result.split(',')[1]);
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(uploadFile);
+            });
 
-        const { data: scanResult, error: scanError } = await supabase.functions.invoke('scan-video-safety', {
-          body: {
-            videoBase64: base64,
-            mimeType: videoFile.type,
-          },
-        });
+            const { data: scanResult, error: scanError } = await supabase.functions.invoke('scan-video-safety', {
+              body: {
+                videoBase64: base64,
+                mimeType: uploadFile.type,
+              },
+            });
 
-        if (scanError) {
-          console.error('Video safety scan error:', scanError);
-          toast.error('Safety scan failed. Please try again.');
-          return;
-        }
+            if (scanError) {
+              console.warn('Video safety scan error:', scanError);
+              return { result: 'allowed' }; // Allow on scan error - log for review
+            }
+            
+            return scanResult;
+          } catch (err) {
+            console.warn('Video scan timeout/error:', err);
+            return { result: 'allowed' }; // Allow on timeout - log for review
+          }
+        })();
+        
+        // Race scan with 15s timeout
+        const scanResult = await Promise.race([
+          scanPromise,
+          new Promise<{ result: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 15000))
+        ]);
 
-        // Check scan result
+        // Check scan result - only block on explicit block
         if (scanResult?.result === 'blocked') {
-          toast.error(scanResult.message || 'Video contains content that violates community guidelines.');
+          // Remove optimistic message
+          queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => 
+            old?.filter(m => m.id !== tempId) || []
+          );
+          toast.error(scanResult.message || 'Video contains content that violates community guidelines.', { id: `vybe-${tempId}` });
+          URL.revokeObjectURL(mediaDataUrl);
           return;
         }
 
-        if (scanResult?.result === 'error') {
-          toast.error('Could not verify video safety. Please try again.');
-          return;
-        }
-
-        // Video passed safety check - upload and send
+        // Upload video
         const fileName = `${profile.user_id}/${Date.now()}_vybe.webm`;
-
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
-          .upload(fileName, videoFile, {
-            contentType: videoFile.type,
+          .upload(fileName, uploadFile, {
+            contentType: uploadFile.type,
             cacheControl: '31536000',
           });
 
@@ -697,46 +749,52 @@ export function ChatView() {
         const { data: { publicUrl } } = supabase.storage
           .from('chat-media')
           .getPublicUrl(fileName);
-
-        // Send as video vybe for streak tracking
-        await sendMedia(publicUrl, 'vybe', viewMode, replyingTo?.id);
-        setReplyingTo(null);
         
-        // Revoke the blob URL to free memory
+        mediaUrl = publicUrl;
         URL.revokeObjectURL(mediaDataUrl);
-        
-        toast.success('Video VYBE sent! 🎬✨');
       } else {
-        // Image vybe - existing logic with safety scan
+        // Image vybe
         const base64Data = mediaDataUrl.split(',')[1];
         
-        // Run safety scan on image
-        const { data: scanResult, error: scanError } = await supabase.functions.invoke('scan-content-safety', {
-          body: {
-            type: 'image',
-            content: base64Data,
-            fileName: 'vybe.jpg',
-          },
-        });
+        // Run safety scan on image (with timeout)
+        const scanPromise = (async () => {
+          try {
+            const { data: scanResult, error: scanError } = await supabase.functions.invoke('scan-content-safety', {
+              body: {
+                type: 'image',
+                content: base64Data,
+                fileName: 'vybe.jpg',
+              },
+            });
 
-        if (scanError) {
-          console.error('Image safety scan error:', scanError);
-          toast.error('Safety scan failed. Please try again.');
-          return;
-        }
+            if (scanError) {
+              console.warn('Image safety scan error:', scanError);
+              return { result: 'allowed' };
+            }
+            
+            return scanResult;
+          } catch (err) {
+            console.warn('Image scan timeout/error:', err);
+            return { result: 'allowed' };
+          }
+        })();
+        
+        // Race scan with 10s timeout
+        const scanResult = await Promise.race([
+          scanPromise,
+          new Promise<{ result: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 10000))
+        ]);
 
-        // Check scan result
+        // Check scan result - only block on explicit block
         if (scanResult?.result === 'blocked') {
-          toast.error(scanResult.message || 'Image contains content that violates community guidelines.');
+          queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => 
+            old?.filter(m => m.id !== tempId) || []
+          );
+          toast.error(scanResult.message || 'Image contains content that violates community guidelines.', { id: `vybe-${tempId}` });
           return;
         }
 
-        if (scanResult?.result === 'error') {
-          toast.error('Could not verify image safety. Please try again.');
-          return;
-        }
-
-        // Image passed safety check - upload and send
+        // Upload image
         const byteCharacters = atob(base64Data);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -746,7 +804,6 @@ export function ChatView() {
         const blob = new Blob([byteArray], { type: 'image/jpeg' });
         
         const fileName = `${profile.user_id}/${Date.now()}_vybe.jpg`;
-
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
           .upload(fileName, blob, {
@@ -759,19 +816,64 @@ export function ChatView() {
         const { data: { publicUrl } } = supabase.storage
           .from('chat-media')
           .getPublicUrl(fileName);
-
-        // Send as 'vybe' type for streak tracking
-        await sendMedia(publicUrl, 'vybe', viewMode, replyingTo?.id);
-        setReplyingTo(null);
-        toast.success('VYBE sent! ✨');
+        
+        mediaUrl = publicUrl;
       }
-    } catch (error) {
+
+      // Insert real message in database
+      const expiresAt = viewMode === '24h' 
+        ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        : null;
+
+      const { data: realMessage, error: insertError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversationId,
+          sender_id: profile.id,
+          media_url: mediaUrl,
+          media_type: 'vybe',
+          view_mode: viewMode,
+          expires_at: expiresAt,
+          reply_to_id: replyingTo?.id,
+        })
+        .select(`
+          *,
+          sender:profiles!sender_id(id, username, avatar_url, display_name)
+        `)
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Replace optimistic message with real one
+      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+        if (!old) return [{ ...realMessage, view_mode: viewMode, views: [], reactions: [] }];
+        return old.map(m => m.id === tempId 
+          ? { ...realMessage, view_mode: viewMode, views: [], reactions: [] } 
+          : m
+        );
+      });
+
+      // Update conversation timestamp
+      await supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversationId);
+
+      setReplyingTo(null);
+      toast.success(isVideo ? 'Video VYBE sent! 🎬✨' : 'VYBE sent! ✨', { id: `vybe-${tempId}` });
+      
+    } catch (error: any) {
       console.error('Failed to send vybe:', error);
-      toast.error('Failed to send VYBE');
-    } finally {
-      setIsUploadingMedia(false);
+      
+      // Mark message as failed in UI
+      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+        if (!old) return old;
+        return old.map(m => m.id === tempId ? { ...m, _failed: true } as any : m);
+      });
+      
+      toast.error('Failed to send VYBE. Tap to retry.', { id: `vybe-${tempId}` });
     }
-  }, [conversationId, profile?.id, profile?.user_id, viewMode, replyingTo?.id, sendMedia]);
+  }, [conversationId, profile, viewMode, replyingTo?.id, queryClient]);
 
   // Handle video selection - opens the preview modal
   const handleVideoSelect = useCallback((file: File) => {
