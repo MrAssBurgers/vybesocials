@@ -23,34 +23,55 @@ export const GeneratingScreen = memo(function GeneratingScreen() {
           }}
         />
         
-        {/* Orbiting sparkles - CSS-only for iOS performance */}
-        <div 
-          className="absolute"
-          style={{
-            width: 100,
-            height: 100,
-            left: '50%',
-            top: '50%',
-            marginLeft: -50,
-            marginTop: -50,
-          }}
-          data-allow-animation="true"
-        >
-          <div className="orbit-sparkle" />
-          <div className="orbit-sparkle" />
-          <div className="orbit-sparkle" />
-          <div className="orbit-sparkle" />
-          <div className="orbit-sparkle" />
-          <div className="orbit-sparkle" />
-        </div>
-        
-        {/* Spinning V container - pure CSS for buttery smooth rotation */}
+        {/* Spinning V container with sparkles - all rotate together */}
         <div
-          className="relative flex items-center justify-center spin-smooth"
-          style={{ width: 80, height: 80 }}
+          className="relative spin-smooth"
+          style={{ width: 100, height: 100 }}
           data-allow-animation="true"
         >
-          <VybeMiniIcon size={64} showSparkles={false} animated={false} />
+          {/* Sparkles positioned around the V - rotate with it */}
+          <div 
+            className="absolute inset-0"
+            style={{
+              width: 100,
+              height: 100,
+            }}
+          >
+            {/* 6 sparkles evenly distributed in a circle */}
+            {[0, 60, 120, 180, 240, 300].map((angle, i) => {
+              const radius = 42; // Distance from center
+              const rad = (angle * Math.PI) / 180;
+              const x = 50 + radius * Math.cos(rad);
+              const y = 50 + radius * Math.sin(rad);
+              const isAccent = i % 2 === 0;
+              return (
+                <div
+                  key={i}
+                  className="absolute rounded-full animate-pulse"
+                  style={{
+                    left: `${x}%`,
+                    top: `${y}%`,
+                    width: i % 2 === 0 ? 4 : 3,
+                    height: i % 2 === 0 ? 4 : 3,
+                    transform: 'translate(-50%, -50%)',
+                    background: isAccent 
+                      ? 'hsl(var(--accent))' 
+                      : 'hsl(var(--primary))',
+                    boxShadow: isAccent
+                      ? '0 0 6px 2px hsl(var(--accent) / 0.5)'
+                      : '0 0 6px 2px hsl(var(--primary) / 0.5)',
+                    animationDelay: `${i * 0.15}s`,
+                    animationDuration: '1.5s',
+                  }}
+                />
+              );
+            })}
+          </div>
+          
+          {/* The V icon centered */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <VybeMiniIcon size={64} showSparkles={false} animated={false} />
+          </div>
         </div>
       </div>
 
