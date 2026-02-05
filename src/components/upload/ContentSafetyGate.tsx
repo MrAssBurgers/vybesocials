@@ -1,9 +1,10 @@
 import { useState, useCallback, memo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Loader2, Check, AlertTriangle, X } from 'lucide-react';
+ import { Shield, Loader2, Check, AlertTriangle, X, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+ import { isCurrentUserOwner } from '@/lib/ownerBypass';
 
 interface ContentSafetyGateProps {
   file: File | null;
@@ -33,10 +34,22 @@ export const ContentSafetyGate = memo(function ContentSafetyGate({
 }: ContentSafetyGateProps) {
   const [status, setStatus] = useState<ScanStatus>('idle');
   const [flagReason, setFlagReason] = useState<string | null>(null);
+   const [ownerBypass, setOwnerBypass] = useState(false);
 
   const scanContent = useCallback(async () => {
     if (!file) return;
 
+     // Check owner bypass first
+     const isOwner = await isCurrentUserOwner();
+     if (isOwner) {
+       setOwnerBypass(true);
+       setStatus('safe');
+       setTimeout(() => {
+         onScanComplete(true);
+       }, 300);
+       return;
+     }
+ 
     setIsScanning(true);
     setStatus('scanning');
 
@@ -189,14 +202,20 @@ export const ContentSafetyGate = memo(function ContentSafetyGate({
             animate={{ y: 0 }}
           >
             <motion.div
-              className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center"
+               className={`w-16 h-16 rounded-full flex items-center justify-center ${ownerBypass ? 'bg-primary/20' : 'bg-green-500/20'}`}
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
             >
-              <Check className="h-8 w-8 text-green-500" />
+               {ownerBypass ? (
+                 <Crown className="h-8 w-8 text-primary" />
+               ) : (
+                 <Check className="h-8 w-8 text-green-500" />
+               )}
             </motion.div>
-            <p className="text-lg font-medium text-green-500">Looking good!</p>
+             <p className={`text-lg font-medium ${ownerBypass ? 'text-primary' : 'text-green-500'}`}>
+               {ownerBypass ? 'Owner Bypass Active' : 'Looking good!'}
+             </p>
           </motion.div>
         </motion.div>
       )}

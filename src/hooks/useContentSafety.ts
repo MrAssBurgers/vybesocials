@@ -7,6 +7,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+ import { isCurrentUserOwner } from '@/lib/ownerBypass';
 
 export type SafetyResult = 'scanning' | 'allowed' | 'warned' | 'blocked' | 'error';
 
@@ -29,8 +30,18 @@ export function useContentSafety() {
     visualAnalysis?: string;
     audioAnalysis?: string;
   }>({});
+   const [bypassEnabled, setBypassEnabled] = useState(false);
 
   const scanImage = useCallback(async (file: File): Promise<SafetyCheckResult> => {
+     // Check owner bypass
+     const isOwner = await isCurrentUserOwner();
+     if (isOwner) {
+       setBypassEnabled(true);
+       setResult('allowed');
+       setMessage('Owner bypass active - no scan required');
+       return { result: 'allowed', message: 'Owner bypass active' };
+     }
+ 
     setIsScanning(true);
     setResult('scanning');
     setMessage('');
@@ -72,6 +83,15 @@ export function useContentSafety() {
   }, []);
 
   const scanVideo = useCallback(async (file: File): Promise<SafetyCheckResult> => {
+     // Check owner bypass
+     const isOwner = await isCurrentUserOwner();
+     if (isOwner) {
+       setBypassEnabled(true);
+       setResult('allowed');
+       setMessage('Owner bypass active - no scan required');
+       return { result: 'allowed', message: 'Owner bypass active' };
+     }
+ 
     setIsScanning(true);
     setResult('scanning');
     setMessage('Analyzing video content and audio...');
@@ -129,6 +149,15 @@ export function useContentSafety() {
   }, []);
 
   const scanText = useCallback(async (text: string): Promise<SafetyCheckResult> => {
+     // Check owner bypass
+     const isOwner = await isCurrentUserOwner();
+     if (isOwner) {
+       setBypassEnabled(true);
+       setResult('allowed');
+       setMessage('Owner bypass active');
+       return { result: 'allowed', message: 'Owner bypass active' };
+     }
+ 
     setIsScanning(true);
     setResult('scanning');
     setMessage('');
@@ -171,6 +200,7 @@ export function useContentSafety() {
     setResult('scanning');
     setMessage('');
     setScanDetails({});
+     setBypassEnabled(false);
   }, []);
 
   const submitAppeal = useCallback(async (contentType: 'image' | 'text' | 'video' | 'post' | 'ban', reason: string) => {
@@ -214,6 +244,7 @@ export function useContentSafety() {
     result,
     message,
     scanDetails,
+     bypassEnabled,
     scanImage,
     scanVideo,
     scanText,
