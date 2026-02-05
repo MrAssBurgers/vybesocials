@@ -10,10 +10,13 @@ import { cn } from '@/lib/utils';
 const isMobileDevice = () => typeof window !== 'undefined' && 
   (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 1024);
 
-// Detect if specifically on iPad (needs extra care for video playback)
-const isIPad = () => typeof window !== 'undefined' && 
-  (/iPad/i.test(navigator.userAgent) || 
-   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+// Detect iOS/iPadOS - these need special video handling
+const isIOSDevice = () => {
+  if (typeof window === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /iPhone|iPad|iPod/i.test(ua) || 
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
 
 interface Clip {
   id: string;
@@ -75,52 +78,54 @@ const ClipItem = memo(function ClipItem({
   const signedUrl = useSignedUrl(clip.media_url);
   const thumbnailUrl = useSignedUrl(clip.thumbnail_url || null);
   const isUrlLoading = !signedUrl;
+  
+  // Track if this is iOS for special handling
+  const isIOS = useMemo(() => isIOSDevice(), []);
 
   // Handle video play/pause based on visibility - with better error handling for mobile/iPad
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !signedUrl) return;
 
-    // iPad-specific: reset video state to prevent freezing
-    const onIPad = isIPad();
-    
     if (isActive && !isHolding) {
-      // Use a small delay on mobile to prevent race conditions
       const playVideo = async () => {
         try {
-          // iPad fix: ensure video is loaded and ready
-          if (onIPad && video.readyState < 2) {
-            await new Promise<void>((resolve) => {
-              const handleCanPlay = () => {
-                video.removeEventListener('canplay', handleCanPlay);
-                resolve();
-              };
-              video.addEventListener('canplay', handleCanPlay);
-              video.load();
-            });
+          // iOS fix: Don't wait for canplay - just try to play
+          // The browser will buffer as needed
+          if (isIOS) {
+            // Reset video to beginning to prevent stale state
+            video.currentTime = 0;
           }
           
+          // Ensure video is muted for autoplay (required on iOS)
+          video.muted = isMuted;
           await video.play();
           setIsPlaying(true);
         } catch (err) {
-          // Autoplay blocked - that's okay, user can tap to play
-          console.log('Autoplay blocked, waiting for user interaction');
+          // Autoplay blocked - try muted playback
+          console.log('[Clips] Autoplay blocked, trying muted');
+          video.muted = true;
+          try {
+            await video.play();
+            setIsPlaying(true);
+          } catch {
+            // Still blocked - wait for user tap
+            console.log('[Clips] Muted autoplay also blocked');
+          }
           setIsPlaying(false);
         }
       };
       
-      // Small delay helps mobile browsers, slightly longer for iPad
-      const timeout = setTimeout(playVideo, onIPad ? 200 : 100);
+      // Small delay helps mobile browsers stabilize
+      const timeout = setTimeout(playVideo, isIOS ? 150 : 50);
       return () => clearTimeout(timeout);
     } else if (!isActive) {
       video.pause();
-      // iPad fix: reset currentTime to prevent memory buildup
-      if (onIPad) {
-        video.currentTime = 0;
-      }
+      // iOS fix: reset video to free memory and prevent freezing
+      video.currentTime = 0;
       setIsPlaying(false);
     }
-  }, [isActive, signedUrl, isHolding]);
+  }, [isActive, signedUrl, isHolding, isMuted, isIOS]);
 
   // Update mute state
   useEffect(() => {
@@ -213,9 +218,11 @@ const ClipItem = memo(function ClipItem({
           className="w-full h-full object-cover"
           loop
           playsInline
+          webkit-playsinline="true"
           muted={isMuted}
-          preload={isActive ? 'auto' : 'none'}
+          preload={isActive ? 'metadata' : 'none'}
           onLoadedData={() => setIsLoaded(true)}
+          onCanPlay={() => setIsLoaded(true)}
           onClick={handleTap}
           onDoubleClick={handleDoubleTap}
         />

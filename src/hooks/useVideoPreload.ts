@@ -3,6 +3,18 @@ import { useEffect, useRef, useCallback } from 'react';
 // Global cache for preloaded media
 const preloadCache = new Set<string>();
 const preloadingInProgress = new Set<string>();
+const createdElements: HTMLVideoElement[] = [];
+
+// Limit concurrent preloads to prevent iOS freezing
+const MAX_CONCURRENT_PRELOADS = 2;
+
+// Detect iOS/iPadOS - needs more conservative preloading
+const isIOSDevice = () => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /iPhone|iPad|iPod/i.test(ua) || 
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
 
 /**
  * Smart video preload hook with network awareness
@@ -39,14 +51,21 @@ export function useVideoPreload(
 
   useEffect(() => {
     if (!enabled || isScrollingRef.current) return;
+    
+    // On iOS, disable preloading entirely to prevent freezing
+    if (isIOSDevice()) return;
+    
+    // Limit concurrent preloads
+    if (preloadingInProgress.size >= MAX_CONCURRENT_PRELOADS) return;
 
     // Only preload items around current index
     const start = currentIndex;
-    const end = Math.min(currentIndex + preloadDepth + 1, videoUrls.length);
+    const end = Math.min(currentIndex + preloadDepth, videoUrls.length);
 
     for (let i = start; i < end; i++) {
       const url = videoUrls[i];
       if (!url || preloadCache.has(url) || preloadingInProgress.has(url)) continue;
+      if (preloadingInProgress.size >= MAX_CONCURRENT_PRELOADS) break;
 
       preloadingInProgress.add(url);
 
@@ -78,41 +97,82 @@ export function useVideoPreload(
  */
 export function preloadVideoMetadata(url: string): Promise<void> {
   return new Promise((resolve, reject) => {
+    // Skip on iOS to prevent memory issues
+    if (isIOSDevice()) {
+      resolve();
+      return;
+    }
+    
     const video = document.createElement('video');
     video.preload = 'metadata';
     video.muted = true;
     video.playsInline = true;
     video.src = url;
+    
+    // Track element for cleanup
+    createdElements.push(video);
+    
+    const cleanup = () => {
+      video.src = '';
+      video.load(); // Force release of resources
+      const idx = createdElements.indexOf(video);
+      if (idx > -1) createdElements.splice(idx, 1);
+    };
+    
     video.onloadedmetadata = () => {
-      video.src = ''; // Release resource
+      cleanup();
       resolve();
     };
     video.onerror = () => {
-      video.src = '';
+      cleanup();
       reject();
     };
     // Timeout fallback
     setTimeout(() => {
-      video.src = '';
+      cleanup();
       resolve();
-    }, 5000);
+    }, 3000);
   });
 }
 
 /**
- * Preload full video (use sparingly - for current/next clip only)
+ * Preload full video - DISABLED on iOS to prevent freezing
  */
 export function preloadVideo(url: string): Promise<void> {
+  // Skip entirely on iOS - causes freezing
+  if (isIOSDevice()) {
+    return Promise.resolve();
+  }
+  
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
     video.preload = 'auto';
     video.muted = true;
     video.playsInline = true;
     video.src = url;
-    video.oncanplaythrough = () => resolve();
-    video.onerror = reject;
-    // Timeout fallback
-    setTimeout(resolve, 10000);
+    
+    createdElements.push(video);
+    
+    const cleanup = () => {
+      video.src = '';
+      video.load();
+      const idx = createdElements.indexOf(video);
+      if (idx > -1) createdElements.splice(idx, 1);
+    };
+    
+    video.oncanplaythrough = () => {
+      cleanup();
+      resolve();
+    };
+    video.onerror = () => {
+      cleanup();
+      reject();
+    };
+    // Shorter timeout
+    setTimeout(() => {
+      cleanup();
+      resolve();
+    }, 5000);
   });
 }
 
@@ -134,4 +194,11 @@ export function preloadImage(url: string): Promise<void> {
 export function clearPreloadCache() {
   preloadCache.clear();
   preloadingInProgress.clear();
+  
+  // Clean up any lingering video elements
+  createdElements.forEach(video => {
+    video.src = '';
+    video.load();
+  });
+  createdElements.length = 0;
 }
