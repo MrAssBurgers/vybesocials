@@ -1,6 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as webpush from "https://esm.sh/web-push@3.6.7";
+import { createClient } from "npm:@supabase/supabase-js@2.90.1";
+import {
+  buildPushPayload,
+  type PushMessage,
+  type PushSubscription,
+  type VapidKeys,
+} from "npm:@block65/webcrypto-web-push@1.0.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,7 +21,7 @@ interface PushPayload {
   data?: Record<string, unknown>;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -37,12 +41,11 @@ serve(async (req) => {
       );
     }
 
-    // Configure web-push with VAPID details
-    webpush.setVapidDetails(
-      "mailto:support@vybe.app",
-      vapidPublicKey,
-      vapidPrivateKey
-    );
+    const vapid: VapidKeys = {
+      subject: "mailto:support@vybe.app",
+      publicKey: vapidPublicKey,
+      privateKey: vapidPrivateKey,
+    };
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { userId, title, body, url, tag, type, data }: PushPayload = await req.json();
@@ -99,48 +102,68 @@ serve(async (req) => {
           }
 
           // Validate subscription has required fields
-          if (!subscription.endpoint || !subscription.keys) {
-            console.error("Missing endpoint for token id:", id);
+          if (!subscription.endpoint || !subscription.keys?.p256dh || !subscription.keys?.auth) {
+            console.error("Missing endpoint/keys for token id:", id);
             await supabase.from("push_tokens").delete().eq("id", id);
             return { success: false, error: "Missing endpoint or keys", cleaned: true };
           }
 
-          // Send push notification using web-push library with VAPID auth
+          // Build and send an encrypted Web Push request (WebCrypto-based)
           try {
-            const result = await webpush.sendNotification(
-              {
-                endpoint: subscription.endpoint,
-                keys: subscription.keys,
+            const subscriptionTyped: PushSubscription = {
+              endpoint: subscription.endpoint,
+              expirationTime: subscription.expirationTime ?? null,
+              keys: {
+                p256dh: subscription.keys.p256dh,
+                auth: subscription.keys.auth,
               },
-              pushPayload,
-              {
-                TTL: 86400, // 24 hours
-                urgency: type === "call" ? "high" : "normal",
-              }
-            );
-            
-            console.log("Push sent successfully to:", subscription.endpoint.substring(0, 50));
-            return { success: true, statusCode: result.statusCode };
-          } catch (pushError: any) {
-            console.error("Push error:", pushError);
-            
-            // Handle specific error codes
-            if (pushError.statusCode === 404 || pushError.statusCode === 410) {
-              // Subscription expired or invalid - clean up
+            };
+
+            const message: PushMessage = {
+              data: pushPayload,
+              options: {
+                ttl: 86400, // 24 hours
+              },
+            };
+
+            const payload = await buildPushPayload(message, subscriptionTyped, vapid);
+
+            // RFC 8030 urgency header (optional)
+            const urgency = type === "call" ? "high" : "normal";
+            const headers = new Headers(payload.headers as HeadersInit);
+            headers.set("Urgency", urgency);
+            payload.headers = headers;
+
+            const res = await fetch(subscriptionTyped.endpoint, payload);
+
+            if (res.ok) {
+              console.log("Push sent successfully to:", subscriptionTyped.endpoint.substring(0, 50));
+              return { success: true, statusCode: res.status };
+            }
+
+            if (res.status === 404 || res.status === 410) {
               console.log("Cleaning up expired subscription:", id);
               await supabase.from("push_tokens").delete().eq("id", id);
               return { success: false, error: "Subscription expired", cleaned: true };
-            } else if (pushError.statusCode === 429) {
-              // Rate limited
+            }
+
+            if (res.status === 429) {
               console.log("Rate limited for subscription:", id);
               return { success: false, error: "Rate limited" };
-            } else if (pushError.statusCode === 401 || pushError.statusCode === 403) {
-              // Authentication error
-              console.error("Auth error:", pushError.statusCode, pushError.body);
-              return { success: false, error: `Auth error: ${pushError.statusCode}` };
             }
-            
-            return { success: false, error: pushError.message || String(pushError) };
+
+            if (res.status === 401 || res.status === 403) {
+              const bodyText = await res.text().catch(() => "");
+              console.error("Auth error:", res.status, bodyText);
+              return { success: false, error: `Auth error: ${res.status}` };
+            }
+
+            const errorText = await res.text().catch(() => "");
+            console.error("Push error response:", res.status, errorText);
+            return { success: false, error: `Push service error: ${res.status}` };
+          } catch (pushError) {
+            console.error("Push error:", pushError);
+            return { success: false, error: String(pushError) };
           }
         } catch (error) {
           console.error("Error sending push:", error);
