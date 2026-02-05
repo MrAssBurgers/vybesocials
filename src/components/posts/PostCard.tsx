@@ -150,6 +150,7 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
           loop
           muted={isMuted}
           playsInline
+          webkit-playsinline="true"
           preload="metadata"
           onLoadedMetadata={handleLoadedMetadata}
           onLoadedData={handleLoadedData}

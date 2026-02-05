@@ -369,7 +369,7 @@ export const MobileShortCard = memo(function MobileShortCard({
             playsInline
             webkit-playsinline="true"
             muted={isMuted}
-            preload="metadata"
+            preload="none"
             onLoadedData={() => setIsLoading(false)}
             onEnded={handleVideoEnded}
             onError={() => {

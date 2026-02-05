@@ -423,8 +423,9 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
             className={cn("h-full w-full object-contain", isLoading && "opacity-0")}
             loop
             playsInline
+            webkit-playsinline="true"
             muted={isMuted}
-            preload={isActive ? "auto" : isSlowConnection ? "none" : "metadata"}
+            preload={isActive ? "metadata" : "none"}
             onLoadedData={() => setIsLoading(false)}
             onEnded={handleVideoEnded}
             onError={() => {
