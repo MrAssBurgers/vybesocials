@@ -97,6 +97,7 @@ import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { StreakIndicator } from './StreakIndicator';
 import { useStreakWithUser } from '@/hooks/useStreaks';
+import { DMImageSafetyGate } from './DMImageSafetyGate';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
@@ -189,6 +190,9 @@ export function ChatView() {
   // Video preview state
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
   const [showVideoPreview, setShowVideoPreview] = useState(false);
+  // Image safety scanning state
+  const [pendingSafetyImage, setPendingSafetyImage] = useState<{ url: string; file: File } | null>(null);
+  const [showImageSafetyGate, setShowImageSafetyGate] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -533,9 +537,10 @@ export function ChatView() {
       return;
     }
 
-    // Process image directly (no safety gate)
+    // Create preview and show safety gate
     const previewUrl = URL.createObjectURL(file);
-    processApprovedImage(file, previewUrl);
+    setPendingSafetyImage({ url: previewUrl, file });
+    setShowImageSafetyGate(true);
   }, [conversationId, profile?.id]);
 
   // Process image after safety check passes
@@ -623,9 +628,10 @@ export function ChatView() {
       return;
     }
 
-    // Process image directly (no safety gate)
+    // Create preview and show safety gate
     const previewUrl = URL.createObjectURL(file);
-    processApprovedImage(file, previewUrl);
+    setPendingSafetyImage({ url: previewUrl, file });
+    setShowImageSafetyGate(true);
   }, [conversationId, profile?.id]);
 
   // Handle vybe camera send - uploads base64 image or blob video and sends as vybe
@@ -905,6 +911,31 @@ export function ChatView() {
 
   return (
     <div className="flex flex-col h-full bg-background relative overflow-hidden">
+      {/* DM Image Safety Gate */}
+      <AnimatePresence>
+        {showImageSafetyGate && pendingSafetyImage && (
+          <DMImageSafetyGate
+            file={pendingSafetyImage.file}
+            previewUrl={pendingSafetyImage.url}
+            onApproved={() => {
+              setShowImageSafetyGate(false);
+              processApprovedImage(pendingSafetyImage.file, pendingSafetyImage.url);
+              setPendingSafetyImage(null);
+            }}
+            onCancel={() => {
+              setShowImageSafetyGate(false);
+              if (pendingSafetyImage.url) {
+                URL.revokeObjectURL(pendingSafetyImage.url);
+              }
+              setPendingSafetyImage(null);
+            }}
+            onBlocked={() => {
+              // Keep gate open for blocked content
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Screenshot alert popup */}
       <AnimatePresence>
         {screenshotEvents.length > 0 && (
