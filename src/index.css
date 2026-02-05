@@ -55,27 +55,34 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     -webkit-backdrop-filter: blur(var(--ios-blur-heavy, 12px)) saturate(130%) !important;
   }
 
-  /* iOS Safari: Faster animation durations */
-  .platform-ios *,
-  .platform-ios *::before,
-  .platform-ios *::after {
-    animation-duration: 0.15s !important;
-    transition-duration: 0.15s !important;
+  /* iOS Safari: Faster TRANSITION durations for non-essential elements only */
+  .platform-ios *:not([data-allow-animation="true"]):not([data-allow-animation="true"] *) {
+    transition-duration: 0.15s;
   }
 
-  /* iOS Safari: Allow longer transitions for intentional UX animations */
+  /* iOS Safari: Explicitly protect intentional animations */
+  .platform-ios .spin-smooth,
+  .platform-ios .glow-ring-pulse,
+  .platform-ios .orbit-sparkle,
   .platform-ios [data-allow-animation="true"],
-  .platform-ios [data-allow-animation="true"] * {
+  .platform-ios [data-allow-animation="true"] *,
+  .platform-ios .loading-bar-slide {
     animation-duration: unset !important;
     transition-duration: unset !important;
+    animation-play-state: running !important;
   }
 
-  /* iOS Safari: Disable infinite animations that drain battery */
+  /* iOS Safari: Disable only heavy infinite animations (not spinners) */
   .platform-ios .animate-spin,
-  .platform-ios .animate-pulse,
   .platform-ios .animate-bounce,
   .platform-ios .gradient-animated {
     animation: none !important;
+  }
+
+  /* Allow pulse for specific elements (loading states) */
+  .platform-ios [data-allow-animation="true"] .animate-pulse,
+  .platform-ios .orbit-sparkle {
+    animation: unset;
   }
 
   /* iOS Safari: Replace box-shadow animations with static shadows */
@@ -543,6 +550,62 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   .orbit-sparkle:nth-child(4) { animation-delay: -1.5s; background: hsl(var(--accent)); }
   .orbit-sparkle:nth-child(5) { animation-delay: -2s; }
   .orbit-sparkle:nth-child(6) { animation-delay: -2.5s; background: hsl(var(--accent)); }
+
+  /* Smooth spinning for AI Brief V icon */
+  @keyframes spin-smooth {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .spin-smooth {
+    animation: spin-smooth 2.5s linear infinite;
+    will-change: transform;
+    transform: translateZ(0);
+    transform-origin: center center;
+  }
+
+  /* Glow ring pulse for AI Brief loading */
+  @keyframes glow-ring-pulse {
+    0%, 100% { 
+      transform: scale(1); 
+      opacity: 0.5; 
+    }
+    50% { 
+      transform: scale(1.15); 
+      opacity: 0.8; 
+    }
+  }
+
+  .glow-ring-pulse {
+    animation: glow-ring-pulse 2s ease-in-out infinite;
+    will-change: transform, opacity;
+    transform: translateZ(0);
+  }
+
+  /* Loading bar slide animation */
+  @keyframes loading-bar-slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+  }
+
+  .loading-bar-slide {
+    animation: loading-bar-slide 1.5s ease-in-out infinite;
+    will-change: transform;
+    transform: translateZ(0);
+  }
+
+  /* Layout containment for performance-critical elements */
+  .post-card,
+  article,
+  .message-bubble {
+    contain: layout style paint;
+  }
+
+  .feed-container,
+  .chat-messages {
+    contain: layout;
+    will-change: scroll-position;
+  }
 
   /* Content-visibility for off-screen content */
   .content-lazy {

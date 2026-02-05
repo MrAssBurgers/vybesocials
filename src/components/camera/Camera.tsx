@@ -32,6 +32,8 @@ export function Camera({ onClose }: CameraProps) {
   const recordedChunksRef = useRef<Blob[]>([]);
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const progressFrameRef = useRef<number | null>(null);
+  const progressRef = useRef(0);
 
   // Hide bottom nav when camera is open
   useEffect(() => {
@@ -141,14 +143,23 @@ export function Camera({ onClose }: CameraProps) {
     setIsRecording(true);
     setRecordingDuration(0);
 
+    // RAF for duration tracking with 1s UI updates
+    const recordingStartTime = Date.now();
+    const updateDuration = () => {
+      const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+      progressRef.current = elapsed;
+      
+      if (elapsed >= 60) {
+        stopRecording();
+      } else {
+        progressFrameRef.current = requestAnimationFrame(updateDuration);
+      }
+    };
+    progressFrameRef.current = requestAnimationFrame(updateDuration);
+    
+    // UI update every second
     recordingIntervalRef.current = setInterval(() => {
-      setRecordingDuration(prev => {
-        if (prev >= 60) {
-          stopRecording();
-          return prev;
-        }
-        return prev + 1;
-      });
+      setRecordingDuration(progressRef.current);
     }, 1000);
   };
 
@@ -157,10 +168,15 @@ export function Camera({ onClose }: CameraProps) {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
+    if (progressFrameRef.current) {
+      cancelAnimationFrame(progressFrameRef.current);
+      progressFrameRef.current = null;
+    }
     if (recordingIntervalRef.current) {
       clearInterval(recordingIntervalRef.current);
     }
     setIsRecording(false);
+    setRecordingDuration(progressRef.current); // Final sync
     triggerHaptic('light');
   };
 
