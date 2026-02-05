@@ -6030,6 +6030,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_challenge_progress: {
+        Args: { p_requirement_type: string; p_user_id: string }
+        Returns: undefined
+      }
       increment_theme_downloads: {
         Args: { theme_id: string }
         Returns: undefined
@@ -6071,6 +6075,7 @@ export type Database = {
         Args: { p_auth_user_id: string }
         Returns: undefined
       }
+      track_daily_login: { Args: never; Returns: undefined }
       trigger_badge_sync_for_user: {
         Args: { p_username: string }
         Returns: undefined

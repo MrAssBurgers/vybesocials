@@ -285,6 +285,42 @@ export function useRealtimeLevelUpdates() {
 }
 
 /**
+ * Real-time subscription for challenge progress updates
+ */
+export function useRealtimeChallengeProgress() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!profile) return;
+
+    const channel = supabase
+      .channel(`challenge-progress-${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'challenge_progress',
+          filter: `user_id=eq.${profile.id}`,
+        },
+        (payload) => {
+          if (import.meta.env.DEV) {
+            console.log('[BattlePass] Challenge progress updated:', payload);
+          }
+          // Invalidate queries to refresh UI
+          queryClient.invalidateQueries({ queryKey: ['challenge-progress', profile.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, queryClient]);
+}
+
+/**
  * Calculate XP needed for next level
  */
 export function useNextLevelProgress() {

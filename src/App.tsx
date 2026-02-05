@@ -39,6 +39,7 @@ import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { useDynamicFavicon } from "@/hooks/useDynamicFavicon";
 import { useDynamicManifest } from "@/hooks/useDynamicManifest";
 import { RewardNotificationProvider } from "@/components/battlepass/RewardNotificationProvider";
+import { useDailyLoginChallenge } from "@/hooks/useDailyLogin";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -115,6 +116,8 @@ function AuthenticatedPreloads() {
   useDynamicManifest();
   // Sync retroactive challenge progress and owner badges
   useRetroactiveSync();
+  // Track daily login for challenges
+  useDailyLoginChallenge();
   return null;
 }
 
