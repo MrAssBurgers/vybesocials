@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { haptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 
@@ -11,30 +11,8 @@ interface VybeRecordButtonProps {
   disabled?: boolean;
 }
 
-// Color phases with their time ranges (in seconds)
-const COLOR_PHASES = [
-  { start: 0, end: 5, color: '#3B82F6' },    // Electric blue
-  { start: 5, end: 10, color: '#8B5CF6' },   // Purple
-  { start: 10, end: 15, color: '#EC4899' },  // Hot pink
-  { start: 15, end: 20, color: '#F97316' },  // Orange
-  { start: 20, end: 25, color: '#FACC15' },  // Yellow
-  { start: 25, end: 30, color: 'rainbow' },  // Neon rainbow
-];
-
-// Get phase index for haptic/sound feedback
-function getPhaseIndex(elapsedSeconds: number): number {
-  return Math.floor(elapsedSeconds / 5);
-}
-
-// Get color for current phase (simplified - no per-frame interpolation)
-function getPhaseColor(phaseIndex: number, elapsedSeconds: number): string {
-  const phase = COLOR_PHASES[Math.min(phaseIndex, COLOR_PHASES.length - 1)];
-  if (phase.color === 'rainbow') {
-    const hue = ((elapsedSeconds - phase.start) * 72) % 360;
-    return `hsl(${hue}, 100%, 60%)`;
-  }
-  return phase.color;
-}
+// Phase count for haptic feedback
+const PHASE_DURATION = 5; // seconds per phase
 
 export function VybeRecordButton({
   isRecording,
@@ -46,6 +24,7 @@ export function VybeRecordButton({
 }: VybeRecordButtonProps) {
   const lastPhaseRef = useRef(-1);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const ringRef = useRef<SVGCircleElement>(null);
   
   // SVG calculations - ring sits just outside the button
   const buttonSize = 80; // w-20 = 80px
@@ -57,13 +36,15 @@ export function VybeRecordButton({
   const circumference = 2 * Math.PI * radius;
   
   const elapsedSeconds = (progress / 100) * maxDuration;
-  const currentPhase = getPhaseIndex(elapsedSeconds);
-  const strokeDashoffset = circumference - (progress / 100) * circumference;
+  const currentPhase = Math.floor(elapsedSeconds / PHASE_DURATION);
   
-  // Memoize color per phase change only (not per frame)
-  const currentColor = useMemo(() => {
-    return getPhaseColor(currentPhase, elapsedSeconds);
-  }, [currentPhase, elapsedSeconds]);
+  // Update ring progress via ref (no re-render) for buttery smooth animation
+  useEffect(() => {
+    if (ringRef.current) {
+      const offset = circumference - (progress / 100) * circumference;
+      ringRef.current.style.strokeDashoffset = `${offset}`;
+    }
+  }, [progress, circumference]);
   
   // Phase change feedback (haptic + sound tick)
   useEffect(() => {
@@ -78,13 +59,14 @@ export function VybeRecordButton({
     lastPhaseRef.current = currentPhase;
   }, [currentPhase, isRecording]);
   
-  // Static CSS particles (rendered once, animated via CSS)
+  // Static CSS particles using theme colors
   const particles = useMemo(() => {
     if (!isRecording) return null;
-    return Array.from({ length: 8 }).map((_, i) => {
-      const angle = (i / 8) * Math.PI * 2;
+    return Array.from({ length: 6 }).map((_, i) => {
+      const angle = (i / 6) * Math.PI * 2;
       const tx = Math.cos(angle) * 30;
       const ty = Math.sin(angle) * 30;
+      const isAccent = i % 2 === 0;
       return (
         <div
           key={i}
@@ -96,13 +78,13 @@ export function VybeRecordButton({
             marginTop: -3,
             '--tx': `${tx}px`,
             '--ty': `${ty}px`,
-            '--particle-color': currentColor,
-            animationDelay: `${i * 0.075}s`,
+            '--particle-color': isAccent ? 'hsl(var(--accent))' : 'hsl(var(--primary))',
+            animationDelay: `${i * 0.1}s`,
           } as React.CSSProperties}
         />
       );
     });
-  }, [isRecording, currentColor]);
+  }, [isRecording]);
   
   return (
     <div 
@@ -114,11 +96,18 @@ export function VybeRecordButton({
       
       {/* Progress ring SVG - always rendered, but hidden when not recording */}
       <svg 
-        className="absolute inset-0 pointer-events-none vybe-record-ring"
+        className="absolute inset-0 pointer-events-none"
         width={svgSize}
         height={svgSize}
         style={{ transform: 'rotate(-90deg)' }}
       >
+        <defs>
+          <linearGradient id="vybe-ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="hsl(var(--primary))" />
+            <stop offset="50%" stopColor="hsl(var(--accent))" />
+            <stop offset="100%" stopColor="hsl(var(--primary))" />
+          </linearGradient>
+        </defs>
         {/* Background track */}
         <circle
           cx={center}
@@ -130,18 +119,19 @@ export function VybeRecordButton({
         />
         {/* Progress arc */}
         <circle
+          ref={ringRef}
           cx={center}
           cy={center}
           r={radius}
           fill="none"
-          stroke={isRecording ? currentColor : "transparent"}
+          stroke={isRecording ? "url(#vybe-ring-gradient)" : "transparent"}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
+          strokeDashoffset={circumference}
           style={{
-            filter: isRecording ? `drop-shadow(0 0 6px ${currentColor})` : 'none',
-            transition: 'stroke-dashoffset 16ms linear',
+            filter: isRecording ? 'drop-shadow(0 0 8px hsl(var(--primary) / 0.6))' : 'none',
+            willChange: 'stroke-dashoffset',
           }}
         />
       </svg>
@@ -164,18 +154,16 @@ export function VybeRecordButton({
         {/* Static outer ring when not recording */}
         {!isRecording && (
           <div 
-            className="absolute inset-0 rounded-full border-[3px] border-white/90 animate-pulse"
-            style={{ animationDuration: '1.5s' }}
+            className="absolute inset-0 rounded-full border-[3px] border-white/90"
           />
         )}
         
         {/* Glow behind button when recording - GPU accelerated */}
         {isRecording && (
           <div
-            className="absolute inset-0 rounded-full animate-pulse"
+            className="absolute inset-0 rounded-full"
             style={{ 
-              background: `radial-gradient(circle, ${currentColor}30 0%, transparent 70%)`,
-              animationDuration: '0.5s',
+              background: 'radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 70%)',
             }}
           />
         )}
@@ -185,16 +173,16 @@ export function VybeRecordButton({
           className={cn(
             "z-10 transition-all duration-150 ease-out",
             isRecording 
-              ? "bg-red-500" 
+              ? "bg-destructive" 
               : "bg-white"
           )}
           style={{
             width: isRecording ? 24 : 64,
             height: isRecording ? 24 : 64,
             borderRadius: isRecording ? 6 : 32,
-            filter: isRecording 
-              ? `drop-shadow(0 0 12px ${currentColor})`
-              : 'drop-shadow(0 2px 6px rgba(0,0,0,0.3))',
+            boxShadow: isRecording 
+              ? '0 0 16px hsl(var(--primary) / 0.5)'
+              : '0 2px 6px rgba(0,0,0,0.3)',
           }}
         />
       </button>
