@@ -69,7 +69,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
       },
       {
         id: "hub" as const,
-        icon: Zap, // Using Zap since VybeMiniIcon is a component, not a Lucide icon
+        icon: Zap,
         label: "Hub",
         subtitle: "Create more",
         gradient: "from-primary via-accent to-primary",
@@ -121,8 +121,8 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-background/80 backdrop-blur-xl"
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 bg-background/80 backdrop-blur-sm"
               style={{ zIndex: Z.overlay }}
               onClick={close}
             />
@@ -135,98 +135,68 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
               {/* High-tech popup */}
               <motion.div
                 ref={surfaceRef}
-                initial={{ opacity: 0, scale: 0.85, y: 30 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                transition={{ type: "spring", damping: 25, stiffness: 400 }}
+                exit={{ opacity: 0, scale: 0.97 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
                 className="pointer-events-auto"
+                style={{ transform: 'translateZ(0)' }}
               >
                 {/* Outer glow ring */}
                 <div className="relative">
-                  {/* Animated gradient border */}
-                  <motion.div 
-                    className="absolute -inset-[2px] rounded-[28px] bg-gradient-to-r from-primary via-accent to-primary opacity-60 blur-sm"
-                    animate={{ 
-                      backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-                    }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                    style={{ backgroundSize: "200% 200%" }}
+                  {/* Static gradient border - no animation for performance */}
+                  <div 
+                    className="absolute -inset-[2px] rounded-[28px] bg-gradient-to-r from-primary via-accent to-primary opacity-50 blur-sm"
                   />
                   
                   {/* Main card */}
-                  <div className="relative flex flex-col gap-4 p-6 rounded-3xl min-w-[320px] overflow-hidden bg-card/95 backdrop-blur-2xl border border-border/50">
+                  <div className="relative flex flex-col gap-4 p-6 rounded-3xl min-w-[320px] overflow-hidden bg-card/95 backdrop-blur-sm border border-border/50">
                     {/* Inner glow effects */}
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 pointer-events-none" />
                     <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
                     
-                    {/* Scanline effect */}
-                    <div 
-                      className="absolute inset-0 pointer-events-none opacity-[0.02]"
-                      style={{
-                        backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, currentColor 2px, currentColor 4px)",
-                      }}
-                    />
+                    {/* Scanline effect - hidden on mobile for performance */}
+                    <div className="absolute inset-0 pointer-events-none opacity-[0.02] hidden md:block" />
                     
                     {/* Top accent line */}
                     <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
                     
-                    {/* Header */}
+                    {/* Header - static icons for performance */}
                     <div className="relative z-10 flex items-center justify-center gap-2 mb-2">
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                      >
-                        <Zap className="w-4 h-4 text-primary" />
-                      </motion.div>
+                      <Zap className="w-4 h-4 text-primary" />
                       <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">
                         Create
                       </span>
-                      <motion.div
-                        animate={{ rotate: -360 }}
-                        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                      >
-                        <Zap className="w-4 h-4 text-primary" />
-                      </motion.div>
+                      <Zap className="w-4 h-4 text-primary" />
                     </div>
                     
                     {/* Menu items */}
                     <div className="relative z-10 flex flex-col gap-2">
                       {menuItems.map((item, index) => (
-                        <motion.button
+                        <button
                           key={item.id}
                           onClick={() => handleAction(item.id)}
-                          initial={{ opacity: 0, x: -30 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.08, type: "spring", stiffness: 300 }}
-                          whileTap={{ scale: 0.98 }}
-                          whileHover={{ scale: 1.02, x: 4 }}
-                          className="group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-primary/30 transition-all duration-300 overflow-hidden"
+                          className="group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-primary/30 transition-colors duration-100 overflow-hidden active:scale-[0.98]"
+                          style={{ transform: 'translateZ(0)' }}
                         >
                           {/* Hover glow */}
-                          <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-accent/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-accent/0 opacity-0 group-hover:opacity-100 transition-opacity duration-100" />
                           
                           {/* Icon */}
                           <div className="relative">
-                            <motion.div
-                              whileHover={{ rotate: [0, -10, 10, 0] }}
-                              transition={{ duration: 0.4 }}
-                              className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} p-[1px]`}
+                            <div
+                              className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} p-[1px] group-hover:scale-105 transition-transform duration-100`}
+                              style={{ transform: 'translateZ(0)' }}
                             >
-                              <div className="w-full h-full rounded-xl bg-card/80 flex items-center justify-center backdrop-blur-sm">
+                              <div className="w-full h-full rounded-xl bg-card/80 flex items-center justify-center">
                                 <item.icon className="h-5 w-5 text-primary" />
                               </div>
-                            </motion.div>
-                            {/* Icon pulse */}
-                            <motion.div 
-                              className={`absolute inset-0 rounded-xl bg-gradient-to-br ${item.gradient} opacity-0 group-hover:opacity-40 blur-md transition-opacity`}
-                              animate={{ scale: [1, 1.2, 1] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                            />
+                            </div>
                           </div>
                           
                           {/* Text */}
                           <div className="flex flex-col items-start flex-1 min-w-0">
-                            <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                            <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors duration-100">
                               {item.label}
                             </span>
                             <span className="text-xs text-muted-foreground">
@@ -235,18 +205,14 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                           </div>
                           
                           {/* Arrow */}
-                          <motion.div 
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                            initial={{ x: -5 }}
-                            whileHover={{ x: 0 }}
-                          >
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-100">
                             <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
                               <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                               </svg>
                             </div>
-                          </motion.div>
-                        </motion.button>
+                          </div>
+                        </button>
                       ))}
                     </div>
                     

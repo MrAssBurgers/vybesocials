@@ -55,14 +55,6 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
     gradient: 'from-destructive via-primary to-destructive'
   };
 
-  // Unified animation config for all items
-  const itemAnimation = {
-    initial: { opacity: 0, y: 8 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: 4 },
-    transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }
-  };
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -72,8 +64,8 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-xl"
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm"
             onClick={onClose}
           />
 
@@ -83,10 +75,10 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
           >
             {/* High-tech popup */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 5 }}
-              transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
               className="pointer-events-auto"
               style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
             >
@@ -98,80 +90,53 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
                 />
                 
                 {/* Main card */}
-                <div className="relative flex flex-col gap-4 p-6 rounded-3xl min-w-[340px] overflow-hidden bg-card/95 backdrop-blur-2xl border border-border/50">
+                <div className="relative flex flex-col gap-4 p-6 rounded-3xl min-w-[340px] overflow-hidden bg-card/95 backdrop-blur-sm border border-border/50">
                   {/* Inner glow effects */}
                   <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 pointer-events-none" />
                   <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
                   
-                  {/* Scanline effect */}
-                  <div 
-                    className="absolute inset-0 pointer-events-none opacity-[0.02]"
-                    style={{
-                      backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, currentColor 2px, currentColor 4px)",
-                    }}
-                  />
+                  {/* Scanline effect - hidden on mobile for performance */}
+                  <div className="absolute inset-0 pointer-events-none opacity-[0.02] hidden md:block" />
                   
                   {/* Top accent line */}
                   <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
                   
-                  {/* Header */}
-                  <div className="relative z-10 flex items-center justify-center gap-2 mb-2">
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                    >
-                      <VybeMiniIcon size={16} showSparkles />
-                    </motion.div>
+                  {/* Header - static icons for performance */}
+                  <div className="relative z-10 flex items-center justify-center gap-2 mb-2" data-allow-animation="true">
+                    <VybeMiniIcon size={16} showSparkles animated={false} />
                     <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">
                       VYBE Hub
                     </span>
-                    <motion.div
-                      animate={{ rotate: -360 }}
-                      transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                    >
-                      <VybeMiniIcon size={16} showSparkles />
-                    </motion.div>
+                    <VybeMiniIcon size={16} showSparkles animated={false} />
                   </div>
                   
                   {/* Menu items */}
                   <div className="relative z-10 flex flex-col gap-2">
                     {menuItems.map((item, index) => (
-                      <motion.button
+                      <button
                         key={item.path}
                         onClick={() => handleNavigate(item.path)}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ 
-                          delay: 0.05 + index * 0.03, 
-                          duration: 0.2, 
-                          ease: [0.25, 0.1, 0.25, 1] 
-                        }}
-                        whileTap={{ scale: 0.98 }}
-                        className="group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-primary/30 transition-colors duration-150 overflow-hidden"
+                        className="group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-primary/30 transition-colors duration-100 overflow-hidden active:scale-[0.98]"
                         style={{ transform: 'translateZ(0)' }}
                       >
                         {/* Hover glow */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-accent/0 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-accent/0 opacity-0 group-hover:opacity-100 transition-opacity duration-100" />
                         
                         {/* Icon */}
                         <div className="relative">
                           <div
-                            className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} p-[1px] group-hover:scale-105 transition-transform duration-150`}
+                            className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} p-[1px] group-hover:scale-105 transition-transform duration-100`}
                             style={{ transform: 'translateZ(0)' }}
                           >
-                            <div className="w-full h-full rounded-xl bg-card/80 flex items-center justify-center backdrop-blur-sm">
+                            <div className="w-full h-full rounded-xl bg-card/80 flex items-center justify-center">
                               <item.icon className="h-5 w-5 text-primary" />
                             </div>
                           </div>
-                          {/* Subtle hover glow */}
-                          <div 
-                            className={`absolute inset-0 rounded-xl bg-gradient-to-br ${item.gradient} opacity-0 group-hover:opacity-30 blur-md transition-opacity duration-150`}
-                          />
                         </div>
                         
                         {/* Text */}
                         <div className="flex flex-col items-start flex-1 min-w-0">
-                          <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors duration-150">
+                          <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors duration-100">
                             {item.label}
                           </span>
                           <span className="text-xs text-muted-foreground">
@@ -180,53 +145,41 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
                         </div>
                         
                         {/* Arrow */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-100">
                           <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
                             <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
                           </div>
                         </div>
-                      </motion.button>
+                      </button>
                     ))}
 
-                    {/* Admin Panel - Only visible to admins/mods - SAME animation as others */}
+                    {/* Admin Panel - Only visible to admins/mods */}
                     {isModOrAdmin && (
-                      <motion.button
+                      <button
                         onClick={() => handleNavigate(adminItem.path)}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ 
-                          delay: 0.05 + menuItems.length * 0.03, 
-                          duration: 0.2, 
-                          ease: [0.25, 0.1, 0.25, 1] 
-                        }}
-                        whileTap={{ scale: 0.98 }}
-                        className="group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-destructive/30 transition-colors duration-150 overflow-hidden"
+                        className="group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-destructive/30 transition-colors duration-100 overflow-hidden active:scale-[0.98]"
                         style={{ transform: 'translateZ(0)' }}
                       >
                         {/* Hover glow */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-destructive/0 via-destructive/5 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-destructive/0 via-destructive/5 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-100" />
                         
                         {/* Icon */}
                         <div className="relative">
                           <div
-                            className={`w-12 h-12 rounded-xl bg-gradient-to-br ${adminItem.gradient} p-[1px] group-hover:scale-105 transition-transform duration-150`}
+                            className={`w-12 h-12 rounded-xl bg-gradient-to-br ${adminItem.gradient} p-[1px] group-hover:scale-105 transition-transform duration-100`}
                             style={{ transform: 'translateZ(0)' }}
                           >
-                            <div className="w-full h-full rounded-xl bg-card/80 flex items-center justify-center backdrop-blur-sm">
+                            <div className="w-full h-full rounded-xl bg-card/80 flex items-center justify-center">
                               <adminItem.icon className="h-5 w-5 text-destructive" />
                             </div>
                           </div>
-                          {/* Subtle hover glow */}
-                          <div 
-                            className={`absolute inset-0 rounded-xl bg-gradient-to-br ${adminItem.gradient} opacity-0 group-hover:opacity-30 blur-md transition-opacity duration-150`}
-                          />
                         </div>
                         
                         {/* Text */}
                         <div className="flex flex-col items-start flex-1 min-w-0">
-                          <span className="text-sm font-semibold text-foreground group-hover:text-destructive transition-colors duration-150">
+                          <span className="text-sm font-semibold text-foreground group-hover:text-destructive transition-colors duration-100">
                             {adminItem.label}
                           </span>
                           <span className="text-xs text-muted-foreground">
@@ -235,29 +188,26 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
                         </div>
                         
                         {/* Arrow */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-100">
                           <div className="w-8 h-8 rounded-full bg-destructive/10 border border-destructive/20 flex items-center justify-center">
                             <svg className="w-4 h-4 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
                           </div>
                         </div>
-                      </motion.button>
+                      </button>
                     )}
                   </div>
                   
                   {/* Close button */}
-                  <motion.button
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.15, duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                  <button
                     onClick={onClose}
-                    className="relative z-10 mt-2 p-3 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 text-muted-foreground hover:text-foreground transition-colors duration-150 flex items-center justify-center gap-2"
+                    className="relative z-10 mt-2 p-3 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 text-muted-foreground hover:text-foreground transition-colors duration-100 flex items-center justify-center gap-2 active:scale-[0.98]"
                     style={{ transform: 'translateZ(0)' }}
                   >
                     <X className="h-4 w-4" />
                     <span className="text-sm">Close</span>
-                  </motion.button>
+                  </button>
                   
                   {/* Bottom accent */}
                   <div className="absolute bottom-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />

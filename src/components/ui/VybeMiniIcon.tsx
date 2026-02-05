@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface VybeMiniIconProps {
@@ -14,6 +13,7 @@ let iconIdCounter = 0;
 /**
  * Mini VYBE "V" icon with sparkles - themed to user's primary/accent colors
  * Outline style with floating sparkle dots around the V
+ * Uses CSS animations for iOS performance
  */
 export const VybeMiniIcon = memo(function VybeMiniIcon({ 
   size = 16,
@@ -23,14 +23,12 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
 }: VybeMiniIconProps) {
   const uniqueId = `vybe-mini-${++iconIdCounter}`;
   
-  // Sparkle positions around the V
+  // Sparkle positions around the V - reduced from 6 to 4 for performance
   const sparkles = [
-    { x: '85%', y: '10%', size: 3, delay: 0 },
-    { x: '10%', y: '15%', size: 2, delay: 0.3 },
-    { x: '90%', y: '45%', size: 2.5, delay: 0.6 },
-    { x: '5%', y: '50%', size: 2, delay: 0.9 },
-    { x: '75%', y: '75%', size: 2, delay: 0.4 },
-    { x: '25%', y: '70%', size: 1.5, delay: 0.7 },
+    { x: '85%', y: '15%', size: 3, delay: 0 },
+    { x: '10%', y: '20%', size: 2, delay: 0.45 },
+    { x: '90%', y: '60%', size: 2.5, delay: 0.9 },
+    { x: '5%', y: '65%', size: 2, delay: 1.35 },
   ];
   
   return (
@@ -38,50 +36,34 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
       className={cn('relative inline-flex items-center justify-center', className)}
       style={{ width: size, height: size }}
     >
-      {/* Floating sparkle dots around the V */}
+      {/* Floating sparkle dots around the V - CSS animations for iOS perf */}
       {showSparkles && (
         <>
-          {sparkles.map((sparkle, i) => (
-            animated ? (
-              <motion.div
-                key={i}
-                className="absolute rounded-full"
-                style={{ 
-                  left: sparkle.x, 
-                  top: sparkle.y,
-                  width: sparkle.size,
-                  height: sparkle.size,
-                  background: i % 2 === 0 
-                    ? 'hsl(var(--accent))' 
-                    : 'hsl(var(--primary))',
-                }}
-                animate={{ 
-                  scale: [0.5, 1, 0.5],
-                  opacity: [0.4, 1, 0.4],
-                }}
-                transition={{ 
-                  duration: 1.8, 
-                  repeat: Infinity, 
-                  delay: sparkle.delay,
-                  ease: 'easeInOut'
-                }}
-              />
-            ) : (
+          {sparkles.map((sparkle, i) => {
+            const isAccent = i % 2 === 0;
+            return (
               <div
                 key={i}
-                className="absolute rounded-full"
+                className={cn(
+                  "absolute rounded-full",
+                  animated && "animate-pulse"
+                )}
                 style={{ 
                   left: sparkle.x, 
                   top: sparkle.y,
                   width: sparkle.size,
                   height: sparkle.size,
-                  background: i % 2 === 0 
-                    ? 'hsl(var(--accent) / 0.7)' 
-                    : 'hsl(var(--primary) / 0.7)',
+                  background: isAccent 
+                    ? 'hsl(var(--accent))' 
+                    : 'hsl(var(--primary))',
+                  opacity: animated ? undefined : 0.7,
+                  animationDelay: animated ? `${sparkle.delay}s` : undefined,
+                  animationDuration: animated ? '1.8s' : undefined,
+                  transform: 'translateZ(0)',
                 }}
               />
-            )
-          ))}
+            );
+          })}
         </>
       )}
       

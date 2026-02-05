@@ -19,6 +19,115 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
    ======================================== */
 
 @layer base {
+  /* =============================================
+     iOS SAFARI PERFORMANCE OPTIMIZATIONS
+     Reduces blur, animations, and GPU load on iOS
+     ============================================= */
+
+  /* Detect iOS via platform class from PlatformProvider */
+  .platform-ios {
+    /* Reduce blur intensity globally - Safari struggles with heavy blur */
+    --ios-blur: 8px;
+    --ios-blur-heavy: 12px;
+    --ios-saturate: 120%;
+  }
+
+  /* iOS Safari: Reduce all backdrop blur effects */
+  .platform-ios .liquid-glass,
+  .platform-ios .liquid-glass-card,
+  .platform-ios .liquid-glass-button,
+  .platform-ios .liquid-glass-subtle,
+  .platform-ios .glass-card {
+    backdrop-filter: blur(var(--ios-blur, 8px)) saturate(var(--ios-saturate, 120%)) !important;
+    -webkit-backdrop-filter: blur(var(--ios-blur, 8px)) saturate(var(--ios-saturate, 120%)) !important;
+  }
+
+  /* iOS Safari: Simplify sidebar blur */
+  .platform-ios .sidebar-fixed-left,
+  .platform-ios .sidebar-fixed-right {
+    backdrop-filter: blur(var(--ios-blur-heavy, 12px)) saturate(var(--ios-saturate, 120%)) !important;
+    -webkit-backdrop-filter: blur(var(--ios-blur-heavy, 12px)) saturate(var(--ios-saturate, 120%)) !important;
+  }
+
+  /* iOS Safari: Reduce hover blur increases */
+  .platform-ios .liquid-glass:hover {
+    backdrop-filter: blur(var(--ios-blur-heavy, 12px)) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(var(--ios-blur-heavy, 12px)) saturate(130%) !important;
+  }
+
+  /* iOS Safari: Faster animation durations */
+  .platform-ios *,
+  .platform-ios *::before,
+  .platform-ios *::after {
+    animation-duration: 0.15s !important;
+    transition-duration: 0.15s !important;
+  }
+
+  /* iOS Safari: Allow longer transitions for intentional UX animations */
+  .platform-ios [data-allow-animation="true"],
+  .platform-ios [data-allow-animation="true"] * {
+    animation-duration: unset !important;
+    transition-duration: unset !important;
+  }
+
+  /* iOS Safari: Disable infinite animations that drain battery */
+  .platform-ios .animate-spin,
+  .platform-ios .animate-pulse,
+  .platform-ios .animate-bounce,
+  .platform-ios .gradient-animated {
+    animation: none !important;
+  }
+
+  /* iOS Safari: Replace box-shadow animations with static shadows */
+  .platform-ios [class*="glow-"],
+  .platform-ios [style*="box-shadow"] {
+    box-shadow: none !important;
+    filter: drop-shadow(0 2px 4px hsl(var(--primary) / 0.2));
+  }
+
+  /* iOS Safari: Disable scanline effects (purely decorative) */
+  .platform-ios [style*="repeating-linear-gradient"] {
+    background-image: none !important;
+  }
+
+  /* iOS Safari: GPU layer promotion for smooth scrolling */
+  .platform-ios .overflow-y-auto,
+  .platform-ios .overflow-auto,
+  .platform-ios [data-radix-scroll-area-viewport] {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: scroll-position;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* iOS Safari: Contain layout for better paint performance */
+  .platform-ios main,
+  .platform-ios [role="main"] {
+    contain: layout style;
+  }
+
+  /* Low performance tier devices - even more aggressive */
+  .perf-low .liquid-glass,
+  .perf-low .liquid-glass-card,
+  .perf-low .liquid-glass-button,
+  .perf-low .glass-card {
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+  }
+
+  .perf-low *,
+  .perf-low *::before,
+  .perf-low *::after {
+    animation: none !important;
+    transition-duration: 0.05s !important;
+  }
+
+  /* Mobile devices: General optimizations */
+  .device-mobile .liquid-glass::after,
+  .device-mobile .liquid-glass-card::after {
+    display: none; /* Hide noise textures on mobile */
+  }
+
   :root {
     /* Base colors - Dark mode (default) */
     --background: 240 10% 4%;
@@ -337,6 +446,14 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     pointer-events: none;
   }
 
+  /* iOS: Pause ALL animations during scroll for 60fps */
+  .platform-ios.is-scrolling *,
+  .platform-ios.is-scrolling *::before,
+  .platform-ios.is-scrolling *::after {
+    animation-play-state: paused !important;
+    transition: none !important;
+  }
+
   /* Performance: Use contain for layout isolation */
   .perf-contain {
     contain: layout style paint;
@@ -351,6 +468,81 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
   }
+
+  /* GPU-accelerated recording button ring */
+  .vybe-record-ring {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  /* CSS-only particles for recording button - GPU accelerated */
+  @keyframes particle-burst {
+    0% {
+      transform: scale(0.5) translate(0, 0);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0) translate(var(--tx, 20px), var(--ty, -20px));
+      opacity: 0;
+    }
+  }
+
+  .vybe-particle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--particle-color, hsl(var(--primary)));
+    pointer-events: none;
+    animation: particle-burst 0.6s ease-out forwards;
+    will-change: transform, opacity;
+    transform: translateZ(0);
+  }
+
+  /* Orbiting sparkles for AI Brief loading */
+  @keyframes orbit-sparkle {
+    0% {
+      transform: rotate(0deg) translateX(50px) rotate(0deg);
+      opacity: 0.4;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      transform: rotate(360deg) translateX(50px) rotate(-360deg);
+      opacity: 0.4;
+    }
+  }
+
+  @keyframes sparkle-pulse {
+    0%, 100% {
+      transform: scale(0.5);
+      opacity: 0.4;
+    }
+    50% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .orbit-sparkle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: hsl(var(--primary));
+    animation: orbit-sparkle 3s linear infinite;
+    will-change: transform;
+    transform: translateZ(0);
+  }
+
+  .orbit-sparkle:nth-child(2) { animation-delay: -0.5s; background: hsl(var(--accent)); }
+  .orbit-sparkle:nth-child(3) { animation-delay: -1s; }
+  .orbit-sparkle:nth-child(4) { animation-delay: -1.5s; background: hsl(var(--accent)); }
+  .orbit-sparkle:nth-child(5) { animation-delay: -2s; }
+  .orbit-sparkle:nth-child(6) { animation-delay: -2.5s; background: hsl(var(--accent)); }
 
   /* Content-visibility for off-screen content */
   .content-lazy {

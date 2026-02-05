@@ -3,9 +3,22 @@
  * Centralized performance settings for the app
  */
 
+// Detect iOS Safari specifically
+export const isIOSSafari = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent.toLowerCase();
+  const platform = navigator.platform?.toLowerCase() || '';
+  const isIOS = /iphone|ipad|ipod/.test(ua) || (/mac/.test(platform) && navigator.maxTouchPoints > 1);
+  const isSafari = /safari/.test(ua) && !/chrome/.test(ua) && !/crios/.test(ua);
+  return isIOS && isSafari;
+};
+
 // Detect low-end devices
 export const isLowEndDevice = (): boolean => {
   if (typeof window === 'undefined') return false;
+  
+  // iOS Safari is treated as a performance concern due to poor backdrop-filter performance
+  if (isIOSSafari()) return true;
   
   // Check for limited memory
   const memory = (navigator as any).deviceMemory;
@@ -27,24 +40,31 @@ export const isLowEndDevice = (): boolean => {
 // Animation settings based on device capability
 export const getAnimationConfig = () => {
   const lowEnd = isLowEndDevice();
+  const iosSafari = isIOSSafari();
   
   return {
     // Disable complex animations on low-end devices
-    enablePageTransitions: !lowEnd,
-    enableParallax: !lowEnd,
-    enableBackgroundAnimations: !lowEnd,
+    enablePageTransitions: !lowEnd && !iosSafari,
+    enableParallax: !lowEnd && !iosSafari,
+    enableBackgroundAnimations: !lowEnd && !iosSafari,
     enableHoverAnimations: !lowEnd,
     
     // Reduced motion variants
     pageTransition: lowEnd 
       ? { duration: 0.1 } 
-      : { type: 'spring', stiffness: 400, damping: 35 },
+      : iosSafari
+        ? { duration: 0.15, ease: 'easeOut' }
+        : { type: 'spring', stiffness: 400, damping: 35 },
     
     // Shorter animation durations
-    animationDuration: lowEnd ? 0.1 : 0.3,
+    animationDuration: lowEnd ? 0.05 : iosSafari ? 0.15 : 0.3,
     
     // Reduced blur effects
-    blurAmount: lowEnd ? '0px' : '10px',
+    blurAmount: lowEnd ? '0px' : iosSafari ? '8px' : '10px',
+    
+    // iOS-specific flags
+    isIOSSafari: iosSafari,
+    reduceMotion: lowEnd,
   };
 };
 
