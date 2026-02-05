@@ -64,36 +64,47 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
         {/* Star sparkles ✦ */}
         {showSparkles && (
           <>
-            {/* Top right star - accent color, larger */}
+            {/* Right side - top star */}
             <g 
               className={cn(animated && "animate-pulse")} 
-              style={{ transformOrigin: '88px 12px', animationDuration: '2s' }}
+              style={{ transformOrigin: '90px 18px', animationDuration: '2s' }}
             >
               <path
-                d="M88 6 L89.5 10 L94 12 L89.5 14 L88 18 L86.5 14 L82 12 L86.5 10 Z"
+                d="M90 12 L91.5 16 L96 18 L91.5 20 L90 24 L88.5 20 L84 18 L88.5 16 Z"
                 fill="hsl(var(--accent))"
               />
             </g>
             
-            {/* Top left star - primary color, medium */}
+            {/* Right side - bottom star */}
             <g 
               className={cn(animated && "animate-pulse")} 
-              style={{ transformOrigin: '12px 16px', animationDuration: '2.5s', animationDelay: '0.4s' }}
+              style={{ transformOrigin: '85px 50px', animationDuration: '2.3s', animationDelay: '0.5s' }}
             >
               <path
-                d="M12 11 L13.2 14 L16.5 16 L13.2 18 L12 21 L10.8 18 L7.5 16 L10.8 14 Z"
+                d="M85 46 L86 49 L89 50 L86 51 L85 54 L84 51 L81 50 L84 49 Z"
+                fill="hsl(var(--accent))"
+              />
+            </g>
+            
+            {/* Left side - top star */}
+            <g 
+              className={cn(animated && "animate-pulse")} 
+              style={{ transformOrigin: '10px 18px', animationDuration: '2.2s', animationDelay: '0.3s' }}
+            >
+              <path
+                d="M10 12 L11.5 16 L16 18 L11.5 20 L10 24 L8.5 20 L4 18 L8.5 16 Z"
                 fill="hsl(var(--primary))"
               />
             </g>
             
-            {/* Bottom center star - accent, small */}
+            {/* Left side - bottom star */}
             <g 
               className={cn(animated && "animate-pulse")} 
-              style={{ transformOrigin: '50px 104px', animationDuration: '2.2s', animationDelay: '0.8s' }}
+              style={{ transformOrigin: '15px 50px', animationDuration: '2.5s', animationDelay: '0.7s' }}
             >
               <path
-                d="M50 100 L51 102.5 L54 104 L51 105.5 L50 108 L49 105.5 L46 104 L49 102.5 Z"
-                fill="hsl(var(--accent))"
+                d="M15 46 L16 49 L19 50 L16 51 L15 54 L14 51 L11 50 L14 49 Z"
+                fill="hsl(var(--primary))"
               />
             </g>
           </>
