@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import * as webpush from "https://esm.sh/web-push@3.6.7";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,10 +28,21 @@ serve(async (req) => {
     const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
     const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
 
-    // Check for VAPID keys (optional - basic push works without them for many browsers)
+    // VAPID keys are required for Web Push
     if (!vapidPublicKey || !vapidPrivateKey) {
-      console.log("VAPID keys not configured - using basic push delivery");
+      console.error("VAPID keys not configured - push notifications will fail");
+      return new Response(
+        JSON.stringify({ success: false, error: "VAPID keys not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    // Configure web-push with VAPID details
+    webpush.setVapidDetails(
+      "mailto:support@vybe.app",
+      vapidPublicKey,
+      vapidPrivateKey
+    );
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { userId, title, body, url, tag, type, data }: PushPayload = await req.json();
@@ -87,59 +99,48 @@ serve(async (req) => {
           }
 
           // Validate subscription has required fields
-          if (!subscription.endpoint) {
+          if (!subscription.endpoint || !subscription.keys) {
             console.error("Missing endpoint for token id:", id);
             await supabase.from("push_tokens").delete().eq("id", id);
-            return { success: false, error: "Missing endpoint", cleaned: true };
+            return { success: false, error: "Missing endpoint or keys", cleaned: true };
           }
 
-          // Send push notification
-          // For browsers that support Web Push, the payload is delivered to the service worker
-          let response;
-          
+          // Send push notification using web-push library with VAPID auth
           try {
-            // Try sending with JSON payload (modern browsers)
-            response = await fetch(subscription.endpoint, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "TTL": "86400", // 24 hours
+            const result = await webpush.sendNotification(
+              {
+                endpoint: subscription.endpoint,
+                keys: subscription.keys,
               },
-              body: pushPayload,
-            });
-          } catch (fetchError) {
-            console.error("Primary push failed, trying empty push:", fetchError);
-            // Fallback: send empty push to wake service worker
-            response = await fetch(subscription.endpoint, {
-              method: "POST",
-              headers: {
-                "TTL": "86400",
-                "Content-Length": "0",
-              },
-            });
-          }
-
-          // Handle response status
-          if (response.status === 201 || response.status === 200) {
+              pushPayload,
+              {
+                TTL: 86400, // 24 hours
+                urgency: type === "call" ? "high" : "normal",
+              }
+            );
+            
             console.log("Push sent successfully to:", subscription.endpoint.substring(0, 50));
-            return { success: true };
-          } else if (response.status === 404 || response.status === 410) {
-            // Subscription expired or invalid - clean up
-            console.log("Cleaning up expired subscription:", id);
-            await supabase.from("push_tokens").delete().eq("id", id);
-            return { success: false, error: "Subscription expired", cleaned: true };
-          } else if (response.status === 429) {
-            // Rate limited
-            console.log("Rate limited for subscription:", id);
-            return { success: false, error: "Rate limited" };
-          } else if (response.status === 401 || response.status === 403) {
-            // Authentication error - likely VAPID issue
-            console.error("Auth error (VAPID may be required):", response.status);
-            return { success: false, error: `Auth error: ${response.status}` };
-          } else {
-            const errorText = await response.text().catch(() => "Unknown error");
-            console.error("Push failed:", response.status, errorText);
-            return { success: false, error: `HTTP ${response.status}` };
+            return { success: true, statusCode: result.statusCode };
+          } catch (pushError: any) {
+            console.error("Push error:", pushError);
+            
+            // Handle specific error codes
+            if (pushError.statusCode === 404 || pushError.statusCode === 410) {
+              // Subscription expired or invalid - clean up
+              console.log("Cleaning up expired subscription:", id);
+              await supabase.from("push_tokens").delete().eq("id", id);
+              return { success: false, error: "Subscription expired", cleaned: true };
+            } else if (pushError.statusCode === 429) {
+              // Rate limited
+              console.log("Rate limited for subscription:", id);
+              return { success: false, error: "Rate limited" };
+            } else if (pushError.statusCode === 401 || pushError.statusCode === 403) {
+              // Authentication error
+              console.error("Auth error:", pushError.statusCode, pushError.body);
+              return { success: false, error: `Auth error: ${pushError.statusCode}` };
+            }
+            
+            return { success: false, error: pushError.message || String(pushError) };
           }
         } catch (error) {
           console.error("Error sending push:", error);
