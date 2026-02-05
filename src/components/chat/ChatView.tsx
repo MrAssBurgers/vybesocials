@@ -2029,7 +2029,7 @@ const MessageBubble = memo(function MessageBubble({
     >
       {/* Container for avatar + bubble - left aligned for received */}
       <div className={cn(
-        'flex gap-2 sm:gap-2.5 items-end',
+        'flex gap-2 sm:gap-2.5 items-end min-w-0',
         isOwn ? 'flex-row-reverse' : 'flex-row',
         // Max width but auto-shrink to content
         'max-w-[85%] sm:max-w-[75%]'
@@ -2045,7 +2045,7 @@ const MessageBubble = memo(function MessageBubble({
         {!isOwn && !showAvatar && <div className="w-8 sm:w-9 flex-shrink-0" />}
 
         {/* Message content wrapper - auto width based on content */}
-        <div className={cn('flex flex-col', isOwn ? 'items-end' : 'items-start')}>
+        <div className={cn('flex flex-col min-w-0 max-w-full', isOwn ? 'items-end' : 'items-start')}>
         {/* Reply preview - clickable to scroll to original message */}
         {repliedMessage && (
           <button
@@ -2083,7 +2083,7 @@ const MessageBubble = memo(function MessageBubble({
         {!isSharedPost && (
         <div
           className={cn(
-            'relative rounded-[20px] break-words overflow-hidden select-none group/bubble max-w-full',
+            'relative rounded-[20px] break-words overflow-hidden select-none group/bubble max-w-full min-w-0',
             // Padding: 14-16px horizontal, 10-12px vertical
             isEmojiOnly 
               ? 'px-3 py-2' // Reduced padding for emoji
