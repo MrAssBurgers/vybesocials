@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import jsQR from 'jsqr';
 
-type DropPhase = 'idle' | 'card-rising' | 'activated' | 'found' | 'exchanging' | 'success';
+type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 
 interface FoundUser {
   id: string;
@@ -139,37 +139,47 @@ export function AutoFriendDrop() {
   const animationFrameRef = useRef<number | null>(null);
   
   // Card animation values for wallet effect
-  const cardY = useMotionValue(300);
-  const cardRotate = useMotionValue(5);
-  const cardScale = useMotionValue(0.8);
+  const cardY = useMotionValue(200);
+  const cardRotate = useMotionValue(3);
+  const cardScale = useMotionValue(0.9);
+  const [cardAnimationComplete, setCardAnimationComplete] = useState(false);
   
   // Trigger card rising animation (like credit card from wallet)
+  // Now goes directly to activated phase and animates within it
   const triggerCardRise = useCallback(() => {
-    setPhase('card-rising');
+    // Reset animation values
+    cardY.set(200);
+    cardRotate.set(3);
+    cardScale.set(0.9);
+    setCardAnimationComplete(false);
     
-    // Animate card rising from wallet
-    animate(cardY, 0, { 
-      type: 'spring', 
-      stiffness: 200, 
-      damping: 20,
-      duration: 0.8 
-    });
-    animate(cardRotate, 0, { 
-      type: 'spring', 
-      stiffness: 150, 
-      damping: 15 
-    });
-    animate(cardScale, 1, { 
-      type: 'spring', 
-      stiffness: 200, 
-      damping: 18 
-    });
-
-    // After animation completes, transition to activated phase
+    // Go directly to activated phase
+    setPhase('activated');
+    
+    // Animate card rising from wallet with a slight delay for modal to open
     setTimeout(() => {
-      setPhase('activated');
-      haptics.success();
-    }, 800);
+      animate(cardY, 0, { 
+        type: 'spring', 
+        stiffness: 180, 
+        damping: 22,
+      });
+      animate(cardRotate, 0, { 
+        type: 'spring', 
+        stiffness: 150, 
+        damping: 18 
+      });
+      animate(cardScale, 1, { 
+        type: 'spring', 
+        stiffness: 180, 
+        damping: 20 
+      });
+      
+      // Mark animation as complete after spring settles
+      setTimeout(() => {
+        setCardAnimationComplete(true);
+        haptics.success();
+      }, 500);
+    }, 100);
   }, [cardY, cardRotate, cardScale]);
 
   // Fetch user helper
@@ -642,163 +652,131 @@ export function AutoFriendDrop() {
           }}
         >
           <AnimatePresence mode="wait">
-            {/* Card Rising Phase - Wallet Animation with QR Scanner */}
-            {phase === 'card-rising' && (
+            
+            {phase === 'activated' && (
               <motion.div
-                className="flex flex-col items-center justify-end py-4"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                style={{ minHeight: 400 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col items-center"
               >
-                {/* Card rising from wallet animation */}
-                <div className="relative h-96 w-full flex items-end justify-center overflow-hidden">
+                {/* Wallet with Rising Scanner Card */}
+                <div className="relative w-full flex flex-col items-center overflow-visible pb-4">
                   {/* Wallet base - leather texture look */}
                   <motion.div
-                    className="absolute bottom-0 w-72 h-24 rounded-t-3xl overflow-hidden"
+                    className="absolute bottom-0 w-72 h-16 rounded-t-2xl overflow-hidden z-0"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
                   >
-                    {/* Wallet leather gradient */}
                     <div className="absolute inset-0 bg-gradient-to-t from-[hsl(20,30%,12%)] via-[hsl(20,25%,18%)] to-[hsl(20,20%,25%)]" />
-                    {/* Wallet opening slit */}
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-2 bg-black/60 rounded-b-full" />
-                    {/* Wallet edge highlight */}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-1.5 bg-black/60 rounded-b-full" />
                     <div className="absolute top-2 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                   </motion.div>
                   
-                  {/* Rising Scanner Card */}
+                  {/* Rising Scanner Card - contains live scanner */}
                   <motion.div
-                    className="relative z-10 w-64 rounded-2xl bg-gradient-to-br from-background via-card to-muted border-2 border-primary/40 shadow-2xl shadow-primary/20 overflow-hidden"
+                    className="relative z-10 w-72 rounded-2xl bg-gradient-to-br from-background via-card to-muted border-2 border-primary/40 shadow-2xl shadow-primary/20 overflow-hidden"
                     style={{ 
                       y: cardY,
                       rotate: cardRotate,
                       scale: cardScale
                     }}
                   >
-                    {/* Shimmer effect on card */}
-                    <motion.div
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none"
-                      animate={{ x: ['-100%', '100%'] }}
-                      transition={{ repeat: Infinity, duration: 2, ease: "easeInOut", delay: 0.5 }}
-                    />
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-3 pb-0">
+                      <div className="flex items-center gap-2">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
+                        >
+                          {nativeFriendDrop.isAvailable ? (
+                            <Bluetooth className="h-4 w-4 text-primary" />
+                          ) : (
+                            <Sparkles className="h-4 w-4 text-primary" />
+                          )}
+                        </motion.div>
+                        <h3 className="font-bold text-sm text-foreground">FriendDrop</h3>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                     
-                    {/* Scanner preview area */}
-                    <div className="relative aspect-square bg-black/90 m-3 rounded-xl overflow-hidden">
-                      {/* Fake viewfinder grid */}
-                      <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
-                        {[...Array(9)].map((_, i) => (
-                          <div key={i} className="border border-white/5" />
+                    {/* Live Scanner */}
+                    <div className="relative aspect-square bg-black m-3 mt-2 rounded-xl overflow-hidden">
+                      <video 
+                        ref={videoRef} 
+                        className="w-full h-full object-cover"
+                        playsInline
+                        muted
+                      />
+                      <canvas ref={canvasRef} className="hidden" />
+                      
+                      {/* Scanning overlay */}
+                      <div className="absolute inset-0 pointer-events-none">
+                        {/* Scanning line */}
+                        <motion.div
+                          className="absolute left-3 right-3 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full"
+                          animate={{ top: ['15%', '85%', '15%'] }}
+                          transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                        />
+                        
+                        {/* Corner brackets */}
+                        {[0, 1, 2, 3].map((i) => (
+                          <motion.div
+                            key={i}
+                            className="absolute w-8 h-8 border-primary"
+                            style={{
+                              top: i < 2 ? 12 : 'auto',
+                              bottom: i >= 2 ? 12 : 'auto',
+                              left: i % 2 === 0 ? 12 : 'auto',
+                              right: i % 2 === 1 ? 12 : 'auto',
+                              borderTopWidth: i < 2 ? 3 : 0,
+                              borderBottomWidth: i >= 2 ? 3 : 0,
+                              borderLeftWidth: i % 2 === 0 ? 3 : 0,
+                              borderRightWidth: i % 2 === 1 ? 3 : 0,
+                              borderRadius: 6,
+                            }}
+                            animate={{ opacity: [0.5, 1, 0.5] }}
+                            transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
+                          />
                         ))}
                       </div>
-                      
-                      {/* Scanning line */}
-                      <motion.div
-                        className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full"
-                        animate={{ top: ['20%', '80%', '20%'] }}
-                        transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                      />
-                      
-                      {/* Corner brackets */}
-                      {[0, 1, 2, 3].map((i) => (
-                        <div
-                          key={i}
-                          className="absolute w-8 h-8 border-primary"
-                          style={{
-                            top: i < 2 ? 8 : 'auto',
-                            bottom: i >= 2 ? 8 : 'auto',
-                            left: i % 2 === 0 ? 8 : 'auto',
-                            right: i % 2 === 1 ? 8 : 'auto',
-                            borderTopWidth: i < 2 ? 3 : 0,
-                            borderBottomWidth: i >= 2 ? 3 : 0,
-                            borderLeftWidth: i % 2 === 0 ? 3 : 0,
-                            borderRightWidth: i % 2 === 1 ? 3 : 0,
-                            borderRadius: 6,
-                          }}
-                        />
-                      ))}
-                      
-                      {/* Center camera icon */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <motion.div 
-                          className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center"
-                          animate={{ scale: [1, 1.1, 1], opacity: [0.6, 1, 0.6] }}
-                          transition={{ repeat: Infinity, duration: 1.5 }}
-                        >
-                          <Sparkles className="h-6 w-6 text-primary" />
-                        </motion.div>
-                      </div>
                     </div>
                     
-                    {/* Card footer with user info */}
-                    <div className="px-4 pb-4 pt-2 flex items-center gap-3">
-                      <Avatar className="h-10 w-10 ring-2 ring-primary/30">
-                        <AvatarImage src={profile?.avatar_url || ''} />
-                        <AvatarFallback className="text-sm bg-primary/10">
-                          {profile?.username?.[0]?.toUpperCase() || 'V'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm text-foreground truncate">@{profile?.username}</p>
-                        <p className="text-xs text-muted-foreground">Ready to connect</p>
+                    {/* QR Code Section - tap to expand */}
+                    {!nativeFriendDrop.isAvailable && (
+                      <div className="px-3 pb-2">
+                        <div className="flex items-center gap-3 p-2 rounded-xl bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
+                          <ExpandableQR
+                            qrCodeUrl={qrCodeUrl}
+                            isExpanded={isQrExpanded}
+                            onToggle={toggleQrExpand}
+                            avatarUrl={profile?.avatar_url}
+                            username={profile?.username}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-muted-foreground">Your code</p>
+                            <p className="font-bold text-sm text-foreground truncate">@{profile?.username}</p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 text-primary">
-                        <Zap className="h-4 w-4" />
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-              </motion.div>
-            )}
-            
-            {phase === 'activated' && (
-              <div
-                className="bg-background/95 backdrop-blur-xl rounded-3xl p-6 shadow-2xl shadow-primary/20 border border-primary/10"
-                style={{ 
-                  animationDuration: '200ms',
-                  transformStyle: 'preserve-3d'
-                }}
-              >
-                {/* Split view - Native discovery or QR fallback */}
-                <div className="flex flex-col gap-4">
-                  {/* Header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-                      >
-                        {nativeFriendDrop.isAvailable ? (
-                          <Bluetooth className="h-5 w-5 text-primary" />
-                        ) : (
-                          <Sparkles className="h-5 w-5 text-primary" />
-                        )}
-                      </motion.div>
-                      <h3 className="font-bold text-lg">FriendDrop Active!</h3>
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={handleClose}>
-                      <X className="h-5 w-5" />
-                    </Button>
-                  </div>
-
-                  {/* Native discovery - show nearby peers */}
-                  {nativeFriendDrop.isAvailable && nativeFriendDrop.nearbyPeers.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="rounded-2xl bg-accent/20 border border-accent/30 p-4"
-                    >
-                      <div className="flex items-center gap-2 mb-3">
-                        <Wifi className="h-4 w-4 text-accent" />
-                        <span className="text-sm font-medium">Nearby Friends</span>
-                      </div>
-                      <div className="space-y-2">
-                        {nativeFriendDrop.nearbyPeers.map((peer) => (
+                    )}
+                    
+                    {/* Native nearby peers */}
+                    {nativeFriendDrop.isAvailable && nativeFriendDrop.nearbyPeers.length > 0 && (
+                      <div className="px-3 pb-3 space-y-2">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Wifi className="h-3 w-3" />
+                          <span>Nearby</span>
+                        </div>
+                        {nativeFriendDrop.nearbyPeers.slice(0, 2).map((peer) => (
                           <motion.button
                             key={peer.peerId}
-                            initial={{ opacity: 0, x: -20 }}
+                            initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="w-full flex items-center gap-3 p-2 rounded-xl bg-background/50 hover:bg-background/80 transition-colors"
+                            className="w-full flex items-center gap-2 p-2 rounded-lg bg-accent/10 hover:bg-accent/20 transition-colors"
                             onClick={() => {
                               setFoundUser({
                                 id: peer.userId,
@@ -809,159 +787,26 @@ export function AutoFriendDrop() {
                               setPhase('found');
                             }}
                           >
-                            <Avatar className="h-10 w-10">
+                            <Avatar className="h-8 w-8">
                               <AvatarImage src={peer.avatarUrl || ''} />
-                              <AvatarFallback>{peer.username[0]?.toUpperCase()}</AvatarFallback>
+                              <AvatarFallback className="text-xs">{peer.username[0]?.toUpperCase()}</AvatarFallback>
                             </Avatar>
-                            <div className="text-left flex-1">
-                              <p className="font-medium">{peer.displayName || peer.username}</p>
-                              <p className="text-xs text-muted-foreground">@{peer.username}</p>
-                            </div>
-                            <ArrowLeftRight className="h-4 w-4 text-primary" />
+                            <span className="text-sm font-medium flex-1 text-left truncate">{peer.displayName || peer.username}</span>
+                            <ArrowLeftRight className="h-3 w-3 text-primary" />
                           </motion.button>
                         ))}
                       </div>
-                    </motion.div>
-                  )}
-
-                  {/* Searching for peers indicator (native) */}
-                  {nativeFriendDrop.isAvailable && nativeFriendDrop.nearbyPeers.length === 0 && (
-                    <motion.div
-                      className="rounded-2xl bg-primary/10 border border-primary/20 p-6 flex flex-col items-center gap-3"
-                      animate={{ 
-                        boxShadow: [
-                          '0 0 20px hsl(var(--primary) / 0.1)',
-                          '0 0 40px hsl(var(--primary) / 0.2)',
-                          '0 0 20px hsl(var(--primary) / 0.1)'
-                        ]
-                      }}
-                      transition={{ repeat: Infinity, duration: 2 }}
-                    >
-                      <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ repeat: Infinity, duration: 1.5 }}
-                      >
-                        <Bluetooth className="h-12 w-12 text-primary" />
-                      </motion.div>
-                      <div className="text-center">
-                        <p className="font-medium">Searching nearby...</p>
-                        <p className="text-sm text-muted-foreground">Bring phones together</p>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* My Profile QR (fallback for web or additional option) - with tap to expand */}
-                  {!nativeFriendDrop.isAvailable && (
-                    <motion.div 
-                      className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-primary via-primary/80 to-accent p-4"
-                      animate={{
-                        boxShadow: [
-                          '0 0 20px hsl(var(--primary) / 0.3)',
-                          '0 0 40px hsl(var(--primary) / 0.5)',
-                          '0 0 20px hsl(var(--primary) / 0.3)'
-                        ]
-                      }}
-                      transition={{ repeat: Infinity, duration: 2 }}
-                    >
-                      <motion.div
-                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                        animate={{ x: ['-100%', '100%'] }}
-                        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                      />
-                      
-                      <div className="relative flex flex-col items-center gap-4">
-                        <div className="flex items-center gap-4 w-full">
-                          <Avatar className="h-14 w-14 border-2 border-white/50">
-                            <AvatarImage src={profile?.avatar_url || ''} />
-                            <AvatarFallback className="bg-white/20 text-white">
-                              {profile?.username?.[0]?.toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          
-                          <div className="flex-1 text-white">
-                            <p className="font-bold">{profile?.username}</p>
-                            <p className="text-white/70 text-sm">
-                              {isQrExpanded ? 'Tap QR to shrink' : 'Tap QR to enlarge'}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        {/* Expandable QR Code with profile picture */}
-                        <ExpandableQR
-                          qrCodeUrl={qrCodeUrl}
-                          isExpanded={isQrExpanded}
-                          onToggle={toggleQrExpand}
-                          avatarUrl={profile?.avatar_url}
-                          username={profile?.username}
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Scanner */}
-                  <div className="relative aspect-square rounded-2xl overflow-hidden bg-black">
-                    <video 
-                      ref={videoRef} 
-                      className="w-full h-full object-cover"
-                      playsInline
-                      muted
-                    />
-                    <canvas ref={canvasRef} className="hidden" />
+                    )}
                     
-                    {/* Scanning overlay */}
-                    <div className="absolute inset-0 pointer-events-none">
-                      <div className="absolute inset-0 bg-gradient-radial from-transparent to-black/50" />
-                      
-                      {/* Scanning frame */}
-                      <div className="absolute inset-6 border-2 border-primary/50 rounded-2xl" />
-                      
-                      {/* Scanning line */}
-                      <motion.div
-                        className="absolute left-6 right-6 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent"
-                        animate={{ top: ['15%', '85%', '15%'] }}
-                        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                      />
-                      
-                      {/* Corner accents */}
-                      {[0, 1, 2, 3].map((i) => (
-                        <motion.div
-                          key={i}
-                          className="absolute w-6 h-6"
-                          style={{
-                            top: i < 2 ? 16 : 'auto',
-                            bottom: i >= 2 ? 16 : 'auto',
-                            left: i % 2 === 0 ? 16 : 'auto',
-                            right: i % 2 === 1 ? 16 : 'auto',
-                          }}
-                          animate={{ opacity: [0.5, 1, 0.5] }}
-                          transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
-                        >
-                          <div 
-                            className="w-full h-full border-primary"
-                            style={{
-                              borderTopWidth: i < 2 ? 3 : 0,
-                              borderBottomWidth: i >= 2 ? 3 : 0,
-                              borderLeftWidth: i % 2 === 0 ? 3 : 0,
-                              borderRightWidth: i % 2 === 1 ? 3 : 0,
-                              borderTopLeftRadius: i === 0 ? 8 : 0,
-                              borderTopRightRadius: i === 1 ? 8 : 0,
-                              borderBottomLeftRadius: i === 2 ? 8 : 0,
-                              borderBottomRightRadius: i === 3 ? 8 : 0,
-                            }}
-                          />
-                        </motion.div>
-                      ))}
-                    </div>
-                    
-                    {/* Instruction overlay */}
-                    <div className="absolute bottom-4 left-0 right-0 text-center">
-                      <p className="text-white/80 text-sm">
-                        Point at their screen
+                    {/* Card footer */}
+                    <div className="px-3 pb-3 pt-1">
+                      <p className="text-xs text-center text-muted-foreground">
+                        Point camera at friend's code
                       </p>
                     </div>
-                  </div>
+                  </motion.div>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {phase === 'found' && foundUser && (
