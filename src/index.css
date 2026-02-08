@@ -135,6 +135,118 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     display: none; /* Hide noise textures on mobile */
   }
 
+  /* =========================================
+     MOBILE/TABLET TEXT READABILITY FIXES
+     Ensure all text is fully opaque and readable
+     ========================================= */
+  
+  /* Mobile/Tablet: Force all text to full opacity with text shadows */
+  @media (max-width: 1024px) {
+    /* All text elements get enhanced readability */
+    body {
+      text-shadow: 0 2px 4px hsl(var(--background) / 0.3);
+    }
+
+    /* Profile page specific text fixes */
+    h1, h2, h3, h4, h5, h6 {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+      text-shadow: 0 2px 4px hsl(var(--background) / 0.35);
+      font-weight: 600;
+    }
+
+    p, span, a, label, button {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+      text-shadow: 0 1px 3px hsl(var(--background) / 0.25);
+    }
+
+    /* Stats numbers - make bold and fully visible */
+    .font-bold, strong, [class*="font-semibold"] {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+      text-shadow: 0 2px 4px hsl(var(--background) / 0.3);
+    }
+
+    /* Muted text (like "followers") - increase opacity */
+    .text-muted-foreground {
+      color: hsl(var(--muted-foreground)) !important;
+      opacity: 0.85 !important;
+      text-shadow: 0 1px 2px hsl(var(--background) / 0.2);
+    }
+
+    /* Username and display name - maximum visibility */
+    [class*="username"], [class*="display-name"] {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+      text-shadow: 0 2px 4px hsl(var(--background) / 0.35);
+      font-weight: 700;
+    }
+
+    /* Bio text */
+    [class*="bio"] {
+      color: hsl(var(--muted-foreground)) !important;
+      opacity: 0.9 !important;
+      text-shadow: 0 1px 3px hsl(var(--background) / 0.25);
+      line-height: 1.5;
+    }
+
+    /* Tab labels and navigation text */
+    .flex-1, [role="tab"], [role="tablist"] * {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+    }
+
+    /* Ensure glass containers have proper contrast */
+    .liquid-glass h1, .liquid-glass h2, .liquid-glass h3,
+    .liquid-glass p, .liquid-glass span, .liquid-glass a,
+    .liquid-glass-card h1, .liquid-glass-card h2, .liquid-glass-card h3,
+    .liquid-glass-card p, .liquid-glass-card span, .liquid-glass-card a {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+      text-shadow: 0 1px 3px hsl(var(--background) / 0.3);
+    }
+
+    /* Button text */
+    button, [role="button"] {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+      text-shadow: 0 1px 2px hsl(var(--background) / 0.2);
+    }
+
+    /* Headings in profile header */
+    .md\:text-left h1, .text-center h1 {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+      text-shadow: 0 3px 6px hsl(var(--background) / 0.4);
+    }
+
+    /* Ensure all tab content text is visible */
+    [role="tabpanel"] {
+      color: hsl(var(--foreground)) !important;
+    }
+
+    [role="tabpanel"] * {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+    }
+  }
+
+  /* Extra aggressive for very small phones (< 480px) */
+  @media (max-width: 480px) {
+    h1, h2, h3, h4, h5, h6 {
+      text-shadow: 0 3px 6px hsl(var(--background) / 0.4) !important;
+    }
+
+    p, span, a, label {
+      text-shadow: 0 2px 4px hsl(var(--background) / 0.3) !important;
+    }
+
+    .text-muted-foreground {
+      opacity: 0.9 !important;
+    }
+  }
+
   :root {
     /* Base colors - Dark mode (default) */
     --background: 240 10% 4%;
