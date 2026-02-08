@@ -107,7 +107,7 @@ export function ProfileSection() {
                   />
                   <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                 </div>
-                <p className="text-sm text-muted-foreground">View your public profile</p>
+                <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">View your public profile</p>
               </div>
             </div>
           </Link>
@@ -121,7 +121,7 @@ export function ProfileSection() {
         transition={{ delay: 0.1 }}
         className="liquid-glass-card p-4 sm:p-6"
       >
-        <h3 className="font-semibold mb-6 text-base">Edit Profile</h3>
+        <h3 className="font-semibold mb-6 text-base text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Edit Profile</h3>
 
         <div className="space-y-5">
           {/* Username */}

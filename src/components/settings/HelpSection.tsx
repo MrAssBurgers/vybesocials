@@ -24,8 +24,8 @@ export function HelpSection() {
             <MessageSquareHeart className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold text-base mb-1">Help & Support</h3>
-            <p className="text-sm text-muted-foreground">
+            <h3 className="font-semibold text-base mb-1 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Help & Support</h3>
+            <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
               Get help with VYBE or share your feedback
             </p>
           </div>

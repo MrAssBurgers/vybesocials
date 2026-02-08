@@ -247,7 +247,7 @@ export function ConversationList() {
       {/* Header */}
       <div className="p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">{t('messages.title')}</h1>
+          <h1 className="text-2xl font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{t('messages.title')}</h1>
           <div className="flex items-center gap-1">
             {/* Trash Bin Button */}
             <TrashBin 

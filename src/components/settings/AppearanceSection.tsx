@@ -32,8 +32,8 @@ export function AppearanceSection() {
             <Paintbrush className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold text-base mb-1">{t('settings.theme')}</h3>
-            <p className="text-sm text-muted-foreground">Choose your preferred color mode</p>
+            <h3 className="font-semibold text-base mb-1 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{t('settings.theme')}</h3>
+            <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Choose your preferred color mode</p>
           </div>
         </div>
 
