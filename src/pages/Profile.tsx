@@ -6,6 +6,7 @@ import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/usePro
 import { usePosts } from '@/hooks/usePosts';
 import { useSavedPosts } from '@/hooks/useSavedPosts';
 import { useAuth } from '@/lib/auth';
+import { useBreakpoint } from '@/hooks/usePlatform';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ import { StyledUsername } from '@/components/ui/StyledUsername';
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
+  const { isMobile, isTablet } = useBreakpoint();
   const navigate = useNavigate();
   const { profile: currentProfile } = useAuth();
   const { data: profile, isLoading } = useProfileByUsername(username!);
@@ -190,8 +192,9 @@ export default function ProfilePage() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Profile Header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={isMobile || isTablet ? false : { opacity: 0, y: 20 }}
+          animate={isMobile || isTablet ? false : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
           className="flex flex-col md:flex-row items-center gap-8 mb-8"
         >
           {/* Avatar */}
