@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
 import { 
   X, Check, Sparkles, Loader2, Smartphone, Zap,
   ArrowLeftRight, Bluetooth, Wifi, ZoomIn, MessageCircle
@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import jsQR from 'jsqr';
 
-type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
+type DropPhase = 'idle' | 'card-rising' | 'activated' | 'found' | 'exchanging' | 'success';
 
 interface FoundUser {
   id: string;
@@ -158,6 +158,40 @@ export function AutoFriendDrop() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  
+  // Card animation values for wallet effect
+  const cardY = useMotionValue(300);
+  const cardRotate = useMotionValue(5);
+  const cardScale = useMotionValue(0.8);
+  
+  // Trigger card rising animation (like credit card from wallet)
+  const triggerCardRise = useCallback(() => {
+    setPhase('card-rising');
+    
+    // Animate card rising from wallet
+    animate(cardY, 0, { 
+      type: 'spring', 
+      stiffness: 200, 
+      damping: 20,
+      duration: 0.8 
+    });
+    animate(cardRotate, 0, { 
+      type: 'spring', 
+      stiffness: 150, 
+      damping: 15 
+    });
+    animate(cardScale, 1, { 
+      type: 'spring', 
+      stiffness: 200, 
+      damping: 18 
+    });
+
+    // After animation completes, transition to activated phase
+    setTimeout(() => {
+      setPhase('activated');
+      haptics.success();
+    }, 800);
+  }, [cardY, cardRotate, cardScale]);
 
   // Fetch user helper
   const fetchUser = async (userId: string): Promise<FoundUser | null> => {
@@ -339,25 +373,37 @@ export function AutoFriendDrop() {
       return;
     }
     
-    // Activate the exchange UI
+    // Reset card animation values for wallet effect
+    cardY.set(300);
+    cardRotate.set(5);
+    cardScale.set(0.8);
+    
+    // Activate the exchange UI and trigger wallet animation
     setIsActive(true);
-    setPhase('activated');
     haptics.impact();
     
-    // Create a drop session for realtime sync
-    const drop = await friendDropSync.createDrop();
-    if (drop) {
-      setActiveDropId(drop.id);
-    }
+    // Start with the wallet card-rising animation
+    triggerCardRise();
+    
+    // Create a drop session for realtime sync (do this in background)
+    friendDropSync.createDrop().then((drop) => {
+      if (drop) {
+        setActiveDropId(drop.id);
+      }
+    });
     
     // Start native peer discovery if available
     if (nativeFriendDrop.isAvailable) {
-      await nativeFriendDrop.startSession();
+      nativeFriendDrop.startSession();
     }
-    
-    // Also start QR scanning as fallback
-    startScanning();
-  }, [profile?.username, user, nativeFriendDrop, friendDropSync]);
+  }, [profile?.username, user, nativeFriendDrop, friendDropSync, cardY, cardRotate, cardScale, triggerCardRise]);
+  
+  // Start QR scanning when phase transitions to activated (after card animation)
+  useEffect(() => {
+    if (phase === 'activated' && isActive) {
+      startScanning();
+    }
+  }, [phase, isActive]);
 
   // Swing detection - detects back-then-forward motion instantly
   useSwingDetection({
@@ -617,6 +663,48 @@ export function AutoFriendDrop() {
           }}
         >
           <AnimatePresence mode="wait">
+            {/* Card Rising Phase - Wallet Animation */}
+            {phase === 'card-rising' && (
+              <motion.div
+                className="flex flex-col items-center justify-center py-12"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                {/* Card rising from wallet animation */}
+                <div className="relative h-80 w-full flex items-end justify-center overflow-hidden">
+                  {/* Wallet base */}
+                  <motion.div
+                    className="absolute bottom-0 w-64 h-20 bg-gradient-to-t from-muted to-muted/50 rounded-t-3xl"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  />
+                  
+                  {/* Rising card */}
+                  <motion.div
+                    className="relative z-10 w-56 h-72 rounded-2xl bg-gradient-to-br from-card via-card to-muted border-2 border-primary/30 shadow-2xl flex flex-col items-center justify-center p-6"
+                    style={{ 
+                      y: cardY,
+                      rotate: cardRotate,
+                      scale: cardScale
+                    }}
+                  >
+                    {/* User's avatar */}
+                    <Avatar className="h-20 w-20 mb-4 ring-4 ring-primary/20">
+                      <AvatarImage src={profile?.avatar_url || ''} />
+                      <AvatarFallback className="text-2xl bg-primary/10">
+                        {profile?.username?.[0]?.toUpperCase() || 'V'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <p className="text-lg font-bold text-foreground">@{profile?.username}</p>
+                    <div className="flex items-center gap-1 mt-2 text-primary">
+                      <Zap className="h-4 w-4" />
+                      <span className="text-sm font-medium">FriendDrop</span>
+                    </div>
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
+            
             {phase === 'activated' && (
               <div
                 className="bg-background/95 backdrop-blur-xl rounded-3xl p-6 shadow-2xl shadow-primary/20 border border-primary/10"
