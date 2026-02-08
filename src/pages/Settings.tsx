@@ -153,7 +153,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
                 animate={{ opacity: 1, x: 0 }}
                 className="mb-4"
               >
-                <h2 className="text-lg font-semibold">{getCategoryTitle()}</h2>
+                <h2 className="text-lg font-semibold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{getCategoryTitle()}</h2>
               </motion.div>
             )}
 

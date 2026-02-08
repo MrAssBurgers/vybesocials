@@ -46,10 +46,10 @@ export default function Messages() {
           {isInChat ? (
             <ChatView />
           ) : (
-            <div className="hidden md:flex flex-1 items-center justify-center text-muted-foreground">
+            <div className="hidden md:flex flex-1 items-center justify-center text-foreground/80">
               <div className="text-center">
-                <p className="text-lg mb-2">Select a conversation</p>
-                <p className="text-sm">or start a new chat</p>
+                <p className="text-lg mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">Select a conversation</p>
+                <p className="text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">or start a new chat</p>
               </div>
             </div>
           )}

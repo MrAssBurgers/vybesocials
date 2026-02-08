@@ -73,12 +73,12 @@ export function SettingsNav({ activeCategory, onCategoryChange }: SettingsNavPro
             <ActiveIcon className="w-5 h-5 text-primary" />
           </div>
           <div className="text-left">
-            <p className="font-semibold text-sm">{activeItem?.label}</p>
-            <p className="text-xs text-muted-foreground">{activeItem?.description}</p>
+            <p className="font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{activeItem?.label}</p>
+            <p className="text-xs text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{activeItem?.description}</p>
           </div>
         </div>
         <ChevronDown className={cn(
-          "w-5 h-5 text-muted-foreground transition-transform",
+          "w-5 h-5 text-foreground/80 transition-transform",
           isOpen && "rotate-180"
         )} />
       </button>
@@ -127,8 +127,8 @@ export function SettingsNav({ activeCategory, onCategoryChange }: SettingsNavPro
                     <cat.icon className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">{cat.label}</p>
-                    <p className="text-xs text-muted-foreground truncate">{cat.description}</p>
+                    <p className="font-medium text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{cat.label}</p>
+                    <p className="text-xs text-foreground/80 truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{cat.description}</p>
                   </div>
                   {activeCategory === cat.id && (
                     <Check className="w-4 h-4 text-primary flex-shrink-0" />
@@ -163,7 +163,7 @@ export function SettingsNavVertical({ activeCategory, onCategoryChange }: Settin
           )}
         >
           <cat.icon className="w-4 h-4 flex-shrink-0" />
-          <span className="font-medium text-sm">{cat.label}</span>
+          <span className="font-medium text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{cat.label}</span>
         </button>
       ))}
     </nav>

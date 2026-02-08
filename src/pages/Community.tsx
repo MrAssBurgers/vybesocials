@@ -171,9 +171,9 @@ export default function Community() {
             </Avatar>
             
             <div className="flex-1 min-w-0">
-              <h2 className="font-semibold truncate">{selectedCommunity.name}</h2>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{selectedCommunity.member_count} members</span>
+              <h2 className="font-semibold truncate text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{selectedCommunity.name}</h2>
+              <div className="flex items-center gap-2 text-xs text-foreground/80">
+                <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{selectedCommunity.member_count} members</span>
                 {selectedCommunityLiveCount > 0 && (
                   <>
                     <span>•</span>
