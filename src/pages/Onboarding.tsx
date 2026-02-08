@@ -14,11 +14,13 @@ import { EmailVerification } from '@/components/onboarding/EmailVerification';
 import { ContactDiscovery } from '@/components/onboarding/ContactDiscovery';
 import { PrivacySettings } from '@/components/onboarding/PrivacySettings';
 import { PermissionsSetup } from '@/components/onboarding/PermissionsSetup';
+import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { toast } from 'sonner';
+
 // Invite mode stage type - must match InviteRedeem state machine
 type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
@@ -34,13 +36,14 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   
   // Check if user needs to set username (Google OAuth users without profile)
   const needsUsername = !profile?.username;
-  // Total steps: username(optional) + age + interests + creators + profile + sensitivity + privacy + permissions + email + contacts
-  const TOTAL_STEPS = needsUsername ? 10 : 9;
+  // Total steps: username(optional) + age + interests + creators + profile + sensitivity + privacy + permissions + email + contacts + VYBE designer
+  const TOTAL_STEPS = needsUsername ? 11 : 10;
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [usernameValid, setUsernameValid] = useState(false);
   const [permissionsGranted, setPermissionsGranted] = useState(false);
+  const [showAIDesigner, setShowAIDesigner] = useState(false);
 
   // State for each step
   const [username, setUsername] = useState('');
@@ -166,22 +169,26 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
       if (error) throw error;
 
-      // CRITICAL: Emit event for TutorialProvider to trigger tutorial
-      console.log('[Onboarding] Completed, dispatching event');
-      window.dispatchEvent(new CustomEvent('onboarding-completed'));
-
-      toast.success('Welcome to VYBE! 🎉');
-      // Force full page reload to ensure auth context gets fresh profile data
-      if (isInviteMode && onInviteNavigate) {
-        onInviteNavigate('home');
-      } else {
-        window.location.href = '/home';
-      }
+      // Show the AI VYBE Designer
+      setLoading(false);
+      setShowAIDesigner(true);
     } catch (error) {
       console.error('Onboarding error:', error);
       toast.error('Something went wrong. Please try again.');
-    } finally {
       setLoading(false);
+    }
+  };
+
+  // Called when AI designer completes
+  const handleDesignerComplete = () => {
+    console.log('[Onboarding] Completed, dispatching event');
+    window.dispatchEvent(new CustomEvent('onboarding-completed'));
+    toast.success('Welcome to VYBE! 🎉');
+    
+    if (isInviteMode && onInviteNavigate) {
+      onInviteNavigate('home');
+    } else {
+      window.location.href = '/home';
     }
   };
 
@@ -233,6 +240,17 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       setLoading(false);
     }
   };
+
+  // Show AI VYBE Designer as fullscreen overlay
+  if (showAIDesigner) {
+    return (
+      <AIVybeDesigner
+        interests={interests}
+        onComplete={handleDesignerComplete}
+        onSkip={handleDesignerComplete}
+      />
+    );
+  }
 
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
