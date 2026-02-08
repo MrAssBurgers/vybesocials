@@ -324,8 +324,8 @@ export function Camera({ onClose }: CameraProps) {
 
       {/* Top Controls */}
       <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
-        <Button variant="ghost" size="icon" onClick={onClose} className="text-white">
-          <X className="h-6 w-6" />
+        <Button variant="ghost" size="icon-round" onClick={onClose} className="text-white bg-black/40 hover:bg-black/60 backdrop-blur-sm">
+          <X className="h-6 w-6" strokeWidth={2.5} />
         </Button>
         
         <div className="flex gap-2">

@@ -67,6 +67,7 @@ export const MobileShortCard = memo(function MobileShortCard({
   const [isHolding, setIsHolding] = useState(false);
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
+  const [showHeart, setShowHeart] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
   const playAttemptRef = useRef<NodeJS.Timeout | null>(null);
@@ -253,9 +254,11 @@ export const MobileShortCard = memo(function MobileShortCard({
     const timeSinceLastTap = now - lastTapTime.current;
 
     if (timeSinceLastTap < 300) {
-      // Double tap - like
+      // Double tap - like with heart animation
       if (!isLiked) {
         handleLike();
+        setShowHeart(true);
+        setTimeout(() => setShowHeart(false), 800);
       }
     } else {
       // Single tap - toggle mute ONLY
@@ -400,6 +403,66 @@ export const MobileShortCard = memo(function MobileShortCard({
           </div>
         )}
       </div>
+
+      {/* Double tap heart - fun burst effect */}
+      <AnimatePresence>
+        {showHeart && (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ duration: 0.4, type: 'spring', stiffness: 400, damping: 15 }}
+            className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
+          >
+            {/* Main heart with pop */}
+            <motion.div
+              animate={{ 
+                scale: [0, 1.5, 0.85, 1.15, 1],
+                rotate: [0, -20, 20, -8, 0]
+              }}
+              transition={{ duration: 0.6, type: 'spring', stiffness: 300 }}
+            >
+              <Heart className="h-36 w-36 text-rose-500 fill-rose-500 drop-shadow-2xl" />
+            </motion.div>
+            
+            {/* Particle burst */}
+            {[...Array(14)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute w-4 h-4 rounded-full"
+                style={{ background: i % 2 === 0 ? '#f43f5e' : '#fb7185' }}
+                initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+                animate={{ 
+                  scale: [0, 1.5, 0],
+                  x: Math.cos(i * (360/14) * Math.PI / 180) * 100,
+                  y: Math.sin(i * (360/14) * Math.PI / 180) * 100,
+                  opacity: [1, 1, 0],
+                }}
+                transition={{ duration: 0.6, delay: 0.05 }}
+              />
+            ))}
+            
+            {/* Mini hearts burst */}
+            {[...Array(8)].map((_, i) => (
+              <motion.div
+                key={`heart-${i}`}
+                className="absolute"
+                initial={{ scale: 0, x: 0, y: 0, opacity: 1, rotate: 0 }}
+                animate={{ 
+                  scale: [0, 1.2, 0.6],
+                  x: Math.cos((i * 45 + 22) * Math.PI / 180) * 75,
+                  y: Math.sin((i * 45 + 22) * Math.PI / 180) * 75,
+                  opacity: [1, 1, 0],
+                  rotate: i % 2 === 0 ? 30 : -30,
+                }}
+                transition={{ duration: 0.7, delay: 0.1 }}
+              >
+                <Heart className="h-8 w-8 text-pink-400 fill-pink-400" />
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
