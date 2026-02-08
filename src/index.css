@@ -86,10 +86,19 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   }
 
   /* iOS Safari: Replace box-shadow animations with static shadows */
-  .platform-ios [class*="glow-"],
-  .platform-ios [style*="box-shadow"] {
+  /* IMPORTANT: Only apply to elements that actually use glow effects, NOT icons/SVGs */
+  .platform-ios [class*="glow-"]:not(svg):not([class*="lucide"]) {
     box-shadow: none !important;
     filter: drop-shadow(0 2px 4px hsl(var(--primary) / 0.2));
+  }
+  
+  /* Explicitly prevent drop-shadow filter on icons to avoid black box outlines */
+  .platform-ios svg,
+  .platform-ios [class*="lucide"],
+  .platform-ios .h-4.w-4,
+  .platform-ios .h-5.w-5,
+  .platform-ios .h-6.w-6 {
+    filter: none !important;
   }
 
   /* iOS Safari: Disable scanline effects (purely decorative) */
@@ -329,6 +338,23 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     article, section, div, li, td, th, dd, dt, figcaption {
       color: hsl(var(--foreground));
       opacity: 1;
+    }
+    
+    /* CRITICAL: Prevent black box outlines on icons, SVGs, avatars */
+    /* These elements should NEVER have drop-shadow filter applied */
+    svg,
+    [class*="lucide"],
+    [class*="avatar"],
+    [class*="Avatar"],
+    .rounded-full,
+    img {
+      filter: none !important;
+    }
+    
+    /* Only allow text-shadow on actual text elements, not icons */
+    svg *, svg {
+      text-shadow: none !important;
+      filter: none !important;
     }
   }
 
