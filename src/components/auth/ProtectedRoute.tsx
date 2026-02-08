@@ -5,14 +5,25 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface ProtectedRouteProps {
   children: ReactNode;
+  /** Allow guest access to this route (read-only browsing) */
+  allowGuest?: boolean;
 }
+
+// Routes that guests can browse (view-only)
+const GUEST_ALLOWED_ROUTES = ['/home', '/explore', '/clips', '/shorts', '/p/', '/u/'];
 
 /**
  * Wrapper component that redirects unauthenticated users to the landing page
+ * unless the route allows guest access
  */
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   const location = useLocation();
+
+  // Check if current route allows guest access
+  const isGuestAllowedRoute = allowGuest || GUEST_ALLOWED_ROUTES.some(route => 
+    location.pathname === route || location.pathname.startsWith(route)
+  );
 
   // Show loading state while checking auth
   if (loading) {
@@ -25,6 +36,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         </div>
       </div>
     );
+  }
+
+  // Allow guest access to browse-only routes
+  if (!user && isGuestAllowedRoute) {
+    return <>{children}</>;
   }
 
   // Redirect to landing if not authenticated

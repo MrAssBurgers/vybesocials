@@ -8,6 +8,7 @@ import { getInviteUrl } from '@/hooks/useInvites';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { PersonalQRCode } from './PersonalQRCode';
+import jsQR from 'jsqr';
 
 interface BumpToShareProps {
   variant?: 'button' | 'icon';
@@ -59,34 +60,40 @@ export function BumpToShare({ variant = 'button' }: BumpToShareProps) {
         videoRef.current.play();
       }
 
-      // Start QR code detection
-      // Note: Using BarcodeDetector API if available, otherwise manual detection
-      if ('BarcodeDetector' in window) {
-        const barcodeDetector = new (window as any).BarcodeDetector({
-          formats: ['qr_code']
-        });
+      // Start QR code detection using jsQR library (works everywhere)
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d', { willReadFrequently: true });
+      
+      if (!canvas || !ctx) {
+        toast.error('Canvas not available');
+        setPhase('idle');
+        return;
+      }
 
-        scanIntervalRef.current = setInterval(async () => {
-          if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-            try {
-              const barcodes = await barcodeDetector.detect(videoRef.current);
-              if (barcodes.length > 0) {
-                const url = barcodes[0].rawValue;
-                if (url && url.includes('vybehub.app/invite/')) {
-                  handleScanSuccess(url);
-                }
-              }
-            } catch (e) {
-              // Detection failed, continue scanning
+      scanIntervalRef.current = setInterval(() => {
+        if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+          // Set canvas dimensions to match video
+          canvas.width = videoRef.current.videoWidth;
+          canvas.height = videoRef.current.videoHeight;
+          
+          // Draw video frame to canvas
+          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+          
+          // Get image data for jsQR
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert',
+          });
+          
+          if (code && code.data) {
+            const url = code.data;
+            // Accept both vybehub.app and lovable.app invite URLs
+            if (url.includes('/invite/') || url.includes('vybehub.app') || url.includes('vybeapp')) {
+              handleScanSuccess(url);
             }
           }
-        }, 200);
-      } else {
-        // Fallback: manual URL input or use a QR library
-        toast.info('QR scanning ready! Point at the code.', {
-          description: 'Tap the screen when aligned'
-        });
-      }
+        }
+      }, 150); // Scan every 150ms for smooth detection
     } catch (error) {
       console.error('Camera error:', error);
       toast.error('Could not access camera');
