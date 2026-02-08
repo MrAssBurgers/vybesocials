@@ -315,7 +315,7 @@ export default function MarketPage() {
         >
           <div>
             <motion.h1 
-              className="text-2xl font-bold flex items-center gap-2"
+              className="text-2xl font-bold flex items-center gap-2 text-foreground"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.4, delay: 0.2 }}
@@ -326,7 +326,7 @@ export default function MarketPage() {
               >
                 <ShoppingBag className="h-6 w-6 text-primary" />
               </motion.div>
-              VYBE Market
+              <span className="text-foreground">VYBE Market</span>
             </motion.h1>
             <motion.p 
               className="text-muted-foreground text-sm"
