@@ -1,9 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, User } from 'lucide-react';
+import { Bell, Target, Flame } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
 import { useUnreadCount } from '@/hooks/useNotifications';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useStreakCount } from '@/hooks/useLoginStreak';
 import { cn } from '@/lib/utils';
 import { HeaderSearch } from './HeaderSearch';
 import { VYBELogo } from '@/components/ui/VYBELogo';
@@ -11,10 +11,11 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 export function MobileHeader() {
   const { profile } = useAuth();
   const { data: unreadCount = 0 } = useUnreadCount();
+  const streakCount = useStreakCount();
   const location = useLocation();
 
   const isNotificationsActive = location.pathname === '/notifications';
-  const isProfileActive = location.pathname === `/u/${profile?.username}`;
+  const isChallengesActive = location.pathname === '/challenges';
 
   // Hide header on clips page for immersive experience
   if (location.pathname === '/clips') {
@@ -36,7 +37,7 @@ export function MobileHeader() {
           {/* Center - Search - clean styling */}
           <HeaderSearch className="flex-1 mx-3" />
 
-          {/* Right side - Notifications & Profile */}
+          {/* Right side - Notifications & Challenges */}
           <div className="flex items-center gap-1 flex-shrink-0">
             {/* Notifications */}
             <Link
@@ -64,20 +65,32 @@ export function MobileHeader() {
               </AnimatePresence>
             </Link>
 
-            {/* Profile */}
+            {/* Challenges with streak indicator */}
             <Link
-              to={`/u/${profile?.username}`}
-              className="flex items-center justify-center h-9 w-9 rounded-xl hover:bg-muted/30 transition-colors"
+              to="/challenges"
+              className={cn(
+                "relative flex items-center justify-center h-9 w-9 rounded-xl transition-all",
+                isChallengesActive 
+                  ? "bg-accent/15 text-accent" 
+                  : "hover:bg-muted/30 text-muted-foreground hover:text-foreground"
+              )}
             >
-              <Avatar className={cn(
-                "h-7 w-7 transition-all",
-                isProfileActive && "ring-2 ring-primary ring-offset-1 ring-offset-background"
-              )}>
-                <AvatarImage src={profile?.avatar_url || undefined} />
-                <AvatarFallback className="text-xs bg-muted">
-                  {profile?.username?.[0]?.toUpperCase() || <User className="h-3.5 w-3.5" />}
-                </AvatarFallback>
-              </Avatar>
+              <Target className="h-5 w-5" />
+              {/* Streak badge */}
+              <AnimatePresence>
+                {streakCount > 0 && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                    className="absolute -top-1 -right-1 flex items-center gap-0.5 h-4 min-w-4 px-1 bg-gradient-to-r from-orange-500 to-red-500 rounded-full shadow-sm"
+                  >
+                    <Flame className="h-2.5 w-2.5 text-white" />
+                    <span className="text-[9px] text-white font-bold">{streakCount > 99 ? '99' : streakCount}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </Link>
           </div>
         </div>

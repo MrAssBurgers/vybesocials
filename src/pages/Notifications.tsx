@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Heart, MessageCircle, UserPlus, UserCheck, Check, X, 
-  Users, PhoneMissed, Gem, Bell, RefreshCw, Sparkles, Target 
+  Users, PhoneMissed, Gem, Bell, RefreshCw, Sparkles 
 } from 'lucide-react';
 import { useNotifications, useMarkNotificationsRead, NotificationType } from '@/hooks/useNotifications';
 import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends';
@@ -177,14 +177,6 @@ export default function NotificationsPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/challenges')}
-              className="relative group h-10 w-10 sm:h-11 sm:w-11 rounded-xl"
-            >
-              <Target className="h-5 w-5 text-accent group-hover:scale-110 transition-transform" />
-            </Button>
             <Button
               variant="ghost"
               size="icon"

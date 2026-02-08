@@ -40,6 +40,7 @@ import { useDynamicFavicon } from "@/hooks/useDynamicFavicon";
 import { useDynamicManifest } from "@/hooks/useDynamicManifest";
 import { RewardNotificationProvider } from "@/components/vybepass/RewardNotificationProvider";
 import { useDailyLoginChallenge } from "@/hooks/useDailyLogin";
+import { StreakProvider } from "@/components/streak/StreakProvider";
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -162,24 +163,26 @@ function AppWithPreloader() {
               <EasterEggProvider>
                 <CallStoreProvider>
                   <RewardNotificationProvider>
-                    <TooltipProvider>
-                      <Toaster />
-                      <Sonner />
-                      <BrowserRouter>
-                        <TutorialProvider>
-                          <ScrollRestoration />
-                          <AnimatedRoutes />
-                          <RootBottomNavMount />
-                          <PushNotificationPrompt />
-                          <GlobalMessageNotifications />
-                          <TabNotificationBadge />
-                          <GlobalCallOverlay />
-                          <WarningPopup />
-                          <InvitePopup />
-                          <BanCheck />
-                        </TutorialProvider>
-                      </BrowserRouter>
-                    </TooltipProvider>
+                    <StreakProvider>
+                      <TooltipProvider>
+                        <Toaster />
+                        <Sonner />
+                        <BrowserRouter>
+                          <TutorialProvider>
+                            <ScrollRestoration />
+                            <AnimatedRoutes />
+                            <RootBottomNavMount />
+                            <PushNotificationPrompt />
+                            <GlobalMessageNotifications />
+                            <TabNotificationBadge />
+                            <GlobalCallOverlay />
+                            <WarningPopup />
+                            <InvitePopup />
+                            <BanCheck />
+                          </TutorialProvider>
+                        </BrowserRouter>
+                      </TooltipProvider>
+                    </StreakProvider>
                   </RewardNotificationProvider>
                 </CallStoreProvider>
               </EasterEggProvider>
