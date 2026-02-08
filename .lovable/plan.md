@@ -1,114 +1,112 @@
 
-# Fix Screenshot Detection When Leaving Tab in Chat
+# Fix Text Transparency on Mobile/Tablet
 
-## Problem
-The current screenshot detection in `useScreenCapture.ts` uses timing-based heuristics (blur/focus duration, visibility change duration) to detect screenshots. This approach fails when users leave the tab because:
+## Problem Analysis
 
-1. The detection requires both blur AND visibility signals to occur within tight timing windows (50-800ms visibility, 100-1000ms blur)
-2. When switching tabs, these timings are often longer than the detection thresholds
-3. No detection of keyboard shortcuts (PrintScreen, Cmd+Shift on Mac)
-4. The `isActivelyViewingChat` flag isn't being updated properly when navigating
+Your text is appearing solid on desktop but becomes transparent or broken on tablet/phone because of conflicting CSS rules. Here's what's happening:
+
+### Root Cause
+
+In `src/index.css`, there's a mobile-specific CSS block (for screens under 1024px) that forces ALL text to be fully opaque:
+
+```css
+@media (max-width: 1024px) {
+  p, span, a, label, button {
+    color: hsl(var(--foreground)) !important;  /* ← This breaks gradient text */
+    opacity: 1 !important;
+  }
+}
+```
+
+This `color: !important` rule overrides the `color: transparent` that gradient usernames need to display properly. The gradient text works by:
+1. Setting a gradient background on the text
+2. Making the text color **transparent** so the gradient shows through
+
+When mobile CSS forces `color: hsl(foreground) !important`, the text becomes solid white/gray instead of showing the gradient, and it can also cause opacity flickering.
+
+---
 
 ## Solution
-Improve screenshot detection with multiple approaches:
 
-### 1. Add Keyboard Shortcut Detection
-Listen for common screenshot keyboard shortcuts:
-- Windows: PrintScreen, Alt+PrintScreen, Win+Shift+S
-- Mac: Cmd+Shift+3 (full screen), Cmd+Shift+4 (selection), Cmd+Shift+5 (screenshot menu)
+I'll update the mobile readability CSS rules to **exclude elements that use gradient text**. This preserves the readability improvements for regular text while allowing styled usernames and gradient effects to work correctly.
 
-### 2. Relax Timing Constraints
-- Increase visibility change threshold from 50-800ms to 50-2000ms
-- Increase blur duration threshold from 100-1000ms to 100-2000ms
-- This captures more tab-switch scenarios where users screenshot and return
+### Changes to Make
 
-### 3. Single-Signal Detection
-- Trigger on EITHER visibility OR blur signal with medium confidence (not just when combined)
-- Keep high confidence for combined signals
+**File: `src/index.css`**
 
-### 4. Update Chat Active State
-- Ensure `setActivelyViewingChat(true)` is called when entering a chat
-- Ensure `setActivelyViewingChat(false)` is called when leaving
+1. **Add exclusion for gradient text elements** in the mobile CSS rules (lines 238-266):
+   - Change `p, span, a, label, button` to exclude elements with `background-clip: text` styling
+   - Add a CSS marker class or use `:not()` selectors to preserve gradient text
+
+2. **Specific selectors to modify**:
+   - `span` → `span:not([style*="background-clip"])` 
+   - Add override rules that restore gradient text behavior for styled elements
+
+3. **Add a protective class** `.gradient-text-preserve` that elements can use to opt-out of the forced color
+
+---
+
+## Technical Implementation
+
+### Step 1: Modify Mobile CSS Rules
+
+Update lines 238-241 to exclude gradient-styled elements:
+
+```css
+/* All text elements - full opacity with subtle shadows */
+/* EXCEPT elements using gradient text (background-clip: text) */
+p:not([style*="transparent"]), 
+a:not([style*="transparent"]), 
+label, 
+button {
+  color: hsl(var(--foreground)) !important;
+  opacity: 1 !important;
+}
+
+/* Spans need special handling - many use gradient text */
+span:not([style*="WebkitTextFillColor"]):not([style*="-webkit-text-fill-color"]):not(.gradient-text) {
+  color: hsl(var(--foreground)) !important;
+  opacity: 1 !important;
+}
+```
+
+### Step 2: Add Gradient Text Override
+
+Add a new rule that ensures gradient text elements keep their transparency:
+
+```css
+/* Preserve gradient text on mobile - must override the above rules */
+[style*="background-clip: text"],
+[style*="backgroundClip"],
+[style*="-webkit-background-clip: text"],
+.gradient-text {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  opacity: 1 !important;
+}
+```
+
+### Step 3: Update Similar Problem Rules
+
+Apply the same fix to:
+- Lines 244-247: `.font-bold, strong` selectors
+- Lines 256-259: `[class*="username"]` selectors 
+- Lines 263-266: `[role="tabpanel"]` selectors
+
+---
 
 ## Files to Modify
 
-**src/hooks/useScreenCapture.ts**
-- Add keyboard event listener for screenshot shortcuts
-- Relax timing thresholds for visibility/blur detection
-- Add single-signal detection with medium confidence
-- Improve detection logic to handle tab switches better
+| File | Changes |
+|------|---------|
+| `src/index.css` | Update mobile CSS rules (lines 230-295) to exclude gradient-styled elements using `:not()` selectors and add protective override rules |
 
-**src/components/chat/ChatView.tsx**
-- Call `setActivelyViewingChat(true)` when chat mounts
-- Call `setActivelyViewingChat(false)` when chat unmounts or navigates away
+---
 
-## Technical Details
+## Result
 
-### Keyboard Shortcut Detection
-```typescript
-const handleKeyDown = (e: KeyboardEvent) => {
-  // Windows PrintScreen
-  if (e.key === 'PrintScreen') {
-    triggerCapture({ type: 'screenshot', timestamp: new Date(), confidence: 'high' });
-    return;
-  }
-  
-  // Mac screenshot shortcuts: Cmd+Shift+3, Cmd+Shift+4, Cmd+Shift+5
-  if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
-    triggerCapture({ type: 'screenshot', timestamp: new Date(), confidence: 'high' });
-    return;
-  }
-  
-  // Windows Snipping Tool: Win+Shift+S
-  if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 's') {
-    triggerCapture({ type: 'screenshot', timestamp: new Date(), confidence: 'high' });
-  }
-};
-```
-
-### Relaxed Timing Thresholds
-```typescript
-// Before: 50-800ms visibility, 100-1000ms blur
-// After: 50-2000ms visibility, 100-3000ms blur
-
-// Visibility change detection
-if (hiddenDuration > 50 && hiddenDuration < 2000) {
-  // ...trigger with medium confidence for single signal
-}
-
-// Blur/focus detection  
-if (blurDuration > 100 && blurDuration < 3000) {
-  // ...trigger with medium confidence for single signal
-}
-
-// Combined signals = high confidence
-if (blurWasRecent && visibilityWasRecent) {
-  // ...trigger with high confidence
-}
-```
-
-### Chat Active State Management
-```typescript
-// In ChatView.tsx
-const { setActivelyViewingChat } = useScreenCapture({
-  enabled: !!conversationId,
-  onCapture: (event) => { /* ... */ }
-});
-
-// Set active when chat mounts/changes
-useEffect(() => {
-  if (conversationId) {
-    setActivelyViewingChat(true);
-  }
-  return () => setActivelyViewingChat(false);
-}, [conversationId, setActivelyViewingChat]);
-```
-
-## Testing
-After implementation:
-1. Open a chat conversation
-2. Take a screenshot using keyboard shortcut (Cmd+Shift+4 on Mac, PrintScreen on Windows)
-3. Verify screenshot alert appears
-4. Switch to another tab, take screenshot, return to chat
-5. Verify screenshot alert appears
-6. Switch tabs normally (without screenshot) - should NOT trigger false positive
+After this fix:
+- ✅ Regular text stays fully opaque and readable on mobile/tablet
+- ✅ Gradient usernames and styled text display their gradients correctly
+- ✅ No more "works for a second then goes transparent" behavior
+- ✅ Consistent appearance across desktop, tablet, and phone
