@@ -303,10 +303,32 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       opacity: 1 !important;
     }
 
-    /* Muted text - slightly brighter on mobile */
+    /* Muted text - match WelcomeHeader readability on mobile/tablet */
+    /* Use semantic tokens (foreground) instead of fixed gray so it stays readable */
     .text-muted-foreground:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text) {
-      color: hsl(240 5% 65%) !important;
+      color: hsl(var(--foreground) / 0.82) !important;
       opacity: 1 !important;
+      text-shadow: 0 1px 2px hsl(var(--background) / 0.25);
+    }
+
+    /* Remove the "random black outline" effect caused by border-background on dark UI */
+    /* (Common on avatars and small overlay badges) */
+    .border-background {
+      border-color: transparent !important;
+    }
+
+    /* iOS/Android tap highlight + non-keyboard focus outlines can look like a black box */
+    a,
+    button,
+    [role="button"],
+    [tabindex]:not([tabindex="-1"]) {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    a:focus:not(:focus-visible),
+    button:focus:not(:focus-visible),
+    [role="button"]:focus:not(:focus-visible) {
+      outline: none !important;
     }
 
     /* Username and display name - exclude gradient text */
