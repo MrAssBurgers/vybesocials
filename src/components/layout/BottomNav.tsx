@@ -1,4 +1,4 @@
-import { Home, Compass, PlusCircle, MessageCircle, Settings } from 'lucide-react';
+import { Home, Compass, PlusCircle, MessageCircle, User } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { triggerNavFeedback } from '@/lib/navFeedback';
@@ -12,6 +12,7 @@ import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
 import { navVisibility } from '@/lib/navVisibility';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 // Singleton scroll direction detection to prevent duplicate listeners
 let scrollDirectionListener: (() => void) | null = null;
@@ -96,6 +97,7 @@ function useNavVisibility() {
 const NavItem = memo(({ 
   path, 
   icon: Icon, 
+  label,
   badge, 
   isActive,
   tutorialId,
@@ -104,6 +106,7 @@ const NavItem = memo(({
 }: { 
   path: string; 
   icon: typeof Home; 
+  label: string;
   badge: number; 
   isActive: boolean;
   tutorialId?: string;
@@ -121,38 +124,54 @@ const NavItem = memo(({
   return (
     <Link
       to={path}
-      className="relative flex items-center justify-center min-h-[44px] min-w-[44px]"
+      className="relative flex flex-col items-center justify-center min-h-[48px] gap-0.5 group"
       onClick={handleClick}
       data-tutorial={tutorialId}
     >
-      <div className="relative p-2">
+      <motion.div 
+        className="relative"
+        whileTap={{ scale: 0.9 }}
+        transition={{ duration: 0.1 }}
+      >
+        {/* Active indicator dot */}
         {isActive && (
-          <div
-            className="absolute inset-0 rounded-xl bg-primary/15"
+          <motion.div
+            layoutId="nav-indicator"
+            className="absolute -inset-1.5 rounded-xl bg-primary/15"
+            transition={{ type: 'spring', stiffness: 500, damping: 35 }}
           />
         )}
         
-        {/* Tutorial highlight ring - simplified */}
+        {/* Tutorial highlight ring */}
         {isHighlighted && (
-          <div
-            className="absolute -inset-1 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse"
-          />
+          <div className="absolute -inset-2 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse" />
         )}
         
         <Icon
           className={cn(
-            "h-5 w-5 relative z-10",
-            isActive ? "text-primary" : "text-muted-foreground",
-            isHighlighted && "text-primary"
+            "h-5 w-5 relative z-10 transition-colors duration-150",
+            isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
           )}
         />
         
         {badge > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold shadow-md z-20">
+          <motion.span 
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute -top-1 -right-1.5 h-4 min-w-4 px-1 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold shadow-md z-20"
+          >
             {badge > 9 ? '9+' : badge}
-          </span>
+          </motion.span>
         )}
-      </div>
+      </motion.div>
+      
+      {/* Label - always visible but subtle when inactive */}
+      <span className={cn(
+        "text-[10px] font-medium transition-colors duration-150",
+        isActive ? "text-primary" : "text-muted-foreground/70 group-hover:text-foreground"
+      )}>
+        {label}
+      </span>
     </Link>
   );
 });
@@ -250,13 +269,13 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
     }
   }, [isGuest]);
 
-  // Nav order: Home | Explore | Upload | Messages | Settings
+  // Nav order: Home | Explore | Upload | Messages | Profile (cleaner than Settings)
   const navItems = [
-    { icon: Home, path: '/home', badge: 0, tutorialId: 'home-nav', requiresAuth: false },
-    { icon: Compass, path: '/explore', badge: 0, tutorialId: 'explore-nav', requiresAuth: false },
-    { icon: PlusCircle, path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav', requiresAuth: true },
-    { icon: MessageCircle, path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav', requiresAuth: true, authAction: 'send messages' },
-    { icon: Settings, path: '/settings', badge: 0, tutorialId: 'settings-nav', requiresAuth: false },
+    { icon: Home, label: 'Home', path: '/home', badge: 0, tutorialId: 'home-nav', requiresAuth: false },
+    { icon: Compass, label: 'Explore', path: '/explore', badge: 0, tutorialId: 'explore-nav', requiresAuth: false },
+    { icon: PlusCircle, label: 'Create', path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav', requiresAuth: true },
+    { icon: MessageCircle, label: 'Messages', path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav', requiresAuth: true, authAction: 'send messages' },
+    { icon: User, label: 'Profile', path: profile ? `/u/${profile.username}` : '/settings', badge: 0, tutorialId: 'profile-nav', requiresAuth: false, isProfile: true },
   ];
 
   // Don't render bottom nav if onboarding not complete (unless guest browsing)
@@ -290,9 +309,9 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         aria-label="Bottom navigation"
         data-tutorial-bottomnav
       >
-        {/* Compact glass bar */}
-        <div className="mx-2 mb-2 rounded-2xl liquid-glass border border-foreground/15 shadow-lg shadow-black/30">
-          <div className="grid grid-cols-5 h-14 px-1 relative z-10">
+        {/* Clean minimal nav bar */}
+        <div className="mx-3 mb-2 rounded-2xl liquid-glass border border-foreground/10 shadow-xl shadow-black/20">
+          <div className="grid grid-cols-5 h-16 px-2 relative z-10">
           {navItems.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
               const isHighlighted = highlightedNav === item.tutorialId;
@@ -351,11 +370,54 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                 );
               }
 
+              // For profile nav item, render avatar instead of icon
+              if (item.isProfile) {
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className="relative flex flex-col items-center justify-center min-h-[48px] gap-0.5 group"
+                    onClick={() => triggerNavFeedback()}
+                    data-tutorial={item.tutorialId}
+                  >
+                    <motion.div 
+                      className="relative"
+                      whileTap={{ scale: 0.9 }}
+                      transition={{ duration: 0.1 }}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="nav-indicator"
+                          className="absolute -inset-1.5 rounded-xl bg-primary/15"
+                          transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                        />
+                      )}
+                      <Avatar className={cn(
+                        "h-6 w-6 relative z-10 transition-all",
+                        isActive && "ring-2 ring-primary"
+                      )}>
+                        <AvatarImage src={profile?.avatar_url || undefined} />
+                        <AvatarFallback className="text-[10px] bg-muted">
+                          <User className="h-3 w-3" />
+                        </AvatarFallback>
+                      </Avatar>
+                    </motion.div>
+                    <span className={cn(
+                      "text-[10px] font-medium transition-colors duration-150",
+                      isActive ? "text-primary" : "text-muted-foreground/70 group-hover:text-foreground"
+                    )}>
+                      {item.label}
+                    </span>
+                  </Link>
+                );
+              }
+
               return (
                 <NavItem
                   key={item.path}
                   path={item.path}
                   icon={item.icon}
+                  label={item.label}
                   badge={item.badge}
                   isActive={isActive}
                   tutorialId={item.tutorialId}
