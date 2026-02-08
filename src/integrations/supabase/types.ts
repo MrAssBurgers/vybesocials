@@ -907,6 +907,36 @@ export type Database = {
           },
         ]
       }
+      checkin_prompts: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean | null
+          pillar: string | null
+          prompt_text: string
+          week_number: number | null
+          year: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          pillar?: string | null
+          prompt_text: string
+          week_number?: number | null
+          year?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          pillar?: string | null
+          prompt_text?: string
+          week_number?: number | null
+          year?: number | null
+        }
+        Relationships: []
+      }
       close_friends: {
         Row: {
           created_at: string
@@ -967,6 +997,62 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collab_posts: {
+        Row: {
+          accepted_at: string | null
+          collaborator_id: string
+          created_at: string
+          id: string
+          post_id: string
+          role: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          collaborator_id: string
+          created_at?: string
+          id?: string
+          post_id: string
+          role?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          collaborator_id?: string
+          created_at?: string
+          id?: string
+          post_id?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collab_posts_collaborator_id_fkey"
+            columns: ["collaborator_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "collab_posts_collaborator_id_fkey"
+            columns: ["collaborator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collab_posts_collaborator_id_fkey"
+            columns: ["collaborator_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collab_posts_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
             referencedColumns: ["id"]
           },
         ]
@@ -1613,6 +1699,7 @@ export type Database = {
       }
       events: {
         Row: {
+          category: string | null
           cover_image: string | null
           created_at: string
           description: string | null
@@ -1620,15 +1707,21 @@ export type Database = {
           event_type: string
           host_id: string
           id: string
+          is_featured: boolean | null
           is_public: boolean | null
+          live_url: string | null
           location: string | null
           max_attendees: number | null
           online_link: string | null
+          replay_url: string | null
+          sponsor_id: string | null
           start_time: string
           title: string
           updated_at: string
+          visibility: string | null
         }
         Insert: {
+          category?: string | null
           cover_image?: string | null
           created_at?: string
           description?: string | null
@@ -1636,15 +1729,21 @@ export type Database = {
           event_type?: string
           host_id: string
           id?: string
+          is_featured?: boolean | null
           is_public?: boolean | null
+          live_url?: string | null
           location?: string | null
           max_attendees?: number | null
           online_link?: string | null
+          replay_url?: string | null
+          sponsor_id?: string | null
           start_time: string
           title: string
           updated_at?: string
+          visibility?: string | null
         }
         Update: {
+          category?: string | null
           cover_image?: string | null
           created_at?: string
           description?: string | null
@@ -1652,13 +1751,18 @@ export type Database = {
           event_type?: string
           host_id?: string
           id?: string
+          is_featured?: boolean | null
           is_public?: boolean | null
+          live_url?: string | null
           location?: string | null
           max_attendees?: number | null
           online_link?: string | null
+          replay_url?: string | null
+          sponsor_id?: string | null
           start_time?: string
           title?: string
           updated_at?: string
+          visibility?: string | null
         }
         Relationships: [
           {
@@ -1680,6 +1784,13 @@ export type Database = {
             columns: ["host_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "sponsor_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2170,6 +2281,54 @@ export type Database = {
           },
         ]
       }
+      hub_content: {
+        Row: {
+          content_type: string
+          content_url: string | null
+          created_at: string
+          description: string | null
+          display_order: number | null
+          ends_at: string | null
+          id: string
+          image_url: string | null
+          is_featured: boolean | null
+          pillar: string
+          starts_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content_type: string
+          content_url?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number | null
+          ends_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_featured?: boolean | null
+          pillar: string
+          starts_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content_type?: string
+          content_url?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number | null
+          ends_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_featured?: boolean | null
+          pillar?: string
+          starts_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invite_redemptions: {
         Row: {
           id: string
@@ -2645,6 +2804,79 @@ export type Database = {
           {
             foreignKeyName: "message_reactions_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_requests: {
+        Row: {
+          created_at: string
+          id: string
+          message_preview: string | null
+          receiver_id: string
+          responded_at: string | null
+          sender_id: string
+          status: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_preview?: string | null
+          receiver_id: string
+          responded_at?: string | null
+          sender_id: string
+          status?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_preview?: string | null
+          receiver_id?: string
+          responded_at?: string | null
+          sender_id?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_requests_receiver_id_fkey"
+            columns: ["receiver_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "message_requests_receiver_id_fkey"
+            columns: ["receiver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_requests_receiver_id_fkey"
+            columns: ["receiver_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_requests_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "message_requests_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_requests_sender_id_fkey"
+            columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "public_profiles"
             referencedColumns: ["id"]
@@ -4153,6 +4385,129 @@ export type Database = {
           },
         ]
       }
+      sponsor_analytics: {
+        Row: {
+          content_id: string
+          content_type: string
+          created_at: string
+          event_type: string
+          id: string
+          sponsor_id: string
+          user_id: string | null
+        }
+        Insert: {
+          content_id: string
+          content_type: string
+          created_at?: string
+          event_type: string
+          id?: string
+          sponsor_id: string
+          user_id?: string | null
+        }
+        Update: {
+          content_id?: string
+          content_type?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          sponsor_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsor_analytics_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "sponsor_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsor_analytics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "sponsor_analytics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsor_analytics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sponsor_profiles: {
+        Row: {
+          company_logo: string | null
+          company_name: string
+          contact_email: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_verified: boolean | null
+          updated_at: string
+          user_id: string
+          verification_date: string | null
+          website_url: string | null
+        }
+        Insert: {
+          company_logo?: string | null
+          company_name: string
+          contact_email?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_verified?: boolean | null
+          updated_at?: string
+          user_id: string
+          verification_date?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          company_logo?: string | null
+          company_name?: string
+          contact_email?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_verified?: boolean | null
+          updated_at?: string
+          user_id?: string
+          verification_date?: string | null
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsor_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "sponsor_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsor_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stories: {
         Row: {
           aspect_ratio: number | null
@@ -4819,6 +5174,65 @@ export type Database = {
           },
         ]
       }
+      user_checkins: {
+        Row: {
+          created_at: string
+          id: string
+          is_private: boolean | null
+          mood_rating: number | null
+          prompt_id: string | null
+          response: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_private?: boolean | null
+          mood_rating?: number | null
+          prompt_id?: string | null
+          response?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_private?: boolean | null
+          mood_rating?: number | null
+          prompt_id?: string | null
+          response?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_checkins_prompt_id_fkey"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "checkin_prompts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_checkins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_checkins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_checkins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_custom_sounds: {
         Row: {
           created_at: string | null
@@ -5066,6 +5480,79 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_safety_settings: {
+        Row: {
+          break_reminder_interval_hours: number | null
+          content_filter_level: string | null
+          created_at: string
+          dm_filter: string | null
+          id: string
+          message_requests_enabled: boolean | null
+          muted_keywords: string[] | null
+          quiet_hours_enabled: boolean | null
+          quiet_hours_end: string | null
+          quiet_hours_start: string | null
+          show_global_events: boolean | null
+          take_a_break_reminder: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          break_reminder_interval_hours?: number | null
+          content_filter_level?: string | null
+          created_at?: string
+          dm_filter?: string | null
+          id?: string
+          message_requests_enabled?: boolean | null
+          muted_keywords?: string[] | null
+          quiet_hours_enabled?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          show_global_events?: boolean | null
+          take_a_break_reminder?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          break_reminder_interval_hours?: number | null
+          content_filter_level?: string | null
+          created_at?: string
+          dm_filter?: string | null
+          id?: string
+          message_requests_enabled?: boolean | null
+          muted_keywords?: string[] | null
+          quiet_hours_enabled?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          show_global_events?: boolean | null
+          take_a_break_reminder?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_safety_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_safety_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_safety_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_settings: {
         Row: {
@@ -5816,6 +6303,10 @@ export type Database = {
         Returns: string
       }
       calculate_level_from_xp: { Args: { p_xp: number }; Returns: number }
+      can_send_dm: {
+        Args: { receiver_id: string; sender_id: string }
+        Returns: boolean
+      }
       check_and_grant_owner_badges: { Args: never; Returns: undefined }
       claim_challenge_reward: {
         Args: { p_reward_id: string; p_user_id: string }
@@ -5857,6 +6348,10 @@ export type Database = {
         Returns: string
       }
       get_comment_count: { Args: { p_post_id: string }; Returns: number }
+      get_dm_safety_level: {
+        Args: { user1_id: string; user2_id: string }
+        Returns: string
+      }
       get_follower_count: { Args: { profile_id: string }; Returns: number }
       get_following_count: { Args: { profile_id: string }; Returns: number }
       get_following_posts_with_counts: {
