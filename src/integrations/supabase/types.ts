@@ -2624,6 +2624,39 @@ export type Database = {
           },
         ]
       }
+      login_streaks: {
+        Row: {
+          created_at: string
+          current_streak: number
+          id: string
+          last_login_date: string | null
+          longest_streak: number
+          streak_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_streak?: number
+          id?: string
+          last_login_date?: string | null
+          longest_streak?: number
+          streak_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_streak?: number
+          id?: string
+          last_login_date?: string | null
+          longest_streak?: number
+          streak_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       meme_ban_backgrounds: {
         Row: {
           created_at: string
@@ -6396,6 +6429,7 @@ export type Database = {
         }[]
       }
       get_like_count: { Args: { p_post_id: string }; Returns: number }
+      get_login_streak_status: { Args: never; Returns: Json }
       get_mutual_friends: {
         Args: { current_user_id: string; target_user_id: string }
         Returns: {
@@ -6580,6 +6614,7 @@ export type Database = {
         Args: { p_username: string }
         Returns: undefined
       }
+      update_login_streak: { Args: never; Returns: Json }
       use_theme_code: { Args: { p_code: string }; Returns: string }
       validate_invite_code: {
         Args: { _code: string }
