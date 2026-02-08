@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Loader2, Store, Upload } from 'lucide-react';
@@ -22,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCreateBusiness, BUSINESS_CATEGORIES } from '@/hooks/useBusiness';
+import { toast } from 'sonner';
 
 const businessSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -41,6 +43,7 @@ interface CreateBusinessDialogProps {
 }
 
 export function CreateBusinessDialog({ open, onOpenChange }: CreateBusinessDialogProps) {
+  const navigate = useNavigate();
   const createBusiness = useCreateBusiness();
   
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<BusinessFormData>({
@@ -62,6 +65,11 @@ export function CreateBusinessDialog({ open, onOpenChange }: CreateBusinessDialo
     try {
       await createBusiness.mutateAsync(data);
       onOpenChange(false);
+      // Navigate to Business Portal after successful creation
+      toast.success('Business created! Redirecting to your portal...');
+      setTimeout(() => {
+        navigate('/business-portal');
+      }, 500);
     } catch (error) {
       // Error handled by mutation
     }
