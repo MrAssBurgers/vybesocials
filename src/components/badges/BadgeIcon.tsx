@@ -26,6 +26,7 @@ const sizeClasses = {
 
 /**
  * BadgeIcon - Renders a single badge with optional effects and tooltip
+ * On mobile/tablet: Uses solid color + drop-shadow for consistent visibility
  */
 export const BadgeIcon = memo(function BadgeIcon({
   icon,
@@ -40,6 +41,9 @@ export const BadgeIcon = memo(function BadgeIcon({
   locked = false,
   className,
 }: BadgeIconProps) {
+  // Generate stable ID for mobile style injection
+  const elementId = useMemo(() => `badge-icon-${Math.random().toString(36).slice(2, 9)}`, []);
+
   const backgroundStyle = useMemo(() => {
     if (locked) {
       return { background: 'hsl(var(--muted))' };
@@ -53,6 +57,12 @@ export const BadgeIcon = memo(function BadgeIcon({
       background: `linear-gradient(135deg, ${from}, ${to})`,
     };
   }, [gradient_from, gradient_to, locked]);
+
+  // Get the primary color for mobile fallback
+  const primaryColor = useMemo(() => {
+    if (locked || !gradient_from) return null;
+    return `hsl(${gradient_from})`;
+  }, [gradient_from, locked]);
 
   const effectClass = useMemo(() => {
     if (locked) return 'opacity-40 blur-[1px]';
@@ -73,30 +83,45 @@ export const BadgeIcon = memo(function BadgeIcon({
   }, [effect, locked]);
 
   const badgeContent = (
-    <motion.div
-      className={cn(
-        'inline-flex items-center justify-center rounded-full',
-        sizeClasses[size],
-        effectClass,
-        className
+    <>
+      {/* Mobile fallback styles - solid color + drop-shadow */}
+      {primaryColor && (
+        <style>{`
+          @media (max-width: 1024px) {
+            #${elementId} {
+              background: ${primaryColor} !important;
+              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+              opacity: 1 !important;
+            }
+          }
+        `}</style>
       )}
-      style={backgroundStyle}
-      animate={
-        is_animated && effect === 'pulse' && !locked
-          ? { scale: [1, 1.1, 1] }
-          : undefined
-      }
-      transition={
-        is_animated && effect === 'pulse'
-          ? { duration: 1.5, repeat: Infinity }
-          : undefined
-      }
-      whileHover={locked ? undefined : { scale: 1.1 }}
-    >
-      <span className={locked ? 'grayscale' : ''}>
-        {icon}
-      </span>
-    </motion.div>
+      <motion.div
+        id={elementId}
+        className={cn(
+          'inline-flex items-center justify-center rounded-full',
+          sizeClasses[size],
+          effectClass,
+          className
+        )}
+        style={backgroundStyle}
+        animate={
+          is_animated && effect === 'pulse' && !locked
+            ? { scale: [1, 1.1, 1] }
+            : undefined
+        }
+        transition={
+          is_animated && effect === 'pulse'
+            ? { duration: 1.5, repeat: Infinity }
+            : undefined
+        }
+        whileHover={locked ? undefined : { scale: 1.1 }}
+      >
+        <span className={locked ? 'grayscale' : ''}>
+          {icon}
+        </span>
+      </motion.div>
+    </>
   );
 
   if (!showTooltip) {
