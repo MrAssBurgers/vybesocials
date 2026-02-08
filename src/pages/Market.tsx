@@ -315,7 +315,7 @@ export default function MarketPage() {
         >
           <div>
             <motion.h1 
-              className="text-2xl font-bold flex items-center gap-2 text-foreground"
+              className="text-2xl font-bold flex items-center gap-2 text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.4, delay: 0.2 }}
@@ -329,7 +329,7 @@ export default function MarketPage() {
               <span className="text-foreground">VYBE Market</span>
             </motion.h1>
             <motion.p 
-              className="text-muted-foreground text-sm"
+              className="text-foreground/80 text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
