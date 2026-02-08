@@ -257,12 +257,12 @@ export default function ProfilePage() {
                   {!profile.display_name && showModBadge && profileRole && <ModBadge role={profileRole} />}
                 </p>
                 
-                {/* Badge Row */}
-                {displayBadges.length > 0 && (
-                  <div className="mt-2">
-                    <BadgeRow badges={displayBadges} maxVisible={5} size="sm" />
-                  </div>
-                )}
+                 {/* Badge Row */}
+                 {displayBadges.length > 0 && (
+                   <div className="mt-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+                     <BadgeRow badges={displayBadges} maxVisible={5} size="sm" />
+                   </div>
+                 )}
               </div>
               {isOwnProfile ? (
                 <Link to="/settings">
