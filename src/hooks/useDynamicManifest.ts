@@ -38,8 +38,8 @@ export function useDynamicManifest() {
         name: "VYBE",
         short_name: "VYBE",
         description: "A social app that actually feels alive.",
-        start_url: "/",
-        scope: "/",
+        start_url: window.location.origin,
+        scope: window.location.origin,
         display: "standalone",
         orientation: "portrait",
         background_color: "#0B0B10",
@@ -72,30 +72,30 @@ export function useDynamicManifest() {
             purpose: "maskable"
           }
         ],
-        shortcuts: [
+      shortcuts: [
           {
             name: "Messages",
             short_name: "Chat",
             description: "Open your messages",
-            url: "/messages"
+            url: `${window.location.origin}/messages`
           },
           {
             name: "Create Post",
             short_name: "Post",
             description: "Create a new post",
-            url: "/upload"
+            url: `${window.location.origin}/upload`
           },
           {
             name: "Explore",
             short_name: "Explore",
             description: "Discover new content",
-            url: "/explore"
+            url: `${window.location.origin}/explore`
           }
         ],
         protocol_handlers: [
           {
             protocol: "web+vybe",
-            url: "/%s"
+            url: `${window.location.origin}/%s`
           }
         ],
         prefer_related_applications: false
