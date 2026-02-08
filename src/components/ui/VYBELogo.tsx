@@ -1,4 +1,4 @@
-import { memo, forwardRef } from 'react';
+import { memo, forwardRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -23,6 +23,7 @@ let logoIdCounter = 0;
 
 /**
  * VYBE Logo component with forwardRef support to prevent React warnings
+ * On mobile/tablet: Falls back to solid color + drop-shadow (matches WelcomeHeader)
  */
 export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function VYBELogo({ 
   size = 'md', 
@@ -33,6 +34,9 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
   const { icon, text, gap, strokeWidth } = sizes[size];
   const uniqueId = `vybe-logo-${++logoIdCounter}`;
   const isSplash = size === 'splash';
+  
+  // Generate stable ID for mobile style injection
+  const styleId = useMemo(() => `vybe-text-${Math.random().toString(36).slice(2, 9)}`, []);
 
   return (
     <div ref={ref} className={cn('flex items-center', gap, className)}>
@@ -119,22 +123,38 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
       </motion.div>
 
       {showText && (
-        <motion.span 
-          className={cn(
-            'font-display font-black tracking-tight',
-            text
-          )}
-          style={{
-            background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--neon-purple, var(--primary))), hsl(var(--accent)))',
-            backgroundSize: '200% 200%',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            animation: animated ? 'gradient-shift 4s ease infinite' : 'none',
-          }}
-        >
-          VYBE
-        </motion.span>
+        <>
+          <style>{`
+            @media (max-width: 1024px) {
+              #${styleId} {
+                color: hsl(var(--primary)) !important;
+                -webkit-text-fill-color: hsl(var(--primary)) !important;
+                background-clip: unset !important;
+                -webkit-background-clip: unset !important;
+                background-image: none !important;
+                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+                opacity: 1 !important;
+              }
+            }
+          `}</style>
+          <motion.span 
+            id={styleId}
+            className={cn(
+              'font-display font-black tracking-tight',
+              text
+            )}
+            style={{
+              background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--neon-purple, var(--primary))), hsl(var(--accent)))',
+              backgroundSize: '200% 200%',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              animation: animated ? 'gradient-shift 4s ease infinite' : 'none',
+            }}
+          >
+            VYBE
+          </motion.span>
+        </>
       )}
     </div>
   );

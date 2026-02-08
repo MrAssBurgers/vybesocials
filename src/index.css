@@ -1383,7 +1383,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     );
   }
 
-  /* Gradient text */
+  /* Gradient text - desktop uses gradient, mobile falls back to solid + shadow */
   .gradient-text {
     background: linear-gradient(
       135deg,
@@ -1394,6 +1394,19 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Mobile fallback for .gradient-text - solid color + drop-shadow */
+  @media (max-width: 1024px) {
+    .gradient-text {
+      color: hsl(var(--primary)) !important;
+      -webkit-text-fill-color: hsl(var(--primary)) !important;
+      background-clip: unset !important;
+      -webkit-background-clip: unset !important;
+      background-image: none !important;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+      opacity: 1 !important;
+    }
   }
 
   /* Glass morphism card - now using liquid glass */
