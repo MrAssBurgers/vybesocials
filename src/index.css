@@ -251,7 +251,8 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     }
 
     /* Spans need special handling - many use gradient text */
-    span:not([style*="WebkitTextFillColor"]):not([style*="transparent"]):not(.gradient-text) {
+    /* Use negative lookahead for both webkit variants */
+    span:not([style*="transparent"]):not([style*="clip"]):not(.gradient-text) {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
     }
