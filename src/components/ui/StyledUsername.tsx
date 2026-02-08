@@ -2,6 +2,25 @@ import { memo, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useDisplayStyle } from '@/hooks/useDisplayStyle';
 
+// Helper: allow stored values to be either raw HSL parts ("330 100% 70%"),
+// full CSS colors ("hsl(...)"/"rgb(...)"), or hex ("#ff00ff").
+const normalizeCssColor = (value: string) => {
+  const v = value.trim();
+  if (
+    v.startsWith('hsl(') ||
+    v.startsWith('hsla(') ||
+    v.startsWith('rgb(') ||
+    v.startsWith('rgba(') ||
+    v.startsWith('#') ||
+    v.startsWith('var(')
+  ) {
+    return v;
+  }
+
+  // If stored as raw HSL parts with an alpha ("... / 0.6"), force opaque for readability.
+  const raw = v.includes('/') ? v.split('/')[0].trim() : v;
+  return `hsl(${raw})`;
+};
 interface StyledUsernameProps {
   userId: string;
   username: string;
@@ -50,24 +69,37 @@ export const StyledUsername = memo(function StyledUsername({
     return showAtSymbol ? `@${username}` : username;
   }, [preferDisplayName, displayName, showAtSymbol, username]);
   
-  const hasGradient = badge?.gradient_from && badge?.gradient_to;
+  const hasGradient = !!(badge?.gradient_from && badge?.gradient_to);
 
-  // No badge styling - render plain text
-  if (!hasGradient) {
+  const gradient = useMemo(() => {
+    if (!hasGradient) return null;
+
+    const from = normalizeCssColor(badge!.gradient_from!);
+    const to = normalizeCssColor(badge!.gradient_to!);
+    const via = badge?.gradient_via ? normalizeCssColor(badge.gradient_via) : null;
+
+    return via
+      ? `linear-gradient(135deg, ${from}, ${via}, ${to})`
+      : `linear-gradient(135deg, ${from}, ${to})`;
+  }, [hasGradient, badge?.gradient_from, badge?.gradient_to, badge?.gradient_via]);
+
+  // CRITICAL: Only use transparent text-fill when the browser confirms the gradient is valid.
+  // Otherwise, we'd end up with invisible/transparent text after badge style loads.
+  const canUseGradientText = useMemo(() => {
+    if (!gradient) return false;
+    if (typeof window === 'undefined') return true;
+    const supports = (window as any).CSS?.supports;
+    if (typeof supports !== 'function') return true;
+    return supports('background-image', gradient);
+  }, [gradient]);
+
+  // No badge styling OR unsupported/invalid gradient => render plain text (fully opaque)
+  if (!gradient || !canUseGradientText) {
     return <span className={className}>{nameToShow}</span>;
   }
-
-  const from = `hsl(${badge.gradient_from})`;
-  const to = `hsl(${badge.gradient_to})`;
-  const via = badge.gradient_via ? `hsl(${badge.gradient_via})` : null;
-  
-  const gradient = via 
-    ? `linear-gradient(135deg, ${from}, ${via}, ${to})`
-    : `linear-gradient(135deg, ${from}, ${to})`;
-
   // Base style for gradient text - MUST have all these properties to prevent background leakage
   const gradientStyle: React.CSSProperties = {
-    background: gradient,
+    backgroundImage: gradient,
     backgroundClip: 'text',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
@@ -76,7 +108,7 @@ export const StyledUsername = memo(function StyledUsername({
     backgroundColor: 'transparent',
     boxShadow: 'none',
     // Prevent inheritance issues
-    display: 'inline',
+    display: 'inline-block',
     padding: 0,
     margin: 0,
   };
@@ -87,8 +119,8 @@ export const StyledUsername = memo(function StyledUsername({
   }
 
   return (
-    <span 
-      style={gradientStyle} 
+    <span
+      style={gradientStyle}
       className={cn(className)}
     >
       {nameToShow}
