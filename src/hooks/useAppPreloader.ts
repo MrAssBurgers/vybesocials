@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { batchSignUrls } from '@/lib/signedUrlCache';
+import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 
 interface PreloadStatus {
   step: string;
@@ -271,6 +272,10 @@ export function useAppPreloader() {
 
         // Log performance
         console.log(`[Preloader] Complete - ${(performance.now() - startTime).toFixed(0)}ms`);
+        
+        // Preload all route components for instant navigation
+        preloadCriticalRoutes();
+        setTimeout(() => preloadSecondaryRoutes(), 2000);
         
         updateStatus('ready');
 

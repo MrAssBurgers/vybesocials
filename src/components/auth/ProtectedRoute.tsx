@@ -25,17 +25,12 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
     location.pathname === route || location.pathname.startsWith(route)
   );
 
-  // Show loading state while checking auth
+  // INSTANT NAVIGATION: Don't show loading skeleton during navigation
+  // Only show minimal placeholder if absolutely necessary during initial auth check
+  // The loading state should be handled by the app-level splash screen, not here
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background p-4">
-        <div className="max-w-xl mx-auto space-y-4">
-          <Skeleton className="h-12 w-full rounded-xl" />
-          <Skeleton className="h-64 w-full rounded-xl" />
-          <Skeleton className="h-32 w-full rounded-xl" />
-        </div>
-      </div>
-    );
+    // Return minimal empty div instead of skeleton to prevent visual delay
+    return <div className="min-h-screen bg-background" />;
   }
 
   // Allow guest access to browse-only routes
