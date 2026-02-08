@@ -237,7 +237,10 @@ export default function ProfilePage() {
                   </h1>
                 )}
                 {/* Username */}
-                <p className={`${profile.display_name ? 'text-foreground/90 text-sm font-medium drop-shadow-sm' : 'text-2xl font-bold'} flex items-center gap-2`}>
+                <p 
+                  className={`${profile.display_name ? 'text-sm font-medium drop-shadow-sm' : 'text-2xl font-bold'} flex items-center gap-2`}
+                  style={{ color: 'hsl(var(--foreground))', opacity: 1 }}
+                >
                   {!profile.display_name ? (
                     <StyledUsername
                       userId={profile.id}
@@ -325,29 +328,24 @@ export default function ProfilePage() {
             {/* Stats */}
             <div className="flex justify-center md:justify-start gap-8 mb-4">
               <div className="text-center">
-                <p className="font-bold text-xl text-foreground drop-shadow-md">{profile.post_count}</p>
-                <p className="text-sm text-foreground/90 font-medium drop-shadow-sm">posts</p>
+                <p className="font-bold text-xl drop-shadow-md" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>{profile.post_count}</p>
+                <p className="text-sm font-medium drop-shadow-sm" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>posts</p>
               </div>
               <div className="text-center">
-                <motion.p 
-                  key={liveFollowerCount}
-                  initial={{ scale: 1.2, color: 'hsl(var(--primary))' }}
-                  animate={{ scale: 1, color: 'hsl(var(--foreground))' }}
-                  className="font-bold text-xl drop-shadow-md"
-                >
+                <p className="font-bold text-xl drop-shadow-md" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>
                   {liveFollowerCount}
-                </motion.p>
-                <p className="text-sm text-foreground/90 font-medium drop-shadow-sm">followers</p>
+                </p>
+                <p className="text-sm font-medium drop-shadow-sm" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>followers</p>
               </div>
               <div className="text-center">
-                <p className="font-bold text-xl text-foreground drop-shadow-md">{profile.following_count}</p>
-                <p className="text-sm text-foreground/90 font-medium drop-shadow-sm">following</p>
+                <p className="font-bold text-xl drop-shadow-md" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>{profile.following_count}</p>
+                <p className="text-sm font-medium drop-shadow-sm" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>following</p>
               </div>
             </div>
 
             {/* Bio */}
             {profile.bio && (
-              <p className="text-foreground/95 max-w-md drop-shadow-sm">{profile.bio}</p>
+              <p className="max-w-md drop-shadow-sm" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>{profile.bio}</p>
             )}
             
             {/* Mutual Friends - only show on other people's profiles */}
