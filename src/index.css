@@ -1407,6 +1407,19 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
       opacity: 1 !important;
     }
+    
+    /* Universal mobile fallback for ALL Tailwind gradient text (bg-clip-text text-transparent) */
+    .bg-clip-text.text-transparent,
+    [class*="bg-gradient-to-"][class*="bg-clip-text"],
+    [class*="bg-clip-text"][class*="text-transparent"] {
+      color: hsl(var(--primary)) !important;
+      -webkit-text-fill-color: hsl(var(--primary)) !important;
+      background-clip: unset !important;
+      -webkit-background-clip: unset !important;
+      background-image: none !important;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+      opacity: 1 !important;
+    }
   }
 
   /* Glass morphism card - now using liquid glass */
