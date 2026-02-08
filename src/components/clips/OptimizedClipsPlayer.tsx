@@ -282,72 +282,56 @@ const ClipItem = memo(function ClipItem({
         {/* Like */}
         <button
           onClick={() => onLike?.(clip.id)}
-          className="flex flex-col items-center gap-1"
+          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
         >
-          <div className={cn(
-            "h-11 w-11 rounded-full flex items-center justify-center transition-colors",
-            clip.is_liked ? "bg-destructive" : "bg-white/20"
-          )}>
-            <Heart className={cn(
-              "h-6 w-6",
-              clip.is_liked ? "text-white fill-white" : "text-white"
-            )} />
-          </div>
-          <span className="text-white text-xs font-medium">
-            {clip.likes_count > 0 ? clip.likes_count.toLocaleString() : 'Like'}
+          <Heart className={cn(
+            "h-8 w-8 drop-shadow-lg transition-colors",
+            clip.is_liked ? "text-red-500 fill-red-500" : "text-white"
+          )} />
+          <span className="text-white text-xs font-bold drop-shadow-lg">
+            {clip.likes_count > 0 ? clip.likes_count.toLocaleString() : ''}
           </span>
         </button>
 
         {/* Comment */}
         <button
           onClick={() => onComment?.(clip.id)}
-          className="flex flex-col items-center gap-1"
+          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
         >
-          <div className="h-11 w-11 rounded-full bg-white/20 flex items-center justify-center">
-            <MessageCircle className="h-6 w-6 text-white" />
-          </div>
-          <span className="text-white text-xs font-medium">
-            {clip.comments_count > 0 ? clip.comments_count.toLocaleString() : 'Comment'}
+          <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
+          <span className="text-white text-xs font-bold drop-shadow-lg">
+            {clip.comments_count > 0 ? clip.comments_count.toLocaleString() : ''}
           </span>
         </button>
 
         {/* Save */}
         <button
           onClick={() => onSave?.(clip.id)}
-          className="flex flex-col items-center gap-1"
+          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
         >
-          <div className={cn(
-            "h-11 w-11 rounded-full flex items-center justify-center transition-colors",
-            clip.is_saved ? "bg-primary" : "bg-white/20"
-          )}>
-            <Bookmark className={cn(
-              "h-6 w-6",
-              clip.is_saved ? "text-white fill-white" : "text-white"
-            )} />
-          </div>
-          <span className="text-white text-xs font-medium">Save</span>
+          <Bookmark className={cn(
+            "h-8 w-8 drop-shadow-lg transition-colors",
+            clip.is_saved ? "text-yellow-400 fill-yellow-400" : "text-white"
+          )} />
         </button>
 
         {/* Share */}
         <button
           onClick={() => onShare?.(clip.id)}
-          className="flex flex-col items-center gap-1"
+          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
         >
-          <div className="h-11 w-11 rounded-full bg-white/20 flex items-center justify-center">
-            <Share2 className="h-6 w-6 text-white" />
-          </div>
-          <span className="text-white text-xs font-medium">Share</span>
+          <Share2 className="h-8 w-8 text-white drop-shadow-lg" />
         </button>
 
         {/* Mute toggle */}
         <button
           onClick={onToggleMute}
-          className="h-9 w-9 rounded-full bg-black/50 flex items-center justify-center"
+          className="flex items-center justify-center active:scale-90 transition-transform"
         >
           {isMuted ? (
-            <VolumeX className="h-4 w-4 text-white" />
+            <VolumeX className="h-7 w-7 text-white drop-shadow-lg" />
           ) : (
-            <Volume2 className="h-4 w-4 text-white" />
+            <Volume2 className="h-7 w-7 text-white drop-shadow-lg" />
           )}
         </button>
       </div>
