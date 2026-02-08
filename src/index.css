@@ -264,36 +264,52 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     [style*="WebkitBackgroundClip"],
     [style*="WebkitTextFillColor: transparent"],
     [style*="-webkit-text-fill-color: transparent"],
-    .gradient-text {
+    .gradient-text,
+    .bg-clip-text,
+    [class*="bg-clip-text"] {
       color: transparent !important;
       -webkit-text-fill-color: transparent !important;
       opacity: 1 !important;
     }
 
+    /* UNIVERSAL fallback for Tailwind gradient text utility classes on mobile */
+    /* These become solid primary color with drop-shadow for readability */
+    .bg-clip-text.text-transparent,
+    [class*="bg-gradient-to-"][class*="bg-clip-text"],
+    [class*="bg-clip-text"][class*="text-transparent"] {
+      color: hsl(var(--primary)) !important;
+      -webkit-text-fill-color: hsl(var(--primary)) !important;
+      background-clip: unset !important;
+      -webkit-background-clip: unset !important;
+      background-image: none !important;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+      opacity: 1 !important;
+    }
+
     /* Stats numbers - bold and visible (exclude gradient text) */
-    .font-bold:not([style*="transparent"]):not(.gradient-text), 
-    strong:not([style*="transparent"]):not(.gradient-text), 
-    [class*="font-semibold"]:not([style*="transparent"]):not(.gradient-text) {
+    .font-bold:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text), 
+    strong:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text), 
+    [class*="font-semibold"]:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text) {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
     }
 
     /* Muted text - slightly brighter on mobile */
-    .text-muted-foreground:not([style*="transparent"]):not(.gradient-text) {
+    .text-muted-foreground:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text) {
       color: hsl(240 5% 65%) !important;
       opacity: 1 !important;
     }
 
     /* Username and display name - exclude gradient text */
-    [class*="username"]:not([style*="transparent"]):not(.gradient-text), 
-    [class*="display-name"]:not([style*="transparent"]):not(.gradient-text) {
+    [class*="username"]:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text), 
+    [class*="display-name"]:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text) {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
       font-weight: 700;
     }
 
     /* Tab panels - exclude gradient text */
-    [role="tabpanel"]:not([style*="transparent"]) *:not([style*="transparent"]):not(.gradient-text) {
+    [role="tabpanel"]:not([style*="transparent"]) *:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text) {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
     }
@@ -307,6 +323,12 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     button:not([class*="destructive"]),
     [role="button"]:not([class*="destructive"]) {
       backdrop-filter: brightness(1.15) !important;
+    }
+
+    /* Universal text visibility for all common text elements */
+    article, section, div, li, td, th, dd, dt, figcaption {
+      color: hsl(var(--foreground));
+      opacity: 1;
     }
   }
 
