@@ -124,7 +124,7 @@ const NavItem = memo(({
   return (
     <Link
       to={path}
-      className="relative flex flex-col items-center justify-center min-h-[48px] gap-0.5 group"
+      className="relative flex items-center justify-center min-h-[48px] group"
       onClick={handleClick}
       data-tutorial={tutorialId}
     >
@@ -149,7 +149,7 @@ const NavItem = memo(({
         
         <Icon
           className={cn(
-            "h-5 w-5 relative z-10 transition-colors duration-150",
+            "h-6 w-6 relative z-10 transition-colors duration-150",
             isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
           )}
         />
@@ -164,14 +164,6 @@ const NavItem = memo(({
           </motion.span>
         )}
       </motion.div>
-      
-      {/* Label - always visible but subtle when inactive */}
-      <span className={cn(
-        "text-[10px] font-medium transition-colors duration-150",
-        isActive ? "text-primary" : "text-muted-foreground/70 group-hover:text-foreground"
-      )}>
-        {label}
-      </span>
     </Link>
   );
 });
@@ -311,7 +303,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
       >
         {/* Clean minimal nav bar */}
         <div className="mx-3 mb-2 rounded-2xl liquid-glass border border-foreground/10 shadow-xl shadow-black/20">
-          <div className="grid grid-cols-5 h-16 px-2 relative z-10">
+          <div className="grid grid-cols-5 h-14 px-1 relative z-10">
           {navItems.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
               const isHighlighted = highlightedNav === item.tutorialId;
@@ -354,7 +346,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                           scale: isCreateMenuOpen ? 1.1 : 1,
                         }}
                         transition={{ type: 'spring', damping: 15, stiffness: 300 }}
-                        className="rounded-xl p-2.5 shadow-lg create-button-gradient relative overflow-hidden"
+                        className="rounded-xl p-2 shadow-lg create-button-gradient relative overflow-hidden"
                       >
                         {/* Shine effect */}
                         <motion.div
@@ -363,7 +355,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                           animate={isCreateMenuOpen ? { x: '100%' } : { x: '-100%' }}
                           transition={{ duration: 0.6 }}
                         />
-                        <PlusCircle className="h-5 w-5 text-white relative z-10" />
+                        <PlusCircle className="h-6 w-6 text-white relative z-10" />
                       </motion.div>
                     </motion.button>
                   </div>
@@ -376,7 +368,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                   <Link
                     key={item.path}
                     to={item.path}
-                    className="relative flex flex-col items-center justify-center min-h-[48px] gap-0.5 group"
+                    className="relative flex items-center justify-center min-h-[48px] group"
                     onClick={() => triggerNavFeedback()}
                     data-tutorial={item.tutorialId}
                   >
@@ -393,21 +385,15 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                         />
                       )}
                       <Avatar className={cn(
-                        "h-6 w-6 relative z-10 transition-all",
+                        "h-7 w-7 relative z-10 transition-all",
                         isActive && "ring-2 ring-primary"
                       )}>
                         <AvatarImage src={profile?.avatar_url || undefined} />
                         <AvatarFallback className="text-[10px] bg-muted">
-                          <User className="h-3 w-3" />
+                          <User className="h-4 w-4" />
                         </AvatarFallback>
                       </Avatar>
                     </motion.div>
-                    <span className={cn(
-                      "text-[10px] font-medium transition-colors duration-150",
-                      isActive ? "text-primary" : "text-muted-foreground/70 group-hover:text-foreground"
-                    )}>
-                      {item.label}
-                    </span>
                   </Link>
                 );
               }
