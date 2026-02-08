@@ -136,114 +136,161 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   }
 
   /* =========================================
-     MOBILE/TABLET TEXT READABILITY FIXES
-     Ensure all text is fully opaque and readable
+     MOBILE/TABLET BRIGHTNESS & READABILITY
+     Lighter, brighter UI for mobile devices
      ========================================= */
   
-  /* Mobile/Tablet: Force all text to full opacity with text shadows */
+  /* Mobile/Tablet: Brighter, more readable UI */
   @media (max-width: 1024px) {
-    /* All text elements get enhanced readability */
+    /* Brighten the overall body background */
     body {
-      text-shadow: 0 2px 4px hsl(var(--background) / 0.3);
+      background: linear-gradient(
+        160deg,
+        hsl(var(--background)) 0%,
+        hsl(240 10% 12%) 50%,
+        hsl(var(--background)) 100%
+      ) !important;
     }
 
-    /* Profile page specific text fixes */
+    /* Brighten all glass elements on mobile */
+    .liquid-glass {
+      background: linear-gradient(
+        135deg,
+        hsl(var(--glass) / 0.75),
+        hsl(var(--glass) / 0.6),
+        hsl(var(--glass) / 0.7)
+      ) !important;
+      backdrop-filter: blur(30px) saturate(180%) brightness(1.25) !important;
+      -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(1.25) !important;
+      box-shadow: 
+        0 4px 16px hsl(var(--background) / 0.25),
+        0 1px 4px hsl(var(--background) / 0.15),
+        inset 0 1px 0 hsl(var(--foreground) / 0.12) !important;
+    }
+
+    .liquid-glass-card {
+      background: linear-gradient(
+        160deg,
+        hsl(var(--card) / 0.8),
+        hsl(var(--card) / 0.65)
+      ) !important;
+      backdrop-filter: blur(30px) saturate(180%) brightness(1.25) !important;
+      -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(1.25) !important;
+      box-shadow: 
+        0 6px 24px hsl(var(--background) / 0.3),
+        0 2px 8px hsl(var(--background) / 0.15) !important;
+    }
+
+    .liquid-glass-subtle {
+      background: linear-gradient(
+        160deg,
+        hsl(var(--glass) / 0.5),
+        hsl(var(--glass) / 0.3)
+      ) !important;
+      backdrop-filter: blur(20px) saturate(160%) brightness(1.2) !important;
+      -webkit-backdrop-filter: blur(20px) saturate(160%) brightness(1.2) !important;
+    }
+
+    /* Sidebar on mobile/tablet - brighter */
+    .sidebar-fixed-left,
+    .sidebar-fixed-right {
+      background: linear-gradient(
+        135deg,
+        hsl(var(--glass) / 0.7),
+        hsl(var(--glass) / 0.5)
+      ) !important;
+      backdrop-filter: blur(30px) saturate(180%) brightness(1.2) !important;
+      -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(1.2) !important;
+    }
+
+    /* Reduce dark overlays on images */
+    .bg-black\/60,
+    [class*="bg-black/"] {
+      background-color: hsl(0 0% 0% / 0.35) !important;
+    }
+
+    /* Bottom navigation - brighter */
+    nav[aria-label="Bottom navigation"] {
+      background: linear-gradient(
+        180deg,
+        hsl(var(--glass) / 0.85),
+        hsl(var(--glass) / 0.75)
+      ) !important;
+      backdrop-filter: blur(30px) saturate(180%) brightness(1.2) !important;
+      -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(1.2) !important;
+    }
+
+    /* Header - brighter */
+    header,
+    [class*="header"] {
+      backdrop-filter: blur(25px) saturate(170%) brightness(1.2) !important;
+      -webkit-backdrop-filter: blur(25px) saturate(170%) brightness(1.2) !important;
+    }
+
+    /* All text elements - full opacity with subtle shadows */
     h1, h2, h3, h4, h5, h6 {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
-      text-shadow: 0 2px 4px hsl(var(--background) / 0.35);
+      text-shadow: 0 1px 2px hsl(var(--background) / 0.2);
       font-weight: 600;
     }
 
     p, span, a, label, button {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
-      text-shadow: 0 1px 3px hsl(var(--background) / 0.25);
     }
 
-    /* Stats numbers - make bold and fully visible */
+    /* Stats numbers - bold and visible */
     .font-bold, strong, [class*="font-semibold"] {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
-      text-shadow: 0 2px 4px hsl(var(--background) / 0.3);
     }
 
-    /* Muted text (like "followers") - increase opacity */
+    /* Muted text - slightly brighter on mobile */
     .text-muted-foreground {
-      color: hsl(var(--muted-foreground)) !important;
-      opacity: 0.85 !important;
-      text-shadow: 0 1px 2px hsl(var(--background) / 0.2);
+      color: hsl(240 5% 65%) !important;
+      opacity: 1 !important;
     }
 
     /* Username and display name - maximum visibility */
     [class*="username"], [class*="display-name"] {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
-      text-shadow: 0 2px 4px hsl(var(--background) / 0.35);
       font-weight: 700;
     }
 
-    /* Bio text */
-    [class*="bio"] {
-      color: hsl(var(--muted-foreground)) !important;
-      opacity: 0.9 !important;
-      text-shadow: 0 1px 3px hsl(var(--background) / 0.25);
-      line-height: 1.5;
-    }
-
-    /* Tab labels and navigation text */
-    .flex-1, [role="tab"], [role="tablist"] * {
+    /* Tab panels */
+    [role="tabpanel"], [role="tabpanel"] * {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
     }
 
-    /* Ensure glass containers have proper contrast */
-    .liquid-glass h1, .liquid-glass h2, .liquid-glass h3,
-    .liquid-glass p, .liquid-glass span, .liquid-glass a,
-    .liquid-glass-card h1, .liquid-glass-card h2, .liquid-glass-card h3,
-    .liquid-glass-card p, .liquid-glass-card span, .liquid-glass-card a {
-      color: hsl(var(--foreground)) !important;
-      opacity: 1 !important;
-      text-shadow: 0 1px 3px hsl(var(--background) / 0.3);
+    /* Cards and containers - reduced shadow intensity */
+    .card, [class*="card"] {
+      box-shadow: 0 4px 12px hsl(var(--background) / 0.2) !important;
     }
 
-    /* Button text */
-    button, [role="button"] {
-      color: hsl(var(--foreground)) !important;
-      opacity: 1 !important;
-      text-shadow: 0 1px 2px hsl(var(--background) / 0.2);
-    }
-
-    /* Headings in profile header */
-    .md\:text-left h1, .text-center h1 {
-      color: hsl(var(--foreground)) !important;
-      opacity: 1 !important;
-      text-shadow: 0 3px 6px hsl(var(--background) / 0.4);
-    }
-
-    /* Ensure all tab content text is visible */
-    [role="tabpanel"] {
-      color: hsl(var(--foreground)) !important;
-    }
-
-    [role="tabpanel"] * {
-      color: hsl(var(--foreground)) !important;
-      opacity: 1 !important;
+    /* Buttons - brighter backgrounds */
+    button:not([class*="destructive"]),
+    [role="button"]:not([class*="destructive"]) {
+      backdrop-filter: brightness(1.15) !important;
     }
   }
 
-  /* Extra aggressive for very small phones (< 480px) */
+  /* Extra brightness for very small phones */
   @media (max-width: 480px) {
-    h1, h2, h3, h4, h5, h6 {
-      text-shadow: 0 3px 6px hsl(var(--background) / 0.4) !important;
+    .liquid-glass {
+      backdrop-filter: blur(25px) saturate(170%) brightness(1.3) !important;
+      -webkit-backdrop-filter: blur(25px) saturate(170%) brightness(1.3) !important;
     }
 
-    p, span, a, label {
-      text-shadow: 0 2px 4px hsl(var(--background) / 0.3) !important;
+    .liquid-glass-card {
+      backdrop-filter: blur(25px) saturate(170%) brightness(1.3) !important;
+      -webkit-backdrop-filter: blur(25px) saturate(170%) brightness(1.3) !important;
     }
 
     .text-muted-foreground {
-      opacity: 0.9 !important;
+      color: hsl(240 5% 70%) !important;
     }
   }
 
