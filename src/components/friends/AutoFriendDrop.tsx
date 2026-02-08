@@ -663,42 +663,109 @@ export function AutoFriendDrop() {
           }}
         >
           <AnimatePresence mode="wait">
-            {/* Card Rising Phase - Wallet Animation */}
+            {/* Card Rising Phase - Wallet Animation with QR Scanner */}
             {phase === 'card-rising' && (
               <motion.div
-                className="flex flex-col items-center justify-center py-12"
+                className="flex flex-col items-center justify-end py-4"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
+                style={{ minHeight: 400 }}
               >
                 {/* Card rising from wallet animation */}
-                <div className="relative h-80 w-full flex items-end justify-center overflow-hidden">
-                  {/* Wallet base */}
+                <div className="relative h-96 w-full flex items-end justify-center overflow-hidden">
+                  {/* Wallet base - leather texture look */}
                   <motion.div
-                    className="absolute bottom-0 w-64 h-20 bg-gradient-to-t from-muted to-muted/50 rounded-t-3xl"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  />
+                    className="absolute bottom-0 w-72 h-24 rounded-t-3xl overflow-hidden"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    {/* Wallet leather gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[hsl(20,30%,12%)] via-[hsl(20,25%,18%)] to-[hsl(20,20%,25%)]" />
+                    {/* Wallet opening slit */}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-2 bg-black/60 rounded-b-full" />
+                    {/* Wallet edge highlight */}
+                    <div className="absolute top-2 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                  </motion.div>
                   
-                  {/* Rising card */}
+                  {/* Rising Scanner Card */}
                   <motion.div
-                    className="relative z-10 w-56 h-72 rounded-2xl bg-gradient-to-br from-card via-card to-muted border-2 border-primary/30 shadow-2xl flex flex-col items-center justify-center p-6"
+                    className="relative z-10 w-64 rounded-2xl bg-gradient-to-br from-background via-card to-muted border-2 border-primary/40 shadow-2xl shadow-primary/20 overflow-hidden"
                     style={{ 
                       y: cardY,
                       rotate: cardRotate,
                       scale: cardScale
                     }}
                   >
-                    {/* User's avatar */}
-                    <Avatar className="h-20 w-20 mb-4 ring-4 ring-primary/20">
-                      <AvatarImage src={profile?.avatar_url || ''} />
-                      <AvatarFallback className="text-2xl bg-primary/10">
-                        {profile?.username?.[0]?.toUpperCase() || 'V'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <p className="text-lg font-bold text-foreground">@{profile?.username}</p>
-                    <div className="flex items-center gap-1 mt-2 text-primary">
-                      <Zap className="h-4 w-4" />
-                      <span className="text-sm font-medium">FriendDrop</span>
+                    {/* Shimmer effect on card */}
+                    <motion.div
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none"
+                      animate={{ x: ['-100%', '100%'] }}
+                      transition={{ repeat: Infinity, duration: 2, ease: "easeInOut", delay: 0.5 }}
+                    />
+                    
+                    {/* Scanner preview area */}
+                    <div className="relative aspect-square bg-black/90 m-3 rounded-xl overflow-hidden">
+                      {/* Fake viewfinder grid */}
+                      <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+                        {[...Array(9)].map((_, i) => (
+                          <div key={i} className="border border-white/5" />
+                        ))}
+                      </div>
+                      
+                      {/* Scanning line */}
+                      <motion.div
+                        className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full"
+                        animate={{ top: ['20%', '80%', '20%'] }}
+                        transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                      />
+                      
+                      {/* Corner brackets */}
+                      {[0, 1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="absolute w-8 h-8 border-primary"
+                          style={{
+                            top: i < 2 ? 8 : 'auto',
+                            bottom: i >= 2 ? 8 : 'auto',
+                            left: i % 2 === 0 ? 8 : 'auto',
+                            right: i % 2 === 1 ? 8 : 'auto',
+                            borderTopWidth: i < 2 ? 3 : 0,
+                            borderBottomWidth: i >= 2 ? 3 : 0,
+                            borderLeftWidth: i % 2 === 0 ? 3 : 0,
+                            borderRightWidth: i % 2 === 1 ? 3 : 0,
+                            borderRadius: 6,
+                          }}
+                        />
+                      ))}
+                      
+                      {/* Center camera icon */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <motion.div 
+                          className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center"
+                          animate={{ scale: [1, 1.1, 1], opacity: [0.6, 1, 0.6] }}
+                          transition={{ repeat: Infinity, duration: 1.5 }}
+                        >
+                          <Sparkles className="h-6 w-6 text-primary" />
+                        </motion.div>
+                      </div>
+                    </div>
+                    
+                    {/* Card footer with user info */}
+                    <div className="px-4 pb-4 pt-2 flex items-center gap-3">
+                      <Avatar className="h-10 w-10 ring-2 ring-primary/30">
+                        <AvatarImage src={profile?.avatar_url || ''} />
+                        <AvatarFallback className="text-sm bg-primary/10">
+                          {profile?.username?.[0]?.toUpperCase() || 'V'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm text-foreground truncate">@{profile?.username}</p>
+                        <p className="text-xs text-muted-foreground">Ready to connect</p>
+                      </div>
+                      <div className="flex items-center gap-1 text-primary">
+                        <Zap className="h-4 w-4" />
+                      </div>
                     </div>
                   </motion.div>
                 </div>
