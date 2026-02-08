@@ -1,4 +1,4 @@
-import { ReactNode, forwardRef, memo, useMemo } from 'react';
+import { ReactNode, forwardRef, memo } from 'react';
 import { MobileHeader } from './MobileHeader';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
@@ -7,7 +7,6 @@ import { Navigate } from 'react-router-dom';
 import { usePresence } from '@/hooks/usePresence';
 import { useScrollOptimization } from '@/hooks/useScrollOptimization';
 import { useBreakpoint } from '@/hooks/usePlatform';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -39,18 +38,17 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   // Optimize animations during scroll
   useScrollOptimization();
 
-  // Memoize the loading UI
-  const loadingUI = useMemo(() => (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-4">
-        <Skeleton variant="circular" className="h-16 w-16" />
-        <Skeleton className="h-4 w-24" />
-      </div>
-    </div>
-  ), []);
-
+  // INSTANT NAVIGATION: Minimize loading UI to prevent delays
+  // The main splash screen handles initial loading, so subsequent navigations
+  // should show content immediately without skeleton flicker
   if (loading) {
-    return loadingUI;
+    // Return children directly with minimal wrapper to prevent visual delay
+    // Auth state will resolve almost immediately after initial load
+    return (
+      <div className="min-h-screen bg-background">
+        {children}
+      </div>
+    );
   }
 
   // Allow guest browsing - don't redirect if no user

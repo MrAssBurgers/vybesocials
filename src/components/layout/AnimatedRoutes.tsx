@@ -1,27 +1,29 @@
-import { lazy, Suspense, memo, useMemo } from 'react';
+import { lazy, Suspense, memo, useEffect } from 'react';
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Skeleton } from '@/components/ui/skeleton';
 import { isLowEndDevice } from '@/lib/performanceConfig';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 
-// Lazy load pages for code splitting with webpackPrefetch hints
+// CRITICAL PAGES - Load eagerly (no lazy) for instant navigation
+import Home from "@/pages/Home";
+import Explore from "@/pages/Explore";
+import Market from "@/pages/Market";
+import Messages from "@/pages/Messages";
+import Notifications from "@/pages/Notifications";
+import Settings from "@/pages/Settings";
+import Shorts from "@/pages/Shorts";
+import Profile from "@/pages/Profile";
+
+// Secondary pages - lazy load but prefetch
 const Landing = lazy(() => import("@/pages/Landing"));
-const Home = lazy(() => import(/* webpackPrefetch: true */ "@/pages/Home"));
-const Shorts = lazy(() => import("@/pages/Shorts"));
-const Explore = lazy(() => import(/* webpackPrefetch: true */ "@/pages/Explore"));
 const Upload = lazy(() => import("@/pages/Upload"));
 const PostDetail = lazy(() => import("@/pages/PostDetail"));
-const Profile = lazy(() => import("@/pages/Profile"));
-const Notifications = lazy(() => import("@/pages/Notifications"));
-const Settings = lazy(() => import("@/pages/Settings"));
 const Onboarding = lazy(() => import("@/pages/Onboarding"));
-const Messages = lazy(() => import(/* webpackPrefetch: true */ "@/pages/Messages"));
 const NewMessage = lazy(() => import("@/pages/NewMessage"));
 const AIChat = lazy(() => import("@/pages/AIChat"));
 const Feedback = lazy(() => import("@/pages/Feedback"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
-const Market = lazy(() => import("@/pages/Market"));
 const CreateListing = lazy(() => import("@/pages/CreateListing"));
 const ListingDetail = lazy(() => import("@/pages/ListingDetail"));
 const Events = lazy(() => import("@/pages/Events"));
@@ -46,33 +48,39 @@ const BusinessPortal = lazy(() => import("@/pages/BusinessPortal"));
 // Debug panel - only loaded in dev mode
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
 
+// Minimal fallback - just shows content area, no skeleton flicker
 const PageFallback = memo(() => (
-  <div className="min-h-screen bg-background p-4">
-    <div className="max-w-xl mx-auto space-y-4">
-      <Skeleton className="h-12 w-full rounded-xl" />
-      <Skeleton className="h-64 w-full rounded-xl" />
-      <Skeleton className="h-32 w-full rounded-xl" />
-    </div>
-  </div>
+  <div className="min-h-screen bg-background" />
 ));
 
 // Ultra-smooth page transition - no black flash
 const pageVariants = {
-  initial: { opacity: 0.7 },
+  initial: { opacity: 0.85 },
   animate: { opacity: 1 },
 };
 
 // Instant transitions - no delay
 const pageTransition = {
-  duration: 0.08,
+  duration: 0.05,
   ease: 'linear' as const,
 };
 
 /**
  * Animated Routes component - provides smooth page transitions
+ * Critical pages are eagerly loaded for instant navigation
  */
 export function AnimatedRoutes() {
   const location = useLocation();
+  
+  // Preload all routes after initial render
+  useEffect(() => {
+    // Preload secondary routes after a short delay
+    const timer = setTimeout(() => {
+      preloadSecondaryRoutes();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, []);
   
   // Get a simplified key for route grouping (avoid re-animating on same route)
   const getRouteKey = () => {
@@ -80,6 +88,10 @@ export function AnimatedRoutes() {
     // Group conversation messages to avoid transition between them
     if (path.startsWith('/messages/') && path !== '/messages/new') {
       return '/messages/:id';
+    }
+    // Group profile pages
+    if (path.startsWith('/u/')) {
+      return '/u/:username';
     }
     return path;
   };
@@ -104,25 +116,27 @@ export function AnimatedRoutes() {
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/invite/:identifier" element={<InviteRedeem />} />
             
-            {/* Protected routes - require authentication */}
+            {/* CRITICAL ROUTES - Eagerly loaded, instant navigation */}
             <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/clips" element={<ProtectedRoute><Shorts /></ProtectedRoute>} />
             <Route path="/shorts" element={<ProtectedRoute><Shorts /></ProtectedRoute>} />
             <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
-            <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
-            <Route path="/p/:id" element={<ProtectedRoute><PostDetail /></ProtectedRoute>} />
-            <Route path="/u/:username" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/market" element={<ProtectedRoute><Market /></ProtectedRoute>} />
+            <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+            <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/u/:username" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            
+            {/* Secondary routes - lazy loaded but prefetched */}
+            <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
+            <Route path="/p/:id" element={<ProtectedRoute><PostDetail /></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route path="/complete-profile" element={<Navigate to="/onboarding" replace />} />
-            <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
             <Route path="/messages/new" element={<ProtectedRoute><NewMessage /></ProtectedRoute>} />
             <Route path="/messages/ai-autisy" element={<ProtectedRoute><AIChat /></ProtectedRoute>} />
-            <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
             <Route path="/feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
-            <Route path="/market" element={<ProtectedRoute><Market /></ProtectedRoute>} />
             <Route path="/market/new" element={<ProtectedRoute><CreateListing /></ProtectedRoute>} />
             <Route path="/market/:id" element={<ProtectedRoute><ListingDetail /></ProtectedRoute>} />
             <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
