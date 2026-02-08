@@ -26,6 +26,9 @@ export const SplashScreen = memo(function SplashScreen({
   const showComplete = progress >= 100;
   const isLowEnd = useMemo(() => isLowEndDevice(), []);
   
+  // Generate stable ID for mobile style injection
+  const splashTextId = useMemo(() => `splash-text-${Math.random().toString(36).slice(2, 9)}`, []);
+  
   // Random tip on mount
   const [tip] = useState(() => LOADING_TIPS[Math.floor(Math.random() * LOADING_TIPS.length)]);
   
@@ -121,7 +124,21 @@ export const SplashScreen = memo(function SplashScreen({
             transition={{ delay: 0.2, duration: 0.4 }}
             className="text-center mb-6 sm:mb-8 px-4"
           >
+            <style>{`
+              @media (max-width: 1024px) {
+                #${splashTextId} {
+                  color: hsl(var(--primary)) !important;
+                  -webkit-text-fill-color: hsl(var(--primary)) !important;
+                  background-clip: unset !important;
+                  -webkit-background-clip: unset !important;
+                  background-image: none !important;
+                  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+                  opacity: 1 !important;
+                }
+              }
+            `}</style>
             <motion.h1
+              id={splashTextId}
               className="text-3xl sm:text-4xl font-display font-black tracking-tight"
               style={{
                 background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--neon-purple)), hsl(var(--accent)))',
