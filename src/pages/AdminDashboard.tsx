@@ -246,8 +246,8 @@ export default function AdminDashboard() {
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold truncate">Admin Panel</h1>
-            <p className="text-muted-foreground text-xs sm:text-sm truncate">Manage users, reports, and content</p>
+            <h1 className="text-xl sm:text-2xl font-bold truncate text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">Admin Panel</h1>
+            <p className="text-foreground/80 text-xs sm:text-sm truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Manage users, reports, and content</p>
           </div>
           {isAdmin && (
             <Badge className="bg-gradient-to-r from-yellow-500 to-amber-500 text-black text-xs flex-shrink-0">

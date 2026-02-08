@@ -100,8 +100,8 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
               <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-2xl font-bold truncate">{t('settings.title')}</h1>
-              <p className="text-xs sm:text-sm text-muted-foreground truncate">Manage your account</p>
+              <h1 className="text-lg sm:text-2xl font-bold truncate text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{t('settings.title')}</h1>
+              <p className="text-xs sm:text-sm text-foreground/80 truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Manage your account</p>
             </div>
           </div>
         </motion.div>

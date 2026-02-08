@@ -287,8 +287,8 @@ export default function Community() {
               <Users className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Communities</h1>
-              <p className="text-sm text-muted-foreground">
+              <h1 className="text-2xl font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">Communities</h1>
+              <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
                 {communities.length} {communities.length === 1 ? 'community' : 'communities'}
               </p>
             </div>

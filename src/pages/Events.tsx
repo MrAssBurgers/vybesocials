@@ -195,11 +195,11 @@ export default function EventsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground">
+            <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
               <Calendar className="h-6 w-6 text-primary" />
               <span className="text-foreground">Events</span>
             </h1>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-foreground/80 text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
               Discover and join community events
             </p>
           </div>
