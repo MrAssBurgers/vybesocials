@@ -20,8 +20,8 @@ interface StyledDisplayNameProps {
  * StyledDisplayName - Renders a user's display name with badge-based styling
  * Includes gradient colors and effects based on their highest priority badge
  * 
- * IMPORTANT: Uses inline styles with explicit background-clip to prevent
- * any background color leakage (yellow rectangles, etc.)
+ * On desktop: Uses CSS gradient with background-clip for premium effect
+ * On mobile/tablet: Falls back to solid color + drop-shadow (matches WelcomeHeader)
  */
 export const StyledDisplayName = memo(function StyledDisplayName({
   name,
@@ -29,6 +29,9 @@ export const StyledDisplayName = memo(function StyledDisplayName({
   className,
   as: Component = 'span',
 }: StyledDisplayNameProps) {
+  // Generate a unique ID for this element to apply mobile styles (must be before early return)
+  const elementId = useMemo(() => `styled-display-${Math.random().toString(36).slice(2, 9)}`, []);
+
   const hasGradient = badge?.gradient_from && badge?.gradient_to;
 
   // No gradient - render plain text
@@ -48,14 +51,14 @@ export const StyledDisplayName = memo(function StyledDisplayName({
     ? `linear-gradient(135deg, ${from}, ${via}, ${to})`
     : `linear-gradient(135deg, ${from}, ${to})`;
 
-  // Base style for gradient text - MUST have all these properties to prevent background leakage
+  // Desktop: gradient text with background-clip
+  // Mobile: solid color from gradient start + drop-shadow (like WelcomeHeader)
   const gradientStyle: React.CSSProperties = {
     background: gradient,
     backgroundClip: 'text',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
     color: 'transparent',
-    // Ensure no box background shows through
     backgroundColor: 'transparent',
     boxShadow: 'none',
   };
@@ -66,11 +69,26 @@ export const StyledDisplayName = memo(function StyledDisplayName({
   }
 
   return (
-    <Component 
-      style={gradientStyle} 
-      className={cn('font-bold inline', className)}
-    >
-      {name}
-    </Component>
+    <>
+      <style>{`
+        @media (max-width: 1024px) {
+          #${elementId} {
+            color: ${from} !important;
+            -webkit-text-fill-color: ${from} !important;
+            background-clip: unset !important;
+            -webkit-background-clip: unset !important;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+            opacity: 1 !important;
+          }
+        }
+      `}</style>
+      <Component 
+        id={elementId}
+        style={gradientStyle} 
+        className={cn('font-bold inline', className)}
+      >
+        {name}
+      </Component>
+    </>
   );
 });
