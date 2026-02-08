@@ -72,29 +72,29 @@ const ExploreTabBar = memo(function ExploreTabBar({
 }) {
   return (
     <div className="flex justify-center">
-      <div className="inline-flex items-center gap-1 p-1 rounded-full bg-card/60 backdrop-blur-xl border border-border/30 shadow-lg">
+      <div className="inline-flex items-center gap-1.5 p-1.5 rounded-full bg-card/85 backdrop-blur-xl border border-border/40 shadow-lg">
         <button
           onClick={() => onTabChange('clips')}
           className={cn(
-            "flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all",
+            "flex items-center gap-2.5 px-6 py-3 rounded-full text-base font-semibold transition-all",
             viewMode === 'clips'
               ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
               : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
           )}
         >
-          <Clapperboard className="h-4 w-4" />
+          <Clapperboard className="h-5 w-5" />
           Clips
         </button>
         <button
           onClick={() => onTabChange('videos')}
           className={cn(
-            "flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all",
+            "flex items-center gap-2.5 px-6 py-3 rounded-full text-base font-semibold transition-all",
             viewMode === 'videos'
               ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
               : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
           )}
         >
-          <Film className="h-4 w-4" />
+          <Film className="h-5 w-5" />
           Videos
         </button>
       </div>

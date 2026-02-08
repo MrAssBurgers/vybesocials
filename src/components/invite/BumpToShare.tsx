@@ -157,21 +157,21 @@ export function BumpToShare({ variant = 'button' }: BumpToShareProps) {
         >
           <div className="relative">
             <motion.div
-              className="w-24 h-24 rounded-2xl bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center"
+              className="w-28 h-28 rounded-2xl bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center"
               animate={{ 
                 rotate: [0, 5, -5, 0],
                 scale: [1, 1.02, 1]
               }}
               transition={{ repeat: Infinity, duration: 3 }}
             >
-              <Zap className="h-12 w-12 text-primary-foreground" />
+              <Zap className="h-14 w-14 text-primary-foreground" />
             </motion.div>
             <motion.div
               className="absolute -bottom-2 left-1/2 -translate-x-1/2"
               animate={{ y: [0, 5, 0] }}
               transition={{ repeat: Infinity, duration: 1.5 }}
             >
-              <ArrowDown className="h-6 w-6 text-muted-foreground" />
+              <ArrowDown className="h-7 w-7 text-muted-foreground" />
             </motion.div>
           </div>
 

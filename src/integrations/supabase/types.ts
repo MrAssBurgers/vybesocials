@@ -367,6 +367,362 @@ export type Database = {
           },
         ]
       }
+      business_orders: {
+        Row: {
+          business_id: string
+          created_at: string
+          customer_id: string
+          id: string
+          items: Json
+          notes: string | null
+          order_number: string
+          payment_status: string
+          shipping: number | null
+          shipping_address: Json | null
+          status: string
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          subtotal: number
+          tax: number | null
+          total: number
+          tracking_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          items?: Json
+          notes?: string | null
+          order_number: string
+          payment_status?: string
+          shipping?: number | null
+          shipping_address?: Json | null
+          status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          subtotal: number
+          tax?: number | null
+          total: number
+          tracking_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          items?: Json
+          notes?: string | null
+          order_number?: string
+          payment_status?: string
+          shipping?: number | null
+          shipping_address?: Json | null
+          status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          subtotal?: number
+          tax?: number | null
+          total?: number
+          tracking_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "business_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_products: {
+        Row: {
+          business_id: string
+          category: string | null
+          compare_at_price: number | null
+          created_at: string
+          description: string | null
+          digital_file_url: string | null
+          id: string
+          images: string[] | null
+          inventory_count: number | null
+          is_active: boolean | null
+          is_digital: boolean | null
+          is_featured: boolean | null
+          price: number
+          sku: string | null
+          sold_count: number | null
+          stripe_price_id: string | null
+          stripe_product_id: string | null
+          title: string
+          updated_at: string
+          view_count: number | null
+        }
+        Insert: {
+          business_id: string
+          category?: string | null
+          compare_at_price?: number | null
+          created_at?: string
+          description?: string | null
+          digital_file_url?: string | null
+          id?: string
+          images?: string[] | null
+          inventory_count?: number | null
+          is_active?: boolean | null
+          is_digital?: boolean | null
+          is_featured?: boolean | null
+          price: number
+          sku?: string | null
+          sold_count?: number | null
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
+          title: string
+          updated_at?: string
+          view_count?: number | null
+        }
+        Update: {
+          business_id?: string
+          category?: string | null
+          compare_at_price?: number | null
+          created_at?: string
+          description?: string | null
+          digital_file_url?: string | null
+          id?: string
+          images?: string[] | null
+          inventory_count?: number | null
+          is_active?: boolean | null
+          is_digital?: boolean | null
+          is_featured?: boolean | null
+          price?: number
+          sku?: string | null
+          sold_count?: number | null
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
+          title?: string
+          updated_at?: string
+          view_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_products_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_profiles: {
+        Row: {
+          banner_url: string | null
+          business_hours: Json | null
+          category: string | null
+          created_at: string
+          description: string | null
+          email: string | null
+          id: string
+          is_active: boolean | null
+          is_verified: boolean | null
+          location: string | null
+          logo_url: string | null
+          name: string
+          owner_id: string
+          phone: string | null
+          rating_average: number | null
+          rating_count: number | null
+          slug: string
+          social_links: Json | null
+          stripe_account_id: string | null
+          stripe_onboarding_complete: boolean | null
+          total_revenue: number | null
+          total_sales: number | null
+          updated_at: string
+          view_count: number | null
+          website: string | null
+        }
+        Insert: {
+          banner_url?: string | null
+          business_hours?: Json | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          location?: string | null
+          logo_url?: string | null
+          name: string
+          owner_id: string
+          phone?: string | null
+          rating_average?: number | null
+          rating_count?: number | null
+          slug: string
+          social_links?: Json | null
+          stripe_account_id?: string | null
+          stripe_onboarding_complete?: boolean | null
+          total_revenue?: number | null
+          total_sales?: number | null
+          updated_at?: string
+          view_count?: number | null
+          website?: string | null
+        }
+        Update: {
+          banner_url?: string | null
+          business_hours?: Json | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          location?: string | null
+          logo_url?: string | null
+          name?: string
+          owner_id?: string
+          phone?: string | null
+          rating_average?: number | null
+          rating_count?: number | null
+          slug?: string
+          social_links?: Json | null
+          stripe_account_id?: string | null
+          stripe_onboarding_complete?: boolean | null
+          total_revenue?: number | null
+          total_sales?: number | null
+          updated_at?: string
+          view_count?: number | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_profiles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "business_profiles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_profiles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_reviews: {
+        Row: {
+          business_id: string
+          content: string | null
+          created_at: string
+          helpful_count: number | null
+          id: string
+          images: string[] | null
+          is_verified_purchase: boolean | null
+          order_id: string | null
+          rating: number
+          reviewer_id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          content?: string | null
+          created_at?: string
+          helpful_count?: number | null
+          id?: string
+          images?: string[] | null
+          is_verified_purchase?: boolean | null
+          order_id?: string | null
+          rating: number
+          reviewer_id: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          content?: string | null
+          created_at?: string
+          helpful_count?: number | null
+          id?: string
+          images?: string[] | null
+          is_verified_purchase?: boolean | null
+          order_id?: string | null
+          rating?: number
+          reviewer_id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_reviews_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "business_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_reviews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "business_reviews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_reviews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_signals: {
         Row: {
           call_id: string
@@ -6375,6 +6731,7 @@ export type Database = {
       filter_profanity: { Args: { input_text: string }; Returns: string }
       force_sync_my_challenges: { Args: never; Returns: undefined }
       generate_invite_code: { Args: never; Returns: string }
+      generate_order_number: { Args: never; Returns: string }
       generate_theme_code: { Args: never; Returns: string }
       get_auth_id_for_profile: {
         Args: { _profile_id: string }
