@@ -153,11 +153,11 @@ export function ClipsGrid({ clips }: ClipsGridProps) {
             {/* Close button */}
             <Button
               variant="ghost"
-              size="icon"
-              className="absolute top-4 right-4 z-10 text-white hover:bg-white/20"
+              size="icon-round"
+              className="absolute top-4 right-4 z-10 text-white bg-black/50 hover:bg-black/70 backdrop-blur-sm"
               onClick={handleClose}
             >
-              <X className="h-6 w-6" />
+              <X className="h-6 w-6" strokeWidth={2.5} />
             </Button>
 
             {/* Clip content */}

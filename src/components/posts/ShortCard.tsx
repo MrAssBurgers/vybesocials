@@ -475,17 +475,62 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           )}
         </AnimatePresence>
 
-        {/* Double tap heart */}
+        {/* Double tap heart - fun burst effect */}
         <AnimatePresence>
           {showHeart && (
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: [0, 1.2, 1], opacity: 1 }}
-              exit={{ scale: 1.5, opacity: 0 }}
-              transition={{ duration: 0.5, type: 'spring', stiffness: 300 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ duration: 0.4, type: 'spring', stiffness: 400, damping: 15 }}
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
             >
-              <Heart className="h-32 w-32 text-red-500 fill-red-500 drop-shadow-2xl" />
+              {/* Main heart with pop */}
+              <motion.div
+                animate={{ 
+                  scale: [0, 1.5, 0.85, 1.15, 1],
+                  rotate: [0, -20, 20, -8, 0]
+                }}
+                transition={{ duration: 0.6, type: 'spring', stiffness: 300 }}
+              >
+                <Heart className="h-36 w-36 text-rose-500 fill-rose-500 drop-shadow-2xl" />
+              </motion.div>
+              
+              {/* Particle burst */}
+              {[...Array(14)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute w-4 h-4 rounded-full"
+                  style={{ background: i % 2 === 0 ? '#f43f5e' : '#fb7185' }}
+                  initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+                  animate={{ 
+                    scale: [0, 1.5, 0],
+                    x: Math.cos(i * (360/14) * Math.PI / 180) * 100,
+                    y: Math.sin(i * (360/14) * Math.PI / 180) * 100,
+                    opacity: [1, 1, 0],
+                  }}
+                  transition={{ duration: 0.6, delay: 0.05 }}
+                />
+              ))}
+              
+              {/* Mini hearts burst */}
+              {[...Array(8)].map((_, i) => (
+                <motion.div
+                  key={`heart-${i}`}
+                  className="absolute"
+                  initial={{ scale: 0, x: 0, y: 0, opacity: 1, rotate: 0 }}
+                  animate={{ 
+                    scale: [0, 1.2, 0.6],
+                    x: Math.cos((i * 45 + 22) * Math.PI / 180) * 75,
+                    y: Math.sin((i * 45 + 22) * Math.PI / 180) * 75,
+                    opacity: [1, 1, 0],
+                    rotate: i % 2 === 0 ? 30 : -30,
+                  }}
+                  transition={{ duration: 0.7, delay: 0.1 }}
+                >
+                  <Heart className="h-8 w-8 text-pink-400 fill-pink-400" />
+                </motion.div>
+              ))}
             </motion.div>
           )}
         </AnimatePresence>

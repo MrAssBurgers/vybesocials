@@ -212,9 +212,9 @@ export function VybeViewer({
                 haptics.impact();
                 onClose();
               }}
-              className="p-2.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors backdrop-blur-sm"
+              className="p-3 rounded-full bg-black/50 hover:bg-black/70 transition-colors backdrop-blur-sm flex items-center justify-center"
             >
-              <X className="h-5 w-5 text-white" />
+              <X className="h-6 w-6 text-white" strokeWidth={2.5} />
             </motion.button>
           </div>
 

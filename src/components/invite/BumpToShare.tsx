@@ -504,10 +504,10 @@ export function BumpToShare({ variant = 'button' }: BumpToShareProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-4 right-4 z-10 h-10 w-10 rounded-full bg-muted/80 backdrop-blur-sm hover:bg-muted"
+              className="absolute top-4 right-4 z-10 h-11 w-11 rounded-full bg-muted/90 backdrop-blur-sm hover:bg-muted flex items-center justify-center"
               onClick={handleClose}
             >
-              <X className="h-5 w-5" />
+              <X className="h-6 w-6" strokeWidth={2.5} />
             </Button>
             
             <div className="p-6">
