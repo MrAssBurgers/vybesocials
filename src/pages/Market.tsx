@@ -3,12 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { 
   Search, Filter, Grid, List, Heart, MapPin, 
-  Plus, Tag, ChevronDown, Loader2, ShoppingBag
+  Plus, Tag, ChevronDown, Loader2, ShoppingBag, Store
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { CreateBusinessDialog } from '@/components/business/CreateBusinessDialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -212,7 +213,7 @@ const ListingCard = memo(function ListingCard({
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: 0.2, type: 'spring', stiffness: 400 }}
             >
-              <Badge className="absolute top-2 left-2 bg-emerald-500">New</Badge>
+              <Badge className="absolute top-2 left-2 bg-success text-success-foreground">New</Badge>
             </motion.div>
           )}
           
@@ -275,6 +276,7 @@ export default function MarketPage() {
   const [category, setCategory] = useState<string>('');
   const [condition, setCondition] = useState<string>('');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
+  const [showBusinessDialog, setShowBusinessDialog] = useState(false);
 
   const filters = useMemo(() => ({
     search: search || undefined,
@@ -336,20 +338,41 @@ export default function MarketPage() {
             </motion.p>
           </div>
           
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3, type: 'spring', stiffness: 400 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Link to="/market/new">
-              <Button className="gradient-animated text-white">
-                <Plus className="h-4 w-4 mr-2" />
-                Sell Item
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.25, type: 'spring', stiffness: 400 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Button 
+                variant="outline" 
+                onClick={() => setShowBusinessDialog(true)}
+                className="gap-2"
+              >
+                <Store className="h-4 w-4" />
+                <span className="hidden sm:inline">Start a Business</span>
+                <span className="sm:hidden">Business</span>
               </Button>
-            </Link>
-          </motion.div>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3, type: 'spring', stiffness: 400 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Link to="/market/new">
+                <Button className="gradient-animated text-primary-foreground">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Sell Item
+                </Button>
+              </Link>
+            </motion.div>
+          </div>
         </motion.div>
 
         {/* Search & Filters */}
@@ -537,6 +560,12 @@ export default function MarketPage() {
             />
           </motion.div>
         )}
+        
+        {/* Business Creation Dialog */}
+        <CreateBusinessDialog 
+          open={showBusinessDialog} 
+          onOpenChange={setShowBusinessDialog} 
+        />
       </motion.div>
     </AppLayout>
   );
