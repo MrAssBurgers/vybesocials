@@ -30,6 +30,7 @@ interface FoundUser {
 }
 
 // Expandable QR component with tap-to-toggle and profile picture
+// ExpandableQR - Simple component without layout animations to prevent glitches
 const ExpandableQR = memo(function ExpandableQR({
   qrCodeUrl,
   isExpanded,
@@ -47,11 +48,9 @@ const ExpandableQR = memo(function ExpandableQR({
   const avatarSize = isExpanded ? 48 : 24;
   
   return (
-    <motion.button
+    <motion.div
       className="relative cursor-pointer overflow-hidden"
       onClick={onToggle}
-      layout
-      initial={false}
       animate={{
         width: size,
         height: size,
@@ -59,9 +58,8 @@ const ExpandableQR = memo(function ExpandableQR({
       }}
       transition={{
         type: "spring",
-        stiffness: 400,
-        damping: 30,
-        duration: 0.25,
+        stiffness: 300,
+        damping: 25,
       }}
       style={{
         borderRadius: 16,
@@ -73,23 +71,16 @@ const ExpandableQR = memo(function ExpandableQR({
         src={qrCodeUrl}
         alt="QR Code"
         className="w-full h-full rounded-lg"
-        layout
-        transition={{
-          type: "spring",
-          stiffness: 400,
-          damping: 30,
-        }}
+        initial={false}
+        animate={{ opacity: 1 }}
       />
       
       {/* Profile picture overlay in center */}
-      <motion.div 
-        className="absolute inset-0 flex items-center justify-center pointer-events-none"
-        layout
-      >
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <motion.div
           className="relative rounded-full overflow-hidden border-2 border-white shadow-lg"
           animate={{ width: avatarSize, height: avatarSize }}
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          transition={{ type: "spring", stiffness: 300, damping: 25 }}
           style={{ background: 'white' }}
         >
           {avatarUrl ? (
@@ -104,40 +95,28 @@ const ExpandableQR = memo(function ExpandableQR({
             </div>
           )}
         </motion.div>
-      </motion.div>
+      </div>
       
       {/* Expand/shrink indicator */}
-      <AnimatePresence mode="wait">
-        {!isExpanded && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-2xl opacity-0 hover:opacity-100 transition-opacity duration-200"
-          >
-            <ZoomIn className="h-5 w-5 text-white" />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {!isExpanded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-2xl opacity-0 hover:opacity-100 transition-opacity duration-200">
+          <ZoomIn className="h-5 w-5 text-white" />
+        </div>
+      )}
       
       {/* Shrink hint when expanded */}
-      <AnimatePresence mode="wait">
-        {isExpanded && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.2, delay: 0.1 }}
-            className="absolute bottom-2 left-0 right-0 text-center"
-          >
-            <span className="text-xs text-black/60 bg-white/80 px-2 py-1 rounded-full">
-              Tap to shrink
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.button>
+      {isExpanded && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute bottom-2 left-0 right-0 text-center"
+        >
+          <span className="text-xs text-black/60 bg-white/80 px-2 py-1 rounded-full">
+            Tap to shrink
+          </span>
+        </motion.div>
+      )}
+    </motion.div>
   );
 });
 
