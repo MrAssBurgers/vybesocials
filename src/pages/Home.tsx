@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Users } from 'lucide-react';
+import { Loader2, Users, Compass, Sparkles } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts } from '@/hooks/useInfinitePosts';
 import { PostCard } from '@/components/posts/PostCard';
@@ -17,11 +17,24 @@ import { Button } from '@/components/ui/button';
 import { AutoFriendDrop } from '@/components/friends/AutoFriendDrop';
 import { WelcomeHeader } from '@/components/home/WelcomeHeader';
 import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PageTransition } from '@/components/ui/PageTransition';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
 
-// Memoized post list with optimized rendering - shows immediately with cached data
+// Memoized post list with improved empty states
+interface PostListProps {
+  posts: any[];
+  isLoading: boolean;
+  isFetching: boolean;
+  isFetchingNext: boolean;
+  loadMoreRef: (node: HTMLDivElement | null) => void;
+  emptyIcon: string;
+  emptyText: string;
+  onExplore?: () => void;
+}
+
 const PostList = memo(({ 
   posts, 
   isLoading,
@@ -29,16 +42,9 @@ const PostList = memo(({
   isFetchingNext, 
   loadMoreRef,
   emptyIcon,
-  emptyText
-}: { 
-  posts: any[]; 
-  isLoading: boolean;
-  isFetching: boolean;
-  isFetchingNext: boolean;
-  loadMoreRef: (node: HTMLDivElement | null) => void;
-  emptyIcon: string;
-  emptyText: string;
-}) => {
+  emptyText,
+  onExplore,
+}: PostListProps) => {
   // Show skeletons only on initial load with NO cached data
   if (isLoading && posts.length === 0) {
     return <PostSkeletonList count={2} />;
@@ -46,10 +52,13 @@ const PostList = memo(({
 
   if (!isLoading && posts.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-4xl mb-4">{emptyIcon}</p>
-        <p className="text-muted-foreground">{emptyText}</p>
-      </div>
+      <EmptyState
+        emoji={emptyIcon}
+        title="Nothing here yet"
+        description={emptyText}
+        actionLabel={onExplore ? "Explore" : undefined}
+        onAction={onExplore}
+      />
     );
   }
 
@@ -268,38 +277,45 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         {/* Stories Bar */}
         <StoriesBar />
         
-        <div className="px-4 pb-6">
+        <div className="px-3 pb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="w-full mb-6 bg-secondary">
-              <TabsTrigger value="foryou" className="flex-1">For You</TabsTrigger>
-              <TabsTrigger value="following" className="flex-1">Following</TabsTrigger>
-              <TabsTrigger value="communities" className="flex-1" onClick={() => navigate('/community')}>
-                <Users className="h-4 w-4 mr-1" />
+            <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
+              <TabsTrigger value="foryou" className="flex-1 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                <Sparkles className="h-4 w-4 mr-1.5" />
+                For You
+              </TabsTrigger>
+              <TabsTrigger value="following" className="flex-1 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                Following
+              </TabsTrigger>
+              <TabsTrigger value="communities" className="flex-1 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" onClick={() => navigate('/community')}>
+                <Users className="h-4 w-4 mr-1.5" />
                 Servers
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="foryou" className="space-y-6" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
+            <TabsContent value="foryou" className="space-y-4" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
               <PostList
                 posts={forYouPosts}
                 isLoading={forYouLoading}
                 isFetching={forYouFetching}
                 isFetchingNext={isFetchingNextForYou}
                 loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
-                emptyIcon="😴"
-                emptyText="No posts yet. Be the first to create one!"
+                emptyIcon="✨"
+                emptyText="No posts yet. Be the first to share something!"
+                onExplore={() => navigate('/explore')}
               />
             </TabsContent>
 
-            <TabsContent value="following" className="space-y-6" forceMount style={{ display: activeTab === 'following' ? 'block' : 'none' }}>
+            <TabsContent value="following" className="space-y-4" forceMount style={{ display: activeTab === 'following' ? 'block' : 'none' }}>
               <PostList
                 posts={followingPosts}
                 isLoading={followingLoading}
                 isFetching={followingFetching}
                 isFetchingNext={isFetchingNextFollowing}
                 loadMoreRef={activeTab === 'following' ? loadMoreRef : () => {}}
-                emptyIcon="👀"
+                emptyIcon="👋"
                 emptyText="Follow creators to see their posts here!"
+                onExplore={() => navigate('/explore')}
               />
             </TabsContent>
           </Tabs>
