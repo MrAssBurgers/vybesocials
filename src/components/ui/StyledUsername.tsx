@@ -45,8 +45,8 @@ interface StyledUsernameProps {
  * Use this component EVERYWHERE a username needs to be displayed to ensure consistent
  * badge-based styling across the entire app.
  * 
- * IMPORTANT: Uses inline styles with explicit background-clip to prevent
- * any background color leakage (yellow rectangles, etc.)
+ * On desktop: Uses CSS gradient for premium visual effect
+ * On mobile/tablet: Falls back to solid color + drop-shadow (matches WelcomeHeader)
  */
 export const StyledUsername = memo(function StyledUsername({
   userId,
@@ -57,6 +57,9 @@ export const StyledUsername = memo(function StyledUsername({
   preferDisplayName = true,
   badgeStyle: preloadedStyle,
 }: StyledUsernameProps) {
+  // Generate unique ID early (before conditions)
+  const elementId = useMemo(() => `styled-username-${Math.random().toString(36).slice(2, 9)}`, []);
+
   // Fetch badge style if not pre-loaded
   const { data: fetchedStyle } = useDisplayStyle(preloadedStyle !== undefined ? undefined : userId);
   
@@ -97,6 +100,7 @@ export const StyledUsername = memo(function StyledUsername({
   if (!gradient || !canUseGradientText) {
     return <span className={className}>{nameToShow}</span>;
   }
+
   // Base style for gradient text - MUST have all these properties to prevent background leakage
   const gradientStyle: React.CSSProperties = {
     backgroundImage: gradient,
@@ -118,13 +122,32 @@ export const StyledUsername = memo(function StyledUsername({
     gradientStyle.textShadow = '0 1px 1px rgba(255,255,255,0.2)';
   }
 
+  // Extract start color for mobile fallback
+  const startColor = normalizeCssColor(badge!.gradient_from!);
+
   return (
-    <span
-      style={gradientStyle}
-      className={cn(className)}
-    >
-      {nameToShow}
-    </span>
+    <>
+      <style>{`
+        @media (max-width: 1024px) {
+          #${elementId} {
+            color: ${startColor} !important;
+            -webkit-text-fill-color: ${startColor} !important;
+            background-clip: unset !important;
+            -webkit-background-clip: unset !important;
+            background-image: none !important;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+            opacity: 1 !important;
+          }
+        }
+      `}</style>
+      <span
+        id={elementId}
+        style={gradientStyle}
+        className={cn(className)}
+      >
+        {nameToShow}
+      </span>
+    </>
   );
 });
 
