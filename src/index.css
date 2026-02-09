@@ -325,6 +325,33 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       mix-blend-mode: normal !important;
     }
 
+    /* EXCEPTION: Switch / Toggle components — preserve native radix styling */
+    [role="switch"],
+    [role="switch"] *,
+    [data-state="checked"],
+    [data-state="unchecked"],
+    [role="switch"] span {
+      color: inherit !important;
+      opacity: unset !important;
+      mix-blend-mode: unset !important;
+    }
+    [role="switch"][data-state="checked"] {
+      background-color: hsl(var(--primary)) !important;
+    }
+    [role="switch"][data-state="unchecked"] {
+      background-color: hsl(var(--muted) / 0.6) !important;
+    }
+    [role="switch"] span {
+      background-color: white !important;
+    }
+
+    /* EXCEPTION: Checkbox components */
+    [role="checkbox"],
+    [role="checkbox"] * {
+      color: inherit !important;
+      opacity: unset !important;
+    }
+
     /* 2) EXCEPTION: Elements inside colored containers must inherit parent color */
     [class*="text-primary-foreground"] *,
     [class*="text-white"] *,
