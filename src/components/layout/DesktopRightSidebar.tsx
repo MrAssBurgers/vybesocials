@@ -357,8 +357,8 @@ export function DesktopRightSidebar() {
               </div>
             ) : (
               <div className="p-3 rounded-xl liquid-glass-subtle text-center">
-                <ShoppingBag className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
-                <p className="text-xs text-muted-foreground">No listings yet</p>
+                <ShoppingBag className="h-4 w-4 mx-auto text-foreground/60 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] mb-1" />
+                <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">No listings yet</p>
               </div>
             )}
           </div>

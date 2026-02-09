@@ -66,13 +66,13 @@ export function EmptyState({
       ) : null}
 
       {/* Title */}
-      <h3 className="text-lg font-semibold text-foreground mb-2">
+      <h3 className="text-lg font-semibold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] mb-2">
         {title}
       </h3>
 
       {/* Description */}
       {description && (
-        <p className="text-sm text-muted-foreground max-w-xs mb-6">
+        <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] max-w-xs mb-6">
           {description}
         </p>
       )}

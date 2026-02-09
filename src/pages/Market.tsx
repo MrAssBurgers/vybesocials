@@ -324,7 +324,7 @@ export default function MarketPage() {
                 animate={{ rotate: [0, -10, 10, 0] }}
                 transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
               >
-                <ShoppingBag className="h-6 w-6 text-primary" />
+                <ShoppingBag className="h-6 w-6 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
               </motion.div>
               <span className="text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">VYBE Market</span>
             </motion.h1>

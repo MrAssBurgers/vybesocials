@@ -244,14 +244,14 @@ export default function AdminDashboard() {
       <div className="container max-w-6xl mx-auto px-3 sm:px-4 pb-24 space-y-4 sm:space-y-6 overflow-x-hidden">
         {/* Header - mobile responsive */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" />
+          <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold truncate text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">Admin Panel</h1>
             <p className="text-foreground/80 text-xs sm:text-sm truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Manage users, reports, and content</p>
           </div>
           {isAdmin && (
-            <Badge className="bg-gradient-to-r from-yellow-500 to-amber-500 text-black text-xs flex-shrink-0">
-              <Crown className="h-3 w-3 mr-1" /> Admin
+            <Badge className="bg-gradient-to-r from-yellow-500 to-amber-500 text-black text-xs flex-shrink-0 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
+              <Crown className="h-3 w-3 mr-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" /> Admin
             </Badge>
           )}
         </div>
@@ -261,46 +261,46 @@ export default function AdminDashboard() {
           <Card className="liquid-glass">
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
-                <Flag className="h-5 w-5 text-orange-500" />
-                <span className="text-2xl font-bold">{pendingReports.length}</span>
+                <Flag className="h-5 w-5 text-orange-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+                <span className="text-2xl font-bold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{pendingReports.length}</span>
               </div>
-              <p className="text-sm text-muted-foreground">Pending Reports</p>
+              <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Pending Reports</p>
             </CardContent>
           </Card>
           <Card className="liquid-glass">
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                <span className="text-2xl font-bold">{pendingFlags.length}</span>
+                <AlertTriangle className="h-5 w-5 text-yellow-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+                <span className="text-2xl font-bold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{pendingFlags.length}</span>
               </div>
-              <p className="text-sm text-muted-foreground">Content Flags</p>
+              <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Content Flags</p>
             </CardContent>
           </Card>
           <Card className="liquid-glass">
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
-                <MessageSquareWarning className="h-5 w-5 text-purple-500" />
-                <span className="text-2xl font-bold">{pendingAppeals.length}</span>
+                <MessageSquareWarning className="h-5 w-5 text-purple-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+                <span className="text-2xl font-bold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{pendingAppeals.length}</span>
               </div>
-              <p className="text-sm text-muted-foreground">Pending Appeals</p>
+              <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Pending Appeals</p>
             </CardContent>
           </Card>
           <Card className="liquid-glass">
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-500" />
-                <span className="text-2xl font-bold">{warnings.length}</span>
+                <Users className="h-5 w-5 text-blue-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+                <span className="text-2xl font-bold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{warnings.length}</span>
               </div>
-              <p className="text-sm text-muted-foreground">Warnings</p>
+              <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Warnings</p>
             </CardContent>
           </Card>
           <Card className="liquid-glass">
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
-                <Ban className="h-5 w-5 text-red-500" />
-                <span className="text-2xl font-bold">{bans.length}</span>
+                <Ban className="h-5 w-5 text-red-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+                <span className="text-2xl font-bold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{bans.length}</span>
               </div>
-              <p className="text-sm text-muted-foreground">Active Bans</p>
+              <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Active Bans</p>
             </CardContent>
           </Card>
         </div>

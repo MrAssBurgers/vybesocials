@@ -283,8 +283,8 @@ export default function Community() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-              <Users className="h-6 w-6 text-primary-foreground" />
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
+              <Users className="h-6 w-6 text-primary-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">Communities</h1>
