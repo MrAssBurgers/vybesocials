@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { 
   Search, Filter, Grid, List, Heart, MapPin, 
-  Plus, Tag, ChevronDown, Loader2, ShoppingBag, Store
+  Plus, Tag, ChevronDown, Loader2, ShoppingBag, Store, Briefcase
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useListings, LISTING_CATEGORIES, LISTING_CONDITIONS, useToggleFavorite, useListingFavorites } from '@/hooks/useMarketplace';
 import { useRealtimeListings } from '@/hooks/useRealtimeListings';
+import { useMyBusiness } from '@/hooks/useBusiness';
 import { useAuth } from '@/lib/auth';
 import { triggerHaptic } from '@/lib/haptics';
 
@@ -272,6 +273,7 @@ const ListingCard = memo(function ListingCard({
 
 export default function MarketPage() {
   const { profile } = useAuth();
+  const { data: myBusiness } = useMyBusiness();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('');
@@ -341,6 +343,7 @@ export default function MarketPage() {
           
           {/* Action buttons */}
           <div className="flex gap-2">
+            {/* Show "Your Business" if user has a business, otherwise "Start a Business" */}
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -348,15 +351,28 @@ export default function MarketPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <Button 
-                variant="outline" 
-                onClick={() => setShowBusinessDialog(true)}
-                className="gap-2"
-              >
-                <Store className="h-4 w-4 text-primary drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
-                <span className="hidden sm:inline">Start a Business</span>
-                <span className="sm:hidden">Business</span>
-              </Button>
+              {myBusiness ? (
+                <Link to="/business-portal">
+                  <Button 
+                    variant="outline" 
+                    className="gap-2"
+                  >
+                    <Briefcase className="h-4 w-4 text-primary drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
+                    <span className="hidden sm:inline">Your Business</span>
+                    <span className="sm:hidden">Business</span>
+                  </Button>
+                </Link>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowBusinessDialog(true)}
+                  className="gap-2"
+                >
+                  <Store className="h-4 w-4 text-primary drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
+                  <span className="hidden sm:inline">Start a Business</span>
+                  <span className="sm:hidden">Business</span>
+                </Button>
+              )}
             </motion.div>
             
             <motion.div

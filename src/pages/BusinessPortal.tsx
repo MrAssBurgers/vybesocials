@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { 
   Store, Package, ShoppingCart, TrendingUp, Settings, Plus,
   DollarSign, Users, Star, Eye, BarChart3, ArrowUpRight,
-  Loader2, AlertCircle, CheckCircle2, CreditCard
+  Loader2, AlertCircle, CheckCircle2, CreditCard, Wallet
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { CreateBusinessDialog } from '@/components/business/CreateBusinessDialog
 import { ProductsManager } from '@/components/business/ProductsManager';
 import { OrdersTable } from '@/components/business/OrdersTable';
 import { BusinessSettings } from '@/components/business/BusinessSettings';
+import { PaymentsSetup } from '@/components/business/PaymentsSetup';
 
 export default function BusinessPortal() {
   const { profile } = useAuth();
@@ -185,11 +186,11 @@ export default function BusinessPortal() {
                   View Page
                 </Button>
               </Link>
-              {!business.stripe_onboarding_complete && (
-                <Button className="gap-2 gradient-animated">
-                  <CreditCard className="h-4 w-4" />
-                  Setup Payments
-                </Button>
+              {business.stripe_onboarding_complete && (
+                <Badge variant="outline" className="bg-success/10 text-success border-success/30 h-9 px-3 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Payments Active
+                </Badge>
               )}
             </div>
           </div>
@@ -200,8 +201,8 @@ export default function BusinessPortal() {
           <Card className="liquid-glass-card">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
-                <DollarSign className="h-5 w-5 text-green-500" />
-                <ArrowUpRight className="h-4 w-4 text-green-500" />
+                <DollarSign className="h-5 w-5 text-success" />
+                <ArrowUpRight className="h-4 w-4 text-success" />
               </div>
               <p className="text-2xl font-bold">${totalRevenue.toLocaleString()}</p>
               <p className="text-sm text-muted-foreground">Total Revenue</p>
@@ -211,7 +212,7 @@ export default function BusinessPortal() {
           <Card className="liquid-glass-card">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
-                <ShoppingCart className="h-5 w-5 text-blue-500" />
+                <ShoppingCart className="h-5 w-5 text-primary" />
                 {pendingOrders > 0 && (
                   <Badge variant="destructive" className="text-xs">
                     {pendingOrders} pending
@@ -226,7 +227,7 @@ export default function BusinessPortal() {
           <Card className="liquid-glass-card">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
-                <Package className="h-5 w-5 text-purple-500" />
+                <Package className="h-5 w-5 text-accent" />
               </div>
               <p className="text-2xl font-bold">{activeProducts}</p>
               <p className="text-sm text-muted-foreground">Active Products</p>
@@ -236,7 +237,7 @@ export default function BusinessPortal() {
           <Card className="liquid-glass-card">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
-                <Users className="h-5 w-5 text-orange-500" />
+                <Users className="h-5 w-5 text-warning" />
               </div>
               <p className="text-2xl font-bold">{business.total_sales}</p>
               <p className="text-sm text-muted-foreground">Customers</p>
@@ -251,20 +252,16 @@ export default function BusinessPortal() {
             animate={{ opacity: 1 }}
             className="mb-6"
           >
-            <Card className="border-yellow-500/50 bg-yellow-500/10">
+            <Card className="border-warning/50 bg-warning/10">
               <CardContent className="py-4">
                 <div className="flex items-center gap-4">
-                  <AlertCircle className="h-6 w-6 text-yellow-500" />
+                  <AlertCircle className="h-6 w-6 text-warning" />
                   <div className="flex-1">
                     <p className="font-medium">Complete payment setup to start selling</p>
                     <p className="text-sm text-muted-foreground">
-                      Connect your Stripe account to accept payments and receive payouts
+                      Go to the Payments tab to connect your Stripe account
                     </p>
                   </div>
-                  <Button className="gap-2">
-                    <CreditCard className="h-4 w-4" />
-                    Connect Stripe
-                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -272,7 +269,7 @@ export default function BusinessPortal() {
         )}
 
         {/* Main Tabs */}
-        <Tabs defaultValue="products" className="space-y-6">
+        <Tabs defaultValue={!business.stripe_onboarding_complete ? "payments" : "products"} className="space-y-6">
           <TabsList className="liquid-glass w-full justify-start overflow-x-auto">
             <TabsTrigger value="products" className="gap-2">
               <Package className="h-4 w-4" />
@@ -284,6 +281,15 @@ export default function BusinessPortal() {
               {pendingOrders > 0 && (
                 <Badge variant="destructive" className="ml-1 text-xs">
                   {pendingOrders}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="gap-2">
+              <Wallet className="h-4 w-4" />
+              Payments
+              {!business.stripe_onboarding_complete && (
+                <Badge variant="secondary" className="ml-1 text-xs bg-warning/20 text-warning">
+                  Setup
                 </Badge>
               )}
             </TabsTrigger>
@@ -303,6 +309,14 @@ export default function BusinessPortal() {
 
           <TabsContent value="orders">
             <OrdersTable />
+          </TabsContent>
+
+          <TabsContent value="payments">
+            <PaymentsSetup 
+              businessId={business.id}
+              stripeAccountId={business.stripe_account_id}
+              stripeOnboardingComplete={business.stripe_onboarding_complete}
+            />
           </TabsContent>
 
           <TabsContent value="analytics">
