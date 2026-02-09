@@ -1,6 +1,7 @@
-import { useState, createContext, useContext, useCallback, ReactNode } from 'react';
+import { useState, createContext, useContext, useCallback, ReactNode, useEffect } from 'react';
 import { useRealtimeChallengeRewards, ChallengeReward, useRealtimeLevelUpdates, useRealtimeChallengeProgress } from '@/hooks/useVybePass';
 import { RewardClaimModal } from './RewardClaimModal';
+import { useAuth } from '@/lib/auth';
 
 interface RewardNotificationContextType {
   pendingReward: ChallengeReward | null;
@@ -25,14 +26,37 @@ interface RewardNotificationProviderProps {
 export function RewardNotificationProvider({ children }: RewardNotificationProviderProps) {
   const [pendingReward, setPendingReward] = useState<ChallengeReward | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
+  const { profile } = useAuth();
+
+  // Check if onboarding is complete - delay popups until it is
+  useEffect(() => {
+    if (profile?.onboarding_completed) {
+      // Add a small delay after onboarding completes to avoid bombarding user
+      const timer = setTimeout(() => {
+        setIsOnboardingComplete(true);
+      }, 3000); // 3 second delay after onboarding
+      return () => clearTimeout(timer);
+    } else {
+      setIsOnboardingComplete(false);
+    }
+  }, [profile?.onboarding_completed]);
 
   const showRewardModal = useCallback((reward: ChallengeReward) => {
+    // Don't show rewards during onboarding
+    if (!isOnboardingComplete) {
+      if (import.meta.env.DEV) {
+        console.log('[RewardNotification] Skipping reward modal - onboarding not complete');
+      }
+      return;
+    }
+    
     if (import.meta.env.DEV) {
       console.log('[RewardNotification] Showing reward modal:', reward);
     }
     setPendingReward(reward);
     setModalOpen(true);
-  }, []);
+  }, [isOnboardingComplete]);
 
   const dismissRewardModal = useCallback(() => {
     setModalOpen(false);

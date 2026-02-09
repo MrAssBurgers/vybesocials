@@ -8,6 +8,7 @@ interface VybeGenerationAnimationProps {
   isGenerating: boolean;
   buildPhase: number;
   phases: Array<{ label: string; icon: React.ElementType; duration: number }>;
+  onBuildComplete?: () => void;
 }
 
 // Static noise canvas for the generation effect
@@ -36,7 +37,6 @@ function StaticNoiseCanvas({ progress, isActive }: { progress: number; isActive:
       
       // Generate noise with decreasing intensity as progress increases
       const noiseIntensity = Math.max(0, 1 - (progress / 100) * 1.2);
-      const colorBleed = progress / 100;
       
       for (let i = 0; i < data.length; i += 4) {
         const noise = Math.random();
@@ -105,17 +105,107 @@ function StaticNoiseCanvas({ progress, isActive }: { progress: number; isActive:
   );
 }
 
+// UI Elements that appear as the VYBE builds
+function BuildingUIElements({ progress }: { progress: number }) {
+  // Elements appear at different progress thresholds
+  const elements = [
+    { threshold: 20, label: 'Header', position: 'top-0 left-1/2 -translate-x-1/2 w-3/4 h-2' },
+    { threshold: 35, label: 'Nav', position: 'bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-2' },
+    { threshold: 50, label: 'Card', position: 'top-1/4 left-1/4 w-1/2 h-1/4' },
+    { threshold: 65, label: 'Feed', position: 'top-1/2 left-1/4 w-1/2 h-1/3' },
+    { threshold: 80, label: 'Button', position: 'bottom-1/4 right-1/4 w-1/4 h-2' },
+  ];
+
+  return (
+    <div className="absolute inset-0 pointer-events-none">
+      {elements.map((el, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ 
+            opacity: progress >= el.threshold ? 1 : 0,
+            scale: progress >= el.threshold ? 1 : 0.5,
+          }}
+          transition={{ 
+            duration: 0.4, 
+            delay: 0.1,
+            type: 'spring',
+            stiffness: 200,
+            damping: 20,
+          }}
+          className={cn(
+            "absolute rounded bg-primary/30 backdrop-blur-sm border border-primary/20",
+            el.position
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Particle burst effect at completion
+function CompletionBurst({ show }: { show: boolean }) {
+  const particles = Array.from({ length: 20 }, (_, i) => ({
+    id: i,
+    angle: (i / 20) * 360,
+    delay: Math.random() * 0.2,
+    size: 4 + Math.random() * 8,
+    distance: 80 + Math.random() * 60,
+  }));
+
+  if (!show) return null;
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-visible">
+      {particles.map((p) => (
+        <motion.div
+          key={p.id}
+          initial={{ 
+            opacity: 1, 
+            scale: 0,
+            x: '50%',
+            y: '50%',
+          }}
+          animate={{ 
+            opacity: [1, 1, 0],
+            scale: [0, 1, 0.5],
+            x: `calc(50% + ${Math.cos(p.angle * Math.PI / 180) * p.distance}px)`,
+            y: `calc(50% + ${Math.sin(p.angle * Math.PI / 180) * p.distance}px)`,
+          }}
+          transition={{ 
+            duration: 0.8, 
+            delay: p.delay,
+            ease: 'easeOut',
+          }}
+          className="absolute rounded-full bg-primary"
+          style={{ 
+            width: p.size, 
+            height: p.size,
+            left: -p.size / 2,
+            top: -p.size / 2,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
   isGenerating,
   buildPhase,
   phases,
+  onBuildComplete,
 }: VybeGenerationAnimationProps) {
   const [progress, setProgress] = useState(0);
+  const [showBurst, setShowBurst] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
   
   // Calculate progress based on build phase
   useEffect(() => {
     if (!isGenerating) {
       setProgress(0);
+      setShowBurst(false);
+      setIsComplete(false);
       return;
     }
     
@@ -125,13 +215,21 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
     const interval = setInterval(() => {
       setProgress(prev => {
         const diff = targetProgress - prev;
-        if (Math.abs(diff) < 1) return targetProgress;
+        if (Math.abs(diff) < 1) {
+          // Check if complete
+          if (targetProgress >= 100 && !isComplete) {
+            setIsComplete(true);
+            setShowBurst(true);
+            onBuildComplete?.();
+          }
+          return targetProgress;
+        }
         return prev + diff * 0.1;
       });
     }, 50);
     
     return () => clearInterval(interval);
-  }, [isGenerating, buildPhase, phases.length]);
+  }, [isGenerating, buildPhase, phases.length, isComplete, onBuildComplete]);
   
   return (
     <motion.div
@@ -141,7 +239,7 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
       exit={{ opacity: 0, scale: 1.1 }}
       className="relative z-10 h-full flex flex-col items-center justify-center p-6"
     >
-      {/* Central orb with static effect */}
+      {/* Central orb with static effect and building UI */}
       <div className="relative mb-12">
         {/* Outer glow ring */}
         <motion.div
@@ -160,7 +258,7 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
         {/* Main orb container */}
         <motion.div
           animate={{ 
-            rotate: [0, 360],
+            rotate: isComplete ? 0 : [0, 360],
           }}
           transition={{ 
             rotate: { duration: 20, repeat: Infinity, ease: "linear" },
@@ -170,7 +268,10 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
           {/* Inner content */}
           <div className="w-full h-full rounded-full bg-background flex items-center justify-center relative overflow-hidden">
             {/* Static noise overlay */}
-            <StaticNoiseCanvas progress={progress} isActive={isGenerating} />
+            <StaticNoiseCanvas progress={progress} isActive={isGenerating && !isComplete} />
+            
+            {/* Building UI elements that appear as static clears */}
+            <BuildingUIElements progress={progress} />
             
             {/* VYBE icon that reveals as static clears */}
             <motion.div
@@ -181,13 +282,16 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
               }}
               className="relative z-10"
             >
-              <VybeMiniIcon size={60} showSparkles />
+              <VybeMiniIcon size={60} showSparkles={isComplete} />
             </motion.div>
+            
+            {/* Completion burst */}
+            <CompletionBurst show={showBurst} />
           </div>
         </motion.div>
         
         {/* Orbiting particles */}
-        {[...Array(6)].map((_, i) => (
+        {!isComplete && [...Array(6)].map((_, i) => (
           <motion.div
             key={i}
             animate={{ rotate: 360 }}
@@ -223,30 +327,30 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
         {phases.map((phase, index) => {
           const Icon = phase.icon;
           const isActive = buildPhase === index;
-          const isComplete = buildPhase > index;
+          const isCompletePhase = buildPhase > index;
           
           return (
             <motion.div
               key={phase.label}
               initial={{ opacity: 0, x: -20 }}
               animate={{ 
-                opacity: isActive || isComplete ? 1 : 0.3,
+                opacity: isActive || isCompletePhase ? 1 : 0.3,
                 x: 0,
               }}
               transition={{ delay: index * 0.05 }}
               className={cn(
                 "flex items-center gap-3 p-3 rounded-xl transition-all duration-300",
                 isActive && "bg-primary/10 border border-primary/30 scale-[1.02]",
-                isComplete && "text-primary"
+                isCompletePhase && "text-primary"
               )}
             >
               <div className={cn(
                 "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300",
                 isActive && "bg-primary text-primary-foreground shadow-lg shadow-primary/30",
-                isComplete && "bg-primary/20 text-primary",
-                !isActive && !isComplete && "bg-muted text-muted-foreground"
+                isCompletePhase && "bg-primary/20 text-primary",
+                !isActive && !isCompletePhase && "bg-muted text-muted-foreground"
               )}>
-                {isComplete ? (
+                {isCompletePhase ? (
                   <Check className="h-4 w-4" />
                 ) : (
                   <Icon className={cn("h-4 w-4", isActive && "animate-pulse")} />
@@ -255,8 +359,8 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
               <span className={cn(
                 "text-sm font-medium",
                 isActive && "text-foreground font-semibold",
-                isComplete && "text-foreground/80",
-                !isActive && !isComplete && "text-foreground/40"
+                isCompletePhase && "text-foreground/80",
+                !isActive && !isCompletePhase && "text-foreground/40"
               )}>
                 {phase.label}
               </span>
@@ -281,9 +385,22 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
         transition={{ delay: 0.5 }}
         className="mt-6 text-center"
       >
-        <span className="text-2xl font-bold text-primary tabular-nums">
+        <motion.span 
+          className="text-2xl font-bold text-primary tabular-nums"
+          animate={isComplete ? { scale: [1, 1.2, 1] } : {}}
+          transition={{ duration: 0.4 }}
+        >
           {Math.round(progress)}%
-        </span>
+        </motion.span>
+        {isComplete && (
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-sm text-muted-foreground mt-2"
+          >
+            Your VYBE is ready! ✨
+          </motion.p>
+        )}
       </motion.div>
     </motion.div>
   );
