@@ -324,15 +324,22 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       opacity: 1 !important;
       mix-blend-mode: normal !important;
     }
-    /* SVGs: force visible with VYBE primary color + drop-shadow */
-    svg:not([data-themed-svg]), [class*="lucide"] {
+    /* SVGs: VYBE-colored with high-contrast outline for visibility on any background */
+    svg:not([data-themed-svg]):not(.create-button-gradient *), 
+    [class*="lucide"]:not(.create-button-gradient *) {
       color: hsl(var(--primary)) !important;
       stroke: hsl(var(--primary)) !important;
       opacity: 1 !important;
       mix-blend-mode: normal !important;
-      filter: drop-shadow(0 0 6px hsl(var(--accent) / 0.4)) drop-shadow(0 1px 2px rgba(0,0,0,0.3)) !important;
+      filter: 
+        drop-shadow(0 0 1px hsl(var(--background)))
+        drop-shadow(0 0 2px hsl(var(--background)))
+        drop-shadow(0 0 4px hsl(var(--accent) / 0.5)) !important;
+      -webkit-text-stroke: 0.5px hsl(var(--background) / 0.4);
+      paint-order: stroke fill;
     }
-    svg:not([data-themed-svg]) *, [class*="lucide"] * {
+    svg:not([data-themed-svg]):not(.create-button-gradient *) *, 
+    [class*="lucide"]:not(.create-button-gradient *) * {
       stroke: inherit !important;
       opacity: 1 !important;
       mix-blend-mode: normal !important;
