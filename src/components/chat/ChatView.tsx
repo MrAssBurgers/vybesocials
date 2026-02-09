@@ -77,7 +77,8 @@ import {
   Settings,
   FileText,
   Camera,
-  Play
+  Play,
+  Copy
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
@@ -2110,30 +2111,10 @@ const MessageBubble = memo(function MessageBubble({
 
         {/* Message bubble - Instagram-quality padding and radius (not for shared posts) */}
         {!isSharedPost && (
-        <div
-          className={cn(
-            'relative rounded-[20px] break-words overflow-hidden select-none group/bubble max-w-full min-w-0',
-            // Padding: 14-16px horizontal, 10-12px vertical
-            isEmojiOnly 
-              ? 'px-3 py-2' // Reduced padding for emoji
-              : isMediaMessage
-                ? 'p-1.5 sm:p-2' // Media bubbles: minimal padding
-                : 'px-[14px] py-[10px] sm:px-4 sm:py-3', // Text: 14-16px H, 10-12px V
-            isOwn 
-              ? `${themeColor.bubble} ${themeColor.text} rounded-br-lg` 
-              : 'bg-muted/70 text-foreground rounded-bl-lg',
-            message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
-            message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
-            repliedMessage && 'rounded-t-[14px]'
-          )}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchEnd}
-          onDoubleClick={onToggleReactions}
-        >
-          {/* Quick action button - appears on hover/touch */}
+        <div className="relative group/bubble">
+          {/* Quick action button - OUTSIDE overflow-hidden so it's not clipped */}
           <div className={cn(
-            "absolute top-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity z-10",
+            "absolute top-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity z-20",
             isOwn ? "-left-8" : "-right-8"
           )}>
             <DropdownMenu>
@@ -2167,7 +2148,26 @@ const MessageBubble = memo(function MessageBubble({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          {/* Shared Post is rendered outside the bubble wrapper now */}
+        <div
+          className={cn(
+            'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0',
+            isEmojiOnly 
+              ? 'px-3 py-2'
+              : isMediaMessage
+                ? 'p-1.5 sm:p-2'
+                : 'px-[14px] py-[10px] sm:px-4 sm:py-3',
+            isOwn 
+              ? `${themeColor.bubble} ${themeColor.text} rounded-br-lg` 
+              : 'bg-muted/70 text-foreground rounded-bl-lg',
+            message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
+            message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
+            repliedMessage && 'rounded-t-[14px]'
+          )}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
+          onDoubleClick={onToggleReactions}
+        >
 
           {/* Image/GIF message (not for shared posts - they use SharedPostBubble) */}
           {isMediaMessage && !isSharedPost && (
@@ -2376,6 +2376,7 @@ const MessageBubble = memo(function MessageBubble({
             </div>
           )}
         </div>
+        </div>
         )}
 
         {/* Reactions bar - floats below message */}
@@ -2458,55 +2459,61 @@ const MessageBubble = memo(function MessageBubble({
           )}
         </AnimatePresence>
 
-        {/* Context menu for long-press */}
+        {/* Context menu backdrop + menu for long-press (mobile) */}
         {showContextMenu && (
-          <div 
-            className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-background border border-border rounded-xl shadow-xl z-30 min-w-[140px] py-1 animate-in fade-in slide-in-from-top-2 duration-150"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => { onToggleReactions(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+          <>
+            <div 
+              className="fixed inset-0 bg-black/40 z-[99]"
+              onClick={() => { setShowContextMenu(false); menuOpenedRef.current = false; }}
+            />
+            <div 
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-2xl z-[100] min-w-[200px] py-2 animate-in fade-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
             >
-              <span>😀</span> React
-            </button>
-            <button
-              onClick={() => { onReply(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
-            >
-              <Reply className="h-4 w-4" /> Reply
-            </button>
-            {message.content && (
               <button
-                onClick={copyToClipboard}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                onClick={() => { onToggleReactions(); setShowContextMenu(false); menuOpenedRef.current = false; }}
+                className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
               >
-                <Check className="h-4 w-4" /> Copy
+                <span>😀</span> React
               </button>
-            )}
-            {isOwn && message.content && !message.media_url && (
               <button
-                onClick={() => { onEdit?.(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                onClick={() => { onReply(); setShowContextMenu(false); menuOpenedRef.current = false; }}
+                className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
               >
-                <Edit3 className="h-4 w-4" /> Edit
+                <Reply className="h-4 w-4" /> Reply
               </button>
-            )}
-            {isOwn && (
+              {message.content && (
+                <button
+                  onClick={copyToClipboard}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
+                >
+                  <Copy className="h-4 w-4" /> Copy text
+                </button>
+              )}
+              {isOwn && message.content && !message.media_url && (
+                <button
+                  onClick={() => { onEdit?.(); setShowContextMenu(false); menuOpenedRef.current = false; }}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
+                >
+                  <Edit3 className="h-4 w-4" /> Edit
+                </button>
+              )}
+              {isOwn && (
+                <button
+                  onClick={handleUnsend}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted text-destructive flex items-center gap-3"
+                >
+                  <Trash2 className="h-4 w-4" /> Unsend
+                </button>
+              )}
               <button
-                onClick={handleUnsend}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-muted text-destructive flex items-center gap-2"
+                onClick={() => { onDeleteForMe(); setShowContextMenu(false); menuOpenedRef.current = false; }}
+                className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted text-muted-foreground flex items-center gap-3"
               >
-                <Trash2 className="h-4 w-4" /> Unsend
+                <EyeOff className="h-4 w-4" /> Delete for me
               </button>
-            )}
-            <button
-              onClick={() => { onDeleteForMe(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-muted text-muted-foreground flex items-center gap-2"
-            >
-              <X className="h-4 w-4" /> Delete for me
-            </button>
-          </div>
+            </div>
+          </>
         )}
         {/* Edited indicator */}
         {message.is_edited && (

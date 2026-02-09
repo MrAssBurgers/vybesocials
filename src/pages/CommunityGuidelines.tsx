@@ -37,14 +37,14 @@ export default function CommunityGuidelines() {
   const renderContent = (text: string) => {
     return text.split('\n').map((line, i) => {
       if (line.startsWith('# ')) {
-        return <h1 key={i} className="text-2xl font-bold mt-6 mb-4">{line.slice(2)}</h1>;
+        return <h1 key={i} className="text-2xl font-bold mt-6 mb-4 text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{line.slice(2)}</h1>;
       }
       if (line.startsWith('## ')) {
-        return <h2 key={i} className="text-xl font-semibold mt-6 mb-3">{line.slice(3)}</h2>;
+        return <h2 key={i} className="text-xl font-semibold mt-6 mb-3 text-foreground drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)]">{line.slice(3)}</h2>;
       }
       if (line.startsWith('- ')) {
         return (
-          <li key={i} className="ml-4 mb-2 text-muted-foreground">
+          <li key={i} className="ml-4 mb-2 text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
             {line.slice(2)}
           </li>
         );
@@ -52,7 +52,7 @@ export default function CommunityGuidelines() {
       if (line.trim() === '') {
         return <div key={i} className="h-2" />;
       }
-      return <p key={i} className="text-muted-foreground mb-2">{line}</p>;
+      return <p key={i} className="text-foreground/80 mb-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">{line}</p>;
     });
   };
   
@@ -77,8 +77,8 @@ export default function CommunityGuidelines() {
               <Shield className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Community Guidelines</h1>
-              <p className="text-muted-foreground">
+              <h1 className="text-2xl font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">Community Guidelines</h1>
+              <p className="text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
                 Rules to keep VYBE safe and fun for everyone
               </p>
             </div>
