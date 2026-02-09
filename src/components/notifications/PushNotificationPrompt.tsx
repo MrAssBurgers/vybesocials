@@ -120,13 +120,6 @@ export function PushNotificationPrompt() {
           {/* Animated gradient border glow */}
           <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/20 via-transparent to-accent/20 pointer-events-none" />
           
-          {/* Scanline overlay for cyber effect */}
-          <div 
-            className="absolute inset-0 pointer-events-none opacity-[0.03]"
-            style={{
-              backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, hsl(var(--foreground)) 2px, hsl(var(--foreground)) 4px)',
-            }}
-          />
           
           <div className="relative text-center">
             {/* Animated Bell Icon with pulsing glow */}
