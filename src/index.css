@@ -422,14 +422,17 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
 
     /* 9) SVGs and icons: inherit color from parent, NEVER apply filters */
     svg,
-    svg *,
-    [class*="lucide"],
-    [class*="lucide"] * {
+    [class*="lucide"] {
       color: currentColor !important;
-      fill: currentColor;
       opacity: 1 !important;
       filter: none !important;
       text-shadow: none !important;
+    }
+    /* Preserve Lucide's stroke-only rendering — never force fill */
+    svg *,
+    [class*="lucide"] * {
+      opacity: 1 !important;
+      filter: none !important;
     }
 
     /* 10) Avatars and images: no filter artifacts */
