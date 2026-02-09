@@ -603,8 +603,8 @@ export function AutoFriendDrop() {
 
   return (
     <>
-      {/* Subtle indicator that bump detection is active - only show on mobile */}
-      {!isActive && !isDismissed && isMobile && (
+      {/* Subtle indicator that bump detection is active - only show on mobile, hidden by default */}
+      {false && !isActive && !isDismissed && isMobile && (
         <div
           className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in"
           style={{ animationDuration: '300ms' }}
