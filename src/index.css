@@ -205,6 +205,21 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)) !important;
   }
 
+  /* Force button elements to maintain visibility after animations */
+  button[class*="default"],
+  button[class*="variant-default"],
+  select {
+    opacity: 1 !important;
+    --tw-text-opacity: 1 !important;
+  }
+
+  /* Preserve button text color and drop-shadow after animations */
+  button[class*="default"] span,
+  select {
+    opacity: 1 !important;
+    color: inherit !important;
+  }
+
   /* =========================================
      MOBILE/TABLET BRIGHTNESS & READABILITY
      Lighter, brighter UI for mobile devices
