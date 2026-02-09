@@ -181,8 +181,9 @@ const ListingCard = memo(function ListingCard({
           )}
           
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            whileHover={{ opacity: 1, scale: 1 }}
+            initial={false}
+            animate={{ opacity: 1, scale: 1 }}
+            whileHover={{ scale: 1.05 }}
             className="absolute top-2 right-2"
           >
             <Button
@@ -378,7 +379,7 @@ export default function MarketPage() {
         {/* Search & Filters */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search marketplace..."
               value={search}

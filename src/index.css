@@ -160,6 +160,16 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     display: none; /* Hide noise textures on mobile */
   }
 
+  /* Icon opacity enforcement - keeps UI icons from ever rendering translucent */
+  :where(svg.lucide, .lucide) {
+    opacity: 1 !important;
+    --tw-text-opacity: 1 !important;
+  }
+
+  :where(svg.lucide *) {
+    opacity: 1 !important;
+  }
+
   /* =========================================
      MOBILE/TABLET BRIGHTNESS & READABILITY
      Lighter, brighter UI for mobile devices
@@ -307,7 +317,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       background-clip: unset !important;
       -webkit-background-clip: unset !important;
       background-image: none !important;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+      filter: drop-shadow(0 2px 4px hsl(var(--background) / 0.5));
       opacity: 1 !important;
     }
 
@@ -322,7 +332,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     /* Muted text - match WelcomeHeader readability on mobile/tablet */
     /* Use semantic tokens (foreground) instead of fixed gray so it stays readable */
     .text-muted-foreground:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text) {
-      color: hsl(var(--foreground) / 0.82) !important;
+      color: hsl(var(--muted-foreground)) !important;
       opacity: 1 !important;
       text-shadow: 0 1px 2px hsl(var(--background) / 0.25);
     }
