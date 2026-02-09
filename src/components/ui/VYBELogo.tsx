@@ -55,6 +55,7 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
         <svg
           viewBox="0 0 100 100"
           fill="none"
+          data-themed-svg="true"
           className={cn(icon, 'relative z-10 vybe-logo-animated')}
           style={{
             // Only apply subtle shadow on splash screen, none otherwise to prevent artifacts
