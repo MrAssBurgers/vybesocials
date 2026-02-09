@@ -18,6 +18,7 @@ import { useUserRole } from '@/hooks/useModeration';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
 import { VYBELogo } from '@/components/ui/VYBELogo';
+import { useDebugPanel } from '@/contexts/DebugPanelContext';
 import { VYBEHub } from '@/components/hub/VYBEHub';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useMyServers } from '@/hooks/useServers';
@@ -97,6 +98,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   const [isHubOpen, setIsHubOpen] = useState(false);
   const lastTapTime = useRef(0);
+  const debugPanel = useDebugPanel();
 
   // Check if user is admin or moderator
   const showAdminLink = userRole === 'admin' || userRole === 'moderator';
@@ -174,7 +176,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           "flex items-center h-16 px-4",
           collapsed ? "justify-center" : "gap-3"
         )}>
-          <Link to="/home" className="flex items-center gap-2 group">
+          <Link to="/home" className="flex items-center gap-2 group" onClick={() => debugPanel?.handleLogoTap()}>
             <VYBELogo size={collapsed ? "sm" : "md"} showText={!collapsed} />
           </Link>
         </div>

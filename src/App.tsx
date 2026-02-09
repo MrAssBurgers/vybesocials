@@ -11,6 +11,7 @@ import { ThemeProvider } from "@/lib/theme";
 import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
+import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
 import { CallStoreProvider } from "@/lib/callStore";
 import { GlobalCallOverlay } from "@/components/call/GlobalCallOverlay";
 import { SplashScreen } from "@/components/ui/SplashScreen";
@@ -174,18 +175,20 @@ function AppWithPreloader() {
                         <Toaster />
                         <Sonner />
                         <BrowserRouter>
-                          <TutorialProvider>
-                            <ScrollRestoration />
-                            <AnimatedRoutes />
-                            <RootBottomNavMount />
-                            <PushNotificationPrompt />
-                            <GlobalMessageNotifications />
-                            <TabNotificationBadge />
-                            <GlobalCallOverlay />
-                            <WarningPopup />
-                            <InvitePopup />
-                            <BanCheck />
-                          </TutorialProvider>
+                          <DebugPanelProvider>
+                            <TutorialProvider>
+                              <ScrollRestoration />
+                              <AnimatedRoutes />
+                              <RootBottomNavMount />
+                              <PushNotificationPrompt />
+                              <GlobalMessageNotifications />
+                              <TabNotificationBadge />
+                              <GlobalCallOverlay />
+                              <WarningPopup />
+                              <InvitePopup />
+                              <BanCheck />
+                            </TutorialProvider>
+                          </DebugPanelProvider>
                         </BrowserRouter>
                       </TooltipProvider>
                     </StreakProvider>
