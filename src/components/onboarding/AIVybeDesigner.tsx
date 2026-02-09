@@ -25,16 +25,29 @@ import {
   Send,
   RotateCcw,
   Check,
-  ArrowRight
+  ArrowRight,
+  ArrowLeft,
+  Type,
+  Sliders
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
-import { VYBELogo } from '@/components/ui/VYBELogo';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { applyThemeTokens, useSaveTheme, ThemeTokens } from '@/hooks/useCustomTheme';
+import { 
+  FONT_PAIRINGS, 
+  FontPairingKey, 
+  ANIMATION_PRESETS, 
+  AnimationPresetKey,
+  loadGoogleFonts,
+  applyFontFamily,
+  applyAnimationSettings
+} from '@/hooks/useApplyThemeFonts';
+import { FontSelector } from './FontSelector';
+import { AnimationSelector } from './AnimationSelector';
 import { toast } from 'sonner';
 
 // Personality types for AI to understand
@@ -84,9 +97,10 @@ interface GeneratedTheme extends ThemeTokens {
 const BUILD_PHASES = [
   { label: 'Analyzing your vibe...', icon: Sparkles, duration: 800 },
   { label: 'Generating color palette...', icon: Palette, duration: 1000 },
+  { label: 'Selecting typography...', icon: Type, duration: 800 },
   { label: 'Crafting animations...', icon: Zap, duration: 800 },
   { label: 'Adding visual effects...', icon: Stars, duration: 1000 },
-  { label: 'Perfecting the details...', icon: Wand2, duration: 800 },
+  { label: 'Perfecting contrast...', icon: Sliders, duration: 600 },
   { label: 'Finalizing your VYBE...', icon: Heart, duration: 600 },
 ];
 
@@ -95,8 +109,10 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const { user } = useAuth();
   const saveTheme = useSaveTheme();
   
-  const [step, setStep] = useState<'intro' | 'vibe-select' | 'prompt' | 'building' | 'preview'>('intro');
+  const [step, setStep] = useState<'intro' | 'vibe-select' | 'font-select' | 'animation-select' | 'prompt' | 'building' | 'preview'>('intro');
   const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
+  const [selectedFont, setSelectedFont] = useState<FontPairingKey | null>(null);
+  const [selectedAnimation, setSelectedAnimation] = useState<AnimationPresetKey | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [buildPhase, setBuildPhase] = useState(0);
@@ -140,11 +156,17 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
       : '';
     const interestSuggestion = getInterestSuggestion();
     
+    // Include font and animation preferences
+    const fontPreference = selectedFont ? `Use ${FONT_PAIRINGS[selectedFont].description} typography style` : '';
+    const animPreference = selectedAnimation ? `Use ${ANIMATION_PRESETS[selectedAnimation].description} animation style` : '';
+    
     const fullPrompt = [
       customPrompt,
       vibePrompt,
       interestSuggestion,
-      'Create a stunning, immersive theme that transforms the entire app experience'
+      fontPreference,
+      animPreference,
+      'Create a stunning, immersive theme that transforms the entire app experience. Ensure excellent contrast - text must always be readable.'
     ].filter(Boolean).join('. ');
     
     if (!fullPrompt.trim()) {
@@ -164,6 +186,8 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
           interests,
           includeFont: true,
           includeEffects: true,
+          selectedFont: selectedFont,
+          selectedAnimation: selectedAnimation,
         },
       });
       
@@ -171,6 +195,22 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
       if (data.error) throw new Error(data.error);
       
       const theme = data.theme as GeneratedTheme;
+      
+      // Apply font and animation selections
+      if (selectedFont) {
+        const fonts = FONT_PAIRINGS[selectedFont];
+        await loadGoogleFonts([fonts.body, fonts.display]);
+        applyFontFamily(fonts.body, fonts.display);
+        theme.fontFamily = fonts.body;
+        theme.fontDisplay = fonts.display;
+      }
+      
+      if (selectedAnimation) {
+        const anim = ANIMATION_PRESETS[selectedAnimation];
+        applyAnimationSettings(anim.speed, anim.style);
+        theme.animationSpeed = anim.speed as any;
+        theme.animationStyle = anim.style as any;
+      }
       
       // Wait for build animation to complete
       const totalBuildTime = BUILD_PHASES.reduce((sum, p) => sum + p.duration, 0);
@@ -242,6 +282,8 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const handleTryAgain = () => {
     setStep('vibe-select');
     setSelectedVibe(null);
+    setSelectedFont(null);
+    setSelectedAnimation(null);
     setCustomPrompt('');
     setGeneratedTheme(null);
     setBuildPhase(0);
@@ -296,7 +338,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="text-3xl sm:text-4xl font-bold mb-4 gradient-text"
+              className="text-3xl sm:text-4xl font-bold mb-4 gradient-text drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
             >
               Design Your VYBE
             </motion.h1>
@@ -305,7 +347,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
-              className="text-lg text-muted-foreground mb-8 max-w-md"
+              className="text-lg text-foreground/80 mb-8 max-w-md drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
             >
               Our AI will craft a completely unique look just for you. 
               Colors, fonts, animations – everything tailored to your style.
@@ -320,7 +362,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               <Button
                 size="lg"
                 onClick={() => setStep('vibe-select')}
-                className="gradient-animated text-lg px-8 py-6"
+                className="gradient-animated text-lg px-8 py-6 text-primary-foreground font-semibold"
               >
                 <Wand2 className="mr-2 h-5 w-5" />
                 Let's Design
@@ -328,7 +370,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               </Button>
               
               {onSkip && (
-                <Button variant="ghost" onClick={onSkip} className="text-muted-foreground">
+                <Button variant="ghost" onClick={onSkip} className="text-foreground/70 hover:text-foreground">
                   Skip for now
                 </Button>
               )}
@@ -346,10 +388,10 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             className="relative z-10 h-full flex flex-col p-4 sm:p-6"
           >
             <div className="text-center mb-6">
-              <h2 className="text-2xl sm:text-3xl font-bold gradient-text mb-2">
+              <h2 className="text-2xl sm:text-3xl font-bold gradient-text mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
                 What's Your Vibe?
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
                 Select a style that matches your personality
               </p>
             </div>
@@ -379,9 +421,9 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                         "w-12 h-12 rounded-xl flex items-center justify-center",
                         "bg-gradient-to-br", vibe.color
                       )}>
-                        <Icon className="h-6 w-6 text-white" />
+                        <Icon className="h-6 w-6 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
                       </div>
-                      <span className="text-sm font-medium text-center">
+                      <span className="text-sm font-semibold text-center text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
                         {vibe.label}
                       </span>
                       {isSelected && (
@@ -402,9 +444,101 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             <div className="pt-4 border-t border-border">
               <Button
                 size="lg"
-                onClick={() => setStep('prompt')}
+                onClick={() => setStep('font-select')}
                 disabled={!selectedVibe}
-                className="w-full gradient-animated"
+                className="w-full gradient-animated text-primary-foreground font-semibold"
+              >
+                Continue
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* FONT SELECT STEP */}
+        {step === 'font-select' && (
+          <motion.div
+            key="font-select"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            className="relative z-10 h-full flex flex-col p-4 sm:p-6"
+          >
+            <div className="text-center mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold gradient-text mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+                Choose Your Font
+              </h2>
+              <p className="text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+                Typography that matches your personality
+              </p>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto overscroll-contain pb-4">
+              <FontSelector 
+                selectedFont={selectedFont} 
+                onSelect={setSelectedFont} 
+              />
+            </div>
+            
+            <div className="pt-4 border-t border-border flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setStep('vibe-select')}
+                className="flex-1 text-foreground"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <Button
+                size="lg"
+                onClick={() => setStep('animation-select')}
+                className="flex-[2] gradient-animated text-primary-foreground font-semibold"
+              >
+                Continue
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ANIMATION SELECT STEP */}
+        {step === 'animation-select' && (
+          <motion.div
+            key="animation-select"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            className="relative z-10 h-full flex flex-col p-4 sm:p-6"
+          >
+            <div className="text-center mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold gradient-text mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+                Pick Your Motion
+              </h2>
+              <p className="text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+                How should your app feel when you interact?
+              </p>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto overscroll-contain pb-4">
+              <AnimationSelector 
+                selectedAnimation={selectedAnimation} 
+                onSelect={setSelectedAnimation} 
+              />
+            </div>
+            
+            <div className="pt-4 border-t border-border flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setStep('font-select')}
+                className="flex-1 text-foreground"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <Button
+                size="lg"
+                onClick={() => setStep('prompt')}
+                className="flex-[2] gradient-animated text-primary-foreground font-semibold"
               >
                 Continue
                 <ArrowRight className="ml-2 h-5 w-5" />
@@ -423,47 +557,58 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             className="relative z-10 h-full flex flex-col p-4 sm:p-6"
           >
             <div className="text-center mb-6">
-              <h2 className="text-2xl sm:text-3xl font-bold gradient-text mb-2">
+              <h2 className="text-2xl sm:text-3xl font-bold gradient-text mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
                 Tell Us More
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
                 Describe your perfect VYBE in your own words (optional)
               </p>
             </div>
             
             <div className="flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full">
-              {/* Selected vibe badge */}
-              {selectedVibe && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-4"
-                >
-                  {(() => {
-                    const vibe = PERSONALITY_VIBES.find(v => v.id === selectedVibe);
-                    if (!vibe) return null;
-                    const Icon = vibe.icon;
-                    return (
-                      <div className={cn(
-                        "inline-flex items-center gap-2 px-4 py-2 rounded-full",
-                        "bg-gradient-to-r", vibe.color, "text-white"
-                      )}>
-                        <Icon className="h-4 w-4" />
-                        <span className="text-sm font-medium">{vibe.label}</span>
-                      </div>
-                    );
-                  })()}
-                </motion.div>
-              )}
+              {/* Selected options summary */}
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 flex flex-wrap gap-2 justify-center"
+              >
+                {selectedVibe && (
+                  <div className={cn(
+                    "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-sm",
+                    "bg-gradient-to-r",
+                    PERSONALITY_VIBES.find(v => v.id === selectedVibe)?.color || 'from-primary to-accent'
+                  )}>
+                    {(() => {
+                      const vibe = PERSONALITY_VIBES.find(v => v.id === selectedVibe);
+                      if (!vibe) return null;
+                      const Icon = vibe.icon;
+                      return <Icon className="h-3.5 w-3.5" />;
+                    })()}
+                    <span className="font-medium">{PERSONALITY_VIBES.find(v => v.id === selectedVibe)?.label}</span>
+                  </div>
+                )}
+                {selectedFont && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground text-sm">
+                    <Type className="h-3.5 w-3.5" />
+                    <span className="font-medium">{FONT_PAIRINGS[selectedFont].description}</span>
+                  </div>
+                )}
+                {selectedAnimation && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground text-sm">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span className="font-medium">{ANIMATION_PRESETS[selectedAnimation].description}</span>
+                  </div>
+                )}
+              </motion.div>
               
               <div className="relative w-full">
                 <Textarea
                   value={customPrompt}
                   onChange={(e) => setCustomPrompt(e.target.value)}
                   placeholder="e.g., 'Make it glow like a sunset over the ocean' or 'Cyberpunk city at night with neon rain'"
-                  className="min-h-[150px] text-lg resize-none"
+                  className="min-h-[150px] text-lg resize-none text-foreground"
                 />
-                <div className="absolute bottom-3 right-3 text-xs text-muted-foreground">
+                <div className="absolute bottom-3 right-3 text-xs text-foreground/60">
                   {customPrompt.length}/200
                 </div>
               </div>
@@ -477,7 +622,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                       onClick={() => setCustomPrompt(prev => 
                         prev ? `${prev}, ${interest.toLowerCase()} inspired` : `${interest.toLowerCase()} aesthetic`
                       )}
-                      className="px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm hover:bg-secondary/80 transition-colors"
+                      className="px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm font-medium hover:bg-secondary/80 transition-colors"
                     >
                       + {interest}
                     </button>
@@ -489,15 +634,16 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             <div className="pt-4 border-t border-border flex gap-3">
               <Button
                 variant="outline"
-                onClick={() => setStep('vibe-select')}
-                className="flex-1"
+                onClick={() => setStep('animation-select')}
+                className="flex-1 text-foreground"
               >
+                <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
               </Button>
               <Button
                 size="lg"
                 onClick={generateTheme}
-                className="flex-[2] gradient-animated"
+                className="flex-[2] gradient-animated text-primary-foreground font-semibold"
               >
                 <Sparkles className="mr-2 h-5 w-5" />
                 Generate My VYBE
@@ -591,9 +737,9 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                       )}
                     </div>
                     <span className={cn(
-                      "text-sm font-medium",
+                      "text-sm font-semibold drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]",
                       isActive && "text-foreground",
-                      !isActive && !isComplete && "text-muted-foreground"
+                      !isActive && !isComplete && "text-foreground/50"
                     )}>
                       {phase.label}
                     </span>
@@ -628,10 +774,10 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               transition={{ delay: 0.2 }}
               className="text-center py-6"
             >
-              <h2 className="text-2xl sm:text-3xl font-bold gradient-text mb-1">
+              <h2 className="text-2xl sm:text-3xl font-bold gradient-text mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
                 {generatedTheme?.themeName || 'Your VYBE'}
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
                 Here's your personalized experience
               </p>
             </motion.div>
@@ -649,8 +795,8 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent" />
                     <div>
-                      <div className="font-semibold">Your Feed</div>
-                      <div className="text-sm text-muted-foreground">Looks amazing!</div>
+                      <div className="font-semibold text-foreground">Your Feed</div>
+                      <div className="text-sm text-foreground/70">Looks amazing!</div>
                     </div>
                   </div>
                   <div className="h-24 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20" />
@@ -663,8 +809,8 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                   transition={{ delay: 0.4 }}
                   className="flex gap-3"
                 >
-                  <Button className="flex-1 gradient-animated">Primary</Button>
-                  <Button variant="outline" className="flex-1">Secondary</Button>
+                  <Button className="flex-1 gradient-animated text-primary-foreground font-semibold">Primary</Button>
+                  <Button variant="outline" className="flex-1 text-foreground font-semibold">Secondary</Button>
                 </motion.div>
                 
                 {/* Mock input */}
@@ -674,7 +820,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                   transition={{ delay: 0.5 }}
                   className="liquid-glass-card p-4 rounded-2xl"
                 >
-                  <div className="bg-input rounded-xl p-3 text-input-foreground">
+                  <div className="bg-input rounded-xl p-3 text-foreground font-medium">
                     Your messages will look like this
                   </div>
                 </motion.div>
@@ -686,11 +832,29 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                   transition={{ delay: 0.6 }}
                   className="flex gap-2 justify-center"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-primary" title="Primary" />
-                  <div className="w-12 h-12 rounded-xl bg-secondary" title="Secondary" />
-                  <div className="w-12 h-12 rounded-xl bg-accent" title="Accent" />
-                  <div className="w-12 h-12 rounded-xl bg-muted" title="Muted" />
+                  <div className="w-12 h-12 rounded-xl bg-primary shadow-lg" title="Primary" />
+                  <div className="w-12 h-12 rounded-xl bg-secondary shadow-lg" title="Secondary" />
+                  <div className="w-12 h-12 rounded-xl bg-accent shadow-lg" title="Accent" />
+                  <div className="w-12 h-12 rounded-xl bg-muted shadow-lg" title="Muted" />
                 </motion.div>
+                
+                {/* Font preview */}
+                {generatedTheme?.fontFamily && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={showPreviewElements ? { opacity: 1, y: 0 } : {}}
+                    transition={{ delay: 0.7 }}
+                    className="text-center p-4"
+                  >
+                    <p className="text-xs text-foreground/60 mb-1">Typography</p>
+                    <p 
+                      className="text-2xl font-bold text-foreground"
+                      style={{ fontFamily: `'${generatedTheme.fontDisplay || generatedTheme.fontFamily}', system-ui` }}
+                    >
+                      {generatedTheme.fontDisplay || generatedTheme.fontFamily}
+                    </p>
+                  </motion.div>
+                )}
               </div>
             </div>
             
@@ -705,14 +869,14 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                 <Button
                   variant="outline"
                   onClick={handleTryAgain}
-                  className="flex-1"
+                  className="flex-1 text-foreground font-semibold"
                 >
                   <RotateCcw className="mr-2 h-4 w-4" />
                   Try Different
                 </Button>
                 <Button
                   onClick={handleKeepTheme}
-                  className="flex-[2] gradient-animated"
+                  className="flex-[2] gradient-animated text-primary-foreground font-semibold"
                 >
                   <Check className="mr-2 h-4 w-4" />
                   Keep This VYBE

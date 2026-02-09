@@ -41,6 +41,10 @@ import { useDynamicManifest } from "@/hooks/useDynamicManifest";
 import { RewardNotificationProvider } from "@/components/vybepass/RewardNotificationProvider";
 import { useDailyLoginChallenge } from "@/hooks/useDailyLogin";
 import { StreakProvider } from "@/components/streak/StreakProvider";
+import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
+
+// Initialize stored fonts on app load
+initializeStoredFonts();
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
