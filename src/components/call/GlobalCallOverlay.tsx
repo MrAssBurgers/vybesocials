@@ -26,7 +26,7 @@ import { MinimizedCallBubble } from './MinimizedCallBubble';
 import { useCameraPreload, stopPreloadedCamera, getPreloadedStream } from '@/hooks/useCameraPreload';
 
 export function GlobalCallOverlay() {
-  const { state, acceptCall, endCall, setPhase, setError, dismissIncoming } = useCallStore();
+  const { state, acceptCall, endCall, leaveCall, setPhase, setError, dismissIncoming } = useCallStore();
   
   // Daily call object ref - persists across re-renders
   const dailyRef = useRef<DailyCall | null>(null);
@@ -866,7 +866,68 @@ export function GlobalCallOverlay() {
     };
   }, [state.phase, state.call?.callType, isVideoOff]);
 
-  // HANGUP - must always work
+  // LEAVE CALL - leaves Daily locally but keeps the call alive for rejoin
+  const handleLeaveCall = useCallback(async () => {
+    if (isHangingUp) return;
+    setIsHangingUp(true);
+    console.log('[CallOverlay] Leave pressed (not ending call)');
+
+    clearJoinTimeout();
+    isLeavingRef.current = true;
+
+    // Stop preloaded camera
+    stopPreloadedCamera();
+    
+    // Reset UI states
+    setCameraError(null);
+    setNeedsUserInteraction(false);
+    setRemoteUserLeft(false);
+    setAutoEndCountdown(0);
+    if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
+    if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+
+    // Leave Daily room with 5-second timeout failsafe
+    const daily = dailyRef.current;
+    if (daily) {
+      const leavePromise = (async () => {
+        try {
+          const meetingState = daily.meetingState();
+          if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
+            console.log('[CallOverlay] Calling daily.leave()');
+            await daily.leave();
+            console.log('[CallOverlay] daily.leave() completed');
+          }
+        } catch (err) {
+          console.error('[CallOverlay] Error leaving:', err);
+        }
+      })();
+      
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => {
+          console.warn('[CallOverlay] Leave timeout - forcing cleanup');
+          resolve();
+        }, 5000);
+      });
+      
+      await Promise.race([leavePromise, timeoutPromise]);
+    }
+
+    // Force cleanup of Daily object
+    if (dailyRef.current) {
+      try { dailyRef.current.destroy(); } catch {}
+      dailyRef.current = null;
+    }
+    attachedTrackIdsRef.current = {};
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 200));
+    
+    // Leave locally without ending in DB
+    leaveCall();
+    setIsHangingUp(false);
+    isLeavingRef.current = false;
+  }, [isHangingUp, clearJoinTimeout, leaveCall]);
+
+  // HANGUP - fully ends the call (kept for error/cleanup scenarios)
   const handleHangup = useCallback(async () => {
     if (isHangingUp) return;
     setIsHangingUp(true);
@@ -1754,11 +1815,11 @@ export function GlobalCallOverlay() {
                   {/* Divider */}
                   <div className="w-px h-10 bg-white/20 mx-1" />
 
-                  {/* End Call Button */}
+                  {/* Leave Call Button */}
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={handleHangup}
+                    onClick={handleLeaveCall}
                     disabled={isHangingUp}
                     className={cn(
                       "relative h-14 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-300",
@@ -1772,7 +1833,7 @@ export function GlobalCallOverlay() {
                     ) : (
                       <>
                         <PhoneOff className="h-5 w-5" />
-                        <span className="font-medium">End</span>
+                        <span className="font-medium">Leave</span>
                       </>
                     )}
                   </motion.button>
