@@ -8,7 +8,8 @@ import {
   RefreshCw,
   ChevronRight,
   Lock,
-  Sparkles
+  Sparkles,
+  Terminal
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -17,10 +18,12 @@ import { getFeatureFlags, setFeatureFlag, resetFeatureFlags, FeatureFlags } from
 import { getEventLog, clearEventLog } from '@/lib/analytics';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
+import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 export function DeveloperSection() {
   const [flags, setFlags] = useState<FeatureFlags>(getFeatureFlags());
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const debugPanel = useDebugPanel();
 
   const handleFlagChange = (flag: keyof FeatureFlags, value: boolean) => {
     haptics.tap();
@@ -56,6 +59,24 @@ export function DeveloperSection() {
             </p>
           </div>
         </div>
+
+        {/* Open DevTools Panel */}
+        {debugPanel?.isAdmin && (
+          <Button
+            variant="outline"
+            className="w-full justify-between mb-6 h-12"
+            onClick={() => {
+              haptics.tap();
+              debugPanel.setIsOpen(true);
+            }}
+          >
+            <span className="flex items-center gap-2">
+              <Terminal className="w-4 h-4" />
+              Open Production DevTools
+            </span>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        )}
 
         {/* Feature Flags */}
         <div className="space-y-4">

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { haptics } from '@/lib/haptics';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 export type SettingsCategory = 
   | 'profile' 
@@ -34,7 +35,7 @@ interface SettingsNavProps {
   onCategoryChange: (category: SettingsCategory) => void;
 }
 
-const categories = [
+const baseCategories = [
   { id: 'profile' as const, label: 'Profile', icon: User, description: 'Your info' },
   { id: 'privacy' as const, label: 'Privacy', icon: Lock, description: 'Security settings' },
   { id: 'connections' as const, label: 'Connections', icon: Link2, description: 'Linked accounts' },
@@ -44,13 +45,21 @@ const categories = [
   { id: 'notifications' as const, label: 'Notifications', icon: Bell, description: 'Alerts' },
   { id: 'language' as const, label: 'Language', icon: Globe, description: 'App language' },
   { id: 'help' as const, label: 'Help', icon: HelpCircle, description: 'Support' },
-  // Developer section only shown in dev mode
-  ...(import.meta.env.DEV ? [{ id: 'developer' as const, label: 'Developer', icon: Code2, description: 'Dev tools' }] : []),
 ];
+
+function useCategories() {
+  const debugPanel = useDebugPanel();
+  const showDev = import.meta.env.DEV || debugPanel?.isAdmin;
+  if (showDev) {
+    return [...baseCategories, { id: 'developer' as const, label: 'Developer', icon: Code2, description: 'Dev tools' }];
+  }
+  return baseCategories;
+}
 
 // Mobile: Clean dropdown selector
 export function SettingsNav({ activeCategory, onCategoryChange }: SettingsNavProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const categories = useCategories();
   const activeItem = categories.find(c => c.id === activeCategory);
   const ActiveIcon = activeItem?.icon || User;
 
@@ -145,6 +154,7 @@ export function SettingsNav({ activeCategory, onCategoryChange }: SettingsNavPro
 
 // Horizontal nav for desktop (fits within main content area)
 export function SettingsNavVertical({ activeCategory, onCategoryChange }: SettingsNavProps) {
+  const categories = useCategories();
   return (
     <nav className="flex flex-wrap gap-2">
       {categories.map((cat) => (
