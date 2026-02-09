@@ -239,7 +239,11 @@ export function PaymentsSetup({
                   ) : (
                     <ExternalLink className="h-4 w-4" />
                   )}
-                  Complete Setup
+                  {!status.details_submitted 
+                    ? 'Complete Setup' 
+                    : !status.charges_enabled 
+                      ? 'Enable Charges' 
+                      : 'Enable Payouts'}
                 </Button>
                 <Button 
                   variant="outline" 
