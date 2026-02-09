@@ -71,10 +71,22 @@ export function PaymentsSetup({
     setChecking(true);
     try {
       const { data, error } = await supabase.functions.invoke('check-stripe-connect');
-      if (error) throw error;
+      if (error) {
+        console.error('Stripe check error:', error);
+        toast.error('Unable to check payment status. Please try again.');
+        return;
+      }
+      if (data?.error) {
+        console.error('Stripe check returned error:', data.error);
+        toast.error(data.error.includes('STRIPE_SECRET_KEY') 
+          ? 'Payment system is being configured. Please try again shortly.' 
+          : 'Unable to verify payment status.');
+        return;
+      }
       setStatus(data);
     } catch (err) {
       console.error('Failed to check Stripe status:', err);
+      toast.error('Unable to reach payment service. Please check your connection.');
     } finally {
       setChecking(false);
     }
