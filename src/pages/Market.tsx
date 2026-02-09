@@ -116,7 +116,7 @@ const ListingCard = memo(function ListingCard({
                   animate={isFavorite ? { scale: [1, 1.3, 1] } : {}}
                   transition={{ duration: 0.3 }}
                 >
-                  <Heart className={cn('h-5 w-5 transition-colors', isFavorite && 'fill-primary text-primary')} />
+                  <Heart className={cn('h-5 w-5 transition-colors drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]', isFavorite && 'fill-primary text-primary')} />
                 </motion.div>
               </Button>
             </motion.div>
@@ -128,12 +128,12 @@ const ListingCard = memo(function ListingCard({
             </Badge>
             {listing.location && (
               <motion.span 
-                className="flex items-center gap-1"
+                className="flex items-center gap-1 text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
               >
-                <MapPin className="h-3 w-3" />
+                <MapPin className="h-3 w-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
                 {listing.location}
               </motion.span>
             )}
@@ -202,7 +202,7 @@ const ListingCard = memo(function ListingCard({
                 } : {}}
                 transition={{ duration: 0.4 }}
               >
-                <Heart className={cn('h-4 w-4 transition-colors', isFavorite && 'fill-primary text-primary')} />
+                <Heart className={cn('h-4 w-4 transition-colors drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]', isFavorite && 'fill-primary text-primary')} />
               </motion.div>
             </Button>
           </motion.div>
@@ -352,7 +352,7 @@ export default function MarketPage() {
                 onClick={() => setShowBusinessDialog(true)}
                 className="gap-2"
               >
-                <Store className="h-4 w-4" />
+                <Store className="h-4 w-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
                 <span className="hidden sm:inline">Start a Business</span>
                 <span className="sm:hidden">Business</span>
               </Button>
@@ -367,7 +367,7 @@ export default function MarketPage() {
             >
               <Link to="/market/new">
                 <Button className="gradient-animated text-primary-foreground">
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="h-4 w-4 mr-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
                   Sell Item
                 </Button>
               </Link>
@@ -378,7 +378,7 @@ export default function MarketPage() {
         {/* Search & Filters */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
             <Input
               placeholder="Search marketplace..."
               value={search}
@@ -405,7 +405,7 @@ export default function MarketPage() {
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
+                  <Filter className="h-4 w-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
                 </Button>
               </SheetTrigger>
               <SheetContent>
@@ -460,14 +460,14 @@ export default function MarketPage() {
                 size="icon"
                 onClick={() => setViewMode('grid')}
               >
-                <Grid className="h-4 w-4" />
+                <Grid className="h-4 w-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
               </Button>
               <Button
                 variant={viewMode === 'list' ? 'default' : 'ghost'}
                 size="icon"
                 onClick={() => setViewMode('list')}
               >
-                <List className="h-4 w-4" />
+                <List className="h-4 w-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
               </Button>
             </div>
           </div>
