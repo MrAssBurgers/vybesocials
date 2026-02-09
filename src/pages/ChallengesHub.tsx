@@ -130,8 +130,8 @@ export default function ChallengesHubPage() {
                 <Target className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">Challenges</h1>
-                <p className="text-sm text-muted-foreground">
+                <h1 className="text-2xl font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">Challenges</h1>
+                <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
                   Complete challenges to earn badges and XP
                 </p>
               </div>
@@ -175,11 +175,11 @@ export default function ChallengesHubPage() {
                 {/* Progress */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold">Level {currentLevel}</span>
-                    <span className="text-sm text-muted-foreground">{currentXP.toLocaleString()} XP</span>
+                    <span className="font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">Level {currentLevel}</span>
+                    <span className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{currentXP.toLocaleString()} XP</span>
                   </div>
                   <Progress value={progressPercent} className="h-2 mb-1" />
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
                     <span>{xpToNextLevel.toLocaleString()} XP to next level</span>
                     {nextTier && (
                       <span className="flex items-center gap-1">
@@ -205,7 +205,7 @@ export default function ChallengesHubPage() {
               <GlassCard className="p-4 border-primary/30 bg-primary/5">
                 <div className="flex items-center gap-2 mb-3">
                   <Gift className="h-5 w-5 text-primary" />
-                  <h3 className="font-semibold">Claim Your Rewards!</h3>
+                  <h3 className="font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">Claim Your Rewards!</h3>
                   <Badge variant="secondary" className="ml-auto">
                     {unclaimedRewards.length} pending
                   </Badge>
@@ -222,10 +222,10 @@ export default function ChallengesHubPage() {
                         <Star className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
+                        <p className="text-sm font-medium truncate text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">
                           {reward.challenge?.title || 'Challenge Completed'}
                         </p>
-                        <p className="text-xs text-muted-foreground">+{reward.xp_amount} XP</p>
+                        <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">+{reward.xp_amount} XP</p>
                       </div>
                       <Button
                         size="sm"
@@ -262,8 +262,8 @@ export default function ChallengesHubPage() {
                   <CheckCircle2 className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{completedCount}</p>
-                  <p className="text-xs text-muted-foreground">Completed</p>
+                  <p className="text-2xl font-bold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{completedCount}</p>
+                  <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Completed</p>
                 </div>
               </div>
             </GlassCard>
@@ -273,8 +273,8 @@ export default function ChallengesHubPage() {
                   <Flame className="h-5 w-5 text-accent" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{totalXP}</p>
-                  <p className="text-xs text-muted-foreground">XP Earned</p>
+                  <p className="text-2xl font-bold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{totalXP}</p>
+                  <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">XP Earned</p>
                 </div>
               </div>
             </GlassCard>
@@ -358,14 +358,14 @@ export default function ChallengesHubPage() {
                           {/* Content */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold truncate">{challenge.title}</h3>
+                              <h3 className="font-semibold truncate text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{challenge.title}</h3>
                               <Badge variant="secondary" className="shrink-0">
                                 {config?.label}
                               </Badge>
                             </div>
                             
                             {challenge.description && (
-                              <p className="text-sm text-muted-foreground mb-2 line-clamp-1">
+                              <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] mb-2 line-clamp-1">
                                 {challenge.description}
                               </p>
                             )}
@@ -373,10 +373,10 @@ export default function ChallengesHubPage() {
                             {/* Progress */}
                             <div className="space-y-1">
                               <div className="flex justify-between text-xs">
-                                <span className="text-muted-foreground">
+                                <span className="text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
                                   {challenge.current_count} / {challenge.requirement_count}
                                 </span>
-                                <span className="text-primary flex items-center gap-1">
+                                <span className="text-primary flex items-center gap-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
                                   <Gift className="h-3 w-3" />
                                   +{challenge.reward_xp} XP
                                 </span>
@@ -415,8 +415,8 @@ export default function ChallengesHubPage() {
             >
               <GlassCard className="p-8 inline-block">
                 <Trophy className="h-12 w-12 text-primary mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No challenges available</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="text-lg font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] mb-2">No challenges available</h3>
+                <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
                   Check back later for new challenges!
                 </p>
               </GlassCard>
