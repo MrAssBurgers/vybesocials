@@ -193,7 +193,7 @@ const StoryAvatar = memo(function StoryAvatar({
           </div>
         )}
       </div>
-      <span className="text-[11px] font-medium text-muted-foreground truncate w-16 text-center leading-tight">
+      <span className="text-[11px] font-semibold text-foreground truncate w-16 text-center leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
         {isUploading ? 'Posting...' : label || displayName || username}
       </span>
     </button>

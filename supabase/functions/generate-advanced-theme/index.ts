@@ -64,16 +64,20 @@ interface AdvancedThemeTokens {
   mood?: string;
 }
 
-// Font pairing suggestions
+// Font pairing suggestions - extended with more options
 const FONT_PAIRINGS: Record<string, { body: string; display: string }> = {
   modern: { body: "Inter", display: "Space Grotesk" },
   elegant: { body: "Crimson Pro", display: "Playfair Display" },
-  playful: { body: "Nunito", display: "Fredoka One" },
+  playful: { body: "Nunito", display: "Fredoka" },
   tech: { body: "JetBrains Mono", display: "Orbitron" },
   minimal: { body: "IBM Plex Sans", display: "IBM Plex Sans" },
   editorial: { body: "Merriweather", display: "Libre Baskerville" },
   bold: { body: "Montserrat", display: "Anton" },
   soft: { body: "Quicksand", display: "Comfortaa" },
+  artistic: { body: "Poppins", display: "Syne" },
+  luxury: { body: "Cormorant Garamond", display: "Cinzel" },
+  gaming: { body: "Exo 2", display: "Audiowide" },
+  retro: { body: "DM Sans", display: "Righteous" },
 };
 
 // Mood-based background images from Unsplash
@@ -174,21 +178,24 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, interests = [], includeFont = true, includeEffects = true } = await req.json();
+    const { prompt, interests = [], includeFont = true, includeEffects = true, selectedFont, selectedAnimation } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Analyze prompt for mood and style
-    const mood = getMoodFromPrompt(prompt);
-    const fontStyle = getFontStyle(prompt);
+    // Use selected font or analyze prompt
+    const fontStyle = selectedFont || getFontStyle(prompt);
     const fonts = FONT_PAIRINGS[fontStyle] || FONT_PAIRINGS.modern;
     
     // Get background suggestion
     const backgrounds = MOOD_BACKGROUNDS[mood] || MOOD_BACKGROUNDS.energetic;
     const selectedBackground = backgrounds[Math.floor(Math.random() * backgrounds.length)];
+    
+    // Get animation preferences
+    const animSpeed = selectedAnimation?.speed || (mood === "calm" ? "slow" : mood === "energetic" ? "fast" : "normal");
+    const animStyle = selectedAnimation?.style || (mood === "calm" ? "smooth" : mood === "energetic" ? "bouncy" : "smooth");
 
     const systemPrompt = `You are an elite UI theme designer for VYBE, a cutting-edge social media app.
 Your mission is to create STUNNING, IMMERSIVE themes that completely transform the user experience.
@@ -202,13 +209,36 @@ When interpreting the user's request, think about:
 The user's interests include: ${interests.join(", ") || "general"}
 Detected mood: ${mood}
 Suggested font style: ${fontStyle}
+Animation speed: ${animSpeed}
+Animation style: ${animStyle}
 
-CRITICAL RULES:
+CRITICAL CONTRAST RULES - MUST FOLLOW:
 1. ALL colors in HSL format: "hue saturation% lightness%"
-2. Ensure WCAG AA contrast (4.5:1 minimum)
+2. Ensure WCAG AA contrast (4.5:1 minimum for text)
 3. Create a CREATIVE, UNIQUE theme name that captures the vibe
-4. Match animations to the energy level (calm = slow+smooth, energetic = fast+bouncy)
-5. Choose appropriate background effects
+4. NEVER use similar hue for text and background (e.g., no blue text on teal)
+5. Text must ALWAYS be clearly readable - use near-white (95%+ lightness) for dark themes, near-black (10% or less) for light themes
+
+FOR DARK THEMES (mode: "dark"):
+- bgMain: 4-12% lightness
+- inputBg: 12-25% lightness
+- textPrimary: MUST be 92-100% lightness (near white)
+- textSecondary: 55-75% lightness
+- buttonText: If primary color lightness > 50%, use dark text (5-15%), else use light text (90-100%)
+- inputText: ALWAYS 90-100% lightness (white/off-white)
+
+FOR LIGHT THEMES (mode: "light"):
+- bgMain: 92-100% lightness  
+- inputBg: 90-98% lightness
+- textPrimary: MUST be 5-15% lightness (near black)
+- textSecondary: 35-55% lightness
+- buttonText: If primary color lightness < 50%, use light text (90-100%), else use dark text (5-15%)
+- inputText: ALWAYS 5-20% lightness (dark)
+
+CONTRAST FAILURE EXAMPLES TO AVOID:
+- Teal background + blue text = BAD (too similar)
+- Pink background + red text = BAD (too similar)
+- Low contrast between any text and its background
 
 ANIMATION GUIDE:
 - animationSpeed: "slow" = zen/calm, "normal" = balanced, "fast" = energetic, "instant" = snappy
@@ -225,7 +255,7 @@ BACKGROUND EFFECTS:
 - "fireflies" = nature/forest themes
 - "geometric" = tech/modern themes
 
-CREATE SOMETHING EXTRAORDINARY. Push creative boundaries while maintaining usability.`;
+CREATE SOMETHING EXTRAORDINARY. Push creative boundaries while ALWAYS maintaining excellent readability.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

@@ -47,8 +47,8 @@ export function FeedbackSection() {
         className="liquid-glass-card p-4 sm:p-6 bg-muted/20"
       >
         <div className="flex items-start gap-3">
-          <Smartphone className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-muted-foreground">
+          <Smartphone className="w-5 h-5 text-primary mt-0.5 flex-shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" />
+          <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
             Haptic feedback works best on mobile devices. All feedback is designed to be subtle and enhance your experience.
           </p>
         </div>
