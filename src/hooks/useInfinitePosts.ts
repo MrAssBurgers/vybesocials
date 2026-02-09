@@ -117,11 +117,8 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
 
       const posts = (data || []).map(transformPost);
       
-      // Pre-sign all URLs BEFORE returning - this ensures instant image display
-      await presignPostMedia(posts);
-      
-      // Now preload the signed images
-      preloadSignedMedia(posts);
+      // Non-blocking: sign and preload URLs in background so posts render instantly
+      presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
       const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       return {
@@ -165,9 +162,8 @@ export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
 
       const posts = (data || []).map(transformPost);
       
-      // Pre-sign all URLs BEFORE returning
-      await presignPostMedia(posts);
-      preloadSignedMedia(posts);
+      // Non-blocking URL signing
+      presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
       const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       return {
