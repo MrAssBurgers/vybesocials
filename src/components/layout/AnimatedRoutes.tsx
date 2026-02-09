@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { isLowEndDevice } from '@/lib/performanceConfig';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
+import { useDebugCapture } from '@/hooks/useDebugCapture';
 
 // CRITICAL PAGE - Load eagerly for instant first navigation
 import Home from "@/pages/Home";
@@ -78,6 +79,9 @@ const pageTransition = {
 export function AnimatedRoutes() {
   const location = useLocation();
   const { isOpen: debugOpen, setIsOpen: setDebugOpen, isAdmin: isDebugAdmin } = useAdminDebugPanel();
+  
+  // Always capture errors/network — independent of panel visibility
+  useDebugCapture();
   
   // Preload all routes after initial render
   useEffect(() => {
@@ -166,12 +170,13 @@ export function AnimatedRoutes() {
             
             <Route path="*" element={<NotFound />} />
           </Routes>
-          {/* Debug panel - only in dev mode */}
+          {/* Dev-only debug panel */}
           {import.meta.env.DEV && (
             <Suspense fallback={null}>
               <DebugPanel />
             </Suspense>
           )}
+          {/* Production debug panel — always mounted, admin-gated */}
           {isDebugAdmin && (
             <ProductionDebugPanel isOpen={debugOpen} onClose={() => setDebugOpen(false)} />
           )}
