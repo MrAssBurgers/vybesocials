@@ -366,10 +366,17 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       box-shadow: 0 4px 12px hsl(var(--background) / 0.2) !important;
     }
 
-    /* Buttons - brighter backgrounds */
-    button:not([class*="destructive"]),
-    [role="button"]:not([class*="destructive"]) {
+    /* Buttons - brighter backgrounds (glass buttons only)
+       IMPORTANT: Do NOT apply backdrop-filter to all buttons; it can render as black squares
+       on icon-only buttons in mobile Safari/Chromium. */
+    .liquid-glass-button,
+    .liquid-glass-subtle,
+    button.liquid-glass,
+    button.liquid-glass-subtle,
+    [role="button"].liquid-glass-button,
+    [role="button"].liquid-glass-subtle {
       backdrop-filter: brightness(1.15) !important;
+      -webkit-backdrop-filter: brightness(1.15) !important;
     }
 
     /* Universal text visibility for all common text elements */
