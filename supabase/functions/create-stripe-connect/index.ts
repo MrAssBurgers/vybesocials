@@ -12,6 +12,10 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-STRIPE-CONNECT] ${step}${detailsStr}`);
 };
 
+const isStripeConnectNotEnabledError = (message: string) =>
+  message.includes("signed up for Connect") || message.includes("sign up for Connect");
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -98,35 +102,57 @@ serve(async (req) => {
     // Create Stripe Connect account if doesn't exist
     if (!accountId) {
       logStep("Creating new Stripe Connect account");
-      
-      const account = await stripe.accounts.create({
-        type: 'express',
-        email: user.email,
-        business_type: 'individual',
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
-        },
-        business_profile: {
-          name: business.name,
-        },
-        metadata: {
-          business_id: business.id,
-          user_id: user.id,
-        },
-      });
 
-      accountId = account.id;
-      logStep("Stripe account created", { accountId });
+      try {
+        const account = await stripe.accounts.create({
+          type: 'express',
+          email: user.email,
+          business_type: 'individual',
+          capabilities: {
+            card_payments: { requested: true },
+            transfers: { requested: true },
+          },
+          business_profile: {
+            name: business.name,
+          },
+          metadata: {
+            business_id: business.id,
+            user_id: user.id,
+          },
+        });
 
-      // Save the account ID to the business profile
-      await supabaseAdmin
-        .from('business_profiles')
-        .update({ stripe_account_id: accountId })
-        .eq('id', business.id);
+        accountId = account.id;
+        logStep("Stripe account created", { accountId });
 
-      logStep("Account ID saved to business profile");
+        // Save the account ID to the business profile
+        await supabaseAdmin
+          .from('business_profiles')
+          .update({ stripe_account_id: accountId })
+          .eq('id', business.id);
+
+        logStep("Account ID saved to business profile");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+
+        if (isStripeConnectNotEnabledError(message)) {
+          logStep("ERROR - Stripe Connect not enabled on platform", { message });
+          return new Response(
+            JSON.stringify({
+              error:
+                "Payments setup isn't enabled yet. Enable Stripe Connect for your Stripe account, then try again.",
+              code: "connect_not_enabled",
+            }),
+            {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 400,
+            },
+          );
+        }
+
+        throw err;
+      }
     }
+
 
     // Create account onboarding link
     const origin = req.headers.get("origin") || "https://vybeapp.lovable.app";

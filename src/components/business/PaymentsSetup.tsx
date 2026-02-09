@@ -84,16 +84,32 @@ export function PaymentsSetup({
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-stripe-connect');
-      if (error) throw error;
-      
+
+      if (error) {
+        const msg = (error as any)?.message ? String((error as any).message) : '';
+
+        if (msg.includes('signed up for Connect') || msg.includes('sign up for Connect')) {
+          toast.error(
+            "Payments setup isn't enabled yet. Enable Stripe Connect in your Stripe settings, then try again.",
+          );
+        } else {
+          toast.error(msg || 'Failed to start Stripe setup');
+        }
+        return;
+      }
+
       if (data?.url) {
         window.location.href = data.url;
+      } else {
+        toast.error('Stripe did not return an onboarding link. Please try again.');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed to start Stripe setup');
+      toast.error(err?.message || 'Failed to start Stripe setup');
+    } finally {
       setLoading(false);
     }
   };
+
 
   const handleOpenDashboard = async () => {
     setLoading(true);
