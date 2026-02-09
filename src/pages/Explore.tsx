@@ -532,7 +532,7 @@ export default function ExplorePage() {
     
     return {
       clips: validPosts.filter(post => post.type === 'short'),
-      videos: validPosts.filter(post => post.type === 'video'),
+      videos: validPosts.filter(post => post.type === 'video' || post.type === 'short'),
     };
   }, [posts]);
 
