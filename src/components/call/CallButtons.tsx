@@ -2,25 +2,23 @@
  * Call Buttons for Chat Header
  * 
  * Simple buttons to start audio/video calls using the global call store.
- * Pre-warms camera on hover for instant FaceTime-like video startup.
+ * Shows a green "Join Back" button when there's a lingering call for this conversation.
  * Supports both 1:1 and group calls.
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { Phone, Video, Loader2 } from 'lucide-react';
+import { Phone, Video, Loader2, PhoneCall } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useCallStore, CallType } from '@/lib/callStore';
+import { useCallStore, CallType, getLingeringCall } from '@/lib/callStore';
 import { toast } from 'sonner';
 import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
 
 interface CallButtonsProps {
   conversationId: string;
   receiverId: string;
-  // Receiver profile info for display during call
   receiverUsername?: string;
   receiverDisplayName?: string | null;
   receiverAvatarUrl?: string | null;
-  // Group call support
   isGroupCall?: boolean;
   groupName?: string;
   groupAvatar?: string | null;
@@ -38,11 +36,15 @@ export function CallButtons({
   groupAvatar,
   participantIds,
 }: CallButtonsProps) {
-  const { state, startCall } = useCallStore();
+  const { state, startCall, rejoinCall } = useCallStore();
   const [isStarting, setIsStarting] = useState<CallType | null>(null);
 
   // Prevent iOS double-fire (touch -> click) starting two calls.
   const startGuardRef = useRef(false);
+
+  // Check if there's a lingering call for this conversation
+  const lingeringCall = getLingeringCall();
+  const hasLingeringCall = lingeringCall?.conversationId === conversationId;
 
   const handleStartCall = useCallback(async (callType: CallType) => {
     if (startGuardRef.current) return;
@@ -56,11 +58,7 @@ export function CallButtons({
     setIsStarting(callType);
 
     try {
-      // For video calls, camera may already be preloaded from hover
-      // Request permissions (will be fast if already granted)
       await requestCallMediaPermissions(callType);
-
-      // Start the call with group info and receiver profile
       await startCall({
         callType,
         conversationId,
@@ -82,13 +80,33 @@ export function CallButtons({
     }
   }, [state.phase, startCall, conversationId, receiverId, receiverUsername, receiverDisplayName, receiverAvatarUrl, isGroupCall, groupName, groupAvatar, participantIds]);
 
+  const handleRejoin = useCallback(() => {
+    rejoinCall();
+  }, [rejoinCall]);
+
   const isDisabled = state.phase !== 'idle' || isStarting !== null;
 
-  // Handle touch for iOS/iPad (some Safari builds don't reliably fire click)
   const handleTouchStart = (callType: CallType) => (e: React.TouchEvent) => {
     e.preventDefault();
     handleStartCall(callType);
   };
+
+  // Show green "Join Back" button when there's a lingering call
+  if (hasLingeringCall) {
+    return (
+      <div className="flex items-center gap-1">
+        <Button
+          variant="default"
+          size="sm"
+          onClick={handleRejoin}
+          className="bg-green-500 hover:bg-green-600 text-white gap-1.5 active:scale-95 transition-transform touch-manipulation"
+        >
+          <PhoneCall className="h-4 w-4" />
+          <span className="text-sm font-medium">Join Back</span>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-1">

@@ -62,6 +62,8 @@ interface CallStoreContextType {
   }) => Promise<void>;
   acceptCall: (call: CallData) => void;
   endCall: () => Promise<void>;
+  leaveCall: () => void;
+  rejoinCall: () => void;
   setPhase: (phase: CallPhase) => void;
   setError: (error: string | null) => void;
   dismissIncoming: () => void;
@@ -138,6 +140,7 @@ const CallStoreContext = createContext<CallStoreContextType | null>(null);
 // Store state outside of React to prevent resets during navigation/re-renders
 let globalCallState: CallStoreState = initialState;
 let globalIncomingCall: CallData | null = null;
+let globalLingeringCall: CallData | null = null;
 
 export function CallStoreProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
@@ -445,7 +448,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     premiumSounds.stopAllCallSounds();
 
     // Use global state to get the current call ID (avoids stale closure)
-    const callId = globalCallState.call?.id;
+    const callId = globalCallState.call?.id || globalLingeringCall?.id;
     if (callId) {
       try {
         await supabase
@@ -457,8 +460,37 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // Clear lingering call
+    globalLingeringCall = null;
+
     callSounds.end();
     setState(initialState);
+  }, [setState]);
+
+  // Leave call locally without ending it in DB — allows rejoin
+  const leaveCall = useCallback(() => {
+    if (import.meta.env.DEV) console.log('[CallStore] Leaving call locally (not ending)');
+    premiumSounds.stopAllCallSounds();
+    callSounds.end();
+    // Keep call data but set phase to idle so user can rejoin
+    const currentCall = globalCallState.call;
+    if (currentCall) {
+      setState({ phase: 'idle', call: null, error: null });
+      // Store the call data globally so rejoin can access it
+      globalLingeringCall = currentCall;
+    }
+  }, [setState]);
+
+  // Rejoin a lingering call
+  const rejoinCall = useCallback(() => {
+    const lingeringCall = globalLingeringCall;
+    if (!lingeringCall) {
+      if (import.meta.env.DEV) console.warn('[CallStore] No lingering call to rejoin');
+      return;
+    }
+    if (import.meta.env.DEV) console.log('[CallStore] Rejoining call:', lingeringCall.id);
+    globalLingeringCall = null;
+    setState({ phase: 'joining', call: lingeringCall, error: null });
   }, [setState]);
 
   const setPhase = useCallback((phase: CallPhase) => {
@@ -511,6 +543,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       startCall,
       acceptCall,
       endCall,
+      leaveCall,
+      rejoinCall,
       setPhase,
       setError,
       dismissIncoming,
@@ -531,10 +565,17 @@ export function useCallStore(): CallStoreContextType {
       startCall: async () => { console.warn('CallStore not ready'); },
       acceptCall: () => {},
       endCall: async () => {},
+      leaveCall: () => {},
+      rejoinCall: () => {},
       setPhase: () => {},
       setError: () => {},
       dismissIncoming: () => {},
     };
   }
   return context;
+}
+
+// Helper to check if there's a lingering call for a specific conversation
+export function getLingeringCall(): CallData | null {
+  return globalLingeringCall;
 }
