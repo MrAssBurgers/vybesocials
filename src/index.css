@@ -99,6 +99,22 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   .platform-ios .h-5.w-5,
   .platform-ios .h-6.w-6 {
     filter: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  /* Post action buttons - prevent black box artifacts on mobile */
+  @media (max-width: 1024px) {
+    button svg,
+    button [class*="lucide"],
+    [role="button"] svg,
+    [role="button"] [class*="lucide"] {
+      filter: none !important;
+      box-shadow: none !important;
+      outline: none !important;
+      border: none !important;
+    }
   }
 
   /* iOS Safari: Disable scanline effects (purely decorative) */
