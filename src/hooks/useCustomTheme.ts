@@ -269,6 +269,19 @@ export function useResetTheme() {
         .eq('user_id', userId);
 
       if (error) throw error;
+      
+      // Reset fonts to defaults
+      localStorage.removeItem('vybe-font-body');
+      localStorage.removeItem('vybe-font-display');
+      localStorage.removeItem('vybe-anim-speed');
+      localStorage.removeItem('vybe-anim-style');
+      localStorage.removeItem('vybe-custom-animations');
+      
+      // Reset font CSS variables to defaults
+      const root = document.documentElement;
+      root.style.removeProperty('--font-body');
+      root.style.removeProperty('--font-display');
+      root.style.fontFamily = 'system-ui, sans-serif';
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-theme'] });

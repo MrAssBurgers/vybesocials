@@ -26,9 +26,6 @@ export const SplashScreen = memo(function SplashScreen({
   const showComplete = progress >= 100;
   const isLowEnd = useMemo(() => isLowEndDevice(), []);
   
-  // Generate stable ID for mobile style injection
-  const splashTextId = useMemo(() => `splash-text-${Math.random().toString(36).slice(2, 9)}`, []);
-  
   // Random tip on mount
   const [tip] = useState(() => LOADING_TIPS[Math.floor(Math.random() * LOADING_TIPS.length)]);
   
@@ -106,17 +103,15 @@ export const SplashScreen = memo(function SplashScreen({
             height: '100dvh',
           }}
         >
-          {/* Optimized background with static glows */}
-          <div className="absolute inset-0 pointer-events-none">
+          {/* Clean gradient background - NO overlapping circles */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {/* Single centered gradient glow */}
             <div 
-              className="absolute top-1/2 left-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2 bg-primary opacity-30"
-            />
-            <div 
-              className="absolute top-1/2 right-1/4 w-48 h-48 sm:w-64 sm:h-64 rounded-full blur-[80px] sm:blur-[100px] -translate-y-1/2 bg-accent opacity-30"
-            />
-            <div 
-              className="absolute top-1/2 left-1/2 w-32 h-32 sm:w-48 sm:h-48 rounded-full blur-[60px] sm:blur-[80px] -translate-x-1/2 -translate-y-1/2 opacity-20"
-              style={{ background: 'hsl(var(--neon-purple))' }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-40"
+              style={{
+                background: 'radial-gradient(circle, hsl(var(--primary) / 0.4) 0%, hsl(var(--accent) / 0.2) 40%, transparent 70%)',
+                filter: 'blur(60px)',
+              }}
             />
           </div>
           
@@ -136,30 +131,8 @@ export const SplashScreen = memo(function SplashScreen({
             transition={{ delay: 0.2, duration: 0.4 }}
             className="text-center mb-6 sm:mb-8 px-4"
           >
-            <style>{`
-              @media (max-width: 1024px) {
-                #${splashTextId} {
-                  color: hsl(var(--primary)) !important;
-                  -webkit-text-fill-color: hsl(var(--primary)) !important;
-                  background-clip: unset !important;
-                  -webkit-background-clip: unset !important;
-                  background-image: none !important;
-                  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-                  opacity: 1 !important;
-                }
-              }
-            `}</style>
             <motion.h1
-              id={splashTextId}
-              className="text-3xl sm:text-4xl font-display font-black tracking-tight"
-              style={{
-                background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--neon-purple)), hsl(var(--accent)))',
-                backgroundSize: '200% 200%',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                animation: isLowEnd ? 'none' : 'gradient-shift 4s ease infinite',
-              }}
+              className="text-3xl sm:text-4xl font-display font-black tracking-tight gradient-text"
             >
               VYBE
             </motion.h1>
@@ -188,22 +161,9 @@ export const SplashScreen = memo(function SplashScreen({
                 className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-150 ease-out"
                 style={{
                   width: `${Math.round(displayProgress)}%`,
-                  background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--neon-purple)), hsl(var(--accent)))',
+                  background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)))',
                 }}
               />
-              
-              {/* Glow at progress tip */}
-              {!isLowEnd && displayProgress > 0 && displayProgress < 100 && (
-                <motion.div
-                  className="absolute top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 rounded-full blur-md bg-accent/60"
-                  style={{
-                    left: `${displayProgress}%`,
-                    marginLeft: '-8px',
-                  }}
-                  animate={{ opacity: [0.4, 0.8, 0.4] }}
-                  transition={{ duration: 0.8, repeat: Infinity, ease: 'easeInOut' }}
-                />
-              )}
             </div>
 
             {/* Status text - more prominent */}

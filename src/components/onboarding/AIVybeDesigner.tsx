@@ -49,8 +49,7 @@ import {
 } from '@/hooks/useApplyThemeFonts';
 import { FontSelector } from './FontSelector';
 import { AnimationSelector } from './AnimationSelector';
-import { CustomAnimationInput } from './CustomAnimationInput';
-import { useCustomAnimations, applyCustomAnimations } from '@/hooks/useCustomAnimations';
+import { VybeGenerationAnimation } from './VybeGenerationAnimation';
 import { toast } from 'sonner';
 
 // Personality types for AI to understand
@@ -98,14 +97,12 @@ interface GeneratedTheme extends ThemeTokens {
 
 // Build phases for the animation
 const BUILD_PHASES = [
-  { label: 'Analyzing your vibe...', icon: Sparkles, duration: 800 },
-  { label: 'Generating color palette...', icon: Palette, duration: 1000 },
-  { label: 'Selecting typography...', icon: Type, duration: 800 },
-  { label: 'Creating custom animations...', icon: Wand, duration: 1200 },
-  { label: 'Crafting motion effects...', icon: Zap, duration: 800 },
-  { label: 'Adding visual effects...', icon: Stars, duration: 1000 },
-  { label: 'Perfecting contrast...', icon: Sliders, duration: 600 },
-  { label: 'Finalizing your VYBE...', icon: Heart, duration: 600 },
+  { label: 'Analyzing your vibe...', icon: Sparkles, duration: 600 },
+  { label: 'Generating color palette...', icon: Palette, duration: 800 },
+  { label: 'Selecting typography...', icon: Type, duration: 600 },
+  { label: 'Crafting animations...', icon: Zap, duration: 800 },
+  { label: 'Adding visual effects...', icon: Stars, duration: 600 },
+  { label: 'Finalizing your VYBE...', icon: Heart, duration: 500 },
 ];
 
 export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDesignerProps) {
@@ -113,11 +110,10 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const { user } = useAuth();
   const saveTheme = useSaveTheme();
   
-  const [step, setStep] = useState<'intro' | 'vibe-select' | 'font-select' | 'animation-select' | 'custom-animation' | 'prompt' | 'building' | 'preview'>('intro');
+  const [step, setStep] = useState<'intro' | 'vibe-select' | 'font-select' | 'animation-select' | 'prompt' | 'building' | 'preview'>('intro');
   const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
   const [selectedFont, setSelectedFont] = useState<FontPairingKey | null>(null);
   const [selectedAnimation, setSelectedAnimation] = useState<AnimationPresetKey | null>(null);
-  const [customAnimationPrompt, setCustomAnimationPrompt] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [buildPhase, setBuildPhase] = useState(0);
@@ -125,7 +121,6 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const [showPreviewElements, setShowPreviewElements] = useState(false);
   
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { generateAnimations } = useCustomAnimations();
 
   // Generate suggestion based on interests
   const getInterestSuggestion = useCallback(() => {
@@ -185,11 +180,6 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     abortControllerRef.current = new AbortController();
     
     try {
-      // Start generating custom animations in parallel if user provided a description
-      const customAnimPromise = customAnimationPrompt.trim() 
-        ? generateAnimations(customAnimationPrompt, selectedVibe || 'balanced')
-        : Promise.resolve(null);
-      
       // Call the enhanced theme generation
       const { data, error } = await supabase.functions.invoke('generate-advanced-theme', {
         body: { 
@@ -221,12 +211,6 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         applyAnimationSettings(anim.speed, anim.style);
         theme.animationSpeed = anim.speed as any;
         theme.animationStyle = anim.style as any;
-      }
-      
-      // Wait for custom animations to complete
-      const customAnimResult = await customAnimPromise;
-      if (customAnimResult?.css) {
-        console.log('[AIVybeDesigner] Applied custom animations:', customAnimResult.animations.description);
       }
       
       // Wait for build animation to complete
@@ -301,7 +285,6 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     setSelectedVibe(null);
     setSelectedFont(null);
     setSelectedAnimation(null);
-    setCustomAnimationPrompt('');
     setCustomPrompt('');
     setGeneratedTheme(null);
     setBuildPhase(0);
@@ -555,56 +538,10 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               </Button>
               <Button
                 size="lg"
-                onClick={() => setStep('custom-animation')}
-                className="flex-[2] gradient-animated text-primary-foreground font-semibold"
-              >
-                Continue
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* CUSTOM ANIMATION STEP */}
-        {step === 'custom-animation' && (
-          <motion.div
-            key="custom-animation"
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -50 }}
-            className="relative z-10 h-full flex flex-col p-4 sm:p-6"
-          >
-            <div className="text-center mb-6">
-              <h2 className="text-2xl sm:text-3xl font-bold gradient-text mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-                Custom Animations
-              </h2>
-              <p className="text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
-                Describe how you want things to move and feel (optional)
-              </p>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto overscroll-contain pb-4 flex items-center">
-              <CustomAnimationInput 
-                value={customAnimationPrompt} 
-                onChange={setCustomAnimationPrompt} 
-              />
-            </div>
-            
-            <div className="pt-4 border-t border-border flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setStep('animation-select')}
-                className="flex-1 text-foreground"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-              <Button
-                size="lg"
                 onClick={() => setStep('prompt')}
                 className="flex-[2] gradient-animated text-primary-foreground font-semibold"
               >
-                {customAnimationPrompt.trim() ? 'Continue' : 'Skip'}
+                Continue
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </div>
@@ -663,12 +600,6 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                     <span className="font-medium">{ANIMATION_PRESETS[selectedAnimation].description}</span>
                   </div>
                 )}
-                {customAnimationPrompt && (
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/20 text-accent-foreground text-sm border border-accent/30">
-                    <Wand className="h-3.5 w-3.5" />
-                    <span className="font-medium">Custom Motion</span>
-                  </div>
-                )}
               </motion.div>
               
               <div className="relative w-full">
@@ -704,7 +635,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             <div className="pt-4 border-t border-border flex gap-3">
               <Button
                 variant="outline"
-                onClick={() => setStep('custom-animation')}
+                onClick={() => setStep('animation-select')}
                 className="flex-1 text-foreground"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -724,109 +655,11 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
 
         {/* BUILDING STEP */}
         {step === 'building' && (
-          <motion.div
-            key="building"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 1.1 }}
-            className="relative z-10 h-full flex flex-col items-center justify-center p-6"
-          >
-            {/* Central orb animation */}
-            <div className="relative mb-12">
-              <motion.div
-                animate={{ 
-                  scale: [1, 1.2, 1],
-                  rotate: [0, 360],
-                }}
-                transition={{ 
-                  scale: { duration: 2, repeat: Infinity },
-                  rotate: { duration: 10, repeat: Infinity, ease: "linear" },
-                }}
-                className="w-40 h-40 rounded-full bg-gradient-conic from-primary via-accent to-primary p-1"
-              >
-                <div className="w-full h-full rounded-full bg-background flex items-center justify-center">
-                  <VybeMiniIcon size={60} showSparkles />
-                </div>
-              </motion.div>
-              
-              {/* Orbiting particles */}
-              {[...Array(8)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  animate={{ rotate: 360 }}
-                  transition={{ 
-                    duration: 3 + i * 0.5, 
-                    repeat: Infinity, 
-                    ease: "linear",
-                    delay: i * 0.2,
-                  }}
-                  className="absolute inset-0"
-                  style={{ transform: `rotate(${i * 45}deg)` }}
-                >
-                  <motion.div
-                    animate={{ scale: [0.5, 1, 0.5] }}
-                    transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.1 }}
-                    className="absolute -top-3 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-primary"
-                  />
-                </motion.div>
-              ))}
-            </div>
-            
-            {/* Build phases */}
-            <div className="space-y-4 w-full max-w-sm">
-              {BUILD_PHASES.map((phase, index) => {
-                const Icon = phase.icon;
-                const isActive = buildPhase === index;
-                const isComplete = buildPhase > index;
-                
-                return (
-                  <motion.div
-                    key={phase.label}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ 
-                      opacity: isActive || isComplete ? 1 : 0.3,
-                      x: 0,
-                    }}
-                    transition={{ delay: index * 0.1 }}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-xl transition-colors",
-                      isActive && "bg-primary/10 border border-primary/20",
-                      isComplete && "text-primary"
-                    )}
-                  >
-                    <div className={cn(
-                      "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-                      isActive && "bg-primary text-primary-foreground",
-                      isComplete && "bg-primary/20 text-primary",
-                      !isActive && !isComplete && "bg-muted text-muted-foreground"
-                    )}>
-                      {isComplete ? (
-                        <Check className="h-4 w-4" />
-                      ) : (
-                        <Icon className={cn("h-4 w-4", isActive && "animate-pulse")} />
-                      )}
-                    </div>
-                    <span className={cn(
-                      "text-sm font-semibold drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]",
-                      isActive && "text-foreground",
-                      !isActive && !isComplete && "text-foreground/50"
-                    )}>
-                      {phase.label}
-                    </span>
-                    {isActive && (
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        className="ml-auto"
-                      >
-                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full" />
-                      </motion.div>
-                    )}
-                  </motion.div>
-                );
-              })}
-            </div>
-          </motion.div>
+          <VybeGenerationAnimation 
+            isGenerating={isGenerating}
+            buildPhase={buildPhase}
+            phases={BUILD_PHASES}
+          />
         )}
 
         {/* PREVIEW STEP */}
