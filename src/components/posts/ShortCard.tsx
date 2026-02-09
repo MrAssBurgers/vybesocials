@@ -79,40 +79,19 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
   const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const wasHoldingRef = useRef(false); // Track if we just released from a hold
-  const holdStartedRef = useRef(false); // Track if hold gesture started
+  const wasHoldingRef = useRef(false);
+  const holdStartedRef = useRef(false);
   
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author?.avatar_url || null);
   
-  // Combine external and internal holding state
   const effectiveIsHolding = externalIsHolding || isHolding;
   const { isSlowConnection } = useNetworkStatus();
 
-  // Subscribe to realtime view count updates
+  // Sync view count from props (no realtime subscription needed)
   useEffect(() => {
-    const channel = supabase
-      .channel(`post-views-${post.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'posts',
-          filter: `id=eq.${post.id}`,
-        },
-        (payload) => {
-          if (payload.new && typeof payload.new.view_count === 'number') {
-            setViewCount(payload.new.view_count);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [post.id]);
+    setViewCount(post.view_count || 0);
+  }, [post.view_count]);
 
   // Sync with global mute state
   useEffect(() => {
@@ -132,7 +111,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         videoRef.current.pause();
         setIsPlaying(false);
       } else if (isActive) {
-        // Resume playback without changing mute state
         videoRef.current.play().then(() => {
           setIsPlaying(true);
         }).catch(() => {});
@@ -143,26 +121,21 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   // Auto-play when active - mute state only changes via tap
   useEffect(() => {
     if (videoRef.current && signedMediaUrl) {
-      // Skip if holding - that's handled separately
       if (effectiveIsHolding) return;
 
       if (isActive) {
-        // Only set mute on FIRST ever autoplay for this clip
         if (!hasInitializedRef.current) {
           videoRef.current.muted = isMuted;
           hasInitializedRef.current = true;
         }
-        // Otherwise don't touch video.muted - preserve current state
         
         videoRef.current.play().then(() => {
           setIsPlaying(true);
-          // Count initial view
           if (!hasCountedInitialView.current && profile) {
             hasCountedInitialView.current = true;
             incrementViewCount();
           }
         }).catch(() => {
-          // Browser blocked autoplay - force muted and retry
           if (videoRef.current) {
             videoRef.current.muted = true;
             setIsMuted(true);
@@ -184,25 +157,20 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       const { error } = await supabase.rpc('increment_view_count', { post_id_param: post.id });
       if (error) {
         console.error('RPC error:', error);
-        // Fallback: optimistically update local state
         setViewCount(prev => prev + 1);
       }
     } catch (error) {
       console.error('Failed to increment view count:', error);
-      // Fallback: optimistically update local state
       setViewCount(prev => prev + 1);
     }
   };
 
-  // Handle video loop/repeat - count each replay as a view
   const handleVideoEnded = useCallback(() => {
     if (profile && isActive) {
       incrementViewCount();
     }
   }, [profile, isActive]);
 
-  // Touch handlers for hold-to-pause (Instagram-style)
-  // CRITICAL: Separate hold (pause only) from tap (mute only)
   const handleTouchStart = useCallback(() => {
     holdStartedRef.current = false;
     holdTimeoutRef.current = setTimeout(() => {
@@ -219,36 +187,27 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     if (isHolding) {
       wasHoldingRef.current = true;
       setIsHolding(false);
-      // Clear the flag after a short delay to block the click event
       setTimeout(() => {
         wasHoldingRef.current = false;
       }, 50);
     }
   }, [isHolding]);
 
-  // Tap to toggle mute (single tap), double tap to like
-  // CRITICAL: Only works when playing, NOT when coming from a hold
   const handleTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // CRITICAL: If we just released from a hold, ignore this click entirely
-    // This prevents hold-release from triggering mute toggle
     if (wasHoldingRef.current || isHolding || holdStartedRef.current) {
       return;
     }
     
-    // CRITICAL: Only allow mute toggle when video is actively playing
-    // Do NOT toggle mute while paused
     if (!isPlaying) return;
     
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
     
     if (timeSinceLastTap < 300) {
-      // Double tap - like
       handleDoubleTap();
     } else {
-      // Single tap - toggle mute ONLY
       if (onToggleMute) {
         onToggleMute();
       } else if (videoRef.current) {
@@ -259,7 +218,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     lastTapTime.current = now;
   }, [isMuted, onToggleMute, isHolding, isPlaying]);
   
-  // Guard against null author - return early with placeholder AFTER all hooks
   if (!post.author) {
     return (
       <div className="relative h-full w-full bg-black flex items-center justify-center">
@@ -279,7 +237,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     const prevIsLiked = isLiked;
     const prevLikeCount = likeCount;
     
-    // Optimistic update
     setIsLiked(newIsLiked);
     setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
 
@@ -305,10 +262,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         const { error } = await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
         if (error) throw error;
       }
-      // Invalidate to sync with server
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     } catch (error) {
-      // Revert on error
       console.error('Like failed:', error);
       setIsLiked(prevIsLiked);
       setLikeCount(prevLikeCount);
@@ -456,7 +411,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           </div>
         )}
 
-        {/* Play indicator when paused (but NOT when holding - no UI for hold-pause) */}
+        {/* Play indicator when paused */}
         <AnimatePresence>
           {isVideo && !isPlaying && !isLoading && !hasError && !effectiveIsHolding && (
             <motion.div
@@ -475,7 +430,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           )}
         </AnimatePresence>
 
-        {/* Double tap heart - fun burst effect */}
+        {/* Double tap heart */}
         <AnimatePresence>
           {showHeart && (
             <motion.div
@@ -485,7 +440,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
               transition={{ duration: 0.4, type: 'spring', stiffness: 400, damping: 15 }}
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
             >
-              {/* Main heart with pop */}
               <motion.div
                 animate={{ 
                   scale: [0, 1.5, 0.85, 1.15, 1],
@@ -496,7 +450,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
                 <Heart className="h-36 w-36 text-rose-500 fill-rose-500 drop-shadow-2xl" />
               </motion.div>
               
-              {/* Particle burst */}
               {[...Array(14)].map((_, i) => (
                 <motion.div
                   key={i}
@@ -513,7 +466,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
                 />
               ))}
               
-              {/* Mini hearts burst */}
               {[...Array(8)].map((_, i) => (
                 <motion.div
                   key={`heart-${i}`}
@@ -536,160 +488,107 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         </AnimatePresence>
       </div>
 
-      {/* Gradient overlays */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+      {/* Bottom gradient */}
+      <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+      <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/40 to-transparent pointer-events-none" />
 
       {/* Right side actions */}
-      <div className="absolute right-3 bottom-20 flex flex-col items-center gap-5 z-10">
+      <div className="absolute right-3 bottom-24 flex flex-col items-center gap-5 z-10">
         {/* Author avatar */}
-        <Link to={`/u/${post.author.username}`} className="relative">
-          <motion.div whileTap={{ scale: 0.9 }} className="story-ring">
-            <Avatar className="h-12 w-12 border-2 border-white">
-              <AvatarImage src={signedAvatarUrl || undefined} />
-              <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-bold">
-                {post.author.username[0].toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          </motion.div>
+        <Link to={`/u/${post.author.username}`}>
+          <Avatar className="h-12 w-12 border-2 border-white shadow-lg">
+            <AvatarImage src={signedAvatarUrl || undefined} />
+            <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+              {post.author.username[0]?.toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
         </Link>
 
         {/* Like */}
-        <div className="relative">
-          <motion.button 
-            whileTap={{ scale: 0.7 }}
-            onClick={handleLike} 
-            className="flex flex-col items-center gap-1"
-          >
-            <motion.div 
-              animate={isLiked ? { 
-                scale: [1, 1.4, 0.9, 1.1, 1],
-                rotate: [0, -10, 10, -5, 0]
-              } : {}}
-              transition={{ duration: 0.5, type: 'spring', stiffness: 400 }}
-            >
-              <Heart
-                className={cn(
-                  "h-8 w-8 drop-shadow-lg transition-colors",
-                  isLiked ? "fill-red-500 text-red-500" : "text-white"
-                )}
-              />
-            </motion.div>
-            <span className="text-xs font-bold text-white drop-shadow-lg">{likeCount}</span>
-          </motion.button>
+        <button onClick={handleLike} className="flex flex-col items-center gap-1 relative">
+          <div className="relative">
+            <Heart
+              className={cn(
+                "h-8 w-8 drop-shadow-lg transition-all",
+                isLiked ? "fill-red-500 text-red-500 scale-110" : "text-white"
+              )}
+            />
+            <AnimatePresence>
+              {showLikeParticles && (
+                <>
+                  {[...Array(6)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="absolute top-1/2 left-1/2 w-1.5 h-1.5 rounded-full bg-red-400"
+                      initial={{ x: 0, y: 0, scale: 1, opacity: 1 }}
+                      animate={{
+                        x: Math.cos(i * 60 * Math.PI / 180) * 20,
+                        y: Math.sin(i * 60 * Math.PI / 180) * 20,
+                        scale: 0,
+                        opacity: 0,
+                      }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  ))}
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+          <span className="text-xs font-semibold text-white drop-shadow-lg">{likeCount}</span>
+        </button>
 
-          {/* Particle burst */}
-          <AnimatePresence>
-            {showLikeParticles && (
-              <div className="absolute inset-0 pointer-events-none">
-                {[...Array(8)].map((_, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                    animate={{ 
-                      scale: [0, 1, 0.5],
-                      x: Math.cos(i * 45 * Math.PI / 180) * 35,
-                      y: Math.sin(i * 45 * Math.PI / 180) * 35,
-                      opacity: [1, 1, 0],
-                    }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="absolute top-4 left-4 w-2 h-2 rounded-full"
-                    style={{ backgroundColor: i % 2 === 0 ? '#ef4444' : '#f97316' }}
-                  />
-                ))}
-              </div>
-            )}
-          </AnimatePresence>
-        </div>
+        {/* Comment */}
+        <button onClick={handleOpenComments} className="flex flex-col items-center gap-1">
+          <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
+          <span className="text-xs font-semibold text-white drop-shadow-lg">{post.comment_count}</span>
+        </button>
 
-        {/* Comment - opens bottom sheet */}
-        <button onClick={handleOpenComments}>
-          <motion.button 
-            whileTap={{ scale: 0.7 }}
-            className="flex flex-col items-center gap-1"
-          >
-            <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
-            <span className="text-xs font-bold text-white drop-shadow-lg">{post.comment_count}</span>
-          </motion.button>
+        {/* Share */}
+        <button onClick={handleShare} className="flex flex-col items-center gap-1">
+          <Share2 className="h-7 w-7 text-white drop-shadow-lg" />
         </button>
 
         {/* Bookmark */}
-        <motion.button 
-          whileTap={{ scale: 0.7 }}
-          animate={isBookmarked ? { scale: [1, 1.3, 1] } : {}}
-          onClick={handleBookmark} 
-          className="flex flex-col items-center gap-1"
-        >
+        <button onClick={handleBookmark} className="flex flex-col items-center gap-1">
           <Bookmark
             className={cn(
-              "h-8 w-8 drop-shadow-lg transition-colors",
-              isBookmarked ? "fill-yellow-400 text-yellow-400" : "text-white"
+              "h-7 w-7 drop-shadow-lg",
+              isBookmarked ? "fill-white text-white" : "text-white"
             )}
           />
-        </motion.button>
-
-        {/* Share */}
-        <motion.button 
-          whileTap={{ scale: 0.7, rotate: 15 }}
-          onClick={handleShare} 
-          className="flex flex-col items-center gap-1"
-        >
-          <Share2 className="h-8 w-8 text-white drop-shadow-lg" />
-        </motion.button>
-
-        {/* Mute toggle */}
-        {isVideo && (
-          <motion.button 
-            whileTap={{ scale: 0.7 }}
-            onClick={() => onToggleMute ? onToggleMute() : setIsMuted(!isMuted)} 
-            className="flex flex-col items-center gap-1"
-          >
-            {isMuted ? (
-              <VolumeX className="h-7 w-7 text-white drop-shadow-lg" />
-            ) : (
-              <Volume2 className="h-7 w-7 text-white drop-shadow-lg" />
-            )}
-          </motion.button>
-        )}
+        </button>
 
         {/* More options */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20">
-              <MoreVertical className="h-6 w-6" />
-            </Button>
+            <button className="flex flex-col items-center">
+              <MoreVertical className="h-7 w-7 text-white drop-shadow-lg" />
+            </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="liquid-glass">
-            {/* Show author's mod badge in menu header */}
-            {authorRole && (
-              <div className="px-2 py-1.5 flex items-center gap-2 border-b border-border/50 mb-1">
-                <ModBadge role={authorRole} showLabel />
-              </div>
-            )}
+          <DropdownMenuContent align="end" className="w-48">
             {isOwnPost && (
               <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Edit Clip
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
               </DropdownMenuItem>
             )}
             {canDelete && (
               <DropdownMenuItem onClick={handleDelete} className="text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Clip
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
               </DropdownMenuItem>
             )}
             {!isOwnPost && (
-              <DropdownMenuItem onClick={handleReport} className="text-destructive">
-                <Flag className="h-4 w-4 mr-2" />
+              <DropdownMenuItem onClick={handleReport}>
+                <Flag className="mr-2 h-4 w-4" />
                 Report
               </DropdownMenuItem>
             )}
-            {/* Mod actions - only visible to mods/admins and not on own content */}
             {isModOrAdmin && !isOwnPost && post.author && (
               <ModeratorMenuItems
                 userId={post.author.id}
                 username={post.author.username}
-                postId={post.id}
                 onWarnClick={() => setWarnDialogOpen(true)}
                 onBanClick={() => setBanDialogOpen(true)}
                 onMemeBanClick={() => setMemeBanDialogOpen(true)}
@@ -697,70 +596,61 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
             )}
           </DropdownMenuContent>
         </DropdownMenu>
-        
-        {/* Edit dialog */}
-        <EditPostDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          post={{ id: post.id, caption: post.caption, tags: post.tags || [] }}
-        />
-        
-        {/* Mod dialogs */}
-        <ModeratorDialogs
-          userId={post.author.id}
-          username={post.author.username}
-          warnDialogOpen={warnDialogOpen}
-          setWarnDialogOpen={setWarnDialogOpen}
-          banDialogOpen={banDialogOpen}
-          setBanDialogOpen={setBanDialogOpen}
-          memeBanDialogOpen={memeBanDialogOpen}
-          setMemeBanDialogOpen={setMemeBanDialogOpen}
-        />
       </div>
 
-      <div className="absolute left-4 right-20 bottom-4 z-10">
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <Link to={`/u/${post.author.username}`} className="flex items-center gap-2">
-            <Avatar className="h-6 w-6 border border-white/50">
-              <AvatarImage src={signedAvatarUrl || undefined} />
-              <AvatarFallback className="bg-primary text-white text-xs font-bold">
-                {post.author.username[0].toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <span className="font-bold text-lg text-white drop-shadow-lg">
-              @{post.author.username}
-            </span>
-          </Link>
-          {authorRole && <ModBadge role={authorRole} className="shadow-md" />}
-          {isOwner(post.author.username) && <OwnerBadge />}
-          {isOwnerWife(post.author.id) && <OwnerWifeRingBadge />}
-          <div className="flex items-center gap-1 text-white/80 text-sm">
-            <Eye className="h-4 w-4" />
-            <span>{formatViewCount(viewCount)}</span>
-          </div>
-        </div>
+      {/* Bottom info */}
+      <div className="absolute bottom-6 left-4 right-16 z-10">
+        <Link to={`/u/${post.author.username}`} className="flex items-center gap-2 mb-2">
+          <span className="font-bold text-white text-sm drop-shadow-lg flex items-center gap-1">
+            @{post.author.username}
+            {isOwner(post.author.id) && <OwnerBadge />}
+            {isOwnerWife(post.author.id) && <OwnerWifeRingBadge />}
+            {authorRole === 'moderator' && <ModBadge role="moderator" />}
+          </span>
+        </Link>
         {post.caption && (
-          <p className="text-sm text-white drop-shadow-lg line-clamp-2 mb-2">{post.caption}</p>
+          <p className="text-white/90 text-sm line-clamp-2 drop-shadow-lg">{post.caption}</p>
         )}
-        {post.tags && post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {post.tags.map((tag) => (
-              <span 
-                key={tag} 
-                className="text-xs text-cyan-300 font-medium drop-shadow-lg"
-              >
-                #{tag}
-              </span>
+        {post.tags?.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {post.tags.slice(0, 3).map((tag) => (
+              <span key={tag} className="text-xs text-white/70 drop-shadow-lg">#{tag}</span>
             ))}
           </div>
         )}
+        {/* View count */}
+        <div className="flex items-center gap-1 mt-1">
+          <Eye className="h-3.5 w-3.5 text-white/60" />
+          <span className="text-xs text-white/60">{formatViewCount(viewCount)} views</span>
+        </div>
       </div>
+
+      {/* Mute indicator */}
+      {isVideo && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onToggleMute) {
+              onToggleMute();
+            } else if (videoRef.current) {
+              videoRef.current.muted = !isMuted;
+              setIsMuted(!isMuted);
+            }
+          }}
+          className="absolute top-4 right-4 z-20 p-2 rounded-full bg-black/40 backdrop-blur-sm"
+        >
+          {isMuted ? (
+            <VolumeX className="h-5 w-5 text-white" />
+          ) : (
+            <Volume2 className="h-5 w-5 text-white" />
+          )}
+        </button>
+      )}
 
       {/* Comment Sheet */}
       <CommentSheet
         postId={post.id}
-        authorId={post.author?.id || ''}
-        commentCount={post.comment_count}
+        authorId={post.author.id}
         isOpen={showCommentSheet}
         onClose={handleCloseComments}
       />
@@ -772,8 +662,31 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         postId={post.id}
         postType="short"
         caption={post.caption}
-        mediaUrl={signedMediaUrl || post.media_url}
+        mediaUrl={post.media_url}
       />
+
+      {/* Edit Dialog */}
+      {isOwnPost && (
+        <EditPostDialog
+          post={post}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+        />
+      )}
+
+      {/* Moderator Dialogs */}
+      {isModOrAdmin && post.author && (
+        <ModeratorDialogs
+          userId={post.author.id}
+          username={post.author.username}
+          warnDialogOpen={warnDialogOpen}
+          setWarnDialogOpen={setWarnDialogOpen}
+          banDialogOpen={banDialogOpen}
+          setBanDialogOpen={setBanDialogOpen}
+          memeBanDialogOpen={memeBanDialogOpen}
+          setMemeBanDialogOpen={setMemeBanDialogOpen}
+        />
+      )}
     </div>
   );
 });

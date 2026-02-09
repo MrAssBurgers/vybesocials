@@ -75,30 +75,10 @@ export const MobileShortCard = memo(function MobileShortCard({
   const wasHoldingRef = useRef(false); // Track if we just released from a hold
   const holdStartedRef = useRef(false); // Track if hold gesture started
 
-  // Subscribe to realtime view count updates
+  // Sync view count from props (no realtime subscription needed)
   useEffect(() => {
-    const channel = supabase
-      .channel(`post-views-mobile-${post.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'posts',
-          filter: `id=eq.${post.id}`,
-        },
-        (payload) => {
-          if (payload.new && typeof payload.new.view_count === 'number') {
-            setViewCount(payload.new.view_count);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [post.id]);
+    setViewCount(post.view_count || 0);
+  }, [post.view_count]);
 
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);

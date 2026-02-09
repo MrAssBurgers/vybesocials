@@ -49,16 +49,12 @@ export interface ChallengeReward {
   };
 }
 
-/**
- * Fetch user's level and XP
- */
 export function useUserLevel() {
   const { profile } = useAuth();
 
   return useQuery({
     queryKey: ['user-level', profile?.user_id],
     queryFn: async () => {
-      // user_levels.user_id references auth.users.id, so we use profile.user_id
       if (!profile?.user_id) return null;
       
       const { data, error } = await supabase
@@ -69,7 +65,6 @@ export function useUserLevel() {
       
       if (error) throw error;
       
-      // If no record exists, create one
       if (!data) {
         const { data: newData, error: insertError } = await supabase
           .from('user_levels')
@@ -94,9 +89,6 @@ export function useUserLevel() {
   });
 }
 
-/**
- * Fetch all VYBE Pass tiers
- */
 export function useVybePassTiers() {
   return useQuery({
     queryKey: ['vybe-pass-tiers'],
@@ -113,16 +105,12 @@ export function useVybePassTiers() {
   });
 }
 
-/**
- * Fetch unclaimed challenge rewards
- */
 export function useUnclaimedRewards() {
   const { profile } = useAuth();
 
   return useQuery({
     queryKey: ['unclaimed-rewards', profile?.user_id],
     queryFn: async () => {
-      // challenge_rewards.user_id references auth.users.id, so we use profile.user_id
       if (!profile?.user_id) return [];
       
       const { data, error } = await supabase
@@ -143,16 +131,12 @@ export function useUnclaimedRewards() {
   });
 }
 
-/**
- * Claim a challenge reward
- */
 export function useClaimReward() {
   const queryClient = useQueryClient();
   const { profile } = useAuth();
 
   return useMutation({
     mutationFn: async (rewardId: string) => {
-      // claim_challenge_reward expects profile.id (it translates internally)
       if (!profile?.id) throw new Error('Not authenticated');
       
       const { data, error } = await supabase.rpc('claim_challenge_reward', {
@@ -177,7 +161,6 @@ export function useClaimReward() {
       return result;
     },
     onSuccess: (data) => {
-      // Invalidate using auth ID
       queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile?.user_id] });
       queryClient.invalidateQueries({ queryKey: ['user-level', profile?.user_id] });
       queryClient.invalidateQueries({ queryKey: ['user-badges', profile?.user_id] });
@@ -192,7 +175,9 @@ export function useClaimReward() {
 }
 
 /**
- * Real-time subscription for new challenge rewards
+ * SINGLE consolidated realtime channel for all VybePass updates
+ * (challenge rewards, level updates, challenge progress)
+ * Replaces 3 separate channels.
  */
 export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeReward) => void) {
   const { profile } = useAuth();
@@ -201,11 +186,10 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
   callbackRef.current = onNewReward;
 
   useEffect(() => {
-    // challenge_rewards.user_id is auth ID
-    if (!profile?.user_id) return;
+    if (!profile?.user_id || !profile?.id) return;
 
     const channel = supabase
-      .channel(`challenge-rewards-${profile.user_id}`)
+      .channel(`vybepass-${profile.user_id}`)
       .on(
         'postgres_changes',
         {
@@ -215,11 +199,6 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
           filter: `user_id=eq.${profile.user_id}`,
         },
         async (payload) => {
-          if (import.meta.env.DEV) {
-            console.log('[VybePass] New reward received:', payload);
-          }
-          
-          // Fetch the full reward with challenge info
           const { data: reward } = await supabase
             .from('challenge_rewards')
             .select(`*, challenge:challenges(title, description)`)
@@ -230,7 +209,6 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
             queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile.user_id] });
             callbackRef.current?.(reward as ChallengeReward);
             
-            // Show toast notification
             toast.success(
               `🎯 Challenge Complete! Claim your ${reward.xp_amount} XP reward!`,
               {
@@ -246,27 +224,6 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
           }
         }
       )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [profile?.user_id, queryClient]);
-}
-
-/**
- * Real-time subscription for level updates
- */
-export function useRealtimeLevelUpdates() {
-  const { profile } = useAuth();
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    // user_levels.user_id is auth ID
-    if (!profile?.user_id) return;
-
-    const channel = supabase
-      .channel(`user-level-${profile.user_id}`)
       .on(
         'postgres_changes',
         {
@@ -275,34 +232,10 @@ export function useRealtimeLevelUpdates() {
           table: 'user_levels',
           filter: `user_id=eq.${profile.user_id}`,
         },
-        (payload) => {
-          if (import.meta.env.DEV) {
-            console.log('[VybePass] Level updated:', payload);
-          }
+        () => {
           queryClient.invalidateQueries({ queryKey: ['user-level', profile.user_id] });
         }
       )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [profile?.user_id, queryClient]);
-}
-
-/**
- * Real-time subscription for challenge progress updates
- */
-export function useRealtimeChallengeProgress() {
-  const { profile } = useAuth();
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    // challenge_progress.user_id is profile.id (not auth ID)
-    if (!profile?.id) return;
-
-    const channel = supabase
-      .channel(`challenge-progress-${profile.id}`)
       .on(
         'postgres_changes',
         {
@@ -311,11 +244,7 @@ export function useRealtimeChallengeProgress() {
           table: 'challenge_progress',
           filter: `user_id=eq.${profile.id}`,
         },
-        (payload) => {
-          if (import.meta.env.DEV) {
-            console.log('[VybePass] Challenge progress updated:', payload);
-          }
-          // Invalidate queries to refresh UI
+        () => {
           queryClient.invalidateQueries({ queryKey: ['challenge-progress', profile.id] });
         }
       )
@@ -324,12 +253,23 @@ export function useRealtimeChallengeProgress() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profile?.user_id, profile?.id, queryClient]);
 }
 
 /**
- * Calculate XP needed for next level
+ * @deprecated Use useRealtimeChallengeRewards which now includes level updates
  */
+export function useRealtimeLevelUpdates() {
+  // No-op — consolidated into useRealtimeChallengeRewards
+}
+
+/**
+ * @deprecated Use useRealtimeChallengeRewards which now includes progress updates
+ */
+export function useRealtimeChallengeProgress() {
+  // No-op — consolidated into useRealtimeChallengeRewards
+}
+
 export function useNextLevelProgress() {
   const { data: userLevel } = useUserLevel();
   const { data: tiers } = useVybePassTiers();
@@ -363,16 +303,12 @@ export function useNextLevelProgress() {
   };
 }
 
-/**
- * Grant XP for content creation (posts, clips, stories, snaps)
- */
 export function useGrantPostXP() {
   const queryClient = useQueryClient();
   const { profile } = useAuth();
 
   return useMutation({
     mutationFn: async (contentType: string = 'post') => {
-      // grant_post_xp expects profile.id (it translates internally)
       if (!profile?.id) throw new Error('Not authenticated');
       
       const { data, error } = await supabase.rpc('grant_post_xp', {
@@ -384,10 +320,8 @@ export function useGrantPostXP() {
       return data as { success: boolean; xp_granted: number; content_type: string; level_result: any };
     },
     onSuccess: (data) => {
-      // Invalidate using auth ID for user_levels
       queryClient.invalidateQueries({ queryKey: ['user-level', profile?.user_id] });
       
-      // Show XP toast
       toast.success(`+${data.xp_granted} XP for your ${data.content_type}!`, {
         duration: 3000,
       });

@@ -6,12 +6,8 @@ import { useAuth } from '@/lib/auth';
 /**
  * Discord/Snapchat-style Tab Notification Badge
  * 
- * Updates the browser tab title to show unread counts:
- * - No unreads: "VYBE"
- * - With unreads: "(5) VYBE"
- * - 99+ for large counts: "(99+) VYBE"
- * 
- * Also flashes the title for new messages (optional)
+ * Updates the browser tab title to show unread counts.
+ * Uses a SINGLE realtime channel instead of 3 separate ones.
  */
 
 const ORIGINAL_TITLE = 'VYBE';
@@ -26,7 +22,6 @@ function useUnreadMessagesCount() {
     queryFn: async () => {
       if (!profile?.id) return 0;
 
-      // Get all conversations user is a member of
       const { data: memberships } = await supabase
         .from('conversation_members')
         .select('conversation_id, last_read_at')
@@ -36,7 +31,6 @@ function useUnreadMessagesCount() {
 
       let totalUnread = 0;
 
-      // For each conversation, count unread messages
       for (const membership of memberships) {
         const query = supabase
           .from('messages')
@@ -45,7 +39,6 @@ function useUnreadMessagesCount() {
           .neq('sender_id', profile.id)
           .is('deleted_at', null);
 
-        // Only count messages after last_read_at if set
         if (membership.last_read_at) {
           query.gt('created_at', membership.last_read_at);
         }
@@ -57,9 +50,9 @@ function useUnreadMessagesCount() {
       return totalUnread;
     },
     enabled: !!profile?.id,
-    staleTime: 30000, // 30 seconds
-    gcTime: 1000 * 60 * 5, // 5 minutes
-    refetchInterval: 60000, // Refresh every minute
+    staleTime: 30000,
+    gcTime: 1000 * 60 * 5,
+    refetchInterval: 60000,
     refetchOnWindowFocus: true,
   });
 }
@@ -97,12 +90,10 @@ export function useTabNotificationBadge() {
   const previousCountRef = useRef<number>(0);
   const flashIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Calculate total unread
   const totalUnread = unreadMessages + unreadNotifications;
 
   // Update document title based on unread count
   useEffect(() => {
-    // Clear any existing flash interval
     if (flashIntervalRef.current) {
       clearInterval(flashIntervalRef.current);
       flashIntervalRef.current = null;
@@ -115,7 +106,6 @@ export function useTabNotificationBadge() {
       
       document.title = `(${displayCount}) ${ORIGINAL_TITLE}`;
 
-      // Flash effect when count increases (new notification)
       if (totalUnread > previousCountRef.current && previousCountRef.current > 0) {
         let isFlashing = true;
         flashIntervalRef.current = setInterval(() => {
@@ -125,7 +115,6 @@ export function useTabNotificationBadge() {
           isFlashing = !isFlashing;
         }, 500);
 
-        // Stop flashing after 3 seconds
         setTimeout(() => {
           if (flashIntervalRef.current) {
             clearInterval(flashIntervalRef.current);
@@ -145,7 +134,6 @@ export function useTabNotificationBadge() {
 
     previousCountRef.current = totalUnread;
 
-    // Cleanup on unmount
     return () => {
       if (flashIntervalRef.current) {
         clearInterval(flashIntervalRef.current);
@@ -153,13 +141,12 @@ export function useTabNotificationBadge() {
     };
   }, [totalUnread]);
 
-  // Listen for real-time updates to refresh counts
+  // SINGLE consolidated realtime channel for all badge updates
   useEffect(() => {
     if (!profile?.id) return;
 
-    // Listen for new messages
-    const messagesChannel = supabase
-      .channel('tab-badge-messages')
+    const channel = supabase
+      .channel('tab-badge-consolidated')
       .on(
         'postgres_changes',
         {
@@ -168,17 +155,11 @@ export function useTabNotificationBadge() {
           table: 'messages',
         },
         (payload) => {
-          // Only refresh if message is not from current user
           if (payload.new.sender_id !== profile.id) {
             queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
           }
         }
       )
-      .subscribe();
-
-    // Listen for new notifications
-    const notificationsChannel = supabase
-      .channel('tab-badge-notifications')
       .on(
         'postgres_changes',
         {
@@ -191,11 +172,6 @@ export function useTabNotificationBadge() {
           queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
         }
       )
-      .subscribe();
-
-    // Listen for read state changes
-    const readChannel = supabase
-      .channel('tab-badge-read-state')
       .on(
         'postgres_changes',
         {
@@ -223,9 +199,7 @@ export function useTabNotificationBadge() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(messagesChannel);
-      supabase.removeChannel(notificationsChannel);
-      supabase.removeChannel(readChannel);
+      supabase.removeChannel(channel);
     };
   }, [profile?.id, queryClient]);
 
