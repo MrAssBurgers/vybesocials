@@ -138,13 +138,15 @@ serve(async (req) => {
           logStep("ERROR - Stripe Connect not enabled on platform", { message });
           return new Response(
             JSON.stringify({
+              ok: false,
               error:
                 "Payments setup isn't enabled yet. Enable Stripe Connect for your Stripe account, then try again.",
               code: "connect_not_enabled",
             }),
             {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 400,
+              // Return 200 so the client can show a friendly message without treating this as a runtime failure
+              status: 200,
             },
           );
         }
