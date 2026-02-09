@@ -350,6 +350,17 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
          these are set inline by the component and must remain untouched */
     }
 
+    /* Create button — preserve gradient background and white icon */
+    .create-button-gradient,
+    .create-button-gradient * {
+      color: white !important;
+      stroke: white !important;
+      background-clip: unset !important;
+      -webkit-background-clip: unset !important;
+      -webkit-text-fill-color: unset !important;
+      filter: none !important;
+    }
+
     /* EXCEPTION: Switch / Toggle components — preserve native radix styling */
     [role="switch"],
     [role="switch"] *,
