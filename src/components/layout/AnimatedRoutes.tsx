@@ -49,8 +49,10 @@ const BusinessPortal = lazy(() => import("@/pages/BusinessPortal"));
 const OrderSuccess = lazy(() => import("@/pages/OrderSuccess"));
 const OrderCancelled = lazy(() => import("@/pages/OrderCancelled"));
 
-// Debug panel - only loaded in dev mode
+// Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
+import { ProductionDebugPanel } from '@/components/debug/ProductionDebugPanel';
+import { useAdminDebugPanel } from '@/hooks/useAdminDebugPanel';
 
 // Minimal fallback - just shows content area, no skeleton flicker
 const PageFallback = memo(() => (
@@ -75,6 +77,7 @@ const pageTransition = {
  */
 export function AnimatedRoutes() {
   const location = useLocation();
+  const { isOpen: debugOpen, setIsOpen: setDebugOpen, isAdmin: isDebugAdmin } = useAdminDebugPanel();
   
   // Preload all routes after initial render
   useEffect(() => {
@@ -168,6 +171,9 @@ export function AnimatedRoutes() {
             <Suspense fallback={null}>
               <DebugPanel />
             </Suspense>
+          )}
+          {isDebugAdmin && (
+            <ProductionDebugPanel isOpen={debugOpen} onClose={() => setDebugOpen(false)} />
           )}
         </Suspense>
       </motion.div>
