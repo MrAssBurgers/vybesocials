@@ -38,6 +38,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { applyThemeTokens, useSaveTheme, ThemeTokens } from '@/hooks/useCustomTheme';
+import { navVisibility } from '@/lib/navVisibility';
 import { 
   FONT_PAIRINGS, 
   FontPairingKey, 
@@ -121,6 +122,12 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const [showPreviewElements, setShowPreviewElements] = useState(false);
   
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Hide nav when designer opens, show when it closes
+  useEffect(() => {
+    navVisibility.setInDesigner(true);
+    return () => navVisibility.setInDesigner(false);
+  }, []);
 
   // Generate suggestion based on interests
   const getInterestSuggestion = useCallback(() => {
