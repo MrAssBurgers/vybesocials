@@ -1,4 +1,4 @@
-import { Home, Compass, PlusCircle, MessageCircle, User } from 'lucide-react';
+import { Home, Compass, Plus, MessageCircle, User } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { triggerNavFeedback } from '@/lib/navFeedback';
@@ -265,7 +265,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
   const navItems = [
     { icon: Home, label: 'Home', path: '/home', badge: 0, tutorialId: 'home-nav', requiresAuth: false },
     { icon: Compass, label: 'Explore', path: '/explore', badge: 0, tutorialId: 'explore-nav', requiresAuth: false },
-    { icon: PlusCircle, label: 'Create', path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav', requiresAuth: true },
+    { icon: Plus, label: 'Create', path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav', requiresAuth: true },
     { icon: MessageCircle, label: 'Messages', path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav', requiresAuth: true, authAction: 'send messages' },
     { icon: User, label: 'Profile', path: profile ? `/u/${profile.username}` : '/settings', badge: 0, tutorialId: 'profile-nav', requiresAuth: false, isProfile: true },
   ];
@@ -314,18 +314,35 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                     <motion.button
                       className="relative flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation"
                       onClick={handleCreateClick}
-                      whileTap={{ scale: 0.85 }}
-                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.8 }}
+                      whileHover={{ scale: 1.08 }}
                     >
+                      {/* Outer pulsing glow ring */}
+                      <motion.div
+                        className="absolute rounded-2xl"
+                        style={{
+                          inset: -3,
+                          background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))',
+                          backgroundSize: '300% 300%',
+                          animation: 'gradient-shift 4s ease infinite',
+                          opacity: 0.5,
+                          filter: 'blur(8px)',
+                        }}
+                      />
+                      
                       {/* Animated glow ring when menu is open */}
                       <AnimatePresence>
                         {isCreateMenuOpen && (
                           <motion.div
                             initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1.3, opacity: 0.6 }}
+                            animate={{ scale: 1.5, opacity: 0.7 }}
                             exit={{ scale: 0.8, opacity: 0 }}
                             transition={{ duration: 0.3 }}
-                            className="absolute inset-0 rounded-full bg-primary/30 blur-md"
+                            className="absolute inset-0 rounded-2xl"
+                            style={{
+                              background: 'linear-gradient(135deg, hsl(var(--primary) / 0.6), hsl(var(--accent) / 0.6))',
+                              filter: 'blur(12px)',
+                            }}
                           />
                         )}
                       </AnimatePresence>
@@ -343,19 +360,19 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                       <motion.div 
                         animate={{ 
                           rotate: isCreateMenuOpen ? 45 : 0,
-                          scale: isCreateMenuOpen ? 1.1 : 1,
+                          scale: isCreateMenuOpen ? 1.15 : 1,
                         }}
-                        transition={{ type: 'spring', damping: 15, stiffness: 300 }}
-                        className="rounded-xl p-2 shadow-lg create-button-gradient relative overflow-hidden"
+                        transition={{ type: 'spring', damping: 12, stiffness: 200 }}
+                        className="rounded-2xl p-2.5 create-button-gradient relative overflow-hidden"
                       >
-                        {/* Shine effect */}
+                        {/* Continuous shimmer sweep */}
                         <motion.div
-                          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
-                          initial={{ x: '-100%' }}
-                          animate={isCreateMenuOpen ? { x: '100%' } : { x: '-100%' }}
-                          transition={{ duration: 0.6 }}
+                          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent"
+                          animate={{ x: ['-100%', '200%'] }}
+                          transition={{ duration: 2.5, repeat: Infinity, ease: 'linear', repeatDelay: 1 }}
+                          style={{ width: '50%' }}
                         />
-                        <PlusCircle className="h-6 w-6 text-white relative z-10" />
+                        <Plus className="h-6 w-6 text-white relative z-10" strokeWidth={2.5} />
                       </motion.div>
                     </motion.button>
                   </div>
