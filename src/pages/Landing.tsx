@@ -353,15 +353,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                       role="checkbox"
                       aria-checked={rememberMe}
                       onClick={() => setRememberMe(!rememberMe)}
-                      className={`shrink-0 h-4 w-4 rounded-full border-2 transition-colors flex items-center justify-center ${
+                      className={`shrink-0 h-3.5 w-3.5 rounded-full border transition-colors flex items-center justify-center ${
                         rememberMe 
                           ? 'bg-primary border-primary' 
-                          : 'border-muted-foreground/50 bg-transparent'
+                          : 'border-muted-foreground/40 bg-transparent'
                       }`}
                       style={{ WebkitAppearance: 'none', appearance: 'none', fontSize: 0 }}
                     >
                       {rememberMe && (
-                        <div className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />
+                        <div className="h-1 w-1 rounded-full bg-primary-foreground" />
                       )}
                     </button>
                     <label htmlFor="remember" className="text-xs md:text-sm text-muted-foreground">
