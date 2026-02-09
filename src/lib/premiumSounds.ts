@@ -19,6 +19,9 @@ type PremiumSoundType =
 let audioContext: AudioContext | null = null;
 let lastSoundTime: Record<string, number> = {};
 
+// Track active oscillators for clean stop
+const activeOscillators: Set<OscillatorNode> = new Set();
+
 // Settings stored in localStorage
 const SOUND_SETTINGS_KEY = 'vybe-sound-settings';
 const CUSTOM_SOUNDS_KEY = 'vybe-custom-sounds';
@@ -276,6 +279,10 @@ function createTone(
   
   oscillator.start(startTime);
   oscillator.stop(startTime + duration + 0.02);
+  
+  // Track for cleanup
+  activeOscillators.add(oscillator);
+  oscillator.onended = () => activeOscillators.delete(oscillator);
 }
 
 // Play a premium sound
@@ -467,6 +474,14 @@ export function stopAllCallSounds(): void {
     customRingPlayer.stop();
     customRingPlayer = null;
   }
+  // Kill ALL active oscillators immediately (prevents lingering ring tones)
+  activeOscillators.forEach(osc => {
+    try { osc.stop(); } catch { /* already stopped */ }
+  });
+  activeOscillators.clear();
+  
+  // Also stop callSounds system (has its own oscillator tracking)
+  import('./callSounds').then(m => m.stopAllCallSounds()).catch(() => {});
 }
 
 export function playCallConnect(): void {
