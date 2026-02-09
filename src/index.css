@@ -312,24 +312,46 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       -webkit-backdrop-filter: blur(25px) saturate(170%) brightness(1.2) !important;
     }
 
-    /* ============================================================
-       UNIVERSAL MOBILE VISIBILITY FIX
-       One rule to force ALL elements visible on mobile/tablet.
-       Smart exceptions below preserve gradients, chat bubbles, icons.
-       ============================================================ */
+    /* All text elements - full opacity with subtle shadows */
+    /* EXCEPT elements using gradient text (background-clip: text) */
+    h1:not([style*="transparent"]):not(.gradient-text), 
+    h2:not([style*="transparent"]):not(.gradient-text), 
+    h3:not([style*="transparent"]):not(.gradient-text), 
+    h4:not([style*="transparent"]):not(.gradient-text), 
+    h5:not([style*="transparent"]):not(.gradient-text), 
+    h6:not([style*="transparent"]):not(.gradient-text) {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+      text-shadow: 0 1px 2px hsl(var(--background) / 0.2);
+      font-weight: 600;
+    }
 
-    /* 1. Universal catch-all: force every element visible */
-    * {
+    /* Text elements - exclude gradient text AND elements inside colored containers (chat bubbles, etc.) */
+    p:not([style*="transparent"]):not(.gradient-text):not([class*="text-primary-foreground"] p):not(.chat-bubble-text), 
+    a:not([style*="transparent"]):not(.gradient-text), 
+    label, 
+    button:not([style*="transparent"]):not(.gradient-text) {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
     }
 
-    /* 2. Muted text keeps its semantic token */
-    .text-muted-foreground {
-      color: hsl(var(--muted-foreground)) !important;
+    /* Spans need special handling - many use gradient text */
+    span:not([style*="transparent"]):not([style*="clip"]):not(.gradient-text) {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
     }
 
-    /* 3. GRADIENT TEXT EXCEPTIONS - inline-style based (StyledUsername, StyledDisplayName, etc.) */
+    /* CRITICAL: Chat bubble text must inherit from parent, not be forced to foreground */
+    [class*="text-primary-foreground"] p,
+    [class*="text-primary-foreground"] span,
+    [class*="text-white"] p,
+    [class*="text-white"] span,
+    .bg-primary p,
+    .bg-primary span {
+      color: inherit !important;
+    }
+
+    /* CRITICAL: Preserve gradient text on mobile - must override the above rules */
     [style*="background-clip: text"],
     [style*="backgroundClip"],
     [style*="-webkit-background-clip: text"],
@@ -341,9 +363,11 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     [class*="bg-clip-text"] {
       color: transparent !important;
       -webkit-text-fill-color: transparent !important;
+      opacity: 1 !important;
     }
 
-    /* Tailwind gradient text utility fallback → solid primary */
+    /* UNIVERSAL fallback for Tailwind gradient text utility classes on mobile */
+    /* These become solid primary color with drop-shadow for readability */
     .bg-clip-text.text-transparent,
     [class*="bg-gradient-to-"][class*="bg-clip-text"],
     [class*="bg-clip-text"][class*="text-transparent"] {
@@ -353,53 +377,67 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       -webkit-background-clip: unset !important;
       background-image: none !important;
       filter: drop-shadow(0 2px 4px hsl(var(--background) / 0.5));
-    }
-
-    /* 4. CHAT BUBBLE / COLORED CONTAINER EXCEPTIONS - inherit parent color */
-    [class*="text-primary-foreground"] *,
-    [class*="text-white"] *,
-    .bg-primary *,
-    .bg-destructive *,
-    .bg-accent * {
-      color: inherit !important;
-    }
-
-    /* 5. SVGs & ICONS - inherit parent color, preserve Lucide fill:none */
-    svg,
-    [class*="lucide"] {
-      color: currentColor !important;
       opacity: 1 !important;
-      filter: none !important;
-      text-shadow: none !important;
     }
 
-    /* SVG internals must NOT have fill forced - Lucide uses fill:none + stroke */
-    svg * {
-      fill: inherit;
-      stroke: inherit;
-      filter: none !important;
-      text-shadow: none !important;
+    /* Stats numbers - bold and visible (exclude gradient text) */
+    .font-bold:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text), 
+    strong:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text), 
+    [class*="font-semibold"]:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text) {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
     }
 
-    /* Avatars and images - no color forcing, no filter artifacts */
-    [class*="avatar"],
-    [class*="Avatar"],
-    img {
-      filter: none !important;
+    /* Muted text - match WelcomeHeader readability on mobile/tablet */
+    /* Use semantic tokens (foreground) instead of fixed gray so it stays readable */
+    .text-muted-foreground:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text) {
+      color: hsl(var(--muted-foreground)) !important;
+      opacity: 1 !important;
+      text-shadow: 0 1px 2px hsl(var(--background) / 0.25);
     }
 
-    /* 6. HEADINGS - extra weight + shadow for readability */
-    h1, h2, h3, h4, h5, h6 {
-      font-weight: 600;
-      text-shadow: 0 1px 2px hsl(var(--background) / 0.2);
+    /* Remove the "random black outline" effect caused by border-background on dark UI */
+    /* (Common on avatars and small overlay badges) */
+    .border-background {
+      border-color: transparent !important;
     }
 
-    /* Cards - reduced shadow */
+    /* iOS/Android tap highlight + non-keyboard focus outlines can look like a black box */
+    a,
+    button,
+    [role="button"],
+    [tabindex]:not([tabindex="-1"]) {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    a:focus:not(:focus-visible),
+    button:focus:not(:focus-visible),
+    [role="button"]:focus:not(:focus-visible) {
+      outline: none !important;
+    }
+
+    /* Username and display name - exclude gradient text */
+    [class*="username"]:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text), 
+    [class*="display-name"]:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text) {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+      font-weight: 700;
+    }
+
+    /* Tab panels - exclude gradient text */
+    [role="tabpanel"]:not([style*="transparent"]) *:not([style*="transparent"]):not(.gradient-text):not(.bg-clip-text) {
+      color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+    }
+
+    /* Cards and containers - reduced shadow intensity */
     .card, [class*="card"] {
       box-shadow: 0 4px 12px hsl(var(--background) / 0.2) !important;
     }
 
-    /* Glass buttons - only these get backdrop brightness */
+    /* Buttons - brighter backgrounds (glass buttons only)
+       IMPORTANT: Do NOT apply backdrop-filter to all buttons; it can render as black squares
+       on icon-only buttons in mobile Safari/Chromium. */
     .liquid-glass-button,
     .liquid-glass-subtle,
     button.liquid-glass,
@@ -410,19 +448,35 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       -webkit-backdrop-filter: brightness(1.15) !important;
     }
 
-    /* Remove black outline on border-background elements */
-    .border-background {
-      border-color: transparent !important;
+    /* Universal text visibility for all common text elements */
+    article, section, div, li, td, th, dd, dt, figcaption {
+      color: hsl(var(--foreground));
+      opacity: 1;
     }
 
-    /* Tap highlight removal */
-    a, button, [role="button"], [tabindex]:not([tabindex="-1"]) {
-      -webkit-tap-highlight-color: transparent;
+    /* Page-level headings and labels - WelcomeHeader-style drop shadows for readability */
+    [class*="CardTitle"],
+    [class*="card-title"],
+    .font-bold:not(.gradient-text):not(.bg-clip-text),
+    [role="heading"] {
+      text-shadow: 0 1px 3px hsl(var(--background) / 0.3);
     }
-    a:focus:not(:focus-visible),
-    button:focus:not(:focus-visible),
-    [role="button"]:focus:not(:focus-visible) {
-      outline: none !important;
+    
+    /* CRITICAL: Prevent black box outlines on icons, SVGs, avatars */
+    /* These elements should NEVER have drop-shadow filter applied */
+    svg,
+    [class*="lucide"],
+    [class*="avatar"],
+    [class*="Avatar"],
+    .rounded-full,
+    img {
+      filter: none !important;
+    }
+    
+    /* Only allow text-shadow on actual text elements, not icons */
+    svg *, svg {
+      text-shadow: none !important;
+      filter: none !important;
     }
   }
 
