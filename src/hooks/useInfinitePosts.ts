@@ -27,7 +27,7 @@ interface Post {
 // Optimized page sizes for faster initial load
 const INITIAL_PAGE_SIZE = 15; // Slightly larger for better initial content
 const PAGE_SIZE = 15; // Load 15 more when scrolling
-const STALE_TIME = 2 * 60 * 1000; // 2 minutes - refresh more frequently
+const STALE_TIME = 5 * 60 * 1000; // 5 minutes - show cached instantly, background refresh
 const GC_TIME = 60 * 60 * 1000; // 1 hour cache
 
 // Transform RPC result to Post format
@@ -134,7 +134,7 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
     initialPageParam: 0,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
-    refetchOnMount: 'always', // Always fetch fresh on mount to get old posts
+    refetchOnMount: false, // Use cached data instantly, no re-fetch on mount
     refetchOnWindowFocus: false,
     placeholderData: (previousData) => previousData, // Show cached while fetching
   });
@@ -180,7 +180,7 @@ export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
     enabled: !!profile,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
-    refetchOnMount: 'always', // Always fetch fresh on mount
+    refetchOnMount: false, // Use cached data instantly
     refetchOnWindowFocus: false,
     placeholderData: (previousData) => previousData,
   });
