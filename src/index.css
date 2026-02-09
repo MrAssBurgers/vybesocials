@@ -324,17 +324,19 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       opacity: 1 !important;
       mix-blend-mode: normal !important;
     }
-    /* SVGs get opacity fix, visible stroke, and inherit color from parent */
+    /* SVGs: force visible foreground color + stroke */
     svg, [class*="lucide"] {
       color: hsl(var(--foreground)) !important;
-      stroke: currentColor !important;
+      stroke: hsl(var(--foreground)) !important;
       opacity: 1 !important;
       mix-blend-mode: normal !important;
+      filter: none !important;
     }
     svg *, [class*="lucide"] * {
       stroke: inherit !important;
       opacity: 1 !important;
       mix-blend-mode: normal !important;
+      filter: none !important;
     }
 
     /* EXCEPTION: Switch / Toggle components — preserve native radix styling */
@@ -432,20 +434,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       opacity: 1 !important;
     }
 
-    /* 9) SVGs and icons: inherit color from parent, NEVER apply filters */
-    svg,
-    [class*="lucide"] {
-      color: currentColor !important;
-      opacity: 1 !important;
-      filter: none !important;
-      text-shadow: none !important;
-    }
-    /* Preserve Lucide's stroke-only rendering — never force fill */
-    svg *,
-    [class*="lucide"] * {
-      opacity: 1 !important;
-      filter: none !important;
-    }
+    /* 9) SVGs — already handled above, no duplicate rules */
 
     /* 10) Avatars and images: no filter artifacts */
     [class*="avatar"],
