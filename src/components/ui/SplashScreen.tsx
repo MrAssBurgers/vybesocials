@@ -1,5 +1,5 @@
-import { memo, useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence, useSpring } from 'framer-motion';
+import { memo, useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { VYBELogo } from './VYBELogo';
 import { isLowEndDevice } from '@/lib/performanceConfig';
 
@@ -32,30 +32,42 @@ export const SplashScreen = memo(function SplashScreen({
   // Random tip on mount
   const [tip] = useState(() => LOADING_TIPS[Math.floor(Math.random() * LOADING_TIPS.length)]);
   
-  // Smooth spring animation for progress (disabled on low-end devices)
-  const springProgress = useSpring(progress, isLowEnd ? { duration: 0 } : {
-    stiffness: 120,
-    damping: 25,
-    mass: 0.8,
-  });
-  
-  // Animated display progress
+  // Simple animated progress using CSS transition instead of spring physics
   const [displayProgress, setDisplayProgress] = useState(0);
+  const animationRef = useRef<number>();
   
   useEffect(() => {
     if (isLowEnd) {
       setDisplayProgress(progress);
       return;
     }
-    const unsubscribe = springProgress.on('change', (v) => {
-      setDisplayProgress(Math.round(v));
-    });
-    return unsubscribe;
-  }, [springProgress, isLowEnd, progress]);
-  
-  useEffect(() => {
-    springProgress.set(progress);
-  }, [progress, springProgress]);
+    
+    // Cancel any pending animation
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    
+    // Smoothly animate to target progress
+    const animate = () => {
+      setDisplayProgress(prev => {
+        const diff = progress - prev;
+        if (Math.abs(diff) < 0.5) return progress;
+        // Ease towards target (lerp)
+        return prev + diff * 0.15;
+      });
+      if (Math.abs(progress - displayProgress) > 0.5) {
+        animationRef.current = requestAnimationFrame(animate);
+      }
+    };
+    
+    animationRef.current = requestAnimationFrame(animate);
+    
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [progress, isLowEnd]);
 
   // Prevent body scroll and hide nav when splash is visible
   useEffect(() => {
@@ -171,14 +183,13 @@ export const SplashScreen = memo(function SplashScreen({
                 />
               )}
               
-              {/* Progress fill with gradient */}
-              <motion.div
-                className="absolute inset-y-0 left-0 rounded-full"
+              {/* Progress fill with gradient - using CSS transition for smooth animation */}
+              <div
+                className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-150 ease-out"
                 style={{
-                  width: `${displayProgress}%`,
+                  width: `${Math.round(displayProgress)}%`,
                   background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--neon-purple)), hsl(var(--accent)))',
                 }}
-                transition={{ duration: 0.1 }}
               />
               
               {/* Glow at progress tip */}
@@ -209,14 +220,14 @@ export const SplashScreen = memo(function SplashScreen({
                   {status}
                 </motion.span>
               </AnimatePresence>
-              <motion.span
+              <span
                 className="text-xs sm:text-sm tabular-nums transition-colors duration-200"
                 style={{ 
                   color: showComplete ? 'hsl(var(--accent))' : 'hsl(var(--muted-foreground))'
                 }}
               >
-                {displayProgress}%
-              </motion.span>
+                {Math.round(displayProgress)}%
+              </span>
             </div>
           </motion.div>
 
