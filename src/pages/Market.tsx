@@ -390,13 +390,13 @@ export default function MarketPage() {
           
           <div className="flex gap-2">
             <Select value={category || 'all'} onValueChange={(v) => setCategory(v === 'all' ? '' : v)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Category" />
+              <SelectTrigger className="w-[140px] text-primary drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] [&>svg]:text-primary [&>svg]:drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] [&>svg]:opacity-100">
+                <SelectValue placeholder="Category" className="text-primary" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
+              <SelectContent className="bg-background/95 backdrop-blur-md border-border">
+                <SelectItem value="all" className="text-foreground">All Categories</SelectItem>
                 {LISTING_CATEGORIES.map(cat => (
-                  <SelectItem key={cat.value} value={cat.value}>
+                  <SelectItem key={cat.value} value={cat.value} className="text-foreground">
                     {cat.icon} {cat.label}
                   </SelectItem>
                 ))}
