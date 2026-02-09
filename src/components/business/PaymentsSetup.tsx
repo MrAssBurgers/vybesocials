@@ -97,42 +97,55 @@ export function PaymentsSetup({
     try {
       const { data, error } = await supabase.functions.invoke('create-stripe-connect');
 
-      const dataAny = data as any;
+      console.log('[PaymentsSetup] create-stripe-connect response:', { data, error });
 
-      // Check for url first — if we got a valid URL, redirect regardless of error object
-      if (dataAny?.url) {
-        window.location.href = dataAny.url;
+      // supabase.functions.invoke may put the error body in `data` on non-2xx
+      const payload = data as any;
+
+      // If we got a redirect URL, navigate immediately
+      if (payload?.url) {
+        window.location.href = payload.url;
         return;
       }
 
-      // Function may return ok:false with a code (but still 200)
-      if (dataAny?.ok === false) {
-        if (dataAny?.code === 'connect_not_enabled') {
+      // Handle structured soft errors (200 with ok:false)
+      if (payload?.ok === false) {
+        if (payload?.code === 'connect_not_enabled') {
           toast.error(
             "Payments setup isn't enabled yet. Enable Stripe Connect in your Stripe settings, then try again.",
           );
           return;
         }
-
-        if (dataAny?.code === 'platform_profile_incomplete') {
+        if (payload?.code === 'platform_profile_incomplete') {
           toast.error(
             "Complete your Stripe Connect setup first. Go to Stripe Dashboard → Settings → Connect → Platform Profile.",
           );
           return;
         }
-
-        toast.error(dataAny?.error || 'Failed to start Stripe setup');
+        toast.error(payload?.error || 'Failed to start Stripe setup');
         return;
       }
 
+      // Handle invoke-level errors
       if (error) {
-        toast.error('Failed to start Stripe setup');
+        console.error('[PaymentsSetup] invoke error:', error);
+        toast.error('Failed to connect to payment service. Please try again.');
         return;
       }
 
-      toast.error('Stripe did not return an onboarding link. Please try again.');
+      // Handle edge function returning an error field
+      if (payload?.error) {
+        console.error('[PaymentsSetup] function error:', payload.error);
+        toast.error(payload.error.includes('STRIPE_SECRET_KEY')
+          ? 'Payment system is being configured. Please publish your project and try again.'
+          : payload.error);
+        return;
+      }
+
+      toast.error('Unable to get Stripe onboarding link. Please try again.');
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to start Stripe setup');
+      console.error('[PaymentsSetup] unexpected error:', err);
+      toast.error(err?.message || 'Failed to start Stripe setup. Please try again.');
     } finally {
       setLoading(false);
     }
