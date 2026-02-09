@@ -86,9 +86,14 @@ export function PaymentsSetup({
       const { data, error } = await supabase.functions.invoke('create-stripe-connect');
 
       const dataAny = data as any;
-      const errorAny = error as any;
 
-      // New behavior: function may return ok:false with a code (but still 200)
+      // Check for url first — if we got a valid URL, redirect regardless of error object
+      if (dataAny?.url) {
+        window.location.href = dataAny.url;
+        return;
+      }
+
+      // Function may return ok:false with a code (but still 200)
       if (dataAny?.ok === false) {
         if (dataAny?.code === 'connect_not_enabled') {
           toast.error(
@@ -108,26 +113,12 @@ export function PaymentsSetup({
         return;
       }
 
-      // Legacy behavior / unexpected failures
       if (error) {
-        const msg = errorAny?.message ? String(errorAny.message) : '';
-
-        if (msg.includes('connect_not_enabled') || msg.includes("Payments setup isn't enabled yet")) {
-          toast.error(
-            "Payments setup isn't enabled yet. Enable Stripe Connect in your Stripe settings, then try again.",
-          );
-          return;
-        }
-
         toast.error('Failed to start Stripe setup');
         return;
       }
 
-      if (dataAny?.url) {
-        window.location.href = dataAny.url;
-      } else {
-        toast.error('Stripe did not return an onboarding link. Please try again.');
-      }
+      toast.error('Stripe did not return an onboarding link. Please try again.');
     } catch (err: any) {
       toast.error(err?.message || 'Failed to start Stripe setup');
     } finally {
