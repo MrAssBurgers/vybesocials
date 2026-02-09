@@ -53,7 +53,7 @@ const OrderCancelled = lazy(() => import("@/pages/OrderCancelled"));
 // Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
 import { ProductionDebugPanel } from '@/components/debug/ProductionDebugPanel';
-import { useAdminDebugPanel } from '@/hooks/useAdminDebugPanel';
+import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 // Minimal fallback - just shows content area, no skeleton flicker
 const PageFallback = memo(() => (
@@ -78,7 +78,8 @@ const pageTransition = {
  */
 export function AnimatedRoutes() {
   const location = useLocation();
-  const { isOpen: debugOpen, setIsOpen: setDebugOpen, isAdmin: isDebugAdmin } = useAdminDebugPanel();
+  const debugPanel = useDebugPanel();
+  const { isOpen: debugOpen, setIsOpen: setDebugOpen, isAdmin: isDebugAdmin } = debugPanel || { isOpen: false, setIsOpen: () => {}, isAdmin: false };
   
   // Always capture errors/network — independent of panel visibility
   useDebugCapture();

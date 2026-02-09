@@ -7,12 +7,14 @@ import { useStreakCount } from '@/hooks/useLoginStreak';
 import { cn } from '@/lib/utils';
 import { HeaderSearch } from './HeaderSearch';
 import { VYBELogo } from '@/components/ui/VYBELogo';
+import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 export function MobileHeader() {
   const { profile } = useAuth();
   const { data: unreadCount = 0 } = useUnreadCount();
   const streakCount = useStreakCount();
   const location = useLocation();
+  const debugPanel = useDebugPanel();
 
   const isNotificationsActive = location.pathname === '/notifications';
   const isChallengesActive = location.pathname === '/challenges';
@@ -30,6 +32,11 @@ export function MobileHeader() {
           <Link 
             to="/home" 
             className="flex-shrink-0 flex items-center justify-center h-9 w-9 rounded-xl hover:bg-muted/30 transition-colors"
+            onClick={(e) => {
+              if (debugPanel?.handleLogoTap) {
+                debugPanel.handleLogoTap();
+              }
+            }}
           >
             <VYBELogo size="sm" showText={false} />
           </Link>
