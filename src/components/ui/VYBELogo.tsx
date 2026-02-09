@@ -80,45 +80,57 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
           </defs>
           
           {/* Left leg of V - primary color */}
-          <motion.path
+          <path
             d="M18 12 L50 88"
             stroke={`url(#${uniqueId}-primary)`}
             strokeWidth={strokeWidth}
             strokeLinecap="round"
-            initial={animated ? { pathLength: 0, opacity: 0 } : { pathLength: 1, opacity: 1 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: isSplash ? 1 : 0.6, delay: isSplash ? 0.4 : 0.1, ease: 'easeOut' }}
+            className={animated ? 'vybe-path-left' : ''}
+            style={animated ? {
+              strokeDasharray: 100,
+              strokeDashoffset: 0,
+              animation: isSplash ? 'vybe-draw 0.8s ease-out 0.2s backwards' : 'vybe-draw 0.5s ease-out backwards',
+            } : undefined}
           />
           
           {/* Right leg of V - accent color */}
-          <motion.path
+          <path
             d="M82 12 L50 88"
             stroke={`url(#${uniqueId}-accent)`}
             strokeWidth={strokeWidth}
             strokeLinecap="round"
-            initial={animated ? { pathLength: 0, opacity: 0 } : { pathLength: 1, opacity: 1 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: isSplash ? 1 : 0.6, delay: isSplash ? 0.6 : 0.2, ease: 'easeOut' }}
+            className={animated ? 'vybe-path-right' : ''}
+            style={animated ? {
+              strokeDasharray: 100,
+              strokeDashoffset: 0,
+              animation: isSplash ? 'vybe-draw 0.8s ease-out 0.4s backwards' : 'vybe-draw 0.5s ease-out 0.1s backwards',
+            } : undefined}
           />
           
-          {/* Bright center point where legs meet - pulsing */}
-          <motion.circle
+          {/* Bright center point where legs meet - CSS pulse for reliability */}
+          <circle
             cx="50"
             cy="88"
             r={isSplash ? 5 : 4}
             className="fill-foreground"
-            initial={animated ? { scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
-            animate={animated ? { 
-              scale: [1, 1.3, 1], 
-              opacity: [0.9, 1, 0.9],
-            } : { scale: 1, opacity: 1 }}
-            transition={animated ? { 
-              duration: 1.5, 
-              repeat: Infinity, 
-              ease: 'easeInOut',
-              delay: isSplash ? 1.2 : 0.5 
-            } : { duration: 0.3, delay: 0.5, ease: 'easeOut' }}
+            style={animated ? {
+              animation: 'vybe-pulse 1.5s ease-in-out infinite',
+              animationDelay: isSplash ? '1s' : '0.4s',
+              transformOrigin: '50px 88px',
+            } : undefined}
           />
+          
+          {/* CSS keyframes for reliable animations */}
+          <style>{`
+            @keyframes vybe-draw {
+              from { stroke-dashoffset: 100; opacity: 0; }
+              to { stroke-dashoffset: 0; opacity: 1; }
+            }
+            @keyframes vybe-pulse {
+              0%, 100% { transform: scale(1); opacity: 0.9; }
+              50% { transform: scale(1.3); opacity: 1; }
+            }
+          `}</style>
         </svg>
       </motion.div>
 

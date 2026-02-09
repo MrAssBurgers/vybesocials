@@ -254,15 +254,45 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
-      {/* Animated background */}
+      {/* Animated background - CSS-only for better performance */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-1/2 -left-1/2 w-full h-full opacity-20"
-        >
-          <div className="w-full h-full gradient-animated rounded-full blur-3xl" />
-        </motion.div>
+        {/* Primary gradient orb */}
+        <div 
+          className="absolute -top-1/4 -left-1/4 w-3/4 h-3/4 rounded-full blur-3xl opacity-30"
+          style={{
+            background: 'radial-gradient(circle, hsl(var(--primary) / 0.6) 0%, transparent 70%)',
+            animation: 'onboarding-float 20s ease-in-out infinite',
+          }}
+        />
+        {/* Secondary accent orb */}
+        <div 
+          className="absolute -bottom-1/4 -right-1/4 w-3/4 h-3/4 rounded-full blur-3xl opacity-25"
+          style={{
+            background: 'radial-gradient(circle, hsl(var(--accent) / 0.5) 0%, transparent 70%)',
+            animation: 'onboarding-float 25s ease-in-out infinite reverse',
+          }}
+        />
+        {/* Center glow */}
+        <div 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1/2 h-1/2 rounded-full blur-3xl opacity-15"
+          style={{
+            background: 'radial-gradient(circle, hsl(var(--neon-purple) / 0.4) 0%, transparent 60%)',
+            animation: 'onboarding-pulse 8s ease-in-out infinite',
+          }}
+        />
+        {/* CSS keyframes */}
+        <style>{`
+          @keyframes onboarding-float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(5%, 10%) scale(1.05); }
+            50% { transform: translate(-5%, 5%) scale(0.95); }
+            75% { transform: translate(10%, -5%) scale(1.02); }
+          }
+          @keyframes onboarding-pulse {
+            0%, 100% { opacity: 0.15; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 0.25; transform: translate(-50%, -50%) scale(1.1); }
+          }
+        `}</style>
       </div>
 
       {/* Header */}
