@@ -346,22 +346,24 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   exit={{ opacity: 0, height: 0 }}
                   className="flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-1.5 md:gap-2">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       id="remember"
                       role="checkbox"
                       aria-checked={rememberMe}
                       onClick={() => setRememberMe(!rememberMe)}
-                      className={`shrink-0 h-3.5 w-3.5 rounded-full border transition-colors flex items-center justify-center ${
+                      className={`shrink-0 h-4 w-4 rounded-[3px] border transition-colors flex items-center justify-center ${
                         rememberMe 
                           ? 'bg-primary border-primary' 
-                          : 'border-muted-foreground/40 bg-transparent'
+                          : 'border-muted-foreground/50 bg-transparent'
                       }`}
                       style={{ WebkitAppearance: 'none', appearance: 'none', fontSize: 0 }}
                     >
                       {rememberMe && (
-                        <div className="h-1 w-1 rounded-full bg-primary-foreground" />
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-primary-foreground">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
                       )}
                     </button>
                     <label htmlFor="remember" className="text-xs md:text-sm text-muted-foreground">
