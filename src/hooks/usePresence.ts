@@ -161,8 +161,8 @@ export function useUserOnlineStatus(userId: string | undefined) {
       return data;
     },
     enabled: !!userId,
-    staleTime: 10000, // 10 seconds stale time for faster updates
-    refetchInterval: 20000, // 20 seconds refetch interval
+    staleTime: 5000, // 5 seconds stale time for live sync
+    refetchInterval: 10000, // 10 seconds refetch interval for responsive updates
   });
 
   // Subscribe to realtime updates
@@ -180,7 +180,9 @@ export function useUserOnlineStatus(userId: string | undefined) {
           filter: `user_id=eq.${userId}`,
         },
         () => {
+          // Force immediate refetch on realtime change for live sync
           queryClient.invalidateQueries({ queryKey: ['user-presence', userId] });
+          queryClient.refetchQueries({ queryKey: ['user-presence', userId] });
         }
       )
       .subscribe();

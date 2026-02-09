@@ -167,6 +167,9 @@ export function useChatPresence(conversationId: string | undefined) {
     // Fast heartbeat every 3 seconds for responsive presence
     heartbeatRef.current = setInterval(joinPresence, 3000);
 
+    // Also poll presence state every 3 seconds as a safety net for missed realtime events
+    const presencePollRef = setInterval(fetchPresence, 3000);
+
     // Subscribe to presence changes
     const presenceChannel = supabase
       .channel(`presence:${conversationId}`)
@@ -220,6 +223,7 @@ export function useChatPresence(conversationId: string | undefined) {
         clearInterval(heartbeatRef.current);
         heartbeatRef.current = null;
       }
+      clearInterval(presencePollRef);
       leavePresence();
       supabase.removeChannel(presenceChannel);
       supabase.removeChannel(typingChannel);
