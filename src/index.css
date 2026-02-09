@@ -326,8 +326,8 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       font-weight: 600;
     }
 
-    /* Text elements - exclude gradient text */
-    p:not([style*="transparent"]):not(.gradient-text), 
+    /* Text elements - exclude gradient text AND elements inside colored containers (chat bubbles, etc.) */
+    p:not([style*="transparent"]):not(.gradient-text):not([class*="text-primary-foreground"] p):not(.chat-bubble-text), 
     a:not([style*="transparent"]):not(.gradient-text), 
     label, 
     button:not([style*="transparent"]):not(.gradient-text) {
@@ -336,10 +336,19 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     }
 
     /* Spans need special handling - many use gradient text */
-    /* Use negative lookahead for both webkit variants */
     span:not([style*="transparent"]):not([style*="clip"]):not(.gradient-text) {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
+    }
+
+    /* CRITICAL: Chat bubble text must inherit from parent, not be forced to foreground */
+    [class*="text-primary-foreground"] p,
+    [class*="text-primary-foreground"] span,
+    [class*="text-white"] p,
+    [class*="text-white"] span,
+    .bg-primary p,
+    .bg-primary span {
+      color: inherit !important;
     }
 
     /* CRITICAL: Preserve gradient text on mobile - must override the above rules */
@@ -443,6 +452,14 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     article, section, div, li, td, th, dd, dt, figcaption {
       color: hsl(var(--foreground));
       opacity: 1;
+    }
+
+    /* Page-level headings and labels - WelcomeHeader-style drop shadows for readability */
+    [class*="CardTitle"],
+    [class*="card-title"],
+    .font-bold:not(.gradient-text):not(.bg-clip-text),
+    [role="heading"] {
+      text-shadow: 0 1px 3px hsl(var(--background) / 0.3);
     }
     
     /* CRITICAL: Prevent black box outlines on icons, SVGs, avatars */
