@@ -422,8 +422,8 @@ export function GlobalCallOverlay() {
           remoteVideoRef.current.srcObject = null;
         }
         
-        // Don't end call immediately — keep alive for 8 minutes
-        const LINGER_SECONDS = 8 * 60; // 8 minutes
+        // Don't end call immediately — keep alive for 1 hour
+        const LINGER_SECONDS = 60 * 60; // 1 hour
         setRemoteUserLeft(true);
         setAutoEndCountdown(LINGER_SECONDS);
         
@@ -442,7 +442,7 @@ export function GlobalCallOverlay() {
         // Auto-hangup after 8 minutes
         if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
         autoEndTimerRef.current = setTimeout(() => {
-          if (import.meta.env.DEV) console.log('[CallOverlay] Auto-ending call after 8 minute linger');
+          if (import.meta.env.DEV) console.log('[CallOverlay] Auto-ending call after 1 hour linger');
           endCall();
         }, LINGER_SECONDS * 1000);
       }
