@@ -28,7 +28,8 @@ import {
   ArrowRight,
   ArrowLeft,
   Type,
-  Sliders
+  Sliders,
+  Wand
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -48,6 +49,8 @@ import {
 } from '@/hooks/useApplyThemeFonts';
 import { FontSelector } from './FontSelector';
 import { AnimationSelector } from './AnimationSelector';
+import { CustomAnimationInput } from './CustomAnimationInput';
+import { useCustomAnimations, applyCustomAnimations } from '@/hooks/useCustomAnimations';
 import { toast } from 'sonner';
 
 // Personality types for AI to understand
@@ -98,7 +101,8 @@ const BUILD_PHASES = [
   { label: 'Analyzing your vibe...', icon: Sparkles, duration: 800 },
   { label: 'Generating color palette...', icon: Palette, duration: 1000 },
   { label: 'Selecting typography...', icon: Type, duration: 800 },
-  { label: 'Crafting animations...', icon: Zap, duration: 800 },
+  { label: 'Creating custom animations...', icon: Wand, duration: 1200 },
+  { label: 'Crafting motion effects...', icon: Zap, duration: 800 },
   { label: 'Adding visual effects...', icon: Stars, duration: 1000 },
   { label: 'Perfecting contrast...', icon: Sliders, duration: 600 },
   { label: 'Finalizing your VYBE...', icon: Heart, duration: 600 },
@@ -109,10 +113,11 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const { user } = useAuth();
   const saveTheme = useSaveTheme();
   
-  const [step, setStep] = useState<'intro' | 'vibe-select' | 'font-select' | 'animation-select' | 'prompt' | 'building' | 'preview'>('intro');
+  const [step, setStep] = useState<'intro' | 'vibe-select' | 'font-select' | 'animation-select' | 'custom-animation' | 'prompt' | 'building' | 'preview'>('intro');
   const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
   const [selectedFont, setSelectedFont] = useState<FontPairingKey | null>(null);
   const [selectedAnimation, setSelectedAnimation] = useState<AnimationPresetKey | null>(null);
+  const [customAnimationPrompt, setCustomAnimationPrompt] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [buildPhase, setBuildPhase] = useState(0);
@@ -120,6 +125,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const [showPreviewElements, setShowPreviewElements] = useState(false);
   
   const abortControllerRef = useRef<AbortController | null>(null);
+  const { generateAnimations } = useCustomAnimations();
 
   // Generate suggestion based on interests
   const getInterestSuggestion = useCallback(() => {
@@ -179,6 +185,11 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     abortControllerRef.current = new AbortController();
     
     try {
+      // Start generating custom animations in parallel if user provided a description
+      const customAnimPromise = customAnimationPrompt.trim() 
+        ? generateAnimations(customAnimationPrompt, selectedVibe || 'balanced')
+        : Promise.resolve(null);
+      
       // Call the enhanced theme generation
       const { data, error } = await supabase.functions.invoke('generate-advanced-theme', {
         body: { 
@@ -210,6 +221,12 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         applyAnimationSettings(anim.speed, anim.style);
         theme.animationSpeed = anim.speed as any;
         theme.animationStyle = anim.style as any;
+      }
+      
+      // Wait for custom animations to complete
+      const customAnimResult = await customAnimPromise;
+      if (customAnimResult?.css) {
+        console.log('[AIVybeDesigner] Applied custom animations:', customAnimResult.animations.description);
       }
       
       // Wait for build animation to complete
@@ -284,6 +301,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     setSelectedVibe(null);
     setSelectedFont(null);
     setSelectedAnimation(null);
+    setCustomAnimationPrompt('');
     setCustomPrompt('');
     setGeneratedTheme(null);
     setBuildPhase(0);
@@ -537,10 +555,56 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               </Button>
               <Button
                 size="lg"
-                onClick={() => setStep('prompt')}
+                onClick={() => setStep('custom-animation')}
                 className="flex-[2] gradient-animated text-primary-foreground font-semibold"
               >
                 Continue
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* CUSTOM ANIMATION STEP */}
+        {step === 'custom-animation' && (
+          <motion.div
+            key="custom-animation"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            className="relative z-10 h-full flex flex-col p-4 sm:p-6"
+          >
+            <div className="text-center mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold gradient-text mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+                Custom Animations
+              </h2>
+              <p className="text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+                Describe how you want things to move and feel (optional)
+              </p>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto overscroll-contain pb-4 flex items-center">
+              <CustomAnimationInput 
+                value={customAnimationPrompt} 
+                onChange={setCustomAnimationPrompt} 
+              />
+            </div>
+            
+            <div className="pt-4 border-t border-border flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setStep('animation-select')}
+                className="flex-1 text-foreground"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <Button
+                size="lg"
+                onClick={() => setStep('prompt')}
+                className="flex-[2] gradient-animated text-primary-foreground font-semibold"
+              >
+                {customAnimationPrompt.trim() ? 'Continue' : 'Skip'}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </div>
@@ -595,8 +659,14 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                 )}
                 {selectedAnimation && (
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground text-sm">
-                    <Sparkles className="h-3.5 w-3.5" />
+                    <Zap className="h-3.5 w-3.5" />
                     <span className="font-medium">{ANIMATION_PRESETS[selectedAnimation].description}</span>
+                  </div>
+                )}
+                {customAnimationPrompt && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/20 text-accent-foreground text-sm border border-accent/30">
+                    <Wand className="h-3.5 w-3.5" />
+                    <span className="font-medium">Custom Motion</span>
                   </div>
                 )}
               </motion.div>
@@ -634,7 +704,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             <div className="pt-4 border-t border-border flex gap-3">
               <Button
                 variant="outline"
-                onClick={() => setStep('animation-select')}
+                onClick={() => setStep('custom-animation')}
                 className="flex-1 text-foreground"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />

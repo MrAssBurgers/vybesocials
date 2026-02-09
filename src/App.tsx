@@ -42,9 +42,11 @@ import { RewardNotificationProvider } from "@/components/vybepass/RewardNotifica
 import { useDailyLoginChallenge } from "@/hooks/useDailyLogin";
 import { StreakProvider } from "@/components/streak/StreakProvider";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
+import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
 
-// Initialize stored fonts on app load
+// Initialize stored fonts and custom animations on app load
 initializeStoredFonts();
+initializeCustomAnimations();
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
