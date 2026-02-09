@@ -159,12 +159,73 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     globalIncomingCall = call;
     setIncomingCallInternal(call);
   }, []);
-  // Listen for incoming calls
+  // Process an incoming call record (shared by realtime + polling)
+  const processIncomingCall = useCallback(async (newCall: any) => {
+    if (newCall.status !== 'ringing') return;
+    if (globalCallState.phase !== 'idle') return;
+    if (globalIncomingCall?.id === newCall.id) return; // Already processing this call
+
+    if (import.meta.env.DEV) console.log('[CallStore] Incoming call detected:', newCall.id);
+
+    const [callResult, conversationResult] = await Promise.all([
+      supabase
+        .from('calls')
+        .select(`
+          *,
+          caller:profiles!calls_caller_id_fkey(id, username, display_name, avatar_url),
+          receiver:profiles!calls_receiver_id_fkey(id, username, display_name, avatar_url)
+        `)
+        .eq('id', newCall.id)
+        .single(),
+      supabase
+        .from('conversations')
+        .select('id, name, avatar_url, is_group')
+        .eq('id', newCall.conversation_id)
+        .single()
+    ]);
+
+    const data = callResult.data;
+    const conversation = conversationResult.data;
+
+    if (data && data.room_url) {
+      // Double-check we're still idle (async gap)
+      if (globalCallState.phase !== 'idle' || globalIncomingCall) return;
+
+      const isGroupCall = data.is_group_call || conversation?.is_group || false;
+      const groupName = conversation?.name || undefined;
+      const groupAvatar = conversation?.avatar_url || null;
+
+      const callData: CallData = {
+        id: data.id,
+        roomUrl: data.room_url,
+        roomName: data.room_name || '',
+        callType: data.call_type as CallType,
+        conversationId: data.conversation_id,
+        caller: data.caller as CallUser,
+        receiver: data.receiver as CallUser,
+        isInitiator: false,
+        isGroupCall,
+        groupName,
+        groupAvatar,
+      };
+
+      setIncomingCall(callData);
+      premiumSounds.startRinging();
+      showCallNotification(data.caller as CallUser, data.call_type as CallType, data.id, isGroupCall, groupName);
+    }
+  }, [setIncomingCall]);
+
+  // Listen for incoming calls via realtime + polling fallback
   useEffect(() => {
     if (!profile?.id) return;
 
+    let pollTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let lastPollTime = new Date().toISOString();
+    let isSubscribed = false;
+
+    // Realtime subscription
     const channel = supabase
-      .channel('incoming-calls-v2')
+      .channel(`incoming-calls-${profile.id}`)
       .on(
         'postgres_changes',
         {
@@ -173,73 +234,60 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           table: 'calls',
           filter: `receiver_id=eq.${profile.id}`,
         },
-        async (payload) => {
-          const newCall = payload.new as any;
-          if (newCall.status !== 'ringing') return;
-          
-          // Use global state to avoid stale closure - CRITICAL for preventing issues during navigation
-          if (globalCallState.phase !== 'idle') {
-            if (import.meta.env.DEV) console.log('[CallStore] Ignoring incoming call - already in call phase:', globalCallState.phase);
-            return;
-          }
-
-          if (import.meta.env.DEV) console.log('[CallStore] Incoming call detected:', newCall.id);
-
-          // Fetch full call data with profiles and conversation info for group calls
-          const [callResult, conversationResult] = await Promise.all([
-            supabase
-              .from('calls')
-              .select(`
-                *,
-                caller:profiles!calls_caller_id_fkey(id, username, display_name, avatar_url),
-                receiver:profiles!calls_receiver_id_fkey(id, username, display_name, avatar_url)
-              `)
-              .eq('id', newCall.id)
-              .single(),
-            supabase
-              .from('conversations')
-              .select('id, name, avatar_url, is_group')
-              .eq('id', newCall.conversation_id)
-              .single()
-          ]);
-
-          const data = callResult.data;
-          const conversation = conversationResult.data;
-
-          if (data && data.room_url) {
-            const isGroupCall = data.is_group_call || conversation?.is_group || false;
-            const groupName = conversation?.name || undefined;
-            const groupAvatar = conversation?.avatar_url || null;
-
-            const callData: CallData = {
-              id: data.id,
-              roomUrl: data.room_url,
-              roomName: data.room_name || '',
-              callType: data.call_type as CallType,
-              conversationId: data.conversation_id,
-              caller: data.caller as CallUser,
-              receiver: data.receiver as CallUser,
-              isInitiator: false,
-              isGroupCall,
-              groupName,
-              groupAvatar,
-            };
-
-            setIncomingCall(callData);
-            // Use premium sounds which supports custom ringtones
-            premiumSounds.startRinging();
-            
-            // Show browser notification with VYBE branding
-            showCallNotification(data.caller as CallUser, data.call_type as CallType, data.id, isGroupCall, groupName);
-          }
+        (payload) => {
+          processIncomingCall(payload.new);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          isSubscribed = true;
+          if (import.meta.env.DEV) console.log('[CallStore] Realtime subscription active');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          isSubscribed = false;
+          if (import.meta.env.DEV) console.warn('[CallStore] Realtime subscription error, relying on polling');
+        }
+      });
+
+    // Polling fallback — catches calls if realtime misses them
+    const poll = async () => {
+      if (globalCallState.phase !== 'idle' || globalIncomingCall) {
+        // Don't poll while in a call or already ringing
+        pollTimeoutId = setTimeout(poll, 3000);
+        return;
+      }
+
+      try {
+        const { data: ringingCalls } = await supabase
+          .from('calls')
+          .select('id, status, conversation_id, call_type, room_url, created_at')
+          .eq('receiver_id', profile.id)
+          .eq('status', 'ringing')
+          .gt('created_at', lastPollTime)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (ringingCalls && ringingCalls.length > 0) {
+          if (import.meta.env.DEV) console.log('[CallStore] Poll found ringing call:', ringingCalls[0].id);
+          processIncomingCall(ringingCalls[0]);
+        }
+
+        lastPollTime = new Date().toISOString();
+      } catch (err) {
+        if (import.meta.env.DEV) console.warn('[CallStore] Poll error:', err);
+      }
+
+      // Poll every 2s when realtime is down, 5s when it's up
+      pollTimeoutId = setTimeout(poll, isSubscribed ? 5000 : 2000);
+    };
+
+    // Start polling after a short delay (give realtime a chance first)
+    pollTimeoutId = setTimeout(poll, 2000);
 
     return () => {
       supabase.removeChannel(channel);
+      if (pollTimeoutId) clearTimeout(pollTimeoutId);
     };
-  }, [profile?.id, setIncomingCall]);
+  }, [profile?.id, processIncomingCall]);
 
   // Listen for call status changes (remote hangup)
   useEffect(() => {
