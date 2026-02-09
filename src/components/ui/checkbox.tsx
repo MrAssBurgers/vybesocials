@@ -10,23 +10,28 @@ const Checkbox = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CheckboxPrimitive.Root
     ref={ref}
+    data-themed-svg="true"
     className={cn(
       "peer shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
       "data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
-      // iOS Safari fix
-      "touch-manipulation appearance-none",
+      "touch-manipulation",
       className,
     )}
     style={{
       WebkitAppearance: 'none',
+      MozAppearance: 'none',
+      appearance: 'none',
       WebkitTapHighlightColor: 'transparent',
-      // Force exact size on iOS
       minWidth: '16px',
       maxWidth: '16px',
       minHeight: '16px',
       maxHeight: '16px',
       width: '16px',
       height: '16px',
+      fontSize: '0',
+      lineHeight: '0',
+      overflow: 'hidden',
+      position: 'relative' as const,
     }}
     {...props}
   >
@@ -35,9 +40,11 @@ const Checkbox = React.forwardRef<
       style={{
         width: '100%',
         height: '100%',
+        fontSize: '0',
+        lineHeight: '0',
       }}
     >
-      <Check style={{ width: '12px', height: '12px' }} />
+      <Check style={{ width: '12px', height: '12px' }} strokeWidth={3} />
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
 ));
