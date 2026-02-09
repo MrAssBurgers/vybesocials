@@ -78,7 +78,8 @@ import {
   FileText,
   Camera,
   Play,
-  Copy
+  Copy,
+  Pencil
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
@@ -459,13 +460,23 @@ export function ChatView() {
 
     const text = messageText.trim();
     
+    // If we're in edit mode, update the message instead of sending a new one
+    if (editingMessageId) {
+      editMessage.mutate({ messageId: editingMessageId, newContent: text });
+      setEditingMessageId(null);
+      setEditText('');
+      setMessageText('');
+      setTyping(false);
+      return;
+    }
+    
     setMessageText('');
     setTyping(false);
 
     // Use instant send for immediate optimistic UI
     sendText(text, viewMode, replyingTo?.id);
     setReplyingTo(null);
-  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText]);
+  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText, editingMessageId, editMessage]);
 
   // sendWithReply is now handled by useInstantSend's sendText
 
@@ -1446,6 +1457,8 @@ export function ChatView() {
                     onEdit={() => {
                       setEditingMessageId(message.id);
                       setEditText(message.content || '');
+                      setMessageText(message.content || '');
+                      inputRef.current?.focus();
                     }}
                     allMessages={messages}
                     themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
@@ -1597,6 +1610,8 @@ export function ChatView() {
             hasBusinessProfile={!!userBusiness}
             presentUsers={presentUsers}
             typingUserIds={typingUsers}
+            editingMessageId={editingMessageId}
+            onCancelEdit={() => { setEditingMessageId(null); setEditText(''); }}
           />
         </DMSafetyGate>
       ) : (
@@ -1634,6 +1649,8 @@ export function ChatView() {
           hasBusinessProfile={!!userBusiness}
           presentUsers={presentUsers}
           typingUserIds={typingUsers}
+          editingMessageId={editingMessageId}
+          onCancelEdit={() => { setEditingMessageId(null); setEditText(''); }}
         />
       )}
 
@@ -1687,6 +1704,8 @@ const MessageInputArea = memo(function MessageInputArea({
   hasBusinessProfile,
   presentUsers,
   typingUserIds,
+  editingMessageId,
+  onCancelEdit,
 }: {
   messageText: string;
   viewMode: ViewMode;
@@ -1721,6 +1740,8 @@ const MessageInputArea = memo(function MessageInputArea({
   hasBusinessProfile?: boolean;
   presentUsers?: { user_id: string; username: string; avatar_url: string | null; display_name: string | null; is_typing: boolean }[];
   typingUserIds?: string[];
+  editingMessageId?: string | null;
+  onCancelEdit?: () => void;
 }) {
   return (
     <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30">
@@ -1733,6 +1754,26 @@ const MessageInputArea = memo(function MessageInputArea({
         onChange={handleImageSelect}
         className="hidden"
       />
+
+        {/* Edit mode banner */}
+        {editingMessageId && (
+          <div className="flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 mb-2 bg-primary/10 rounded-lg border-l-2 border-primary">
+            <Pencil className="h-3 w-3 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] sm:text-xs text-primary font-medium leading-tight">
+                Editing message
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0"
+              onClick={onCancelEdit}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
 
         {/* Reply preview - compact on mobile */}
         {replyingTo && (
