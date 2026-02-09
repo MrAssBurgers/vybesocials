@@ -1819,7 +1819,7 @@ function IncomingCallDialog({
   onAccept: () => void;
   onDecline: () => void;
 }) {
-  const [timeLeft, setTimeLeft] = useState(30);
+  const [timeLeft, setTimeLeft] = useState(60);
   const [isProcessing, setIsProcessing] = useState(false);
   const processingRef = useRef(false);
   const cameraPreviewRef = useRef<HTMLVideoElement>(null);
