@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, clearProfileCache } from '@/lib/profileCache';
+import { resetThemeToDefault } from '@/lib/themeReset';
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -426,6 +427,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     root.style.removeProperty('--font-body');
     root.style.removeProperty('--font-display');
     root.style.fontFamily = 'system-ui, sans-serif';
+    
+    // Reset ALL theme CSS variables to default classic theme
+    resetThemeToDefault();
     
     await supabase.auth.signOut();
     setProfile(null);
