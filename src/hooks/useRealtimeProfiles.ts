@@ -3,8 +3,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Subscribes to real-time profile changes and invalidates relevant queries
- * so profile updates (name, avatar, etc.) propagate instantly to all users.
+ * Subscribes to real-time profile changes and updates cached profile data.
+ * IMPORTANT: Only updates the specific profile cache — does NOT mass-invalidate
+ * conversations, posts, friends etc. Those caches will pick up profile changes
+ * on their next natural refetch.
  */
 export function useRealtimeProfiles() {
   const queryClient = useQueryClient();
@@ -20,23 +22,18 @@ export function useRealtimeProfiles() {
           table: 'profiles',
         },
         (payload) => {
-          const updatedProfileId = payload.new?.id;
+          const updatedProfile = payload.new as any;
+          const updatedProfileId = updatedProfile?.id;
           
-          // Invalidate specific profile queries
-          if (updatedProfileId) {
-            queryClient.invalidateQueries({ queryKey: ['profile', updatedProfileId] });
-            queryClient.invalidateQueries({ queryKey: ['user-profile', updatedProfileId] });
-          }
-          
-          // Invalidate general queries that might show this profile
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-          queryClient.invalidateQueries({ queryKey: ['messages'] });
-          queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
-          queryClient.invalidateQueries({ queryKey: ['posts'] });
-          queryClient.invalidateQueries({ queryKey: ['friends'] });
-          queryClient.invalidateQueries({ queryKey: ['online-friends'] });
-          queryClient.invalidateQueries({ queryKey: ['mutual-friends'] });
-          queryClient.invalidateQueries({ queryKey: ['server-members'] });
+          if (!updatedProfileId) return;
+
+          // Surgically update ONLY the specific profile caches
+          queryClient.setQueryData(['profile', updatedProfileId], (old: any) => 
+            old ? { ...old, ...updatedProfile } : old
+          );
+          queryClient.setQueryData(['user-profile', updatedProfileId], (old: any) => 
+            old ? { ...old, ...updatedProfile } : old
+          );
         }
       )
       .subscribe();
