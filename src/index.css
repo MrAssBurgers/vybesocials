@@ -337,14 +337,17 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       opacity: 1 !important;
       mix-blend-mode: normal !important;
     }
-    /* Themed SVGs (VybeMiniIcon, VYBELogo) keep their full gradient strokes/fills */
+    /* Themed SVGs (VybeMiniIcon, VYBELogo) — fully exempt from ALL mobile overrides.
+       Their inline styles (gradient strokes, animations, fills) must be preserved exactly. */
     svg[data-themed-svg],
-    svg[data-themed-svg] * {
-      stroke: unset !important;
-      color: unset !important;
-      fill: unset !important;
-      opacity: 1 !important;
-      filter: none !important;
+    svg[data-themed-svg] *,
+    svg[data-themed-svg] path,
+    svg[data-themed-svg] circle,
+    svg[data-themed-svg] g {
+      color: initial !important;
+      mix-blend-mode: normal !important;
+      /* DO NOT override stroke, fill, filter, opacity, or animation — 
+         these are set inline by the component and must remain untouched */
     }
 
     /* EXCEPTION: Switch / Toggle components — preserve native radix styling */
