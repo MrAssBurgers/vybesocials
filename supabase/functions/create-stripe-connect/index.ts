@@ -42,30 +42,37 @@ serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
     
-    // Validate JWT explicitly - required for Lovable Cloud
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError || !userData.user) {
-      logStep("ERROR - Auth validation failed", { error: userError?.message });
+    // Create a client with the user's auth header for getClaims
+    const supabaseAuth = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
+      global: { headers: { Authorization: authHeader } }
+    });
+    
+    // Validate JWT using getClaims - required for Lovable Cloud ES256 tokens
+    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      logStep("ERROR - Auth validation failed", { error: claimsError?.message });
       return new Response(
         JSON.stringify({ error: "Invalid authentication token" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
     
-    const user = userData.user;
-    if (!user?.email) {
+    const userId = claimsData.claims.sub;
+    const userEmail = claimsData.claims.email as string;
+    
+    if (!userEmail) {
       return new Response(
         JSON.stringify({ error: "User email not available" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
-    logStep("User authenticated", { userId: user.id, email: user.email });
+    logStep("User authenticated", { userId, email: userEmail });
 
-    // Get user's profile ID
+    // Get user's profile ID using the user id from claims
     const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
     
     if (profileError || !profile) throw new Error("Profile not found");
@@ -81,6 +88,9 @@ serve(async (req) => {
     if (bizError || !business) throw new Error("Business profile not found");
     logStep("Business found", { businessId: business.id });
 
+    if (bizError || !business) throw new Error("Business profile not found");
+    logStep("Business found", { businessId: business.id });
+
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     
     let accountId = business.stripe_account_id;
@@ -91,7 +101,7 @@ serve(async (req) => {
       
       const account = await stripe.accounts.create({
         type: 'express',
-        email: user.email,
+        email: userEmail,
         business_type: 'individual',
         capabilities: {
           card_payments: { requested: true },
@@ -102,7 +112,7 @@ serve(async (req) => {
         },
         metadata: {
           business_id: business.id,
-          user_id: user.id,
+          user_id: userId,
         },
       });
 
