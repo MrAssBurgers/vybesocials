@@ -324,8 +324,13 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       opacity: 1 !important;
       mix-blend-mode: normal !important;
     }
-    /* SVGs get opacity fix but inherit color naturally */
-    svg, svg *, [class*="lucide"], [class*="lucide"] * {
+    /* SVGs get opacity fix and inherit color from parent */
+    svg, [class*="lucide"] {
+      color: currentColor !important;
+      opacity: 1 !important;
+      mix-blend-mode: normal !important;
+    }
+    svg *, [class*="lucide"] * {
       opacity: 1 !important;
       mix-blend-mode: normal !important;
     }
