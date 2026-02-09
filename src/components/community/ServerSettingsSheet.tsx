@@ -1,5 +1,6 @@
 import { useState, memo, useRef } from 'react';
-import { Settings, Trash2, RefreshCw, Globe, Lock, Copy, Check, Users, Hash, Camera, Loader2 } from 'lucide-react';
+import { Settings, Trash2, RefreshCw, Globe, Lock, Copy, Check, Users, Hash, Camera, Loader2, Plus } from 'lucide-react';
+import { CreateChannelDialog } from './CreateChannelDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -64,6 +65,7 @@ export const ServerSettingsSheet = memo(function ServerSettingsSheet({
   const [activeTab, setActiveTab] = useState<'general' | 'members' | 'channels'>('general');
   const [iconPreview, setIconPreview] = useState<string | null>(null);
   const [isUploadingIcon, setIsUploadingIcon] = useState(false);
+  const [showCreateChannel, setShowCreateChannel] = useState(false);
 
   const isOwner = myRole === 'owner';
   const canManage = myRole === 'owner' || myRole === 'admin';
@@ -445,17 +447,26 @@ export const ServerSettingsSheet = memo(function ServerSettingsSheet({
         {/* Channels Tab */}
         {activeTab === 'channels' && canManage && (
           <div className="space-y-3">
+            {/* Add Channel Button */}
+            <Button 
+              onClick={() => setShowCreateChannel(true)}
+              className="w-full gap-2 rounded-xl"
+            >
+              <Plus className="h-4 w-4" />
+              Create Channel
+            </Button>
+
             {channels.map((channel) => (
-              <div key={channel.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+              <div key={channel.id} className="flex items-center justify-between p-3 rounded-xl bg-card/60 backdrop-blur-sm border border-white/5">
                 <div className="flex items-center gap-2">
                   <Hash className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium text-sm">{channel.name}</span>
+                  <span className="font-medium text-sm text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">{channel.name}</span>
                   <span className="text-xs text-muted-foreground capitalize">({channel.type})</span>
                 </div>
 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="sm" className="text-destructive h-7">
+                    <Button variant="ghost" size="sm" className="text-destructive h-7 rounded-lg">
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </AlertDialogTrigger>
@@ -481,8 +492,14 @@ export const ServerSettingsSheet = memo(function ServerSettingsSheet({
             ))}
 
             {channels.length === 0 && (
-              <p className="text-center text-muted-foreground py-8">No channels</p>
+              <p className="text-center text-muted-foreground py-8">No channels yet</p>
             )}
+
+            <CreateChannelDialog 
+              open={showCreateChannel} 
+              onOpenChange={setShowCreateChannel} 
+              serverId={serverId} 
+            />
           </div>
         )}
       </SheetContent>

@@ -68,7 +68,7 @@ export function CreateBusinessDialog({ open, onOpenChange }: CreateBusinessDialo
       // Navigate to Business Portal after successful creation
       toast.success('Business created! Redirecting to your portal...');
       setTimeout(() => {
-        navigate('/business-portal');
+        navigate('/business');
       }, 500);
     } catch (error) {
       // Error handled by mutation

@@ -352,7 +352,7 @@ export default function MarketPage() {
               whileTap={{ scale: 0.95 }}
             >
               {myBusiness ? (
-                <Link to="/business-portal">
+                <Link to="/business">
                   <Button 
                     variant="outline" 
                     className="gap-2"
