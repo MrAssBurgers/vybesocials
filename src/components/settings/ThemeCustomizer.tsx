@@ -236,11 +236,11 @@ export function ThemeCustomizer() {
       {/* Header with Save Status */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <Palette className="h-5 w-5 text-primary" />
-            Theme
+          <h3 className="text-lg font-semibold flex items-center gap-2 text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+            <Palette className="h-5 w-5 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+            <span>Theme</span>
           </h3>
-          <p className="text-sm text-muted-foreground">Customize your VYBE</p>
+          <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Customize your VYBE</p>
         </div>
         
         <AnimatePresence mode="wait">
@@ -270,10 +270,10 @@ export function ThemeCustomizer() {
       </div>
 
       {/* AI Theme Generator */}
-      <div className="liquid-glass-card p-4 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Wand2 className="h-4 w-4 text-primary" />
-          AI Theme Designer
+      <div className="liquid-glass-card p-4 space-y-3 bg-card/60 border border-border">
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
+          <Wand2 className="h-4 w-4 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+          <span>AI Theme Designer</span>
         </div>
         
         <div className="relative">
@@ -301,7 +301,7 @@ export function ThemeCustomizer() {
 
       {/* Quick Presets */}
       <div className="space-y-3">
-        <Label className="text-sm font-medium">Quick Presets</Label>
+        <Label className="text-sm font-medium text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Quick Presets</Label>
         <div className="grid grid-cols-3 gap-2">
           {Object.entries(PRESET_INFO).map(([key, info]) => {
             const preset = THEME_PRESETS[key];
@@ -410,9 +410,9 @@ export function ThemeCustomizer() {
       <div className="grid grid-cols-2 gap-4">
         {/* Animation Speed */}
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground flex items-center gap-1">
-            <Timer className="h-3 w-3" />
-            Animation
+          <Label className="text-xs text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] flex items-center gap-1">
+            <Timer className="h-3 w-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+            <span>Animation</span>
           </Label>
           <div className="grid grid-cols-2 gap-1">
             {ANIMATION_OPTIONS.map((opt) => (
@@ -423,10 +423,10 @@ export function ThemeCustomizer() {
                   updateSetting('animationSpeed', opt.value);
                 }}
                 className={cn(
-                  "py-1.5 px-2 text-xs rounded-lg border transition-colors",
+                  "py-1.5 px-2 text-xs rounded-lg border transition-colors drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]",
                   animationSpeed === opt.value
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border hover:border-primary/40"
+                    : "border-border bg-card/60 hover:border-primary/40 text-foreground"
                 )}
               >
                 {opt.label}
@@ -437,9 +437,9 @@ export function ThemeCustomizer() {
 
         {/* Border Radius */}
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground flex items-center gap-1">
-            <Layers className="h-3 w-3" />
-            Corners
+          <Label className="text-xs text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] flex items-center gap-1">
+            <Layers className="h-3 w-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+            <span>Corners</span>
           </Label>
           <div className="grid grid-cols-3 gap-1">
             {BORDER_RADIUS_OPTIONS.map((opt) => (
@@ -450,13 +450,13 @@ export function ThemeCustomizer() {
                   updateSetting('borderRadius', opt.value);
                 }}
                 className={cn(
-                  "py-1.5 px-2 text-xs border transition-colors",
+                  "py-1.5 px-2 text-xs border transition-colors drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]",
                   opt.value === 'small' && 'rounded-sm',
                   opt.value === 'medium' && 'rounded-lg',
                   opt.value === 'large' && 'rounded-xl',
                   borderRadius === opt.value
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border hover:border-primary/40"
+                    : "border-border bg-card/60 hover:border-primary/40 text-foreground"
                 )}
               >
                 {opt.label}
@@ -491,11 +491,11 @@ export function ThemeCustomizer() {
       {currentTheme && (
         <Button
           variant="ghost"
-          className="w-full"
+          className="w-full bg-card/60 border border-border hover:bg-accent text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
           onClick={() => setShowShareDialog(true)}
         >
-          <Share2 className="h-4 w-4 mr-2" />
-          Share with Community
+          <Share2 className="h-4 w-4 mr-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+          <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Share with Community</span>
         </Button>
       )}
 
@@ -560,12 +560,12 @@ export function ThemeCustomizer() {
       <div className="pt-4 border-t border-border">
         <Button
           variant="ghost"
-          className="w-full text-muted-foreground hover:text-destructive"
+          className="w-full bg-card/60 border border-border text-foreground hover:text-destructive hover:bg-destructive/10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
           onClick={handleReset}
           disabled={resetTheme.isPending}
         >
-          <RotateCcw className="h-4 w-4 mr-2" />
-          Reset to Default
+          <RotateCcw className="h-4 w-4 mr-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+          <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Reset to Default</span>
         </Button>
       </div>
     </div>

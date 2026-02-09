@@ -255,18 +255,24 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         className="relative z-10 w-full max-w-md mx-4"
       >
         <div className="glass-card rounded-3xl p-8 gradient-border">
-          {/* Centered Logo with subtle glow */}
+          {/* Centered Logo with clean smooth glow */}
           <div className="flex flex-col items-center mb-8 relative">
-            {/* Static glow behind logo for better performance */}
+            {/* Smooth gradient glow behind logo */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-32 h-32 rounded-full bg-primary/30 blur-2xl" />
+              <div 
+                className="w-40 h-40 rounded-full opacity-40"
+                style={{
+                  background: 'radial-gradient(circle, hsl(var(--primary) / 0.6) 0%, hsl(var(--primary) / 0.2) 40%, transparent 70%)',
+                  filter: 'blur(20px)',
+                }}
+              />
             </div>
             
             <VYBELogo size="xl" showText={false} className="mb-4 relative z-10" />
             <h1 className="text-2xl font-display font-bold gradient-text relative z-10">
               Welcome to VYBE
             </h1>
-            <p className="text-sm text-muted-foreground mt-1 text-center relative z-10">
+            <p className="text-sm text-foreground/70 mt-1 text-center relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
               Connect. Be present. Build community.
             </p>
           </div>

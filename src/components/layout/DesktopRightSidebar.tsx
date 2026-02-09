@@ -368,10 +368,11 @@ export function DesktopRightSidebar() {
           {/* Upcoming Events */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                <Calendar className="h-3 w-3" /> Upcoming
+              <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wider flex items-center gap-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
+                <Calendar className="h-3 w-3 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" /> 
+                <span>Upcoming</span>
               </span>
-              <Link to="/events" className="text-xs text-primary hover:underline">
+              <Link to="/events" className="text-xs text-primary hover:underline drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
                 See all
               </Link>
             </div>
@@ -385,8 +386,8 @@ export function DesktopRightSidebar() {
                     to={`/events/${event.id}`}
                     className="block p-3 rounded-xl liquid-glass-subtle hover:bg-sidebar-accent/30 transition-all"
                   >
-                    <p className="font-medium text-sm truncate">{event.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <p className="font-medium text-sm truncate text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">{event.title}</p>
+                    <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] mt-0.5">
                       {formatDistanceToNow(new Date(event.start_time), { addSuffix: true })}
                     </p>
                     {event.user_rsvp === 'going' && (
@@ -399,8 +400,8 @@ export function DesktopRightSidebar() {
               </div>
             ) : (
               <div className="p-3 rounded-xl liquid-glass-subtle text-center">
-                <Calendar className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
-                <p className="text-xs text-muted-foreground">No upcoming events</p>
+                <Calendar className="h-4 w-4 mx-auto text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] mb-1" />
+                <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">No upcoming events</p>
               </div>
             )}
           </div>

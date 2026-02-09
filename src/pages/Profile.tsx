@@ -359,19 +359,19 @@ export default function ProfilePage() {
 
         {/* Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full mb-6 bg-secondary">
-            <TabsTrigger value="posts" className="flex-1 gap-2">
-              <Grid className="h-4 w-4" />
-              Posts
+          <TabsList className="w-full mb-6 bg-card/80 border border-border">
+            <TabsTrigger value="posts" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
+              <Grid className="h-4 w-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+              <span>Posts</span>
             </TabsTrigger>
-            <TabsTrigger value="shorts" className="flex-1 gap-2">
-              <Film className="h-4 w-4" />
-              Clips
+            <TabsTrigger value="shorts" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
+              <Film className="h-4 w-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+              <span>Clips</span>
             </TabsTrigger>
             {isOwnProfile && (
-              <TabsTrigger value="saved" className="flex-1 gap-2">
-                <Bookmark className="h-4 w-4" />
-                Saved
+              <TabsTrigger value="saved" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
+                <Bookmark className="h-4 w-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+                <span>Saved</span>
               </TabsTrigger>
             )}
           </TabsList>

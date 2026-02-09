@@ -121,63 +121,65 @@ export const RoomChat = memo(function RoomChat({
   }
 
   return (
-    <div className="flex flex-col h-full bg-background/50">
-      {/* Messages */}
-      <ScrollArea className="flex-1 px-3">
-        <div className="py-4">
-          {groupedMessages.map((group) => (
-            <div key={group.date}>
-              {/* Date separator */}
-              <div className="flex items-center gap-3 my-4">
-                <div className="flex-1 h-px bg-border/30" />
-                <span className="text-[10px] text-muted-foreground/60 font-medium px-2">
-                  {formatDateHeader(group.date)}
-                </span>
-                <div className="flex-1 h-px bg-border/30" />
+    <div className="flex flex-col h-full bg-background/50 relative">
+      {/* Messages - scrollable area with fixed height */}
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full px-3">
+          <div className="py-4 pb-4">
+            {groupedMessages.map((group) => (
+              <div key={group.date}>
+                {/* Date separator */}
+                <div className="flex items-center gap-3 my-4">
+                  <div className="flex-1 h-px bg-border/30" />
+                  <span className="text-[10px] text-muted-foreground/60 font-medium px-2">
+                    {formatDateHeader(group.date)}
+                  </span>
+                  <div className="flex-1 h-px bg-border/30" />
+                </div>
+
+                {/* Messages */}
+                <div className="space-y-0.5">
+                  {group.messages.map((message, index) => {
+                    const prevMessage = index > 0 ? group.messages[index - 1] : null;
+                    const showFullHeader = !prevMessage || 
+                      prevMessage.sender_id !== message.sender_id ||
+                      new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime() > 5 * 60 * 1000;
+
+                    return (
+                      <MessageBubble
+                        key={message.id}
+                        message={message}
+                        isOwn={message.sender_id === profile?.id}
+                        showFullHeader={showFullHeader}
+                        canModerate={canModerate}
+                        isAnnouncement={isAnnouncement}
+                      />
+                    );
+                  })}
+                </div>
               </div>
+            ))}
 
-              {/* Messages */}
-              <div className="space-y-0.5">
-                {group.messages.map((message, index) => {
-                  const prevMessage = index > 0 ? group.messages[index - 1] : null;
-                  const showFullHeader = !prevMessage || 
-                    prevMessage.sender_id !== message.sender_id ||
-                    new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime() > 5 * 60 * 1000;
-
-                  return (
-                    <MessageBubble
-                      key={message.id}
-                      message={message}
-                      isOwn={message.sender_id === profile?.id}
-                      showFullHeader={showFullHeader}
-                      canModerate={canModerate}
-                      isAnnouncement={isAnnouncement}
-                    />
-                  );
-                })}
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                  <RoomTypeIcon type={roomType} className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="text-lg font-semibold mb-1 text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">Welcome to {roomName}</h3>
+                <p className="text-foreground/70 text-sm max-w-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
+                  {getRoomWelcomeMessage(roomType)}
+                </p>
               </div>
-            </div>
-          ))}
+            )}
 
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-              <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                <RoomTypeIcon type={roomType} className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="text-lg font-semibold mb-1">Welcome to {roomName}</h3>
-              <p className="text-muted-foreground text-sm max-w-xs">
-                {getRoomWelcomeMessage(roomType)}
-              </p>
-            </div>
-          )}
+            <div ref={messagesEndRef} />
+          </div>
+        </ScrollArea>
+      </div>
 
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
-
-      {/* Input */}
+      {/* Input - FIXED at bottom, never scrolls */}
       {canPost ? (
-        <div className="px-3 py-3 border-t border-border/50 bg-background/95 backdrop-blur-sm pb-safe">
+        <div className="sticky bottom-0 left-0 right-0 px-3 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md pb-safe z-10">
           <div className="flex items-center gap-2">
             <Input
               ref={inputRef}
@@ -187,7 +189,7 @@ export const RoomChat = memo(function RoomChat({
               onFocus={handleInputFocus}
               onBlur={handleInputBlur}
               placeholder={`Message ${roomName}...`}
-              className="flex-1 h-11 rounded-full bg-foreground/5 border-0 px-4"
+              className="flex-1 h-11 rounded-full bg-foreground/5 border-border px-4"
             />
             <Button
               size="icon"
@@ -204,7 +206,7 @@ export const RoomChat = memo(function RoomChat({
           </div>
         </div>
       ) : (
-        <div className="px-4 py-3 border-t border-border/50 bg-muted/50 text-center text-sm text-muted-foreground">
+        <div className="sticky bottom-0 left-0 right-0 px-4 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md text-center text-sm text-foreground/70 pb-safe z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
           Only moderators can post in announcements
         </div>
       )}

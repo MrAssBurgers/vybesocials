@@ -60,10 +60,10 @@ export const ExploreVideosGrid = memo(function ExploreVideosGrid({
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <div className="w-20 h-20 rounded-full bg-gradient-to-br from-neon-pink/20 to-neon-cyan/20 flex items-center justify-center mb-4 border border-border/50">
-          <Search className="h-8 w-8 text-muted-foreground" />
+          <Search className="h-8 w-8 text-primary drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
         </div>
-        <h3 className="text-xl font-semibold mb-2 text-foreground">No videos found</h3>
-        <p className="text-muted-foreground text-center max-w-sm">
+        <h3 className="text-xl font-semibold mb-2 text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">No videos found</h3>
+        <p className="text-foreground/80 text-center max-w-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
           Try searching for something else or browse trending tags above
         </p>
       </div>
