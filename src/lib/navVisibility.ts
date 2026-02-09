@@ -11,9 +11,10 @@ const listeners = new Set<NavVisibilityListener>();
 let communityInputFocused = false;
 let inCommunityChat = false;
 let inStoryViewer = false;
+let inDesigner = false;
 
 function updateVisibility() {
-  const shouldBeVisible = !communityInputFocused && !inCommunityChat && !inStoryViewer;
+  const shouldBeVisible = !communityInputFocused && !inCommunityChat && !inStoryViewer && !inDesigner;
   if (navVisible !== shouldBeVisible) {
     navVisible = shouldBeVisible;
     listeners.forEach(fn => fn(navVisible));
@@ -62,12 +63,21 @@ export const navVisibility = {
   },
 
   /**
+   * Set whether we're in the designer (hides nav)
+   */
+  setInDesigner(inDes: boolean) {
+    inDesigner = inDes;
+    updateVisibility();
+  },
+
+  /**
    * Force show nav (useful when exiting community or stories)
    */
   forceShow() {
     inCommunityChat = false;
     communityInputFocused = false;
     inStoryViewer = false;
+    inDesigner = false;
     updateVisibility();
   },
 };
