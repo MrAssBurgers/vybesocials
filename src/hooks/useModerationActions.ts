@@ -84,6 +84,7 @@ export function useAllBans() {
   return useQuery({
     queryKey: ['all-bans'],
     queryFn: async () => {
+      const now = new Date().toISOString();
       const { data, error } = await supabase
         .from('user_bans')
         .select(`
@@ -91,6 +92,7 @@ export function useAllBans() {
           user:profiles!user_id(id, username, avatar_url),
           banned_by_profile:profiles!banned_by(username)
         `)
+        .or(`is_permanent.eq.true,expires_at.is.null,expires_at.gt.${now}`)
         .order('created_at', { ascending: false })
         .limit(100);
       if (error) throw error;
