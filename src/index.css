@@ -160,14 +160,49 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     display: none; /* Hide noise textures on mobile */
   }
 
-  /* Icon opacity enforcement - keeps UI icons from ever rendering translucent */
-  :where(svg.lucide, .lucide) {
+  /* Icon opacity & color enforcement - keeps UI icons from ever rendering translucent or losing color */
+  /* Using high-specificity selectors to override framer-motion inline styles after animations */
+  svg.lucide,
+  .lucide,
+  [class*="lucide-"] {
     opacity: 1 !important;
     --tw-text-opacity: 1 !important;
   }
 
-  :where(svg.lucide *) {
+  svg.lucide *,
+  .lucide *,
+  [class*="lucide-"] * {
     opacity: 1 !important;
+  }
+
+  /* Force icons to maintain their color class after framer-motion animations */
+  /* This uses attribute selectors to be more specific than inline styles */
+  svg.lucide[class*="text-primary"],
+  .lucide[class*="text-primary"],
+  svg[class*="text-primary"] {
+    color: hsl(var(--primary)) !important;
+    opacity: 1 !important;
+  }
+
+  svg.lucide[class*="text-foreground"],
+  .lucide[class*="text-foreground"],
+  svg[class*="text-foreground"] {
+    color: hsl(var(--foreground)) !important;
+    opacity: 1 !important;
+  }
+
+  svg.lucide[class*="text-muted"],
+  .lucide[class*="text-muted"],
+  svg[class*="text-muted"] {
+    color: hsl(var(--muted-foreground)) !important;
+    opacity: 1 !important;
+  }
+
+  /* Preserve drop-shadow on icons - framer-motion can strip filters */
+  svg.lucide[class*="drop-shadow"],
+  .lucide[class*="drop-shadow"],
+  svg[class*="drop-shadow"] {
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)) !important;
   }
 
   /* =========================================
