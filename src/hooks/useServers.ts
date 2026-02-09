@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -136,8 +137,35 @@ export function useServerMembers(serverId: string | undefined) {
   });
 }
 
-// Fetch channels for a server
+// Fetch channels for a server (with realtime updates)
 export function useChannels(serverId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  // Subscribe to realtime channel changes
+  useEffect(() => {
+    if (!serverId) return;
+
+    const channel = supabase
+      .channel(`channels-realtime-${serverId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'channels',
+          filter: `server_id=eq.${serverId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['channels', serverId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [serverId, queryClient]);
+
   return useQuery({
     queryKey: ['channels', serverId],
     queryFn: async () => {

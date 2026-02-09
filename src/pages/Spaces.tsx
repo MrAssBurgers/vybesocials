@@ -83,11 +83,29 @@ export default function Spaces() {
 
   const selectedChannel = channels.find(c => c.id === selectedChannelId);
 
+  // Mobile state: show list or chat
+  const [mobileShowChat, setMobileShowChat] = useState(false);
+
+  // When selecting a channel on mobile, switch to chat view
+  const handleSelectChannelMobile = (channelId: string) => {
+    setSelectedChannelId(channelId);
+    setActiveTab('chat');
+    setMobileShowChat(true);
+  };
+
+  // Back handler for mobile
+  const handleMobileBack = () => {
+    setMobileShowChat(false);
+  };
+
   return (
     <AppLayout hideRightSidebar fullWidth>
       <div className="h-[calc(100vh-5rem)] md:h-screen flex overflow-hidden bg-gradient-to-br from-background via-background to-primary/5">
-        {/* Left Panel - Spaces */}
-        <div className="w-full max-w-xs md:max-w-sm border-r border-border/50 flex flex-col bg-card/30 backdrop-blur-sm">
+        {/* Left Panel - Spaces (hidden on mobile when chat is open) */}
+        <div className={cn(
+          "w-full md:max-w-sm border-r border-border/50 flex flex-col bg-card/30 backdrop-blur-sm",
+          mobileShowChat ? "hidden md:flex" : "flex"
+        )}>
           {/* Header */}
           <div className="p-4 md:p-6 border-b border-border/50">
             <div className="flex items-center justify-between">
@@ -250,8 +268,7 @@ export default function Spaces() {
                                     key={channel.id}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setSelectedChannelId(channel.id);
-                                      setActiveTab('chat');
+                                      handleSelectChannelMobile(channel.id);
                                     }}
                                     className={cn(
                                       "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors",
@@ -576,16 +593,47 @@ export default function Spaces() {
           )}
         </div>
 
-        {/* Mobile: Show content area */}
-        <div className="flex-1 md:hidden">
-          {selectedSpace && activeTab === 'chat' && selectedChannel && (
-            <ChannelChat
-              channelId={selectedChannelId!}
-              channelName={selectedChannel.name}
-              serverId={selectedSpaceId!}
-            />
-          )}
-        </div>
+        {/* Mobile: Show content area with back button */}
+        {mobileShowChat && (
+          <div className="flex-1 flex flex-col md:hidden">
+            {/* Mobile back header */}
+            <div className="flex items-center gap-3 p-3 border-b border-border/50 bg-card/50 backdrop-blur-sm">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleMobileBack}
+                className="rounded-xl h-9 w-9"
+              >
+                <ChevronDown className="h-5 w-5 rotate-90" />
+              </Button>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold truncate">{selectedSpace?.name}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  #{selectedChannel?.name || 'general'}
+                </p>
+              </div>
+              {(selectedSpace?.myRole === 'owner' || selectedSpace?.myRole === 'admin') && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowSettings(true)}
+                  className="rounded-xl h-9 w-9"
+                >
+                  <Settings className="h-5 w-5" />
+                </Button>
+              )}
+            </div>
+            {selectedSpace && selectedChannel && (
+              <div className="flex-1 overflow-hidden">
+                <ChannelChat
+                  channelId={selectedChannelId!}
+                  channelName={selectedChannel.name}
+                  serverId={selectedSpaceId!}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <CreateServerDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} />

@@ -325,17 +325,26 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       mix-blend-mode: normal !important;
     }
     /* SVGs: force visible foreground color + stroke */
-    svg, [class*="lucide"] {
+    svg:not([data-themed-svg]), [class*="lucide"] {
       color: hsl(var(--foreground)) !important;
       stroke: hsl(var(--foreground)) !important;
       opacity: 1 !important;
       mix-blend-mode: normal !important;
       filter: none !important;
     }
-    svg *, [class*="lucide"] * {
+    svg:not([data-themed-svg]) *, [class*="lucide"] * {
       stroke: inherit !important;
       opacity: 1 !important;
       mix-blend-mode: normal !important;
+      filter: none !important;
+    }
+    /* EXCEPTION: Themed SVGs (VybeMiniIcon etc.) keep their gradient strokes/fills */
+    svg[data-themed-svg],
+    svg[data-themed-svg] * {
+      stroke: unset !important;
+      color: unset !important;
+      fill: unset !important;
+      opacity: 1 !important;
       filter: none !important;
     }
 
