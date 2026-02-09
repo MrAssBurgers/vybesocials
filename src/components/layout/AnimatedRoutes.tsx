@@ -44,6 +44,8 @@ const ChallengesHub = lazy(() => import("@/pages/ChallengesHub"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const HowUDoinHub = lazy(() => import("@/pages/HowUDoinHub"));
 const BusinessPortal = lazy(() => import("@/pages/BusinessPortal"));
+const OrderSuccess = lazy(() => import("@/pages/OrderSuccess"));
+const OrderCancelled = lazy(() => import("@/pages/OrderCancelled"));
 
 // Debug panel - only loaded in dev mode
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -154,6 +156,8 @@ export function AnimatedRoutes() {
             <Route path="/events/:id" element={<ProtectedRoute><Events /></ProtectedRoute>} />
             <Route path="/business" element={<ProtectedRoute><BusinessPortal /></ProtectedRoute>} />
             <Route path="/business/:slug" element={<ProtectedRoute><BusinessPortal /></ProtectedRoute>} />
+            <Route path="/order-success" element={<OrderSuccess />} />
+            <Route path="/order-cancelled" element={<OrderCancelled />} />
             
             <Route path="*" element={<NotFound />} />
           </Routes>

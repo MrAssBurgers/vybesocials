@@ -2,3 +2,12 @@ project_id = "agtcyxjxgkdyoxwxkjth"
 
 [functions.create-stripe-connect]
 verify_jwt = false
+
+[functions.create-business-checkout]
+verify_jwt = false
+
+[functions.check-stripe-connect]
+verify_jwt = false
+
+[functions.create-stripe-dashboard-link]
+verify_jwt = false

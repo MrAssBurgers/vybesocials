@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Package, DollarSign, Clock, RefreshCw, Check, X, 
-  AlertCircle, CheckCircle2, XCircle, Loader2 
+  AlertCircle, CheckCircle2, XCircle, Loader2, CreditCard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,7 @@ interface OfferCardProps {
     created_at: string;
     sender_id: string;
     recipient_id: string;
+    business_id: string;
   };
   currentProfileId: string;
   onStatusChange?: () => void;
@@ -36,10 +37,30 @@ export function OfferCard({ offer, currentProfileId, onStatusChange }: OfferCard
   const isPending = offer.status === 'pending';
   const isExpired = offer.expires_at && new Date(offer.expires_at) < new Date();
 
-  const handleAccept = async () => {
+  const handleAcceptAndPay = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase
+      // Create checkout session for this offer
+      const { data, error } = await supabase.functions.invoke('create-business-checkout', {
+        body: {
+          businessId: offer.business_id,
+          offerId: offer.id,
+          items: [
+            {
+              title: offer.title,
+              description: offer.description,
+              price: offer.price,
+              quantity: 1,
+            }
+          ]
+        }
+      });
+
+      if (error) throw error;
+      if (!data?.url) throw new Error('No checkout URL returned');
+
+      // Update offer status to accepted
+      await supabase
         .from('business_offers')
         .update({ 
           status: 'accepted',
@@ -47,11 +68,14 @@ export function OfferCard({ offer, currentProfileId, onStatusChange }: OfferCard
         })
         .eq('id', offer.id);
 
-      if (error) throw error;
-      toast.success('Offer accepted! The seller will be notified.');
+      toast.success('Redirecting to payment...');
+      
+      // Redirect to Stripe Checkout
+      window.open(data.url, '_blank');
       onStatusChange?.();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to accept offer');
+      console.error('Checkout error:', err);
+      toast.error(err.message || 'Failed to process payment');
     } finally {
       setLoading(false);
     }
@@ -190,12 +214,16 @@ export function OfferCard({ offer, currentProfileId, onStatusChange }: OfferCard
                   </Button>
                   <Button
                     size="sm"
-                    className="flex-1 gap-1"
-                    onClick={handleAccept}
+                    className="flex-1 gap-1 gradient-animated"
+                    onClick={handleAcceptAndPay}
                     disabled={loading}
                   >
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                    Accept
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4" />
+                    )}
+                    Pay ${offer.price}
                   </Button>
                 </>
               )}
@@ -210,6 +238,15 @@ export function OfferCard({ offer, currentProfileId, onStatusChange }: OfferCard
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Withdraw Offer'}
                 </Button>
               )}
+            </div>
+          )}
+
+          {/* Accepted status - show payment info */}
+          {offer.status === 'accepted' && (
+            <div className="pt-2 text-center">
+              <p className="text-xs text-green-500">
+                ✓ Payment received - Work in progress
+              </p>
             </div>
           )}
         </CardContent>
