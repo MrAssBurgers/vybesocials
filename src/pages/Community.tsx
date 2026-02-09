@@ -194,27 +194,31 @@ export default function Community() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9">
-                  <MoreVertical className="h-5 w-5" />
+                  <MoreVertical className="h-5 w-5 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent 
+                align="end" 
+                className="bg-card/95 backdrop-blur-md border border-border"
+                sideOffset={8}
+              >
                 <DropdownMenuItem onClick={() => {
                   navigator.clipboard.writeText(selectedCommunity.invite_code);
                   toast.success('Invite code copied!');
                 }}>
-                  <Share2 className="h-4 w-4 mr-2" />
-                  Share Invite
+                  <Share2 className="h-4 w-4 mr-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+                  <span className="text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Share Invite</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem>
-                  <Bell className="h-4 w-4 mr-2" />
-                  Notifications
+                  <Bell className="h-4 w-4 mr-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+                  <span className="text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Notifications</span>
                 </DropdownMenuItem>
                 {(myRole === 'owner' || myRole === 'moderator') && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => setShowSettings(true)}>
-                      <Settings className="h-4 w-4 mr-2" />
-                      Settings
+                      <Settings className="h-4 w-4 mr-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+                      <span className="text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Settings</span>
                     </DropdownMenuItem>
                   </>
                 )}

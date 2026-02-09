@@ -36,7 +36,7 @@ export function EmptyState({
       {/* Icon/Emoji */}
       {emoji ? (
         <motion.span
-          className="text-6xl mb-4"
+          className="text-6xl mb-4 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
           animate={{ 
             y: [0, -8, 0],
             rotate: [-5, 5, -5],
@@ -51,7 +51,7 @@ export function EmptyState({
         </motion.span>
       ) : icon ? (
         <motion.div
-          className="text-muted-foreground mb-4"
+          className="text-primary drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] mb-4"
           animate={{ 
             scale: [1, 1.05, 1],
           }}
@@ -72,7 +72,7 @@ export function EmptyState({
 
       {/* Description */}
       {description && (
-        <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] max-w-xs mb-6">
+        <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] max-w-xs mb-6">
           {description}
         </p>
       )}
