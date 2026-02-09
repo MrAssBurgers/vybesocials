@@ -367,6 +367,133 @@ export type Database = {
           },
         ]
       }
+      business_offers: {
+        Row: {
+          accepted_at: string | null
+          business_id: string
+          completed_at: string | null
+          conversation_id: string
+          created_at: string
+          declined_at: string | null
+          delivery_days: number
+          description: string | null
+          expires_at: string | null
+          id: string
+          message_id: string | null
+          price: number
+          recipient_id: string
+          revisions: number | null
+          sender_id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          business_id: string
+          completed_at?: string | null
+          conversation_id: string
+          created_at?: string
+          declined_at?: string | null
+          delivery_days?: number
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          message_id?: string | null
+          price: number
+          recipient_id: string
+          revisions?: number | null
+          sender_id: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          business_id?: string
+          completed_at?: string | null
+          conversation_id?: string
+          created_at?: string
+          declined_at?: string | null
+          delivery_days?: number
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          message_id?: string | null
+          price?: number
+          recipient_id?: string
+          revisions?: number | null
+          sender_id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_offers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_offers_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_offers_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_offers_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "business_offers_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_offers_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_offers_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "business_offers_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_offers_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_orders: {
         Row: {
           business_id: string

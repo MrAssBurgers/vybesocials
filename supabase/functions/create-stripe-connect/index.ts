@@ -26,8 +26,10 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+    // Use service role client for database operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
@@ -41,52 +43,50 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
+    logStep("Token extracted", { tokenLength: token.length });
     
-    // Create a client with the user's auth header for getClaims
-    const supabaseAuth = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
-      global: { headers: { Authorization: authHeader } }
+    // Create client with user's auth context for getUser validation
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { autoRefreshToken: false, persistSession: false }
     });
     
-    // Validate JWT using getClaims - required for Lovable Cloud ES256 tokens
-    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      logStep("ERROR - Auth validation failed", { error: claimsError?.message });
+    // Use getUser with the authenticated client - this validates the JWT
+    const { data: userData, error: userError } = await supabaseAuth.auth.getUser();
+    
+    if (userError || !userData?.user) {
+      logStep("ERROR - Auth validation failed", { error: userError?.message });
       return new Response(
         JSON.stringify({ error: "Invalid authentication token" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
     
-    const userId = claimsData.claims.sub;
-    const userEmail = claimsData.claims.email as string;
-    
-    if (!userEmail) {
+    const user = userData.user;
+    if (!user.email) {
       return new Response(
         JSON.stringify({ error: "User email not available" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
-    logStep("User authenticated", { userId, email: userEmail });
+    logStep("User authenticated", { userId: user.id, email: user.email });
 
-    // Get user's profile ID using the user id from claims
-    const { data: profile, error: profileError } = await supabaseClient
+    // Get user's profile ID
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('id')
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .single();
     
     if (profileError || !profile) throw new Error("Profile not found");
     logStep("Profile found", { profileId: profile.id });
 
     // Get the user's business profile
-    const { data: business, error: bizError } = await supabaseClient
+    const { data: business, error: bizError } = await supabaseAdmin
       .from('business_profiles')
       .select('id, name, stripe_account_id')
       .eq('owner_id', profile.id)
       .single();
-
-    if (bizError || !business) throw new Error("Business profile not found");
-    logStep("Business found", { businessId: business.id });
 
     if (bizError || !business) throw new Error("Business profile not found");
     logStep("Business found", { businessId: business.id });
@@ -101,7 +101,7 @@ serve(async (req) => {
       
       const account = await stripe.accounts.create({
         type: 'express',
-        email: userEmail,
+        email: user.email,
         business_type: 'individual',
         capabilities: {
           card_payments: { requested: true },
@@ -112,7 +112,7 @@ serve(async (req) => {
         },
         metadata: {
           business_id: business.id,
-          user_id: userId,
+          user_id: user.id,
         },
       });
 
@@ -120,7 +120,7 @@ serve(async (req) => {
       logStep("Stripe account created", { accountId });
 
       // Save the account ID to the business profile
-      await supabaseClient
+      await supabaseAdmin
         .from('business_profiles')
         .update({ stripe_account_id: accountId })
         .eq('id', business.id);
