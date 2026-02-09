@@ -270,13 +270,13 @@ export default function BusinessPortal() {
 
         {/* Main Tabs */}
         <Tabs defaultValue={!business.stripe_onboarding_complete ? "payments" : "products"} className="space-y-6">
-          <TabsList className="liquid-glass w-full justify-start overflow-x-auto">
-            <TabsTrigger value="products" className="gap-2">
-              <Package className="h-4 w-4" />
+          <TabsList className="liquid-glass w-full justify-start overflow-x-auto flex-nowrap no-scrollbar">
+            <TabsTrigger value="products" className="gap-1.5 text-xs sm:text-sm shrink-0">
+              <Package className="h-4 w-4 hidden sm:block" />
               Products
             </TabsTrigger>
-            <TabsTrigger value="orders" className="gap-2">
-              <ShoppingCart className="h-4 w-4" />
+            <TabsTrigger value="orders" className="gap-1.5 text-xs sm:text-sm shrink-0">
+              <ShoppingCart className="h-4 w-4 hidden sm:block" />
               Orders
               {pendingOrders > 0 && (
                 <Badge variant="destructive" className="ml-1 text-xs">
@@ -284,8 +284,8 @@ export default function BusinessPortal() {
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="payments" className="gap-2">
-              <Wallet className="h-4 w-4" />
+            <TabsTrigger value="payments" className="gap-1.5 text-xs sm:text-sm shrink-0">
+              <Wallet className="h-4 w-4 hidden sm:block" />
               Payments
               {!business.stripe_onboarding_complete && (
                 <Badge variant="secondary" className="ml-1 text-xs bg-warning/20 text-warning">
@@ -293,12 +293,12 @@ export default function BusinessPortal() {
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
+            <TabsTrigger value="analytics" className="gap-1.5 text-xs sm:text-sm shrink-0">
+              <BarChart3 className="h-4 w-4 hidden sm:block" />
               Analytics
             </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2">
-              <Settings className="h-4 w-4" />
+            <TabsTrigger value="settings" className="gap-1.5 text-xs sm:text-sm shrink-0">
+              <Settings className="h-4 w-4 hidden sm:block" />
               Settings
             </TabsTrigger>
           </TabsList>
