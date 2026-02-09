@@ -24,43 +24,45 @@ export function AdminFlagsSection() {
   };
 
   return (
-    <Card className="liquid-glass">
-      <CardHeader>
+    <Card className="liquid-glass rounded-3xl border-white/10 overflow-hidden">
+      <CardHeader className="pb-4">
         <div className="flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-primary" />
+          <div className="p-2.5 rounded-2xl bg-primary/15">
+            <AlertTriangle className="h-5 w-5 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+          </div>
           <div>
-            <CardTitle>Content Flags</CardTitle>
-            <CardDescription>AI-detected content for review</CardDescription>
+            <CardTitle className="text-lg text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Content Flags</CardTitle>
+            <CardDescription className="text-foreground/70">AI-detected content for review</CardDescription>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0">
         {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Loading...</div>
+          <div className="text-center py-12 text-muted-foreground">Loading...</div>
         ) : flags.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">No flags</div>
+          <div className="text-center py-12 text-muted-foreground">No flags</div>
         ) : (
-          <ScrollArea className="h-[500px]">
-            <div className="space-y-4">
+          <ScrollArea className="h-[calc(100vh-320px)] min-h-[300px] max-h-[600px] pr-3">
+            <div className="space-y-3">
               {flags.map((flag) => (
-                <div key={flag.id} className="p-4 rounded-lg bg-muted/30 space-y-2">
+                <div key={flag.id} className="p-4 rounded-2xl bg-card/60 backdrop-blur-sm border border-white/5 space-y-3 transition-all hover:bg-card/80">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline">{flag.content_type}</Badge>
-                    <Badge variant={flag.status === 'pending' ? 'destructive' : 'secondary'}>
+                    <Badge variant="outline" className="rounded-full px-3">{flag.content_type}</Badge>
+                    <Badge variant={flag.status === 'pending' ? 'destructive' : 'secondary'} className="rounded-full px-3">
                       {flag.status}
                     </Badge>
                   </div>
-                  <p className="text-sm">{flag.flagged_text || 'No text'}</p>
+                  <p className="text-sm text-foreground/90 leading-relaxed">{flag.flagged_text || 'No text'}</p>
                   <p className="text-xs text-muted-foreground">
                     AI Score: {flag.ai_score || 'N/A'} • {formatDistanceToNow(new Date(flag.created_at), { addSuffix: true })}
                   </p>
                   {flag.status === 'pending' && (
-                    <div className="flex gap-2 pt-2">
-                      <Button size="sm" onClick={() => handleFlagAction(flag.id, 'approved')}>
-                        <CheckCircle className="h-4 w-4 mr-1" /> Approve
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" className="rounded-xl" onClick={() => handleFlagAction(flag.id, 'approved')}>
+                        <CheckCircle className="h-4 w-4 mr-1.5" /> Approve
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleFlagAction(flag.id, 'rejected')}>
-                        <XCircle className="h-4 w-4 mr-1" /> Reject
+                      <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => handleFlagAction(flag.id, 'rejected')}>
+                        <XCircle className="h-4 w-4 mr-1.5" /> Reject
                       </Button>
                     </div>
                   )}
