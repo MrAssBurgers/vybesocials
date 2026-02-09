@@ -25,52 +25,54 @@ export function AdminReportsSection() {
   };
 
   return (
-    <Card className="liquid-glass">
-      <CardHeader>
+    <Card className="liquid-glass rounded-3xl border-white/10 overflow-hidden">
+      <CardHeader className="pb-4">
         <div className="flex items-center gap-3">
-          <Flag className="h-5 w-5 text-primary" />
+          <div className="p-2.5 rounded-2xl bg-primary/15">
+            <Flag className="h-5 w-5 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+          </div>
           <div>
-            <CardTitle>User Reports</CardTitle>
-            <CardDescription>Review reported content</CardDescription>
+            <CardTitle className="text-lg text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">User Reports</CardTitle>
+            <CardDescription className="text-foreground/70">Review reported content</CardDescription>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0">
         {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Loading...</div>
+          <div className="text-center py-12 text-muted-foreground">Loading...</div>
         ) : reports.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">No reports</div>
+          <div className="text-center py-12 text-muted-foreground">No reports</div>
         ) : (
-          <ScrollArea className="h-[500px]">
-            <div className="space-y-4">
+          <ScrollArea className="h-[calc(100vh-320px)] min-h-[300px] max-h-[600px] pr-3">
+            <div className="space-y-3">
               {reports.map((report) => (
-                <div key={report.id} className="p-4 rounded-lg bg-muted/30 space-y-2">
+                <div key={report.id} className="p-4 rounded-2xl bg-card/60 backdrop-blur-sm border border-white/5 space-y-3 transition-all hover:bg-card/80">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9 ring-2 ring-white/10">
                         <AvatarImage src={report.reporter?.avatar_url || ''} />
-                        <AvatarFallback>{report.reporter?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="bg-primary/20 text-primary">{report.reporter?.username?.[0]?.toUpperCase()}</AvatarFallback>
                       </Avatar>
-                      <span className="font-medium">{report.reporter?.username}</span>
+                      <span className="font-medium text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">{report.reporter?.username}</span>
                     </div>
-                    <Badge variant={report.status === 'pending' ? 'destructive' : 'secondary'}>
+                    <Badge variant={report.status === 'pending' ? 'destructive' : 'secondary'} className="rounded-full px-3">
                       {report.status}
                     </Badge>
                   </div>
-                  <p className="text-sm">{report.reason}</p>
+                  <p className="text-sm text-foreground/90 leading-relaxed">{report.reason}</p>
                   <p className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
                   </p>
                   {report.status === 'pending' && (
-                    <div className="flex gap-2 pt-2">
-                      <Button size="sm" variant="outline" onClick={() => handleReportAction(report.id, 'reviewed')}>
-                        <Eye className="h-4 w-4 mr-1" /> Review
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button size="sm" variant="outline" className="rounded-xl" onClick={() => handleReportAction(report.id, 'reviewed')}>
+                        <Eye className="h-4 w-4 mr-1.5" /> Review
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleReportAction(report.id, 'actioned')}>
-                        <CheckCircle className="h-4 w-4 mr-1" /> Action
+                      <Button size="sm" variant="outline" className="rounded-xl" onClick={() => handleReportAction(report.id, 'actioned')}>
+                        <CheckCircle className="h-4 w-4 mr-1.5" /> Action
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleReportAction(report.id, 'dismissed')}>
-                        <XCircle className="h-4 w-4 mr-1" /> Dismiss
+                      <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => handleReportAction(report.id, 'dismissed')}>
+                        <XCircle className="h-4 w-4 mr-1.5" /> Dismiss
                       </Button>
                     </div>
                   )}

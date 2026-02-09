@@ -49,47 +49,49 @@ export function AdminAnnouncementsSection() {
   });
 
   return (
-    <Card className="liquid-glass">
-      <CardHeader>
+    <Card className="liquid-glass rounded-3xl border-white/10 overflow-hidden">
+      <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Megaphone className="h-5 w-5 text-primary" />
+            <div className="p-2.5 rounded-2xl bg-primary/15">
+              <Megaphone className="h-5 w-5 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+            </div>
             <div>
-              <CardTitle>Announcements</CardTitle>
-              <CardDescription>Manage app announcements</CardDescription>
+              <CardTitle className="text-lg text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Announcements</CardTitle>
+              <CardDescription className="text-foreground/70">Manage app announcements</CardDescription>
             </div>
           </div>
           <CreateAnnouncementDialog />
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0">
         {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Loading...</div>
+          <div className="text-center py-12 text-muted-foreground">Loading...</div>
         ) : announcements.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">No announcements</div>
+          <div className="text-center py-12 text-muted-foreground">No announcements</div>
         ) : (
-          <ScrollArea className="h-[500px]">
-            <div className="space-y-4">
+          <ScrollArea className="h-[calc(100vh-320px)] min-h-[300px] max-h-[600px] pr-3">
+            <div className="space-y-3">
               {announcements.map((ann: any) => (
-                <div key={ann.id} className="p-4 rounded-lg bg-muted/30 space-y-2">
+                <div key={ann.id} className="p-4 rounded-2xl bg-card/60 backdrop-blur-sm border border-white/5 space-y-3 transition-all hover:bg-card/80">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">{ann.title}</h3>
-                    <Badge variant={ann.is_active ? 'default' : 'secondary'}>
+                    <h3 className="font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">{ann.title}</h3>
+                    <Badge variant={ann.is_active ? 'default' : 'secondary'} className="rounded-full px-3">
                       {ann.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">{ann.content}</p>
+                  <p className="text-sm text-foreground/80 leading-relaxed">{ann.content}</p>
                   <p className="text-xs text-muted-foreground">
                     By @{ann.author?.username} • {formatDistanceToNow(new Date(ann.created_at), { addSuffix: true })}
                   </p>
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2 pt-1">
                     {!ann.is_active && (
-                      <Button size="sm" variant="outline" onClick={() => reactivate.mutate(ann.id)}>
-                        <RefreshCw className="h-4 w-4 mr-1" /> Reactivate
+                      <Button size="sm" variant="outline" className="rounded-xl" onClick={() => reactivate.mutate(ann.id)}>
+                        <RefreshCw className="h-4 w-4 mr-1.5" /> Reactivate
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteAnnouncement.mutate(ann.id)}>
-                      <Trash2 className="h-4 w-4 mr-1" /> Delete
+                    <Button size="sm" variant="ghost" className="rounded-xl text-destructive hover:text-destructive" onClick={() => deleteAnnouncement.mutate(ann.id)}>
+                      <Trash2 className="h-4 w-4 mr-1.5" /> Delete
                     </Button>
                   </div>
                 </div>
