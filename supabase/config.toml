@@ -1,1 +1,4 @@
 project_id = "agtcyxjxgkdyoxwxkjth"
+
+[functions.create-stripe-connect]
+verify_jwt = false
