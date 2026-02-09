@@ -29,8 +29,11 @@ serve(async (req) => {
     logStep("Function started");
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-    logStep("Stripe key verified");
+    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set in this environment. Please publish your project to sync secrets.");
+    
+    // Log key type for debugging (never log the actual key)
+    const keyPrefix = stripeKey.substring(0, 7);
+    logStep("Stripe key verified", { keyPrefix, keyLength: stripeKey.length });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -175,8 +178,9 @@ serve(async (req) => {
     }
 
 
-    // Create account onboarding link
-    const origin = req.headers.get("origin") || "https://vybeapp.lovable.app";
+    // Create account onboarding link — use request origin for environment-aware redirects
+    const origin = req.headers.get("origin") || req.headers.get("referer")?.replace(/\/$/, '') || "https://vybeapp.lovable.app";
+    logStep("Using origin for redirects", { origin });
     
     const accountLink = await stripe.accountLinks.create({
       account: accountId,

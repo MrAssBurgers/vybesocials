@@ -24,8 +24,9 @@ serve(async (req) => {
     logStep("Function started");
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-    logStep("Stripe key verified");
+    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set in this environment. Please publish your project to sync secrets.");
+    const keyPrefix = stripeKey.substring(0, 7);
+    logStep("Stripe key verified", { keyPrefix, keyLength: stripeKey.length });
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -101,7 +102,8 @@ serve(async (req) => {
     const applicationFeeAmount = Math.round(totalAmount * (PLATFORM_FEE_PERCENT / 100));
     logStep("Fee calculated", { totalAmount, applicationFeeAmount, feePercent: PLATFORM_FEE_PERCENT });
 
-    const origin = req.headers.get("origin") || "https://vybeapp.lovable.app";
+    const origin = req.headers.get("origin") || req.headers.get("referer")?.replace(/\/$/, '') || "https://vybeapp.lovable.app";
+    logStep("Using origin for redirects", { origin });
 
     // Create checkout session with connected account and application fee
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
