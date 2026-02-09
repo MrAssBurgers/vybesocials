@@ -15,6 +15,10 @@ const logStep = (step: string, details?: any) => {
 const isStripeConnectNotEnabledError = (message: string) =>
   message.includes("signed up for Connect") || message.includes("sign up for Connect");
 
+const isPlatformProfileIncomplete = (message: string) =>
+  message.includes("responsibilities of managing losses") || 
+  message.includes("platform-profile");
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -145,7 +149,22 @@ serve(async (req) => {
             }),
             {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
-              // Return 200 so the client can show a friendly message without treating this as a runtime failure
+              status: 200,
+            },
+          );
+        }
+
+        if (isPlatformProfileIncomplete(message)) {
+          logStep("ERROR - Stripe Platform Profile incomplete", { message });
+          return new Response(
+            JSON.stringify({
+              ok: false,
+              error:
+                "Complete your Stripe Connect setup first. Go to Stripe Dashboard → Settings → Connect → Platform Profile and review the required settings.",
+              code: "platform_profile_incomplete",
+            }),
+            {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
               status: 200,
             },
           );

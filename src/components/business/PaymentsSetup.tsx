@@ -97,6 +97,13 @@ export function PaymentsSetup({
           return;
         }
 
+        if (dataAny?.code === 'platform_profile_incomplete') {
+          toast.error(
+            "Complete your Stripe Connect setup first. Go to Stripe Dashboard → Settings → Connect → Platform Profile.",
+          );
+          return;
+        }
+
         toast.error(dataAny?.error || 'Failed to start Stripe setup');
         return;
       }
