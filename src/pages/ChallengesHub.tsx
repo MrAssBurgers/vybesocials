@@ -141,10 +141,10 @@ export default function ChallengesHubPage() {
               size="icon"
               onClick={handleSyncProgress}
               disabled={syncing}
-              className="shrink-0"
+              className="shrink-0 h-10 w-10 rounded-xl bg-primary/10"
               title="Sync progress"
             >
-              <RefreshCw className={cn("h-5 w-5", syncing && "animate-spin")} />
+              <RefreshCw className={cn("h-5 w-5 text-primary", syncing && "animate-spin")} />
             </Button>
           </div>
 
@@ -190,7 +190,7 @@ export default function ChallengesHubPage() {
                   </div>
                 </div>
 
-                <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                <ChevronRight className="h-5 w-5 text-foreground/70 shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
               </div>
             </GlassCard>
           </motion.div>
@@ -204,7 +204,7 @@ export default function ChallengesHubPage() {
             >
               <GlassCard className="p-4 border-primary/30 bg-primary/5">
                 <div className="flex items-center gap-2 mb-3">
-                  <Gift className="h-5 w-5 text-primary" />
+                  <Gift className="h-5 w-5 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
                   <h3 className="font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">Claim Your Rewards!</h3>
                   <Badge variant="secondary" className="ml-auto">
                     {unclaimedRewards.length} pending
@@ -218,8 +218,8 @@ export default function ChallengesHubPage() {
                       animate={{ opacity: 1, x: 0 }}
                       className="flex items-center gap-3 p-2 rounded-lg bg-background/50"
                     >
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Star className="h-5 w-5 text-primary" />
+                      <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Star className="h-5 w-5 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">
@@ -258,8 +258,8 @@ export default function ChallengesHubPage() {
           <div className="grid grid-cols-2 gap-3">
             <GlassCard className="p-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="h-5 w-5 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{completedCount}</p>
@@ -269,8 +269,8 @@ export default function ChallengesHubPage() {
             </GlassCard>
             <GlassCard className="p-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-accent/10 flex items-center justify-center">
-                  <Flame className="h-5 w-5 text-accent" />
+                <div className="h-10 w-10 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
+                  <Flame className="h-5 w-5 text-accent drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{totalXP}</p>
@@ -414,7 +414,7 @@ export default function ChallengesHubPage() {
               className="text-center py-16"
             >
               <GlassCard className="p-8 inline-block">
-                <Trophy className="h-12 w-12 text-primary mx-auto mb-4" />
+                <Trophy className="h-12 w-12 text-primary mx-auto mb-4 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
                 <h3 className="text-lg font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] mb-2">No challenges available</h3>
                 <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
                   Check back later for new challenges!
