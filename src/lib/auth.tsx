@@ -5,6 +5,7 @@ import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, clearProfileCache } from '@/lib/profileCache';
 import { resetThemeToDefault } from '@/lib/themeReset';
+import { logEvent } from '@/lib/debugLogger';
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -274,6 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        logEvent('auth', `onAuthStateChange: ${event}`, { hasSession: !!session });
         // Skip if already initialized from getSession (prevents double profile fetches)
         if (!authInitializedRef.current && event === 'INITIAL_SESSION') {
           return; // Let getSession handle the first initialization
@@ -283,6 +285,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          logEvent('auth', 'Session active, fetching profile', { userId: session.user.id });
           // Schedule token refresh for persistent sessions
           if (session.expires_at) {
             scheduleTokenRefresh(session.expires_at);
@@ -293,6 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             fetchProfile(session.user.id);
           }, 0);
         } else {
+          logEvent('auth', 'No session — signed out');
           setProfile(null);
           clearProfileCache(); // Clear cache on logout
           setBanInfo(null);
@@ -316,10 +320,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // THEN check for existing session - this restores session from localStorage
+    logEvent('auth', 'Initializing: checking existing session');
     supabase.auth.getSession().then(({ data: { session } }) => {
       // Mark as initialized so onAuthStateChange skips duplicate handling
       authInitializedRef.current = true;
       
+      logEvent('auth', 'getSession resolved', { hasSession: !!session, userId: session?.user?.id });
       setSession(session);
       setUser(session?.user ?? null);
       
