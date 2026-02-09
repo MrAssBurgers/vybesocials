@@ -285,16 +285,11 @@ export function useSecretTyping(onSecret: (code: string) => void) {
 
 export function useMidnightCheck(onMidnight: () => void) {
   useEffect(() => {
-    const checkMidnight = () => {
-      const now = new Date();
-      if (now.getHours() === 0 && now.getMinutes() < 5) {
-        onMidnight();
-      }
-    };
-
-    checkMidnight();
-    const interval = setInterval(checkMidnight, 60000);
-    return () => clearInterval(interval);
+    // Single check on mount - no interval needed for easter eggs
+    const now = new Date();
+    if (now.getHours() === 0 && now.getMinutes() < 5) {
+      onMidnight();
+    }
   }, [onMidnight]);
 }
 

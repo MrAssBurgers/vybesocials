@@ -5,15 +5,17 @@ import { isLowEndDevice } from '@/lib/performanceConfig';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 
-// CRITICAL PAGES - Load eagerly (no lazy) for instant navigation
+// CRITICAL PAGE - Load eagerly for instant first navigation
 import Home from "@/pages/Home";
-import Explore from "@/pages/Explore";
-import Market from "@/pages/Market";
-import Messages from "@/pages/Messages";
-import Notifications from "@/pages/Notifications";
-import Settings from "@/pages/Settings";
-import Shorts from "@/pages/Shorts";
-import Profile from "@/pages/Profile";
+
+// High-priority pages - lazy but prefetched early
+const Explore = lazy(() => import("@/pages/Explore"));
+const Market = lazy(() => import("@/pages/Market"));
+const Messages = lazy(() => import("@/pages/Messages"));
+const Notifications = lazy(() => import("@/pages/Notifications"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const Shorts = lazy(() => import("@/pages/Shorts"));
+const Profile = lazy(() => import("@/pages/Profile"));
 
 // Secondary pages - lazy load but prefetch
 const Landing = lazy(() => import("@/pages/Landing"));
