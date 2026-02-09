@@ -185,6 +185,9 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    // Get mood from prompt first
+    const mood = getMoodFromPrompt(prompt);
+
     // Use selected font or analyze prompt
     const fontStyle = selectedFont || getFontStyle(prompt);
     const fonts = FONT_PAIRINGS[fontStyle] || FONT_PAIRINGS.modern;
