@@ -319,8 +319,13 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
        ============================================= */
 
     /* 1) UNIVERSAL: Force ALL elements to be fully opaque with solid foreground color */
-    * {
+    *:not(svg):not(svg *):not([class*="lucide"]) {
       color: hsl(var(--foreground)) !important;
+      opacity: 1 !important;
+      mix-blend-mode: normal !important;
+    }
+    /* SVGs get opacity fix but inherit color naturally */
+    svg, svg *, [class*="lucide"], [class*="lucide"] * {
       opacity: 1 !important;
       mix-blend-mode: normal !important;
     }
