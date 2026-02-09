@@ -364,14 +364,19 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       color: inherit !important;
     }
 
-    /* 5. SVGs & ICONS - follow parent color, never forced to foreground */
+    /* 5. SVGs & ICONS - inherit parent color, preserve Lucide fill:none */
     svg,
-    svg *,
-    [class*="lucide"],
-    [class*="lucide"] * {
+    [class*="lucide"] {
       color: currentColor !important;
-      fill: currentColor;
-      stroke: currentColor;
+      opacity: 1 !important;
+      filter: none !important;
+      text-shadow: none !important;
+    }
+
+    /* SVG internals must NOT have fill forced - Lucide uses fill:none + stroke */
+    svg * {
+      fill: inherit;
+      stroke: inherit;
       filter: none !important;
       text-shadow: none !important;
     }
