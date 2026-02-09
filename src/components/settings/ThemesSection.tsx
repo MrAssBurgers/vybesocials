@@ -16,9 +16,9 @@ export function ThemesSection() {
   return (
     <>
       <div className="space-y-6">
-        {/* Design Your Own VYBE Button - Prominent at top */}
+        {/* Design Your Own VYBE Button - Prominent at top with solid background */}
         <Button 
-          className="w-full gradient-animated text-primary-foreground font-semibold py-6 text-base"
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 text-base shadow-lg shadow-primary/20"
           onClick={() => setShowVybeDesigner(true)}
         >
           <Wand2 className="w-5 h-5 mr-2" />
@@ -26,15 +26,15 @@ export function ThemesSection() {
         </Button>
 
         <Tabs defaultValue="customize" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-4">
-            <TabsTrigger value="customize" className="text-xs">
+          <TabsList className="grid w-full grid-cols-3 mb-4 bg-muted/60">
+            <TabsTrigger value="customize" className="text-xs text-foreground data-[state=active]:text-foreground data-[state=active]:bg-background">
               <Brush className="h-3 w-3 mr-1" />
               Customize
             </TabsTrigger>
-            <TabsTrigger value="marketplace" className="text-xs">
+            <TabsTrigger value="marketplace" className="text-xs text-foreground data-[state=active]:text-foreground data-[state=active]:bg-background">
               Browse
             </TabsTrigger>
-            <TabsTrigger value="gallery" className="text-xs">
+            <TabsTrigger value="gallery" className="text-xs text-foreground data-[state=active]:text-foreground data-[state=active]:bg-background">
               My Themes
             </TabsTrigger>
           </TabsList>
@@ -42,9 +42,9 @@ export function ThemesSection() {
           <TabsContent value="customize" className="space-y-4">
             <ThemeCustomizer />
             
-            {/* UI Builder Button */}
+            {/* UI Builder Button - solid background */}
             <Button 
-              className="w-full"
+              className="w-full bg-card hover:bg-accent border border-border text-foreground"
               variant="outline"
               onClick={() => setShowUIBuilder(true)}
             >

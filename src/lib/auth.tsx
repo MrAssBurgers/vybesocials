@@ -407,6 +407,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     clearProfileCache(); // Clear cache on logout
+    
+    // Clear VYBE theme from localStorage so new accounts start fresh
+    localStorage.removeItem('vybe-font-body');
+    localStorage.removeItem('vybe-font-display');
+    localStorage.removeItem('vybe-anim-speed');
+    localStorage.removeItem('vybe-anim-style');
+    localStorage.removeItem('vybe-custom-animations');
+    
+    // Remove custom animation styles
+    const customAnimStyle = document.getElementById('vybe-custom-animations');
+    if (customAnimStyle) {
+      customAnimStyle.remove();
+    }
+    
+    // Reset CSS variables to defaults
+    const root = document.documentElement;
+    root.style.removeProperty('--font-body');
+    root.style.removeProperty('--font-display');
+    root.style.fontFamily = 'system-ui, sans-serif';
+    
     await supabase.auth.signOut();
     setProfile(null);
   };
