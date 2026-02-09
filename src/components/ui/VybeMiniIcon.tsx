@@ -32,6 +32,7 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
       <svg
         viewBox="0 0 100 110"
         fill="none"
+        data-themed-svg="true"
         style={{ width: size, height: size }}
       >
         <defs>
