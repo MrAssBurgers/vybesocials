@@ -16,7 +16,8 @@ import {
   Clock,
   Settings,
   Shield,
-  SmilePlus
+  SmilePlus,
+  Package
 } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useUserRole } from '@/hooks/useModeration';
@@ -52,6 +53,8 @@ interface ToyboxProps {
   onOpenDMSettings?: () => void;
   onOpenAdminPanel?: () => void;
   onOpenVybeCamera?: () => void;
+  onCreateOffer?: () => void;
+  hasBusinessProfile?: boolean;
 }
 
 const STICKERS = ['😀', '😂', '🥰', '😎', '🔥', '💯', '🎉', '❤️', '👍', '🙌', '💪', '✨'];
@@ -82,6 +85,8 @@ export const Toybox = memo(function Toybox({
   onOpenDMSettings,
   onOpenAdminPanel,
   onOpenVybeCamera,
+  onCreateOffer,
+  hasBusinessProfile,
 }: ToyboxProps) {
   const { data: userRole } = useUserRole();
   const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
@@ -237,9 +242,17 @@ export const Toybox = memo(function Toybox({
       onClick: () => handleDMFeatureClick(onOpenAdminPanel),
       color: 'text-red-500',
     }] : []),
+    // Business offers - only shown for business owners
+    ...(hasBusinessProfile && onCreateOffer ? [{
+      icon: Package,
+      label: 'Send Offer',
+      description: 'Send a custom price offer 💰',
+      onClick: () => handleDMFeatureClick(onCreateOffer),
+      color: 'text-green-500',
+    }] : []),
   ];
 
-  const hasDMFeatures = onOpenVanishThreads || onOpenMemoryPins || onOpenScheduleMessage || onOpenDMSettings || (isModOrAdmin && onOpenAdminPanel);
+  const hasDMFeatures = onOpenVanishThreads || onOpenMemoryPins || onOpenScheduleMessage || onOpenDMSettings || (isModOrAdmin && onOpenAdminPanel) || (hasBusinessProfile && onCreateOffer);
 
   const ToyboxContent = (
     <div className="p-4 max-h-[70vh] overflow-y-auto">

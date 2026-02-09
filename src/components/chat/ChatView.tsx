@@ -99,6 +99,8 @@ import { StreakIndicator } from './StreakIndicator';
 import { useStreakWithUser } from '@/hooks/useStreaks';
 import { DMImageSafetyGate } from './DMImageSafetyGate';
 import { StyledUsername } from '@/components/ui/StyledUsername';
+import { useUserBusiness } from '@/hooks/useBusinessOffers';
+import { CreateOfferDialog } from '@/components/business/CreateOfferDialog';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
 // Theme color mapping - now includes both bubble and text classes
@@ -198,6 +200,8 @@ export function ChatView() {
   // Video preview state
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
   const [showVideoPreview, setShowVideoPreview] = useState(false);
+  // Business offer dialog state
+  const [showOfferDialog, setShowOfferDialog] = useState(false);
   // Image safety scanning state
   const [pendingSafetyImage, setPendingSafetyImage] = useState<{ url: string; file: File } | null>(null);
   const [showImageSafetyGate, setShowImageSafetyGate] = useState(false);
@@ -235,6 +239,9 @@ export function ChatView() {
   
   // Get streak with the other user (for DMs)
   const streak = useStreakWithUser(!isGroupChat ? otherMember?.id : undefined);
+  
+  // Check if user has a business profile for sending offers
+  const { data: userBusiness } = useUserBusiness();
 
   // Clear message notifications + clear the unread badge when opening a conversation
   useEffect(() => {
@@ -1585,6 +1592,8 @@ export function ChatView() {
             onOpenDMSettings={() => setShowDMSettings(true)}
             onOpenAdminPanel={!isGroupChat ? () => setShowAdminPanel(true) : undefined}
             onOpenSnapCamera={() => setShowSnapCamera(true)}
+            onCreateOffer={userBusiness ? () => setShowOfferDialog(true) : undefined}
+            hasBusinessProfile={!!userBusiness}
             presentUsers={presentUsers}
             typingUserIds={typingUsers}
           />
@@ -1620,8 +1629,22 @@ export function ChatView() {
           onOpenDMSettings={() => setShowDMSettings(true)}
           onOpenAdminPanel={!isGroupChat ? () => setShowAdminPanel(true) : undefined}
           onOpenSnapCamera={() => setShowSnapCamera(true)}
+          onCreateOffer={userBusiness ? () => setShowOfferDialog(true) : undefined}
+          hasBusinessProfile={!!userBusiness}
           presentUsers={presentUsers}
           typingUserIds={typingUsers}
+        />
+      )}
+
+      {/* Business Offer Dialog */}
+      {userBusiness && conversationId && profile && otherMember && (
+        <CreateOfferDialog
+          open={showOfferDialog}
+          onOpenChange={setShowOfferDialog}
+          conversationId={conversationId}
+          recipientId={otherMember.id}
+          businessId={userBusiness.id}
+          senderId={profile.id}
         />
       )}
     </div>
@@ -1659,6 +1682,8 @@ const MessageInputArea = memo(function MessageInputArea({
   onOpenDMSettings,
   onOpenAdminPanel,
   onOpenSnapCamera,
+  onCreateOffer,
+  hasBusinessProfile,
   presentUsers,
   typingUserIds,
 }: {
@@ -1691,6 +1716,8 @@ const MessageInputArea = memo(function MessageInputArea({
   onOpenDMSettings?: () => void;
   onOpenAdminPanel?: () => void;
   onOpenSnapCamera?: () => void;
+  onCreateOffer?: () => void;
+  hasBusinessProfile?: boolean;
   presentUsers?: { user_id: string; username: string; avatar_url: string | null; display_name: string | null; is_typing: boolean }[];
   typingUserIds?: string[];
 }) {
@@ -1767,6 +1794,8 @@ const MessageInputArea = memo(function MessageInputArea({
               onOpenDMSettings={onOpenDMSettings}
               onOpenAdminPanel={onOpenAdminPanel}
               onOpenVybeCamera={onOpenSnapCamera}
+              onCreateOffer={onCreateOffer}
+              hasBusinessProfile={hasBusinessProfile}
             />
 
             <DropdownMenu open={showViewModeMenu} onOpenChange={setShowViewModeMenu}>
