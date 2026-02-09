@@ -111,11 +111,15 @@ export function GlobalCallOverlay() {
   // Minimize state - keeps call active but shows a floating bubble
   const [isMinimized, setIsMinimized] = useState(false);
   
-  // Remote user left - call lingers for 8 minutes
+  // Remote user left - call lingers for 1 hour
   const [remoteUserLeft, setRemoteUserLeft] = useState(false);
+  const remoteUserLeftRef = useRef(false); // Ref mirror for use in Daily event closures
   const [autoEndCountdown, setAutoEndCountdown] = useState(0); // seconds remaining
   const autoEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Keep ref in sync with state for use in Daily event closures
+  useEffect(() => { remoteUserLeftRef.current = remoteUserLeft; }, [remoteUserLeft]);
   
   // Header visibility state - auto-hide, show on hover
   const [showHeader, setShowHeader] = useState(true);
@@ -360,6 +364,8 @@ export function GlobalCallOverlay() {
       if (import.meta.env.DEV) console.log('[CallOverlay] 👋 left-meeting event');
       clearJoinTimeout();
       isLeavingRef.current = false;
+      // Only reset video state if we're NOT in linger mode
+      // During linger, we want to keep the call UI alive
       setRemoteParticipant(null);
       setHasRemoteVideo(false);
       setHasLocalVideo(false);
@@ -370,6 +376,14 @@ export function GlobalCallOverlay() {
       clearJoinTimeout();
       
       const msg = event?.errorMsg || event?.error?.msg || 'Call error';
+      
+      // If remote user already left (linger mode), don't kill the call on Daily errors
+      // The room closing after remote leaves is expected — just stay in linger
+      if (remoteUserLeftRef.current) {
+        if (import.meta.env.DEV) console.log('[CallOverlay] Ignoring Daily error during linger mode:', msg);
+        return;
+      }
+      
       toast.error(msg);
       setError(msg);
       endCall();
