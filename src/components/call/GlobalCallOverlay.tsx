@@ -111,6 +111,12 @@ export function GlobalCallOverlay() {
   // Minimize state - keeps call active but shows a floating bubble
   const [isMinimized, setIsMinimized] = useState(false);
   
+  // Remote user left - call lingers for 8 minutes
+  const [remoteUserLeft, setRemoteUserLeft] = useState(false);
+  const [autoEndCountdown, setAutoEndCountdown] = useState(0); // seconds remaining
+  const autoEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
   // Header visibility state - auto-hide, show on hover
   const [showHeader, setShowHeader] = useState(true);
   const headerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -391,6 +397,18 @@ export function GlobalCallOverlay() {
       if (event?.participant && !event.participant.local) {
         setRemoteParticipant(event.participant);
         attachRemoteParticipantVideo(event.participant, remoteVideoRef.current);
+        
+        // Cancel auto-end timer if remote user rejoined
+        setRemoteUserLeft(false);
+        setAutoEndCountdown(0);
+        if (autoEndTimerRef.current) {
+          clearTimeout(autoEndTimerRef.current);
+          autoEndTimerRef.current = null;
+        }
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
       }
     });
 
@@ -403,6 +421,30 @@ export function GlobalCallOverlay() {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = null;
         }
+        
+        // Don't end call immediately — keep alive for 8 minutes
+        const LINGER_SECONDS = 8 * 60; // 8 minutes
+        setRemoteUserLeft(true);
+        setAutoEndCountdown(LINGER_SECONDS);
+        
+        // Start countdown
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = setInterval(() => {
+          setAutoEndCountdown(prev => {
+            if (prev <= 1) {
+              if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+        
+        // Auto-hangup after 8 minutes
+        if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
+        autoEndTimerRef.current = setTimeout(() => {
+          if (import.meta.env.DEV) console.log('[CallOverlay] Auto-ending call after 8 minute linger');
+          endCall();
+        }, LINGER_SECONDS * 1000);
       }
     });
 
@@ -825,6 +867,10 @@ export function GlobalCallOverlay() {
     // Reset UI states
     setCameraError(null);
     setNeedsUserInteraction(false);
+    setRemoteUserLeft(false);
+    setAutoEndCountdown(0);
+    if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
+    if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
 
     // Call daily.leave() with 5-second timeout failsafe
     const daily = dailyRef.current;
@@ -1066,6 +1112,10 @@ export function GlobalCallOverlay() {
       setIsMinimized(false);
       setShowHeader(true);
       setShowFooter(true);
+      setRemoteUserLeft(false);
+      setAutoEndCountdown(0);
+      if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
+      if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
     }
   }, [state.phase]);
 
@@ -1380,10 +1430,20 @@ export function GlobalCallOverlay() {
                     </motion.p>
                   )}
                   
-                  {isConnected && !isRingingOut && (
+                   {isConnected && !isRingingOut && !remoteUserLeft && (
                     <p className="mt-2 text-white/70 text-lg font-mono">
                       {formatDuration(callDuration)}
                     </p>
+                  )}
+                  
+                  {isConnected && remoteUserLeft && (
+                    <div className="mt-4 text-center">
+                      <p className="text-white/50 text-sm">{displayName} left the call</p>
+                      <p className="text-white/70 text-lg font-mono mt-1">
+                        {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}
+                      </p>
+                      <p className="text-white/40 text-xs mt-1">They can rejoin</p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1540,7 +1600,35 @@ export function GlobalCallOverlay() {
               )}
             </AnimatePresence>
 
-            {/* Modern Control Bar - Auto-hide like header */}
+            {/* Remote user left - Call still live banner */}
+            <AnimatePresence>
+              {remoteUserLeft && isConnected && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="absolute top-32 left-4 right-4 z-50"
+                >
+                  <div className="p-4 rounded-2xl backdrop-blur-xl bg-primary/20 border border-primary/30 shadow-2xl">
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <span className="flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-semibold text-sm">Call still live</p>
+                        <p className="text-white/60 text-xs">
+                          {displayName} left · They can rejoin · Auto-ends in {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <motion.div
               initial={{ y: 100, opacity: 0 }}
               animate={{ 

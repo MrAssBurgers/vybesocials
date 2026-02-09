@@ -263,11 +263,14 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           const newStatus = (payload.new as any).status;
           if (import.meta.env.DEV) console.log('[CallStore] Call status update received:', newStatus, 'for call:', callId);
           
-          if (newStatus === 'ended' || newStatus === 'declined' || newStatus === 'missed') {
-            if (import.meta.env.DEV) console.log('[CallStore] Remote call ended:', newStatus);
+          // Don't immediately end the call when remote user ends - let the overlay handle
+          // the 8-minute linger. Only end on 'declined' or 'missed' (pre-connect states).
+          if (newStatus === 'declined' || newStatus === 'missed') {
+            if (import.meta.env.DEV) console.log('[CallStore] Remote call declined/missed:', newStatus);
             callSounds.end();
             setState(initialState);
           }
+          // 'ended' status is handled by the overlay's participant-left + 8-min timer
         }
       )
       .subscribe();
