@@ -1,3 +1,4 @@
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserPlus, X } from 'lucide-react';
@@ -31,14 +32,14 @@ export function useIsGuest() {
 /**
  * Prompt for guest users to sign up when attempting protected actions
  */
-export function GuestAuthPrompt({ 
+export const GuestAuthPrompt = React.forwardRef<HTMLDivElement, GuestAuthPromptProps>(function GuestAuthPrompt({ 
   action = 'do this',
   variant = 'inline',
   message,
   open = true,
   onClose,
   className = ''
-}: GuestAuthPromptProps) {
+}, _ref) {
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -146,7 +147,8 @@ export function GuestAuthPrompt({
       </Button>
     </div>
   );
-}
+});
+GuestAuthPrompt.displayName = 'GuestAuthPrompt';
 
 /**
  * Wrapper component that shows auth prompt for guests
