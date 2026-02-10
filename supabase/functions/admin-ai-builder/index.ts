@@ -57,18 +57,55 @@ serve(async (req) => {
     // ── SQL Execution action ──
     if (action === "execute_sql") {
       const { sql } = body;
-      if (!sql || typeof sql !== "string") {
+      if (!sql || typeof sql !== "string" || sql.trim().length === 0) {
         return new Response(JSON.stringify({ error: "SQL query string is required" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Safety: block destructive DDL (DROP DATABASE, TRUNCATE without WHERE-like safety)
-      const upperSql = sql.toUpperCase().trim();
-      const blocked = ["DROP DATABASE", "DROP SCHEMA", "ALTER DATABASE"];
-      for (const b of blocked) {
-        if (upperSql.includes(b)) {
-          return new Response(JSON.stringify({ error: `Blocked: "${b}" is not allowed` }), {
+      // Length limit to prevent resource exhaustion
+      if (sql.length > 10000) {
+        return new Response(JSON.stringify({ error: "SQL query too long (max 10000 characters)" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Strip SQL comments to prevent bypass via comment injection
+      const sqlNoComments = sql
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')  // block comments
+        .replace(/--[^\n]*/g, ' ');          // line comments
+
+      // Comprehensive regex-based blocklist (case-insensitive, whitespace-tolerant)
+      const BLOCKED_PATTERNS: [RegExp, string][] = [
+        [/\bDROP\s+(DATABASE|SCHEMA)\b/i, "DROP DATABASE/SCHEMA"],
+        [/\bALTER\s+(DATABASE|SCHEMA)\b/i, "ALTER DATABASE/SCHEMA"],
+        [/\bTRUNCATE\b/i, "TRUNCATE"],
+        [/\b(GRANT|REVOKE)\b/i, "GRANT/REVOKE (privilege escalation)"],
+        [/\bCOPY\b/i, "COPY (file system access)"],
+        [/\bPG_READ_FILE\b/i, "pg_read_file"],
+        [/\bPG_WRITE_FILE\b/i, "pg_write_file"],
+        [/\bLO_IMPORT\b/i, "lo_import"],
+        [/\bLO_EXPORT\b/i, "lo_export"],
+        [/\bDBLINK\b/i, "dblink"],
+        [/\bCREATE\s+EXTENSION\b/i, "CREATE EXTENSION"],
+        [/\bCREATE\s+ROLE\b/i, "CREATE ROLE"],
+        [/\bALTER\s+ROLE\b/i, "ALTER ROLE"],
+        [/\bDROP\s+ROLE\b/i, "DROP ROLE"],
+        [/\bCREATE\s+USER\b/i, "CREATE USER"],
+        [/\bALTER\s+USER\b/i, "ALTER USER"],
+        [/\bSET\s+ROLE\b/i, "SET ROLE"],
+        [/\bSET\s+SESSION\s+AUTHORIZATION\b/i, "SET SESSION AUTHORIZATION"],
+        [/\bCREATE\s+FUNCTION\b/i, "CREATE FUNCTION"],
+        [/\bCREATE\s+OR\s+REPLACE\s+FUNCTION\b/i, "CREATE OR REPLACE FUNCTION"],
+        [/\bCREATE\s+TRIGGER\b/i, "CREATE TRIGGER"],
+        [/\bCREATE\s+POLICY\b/i, "CREATE POLICY"],
+        [/\bDROP\s+POLICY\b/i, "DROP POLICY"],
+        [/\bALTER\s+TABLE\s+.*\bDISABLE\s+ROW\s+LEVEL\s+SECURITY\b/i, "DISABLE RLS"],
+      ];
+
+      for (const [pattern, label] of BLOCKED_PATTERNS) {
+        if (pattern.test(sqlNoComments)) {
+          return new Response(JSON.stringify({ error: `Blocked: "${label}" is not allowed via SQL editor` }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
@@ -81,14 +118,17 @@ serve(async (req) => {
         });
 
         if (rpcError) {
-          return new Response(JSON.stringify({ error: `SQL error: ${rpcError.message}` }), {
+          // Sanitize error message - don't leak internal details
+          const safeMsg = rpcError.message?.replace(/\b(password|secret|key|token)\b[^\s]*/gi, '[REDACTED]');
+          return new Response(JSON.stringify({ error: `SQL error: ${safeMsg}` }), {
             status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
 
         // Check if the function returned an error object
         if (data && typeof data === 'object' && !Array.isArray(data) && data.error) {
-          return new Response(JSON.stringify({ error: data.error, detail: data.detail }), {
+          const safeErr = String(data.error).replace(/\b(password|secret|key|token)\b[^\s]*/gi, '[REDACTED]');
+          return new Response(JSON.stringify({ error: safeErr, detail: data.detail }), {
             status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
@@ -100,7 +140,7 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } catch (sqlErr: any) {
-        return new Response(JSON.stringify({ error: `SQL execution failed: ${sqlErr.message}` }), {
+        return new Response(JSON.stringify({ error: "SQL execution failed" }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
