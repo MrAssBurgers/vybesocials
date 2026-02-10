@@ -5264,6 +5264,33 @@ export type Database = {
           },
         ]
       }
+      stripe_config: {
+        Row: {
+          created_at: string
+          id: string
+          stripe_enabled: boolean
+          stripe_mode: string
+          stripe_publishable_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          stripe_enabled?: boolean
+          stripe_mode?: string
+          stripe_publishable_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          stripe_enabled?: boolean
+          stripe_mode?: string
+          stripe_publishable_key?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       theme_codes: {
         Row: {
           code: string
@@ -7079,6 +7106,7 @@ export type Database = {
         Returns: boolean
       }
       is_server_member: { Args: { p_server_id: string }; Returns: boolean }
+      is_stripe_enabled: { Args: never; Returns: boolean }
       is_username_available: { Args: { p_username: string }; Returns: boolean }
       process_due_scheduled_messages: {
         Args: { limit_count?: number }

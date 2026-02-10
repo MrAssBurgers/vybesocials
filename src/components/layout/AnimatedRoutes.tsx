@@ -42,6 +42,7 @@ const InviteRedeem = lazy(() => import("@/pages/InviteRedeem"));
 const AddFriend = lazy(() => import("@/pages/AddFriend"));
 const CommunityGuidelines = lazy(() => import("@/pages/CommunityGuidelines"));
 const AdminMetrics = lazy(() => import("@/pages/AdminMetrics"));
+const AdminSettings = lazy(() => import("@/pages/AdminSettings"));
 const BadgeLibrary = lazy(() => import("@/pages/BadgeLibrary"));
 const ChallengesHub = lazy(() => import("@/pages/ChallengesHub"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
@@ -160,6 +161,7 @@ export function AnimatedRoutes() {
             <Route path="/invite-friends" element={<ProtectedRoute><InviteFriends /></ProtectedRoute>} />
             <Route path="/add-friend/:userId" element={<ProtectedRoute><AddFriend /></ProtectedRoute>} />
             <Route path="/admin/metrics" element={<ProtectedRoute><AdminMetrics /></ProtectedRoute>} />
+            <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
             <Route path="/badges" element={<ProtectedRoute><BadgeLibrary /></ProtectedRoute>} />
             <Route path="/challenges" element={<ProtectedRoute><ChallengesHub /></ProtectedRoute>} />
             <Route path="/howudoin" element={<ProtectedRoute><HowUDoinHub /></ProtectedRoute>} />

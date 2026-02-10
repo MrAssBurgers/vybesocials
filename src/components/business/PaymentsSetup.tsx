@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useStripeReady } from '@/hooks/useStripeConfig';
 
 interface StripeStatus {
   connected: boolean;
@@ -33,6 +34,7 @@ export function PaymentsSetup({
   stripeOnboardingComplete 
 }: PaymentsSetupProps) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { isReady: stripeReady, isLoading: stripeConfigLoading } = useStripeReady();
   const [status, setStatus] = useState<StripeStatus>({
     connected: !!stripeAccountId,
     onboarding_complete: stripeOnboardingComplete,
@@ -93,6 +95,11 @@ export function PaymentsSetup({
   };
 
   const handleConnectStripe = async () => {
+    if (!stripeReady) {
+      console.warn('[Stripe] Cannot connect: Stripe is disabled or misconfigured.');
+      toast.error('Stripe is not enabled. An admin must enable it in Owner Settings → Payments.');
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-stripe-connect');
@@ -153,6 +160,11 @@ export function PaymentsSetup({
 
 
   const handleOpenDashboard = async () => {
+    if (!stripeReady) {
+      console.warn('[Stripe] Cannot open dashboard: Stripe is disabled.');
+      toast.error('Stripe is not enabled.');
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-stripe-dashboard-link');
