@@ -40,14 +40,26 @@ export function useSponsorProfile(userId?: string) {
     queryFn: async () => {
       if (!targetUserId) return null;
 
+      // Use public view for other users (excludes contact_email), direct table for own profile
+      const isOwn = profile?.id === targetUserId;
+      if (isOwn) {
+        const { data, error } = await supabase
+          .from('sponsor_profiles')
+          .select('*')
+          .eq('user_id', targetUserId)
+          .single();
+        if (error && error.code !== 'PGRST116') throw error;
+        return data as SponsorProfile | null;
+      }
+
       const { data, error } = await supabase
-        .from('sponsor_profiles')
+        .from('public_sponsor_profiles' as any)
         .select('*')
         .eq('user_id', targetUserId)
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
-      return data as SponsorProfile | null;
+      return (data as unknown as SponsorProfile) ?? null;
     },
     enabled: !!targetUserId,
   });
