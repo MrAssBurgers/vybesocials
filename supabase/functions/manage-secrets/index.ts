@@ -52,11 +52,21 @@ serve(async (req) => {
     const { action, secret_name, secret_value } = await req.json();
 
     if (action === "list") {
-      // Return which secrets exist (not their values)
+      // Return which secrets exist by checking the app_secrets table
+      const adminClient = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        { auth: { persistSession: false } },
+      );
+
+      const { data: savedSecrets } = await adminClient
+        .from("app_secrets")
+        .select("key")
+        .in("key", ALLOWED_SECRETS);
+
       const statuses: Record<string, boolean> = {};
       for (const name of ALLOWED_SECRETS) {
-        const val = Deno.env.get(name);
-        statuses[name] = !!val && val.length > 0;
+        statuses[name] = savedSecrets?.some((s: { key: string }) => s.key === name) ?? false;
       }
       return new Response(JSON.stringify({ secrets: statuses }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
