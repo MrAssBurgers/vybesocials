@@ -671,7 +671,7 @@ const ConversationItem = memo(function ConversationItem({
   isOnline?: boolean;
   isTyping?: boolean;
   currentUserId?: string;
-  userRole?: 'admin' | 'moderator' | null;
+  userRole?: 'admin' | 'moderator' | 'owner' | null;
   onTrash?: () => void;
   hasStory?: boolean;
   storyGroup?: StoryGroup;

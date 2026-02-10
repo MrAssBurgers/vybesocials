@@ -14,7 +14,7 @@ export function useAdminDebugPanel() {
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'admin' || role === 'owner';
 
   // Keyboard shortcut: Cmd/Ctrl + Shift + D
   useEffect(() => {
