@@ -882,21 +882,71 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       {renderTrigger()}
 
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-[420px] p-5 border-0 bg-background/95 backdrop-blur-2xl rounded-3xl overflow-hidden [&>button]:hidden">
-          <AnimatePresence mode="wait">
-            {renderContent()}
-          </AnimatePresence>
-
-          {phase !== 'success' && phase !== 'exchanging' && phase !== 'detected' && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleClose}
-              className="absolute top-3 right-3 h-8 w-8 rounded-full"
+        <DialogContent className="sm:max-w-[420px] p-0 border-0 bg-transparent shadow-none rounded-3xl overflow-visible [&>button]:hidden">
+          {/* Wallet base */}
+          <motion.div
+            className="relative w-full"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            {/* Card emerging from wallet */}
+            <motion.div
+              className="relative rounded-3xl bg-background/95 backdrop-blur-2xl p-5 overflow-hidden"
+              initial={{ y: 120, scaleX: 0.88, scaleY: 0.6, opacity: 0, borderRadius: '24px' }}
+              animate={{ y: 0, scaleX: 1, scaleY: 1, opacity: 1, borderRadius: '24px' }}
+              transition={{
+                type: "spring",
+                stiffness: 260,
+                damping: 26,
+                mass: 0.8,
+                opacity: { duration: 0.25 },
+              }}
+              style={{
+                transformOrigin: 'bottom center',
+                boxShadow: '0 -4px 40px hsl(var(--primary) / 0.1), 0 20px 60px rgba(0,0,0,0.15)',
+              }}
             >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
+              {/* Subtle top edge gleam */}
+              <motion.div
+                className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
+              />
+
+              <AnimatePresence mode="wait">
+                {renderContent()}
+              </AnimatePresence>
+
+              {phase !== 'success' && phase !== 'exchanging' && phase !== 'detected' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleClose}
+                  className="absolute top-3 right-3 h-8 w-8 rounded-full"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </motion.div>
+
+            {/* Wallet slot at bottom */}
+            <motion.div
+              className="mx-auto w-[85%] h-3 rounded-b-2xl bg-gradient-to-b from-primary/20 to-primary/5"
+              initial={{ opacity: 0, scaleX: 0.7 }}
+              animate={{ opacity: 1, scaleX: 1 }}
+              transition={{ delay: 0.15, duration: 0.3, ease: "easeOut" }}
+              style={{ marginTop: -2 }}
+            />
+            <motion.div
+              className="mx-auto w-[75%] h-2 rounded-b-xl bg-gradient-to-b from-primary/10 to-transparent"
+              initial={{ opacity: 0, scaleX: 0.5 }}
+              animate={{ opacity: 1, scaleX: 1 }}
+              transition={{ delay: 0.2, duration: 0.3, ease: "easeOut" }}
+              style={{ marginTop: -1 }}
+            />
+          </motion.div>
         </DialogContent>
       </Dialog>
     </>
