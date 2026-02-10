@@ -91,8 +91,8 @@ export function ProfileSection() {
                     {profile?.username?.[0]?.toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
-                <div className="absolute bottom-0 right-0 w-7 h-7 bg-primary rounded-full flex items-center justify-center ring-2 ring-background">
-                  <Camera className="w-3.5 h-3.5 text-primary-foreground" />
+                <div className="absolute -bottom-0.5 -right-0.5 z-20 bg-accent rounded-full p-[3px] border-2 border-background flex items-center justify-center shadow-[0_1px_4px_rgba(0,0,0,0.3)]">
+                  <Camera className="h-3 w-3 text-accent-foreground" strokeWidth={2.5} />
                 </div>
               </div>
               <div className="flex-1 min-w-0 pb-1">
