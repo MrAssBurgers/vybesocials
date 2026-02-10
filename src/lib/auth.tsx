@@ -38,7 +38,6 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  authReady: boolean;
   banInfo: BanInfo | null;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -53,7 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authReady, setAuthReady] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -293,80 +291,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             scheduleTokenRefresh(session.expires_at);
           }
           
-          // Fetch profile directly — no setTimeout to avoid race conditions
-          // Auth state is determined by session.user, NOT profile existence
-          await fetchProfile(session.user.id);
+          // Use setTimeout to avoid Supabase auth deadlock
+          setTimeout(() => {
+            fetchProfile(session.user.id);
+          }, 0);
         } else {
           logEvent('auth', 'No session — signed out');
           setProfile(null);
-          clearProfileCache();
+          clearProfileCache(); // Clear cache on logout
           setBanInfo(null);
+          // Clear refresh timer on logout
           if (refreshTimerRef.current) {
             clearTimeout(refreshTimerRef.current);
             refreshTimerRef.current = null;
           }
+          // Clean up ban subscription
           if (banSubscriptionRef.current) {
             supabase.removeChannel(banSubscriptionRef.current);
             banSubscriptionRef.current = null;
           }
+          // Clear ban expiry timer
           clearBanExpiryTimer();
         }
         
         setLoading(false);
-        setAuthReady(true);
         setIsInitialized(true);
       }
     );
 
-    // Defer auth initialization until after first paint to prevent black screen
-    // requestAnimationFrame ensures at least one frame renders before heavy auth work
-    requestAnimationFrame(() => {
-      logEvent('auth', 'Initializing: checking existing session (deferred)');
-      supabase.auth.getSession().then(async ({ data: { session } }) => {
-        authInitializedRef.current = true;
-        
-        logEvent('auth', 'getSession resolved', { hasSession: !!session, userId: session?.user?.id });
-        
-        if (session?.user) {
-          try {
-            const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
-            
-            if (userError || !validatedUser) {
-              console.warn('[Auth] Session exists but getUser() failed — session may be stale:', userError?.message);
-              setSession(null);
-              setUser(null);
-              setLoading(false);
-              setAuthReady(true);
-              setIsInitialized(true);
-              return;
-            }
-            
-            setSession(session);
-            setUser(validatedUser);
-            
-            if (session.expires_at) {
-              scheduleTokenRefresh(session.expires_at);
-            }
-            fetchProfile(validatedUser.id);
-          } catch (err) {
-            console.error('[Auth] Auth init error — continuing without session:', err);
-            setSession(null);
-            setUser(null);
-          }
-        } else {
-          setSession(null);
-          setUser(null);
+    // THEN check for existing session - this restores session from localStorage
+    logEvent('auth', 'Initializing: checking existing session');
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      // Mark as initialized so onAuthStateChange skips duplicate handling
+      authInitializedRef.current = true;
+      
+      logEvent('auth', 'getSession resolved', { hasSession: !!session, userId: session?.user?.id });
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        // Schedule token refresh for persistent sessions
+        if (session.expires_at) {
+          scheduleTokenRefresh(session.expires_at);
         }
-        
-        setLoading(false);
-        setAuthReady(true);
-        setIsInitialized(true);
-      }).catch((err) => {
-        console.error('[Auth] getSession failed — rendering without auth:', err);
-        setLoading(false);
-        setAuthReady(true);
-        setIsInitialized(true);
-      });
+        fetchProfile(session.user.id);
+      }
+      
+      setLoading(false);
+      setIsInitialized(true);
     });
 
     // Handle "session-only" mode (Remember Me unchecked)
@@ -506,7 +478,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       loading,
-      authReady,
       banInfo,
       signUp,
       signIn,

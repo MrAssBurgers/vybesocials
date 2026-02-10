@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -17,7 +17,7 @@ const GUEST_ALLOWED_ROUTES = ['/home', '/explore', '/clips', '/shorts', '/p/', '
  * unless the route allows guest access
  */
 export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
-  const { user, loading, authReady } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
 
   // Check if current route allows guest access
@@ -25,19 +25,12 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
     location.pathname === route || location.pathname.startsWith(route)
   );
 
-  // While auth is initializing, show content optimistically for guest-allowed routes
-  // For protected routes, show a minimal centered spinner (NOT an empty div)
-  if (!authReady || loading) {
-    if (isGuestAllowedRoute) {
-      // Render children immediately — guest-allowed routes don't need auth
-      return <>{children}</>;
-    }
-    // Show a visible loading state instead of empty black div
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <LoadingSpinner size="lg" label="Loading..." />
-      </div>
-    );
+  // INSTANT NAVIGATION: Don't show loading skeleton during navigation
+  // Only show minimal placeholder if absolutely necessary during initial auth check
+  // The loading state should be handled by the app-level splash screen, not here
+  if (loading) {
+    // Return minimal empty div instead of skeleton to prevent visual delay
+    return <div className="min-h-screen bg-background" />;
   }
 
   // Allow guest access to browse-only routes
@@ -45,11 +38,11 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
     return <>{children}</>;
   }
 
-  // Only redirect when auth is confirmed ready AND no user exists
+  // Redirect to landing if not authenticated
   if (!user) {
+    // Preserve the attempted URL so we can redirect back after login
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  // User is authenticated — render children regardless of profile state
   return <>{children}</>;
 }

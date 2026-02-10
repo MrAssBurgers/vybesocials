@@ -112,8 +112,6 @@ function BanCheck() {
 // Track if initial load has completed (persists across navigations)
 let hasInitialLoadCompleted = false;
 
-// Emergency: ensure something renders even if providers throw
-
 // Component that requires AuthProvider context
 function AuthenticatedPreloads() {
   // Prefetch user backgrounds for instant settings load
@@ -134,14 +132,19 @@ function AuthenticatedPreloads() {
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
+  // Only show splash on truly initial load, not on navigation
   const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
   
+  // Auto-update checker
   useAutoUpdate();
+  
+  // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
 
-  // Dismiss splash when preload completes
   useEffect(() => {
+    // Only hide splash when preloading is truly complete
     if (preloadStatus.isComplete && showSplash) {
+      // Small delay for smooth transition
       const timer = setTimeout(() => {
         setShowSplash(false);
         hasInitialLoadCompleted = true;
@@ -149,18 +152,6 @@ function AppWithPreloader() {
       return () => clearTimeout(timer);
     }
   }, [preloadStatus.isComplete, showSplash]);
-
-  // SAFETY: Unconditional 3-second max splash — never blocks rendering
-  // This runs once on mount and is never reset by re-renders
-  useEffect(() => {
-    if (hasInitialLoadCompleted) return;
-    const safety = setTimeout(() => {
-      setShowSplash(false);
-      hasInitialLoadCompleted = true;
-      console.warn('[VYBE] Splash safety timeout — forcing render');
-    }, 3000);
-    return () => clearTimeout(safety);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
