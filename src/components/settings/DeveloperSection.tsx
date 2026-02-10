@@ -11,6 +11,8 @@ import {
   Sparkles,
   Terminal,
   Crown,
+  CreditCard,
+  Key,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -26,7 +28,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { StripeSettingsSection } from '@/components/admin/settings/StripeSettingsSection';
 import { SecretsManagerSection } from '@/components/admin/settings/SecretsManagerSection';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CreditCard, Key } from 'lucide-react';
 
 export function DeveloperSection() {
   const [flags, setFlags] = useState<FeatureFlags>(getFeatureFlags());
