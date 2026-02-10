@@ -34,6 +34,7 @@ import { useBanStatus } from "@/hooks/useBanStatus";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { useGlobalRealtimeMessages } from "@/hooks/useGlobalRealtimeMessages";
+import { usePostsRealtime } from "@/hooks/usePostsRealtime";
 import { usePrefetchBackgrounds } from '@/hooks/useUserBackgrounds';
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
@@ -140,6 +141,7 @@ function AppWithPreloader() {
   
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
+  usePostsRealtime();
 
   useEffect(() => {
     // Only hide splash when preloading is truly complete
