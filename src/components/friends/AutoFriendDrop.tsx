@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Check, Loader2, Smartphone, Zap,
-  ArrowLeftRight, Bluetooth, Wifi, ZoomIn, MessageCircle
+  ArrowLeftRight, Bluetooth, Wifi, ZoomIn, MessageCircle, Nfc
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -15,6 +15,7 @@ import { useCreateConversation } from '@/hooks/useMessages';
 import { supabase } from '@/integrations/supabase/client';
 import { useSwingDetection } from '@/hooks/useSwingDetection';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
+import { useNFC } from '@/hooks/useNFC';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -283,6 +284,93 @@ export function AutoFriendDrop() {
       handleAutoAdd(peer.userId);
     },
   });
+
+  // Web NFC for NameDrop-like auto-discovery
+  const { hasWebNFC, isSupported: nfcSupported, shareProfile: nfcShareProfile, stopScan: nfcStopScan, startScan: nfcStartScan } = useNFC();
+  const nfcDiscoveryRef = useRef(false);
+
+  // Passive NFC listening on home screen — like Apple NameDrop
+  // When two phones with the app open get near each other, auto-trigger friend add
+  useEffect(() => {
+    if (!hasWebNFC || !user?.id || isActive || !profile?.username) return;
+    if (nfcDiscoveryRef.current) return; // Already listening
+
+    let cancelled = false;
+    
+    const startPassiveNFC = async () => {
+      try {
+        nfcDiscoveryRef.current = true;
+        
+        // Start bidirectional NFC — broadcasts our profile and listens for theirs
+        const started = await nfcShareProfile(user.id, async (theirUserId) => {
+          if (cancelled || isActive) return;
+          if (theirUserId === user.id) return;
+          
+          console.log('[AutoFriendDrop] NFC NameDrop detected user:', theirUserId);
+          haptics.success();
+          
+          // Auto-activate the FriendDrop UI with the found user
+          setIsActive(true);
+          setPhase('exchanging');
+          
+          // Fetch their profile
+          const theirProfile = await fetchUser(theirUserId);
+          if (theirProfile) {
+            setFoundUser(theirProfile);
+          }
+          
+          // Auto-send friend request
+          try {
+            await sendRequest.mutateAsync(theirUserId);
+            setPhase('success');
+            haptics.success();
+            
+            // Create DM and navigate
+            try {
+              const conversation = await createConversation.mutateAsync({ memberIds: [theirUserId] });
+              setTimeout(() => {
+                setIsActive(false);
+                setPhase('idle');
+                setFoundUser(null);
+                navigate(`/messages/${conversation.id}`);
+              }, 3000);
+            } catch {
+              setTimeout(() => {
+                setIsActive(false);
+                setPhase('idle');
+                setFoundUser(null);
+              }, 3000);
+            }
+          } catch (error: any) {
+            if (error?.message?.includes('already')) {
+              setPhase('success');
+              haptics.success();
+              setTimeout(() => {
+                setIsActive(false);
+                setPhase('idle');
+                setFoundUser(null);
+              }, 2000);
+            }
+          }
+        });
+        
+        if (started) {
+          console.log('[AutoFriendDrop] Passive NFC NameDrop active — bring phones together');
+        }
+      } catch (e) {
+        console.log('[AutoFriendDrop] Passive NFC setup failed:', e);
+        nfcDiscoveryRef.current = false;
+      }
+    };
+
+    startPassiveNFC();
+    
+    return () => {
+      cancelled = true;
+      nfcDiscoveryRef.current = false;
+      nfcStopScan();
+    };
+  }, [hasWebNFC, user?.id, isActive, profile?.username, nfcShareProfile, nfcStopScan, sendRequest, createConversation, navigate]);
 
   // Toggle QR expansion
   const toggleQrExpand = useCallback(() => {
@@ -574,16 +662,20 @@ export function AutoFriendDrop() {
             className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-primary/12 backdrop-blur-lg border border-primary/20 shadow-md shadow-primary/8 active:scale-95 transition-transform duration-150 touch-manipulation"
           >
             <div className="animate-wiggle">
-              {nativeFriendDrop.isAvailable ? (
+              {hasWebNFC ? (
+                <Nfc className="h-7 w-7 text-primary" />
+              ) : nativeFriendDrop.isAvailable ? (
                 <Bluetooth className="h-7 w-7 text-primary" />
               ) : (
                 <Smartphone className="h-7 w-7 text-primary" />
               )}
             </div>
             <span className="text-xs text-primary font-medium">
-              {nativeFriendDrop.isAvailable 
-                ? 'Tap or bring phones together'
-                : 'Swing to add friends'}
+              {hasWebNFC
+                ? 'Tap phones to add friends'
+                : nativeFriendDrop.isAvailable 
+                  ? 'Bring phones together'
+                  : 'Swing to add friends'}
             </span>
             <Zap className="h-6 w-6 text-primary animate-pulse" />
             <button
