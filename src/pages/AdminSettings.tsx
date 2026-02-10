@@ -310,7 +310,7 @@ export default function AdminSettings() {
     },
     onSuccess: (result) => {
       if (result?.warnings?.length) {
-        toast.warning('Saved with warnings', { description: result.warnings.join(', ') });
+        toast.warning('Settings saved — Secret Key issue detected', { description: result.warnings.join('. '), duration: 8000 });
       } else {
         toast.success('Settings saved & validated ✓');
       }
