@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   UserPlus, X, Check, QrCode, Camera, 
-  ArrowLeftRight, Heart, Copy, Share2, ScanLine, Sparkles
+  ArrowLeftRight, Heart, Copy, Share2, ScanLine, Sparkles, Nfc, Smartphone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -15,6 +15,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import jsQR from 'jsqr';
+import { useNFC } from '@/hooks/useNFC';
+import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 
 interface FriendDropProps {
   variant?: 'button' | 'icon' | 'banner';
@@ -45,6 +47,8 @@ function MainScreen({
   canvasRef,
   isScanning,
   onStopScan,
+  nfcActive,
+  nfcSupported,
 }: {
   profile: any;
   qrCodeUrl: string;
@@ -56,6 +60,8 @@ function MainScreen({
   canvasRef: React.RefObject<HTMLCanvasElement>;
   isScanning: boolean;
   onStopScan: () => void;
+  nfcActive: boolean;
+  nfcSupported: boolean;
 }) {
   return (
     <motion.div
@@ -231,9 +237,19 @@ function MainScreen({
         </motion.div>
       </div>
 
-      <p className="text-[10px] text-muted-foreground text-center">
-        Show your code or scan a friend's to connect instantly
-      </p>
+      {/* NFC status + hint */}
+      {nfcSupported ? (
+        <div className="flex items-center gap-1.5 text-[10px]">
+          <Nfc className={`h-3.5 w-3.5 ${nfcActive ? 'text-primary animate-pulse' : 'text-muted-foreground'}`} />
+          <span className={nfcActive ? 'text-primary font-medium' : 'text-muted-foreground'}>
+            {nfcActive ? 'NFC active — tap phones together' : 'NFC available'}
+          </span>
+        </div>
+      ) : (
+        <p className="text-[10px] text-muted-foreground text-center">
+          Show your code or scan a friend's to connect
+        </p>
+      )}
     </motion.div>
   );
 }
@@ -545,10 +561,15 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const [wasScanned, setWasScanned] = useState(false);
   const [activeDropId, setActiveDropId] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [nfcActive, setNfcActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+
+  // NFC integration
+  const { hasWebNFC, isSupported: nfcSupported, shareProfile: nfcShareProfile, stopScan: nfcStopScan } = useNFC();
+  const nativeFriendDrop = useNativeFriendDrop();
 
   const fetchUser = async (userId: string): Promise<FoundUser | null> => {
     try {
@@ -729,6 +750,34 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     }, 1200);
   }, [stopScanning]);
 
+  // Auto-start NFC when dialog opens
+  useEffect(() => {
+    if (!isOpen || !user?.id) return;
+    
+    let cancelled = false;
+    const startNFC = async () => {
+      try {
+        if (hasWebNFC) {
+          const started = await nfcShareProfile(user.id, async (theirUserId) => {
+            if (theirUserId !== user.id) {
+              handleFoundUser(theirUserId);
+            }
+          });
+          if (started && !cancelled) setNfcActive(true);
+        }
+        if (nativeFriendDrop.isAvailable) {
+          await nativeFriendDrop.startSession();
+          if (!cancelled) setNfcActive(true);
+        }
+      } catch (e) {
+        console.log('[FriendDrop] NFC auto-start failed:', e);
+      }
+    };
+    
+    startNFC();
+    return () => { cancelled = true; };
+  }, [isOpen, user?.id, hasWebNFC, nfcShareProfile, nativeFriendDrop, handleFoundUser]);
+
   const handleAddFriend = useCallback(async () => {
     if (!foundUser) return;
 
@@ -764,6 +813,11 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
   const handleClose = useCallback(async () => {
     stopScanning();
+    nfcStopScan();
+    if (nativeFriendDrop.isAvailable) {
+      await nativeFriendDrop.stopSession();
+    }
+    setNfcActive(false);
     if (activeDropId) {
       await friendDropSync.cancelDrop(activeDropId);
     }
@@ -773,7 +827,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setWasScanned(false);
     setActiveDropId(null);
     setIsScanning(false);
-  }, [stopScanning, activeDropId, friendDropSync]);
+  }, [stopScanning, activeDropId, friendDropSync, nfcStopScan, nativeFriendDrop]);
 
   useEffect(() => {
     return () => { stopScanning(); };
@@ -810,6 +864,8 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
             canvasRef={canvasRef as React.RefObject<HTMLCanvasElement>}
             isScanning={isScanning}
             onStopScan={stopScanning}
+            nfcActive={nfcActive}
+            nfcSupported={nfcSupported || nativeFriendDrop.isAvailable}
           />
         );
       case 'detected':
