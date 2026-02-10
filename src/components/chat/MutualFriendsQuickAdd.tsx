@@ -63,7 +63,7 @@ function useSuggestedUsers() {
       
       // Build query with proper exclusions
       let query = supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('id, username, display_name, first_name, last_name, avatar_url')
         .neq('id', profile.id)
         .order('created_at', { ascending: false })
@@ -169,7 +169,7 @@ export function MutualFriendsQuickAdd({
       try {
         // Use case-insensitive search with exact match prioritization
         const { data } = await supabase
-          .from('profiles')
+          .from('public_profiles')
           .select('id, username, display_name, first_name, last_name, avatar_url')
           .neq('id', profile?.id || '')
           .or(`username.ilike.%${query}%,display_name.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
