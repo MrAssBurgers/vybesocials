@@ -48,7 +48,8 @@ serve(async (req) => {
 
     if (dbSecrets) {
       for (const row of dbSecrets) {
-        if (row.key === "STRIPE_SECRET_KEY" && row.value && !stripeSecretKey) {
+        // Prefer DB value if env var is missing OR is a restricted key (rk_)
+        if (row.key === "STRIPE_SECRET_KEY" && row.value && (!stripeSecretKey || stripeSecretKey.startsWith("rk_"))) {
           stripeSecretKey = row.value;
         }
         if (row.key === "STRIPE_WEBHOOK_SECRET" && row.value && !stripeWebhookSecret) {
