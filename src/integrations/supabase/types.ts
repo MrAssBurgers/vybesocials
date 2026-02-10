@@ -3725,6 +3725,7 @@ export type Database = {
           id: string
           post_id: string | null
           read: boolean
+          reason: string | null
           type: string
           user_id: string
         }
@@ -3734,6 +3735,7 @@ export type Database = {
           id?: string
           post_id?: string | null
           read?: boolean
+          reason?: string | null
           type: string
           user_id: string
         }
@@ -3743,6 +3745,7 @@ export type Database = {
           id?: string
           post_id?: string | null
           read?: boolean
+          reason?: string | null
           type?: string
           user_id?: string
         }

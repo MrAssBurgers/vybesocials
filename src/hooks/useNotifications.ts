@@ -32,7 +32,7 @@ function showNativeNotification(title: string, body: string, url?: string) {
   };
 }
 
-export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call' | 'announcement';
+export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call' | 'announcement' | 'content_removed';
 
 interface Notification {
   id: string;
@@ -40,6 +40,7 @@ interface Notification {
   read: boolean;
   created_at: string;
   post_id: string | null;
+  reason: string | null;
   actor: {
     id: string;
     username: string;
@@ -66,7 +67,8 @@ export function useNotifications() {
           read,
           created_at,
           post_id,
-          actor_id
+          actor_id,
+          reason
         `)
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
@@ -90,6 +92,7 @@ export function useNotifications() {
         read: n.read,
         created_at: n.created_at,
         post_id: n.post_id,
+        reason: (n as any).reason || null,
         actor: actorMap.get(n.actor_id) || {
           id: n.actor_id,
           username: 'unknown',
@@ -146,6 +149,7 @@ export function useNotifications() {
             mention: 'mentioned you',
             missed_call: 'tried to call you',
             announcement: 'posted an announcement',
+            content_removed: 'removed your content',
           };
 
           const message = `${actor?.username || 'Someone'} ${messages[type] || 'interacted with you'}`;

@@ -205,7 +205,7 @@ export default function ProfilePage() {
               </Avatar>
             </div>
             {isOwnProfile && (
-              <label className="absolute bottom-0 right-0 p-2 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors">
+              <label className="absolute bottom-0 right-0 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors border-2 border-background shadow-lg">
                 <Camera className="h-5 w-5 text-primary-foreground" />
                 <input
                   type="file"

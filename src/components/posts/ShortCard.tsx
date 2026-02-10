@@ -72,6 +72,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
+  const [deleteContentDialog, setDeleteContentDialog] = useState<{ type: 'post' | 'comment' | 'listing'; id: string } | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isHolding, setIsHolding] = useState(false);
   const [showCommentSheet, setShowCommentSheet] = useState(false);
@@ -592,6 +593,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
                 onWarnClick={() => setWarnDialogOpen(true)}
                 onBanClick={() => setBanDialogOpen(true)}
                 onMemeBanClick={() => setMemeBanDialogOpen(true)}
+                onDeleteContentClick={(type, id) => setDeleteContentDialog({ type, id })}
               />
             )}
           </DropdownMenuContent>
@@ -685,6 +687,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           setBanDialogOpen={setBanDialogOpen}
           memeBanDialogOpen={memeBanDialogOpen}
           setMemeBanDialogOpen={setMemeBanDialogOpen}
+          deleteContentDialog={deleteContentDialog}
+          setDeleteContentDialog={setDeleteContentDialog}
         />
       )}
     </div>

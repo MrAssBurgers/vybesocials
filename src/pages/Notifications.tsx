@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Heart, MessageCircle, UserPlus, UserCheck, Check, X, 
-  Users, PhoneMissed, Gem, Bell, RefreshCw, Sparkles 
+  Users, PhoneMissed, Gem, Bell, RefreshCw, Sparkles, ShieldAlert 
 } from 'lucide-react';
 import { useNotifications, useMarkNotificationsRead, NotificationType } from '@/hooks/useNotifications';
 import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends';
@@ -86,6 +86,8 @@ export default function NotificationsPage() {
         return <X className={cn(iconClass, "text-destructive")} />;
       case 'missed_call':
         return <PhoneMissed className={cn(iconClass, "text-destructive")} />;
+      case 'content_removed':
+        return <ShieldAlert className={cn(iconClass, "text-destructive")} />;
       default:
         return <Bell className={cn(iconClass, "text-muted-foreground")} />;
     }
@@ -111,6 +113,8 @@ export default function NotificationsPage() {
         return 'mentioned you';
       case 'missed_call':
         return 'tried to call you';
+      case 'content_removed':
+        return 'removed your content';
       default:
         return '';
     }
@@ -416,6 +420,7 @@ interface NotificationCardProps {
     read: boolean;
     created_at: string;
     post_id: string | null;
+    reason?: string | null;
     actor: {
       id: string;
       username: string;
@@ -536,6 +541,11 @@ function NotificationCard({
                 {getNotificationText(notification.type)}
               </span>
             </p>
+            {notification.type === 'content_removed' && notification.reason && (
+              <p className="text-xs text-destructive/80 mt-1 bg-destructive/10 rounded-md px-2 py-1">
+                Reason: {notification.reason}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground mt-0.5">
               {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
             </p>

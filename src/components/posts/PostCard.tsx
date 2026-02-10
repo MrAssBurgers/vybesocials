@@ -305,6 +305,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
+  const [deleteContentDialog, setDeleteContentDialog] = useState<{ type: 'post' | 'comment' | 'listing'; id: string } | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authPromptAction, setAuthPromptAction] = useState('');
 
@@ -532,6 +533,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                   onWarnClick={() => setWarnDialogOpen(true)}
                   onBanClick={() => setBanDialogOpen(true)}
                   onMemeBanClick={() => setMemeBanDialogOpen(true)}
+                  onDeleteContentClick={(type, id) => setDeleteContentDialog({ type, id })}
                 />
               )}
             </DropdownMenuContent>
@@ -547,6 +549,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           setBanDialogOpen={setBanDialogOpen}
           memeBanDialogOpen={memeBanDialogOpen}
           setMemeBanDialogOpen={setMemeBanDialogOpen}
+          deleteContentDialog={deleteContentDialog}
+          setDeleteContentDialog={setDeleteContentDialog}
         />
       </div>
 

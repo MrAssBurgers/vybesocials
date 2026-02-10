@@ -60,6 +60,7 @@ export function ModeratorMenuItems({
   onWarnClick,
   onBanClick,
   onMemeBanClick,
+  onDeleteContentClick,
 }: {
   userId: string;
   username: string;
@@ -70,39 +71,8 @@ export function ModeratorMenuItems({
   onWarnClick: () => void;
   onBanClick: () => void;
   onMemeBanClick: () => void;
+  onDeleteContentClick?: (type: 'post' | 'comment', id: string) => void;
 }) {
-  const queryClient = useQueryClient();
-
-  const handleDeletePost = async () => {
-    if (!postId) return;
-    if (!confirm('Are you sure you want to delete this post?')) return;
-    
-    try {
-      const { error } = await supabase.from('posts').delete().eq('id', postId);
-      if (error) throw error;
-      toast.success('Post deleted');
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
-      onPostDelete?.();
-    } catch {
-      toast.error('Failed to delete post');
-    }
-  };
-
-  const handleDeleteComment = async () => {
-    if (!commentId) return;
-    if (!confirm('Are you sure you want to delete this comment?')) return;
-    
-    try {
-      const { error } = await supabase.from('comments').delete().eq('id', commentId);
-      if (error) throw error;
-      toast.success('Comment deleted');
-      queryClient.invalidateQueries({ queryKey: ['comments'] });
-      onCommentDelete?.();
-    } catch {
-      toast.error('Failed to delete comment');
-    }
-  };
-
   return (
     <>
       <DropdownMenuSeparator />
@@ -111,14 +81,14 @@ export function ModeratorMenuItems({
       </div>
       
       {postId && (
-        <DropdownMenuItem onClick={handleDeletePost} className="text-destructive">
+        <DropdownMenuItem onClick={() => onDeleteContentClick?.('post', postId)} className="text-destructive">
           <Trash2 className="h-4 w-4 mr-2" />
           Delete Post (Mod)
         </DropdownMenuItem>
       )}
       
       {commentId && (
-        <DropdownMenuItem onClick={handleDeleteComment} className="text-destructive">
+        <DropdownMenuItem onClick={() => onDeleteContentClick?.('comment', commentId)} className="text-destructive">
           <Trash2 className="h-4 w-4 mr-2" />
           Delete Comment (Mod)
         </DropdownMenuItem>
@@ -153,7 +123,7 @@ const timeUnitMultipliers: Record<TimeUnit, number> = {
   months: 30,
 };
 
-// Dialogs component - renders the warn/ban/meme-ban dialogs
+// Dialogs component - renders the warn/ban/meme-ban/delete-content dialogs
 export function ModeratorDialogs({
   username,
   userId,
@@ -163,6 +133,10 @@ export function ModeratorDialogs({
   setBanDialogOpen,
   memeBanDialogOpen,
   setMemeBanDialogOpen,
+  deleteContentDialog,
+  setDeleteContentDialog,
+  onPostDelete,
+  onCommentDelete,
 }: {
   username: string;
   userId: string;
@@ -172,14 +146,22 @@ export function ModeratorDialogs({
   setBanDialogOpen: (open: boolean) => void;
   memeBanDialogOpen: boolean;
   setMemeBanDialogOpen: (open: boolean) => void;
+  deleteContentDialog?: { type: 'post' | 'comment' | 'listing'; id: string } | null;
+  setDeleteContentDialog?: (v: { type: 'post' | 'comment' | 'listing'; id: string } | null) => void;
+  onPostDelete?: () => void;
+  onCommentDelete?: () => void;
 }) {
+  const { profile } = useAuth();
   const warnUser = useWarnUser();
   const banUser = useBanUser();
+  const queryClient = useQueryClient();
   const [reason, setReason] = useState('');
+  const [deleteReason, setDeleteReason] = useState('');
   const [isPermanent, setIsPermanent] = useState(false);
   const [banAmount, setBanAmount] = useState(7);
   const [banUnit, setBanUnit] = useState<TimeUnit>('days');
   const [customGifUrl, setCustomGifUrl] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleWarn = async () => {
     if (!reason.trim()) {
@@ -237,8 +219,84 @@ export function ModeratorDialogs({
     setCustomGifUrl(null);
   };
 
+  const handleDeleteContent = async () => {
+    if (!deleteContentDialog || !deleteReason.trim()) {
+      toast.error('Please provide a reason for deletion');
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      const { type, id } = deleteContentDialog;
+      const table = type === 'post' ? 'posts' : type === 'comment' ? 'comments' : 'listings';
+      
+      const { error } = await supabase.from(table).delete().eq('id', id);
+      if (error) throw error;
+
+      // Send notification to the content owner
+      if (profile) {
+        await supabase.from('notifications').insert({
+          user_id: userId,
+          type: 'content_removed',
+          actor_id: profile.id,
+          reason: deleteReason.trim(),
+          ...(type === 'post' ? { post_id: id } : {}),
+        });
+      }
+
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted`);
+      queryClient.invalidateQueries({ queryKey: [table === 'posts' ? 'posts' : table === 'comments' ? 'comments' : 'listings'] });
+      if (type === 'post') onPostDelete?.();
+      if (type === 'comment') onCommentDelete?.();
+      setDeleteContentDialog?.(null);
+      setDeleteReason('');
+    } catch {
+      toast.error('Failed to delete content');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <>
+      {/* Delete Content Reason Dialog */}
+      <Dialog open={!!deleteContentDialog} onOpenChange={(open) => { if (!open) { setDeleteContentDialog?.(null); setDeleteReason(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Delete {deleteContentDialog?.type === 'post' ? 'Post' : deleteContentDialog?.type === 'comment' ? 'Comment' : 'Listing'}
+            </DialogTitle>
+            <DialogDescription>
+              You must provide a reason. The user will be notified about why their content was removed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="delete-reason">Reason for removal</Label>
+              <Textarea
+                id="delete-reason"
+                placeholder="e.g. Violates community guidelines, inappropriate content..."
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteContentDialog?.(null); setDeleteReason(''); }}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteContent} 
+              disabled={isDeleting || !deleteReason.trim()}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete & Notify User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Warn Dialog */}
       <Dialog open={warnDialogOpen} onOpenChange={setWarnDialogOpen}>
         <DialogContent>
