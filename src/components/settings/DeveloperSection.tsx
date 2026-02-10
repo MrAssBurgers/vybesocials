@@ -12,6 +12,7 @@ import {
   Sparkles,
   Terminal,
   Crown,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -55,6 +56,14 @@ export function DeveloperSection() {
     resetFeatureFlags();
     setFlags(getFeatureFlags());
     toast.success('Feature flags reset to defaults');
+  };
+
+  const handleCloseDevTools = () => {
+    haptics.impact();
+    if (debugPanel) {
+      debugPanel.setIsOpen(false);
+    }
+    toast.success('DevTools panel closed. Use Cmd+Shift+D or 7-tap logo to reopen.');
   };
 
   const eventLog = getEventLog();
@@ -105,20 +114,33 @@ export function DeveloperSection() {
 
         {/* Open DevTools Panel */}
         {debugPanel?.isAdmin && (
-          <Button
-            variant="outline"
-            className="w-full justify-between mb-4 sm:mb-6 h-10 sm:h-12 text-xs sm:text-sm"
-            onClick={() => {
-              haptics.tap();
-              debugPanel.setIsOpen(true);
-            }}
-          >
-            <span className="flex items-center gap-2">
-              <Terminal className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              Open Production DevTools
-            </span>
-            <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </Button>
+          <div className="space-y-2 mb-4 sm:mb-6">
+            <Button
+              variant="outline"
+              className="w-full justify-between h-10 sm:h-12 text-xs sm:text-sm"
+              onClick={() => {
+                haptics.tap();
+                debugPanel.setIsOpen(true);
+              }}
+            >
+              <span className="flex items-center gap-2">
+                <Terminal className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                Open Production DevTools
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-between h-10 sm:h-12 text-xs sm:text-sm border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              onClick={handleCloseDevTools}
+            >
+              <span className="flex items-center gap-2">
+                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                Close DevTools Panel
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </Button>
+          </div>
         )}
 
         {/* Feature Flags */}
