@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { Skeleton } from '@/components/ui/skeleton';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -25,9 +25,19 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
     location.pathname === route || location.pathname.startsWith(route)
   );
 
-  // Wait for auth to fully initialize before making any redirect decisions
+  // While auth is initializing, show content optimistically for guest-allowed routes
+  // For protected routes, show a minimal centered spinner (NOT an empty div)
   if (!authReady || loading) {
-    return <div className="min-h-screen bg-background" />;
+    if (isGuestAllowedRoute) {
+      // Render children immediately — guest-allowed routes don't need auth
+      return <>{children}</>;
+    }
+    // Show a visible loading state instead of empty black div
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingSpinner size="lg" label="Loading..." />
+      </div>
+    );
   }
 
   // Allow guest access to browse-only routes
@@ -36,12 +46,10 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
   }
 
   // Only redirect when auth is confirmed ready AND no user exists
-  // This prevents showing "Not signed in" during profile loading
   if (!user) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   // User is authenticated — render children regardless of profile state
-  // Auth state = session.user != null, NOT profile existence
   return <>{children}</>;
 }
