@@ -17,7 +17,7 @@ const GUEST_ALLOWED_ROUTES = ['/home', '/explore', '/clips', '/shorts', '/p/', '
  * unless the route allows guest access
  */
 export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, authReady } = useAuth();
   const location = useLocation();
 
   // Check if current route allows guest access
@@ -25,11 +25,8 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
     location.pathname === route || location.pathname.startsWith(route)
   );
 
-  // INSTANT NAVIGATION: Don't show loading skeleton during navigation
-  // Only show minimal placeholder if absolutely necessary during initial auth check
-  // The loading state should be handled by the app-level splash screen, not here
-  if (loading) {
-    // Return minimal empty div instead of skeleton to prevent visual delay
+  // Wait for auth to fully initialize before making any redirect decisions
+  if (!authReady || loading) {
     return <div className="min-h-screen bg-background" />;
   }
 
@@ -38,11 +35,13 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
     return <>{children}</>;
   }
 
-  // Redirect to landing if not authenticated
+  // Only redirect when auth is confirmed ready AND no user exists
+  // This prevents showing "Not signed in" during profile loading
   if (!user) {
-    // Preserve the attempted URL so we can redirect back after login
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
+  // User is authenticated — render children regardless of profile state
+  // Auth state = session.user != null, NOT profile existence
   return <>{children}</>;
 }

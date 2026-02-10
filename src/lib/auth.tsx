@@ -293,26 +293,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             scheduleTokenRefresh(session.expires_at);
           }
           
-          // Use setTimeout to avoid Supabase auth deadlock
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
+          // Fetch profile directly — no setTimeout to avoid race conditions
+          // Auth state is determined by session.user, NOT profile existence
+          await fetchProfile(session.user.id);
         } else {
           logEvent('auth', 'No session — signed out');
           setProfile(null);
-          clearProfileCache(); // Clear cache on logout
+          clearProfileCache();
           setBanInfo(null);
-          // Clear refresh timer on logout
           if (refreshTimerRef.current) {
             clearTimeout(refreshTimerRef.current);
             refreshTimerRef.current = null;
           }
-          // Clean up ban subscription
           if (banSubscriptionRef.current) {
             supabase.removeChannel(banSubscriptionRef.current);
             banSubscriptionRef.current = null;
           }
-          // Clear ban expiry timer
           clearBanExpiryTimer();
         }
         
