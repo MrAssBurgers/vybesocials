@@ -571,29 +571,29 @@ export function AutoFriendDrop() {
         >
           <button
             onClick={handleBump}
-            className="flex items-center gap-3 px-5 py-3 rounded-full bg-primary/15 backdrop-blur-lg border border-primary/25 shadow-lg shadow-primary/10 active:scale-95 transition-transform duration-150 touch-manipulation"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-primary/12 backdrop-blur-lg border border-primary/20 shadow-md shadow-primary/8 active:scale-95 transition-transform duration-150 touch-manipulation"
           >
             <div className="animate-wiggle">
               {nativeFriendDrop.isAvailable ? (
-                <Bluetooth className="h-6 w-6 text-primary" />
+                <Bluetooth className="h-7 w-7 text-primary" />
               ) : (
-                <Smartphone className="h-6 w-6 text-primary" />
+                <Smartphone className="h-7 w-7 text-primary" />
               )}
             </div>
-            <span className="text-sm text-primary font-medium">
+            <span className="text-xs text-primary font-medium">
               {nativeFriendDrop.isAvailable 
                 ? 'Tap or bring phones together'
-                : 'Swing phone to add friends'}
+                : 'Swing to add friends'}
             </span>
-            <Zap className="h-5 w-5 text-primary animate-pulse" />
+            <Zap className="h-6 w-6 text-primary animate-pulse" />
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setIsDismissed(true);
               }}
-              className="ml-1 p-1 rounded-full hover:bg-primary/20 transition-colors touch-manipulation"
+              className="ml-0.5 p-0.5 rounded-full hover:bg-primary/20 transition-colors touch-manipulation"
             >
-              <X className="h-4 w-4 text-primary/70" />
+              <X className="h-3.5 w-3.5 text-primary/70" />
             </button>
           </button>
         </div>
