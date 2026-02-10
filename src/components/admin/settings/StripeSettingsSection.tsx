@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { CreditCard, Save, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 import { toast } from 'sonner';
 
 interface StripeConfig {
@@ -23,6 +24,7 @@ export function StripeSettingsSection() {
   const [saving, setSaving] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [validationResult, setValidationResult] = useState<{ valid?: boolean; secret_key_present?: boolean; secret_key_mode?: string | null } | null>(null);
 
   // Form state
   const [enabled, setEnabled] = useState(false);
@@ -101,8 +103,31 @@ export function StripeSettingsSection() {
         if (error) throw error;
       }
 
-      toast.success('Stripe settings saved');
-      setErrors([]);
+      // Run server-side validation (checks secret key from app_secrets too)
+      try {
+        const headers = await getFunctionAuthHeaders();
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-stripe-config`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(updateData),
+          }
+        );
+        const result = await response.json();
+        setValidationResult(result);
+
+        if (result.valid) {
+          toast.success('Stripe settings saved & validated ✓');
+        } else {
+          toast.warning('Stripe settings saved, but there are warnings');
+          setErrors(result.errors || []);
+        }
+      } catch {
+        // Validation call failed, but save succeeded
+        toast.success('Stripe settings saved');
+      }
+
       await fetchConfig();
     } catch (err) {
       console.error('Failed to save Stripe config:', err);
@@ -218,9 +243,15 @@ export function StripeSettingsSection() {
             <div className="text-sm">
               <p className="font-medium text-blue-500">Secret Key &amp; Webhook Secret</p>
               <p className="text-muted-foreground">
-                Secret keys are stored securely as encrypted environment secrets and are never exposed
-                to the client. To update them, use the Lovable secrets manager.
+                Secret keys are stored securely in the API Keys tab. They are read by all backend functions automatically.
               </p>
+              {validationResult && (
+                <div className="mt-2 text-xs">
+                  <span className={validationResult.secret_key_present ? 'text-green-500' : 'text-destructive'}>
+                    Secret Key: {validationResult.secret_key_present ? `Set (${validationResult.secret_key_mode} mode)` : 'Not set'}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
