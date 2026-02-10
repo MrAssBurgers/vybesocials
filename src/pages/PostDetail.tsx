@@ -125,6 +125,7 @@ export default function PostDetailPage() {
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
+  const [deleteContentDialog, setDeleteContentDialog] = useState<{ type: 'post' | 'comment' | 'listing'; id: string } | null>(null);
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
   const isModOrAdmin = useIsModOrAdmin();
@@ -485,6 +486,7 @@ export default function PostDetailPage() {
                       onWarnClick={() => setWarnDialogOpen(true)}
                       onBanClick={() => setBanDialogOpen(true)}
                       onMemeBanClick={() => setMemeBanDialogOpen(true)}
+                      onDeleteContentClick={(type, id) => setDeleteContentDialog({ type, id })}
                     />
                   )}
                 </DropdownMenuContent>
@@ -499,6 +501,8 @@ export default function PostDetailPage() {
                 setBanDialogOpen={setBanDialogOpen}
                 memeBanDialogOpen={memeBanDialogOpen}
                 setMemeBanDialogOpen={setMemeBanDialogOpen}
+                deleteContentDialog={deleteContentDialog}
+                setDeleteContentDialog={setDeleteContentDialog}
               />
               {/* Edit dialog */}
               {isOwnPost && (

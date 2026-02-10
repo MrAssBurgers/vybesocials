@@ -6,6 +6,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { useListing, useToggleFavorite, useListingFavorites, LISTING_CATEGORIES, LISTING_CONDITIONS, useDeleteListing, useSellerRating } from '@/hooks/useMarketplace';
 import { useRealtimeListings } from '@/hooks/useRealtimeListings';
 import { useUserRole } from '@/hooks/useModeration';
@@ -13,6 +16,7 @@ import { useSellerPaymentMethods } from '@/hooks/useMarketplacePayments';
 import { PaymentSheet } from '@/components/marketplace/PaymentSheet';
 import { useAuth } from '@/lib/auth';
 import { useCreateConversation } from '@/hooks/useMessages';
+import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -32,6 +36,9 @@ export default function ListingDetailPage() {
   const [currentImage, setCurrentImage] = useState(0);
   const [imageError, setImageError] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  const [deleteReasonDialog, setDeleteReasonDialog] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const { data: userRole } = useUserRole();
   const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
@@ -70,15 +77,50 @@ export default function ListingDetailPage() {
   };
 
   const handleDelete = async () => {
+    // If admin/mod deleting someone else's listing, require a reason
+    if (isAdminOrMod && !isOwner) {
+      setDeleteReasonDialog(true);
+      return;
+    }
     if (!confirm('Are you sure you want to delete this listing?')) return;
     try {
       await deleteListing.mutateAsync(id!);
       toast.success('Listing deleted');
-      // Navigate immediately after successful delete
       navigate('/market', { replace: true });
     } catch (err) {
       console.error('Delete error:', err);
       toast.error('Failed to delete listing');
+    }
+  };
+
+  const handleAdminDelete = async () => {
+    if (!deleteReason.trim()) {
+      toast.error('Please provide a reason for deletion');
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await deleteListing.mutateAsync(id!);
+      
+      // Notify the listing owner
+      if (profile && listing) {
+        await supabase.from('notifications').insert({
+          user_id: listing.seller_id,
+          type: 'content_removed',
+          actor_id: profile.id,
+          reason: deleteReason.trim(),
+        });
+      }
+      
+      toast.success('Listing deleted & owner notified');
+      setDeleteReasonDialog(false);
+      setDeleteReason('');
+      navigate('/market', { replace: true });
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast.error('Failed to delete listing');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -296,6 +338,45 @@ export default function ListingDetailPage() {
           }}
         />
       )}
+
+      {/* Admin Delete Reason Dialog */}
+      <Dialog open={deleteReasonDialog} onOpenChange={(open) => { if (!open) { setDeleteReasonDialog(false); setDeleteReason(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Delete Listing
+            </DialogTitle>
+            <DialogDescription>
+              You must provide a reason. The seller will be notified about why their listing was removed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="listing-delete-reason">Reason for removal</Label>
+              <Textarea
+                id="listing-delete-reason"
+                placeholder="e.g. Violates marketplace rules, prohibited item..."
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteReasonDialog(false); setDeleteReason(''); }}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleAdminDelete} 
+              disabled={isDeleting || !deleteReason.trim()}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete & Notify Seller'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

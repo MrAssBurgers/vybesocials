@@ -182,9 +182,9 @@ const StoryAvatar = memo(function StoryAvatar({
         {showAddButton && !isUploading && (
           <div 
             onClick={handleAddClick}
-            className="absolute -bottom-0.5 -right-0.5 z-10 bg-primary rounded-full p-[3px] border-2 border-background cursor-pointer active:scale-95 transition-transform shadow-sm"
+            className="absolute -bottom-0.5 -right-0.5 z-10 bg-primary rounded-full p-1 border-2 border-background cursor-pointer active:scale-95 transition-transform shadow-lg"
           >
-            <Plus className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={3} />
+            <Plus className="h-4 w-4 text-primary-foreground" strokeWidth={3} />
           </div>
         )}
         {isUploading && (
