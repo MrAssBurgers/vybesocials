@@ -6544,6 +6544,7 @@ export type Database = {
           category: string | null
           created_at: string | null
           description: string | null
+          email: string | null
           id: string | null
           is_active: boolean | null
           is_verified: boolean | null
@@ -6551,11 +6552,14 @@ export type Database = {
           logo_url: string | null
           name: string | null
           owner_id: string | null
+          phone: string | null
           rating_average: number | null
           rating_count: number | null
           slug: string | null
           social_links: Json | null
+          stripe_account_id: string | null
           stripe_onboarding_complete: boolean | null
+          total_revenue: number | null
           total_sales: number | null
           updated_at: string | null
           view_count: number | null
@@ -6567,6 +6571,7 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           description?: string | null
+          email?: never
           id?: string | null
           is_active?: boolean | null
           is_verified?: boolean | null
@@ -6574,11 +6579,14 @@ export type Database = {
           logo_url?: string | null
           name?: string | null
           owner_id?: string | null
+          phone?: never
           rating_average?: number | null
           rating_count?: number | null
           slug?: string | null
           social_links?: Json | null
+          stripe_account_id?: never
           stripe_onboarding_complete?: boolean | null
+          total_revenue?: never
           total_sales?: number | null
           updated_at?: string | null
           view_count?: number | null
@@ -6590,6 +6598,7 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           description?: string | null
+          email?: never
           id?: string | null
           is_active?: boolean | null
           is_verified?: boolean | null
@@ -6597,11 +6606,14 @@ export type Database = {
           logo_url?: string | null
           name?: string | null
           owner_id?: string | null
+          phone?: never
           rating_average?: number | null
           rating_count?: number | null
           slug?: string | null
           social_links?: Json | null
+          stripe_account_id?: never
           stripe_onboarding_complete?: boolean | null
+          total_revenue?: never
           total_sales?: number | null
           updated_at?: string | null
           view_count?: number | null
@@ -6781,21 +6793,30 @@ export type Database = {
       }
       public_profiles: {
         Row: {
+          age_verified: boolean | null
           avatar_url: string | null
           badge_settings: Json | null
           bio: string | null
           coins_balance: number | null
           created_at: string | null
+          date_of_birth: string | null
           display_name: string | null
+          email: string | null
+          first_name: string | null
           id: string | null
           interests: string[] | null
           intro_completed: boolean | null
           is_private: boolean | null
           is_verified: boolean | null
           language: string | null
+          last_name: string | null
           link_url: string | null
           location: string | null
           onboarding_completed: boolean | null
+          phone_number: string | null
+          phone_verified: boolean | null
+          referral_inviter_id: string | null
+          sensitivity_preference: string | null
           timezone: string | null
           tutorial_completed: boolean | null
           tutorial_skipped: boolean | null
@@ -6803,21 +6824,30 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          age_verified?: never
           avatar_url?: string | null
           badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
           created_at?: string | null
+          date_of_birth?: never
           display_name?: string | null
+          email?: never
+          first_name?: never
           id?: string | null
           interests?: string[] | null
           intro_completed?: boolean | null
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
+          last_name?: never
           link_url?: string | null
           location?: string | null
           onboarding_completed?: boolean | null
+          phone_number?: never
+          phone_verified?: never
+          referral_inviter_id?: never
+          sensitivity_preference?: never
           timezone?: string | null
           tutorial_completed?: boolean | null
           tutorial_skipped?: boolean | null
@@ -6825,21 +6855,30 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          age_verified?: never
           avatar_url?: string | null
           badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
           created_at?: string | null
+          date_of_birth?: never
           display_name?: string | null
+          email?: never
+          first_name?: never
           id?: string | null
           interests?: string[] | null
           intro_completed?: boolean | null
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
+          last_name?: never
           link_url?: string | null
           location?: string | null
           onboarding_completed?: boolean | null
+          phone_number?: never
+          phone_verified?: never
+          referral_inviter_id?: never
+          sensitivity_preference?: never
           timezone?: string | null
           tutorial_completed?: boolean | null
           tutorial_skipped?: boolean | null

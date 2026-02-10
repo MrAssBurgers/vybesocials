@@ -130,7 +130,10 @@ export function useBusinessBySlug(slug: string) {
       const { data, error } = await supabase
         .from('business_profiles')
         .select(`
-          *,
+          id, owner_id, name, slug, description, category, location, website,
+          logo_url, banner_url, business_hours, social_links, is_active, is_verified,
+          rating_average, rating_count, total_sales, view_count,
+          stripe_onboarding_complete, created_at, updated_at,
           owner:profiles!owner_id (
             id,
             username,
@@ -156,7 +159,10 @@ export function useBusinesses(category?: string) {
       let query = supabase
         .from('business_profiles')
         .select(`
-          *,
+          id, owner_id, name, slug, description, category, location, website,
+          logo_url, banner_url, business_hours, social_links, is_active, is_verified,
+          rating_average, rating_count, total_sales, view_count,
+          stripe_onboarding_complete, created_at, updated_at,
           owner:profiles!owner_id (
             id,
             username,

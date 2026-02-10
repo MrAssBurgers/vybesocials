@@ -165,7 +165,7 @@ export function useMutualFriends() {
         if (suggestedIds.length === 0) return [];
 
         const { data: suggestedProfiles } = await supabase
-          .from('profiles')
+          .from('public_profiles')
           .select('id, username, display_name, first_name, last_name, avatar_url')
           .in('id', suggestedIds);
 
@@ -174,7 +174,7 @@ export function useMutualFriends() {
         mutualMap.forEach(set => set.forEach(id => allMutualIds.add(id)));
         
         const { data: mutualProfiles } = await supabase
-          .from('profiles')
+          .from('public_profiles')
           .select('id, username, first_name, last_name, avatar_url')
           .in('id', Array.from(allMutualIds));
 
