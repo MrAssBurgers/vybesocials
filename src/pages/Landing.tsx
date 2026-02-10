@@ -353,7 +353,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                       role="checkbox"
                       aria-checked={rememberMe}
                       onClick={() => setRememberMe(!rememberMe)}
-                      className={`shrink-0 h-4 w-4 rounded-[3px] border transition-colors flex items-center justify-center ${
+                      className={`shrink-0 h-3 w-3 rounded-[2px] border transition-colors flex items-center justify-center ${
                         rememberMe 
                           ? 'bg-primary border-primary' 
                           : 'border-muted-foreground/50 bg-transparent'
