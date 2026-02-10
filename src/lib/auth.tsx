@@ -181,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Prefer array result to avoid throwing when the row doesn't exist
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, referral_inviter_id')
         .eq('user_id', userId)
         .limit(1);
 
@@ -233,7 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch the newly created profile
       const { data: afterEnsure, error: afterEnsureError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, referral_inviter_id')
         .eq('user_id', userId)
         .limit(1);
 
