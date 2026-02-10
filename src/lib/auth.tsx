@@ -38,6 +38,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  authReady: boolean;
   banInfo: BanInfo | null;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -315,29 +317,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         setLoading(false);
+        setAuthReady(true);
         setIsInitialized(true);
       }
     );
 
     // THEN check for existing session - this restores session from localStorage
     logEvent('auth', 'Initializing: checking existing session');
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       // Mark as initialized so onAuthStateChange skips duplicate handling
       authInitializedRef.current = true;
       
       logEvent('auth', 'getSession resolved', { hasSession: !!session, userId: session?.user?.id });
-      setSession(session);
-      setUser(session?.user ?? null);
       
+      // Validate session with getUser() to confirm it's still valid server-side
       if (session?.user) {
+        const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !validatedUser) {
+          console.warn('[Auth] Session exists but getUser() failed — session may be stale:', userError?.message);
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+          setAuthReady(true);
+          setIsInitialized(true);
+          return;
+        }
+        
+        setSession(session);
+        setUser(validatedUser);
+        
         // Schedule token refresh for persistent sessions
         if (session.expires_at) {
           scheduleTokenRefresh(session.expires_at);
         }
-        fetchProfile(session.user.id);
+        fetchProfile(validatedUser.id);
+      } else {
+        setSession(null);
+        setUser(null);
       }
       
       setLoading(false);
+      setAuthReady(true);
       setIsInitialized(true);
     });
 
@@ -478,6 +499,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       loading,
+      authReady,
       banInfo,
       signUp,
       signIn,
