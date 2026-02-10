@@ -374,14 +374,26 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     }
 
     /* EXCEPTION: Switch / Toggle components — preserve native radix styling */
-    [role="switch"],
-    [role="switch"] *,
-    [data-state="checked"],
-    [data-state="unchecked"],
-    [role="switch"] span {
+    [role="switch"] {
+      color: inherit !important;
+      opacity: 1 !important;
+      mix-blend-mode: normal !important;
+      width: 50px !important;
+      min-width: 50px !important;
+      max-width: 50px !important;
+      height: 28px !important;
+      min-height: 28px !important;
+      max-height: 28px !important;
+      font-size: 0 !important;
+      overflow: hidden !important;
+      contain: layout style paint !important;
+    }
+    [role="switch"] * {
       color: inherit !important;
       opacity: unset !important;
       mix-blend-mode: unset !important;
+      filter: none !important;
+      -webkit-text-stroke: unset !important;
     }
     [role="switch"][data-state="checked"] {
       background-color: hsl(var(--primary)) !important;
@@ -391,6 +403,15 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     }
     [role="switch"] span {
       background-color: white !important;
+      width: 22px !important;
+      min-width: 22px !important;
+      max-width: 22px !important;
+      height: 22px !important;
+      min-height: 22px !important;
+      max-height: 22px !important;
+      border-radius: 9999px !important;
+      font-size: 0 !important;
+      overflow: hidden !important;
     }
 
     /* EXCEPTION: Checkbox components */
