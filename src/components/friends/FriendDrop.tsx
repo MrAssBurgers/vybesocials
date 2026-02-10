@@ -89,76 +89,75 @@ function MainScreen({
         )}
       </AnimatePresence>
 
-      {/* Two-column: QR code + Scanner */}
-      <div className="flex gap-3 w-full">
+      {/* Two-column: QR code + Scanner — equal size */}
+      <div className="grid grid-cols-2 gap-3 w-full">
         {/* Left: QR Code Card */}
         <motion.div
-          className="flex-1 rounded-2xl overflow-hidden relative"
+          className="rounded-2xl overflow-hidden relative aspect-square"
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ ...gentleSpring, delay: 0.05 }}
-          style={{
-            boxShadow: '0 4px 24px hsl(var(--primary) / 0.12)',
-          }}
+          style={{ boxShadow: '0 4px 24px hsl(var(--primary) / 0.15)' }}
         >
           <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-accent" />
-          {/* Subtle shimmer */}
           <motion.div
-            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/8 to-transparent"
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/8 to-transparent pointer-events-none"
             animate={{ x: ['-100%', '200%'] }}
             transition={{ repeat: Infinity, duration: 4, ease: "easeInOut", repeatDelay: 2 }}
           />
-          <div className="relative p-3 flex flex-col items-center gap-2.5">
-            {/* Mini avatar */}
-            <div className="flex items-center gap-2">
-              <Avatar className="h-7 w-7 border-2 border-white/40">
+          <div className="relative w-full h-full p-3 flex flex-col items-center justify-between">
+            {/* Mini avatar + name */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Avatar className="h-5 w-5 border border-white/40">
                 <AvatarImage src={profile?.avatar_url || ''} />
-                <AvatarFallback className="text-xs bg-white/20 text-white">
+                <AvatarFallback className="text-[8px] bg-white/20 text-white">
                   {profile?.username?.[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-white/90 text-xs font-medium truncate max-w-[80px]">
+              <span className="text-white/90 text-[10px] font-medium truncate max-w-[70px]">
                 @{profile?.username?.trim()}
               </span>
             </div>
             
-            {/* QR Code - big and clear */}
-            <div className="w-full aspect-square rounded-xl bg-white p-3 relative z-10" style={{ boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.04)' }}>
-              <img
-                src={qrCodeUrl}
-                alt="Your QR Code"
-                className="w-full h-full rounded-lg brightness-105 contrast-105"
-                style={{ imageRendering: 'crisp-edges' }}
-              />
-              {/* Center avatar overlay on QR */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ marginTop: 36 }}>
-                <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white shadow bg-white">
-                  {profile?.avatar_url ? (
-                    <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground font-bold text-xs">
-                      {profile?.username?.[0]?.toUpperCase() || 'V'}
-                    </div>
-                  )}
+            {/* QR Code — fills remaining space */}
+            <div className="flex-1 w-full flex items-center justify-center py-1.5">
+              <div className="w-full aspect-square rounded-xl bg-white p-2 relative z-10">
+                <img
+                  src={qrCodeUrl}
+                  alt="Your QR Code"
+                  className="w-full h-full rounded-md"
+                  style={{ imageRendering: 'crisp-edges' }}
+                />
+                {/* Center avatar overlay */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-7 h-7 rounded-full overflow-hidden border-2 border-white shadow-sm bg-white">
+                    {profile?.avatar_url ? (
+                      <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground font-bold text-[8px]">
+                        {profile?.username?.[0]?.toUpperCase() || 'V'}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Share buttons */}
-            <div className="flex gap-1">
-              <button onClick={onCopy} className="flex items-center gap-1 px-2 py-1 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors text-[10px]">
-                <Copy className="h-3 w-3" /> Copy
+            {/* Share row */}
+            <div className="flex gap-1 shrink-0">
+              <button onClick={onCopy} className="flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors text-[9px]">
+                <Copy className="h-2.5 w-2.5" /> Copy
               </button>
-              <button onClick={onShare} className="flex items-center gap-1 px-2 py-1 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors text-[10px]">
-                <Share2 className="h-3 w-3" /> Share
+              <button onClick={onShare} className="flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors text-[9px]">
+                <Share2 className="h-2.5 w-2.5" /> Share
               </button>
             </div>
           </div>
         </motion.div>
 
-        {/* Right: Scanner / Start Scan */}
+        {/* Right: Scanner — same size as QR */}
         <motion.div
-          className="flex-1 rounded-2xl overflow-hidden relative border border-border/50 bg-card/50"
+          className="rounded-2xl overflow-hidden relative aspect-square border border-border/40 bg-card/30 backdrop-blur-sm"
           initial={{ x: 20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ ...gentleSpring, delay: 0.1 }}
@@ -169,17 +168,17 @@ function MainScreen({
               <canvas ref={canvasRef} className="hidden" />
               {/* Scanner overlay */}
               <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/30" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-black/20" />
                 {/* Corner brackets */}
                 {[0, 1, 2, 3].map((i) => (
                   <div
                     key={i}
-                    className="absolute w-7 h-7"
+                    className="absolute w-6 h-6"
                     style={{
-                      top: i < 2 ? 12 : 'auto',
-                      bottom: i >= 2 ? 12 : 'auto',
-                      left: i % 2 === 0 ? 12 : 'auto',
-                      right: i % 2 === 1 ? 12 : 'auto',
+                      top: i < 2 ? 10 : 'auto',
+                      bottom: i >= 2 ? 10 : 'auto',
+                      left: i % 2 === 0 ? 10 : 'auto',
+                      right: i % 2 === 1 ? 10 : 'auto',
                     }}
                   >
                     <div 
@@ -189,10 +188,10 @@ function MainScreen({
                         borderBottomWidth: i >= 2 ? 2 : 0,
                         borderLeftWidth: i % 2 === 0 ? 2 : 0,
                         borderRightWidth: i % 2 === 1 ? 2 : 0,
-                        borderTopLeftRadius: i === 0 ? 10 : 0,
-                        borderTopRightRadius: i === 1 ? 10 : 0,
-                        borderBottomLeftRadius: i === 2 ? 10 : 0,
-                        borderBottomRightRadius: i === 3 ? 10 : 0,
+                        borderTopLeftRadius: i === 0 ? 8 : 0,
+                        borderTopRightRadius: i === 1 ? 8 : 0,
+                        borderBottomLeftRadius: i === 2 ? 8 : 0,
+                        borderBottomRightRadius: i === 3 ? 8 : 0,
                       }}
                     />
                   </div>
@@ -204,10 +203,9 @@ function MainScreen({
                   transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
                 />
               </div>
-              {/* Stop button */}
               <button
                 onClick={onStopScan}
-                className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/50 backdrop-blur text-white text-[10px] font-medium hover:bg-black/70 transition-colors"
+                className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/50 backdrop-blur text-white text-[10px] font-medium hover:bg-black/70 transition-colors z-10"
               >
                 Stop
               </button>
@@ -215,25 +213,25 @@ function MainScreen({
           ) : (
             <button
               onClick={onStartScan}
-              className="w-full h-full flex flex-col items-center justify-center gap-3 p-4 hover:bg-accent/5 transition-colors min-h-[200px]"
+              className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 hover:bg-accent/5 transition-colors"
             >
               <motion.div
-                className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/15 to-accent/15 border border-primary/20 flex items-center justify-center"
-                animate={{ scale: [1, 1.05, 1] }}
+                className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/15 to-accent/15 border border-primary/20 flex items-center justify-center"
+                animate={{ scale: [1, 1.06, 1] }}
                 transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
               >
-                <Camera className="h-7 w-7 text-primary" />
+                <Camera className="h-6 w-6 text-primary" />
               </motion.div>
               <div className="text-center">
-                <p className="text-sm font-medium text-foreground">Scan Code</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Tap to open camera</p>
+                <p className="text-xs font-semibold text-foreground">Scan Code</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5">Tap to open camera</p>
               </div>
             </button>
           )}
         </motion.div>
       </div>
 
-      <p className="text-[11px] text-muted-foreground text-center">
+      <p className="text-[10px] text-muted-foreground text-center">
         Show your code or scan a friend's to connect instantly
       </p>
     </motion.div>
