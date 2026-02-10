@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Code2, 
@@ -11,8 +12,6 @@ import {
   Sparkles,
   Terminal,
   Crown,
-  CreditCard,
-  Key,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -25,15 +24,13 @@ import { useDebugPanel } from '@/contexts/DebugPanelContext';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { StripeSettingsSection } from '@/components/admin/settings/StripeSettingsSection';
-import { SecretsManagerSection } from '@/components/admin/settings/SecretsManagerSection';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function DeveloperSection() {
   const [flags, setFlags] = useState<FeatureFlags>(getFeatureFlags());
   const [showAnalytics, setShowAnalytics] = useState(false);
   const debugPanel = useDebugPanel();
   const { profile } = useAuth();
+  const navigate = useNavigate();
 
   const { data: isOwner } = useQuery({
     queryKey: ['is-owner', profile?.user_id],
@@ -64,43 +61,27 @@ export function DeveloperSection() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Owner Settings - shown first */}
+      {/* Owner Command Center Link */}
       {isOwner && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="liquid-glass-card p-3 sm:p-6"
         >
-          <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-semibold text-sm sm:text-base mb-0.5 sm:mb-1">Owner Settings</h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Platform configuration & API keys
-              </p>
-            </div>
-          </div>
-
-          <Tabs defaultValue="secrets" className="w-full">
-            <TabsList className="w-full justify-start overflow-x-auto">
-              <TabsTrigger value="secrets" className="gap-1.5 text-xs sm:text-sm px-2.5 sm:px-4">
-                <Key className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                API Keys
-              </TabsTrigger>
-              <TabsTrigger value="payments" className="gap-1.5 text-xs sm:text-sm px-2.5 sm:px-4">
-                <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Payments
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="secrets" className="mt-3 sm:mt-4">
-              <SecretsManagerSection />
-            </TabsContent>
-            <TabsContent value="payments" className="mt-3 sm:mt-4">
-              <StripeSettingsSection />
-            </TabsContent>
-          </Tabs>
+          <Button
+            variant="outline"
+            className="w-full justify-between h-12 sm:h-14"
+            onClick={() => {
+              haptics.tap();
+              navigate('/admin-settings');
+            }}
+          >
+            <span className="flex items-center gap-2.5">
+              <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+              <span className="text-sm sm:text-base font-medium">Owner Command Center</span>
+            </span>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </motion.div>
       )}
 
