@@ -195,7 +195,7 @@ export default function ProfilePage() {
           className="flex flex-col md:flex-row items-center gap-8 mb-8"
         >
           {/* Avatar */}
-          <div className="relative">
+          <div className="relative group">
             <div className="story-ring p-1">
               <Avatar className="h-32 w-32 border-4 border-background">
                 <AvatarImage src={profile.avatar_url || undefined} />
@@ -205,8 +205,8 @@ export default function ProfilePage() {
               </Avatar>
             </div>
             {isOwnProfile && (
-              <label className="absolute -bottom-0.5 -right-0.5 z-20 p-[3px] rounded-full bg-accent cursor-pointer hover:bg-accent/90 transition-colors border-2 border-background shadow-[0_1px_4px_rgba(0,0,0,0.3)]">
-                <Camera className="h-3 w-3 text-accent-foreground" strokeWidth={2.5} />
+              <label className="absolute inset-0 flex items-center justify-center rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/40">
+                <Camera className="h-8 w-8 text-white/80" strokeWidth={1.5} />
                 <input
                   type="file"
                   accept="image/*"
