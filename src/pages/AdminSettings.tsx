@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/lib/auth';
 import { StripeSettingsSection } from '@/components/admin/settings/StripeSettingsSection';
-import { Settings, CreditCard, Loader2, ShieldAlert } from 'lucide-react';
+import { SecretsManagerSection } from '@/components/admin/settings/SecretsManagerSection';
+import { Settings, CreditCard, Loader2, ShieldAlert, Key } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -64,13 +65,20 @@ export default function AdminSettings() {
           </div>
         </div>
 
-        <Tabs defaultValue="payments" className="w-full">
+        <Tabs defaultValue="secrets" className="w-full">
           <TabsList className="w-full justify-start">
+            <TabsTrigger value="secrets" className="gap-2">
+              <Key className="h-4 w-4" />
+              API Keys
+            </TabsTrigger>
             <TabsTrigger value="payments" className="gap-2">
               <CreditCard className="h-4 w-4" />
               Payments
             </TabsTrigger>
           </TabsList>
+          <TabsContent value="secrets" className="mt-4">
+            <SecretsManagerSection />
+          </TabsContent>
           <TabsContent value="payments" className="mt-4">
             <StripeSettingsSection />
           </TabsContent>
