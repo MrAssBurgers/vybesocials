@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { validateStripeKey } from "../_shared/stripe-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,14 +66,29 @@ serve(async (req) => {
       }
     }
 
-    // Validate secret key matches mode (check env)
-    const secretKey = Deno.env.get("STRIPE_SECRET_KEY");
+    // Validate secret key matches mode (check env first, then app_secrets table)
+    let secretKey = Deno.env.get("STRIPE_SECRET_KEY");
+    if (!secretKey) {
+      // Fallback: check app_secrets table
+      const { data: secretRow } = await supabaseClient
+        .from("app_secrets")
+        .select("value")
+        .eq("key", "STRIPE_SECRET_KEY")
+        .maybeSingle();
+      if (secretRow?.value) secretKey = secretRow.value;
+    }
+
     if (stripe_enabled && secretKey) {
-      if (stripe_mode === 'live' && secretKey.startsWith('sk_test_')) {
-        errors.push("Live mode selected but the stored secret key is a test key. Update STRIPE_SECRET_KEY.");
-      }
-      if (stripe_mode === 'test' && secretKey.startsWith('sk_live_')) {
-        errors.push("Test mode selected but the stored secret key is a live key. Update STRIPE_SECRET_KEY.");
+      const keyValidation = validateStripeKey(secretKey);
+      if (!keyValidation.valid) {
+        errors.push(keyValidation.error!);
+      } else {
+        if (stripe_mode === 'live' && keyValidation.mode === 'test') {
+          errors.push("Live mode selected but the stored secret key is a test key. Update STRIPE_SECRET_KEY.");
+        }
+        if (stripe_mode === 'test' && keyValidation.mode === 'live') {
+          errors.push("Test mode selected but the stored secret key is a live key. Update STRIPE_SECRET_KEY.");
+        }
       }
     } else if (stripe_enabled && !secretKey) {
       errors.push("STRIPE_SECRET_KEY is not configured. Add it via the secrets manager.");

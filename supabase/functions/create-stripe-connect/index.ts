@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { getStripeSecretKey, validateStripeKey } from "../_shared/stripe-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,12 +29,10 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set in this environment. Please publish your project to sync secrets.");
-    
-    // Log key type for debugging (never log the actual key)
-    const keyPrefix = stripeKey.substring(0, 7);
-    logStep("Stripe key verified", { keyPrefix, keyLength: stripeKey.length });
+    const stripeKey = await getStripeSecretKey();
+    const keyCheck = validateStripeKey(stripeKey);
+    if (!keyCheck.valid) throw new Error(keyCheck.error!);
+    logStep("Stripe key verified", { mode: keyCheck.mode, keyLength: stripeKey.length });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
