@@ -2325,6 +2325,13 @@ export type Database = {
             foreignKeyName: "events_sponsor_id_fkey"
             columns: ["sponsor_id"]
             isOneToOne: false
+            referencedRelation: "public_sponsor_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
             referencedRelation: "sponsor_profiles"
             referencedColumns: ["id"]
           },
@@ -4989,6 +4996,13 @@ export type Database = {
             foreignKeyName: "sponsor_analytics_sponsor_id_fkey"
             columns: ["sponsor_id"]
             isOneToOne: false
+            referencedRelation: "public_sponsor_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsor_analytics_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
             referencedRelation: "sponsor_profiles"
             referencedColumns: ["id"]
           },
@@ -6952,6 +6966,67 @@ export type Database = {
             foreignKeyName: "servers_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_sponsor_profiles: {
+        Row: {
+          company_logo: string | null
+          company_name: string | null
+          created_at: string | null
+          description: string | null
+          id: string | null
+          is_verified: boolean | null
+          updated_at: string | null
+          user_id: string | null
+          verification_date: string | null
+          website_url: string | null
+        }
+        Insert: {
+          company_logo?: string | null
+          company_name?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_verified?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+          verification_date?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          company_logo?: string | null
+          company_name?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_verified?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+          verification_date?: string | null
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsor_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "sponsor_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsor_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "public_profiles"
             referencedColumns: ["id"]
           },
