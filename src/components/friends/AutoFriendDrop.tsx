@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  X, Check, Sparkles, Loader2, Smartphone, Zap,
+  X, Check, Loader2, Smartphone, Zap,
   ArrowLeftRight, Bluetooth, Wifi, ZoomIn, MessageCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -138,49 +138,14 @@ export function AutoFriendDrop() {
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   
-  // Card animation values for wallet effect
-  const cardY = useMotionValue(200);
-  const cardRotate = useMotionValue(3);
-  const cardScale = useMotionValue(0.9);
-  const [cardAnimationComplete, setCardAnimationComplete] = useState(false);
   
-  // Trigger card rising animation (like credit card from wallet)
-  // Now goes directly to activated phase and animates within it
+  // Simple card activation - no wallet animation needed
   const triggerCardRise = useCallback(() => {
-    // Reset animation values
-    cardY.set(200);
-    cardRotate.set(3);
-    cardScale.set(0.9);
-    setCardAnimationComplete(false);
-    
-    // Go directly to activated phase
     setPhase('activated');
-    
-    // Animate card rising from wallet with a slight delay for modal to open
     setTimeout(() => {
-      animate(cardY, 0, { 
-        type: 'spring', 
-        stiffness: 180, 
-        damping: 22,
-      });
-      animate(cardRotate, 0, { 
-        type: 'spring', 
-        stiffness: 150, 
-        damping: 18 
-      });
-      animate(cardScale, 1, { 
-        type: 'spring', 
-        stiffness: 180, 
-        damping: 20 
-      });
-      
-      // Mark animation as complete after spring settles
-      setTimeout(() => {
-        setCardAnimationComplete(true);
-        haptics.success();
-      }, 500);
-    }, 100);
-  }, [cardY, cardRotate, cardScale]);
+      haptics.success();
+    }, 300);
+  }, []);
 
   // Fetch user helper
   const fetchUser = async (userId: string): Promise<FoundUser | null> => {
@@ -362,16 +327,11 @@ export function AutoFriendDrop() {
       return;
     }
     
-    // Reset card animation values for wallet effect
-    cardY.set(300);
-    cardRotate.set(5);
-    cardScale.set(0.8);
-    
-    // Activate the exchange UI and trigger wallet animation
+    // Activate the exchange UI
     setIsActive(true);
     haptics.impact();
     
-    // Start with the wallet card-rising animation
+    // Start with the card animation
     triggerCardRise();
     
     // Create a drop session for realtime sync (do this in background)
@@ -385,7 +345,7 @@ export function AutoFriendDrop() {
     if (nativeFriendDrop.isAvailable) {
       nativeFriendDrop.startSession();
     }
-  }, [profile?.username, user, nativeFriendDrop, friendDropSync, cardY, cardRotate, cardScale, triggerCardRise]);
+  }, [profile?.username, user, nativeFriendDrop, friendDropSync, triggerCardRise]);
   
   // Start QR scanning when phase transitions to activated (after card animation)
   useEffect(() => {
@@ -639,198 +599,189 @@ export function AutoFriendDrop() {
         </div>
       )}
 
-      {/* Exchange Modal - Wallet-style slide up like a credit card leaving a wallet */}
+      {/* Exchange Modal - Credit card style */}
       <Dialog open={isActive} onOpenChange={handleClose}>
         <DialogContent 
-          className="sm:max-w-md p-0 border-0 bg-transparent overflow-visible [&>button]:hidden data-[state=open]:animate-card-bounce-in data-[state=closed]:animate-wallet-slide-down"
-          style={{ 
-            transformOrigin: 'bottom center',
-            perspective: '1200px',
-            perspectiveOrigin: 'center bottom',
-            transformStyle: 'preserve-3d',
-            willChange: 'transform, opacity'
-          }}
+          className="sm:max-w-md p-0 border-0 bg-transparent overflow-visible [&>button]:hidden"
         >
           <AnimatePresence mode="wait">
             
             {phase === 'activated' && (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                key="activated"
+                initial={{ opacity: 0, y: 40, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 className="flex flex-col items-center"
               >
-                {/* Wallet with Rising Scanner Card */}
-                <div className="relative w-full flex flex-col items-center overflow-visible pb-4">
-                  {/* Wallet base - leather texture look */}
-                  <motion.div
-                    className="absolute bottom-0 w-72 h-16 rounded-t-2xl overflow-hidden z-0"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-t from-[hsl(20,30%,12%)] via-[hsl(20,25%,18%)] to-[hsl(20,20%,25%)]" />
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-1.5 bg-black/60 rounded-b-full" />
-                    <div className="absolute top-2 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                  </motion.div>
+                {/* Credit Card Scanner */}
+                <motion.div
+                  className="relative w-80 rounded-2xl overflow-hidden shadow-2xl"
+                  style={{
+                    background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 50%, hsl(var(--primary) / 0.8) 100%)',
+                  }}
+                >
+                  {/* Card chip & branding */}
+                  <div className="flex items-center justify-between px-5 pt-4 pb-2">
+                    <div className="flex items-center gap-2.5">
+                      {/* Chip */}
+                      <div className="w-10 h-7 rounded-md bg-gradient-to-br from-yellow-300/90 via-yellow-400/80 to-yellow-600/70 border border-yellow-500/30" />
+                      <div>
+                        <h3 className="font-bold text-sm text-white tracking-wide">FriendDrop</h3>
+                        <p className="text-[10px] text-white/50 uppercase tracking-widest">VYBE Connect</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/10" onClick={handleClose}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Contactless icon */}
+                  <div className="absolute top-4 right-14">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round">
+                      <path d="M6 18.5a7.5 7.5 0 0 1 0-13" />
+                      <path d="M10 16a5 5 0 0 1 0-8" />
+                      <path d="M14 13.5a2 2 0 0 1 0-3" />
+                    </svg>
+                  </div>
                   
-                  {/* Rising Scanner Card - contains live scanner */}
-                  <motion.div
-                    className="relative z-10 w-72 rounded-2xl bg-gradient-to-br from-background via-card to-muted border-2 border-primary/40 shadow-2xl shadow-primary/20 overflow-hidden"
-                    style={{ 
-                      y: cardY,
-                      rotate: cardRotate,
-                      scale: cardScale
-                    }}
-                  >
-                    {/* Header */}
-                    <div className="flex items-center justify-between p-3 pb-0">
-                      <div className="flex items-center gap-2">
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-                        >
-                          {nativeFriendDrop.isAvailable ? (
-                            <Bluetooth className="h-4 w-4 text-primary" />
-                          ) : (
-                            <Sparkles className="h-4 w-4 text-primary" />
-                          )}
-                        </motion.div>
-                        <h3 className="font-bold text-sm text-foreground">FriendDrop</h3>
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
+                  {/* Live Scanner */}
+                  <div className="relative aspect-square mx-4 mb-2 rounded-xl overflow-hidden border border-white/10">
+                    <video 
+                      ref={videoRef} 
+                      className="w-full h-full object-cover"
+                      playsInline
+                      muted
+                    />
+                    <canvas ref={canvasRef} className="hidden" />
                     
-                    {/* Live Scanner */}
-                    <div className="relative aspect-square bg-black m-3 mt-2 rounded-xl overflow-hidden">
-                      <video 
-                        ref={videoRef} 
-                        className="w-full h-full object-cover"
-                        playsInline
-                        muted
+                    {/* Scanning overlay - minimal */}
+                    <div className="absolute inset-0 pointer-events-none">
+                      <motion.div
+                        className="absolute left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent"
+                        animate={{ top: ['10%', '90%', '10%'] }}
+                        transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
                       />
-                      <canvas ref={canvasRef} className="hidden" />
                       
-                      {/* Scanning overlay */}
-                      <div className="absolute inset-0 pointer-events-none">
-                        {/* Scanning line */}
-                        <motion.div
-                          className="absolute left-3 right-3 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full"
-                          animate={{ top: ['15%', '85%', '15%'] }}
-                          transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                      {/* Corner brackets */}
+                      {[0, 1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="absolute w-7 h-7 border-white/60"
+                          style={{
+                            top: i < 2 ? 10 : 'auto',
+                            bottom: i >= 2 ? 10 : 'auto',
+                            left: i % 2 === 0 ? 10 : 'auto',
+                            right: i % 2 === 1 ? 10 : 'auto',
+                            borderTopWidth: i < 2 ? 2 : 0,
+                            borderBottomWidth: i >= 2 ? 2 : 0,
+                            borderLeftWidth: i % 2 === 0 ? 2 : 0,
+                            borderRightWidth: i % 2 === 1 ? 2 : 0,
+                            borderRadius: 4,
+                          }}
                         />
-                        
-                        {/* Corner brackets */}
-                        {[0, 1, 2, 3].map((i) => (
-                          <motion.div
-                            key={i}
-                            className="absolute w-8 h-8 border-primary"
-                            style={{
-                              top: i < 2 ? 12 : 'auto',
-                              bottom: i >= 2 ? 12 : 'auto',
-                              left: i % 2 === 0 ? 12 : 'auto',
-                              right: i % 2 === 1 ? 12 : 'auto',
-                              borderTopWidth: i < 2 ? 3 : 0,
-                              borderBottomWidth: i >= 2 ? 3 : 0,
-                              borderLeftWidth: i % 2 === 0 ? 3 : 0,
-                              borderRightWidth: i % 2 === 1 ? 3 : 0,
-                              borderRadius: 6,
-                            }}
-                            animate={{ opacity: [0.5, 1, 0.5] }}
-                            transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
-                          />
-                        ))}
-                      </div>
+                      ))}
                     </div>
-                    
-                    {/* QR Code Section - tap to expand */}
-                    {!nativeFriendDrop.isAvailable && (
-                      <div className="px-3 pb-2">
-                        <div className="flex items-center gap-3 p-2 rounded-xl bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
-                          <ExpandableQR
-                            qrCodeUrl={qrCodeUrl}
-                            isExpanded={isQrExpanded}
-                            onToggle={toggleQrExpand}
-                            avatarUrl={profile?.avatar_url}
-                            username={profile?.username}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-muted-foreground">Your code</p>
-                            <p className="font-bold text-sm text-foreground truncate">@{profile?.username}</p>
-                          </div>
+                  </div>
+                  
+                  {/* QR Code Section */}
+                  {!nativeFriendDrop.isAvailable && (
+                    <div className="px-4 pb-2">
+                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white/10 border border-white/10">
+                        <ExpandableQR
+                          qrCodeUrl={qrCodeUrl}
+                          isExpanded={isQrExpanded}
+                          onToggle={toggleQrExpand}
+                          avatarUrl={profile?.avatar_url}
+                          username={profile?.username}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-white/50 uppercase tracking-wider">Your code</p>
+                          <p className="font-bold text-sm text-white truncate">@{profile?.username}</p>
                         </div>
                       </div>
-                    )}
-                    
-                    {/* Native nearby peers */}
-                    {nativeFriendDrop.isAvailable && nativeFriendDrop.nearbyPeers.length > 0 && (
-                      <div className="px-3 pb-3 space-y-2">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Wifi className="h-3 w-3" />
-                          <span>Nearby</span>
-                        </div>
-                        {nativeFriendDrop.nearbyPeers.slice(0, 2).map((peer) => (
-                          <motion.button
-                            key={peer.peerId}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="w-full flex items-center gap-2 p-2 rounded-lg bg-accent/10 hover:bg-accent/20 transition-colors"
-                            onClick={() => {
-                              setFoundUser({
-                                id: peer.userId,
-                                username: peer.username,
-                                display_name: peer.displayName,
-                                avatar_url: peer.avatarUrl,
-                              });
-                              setPhase('found');
-                            }}
-                          >
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={peer.avatarUrl || ''} />
-                              <AvatarFallback className="text-xs">{peer.username[0]?.toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm font-medium flex-1 text-left truncate">{peer.displayName || peer.username}</span>
-                            <ArrowLeftRight className="h-3 w-3 text-primary" />
-                          </motion.button>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {/* Card footer */}
-                    <div className="px-3 pb-3 pt-1">
-                      <p className="text-xs text-center text-muted-foreground">
-                        Point camera at friend's code
-                      </p>
                     </div>
-                  </motion.div>
-                </div>
+                  )}
+                  
+                  {/* Native nearby peers */}
+                  {nativeFriendDrop.isAvailable && nativeFriendDrop.nearbyPeers.length > 0 && (
+                    <div className="px-4 pb-3 space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-white/50">
+                        <Wifi className="h-3 w-3" />
+                        <span>Nearby</span>
+                      </div>
+                      {nativeFriendDrop.nearbyPeers.slice(0, 2).map((peer) => (
+                        <motion.button
+                          key={peer.peerId}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="w-full flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/15 transition-colors"
+                          onClick={() => {
+                            setFoundUser({
+                              id: peer.userId,
+                              username: peer.username,
+                              display_name: peer.displayName,
+                              avatar_url: peer.avatarUrl,
+                            });
+                            setPhase('found');
+                          }}
+                        >
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={peer.avatarUrl || ''} />
+                            <AvatarFallback className="text-xs">{peer.username[0]?.toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm font-medium flex-1 text-left truncate text-white">{peer.displayName || peer.username}</span>
+                          <ArrowLeftRight className="h-3 w-3 text-white/60" />
+                        </motion.button>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Card footer */}
+                  <div className="px-5 pb-4 pt-1 flex items-center justify-between">
+                    <p className="text-xs text-white/40">Point camera at friend's code</p>
+                    <div className="flex gap-1">
+                      {[0,1,2].map(i => (
+                        <motion.div
+                          key={i}
+                          className="w-1.5 h-1.5 rounded-full bg-white/40"
+                          animate={{ opacity: [0.3, 1, 0.3] }}
+                          transition={{ repeat: Infinity, duration: 1.5, delay: i * 0.3 }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
               </motion.div>
             )}
 
             {phase === 'found' && foundUser && (
               <motion.div
                 key="found"
-                initial={{ opacity: 0, scale: 0.5, rotateY: -180 }}
+                initial={{ opacity: 0, scale: 0.9, rotateY: -90 }}
                 animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ type: "spring", bounce: 0.4 }}
-                className="bg-gradient-to-br from-accent via-primary to-primary/80 rounded-3xl p-6"
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                className="w-80 rounded-2xl overflow-hidden shadow-2xl"
+                style={{
+                  background: 'linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(var(--primary)) 60%, hsl(var(--accent) / 0.8) 100%)',
+                }}
               >
+                {/* Shimmer */}
                 <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-3xl"
-                  animate={{ x: ['-100%', '100%'] }}
-                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent rounded-2xl pointer-events-none"
+                  animate={{ x: ['-200%', '200%'] }}
+                  transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
                 />
                 
-                <div className="relative flex flex-col items-center gap-4">
+                <div className="relative p-6 flex flex-col items-center gap-4">
                   <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.2, type: "spring" }}
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.1, type: "spring", stiffness: 300, damping: 20 }}
                   >
-                    <Avatar className="h-24 w-24 border-4 border-white/50">
+                    <Avatar className="h-24 w-24 border-4 border-white/40 shadow-xl">
                       <AvatarImage src={foundUser.avatar_url || ''} />
                       <AvatarFallback className="text-2xl bg-white/20 text-white">
                         {foundUser.username?.[0]?.toUpperCase()}
@@ -840,18 +791,18 @@ export function AutoFriendDrop() {
                   
                   <div className="text-center text-white">
                     <h3 className="text-xl font-bold">{foundUser.display_name || foundUser.username}</h3>
-                    <p className="text-white/70">@{foundUser.username}</p>
+                    <p className="text-white/60 text-sm">@{foundUser.username}</p>
                   </div>
 
                   <motion.div
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
+                    transition={{ delay: 0.25 }}
                     className="flex gap-3 w-full"
                   >
                     <Button 
                       variant="secondary"
-                      className="flex-1 bg-white/20 text-white hover:bg-white/30"
+                      className="flex-1 bg-white/15 text-white hover:bg-white/25 border-0"
                       onClick={handleClose}
                     >
                       Cancel
@@ -871,139 +822,70 @@ export function AutoFriendDrop() {
             {phase === 'exchanging' && (
               <motion.div
                 key="exchanging"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                className="bg-gradient-to-br from-primary/90 via-accent/80 to-primary/90 backdrop-blur-xl rounded-3xl p-8 flex flex-col items-center justify-center gap-6 overflow-hidden relative"
-                style={{ minHeight: 320 }}
+                transition={{ duration: 0.25 }}
+                className="w-80 rounded-2xl overflow-hidden shadow-2xl relative"
+                style={{
+                  background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 50%, hsl(var(--primary) / 0.9) 100%)',
+                  minHeight: 300,
+                }}
               >
-                {/* Fast animated background particles */}
-                {[...Array(12)].map((_, i) => (
+                {/* Subtle particles - reduced count for performance */}
+                {[...Array(6)].map((_, i) => (
                   <motion.div
                     key={i}
-                    className="absolute w-1.5 h-1.5 rounded-full bg-white/40"
-                    initial={{ 
-                      x: Math.random() * 200 - 100,
-                      y: 200,
-                      opacity: 0 
-                    }}
-                    animate={{ 
-                      y: -100,
-                      opacity: [0, 0.6, 0],
-                    }}
-                    transition={{ 
-                      duration: 1.2,
-                      delay: i * 0.08,
-                      repeat: Infinity,
-                      ease: "easeOut"
-                    }}
+                    className="absolute w-1 h-1 rounded-full bg-white/30"
+                    initial={{ x: Math.random() * 280, y: 300, opacity: 0 }}
+                    animate={{ y: -20, opacity: [0, 0.5, 0] }}
+                    transition={{ duration: 2, delay: i * 0.2, repeat: Infinity, ease: "easeOut" }}
                   />
                 ))}
                 
-                {/* Phase 1: MY profile flies OUT (both devices show their own flying out) */}
-                <motion.div
-                  className="absolute z-20"
-                  initial={{ scale: 1, y: 0, x: 0, rotateZ: 0 }}
-                  animate={{ 
-                    scale: [1, 1.1, 0.2], 
-                    y: [0, -30, -350], 
-                    x: [0, 10, 40],
-                    rotateZ: [0, -5, -25],
-                    opacity: [1, 1, 0] 
-                  }}
-                  transition={{ 
-                    duration: 0.8,
-                    ease: [0.32, 0, 0.67, 0],
-                    times: [0, 0.3, 1]
-                  }}
-                >
-                  <div className="relative">
-                    <motion.div
-                      className="absolute inset-0 rounded-full bg-white/50 blur-lg"
-                      initial={{ scale: 1 }}
-                      animate={{ scale: [1, 2, 0] }}
-                      transition={{ duration: 0.8 }}
-                      style={{ margin: -12 }}
-                    />
-                    <Avatar className="h-24 w-24 border-4 border-white/90 shadow-2xl">
+                <div className="relative flex flex-col items-center justify-center p-8 gap-6" style={{ minHeight: 300 }}>
+                  {/* My profile flying out */}
+                  <motion.div
+                    className="absolute z-20"
+                    initial={{ scale: 1, y: 0 }}
+                    animate={{ scale: 0.3, y: -200, opacity: 0 }}
+                    transition={{ duration: 0.6, ease: [0.32, 0, 0.67, 0] }}
+                  >
+                    <Avatar className="h-20 w-20 border-3 border-white/80 shadow-xl">
                       <AvatarImage src={profile?.avatar_url || ''} />
-                      <AvatarFallback className="text-2xl bg-white/30 text-white font-bold">
+                      <AvatarFallback className="text-xl bg-white/30 text-white font-bold">
                         {profile?.username?.[0]?.toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                  </div>
-                </motion.div>
-                
-                {/* Phase 2: THEIR profile flies IN (delayed) */}
-                <motion.div
-                  className="relative z-10"
-                  initial={{ scale: 0.2, y: 350, x: -40, rotateZ: 25, opacity: 0 }}
-                  animate={{ 
-                    scale: [0.2, 1.15, 1], 
-                    y: [350, -20, 0], 
-                    x: [-40, 10, 0],
-                    rotateZ: [25, -3, 0],
-                    opacity: [0, 1, 1] 
-                  }}
-                  transition={{ 
-                    duration: 0.9,
-                    delay: 0.6,
-                    ease: [0.22, 1, 0.36, 1],
-                    times: [0, 0.7, 1]
-                  }}
-                >
-                  <div className="relative">
-                    {/* Glow ring behind avatar */}
-                    <motion.div
-                      className="absolute inset-0 rounded-full bg-white/50 blur-xl"
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: [0, 1.8, 1.2], opacity: [0, 0.8, 0.4] }}
-                      transition={{ duration: 0.6, delay: 0.8 }}
-                      style={{ margin: -16 }}
-                    />
-                    <Avatar className="h-28 w-28 border-4 border-white/80 shadow-2xl relative z-10">
+                  </motion.div>
+                  
+                  {/* Their profile flying in */}
+                  <motion.div
+                    className="relative z-10"
+                    initial={{ scale: 0.3, y: 200, opacity: 0 }}
+                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                    transition={{ duration: 0.6, delay: 0.4, type: "spring", stiffness: 200, damping: 20 }}
+                  >
+                    <Avatar className="h-24 w-24 border-4 border-white/70 shadow-2xl">
                       <AvatarImage src={foundUser?.avatar_url || ''} />
-                      <AvatarFallback className="text-3xl bg-white/30 text-white font-bold">
+                      <AvatarFallback className="text-2xl bg-white/30 text-white font-bold">
                         {foundUser?.username?.[0]?.toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    
-                    {/* Sparkle burst on landing */}
-                    {[...Array(8)].map((_, i) => (
-                      <motion.div
-                        key={i}
-                        className="absolute"
-                        style={{ top: '50%', left: '50%' }}
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ 
-                          scale: [0, 1.2, 0],
-                          opacity: [0, 1, 0],
-                          x: Math.cos(i * 45 * Math.PI / 180) * 55 - 8,
-                          y: Math.sin(i * 45 * Math.PI / 180) * 55 - 8,
-                        }}
-                        transition={{ 
-                          duration: 0.5,
-                          delay: 1.3 + i * 0.04,
-                        }}
-                      >
-                        <Sparkles className="h-4 w-4 text-white" />
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
-                
-                {/* Text */}
-                <motion.div 
-                  className="text-center text-white z-10 mt-4"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 1.0 }}
-                >
-                  <p className="text-xl font-bold">Exchanging vibes...</p>
-                  <p className="text-white/70 text-sm mt-1">
-                    {foundUser?.display_name || foundUser?.username}
-                  </p>
-                </motion.div>
+                  </motion.div>
+                  
+                  <motion.div 
+                    className="text-center text-white z-10"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.7 }}
+                  >
+                    <p className="text-lg font-bold">Exchanging vibes...</p>
+                    <p className="text-white/60 text-sm mt-1">
+                      {foundUser?.display_name || foundUser?.username}
+                    </p>
+                  </motion.div>
+                </div>
               </motion.div>
             )}
 
@@ -1012,133 +894,109 @@ export function AutoFriendDrop() {
                 key="success"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.25 }}
-                className="bg-gradient-to-br from-accent via-primary to-accent rounded-3xl p-8 flex flex-col items-center gap-4 overflow-hidden relative"
-                style={{ minHeight: 320 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                className="w-80 rounded-2xl overflow-hidden shadow-2xl relative"
+                style={{
+                  background: 'linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(var(--primary)) 50%, hsl(var(--accent) / 0.9) 100%)',
+                  minHeight: 300,
+                }}
               >
-                {/* MASSIVE EXPLOSION - radial particle burst */}
-                {[...Array(32)].map((_, i) => (
+                {/* Celebration particles - reduced for perf */}
+                {[...Array(16)].map((_, i) => (
                   <motion.div
                     key={i}
                     className="absolute rounded-full"
                     style={{
-                      width: 6 + Math.random() * 8,
-                      height: 6 + Math.random() * 8,
-                      background: i % 3 === 0 ? 'rgba(255,255,255,0.9)' : i % 3 === 1 ? 'rgba(255,220,100,0.9)' : 'rgba(255,180,255,0.8)',
+                      width: 4 + Math.random() * 4,
+                      height: 4 + Math.random() * 4,
+                      background: i % 2 === 0 ? 'rgba(255,255,255,0.8)' : 'rgba(255,220,100,0.8)',
+                      left: '50%',
+                      top: '40%',
                     }}
-                    initial={{ 
-                      x: 0, 
-                      y: 0, 
-                      scale: 0,
-                      opacity: 1 
-                    }}
+                    initial={{ scale: 0, opacity: 1 }}
                     animate={{ 
-                      x: Math.cos(i * 11.25 * Math.PI / 180) * (100 + Math.random() * 80),
-                      y: Math.sin(i * 11.25 * Math.PI / 180) * (100 + Math.random() * 80),
-                      scale: [0, 2, 0],
+                      x: Math.cos(i * 22.5 * Math.PI / 180) * (60 + Math.random() * 50),
+                      y: Math.sin(i * 22.5 * Math.PI / 180) * (60 + Math.random() * 50),
+                      scale: [0, 1.5, 0],
                       opacity: [1, 1, 0],
                     }}
-                    transition={{ duration: 0.8, delay: i * 0.015, ease: "easeOut" }}
+                    transition={{ duration: 0.7, delay: i * 0.02, ease: "easeOut" }}
                   />
                 ))}
                 
-                {/* Secondary sparkle explosion */}
-                {[...Array(20)].map((_, i) => (
-                  <motion.div
-                    key={`sparkle-${i}`}
-                    className="absolute"
-                    initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
-                    animate={{ 
-                      x: Math.cos(i * 18 * Math.PI / 180) * (70 + Math.random() * 60),
-                      y: Math.sin(i * 18 * Math.PI / 180) * (70 + Math.random() * 60),
-                      scale: [0, 1.5, 0],
-                      opacity: [1, 1, 0],
-                      rotate: 720
-                    }}
-                    transition={{ duration: 1, delay: 0.1 + i * 0.02, ease: "easeOut" }}
-                  >
-                    <Sparkles className="h-5 w-5 text-white" />
-                  </motion.div>
-                ))}
-                
-                {/* Central flash */}
+                {/* Initial flash */}
                 <motion.div
-                  className="absolute inset-0 rounded-3xl bg-white pointer-events-none"
-                  initial={{ opacity: 0.9 }}
+                  className="absolute inset-0 bg-white pointer-events-none rounded-2xl"
+                  initial={{ opacity: 0.7 }}
                   animate={{ opacity: 0 }}
-                  transition={{ duration: 0.4 }}
+                  transition={{ duration: 0.3 }}
                 />
                 
-                {/* Both avatars meeting with bounce */}
-                <div className="relative flex items-center justify-center h-32 z-10">
-                  {/* My avatar */}
-                  <motion.div
-                    className="absolute"
-                    initial={{ x: -80, scale: 0.4, opacity: 0 }}
-                    animate={{ x: -22, scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.15, type: "spring", stiffness: 300, damping: 20 }}
-                  >
-                    <Avatar className="h-20 w-20 border-4 border-white/90 shadow-xl">
-                      <AvatarImage src={profile?.avatar_url || ''} />
-                      <AvatarFallback className="text-xl bg-white/30 text-white font-bold">
-                        {profile?.username?.[0]?.toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                  </motion.div>
-                  
-                  {/* Friend's avatar */}
-                  <motion.div
-                    className="absolute"
-                    initial={{ x: 80, scale: 0.4, opacity: 0 }}
-                    animate={{ x: 22, scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.2, type: "spring", stiffness: 300, damping: 20 }}
-                  >
-                    <Avatar className="h-20 w-20 border-4 border-white/90 shadow-xl">
-                      <AvatarImage src={foundUser?.avatar_url || ''} />
-                      <AvatarFallback className="text-xl bg-white/30 text-white font-bold">
-                        {foundUser?.username?.[0]?.toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                  </motion.div>
-                  
-                  {/* Connection burst with pulse */}
-                  <motion.div
-                    className="absolute z-10"
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: [0, 1.6, 1], opacity: 1 }}
-                    transition={{ delay: 0.35, duration: 0.4, ease: "easeOut" }}
-                  >
-                    <motion.div 
-                      className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-lg"
-                      animate={{ scale: [1, 1.1, 1] }}
-                      transition={{ delay: 0.8, duration: 0.5, repeat: 2 }}
+                <div className="relative flex flex-col items-center justify-center p-8 gap-4" style={{ minHeight: 300 }}>
+                  {/* Both avatars */}
+                  <div className="relative flex items-center justify-center h-28 z-10">
+                    <motion.div
+                      className="absolute"
+                      initial={{ x: -60, scale: 0.5, opacity: 0 }}
+                      animate={{ x: -20, scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.1, type: "spring", stiffness: 300, damping: 22 }}
                     >
-                      <Check className="h-7 w-7 text-primary" strokeWidth={3} />
+                      <Avatar className="h-18 w-18 border-3 border-white/80 shadow-xl">
+                        <AvatarImage src={profile?.avatar_url || ''} />
+                        <AvatarFallback className="text-lg bg-white/30 text-white font-bold">
+                          {profile?.username?.[0]?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </motion.div>
+                    
+                    <motion.div
+                      className="absolute"
+                      initial={{ x: 60, scale: 0.5, opacity: 0 }}
+                      animate={{ x: 20, scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.15, type: "spring", stiffness: 300, damping: 22 }}
+                    >
+                      <Avatar className="h-18 w-18 border-3 border-white/80 shadow-xl">
+                        <AvatarImage src={foundUser?.avatar_url || ''} />
+                        <AvatarFallback className="text-lg bg-white/30 text-white font-bold">
+                          {foundUser?.username?.[0]?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </motion.div>
+                    
+                    {/* Checkmark */}
+                    <motion.div
+                      className="absolute z-10"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.3, type: "spring", stiffness: 400, damping: 15 }}
+                    >
+                      <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-lg">
+                        <Check className="h-6 w-6 text-primary" strokeWidth={3} />
+                      </div>
+                    </motion.div>
+                  </div>
+                  
+                  <motion.div 
+                    className="text-center text-white z-10"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <h3 className="text-xl font-bold">You're connected!</h3>
+                    <p className="text-white/70 mt-1 text-sm">
+                      {foundUser?.display_name || foundUser?.username} is now your friend 🎉
+                    </p>
+                    <motion.div
+                      className="flex items-center justify-center gap-2 mt-3 text-white/80"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5 }}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      <span className="text-sm">Opening chat...</span>
                     </motion.div>
                   </motion.div>
                 </div>
-                
-                {/* Text */}
-                <motion.div 
-                  className="text-center text-white z-10"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35 }}
-                >
-                  <h3 className="text-2xl font-bold">You're connected!</h3>
-                  <p className="text-white/80 mt-1">
-                    {foundUser?.display_name || foundUser?.username} is now your friend 🎉
-                  </p>
-                  <motion.div
-                    className="flex items-center justify-center gap-2 mt-3 text-white/90"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.6 }}
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    <span className="text-sm">Opening chat...</span>
-                  </motion.div>
-                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
