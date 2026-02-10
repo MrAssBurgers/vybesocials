@@ -318,44 +318,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // THEN check for existing session - this restores session from localStorage
-    logEvent('auth', 'Initializing: checking existing session');
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      // Mark as initialized so onAuthStateChange skips duplicate handling
-      authInitializedRef.current = true;
-      
-      logEvent('auth', 'getSession resolved', { hasSession: !!session, userId: session?.user?.id });
-      
-      // Validate session with getUser() to confirm it's still valid server-side
-      if (session?.user) {
-        const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
+    // Defer auth initialization until after first paint to prevent black screen
+    // requestAnimationFrame ensures at least one frame renders before heavy auth work
+    requestAnimationFrame(() => {
+      logEvent('auth', 'Initializing: checking existing session (deferred)');
+      supabase.auth.getSession().then(async ({ data: { session } }) => {
+        authInitializedRef.current = true;
         
-        if (userError || !validatedUser) {
-          console.warn('[Auth] Session exists but getUser() failed — session may be stale:', userError?.message);
+        logEvent('auth', 'getSession resolved', { hasSession: !!session, userId: session?.user?.id });
+        
+        if (session?.user) {
+          try {
+            const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
+            
+            if (userError || !validatedUser) {
+              console.warn('[Auth] Session exists but getUser() failed — session may be stale:', userError?.message);
+              setSession(null);
+              setUser(null);
+              setLoading(false);
+              setAuthReady(true);
+              setIsInitialized(true);
+              return;
+            }
+            
+            setSession(session);
+            setUser(validatedUser);
+            
+            if (session.expires_at) {
+              scheduleTokenRefresh(session.expires_at);
+            }
+            fetchProfile(validatedUser.id);
+          } catch (err) {
+            console.error('[Auth] Auth init error — continuing without session:', err);
+            setSession(null);
+            setUser(null);
+          }
+        } else {
           setSession(null);
           setUser(null);
-          setLoading(false);
-          setAuthReady(true);
-          setIsInitialized(true);
-          return;
         }
         
-        setSession(session);
-        setUser(validatedUser);
-        
-        // Schedule token refresh for persistent sessions
-        if (session.expires_at) {
-          scheduleTokenRefresh(session.expires_at);
-        }
-        fetchProfile(validatedUser.id);
-      } else {
-        setSession(null);
-        setUser(null);
-      }
-      
-      setLoading(false);
-      setAuthReady(true);
-      setIsInitialized(true);
+        setLoading(false);
+        setAuthReady(true);
+        setIsInitialized(true);
+      }).catch((err) => {
+        console.error('[Auth] getSession failed — rendering without auth:', err);
+        setLoading(false);
+        setAuthReady(true);
+        setIsInitialized(true);
+      });
     });
 
     // Handle "session-only" mode (Remember Me unchecked)

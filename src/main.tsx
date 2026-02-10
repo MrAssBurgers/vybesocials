@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import App from "./App.tsx";
 import "./index.css";
 import { initializeNativePlugins, isNativePlatform, isWeb } from "./lib/capacitor";
+import { RecoveryFallback } from "./components/error/RecoveryFallback";
 
 // Initialize native plugins if running on native platform
 if (isNativePlatform) {
@@ -20,20 +21,30 @@ if (isWeb && 'serviceWorker' in navigator) {
       });
       console.log('[VYBE] Service worker registered:', registration.scope);
       
-      // Check for updates periodically
       setInterval(() => {
         registration.update();
-      }, 60 * 60 * 1000); // Check every hour
+      }, 60 * 60 * 1000);
     } catch (error) {
       console.error('[VYBE] Service worker registration failed:', error);
     }
   });
 }
 
-// Enable concurrent features for better performance
+// Catch unhandled promise rejections globally
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[VYBE] Unhandled rejection:', event.reason);
+  event.preventDefault();
+});
+
+// Try/catch-safe bootstrap — always render something
 const root = createRoot(document.getElementById("root")!);
-root.render(
-  <StrictMode>
-    <App />
-  </StrictMode>
-);
+try {
+  root.render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
+} catch (error) {
+  console.error('[VYBE] Fatal bootstrap error:', error);
+  root.render(<RecoveryFallback />);
+}
