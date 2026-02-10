@@ -11,7 +11,7 @@ export function useUserBusiness() {
       if (!profile?.id) return null;
 
       const { data, error } = await supabase
-        .from('business_profiles')
+        .from('business_profiles_public')
         .select('id, name, slug, stripe_account_id, stripe_onboarding_complete')
         .eq('owner_id', profile.id)
         .eq('is_active', true)

@@ -110,7 +110,7 @@ export function useMyBusiness() {
       if (!profile) return null;
 
       const { data, error } = await supabase
-        .from('business_profiles')
+        .from('business_profiles_public')
         .select('*')
         .eq('owner_id', profile.id)
         .maybeSingle();
@@ -431,7 +431,7 @@ export function useMyOrders() {
         .from('business_orders')
         .select(`
           *,
-          business:business_profiles!business_id (
+          business:business_profiles_public!business_id (
             id,
             name,
             slug,
