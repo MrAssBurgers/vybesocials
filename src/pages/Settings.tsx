@@ -1,8 +1,8 @@
 import { useState, forwardRef, lazy, Suspense } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ChevronRight, Settings, Crown } from 'lucide-react';
+import { LogOut, ChevronRight, Settings } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useAuth } from '@/lib/auth';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -22,29 +22,16 @@ import { HelpSection } from '@/components/settings/HelpSection';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 
 // Lazy load developer section (only used in dev)
 const DeveloperSection = lazy(() => import('@/components/settings/DeveloperSection').then(m => ({ default: m.DeveloperSection })));
 
 const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref) {
   const { t } = useTranslation();
-  const { signOut, profile } = useAuth();
+  const { signOut } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('profile');
-
-  const { data: isOwner } = useQuery({
-    queryKey: ['is-owner', profile?.user_id],
-    queryFn: async () => {
-      if (!profile?.user_id) return false;
-      const { data } = await supabase.rpc('is_owner', { _user_id: profile.user_id });
-      return !!data;
-    },
-    enabled: !!profile?.user_id,
-    staleTime: 60_000,
-  });
 
   const handleSignOut = async () => {
     haptics.impact();
@@ -192,20 +179,6 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
             >
               <Separator />
 
-              {isOwner && (
-                <Link to="/admin/settings">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-between text-sm border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground h-11"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Crown className="h-4 w-4" />
-                      Owner Settings
-                    </span>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-              )}
 
               <Button
                 variant="outline"
