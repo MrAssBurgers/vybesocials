@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -12,6 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useStripeReady } from '@/hooks/useStripeConfig';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface StripeStatus {
   connected: boolean;
@@ -34,6 +35,7 @@ export function PaymentsSetup({
   stripeOnboardingComplete 
 }: PaymentsSetupProps) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { isReady: stripeReady, isLoading: stripeConfigLoading } = useStripeReady();
   const [status, setStatus] = useState<StripeStatus>({
     connected: !!stripeAccountId,
@@ -41,6 +43,72 @@ export function PaymentsSetup({
   });
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, []);
+
+  const checkStripeStatus = useCallback(async (silent = false) => {
+    if (!silent) setChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('check-stripe-connect');
+      if (error) {
+        console.error('Stripe check error:', error);
+        if (!silent) toast.error('Unable to check payment status. Please try again.');
+        return;
+      }
+      if (data?.error) {
+        console.error('Stripe check returned error:', data.error);
+        if (!silent) toast.error(data.error.includes('STRIPE_SECRET_KEY') 
+          ? 'Payment system is being configured. Please try again shortly.' 
+          : 'Unable to verify payment status.');
+        return;
+      }
+      
+      const prev = status;
+      setStatus(data);
+      
+      // If status changed, invalidate business query so the whole portal updates instantly
+      if (data.onboarding_complete !== prev.onboarding_complete ||
+          data.charges_enabled !== prev.charges_enabled ||
+          data.payouts_enabled !== prev.payouts_enabled ||
+          data.details_submitted !== prev.details_submitted) {
+        queryClient.invalidateQueries({ queryKey: ['my-business'] });
+      }
+      
+      // Stop polling once fully onboarded
+      if (data.onboarding_complete) {
+        stopPolling();
+      }
+    } catch (err) {
+      console.error('Failed to check Stripe status:', err);
+      if (!silent) toast.error('Unable to reach payment service. Please check your connection.');
+    } finally {
+      if (!silent) setChecking(false);
+    }
+  }, [status, queryClient, stopPolling]);
+
+  // Start polling after returning from Stripe
+  const startPolling = useCallback(() => {
+    stopPolling();
+    // Poll every 3 seconds for up to 60 seconds
+    let elapsed = 0;
+    pollIntervalRef.current = setInterval(() => {
+      elapsed += 3000;
+      if (elapsed > 60000) {
+        stopPolling();
+        return;
+      }
+      checkStripeStatus(true);
+    }, 3000);
+  }, [checkStripeStatus, stopPolling]);
+
+  // Cleanup on unmount
+  useEffect(() => stopPolling, [stopPolling]);
 
   // Check for Stripe return params
   useEffect(() => {
@@ -50,7 +118,7 @@ export function PaymentsSetup({
     if (stripeSuccess === 'true') {
       toast.success('Stripe setup completed! Verifying your account...');
       checkStripeStatus();
-      // Clear URL params
+      startPolling(); // Auto-poll to pick up status changes quickly
       searchParams.delete('stripe_success');
       setSearchParams(searchParams);
     }
@@ -68,31 +136,6 @@ export function PaymentsSetup({
       checkStripeStatus();
     }
   }, [stripeAccountId]);
-
-  const checkStripeStatus = async () => {
-    setChecking(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('check-stripe-connect');
-      if (error) {
-        console.error('Stripe check error:', error);
-        toast.error('Unable to check payment status. Please try again.');
-        return;
-      }
-      if (data?.error) {
-        console.error('Stripe check returned error:', data.error);
-        toast.error(data.error.includes('STRIPE_SECRET_KEY') 
-          ? 'Payment system is being configured. Please try again shortly.' 
-          : 'Unable to verify payment status.');
-        return;
-      }
-      setStatus(data);
-    } catch (err) {
-      console.error('Failed to check Stripe status:', err);
-      toast.error('Unable to reach payment service. Please check your connection.');
-    } finally {
-      setChecking(false);
-    }
-  };
 
   const handleConnectStripe = async () => {
     if (!stripeReady) {
@@ -284,7 +327,7 @@ export function PaymentsSetup({
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={checkStripeStatus}
+                  onClick={() => checkStripeStatus()}
                   disabled={checking}
                   className="gap-2"
                 >
@@ -312,7 +355,7 @@ export function PaymentsSetup({
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={checkStripeStatus}
+                  onClick={() => checkStripeStatus()}
                   disabled={checking}
                   className="gap-2"
                 >
