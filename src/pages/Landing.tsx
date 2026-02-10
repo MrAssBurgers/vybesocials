@@ -352,13 +352,23 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                       id="remember"
                       role="checkbox"
                       aria-checked={rememberMe}
+                      data-themed-svg
                       onClick={() => setRememberMe(!rememberMe)}
-                      className={`shrink-0 h-3 w-3 rounded-[2px] border transition-colors flex items-center justify-center ${
-                        rememberMe 
-                          ? 'bg-primary border-primary' 
-                          : 'border-muted-foreground/50 bg-transparent'
-                      }`}
-                      style={{ WebkitAppearance: 'none', appearance: 'none', fontSize: 0 }}
+                      className="shrink-0 rounded-[3px] border transition-colors flex items-center justify-center"
+                      style={{
+                        WebkitAppearance: 'none',
+                        appearance: 'none',
+                        fontSize: 0,
+                        width: '14px',
+                        height: '14px',
+                        minWidth: '14px',
+                        minHeight: '14px',
+                        maxWidth: '14px',
+                        maxHeight: '14px',
+                        padding: 0,
+                        backgroundColor: rememberMe ? 'hsl(var(--primary))' : 'transparent',
+                        borderColor: rememberMe ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.5)',
+                      }}
                     >
                       {rememberMe && (
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-primary-foreground">
