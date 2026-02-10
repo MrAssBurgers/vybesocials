@@ -291,6 +291,10 @@ export default function AdminSettings() {
       if (stripeConfig?.id) {
         const { error } = await supabase.from('stripe_config').update(updateData).eq('id', stripeConfig.id);
         if (error) throw error;
+      } else {
+        // No config row exists yet — insert one
+        const { error } = await supabase.from('stripe_config').insert(updateData);
+        if (error) throw error;
       }
 
       // Auto-validate after save
