@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.create-stripe-dashboard-link]
 verify_jwt = false
+
+[functions.validate-stripe-config]
+verify_jwt = false
