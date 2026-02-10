@@ -461,6 +461,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "business_offers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "business_offers_conversation_id_fkey"
             columns: ["conversation_id"]
             isOneToOne: false
@@ -588,6 +595,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "business_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "business_orders_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -683,6 +697,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_products_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles_public"
             referencedColumns: ["id"]
           },
         ]
@@ -842,6 +863,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_reviews_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles_public"
             referencedColumns: ["id"]
           },
           {
@@ -6509,6 +6537,100 @@ export type Database = {
       }
     }
     Views: {
+      business_profiles_public: {
+        Row: {
+          banner_url: string | null
+          business_hours: Json | null
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string | null
+          is_active: boolean | null
+          is_verified: boolean | null
+          location: string | null
+          logo_url: string | null
+          name: string | null
+          owner_id: string | null
+          rating_average: number | null
+          rating_count: number | null
+          slug: string | null
+          social_links: Json | null
+          stripe_onboarding_complete: boolean | null
+          total_sales: number | null
+          updated_at: string | null
+          view_count: number | null
+          website: string | null
+        }
+        Insert: {
+          banner_url?: string | null
+          business_hours?: Json | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          location?: string | null
+          logo_url?: string | null
+          name?: string | null
+          owner_id?: string | null
+          rating_average?: number | null
+          rating_count?: number | null
+          slug?: string | null
+          social_links?: Json | null
+          stripe_onboarding_complete?: boolean | null
+          total_sales?: number | null
+          updated_at?: string | null
+          view_count?: number | null
+          website?: string | null
+        }
+        Update: {
+          banner_url?: string | null
+          business_hours?: Json | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          location?: string | null
+          logo_url?: string | null
+          name?: string | null
+          owner_id?: string | null
+          rating_average?: number | null
+          rating_count?: number | null
+          slug?: string | null
+          social_links?: Json | null
+          stripe_onboarding_complete?: boolean | null
+          total_sales?: number | null
+          updated_at?: string | null
+          view_count?: number | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_profiles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "business_profiles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_profiles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       communities: {
         Row: {
           active_now_count: number | null
@@ -6665,7 +6787,6 @@ export type Database = {
           coins_balance: number | null
           created_at: string | null
           display_name: string | null
-          first_name: string | null
           id: string | null
           interests: string[] | null
           intro_completed: boolean | null
@@ -6688,7 +6809,6 @@ export type Database = {
           coins_balance?: number | null
           created_at?: string | null
           display_name?: string | null
-          first_name?: string | null
           id?: string | null
           interests?: string[] | null
           intro_completed?: boolean | null
@@ -6711,7 +6831,6 @@ export type Database = {
           coins_balance?: number | null
           created_at?: string | null
           display_name?: string | null
-          first_name?: string | null
           id?: string | null
           interests?: string[] | null
           intro_completed?: boolean | null
