@@ -21,9 +21,24 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const stripeKey = await getStripeSecretKey();
-    const keyCheck = validateStripeKey(stripeKey);
-    if (!keyCheck.valid) throw new Error(keyCheck.error!);
+    let stripeKey: string;
+    try {
+      stripeKey = await getStripeSecretKey();
+      const keyCheck = validateStripeKey(stripeKey);
+      if (!keyCheck.valid) {
+        logStep("Invalid Stripe key format", { error: keyCheck.error });
+        return new Response(
+          JSON.stringify({ connected: false, onboarding_complete: false, stripe_not_configured: true }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        );
+      }
+    } catch {
+      logStep("Stripe key not configured, returning gracefully");
+      return new Response(
+        JSON.stringify({ connected: false, onboarding_complete: false, stripe_not_configured: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
     logStep("Stripe key verified", { mode: keyCheck.mode, keyLength: stripeKey.length });
 
     const supabaseClient = createClient(
