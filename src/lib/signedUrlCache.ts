@@ -22,7 +22,7 @@ const CACHE_DURATION = 50 * 60 * 1000;
 const FAILED_CACHE_DURATION = 5 * 60 * 1000;
 
 // Current project's Supabase URL for validation
-const CURRENT_SUPABASE_PROJECT = 'eabvbtkxdbttjpdpbmuw';
+const CURRENT_SUPABASE_PROJECT = 'agtcyxjxgkdyoxwxkjth';
 
 /**
  * Check if URL belongs to the current Supabase project
