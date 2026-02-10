@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   UserPlus, X, Check, Sparkles, QrCode, Camera, 
-  ArrowLeftRight, Loader2, Heart, ZoomIn, Copy, Share2
+  ArrowLeftRight, Heart, Copy, Share2, ScanLine
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -29,125 +29,552 @@ interface FoundUser {
   bio: string | null;
 }
 
-// Inline expandable QR component with tap-to-toggle and profile picture
-const ExpandableQR = memo(function ExpandableQR({
+// Smooth spring preset
+const smoothSpring = { type: "spring" as const, stiffness: 300, damping: 28 };
+const gentleSpring = { type: "spring" as const, stiffness: 200, damping: 24 };
+
+// --- QR Code Component ---
+const ProfileQR = memo(function ProfileQR({
   qrCodeUrl,
-  isExpanded,
-  onToggle,
   avatarUrl,
   username,
 }: {
   qrCodeUrl: string;
-  isExpanded: boolean;
-  onToggle: () => void;
   avatarUrl?: string | null;
   username?: string | null;
 }) {
-  const size = isExpanded ? 256 : 128;
-  const avatarSize = isExpanded ? 56 : 32;
-  
   return (
-    <motion.button
-      className="relative cursor-pointer overflow-hidden"
-      onClick={onToggle}
-      layout
-      initial={false}
-      animate={{
-        width: size,
-        height: size,
-        padding: isExpanded ? 16 : 12,
-      }}
-      transition={{
-        type: "spring",
-        stiffness: 400,
-        damping: 30,
-        duration: 0.25,
-      }}
-      style={{
-        borderRadius: 16,
-        background: 'white',
-      }}
-      whileTap={{ scale: 0.98 }}
+    <motion.div
+      className="relative"
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={smoothSpring}
     >
-      <motion.img
-        src={qrCodeUrl}
-        alt="QR Code"
-        className="w-full h-full rounded-lg"
-        layout
-        transition={{
-          type: "spring",
-          stiffness: 400,
-          damping: 30,
-        }}
-      />
-      
-      {/* Profile picture overlay in center */}
-      <motion.div 
-        className="absolute inset-0 flex items-center justify-center pointer-events-none"
-        layout
-      >
-        <motion.div
-          className="relative rounded-full overflow-hidden border-2 border-white shadow-lg"
-          animate={{ width: avatarSize, height: avatarSize }}
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
-          style={{ background: 'white' }}
-        >
-          {avatarUrl ? (
-            <img 
-              src={avatarUrl} 
-              alt={username || 'Profile'} 
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground font-bold">
-              {username?.[0]?.toUpperCase() || 'V'}
-            </div>
-          )}
-        </motion.div>
-      </motion.div>
-      
-      {/* Expand/shrink indicator */}
-      <AnimatePresence mode="wait">
-        {!isExpanded && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-2xl opacity-0 hover:opacity-100 transition-opacity duration-200"
-          >
-            <ZoomIn className="h-6 w-6 text-white" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      {/* Shrink hint when expanded */}
-      <AnimatePresence mode="wait">
-        {isExpanded && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.2, delay: 0.1 }}
-            className="absolute bottom-2 left-0 right-0 text-center"
-          >
-            <span className="text-xs text-black/60 bg-white/80 px-2 py-1 rounded-full">
-              Tap to shrink
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.button>
+      <div className="relative w-52 h-52 rounded-2xl bg-white p-3 shadow-lg shadow-primary/10">
+        <img
+          src={qrCodeUrl}
+          alt="QR Code"
+          className="w-full h-full rounded-lg"
+        />
+        {/* Avatar overlay */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-11 h-11 rounded-full overflow-hidden border-[3px] border-white shadow-md bg-white">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={username || ''} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground font-bold text-sm">
+                {username?.[0]?.toUpperCase() || 'V'}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </motion.div>
   );
 });
 
+// --- Pulse Ring ---
+function PulseRing({ delay = 0, color = 'primary' }: { delay?: number; color?: string }) {
+  return (
+    <motion.div
+      className={`absolute inset-0 rounded-full border-2 border-${color}`}
+      initial={{ scale: 1, opacity: 0.6 }}
+      animate={{ scale: 2.2, opacity: 0 }}
+      transition={{ repeat: Infinity, duration: 2, delay, ease: "easeOut" }}
+    />
+  );
+}
+
+// --- Idle Phase ---
+function IdlePhase({ onShowProfile, onScan }: { onShowProfile: () => void; onScan: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -16 }}
+      transition={{ duration: 0.3 }}
+      className="flex flex-col items-center gap-8 py-8"
+    >
+      {/* Animated icon */}
+      <div className="relative">
+        <motion.div
+          className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-xl shadow-primary/20"
+          animate={{ scale: [1, 1.04, 1] }}
+          transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+        >
+          <ArrowLeftRight className="h-10 w-10 text-primary-foreground" />
+        </motion.div>
+        <PulseRing delay={0} />
+        <PulseRing delay={0.7} />
+      </div>
+
+      <div className="text-center space-y-1.5">
+        <h3 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          FriendDrop
+        </h3>
+        <p className="text-muted-foreground text-sm">
+          Share profiles instantly with QR
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3 w-full max-w-[260px]">
+        <Button onClick={onShowProfile} className="w-full gap-2 h-12 rounded-xl" size="lg">
+          <QrCode className="h-5 w-5" />
+          Show My Code
+        </Button>
+        <Button onClick={onScan} variant="outline" className="w-full gap-2 h-12 rounded-xl" size="lg">
+          <Camera className="h-5 w-5" />
+          Scan Code
+        </Button>
+      </div>
+    </motion.div>
+  );
+}
+
+// --- Showing Phase ---
+function ShowingPhase({
+  profile,
+  qrCodeUrl,
+  wasScanned,
+  onSwitchToScanner,
+  onCopy,
+  onShare,
+}: {
+  profile: any;
+  qrCodeUrl: string;
+  wasScanned: boolean;
+  onSwitchToScanner: () => void;
+  onCopy: () => void;
+  onShare: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.35 }}
+      className="flex flex-col items-center gap-5 py-4"
+    >
+      {/* Scanned indicator */}
+      <AnimatePresence>
+        {wasScanned && (
+          <motion.div
+            initial={{ opacity: 0, y: -12, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={smoothSpring}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/15 border border-emerald-500/25"
+          >
+            <Check className="h-4 w-4 text-emerald-500" />
+            <span className="text-sm text-emerald-500 font-medium">Code scanned!</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Profile card */}
+      <motion.div 
+        className="relative w-[280px] rounded-3xl overflow-hidden"
+        initial={{ rotateY: -15 }}
+        animate={{ rotateY: 0 }}
+        transition={gentleSpring}
+        style={{
+          boxShadow: wasScanned 
+            ? '0 8px 40px rgba(16, 185, 129, 0.25)' 
+            : '0 8px 40px hsl(var(--primary) / 0.2)',
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-accent" />
+        
+        {/* Subtle shimmer */}
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+          animate={{ x: ['-100%', '200%'] }}
+          transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut", repeatDelay: 1 }}
+        />
+        
+        <div className="relative p-6 flex flex-col items-center gap-4">
+          {/* Avatar */}
+          <div className="relative">
+            <div className="absolute -inset-1 rounded-full bg-white/20 blur-sm" />
+            <Avatar className="h-20 w-20 border-[3px] border-white/40 relative">
+              <AvatarImage src={profile?.avatar_url || ''} />
+              <AvatarFallback className="text-xl bg-white/20 text-white">
+                {profile?.username?.[0]?.toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </div>
+          
+          <div className="text-center text-white">
+            <h3 className="text-lg font-bold">{profile?.username}</h3>
+            <p className="text-white/70 text-sm">@{profile?.username?.trim()}</p>
+          </div>
+          
+          {/* QR Code */}
+          <ProfileQR
+            qrCodeUrl={qrCodeUrl}
+            avatarUrl={profile?.avatar_url}
+            username={profile?.username}
+          />
+          
+          {/* Share actions */}
+          <div className="flex gap-2">
+            <Button
+              variant="ghost" size="sm"
+              onClick={onCopy}
+              className="text-white/70 hover:text-white hover:bg-white/10 rounded-xl"
+            >
+              <Copy className="h-4 w-4 mr-1.5" />
+              Copy
+            </Button>
+            <Button
+              variant="ghost" size="sm"
+              onClick={onShare}
+              className="text-white/70 hover:text-white hover:bg-white/10 rounded-xl"
+            >
+              <Share2 className="h-4 w-4 mr-1.5" />
+              Share
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+
+      <Button 
+        variant="ghost" 
+        onClick={onSwitchToScanner}
+        className="gap-2 text-muted-foreground rounded-xl"
+      >
+        <Camera className="h-4 w-4" />
+        Switch to Scanner
+      </Button>
+    </motion.div>
+  );
+}
+
+// --- Scanning Phase ---
+function ScanningPhase({
+  videoRef,
+  canvasRef,
+  onCancel,
+}: {
+  videoRef: React.RefObject<HTMLVideoElement>;
+  canvasRef: React.RefObject<HTMLCanvasElement>;
+  onCancel: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
+      className="flex flex-col items-center gap-5 py-4"
+    >
+      <div className="relative w-full max-w-[280px] aspect-square rounded-3xl overflow-hidden bg-black/90 shadow-2xl">
+        <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+        <canvas ref={canvasRef} className="hidden" />
+        
+        {/* Overlay */}
+        <div className="absolute inset-0 pointer-events-none">
+          {/* Vignette */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/40" />
+          
+          {/* Corner brackets */}
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="absolute w-10 h-10"
+              style={{
+                top: i < 2 ? 28 : 'auto',
+                bottom: i >= 2 ? 28 : 'auto',
+                left: i % 2 === 0 ? 28 : 'auto',
+                right: i % 2 === 1 ? 28 : 'auto',
+              }}
+            >
+              <div 
+                className="w-full h-full border-primary/80"
+                style={{
+                  borderTopWidth: i < 2 ? 2.5 : 0,
+                  borderBottomWidth: i >= 2 ? 2.5 : 0,
+                  borderLeftWidth: i % 2 === 0 ? 2.5 : 0,
+                  borderRightWidth: i % 2 === 1 ? 2.5 : 0,
+                  borderTopLeftRadius: i === 0 ? 14 : 0,
+                  borderTopRightRadius: i === 1 ? 14 : 0,
+                  borderBottomLeftRadius: i === 2 ? 14 : 0,
+                  borderBottomRightRadius: i === 3 ? 14 : 0,
+                }}
+              />
+            </div>
+          ))}
+          
+          {/* Scan line */}
+          <motion.div
+            className="absolute left-7 right-7 h-[2px] rounded-full bg-gradient-to-r from-transparent via-primary/80 to-transparent"
+            animate={{ top: ['25%', '75%', '25%'] }}
+            transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+          />
+        </div>
+      </div>
+
+      <p className="text-sm text-muted-foreground flex items-center gap-2">
+        <ScanLine className="h-4 w-4" />
+        Point at their code
+      </p>
+
+      <Button variant="ghost" onClick={onCancel} className="rounded-xl text-muted-foreground">
+        Cancel
+      </Button>
+    </motion.div>
+  );
+}
+
+// --- Detected Phase ---
+function DetectedPhase() {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex flex-col items-center gap-6 py-16"
+    >
+      <motion.div
+        className="relative"
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ ...smoothSpring, bounce: 0.4 }}
+      >
+        <motion.div
+          className="w-28 h-28 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-xl"
+          animate={{ 
+            boxShadow: [
+              '0 0 20px hsl(var(--primary) / 0.3)',
+              '0 0 50px hsl(var(--primary) / 0.5)',
+              '0 0 20px hsl(var(--primary) / 0.3)',
+            ]
+          }}
+          transition={{ repeat: Infinity, duration: 1.5 }}
+        >
+          <Check className="h-12 w-12 text-primary-foreground" />
+        </motion.div>
+
+        {[0, 1, 2].map((i) => (
+          <motion.div
+            key={i}
+            className="absolute inset-0 rounded-full border border-primary/40"
+            initial={{ scale: 1, opacity: 0.5 }}
+            animate={{ scale: 2.5, opacity: 0 }}
+            transition={{ repeat: Infinity, duration: 1.8, delay: i * 0.6, ease: "easeOut" }}
+          />
+        ))}
+      </motion.div>
+
+      <motion.p
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="text-lg font-semibold text-primary"
+      >
+        Code Detected
+      </motion.p>
+    </motion.div>
+  );
+}
+
+// --- Found Phase ---
+function FoundPhase({
+  foundUser,
+  onCancel,
+  onAdd,
+  isPending,
+}: {
+  foundUser: FoundUser;
+  onCancel: () => void;
+  onAdd: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.35 }}
+      className="flex flex-col items-center gap-6 py-8"
+    >
+      <motion.div
+        initial={{ scale: 0.85, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={gentleSpring}
+        className="relative"
+      >
+        <div className="absolute -inset-4 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 blur-xl" />
+        <Avatar className="h-24 w-24 border-[3px] border-primary/30 relative shadow-lg">
+          <AvatarImage src={foundUser.avatar_url || undefined} />
+          <AvatarFallback className="text-2xl bg-primary/10">
+            {foundUser.username[0]?.toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="text-center space-y-1"
+      >
+        <h3 className="text-xl font-bold">
+          {foundUser.display_name || foundUser.username}
+        </h3>
+        <p className="text-muted-foreground text-sm">@{foundUser.username?.trim()}</p>
+        {foundUser.bio && (
+          <p className="text-sm text-muted-foreground/80 max-w-[240px] mt-2 line-clamp-2">{foundUser.bio}</p>
+        )}
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+        className="flex gap-3"
+      >
+        <Button variant="outline" onClick={onCancel} className="rounded-xl px-6">
+          Cancel
+        </Button>
+        <Button onClick={onAdd} className="rounded-xl px-6 gap-2" disabled={isPending}>
+          <UserPlus className="h-4 w-4" />
+          Add Friend
+        </Button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// --- Exchanging Phase ---
+function ExchangingPhase({
+  myAvatar,
+  myUsername,
+  theirAvatar,
+  theirUsername,
+}: {
+  myAvatar?: string | null;
+  myUsername?: string | null;
+  theirAvatar?: string | null;
+  theirUsername?: string | null;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex flex-col items-center gap-8 py-14"
+    >
+      <div className="relative flex items-center gap-6">
+        <motion.div
+          animate={{ x: [0, 12, 0] }}
+          transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+        >
+          <Avatar className="h-18 w-18 border-[3px] border-primary/30 shadow-lg" style={{ width: 72, height: 72 }}>
+            <AvatarImage src={myAvatar || undefined} />
+            <AvatarFallback className="text-lg">{myUsername?.[0]?.toUpperCase()}</AvatarFallback>
+          </Avatar>
+        </motion.div>
+
+        <motion.div
+          animate={{ scale: [0.9, 1.15, 0.9] }}
+          transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+        >
+          <Heart className="h-7 w-7 text-pink-500 fill-pink-500 drop-shadow-sm" />
+        </motion.div>
+
+        <motion.div
+          animate={{ x: [0, -12, 0] }}
+          transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+        >
+          <Avatar className="h-18 w-18 border-[3px] border-accent/30 shadow-lg" style={{ width: 72, height: 72 }}>
+            <AvatarImage src={theirAvatar || undefined} />
+            <AvatarFallback className="text-lg">{theirUsername?.[0]?.toUpperCase()}</AvatarFallback>
+          </Avatar>
+        </motion.div>
+      </div>
+
+      <motion.p
+        animate={{ opacity: [0.5, 1, 0.5] }}
+        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+        className="text-muted-foreground font-medium"
+      >
+        Connecting...
+      </motion.p>
+    </motion.div>
+  );
+}
+
+// --- Success Phase ---
+function SuccessPhase() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.4 }}
+      className="flex flex-col items-center gap-6 py-14"
+    >
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ ...smoothSpring, delay: 0.1, bounce: 0.4 }}
+        className="relative"
+      >
+        <motion.div
+          className="w-28 h-28 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-xl"
+          animate={{
+            boxShadow: [
+              '0 0 30px rgba(16, 185, 129, 0.25)',
+              '0 0 60px rgba(16, 185, 129, 0.4)',
+              '0 0 30px rgba(16, 185, 129, 0.25)',
+            ],
+          }}
+          transition={{ repeat: Infinity, duration: 2.5 }}
+        >
+          <Check className="h-12 w-12 text-white" />
+        </motion.div>
+
+        {/* Confetti particles */}
+        {[...Array(8)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute w-2.5 h-2.5 rounded-full"
+            style={{
+              background: i % 3 === 0 ? 'hsl(var(--primary))' : i % 3 === 1 ? 'hsl(var(--accent))' : '#10b981',
+              top: '50%',
+              left: '50%',
+            }}
+            initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+            animate={{
+              scale: [0, 1, 0.5],
+              x: Math.cos((i * Math.PI) / 4) * 80,
+              y: Math.sin((i * Math.PI) / 4) * 80,
+              opacity: [1, 1, 0],
+            }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+          />
+        ))}
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="text-center"
+      >
+        <h3 className="text-xl font-bold mb-1">Friend Added!</h3>
+        <p className="text-muted-foreground text-sm">You can now message each other</p>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+
+// ===== MAIN COMPONENT =====
 export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const { user, profile } = useAuth();
   const sendRequest = useSendFriendRequest();
   const [isOpen, setIsOpen] = useState(false);
   const [phase, setPhase] = useState<DropPhase>('idle');
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
-  const [isQrExpanded, setIsQrExpanded] = useState(false);
   const [wasScanned, setWasScanned] = useState(false);
   const [activeDropId, setActiveDropId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -155,7 +582,6 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Fetch user helper
   const fetchUser = async (userId: string): Promise<FoundUser | null> => {
     try {
       const { data, error } = await supabase
@@ -170,21 +596,14 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     }
   };
 
-  // Realtime sync for dual-device animation
   const friendDropSync = useFriendDropSync({
     enabled: isOpen,
     onScanned: useCallback((drop) => {
-      console.log('[FriendDrop] onScanned triggered, drop:', drop);
-      // QR owner sees this when their QR is scanned
       setWasScanned(true);
-      setIsQrExpanded(false); // Auto-shrink QR when scanned
       haptics.success();
-      
-      // Fetch the scanner's profile and show found phase
       if (drop.to_user_id) {
         fetchUser(drop.to_user_id).then((scannedUser) => {
           if (scannedUser) {
-            console.log('[FriendDrop] Found scanner user:', scannedUser);
             setFoundUser(scannedUser);
             setPhase('found');
           }
@@ -192,13 +611,10 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       }
     }, []),
     onConfirmed: useCallback(() => {
-      console.log('[FriendDrop] onConfirmed triggered - starting exchanging animation');
-      // Both devices see this - start the animation!
       setPhase('exchanging');
       haptics.impact();
     }, []),
     onCompleted: useCallback(() => {
-      console.log('[FriendDrop] onCompleted triggered - showing success');
       setPhase('success');
       haptics.success();
     }, []),
@@ -210,12 +626,10 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       ? `https://vybehub.app/add-friend/${user?.id}`
       : '';
   
-  // Use white background QR for better scannability with high error correction
   const qrCodeUrl = myProfileUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=000000&format=svg&ecc=H&margin=2`
     : '';
 
-  // Stop scanning helper - defined early so other callbacks can use it
   const stopScanning = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -226,14 +640,11 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     }
   }, []);
 
-  // Handle drop scan - called when scanner successfully scans QR
   const handleDropScan = useCallback(async (dropId: string) => {
     stopScanning();
     haptics.success();
     setPhase('detected');
-    console.log('[FriendDrop] Scanning drop:', dropId);
 
-    // Register ourselves as the scanner - this triggers realtime update to QR owner
     const scannedDrop = await friendDropSync.scanDrop(dropId);
     if (!scannedDrop) {
       toast.error('This code has expired');
@@ -241,15 +652,12 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       return;
     }
 
-    // Store the drop ID for later confirmation
     setActiveDropId(dropId);
 
-    // Fetch the QR owner's profile and show their info
     if (scannedDrop.from_user_id) {
       setTimeout(async () => {
         const ownerProfile = await fetchUser(scannedDrop.from_user_id);
         if (ownerProfile) {
-          console.log('[FriendDrop] Found QR owner:', ownerProfile);
           setFoundUser(ownerProfile);
           setPhase('found');
         }
@@ -266,9 +674,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setPhase('idle');
     setFoundUser(null);
     setWasScanned(false);
-    setIsQrExpanded(false);
     
-    // Create a drop session for realtime sync
     const drop = await friendDropSync.createDrop();
     if (drop) {
       setActiveDropId(drop.id);
@@ -278,11 +684,6 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const showMyProfile = useCallback(() => {
     setPhase('showing');
     haptics.impact();
-  }, []);
-
-  const toggleQrExpand = useCallback(() => {
-    setIsQrExpanded(prev => !prev);
-    haptics.tap();
   }, []);
 
   const startScanning = useCallback(async () => {
@@ -322,23 +723,15 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
         if (code) {
           const url = code.data;
-          
-          // Check for friend-drop URL (realtime sync)
           const dropMatch = url?.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
           if (dropMatch) {
-            const dropId = dropMatch[1];
-            await handleDropScan(dropId);
+            await handleDropScan(dropMatch[1]);
             return;
           }
-          
-          // Check for legacy add-friend URL
           const userMatch = url?.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
-          if (userMatch) {
-            const userId = userMatch[1];
-            if (userId !== user?.id) {
-              handleFoundUser(userId);
-              return;
-            }
+          if (userMatch && userMatch[1] !== user?.id) {
+            handleFoundUser(userMatch[1]);
+            return;
           }
         }
 
@@ -351,9 +744,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       toast.error('Could not access camera');
       setPhase('idle');
     }
-  }, [user?.id]);
-
-  // (handleDropScan moved above to fix declaration order)
+  }, [user?.id, handleDropScan]);
 
   const handleFoundUser = useCallback(async (userId: string) => {
     stopScanning();
@@ -371,7 +762,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         setPhase('idle');
       }
     }, 1200);
-  }, []);
+  }, [stopScanning]);
 
   const handleAddFriend = useCallback(async () => {
     if (!foundUser) return;
@@ -379,7 +770,6 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setPhase('exchanging');
     haptics.impact();
 
-    // Confirm the drop for realtime sync (both devices will see animation)
     if (activeDropId) {
       await friendDropSync.confirmDrop(activeDropId);
     }
@@ -387,7 +777,6 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     try {
       await sendRequest.mutateAsync(foundUser.id);
       
-      // Complete the drop
       if (activeDropId) {
         await friendDropSync.completeDrop(activeDropId);
       }
@@ -395,9 +784,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       setPhase('success');
       haptics.success();
       
-      setTimeout(() => {
-        handleClose();
-      }, 2500);
+      setTimeout(() => handleClose(), 2500);
     } catch (error: any) {
       if (error?.message?.includes('already')) {
         toast.info('Already friends or request pending!');
@@ -410,8 +797,6 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     }
   }, [foundUser, sendRequest, activeDropId, friendDropSync]);
 
-  // (stopScanning moved above for proper declaration order)
-
   const handleClose = useCallback(async () => {
     stopScanning();
     if (activeDropId) {
@@ -420,15 +805,12 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setIsOpen(false);
     setPhase('idle');
     setFoundUser(null);
-    setIsQrExpanded(false);
     setWasScanned(false);
     setActiveDropId(null);
   }, [stopScanning, activeDropId, friendDropSync]);
 
   useEffect(() => {
-    return () => {
-      stopScanning();
-    };
+    return () => { stopScanning(); };
   }, [stopScanning]);
 
   const copyLink = useCallback(() => {
@@ -440,526 +822,61 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const shareLink = useCallback(async () => {
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: 'Add me on VYBE!',
-          text: `Add me as a friend on VYBE`,
-          url: myProfileUrl,
-        });
-      } catch {
-        copyLink();
-      }
-    } else {
-      copyLink();
-    }
+        await navigator.share({ title: 'Add me on VYBE!', text: 'Add me as a friend on VYBE', url: myProfileUrl });
+      } catch { copyLink(); }
+    } else { copyLink(); }
   }, [myProfileUrl, copyLink]);
 
   const renderContent = () => {
-    // Initial choice screen
-    if (phase === 'idle') {
-      return (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          className="flex flex-col items-center gap-6 py-6"
-        >
-          <div className="relative">
-            <motion.div
-              className="w-28 h-28 rounded-full bg-gradient-to-br from-primary via-primary/80 to-accent flex items-center justify-center"
-              animate={{ 
-                scale: [1, 1.05, 1],
-                rotate: [0, 2, -2, 0]
-              }}
-              transition={{ repeat: Infinity, duration: 3 }}
-            >
-              <ArrowLeftRight className="h-14 w-14 text-primary-foreground" />
-            </motion.div>
-            
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                className="absolute"
-                style={{ top: '50%', left: '50%' }}
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 4, delay: i * 1.3, ease: "linear" }}
-              >
-                <motion.div style={{ x: 50, y: -8 }}>
-                  <Sparkles className="h-5 w-5 text-primary" />
-                </motion.div>
-              </motion.div>
-            ))}
-          </div>
-
-          <div className="text-center space-y-2">
-            <h3 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              FriendDrop
-            </h3>
-            <p className="text-muted-foreground text-sm max-w-xs">
-              Share profiles instantly — like AirDrop for friends!
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 w-full max-w-xs">
-            <Button 
-              onClick={showMyProfile}
-              className="w-full gradient-animated gap-2 h-12"
-              size="lg"
-            >
-              <QrCode className="h-5 w-5" />
-              Show My Profile
-            </Button>
-            <Button 
-              onClick={startScanning}
-              variant="outline"
-              className="w-full gap-2 h-12"
-              size="lg"
-            >
-              <Camera className="h-5 w-5" />
-              Scan Friend's Code
-            </Button>
-          </div>
-        </motion.div>
-      );
+    switch (phase) {
+      case 'idle':
+        return <IdlePhase onShowProfile={showMyProfile} onScan={startScanning} />;
+      case 'showing':
+        return (
+          <ShowingPhase
+            profile={profile}
+            qrCodeUrl={qrCodeUrl}
+            wasScanned={wasScanned}
+            onSwitchToScanner={() => { setPhase('idle'); setWasScanned(false); }}
+            onCopy={copyLink}
+            onShare={shareLink}
+          />
+        );
+      case 'scanning':
+        return (
+          <ScanningPhase
+            videoRef={videoRef as React.RefObject<HTMLVideoElement>}
+            canvasRef={canvasRef as React.RefObject<HTMLCanvasElement>}
+            onCancel={() => { stopScanning(); setPhase('idle'); }}
+          />
+        );
+      case 'detected':
+        return <DetectedPhase />;
+      case 'found':
+        return foundUser ? (
+          <FoundPhase
+            foundUser={foundUser}
+            onCancel={() => { setFoundUser(null); setPhase('idle'); }}
+            onAdd={handleAddFriend}
+            isPending={sendRequest.isPending}
+          />
+        ) : null;
+      case 'exchanging':
+        return (
+          <ExchangingPhase
+            myAvatar={profile?.avatar_url}
+            myUsername={profile?.username}
+            theirAvatar={foundUser?.avatar_url}
+            theirUsername={foundUser?.username}
+          />
+        );
+      case 'success':
+        return <SuccessPhase />;
+      default:
+        return null;
     }
-
-    // Showing my profile card with tap-to-enlarge QR
-    if (phase === 'showing') {
-      return (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8, rotateY: -90 }}
-          animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-          exit={{ opacity: 0, scale: 0.8, rotateY: 90 }}
-          transition={{ type: "spring", duration: 0.6 }}
-          className="flex flex-col items-center gap-4 py-4"
-        >
-          {/* Scanned indicator */}
-          <AnimatePresence>
-            {wasScanned && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/20 border border-green-500/30"
-              >
-                <Check className="h-4 w-4 text-green-400" />
-                <span className="text-sm text-green-400 font-medium">Scanned!</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <motion.div 
-            className="relative w-72 rounded-3xl overflow-hidden"
-            animate={{
-              boxShadow: wasScanned ? [
-                '0 0 40px hsl(142 76% 36% / 0.4)',
-                '0 0 80px hsl(142 76% 36% / 0.6)',
-                '0 0 40px hsl(142 76% 36% / 0.4)',
-              ] : [
-                '0 0 30px hsl(var(--primary) / 0.3)',
-                '0 0 60px hsl(var(--primary) / 0.5)',
-                '0 0 30px hsl(var(--primary) / 0.3)'
-              ]
-            }}
-            transition={{ repeat: Infinity, duration: 2 }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/80 to-accent" />
-            
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-              animate={{ x: ['-100%', '100%'] }}
-              transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-            />
-            
-            <div className="relative p-6 flex flex-col items-center gap-4">
-              <motion.div
-                className="relative"
-                animate={{ scale: [1, 1.02, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-              >
-                <div className="absolute -inset-1 rounded-full bg-white/30 blur-sm" />
-                <Avatar className="h-24 w-24 border-4 border-white/50 relative">
-                  <AvatarImage src={profile?.avatar_url || ''} />
-                  <AvatarFallback className="text-2xl bg-white/20 text-white">
-                    {profile?.username?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </motion.div>
-              
-          <div className="text-center text-white">
-            <h3 className="text-xl font-bold">
-              {profile?.username}
-            </h3>
-            <p className="text-white/80 text-sm">@{profile?.username?.trim()}</p>
-          </div>
-              
-              {/* Inline Tap-to-expand QR Code with profile picture */}
-              <ExpandableQR
-                qrCodeUrl={qrCodeUrl}
-                isExpanded={isQrExpanded}
-                onToggle={toggleQrExpand}
-                avatarUrl={profile?.avatar_url}
-                username={profile?.username}
-              />
-              
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={isQrExpanded ? 'shrink' : 'expand'}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  transition={{ duration: 0.15 }}
-                  className="text-primary-foreground/70 text-xs"
-                >
-                  {isQrExpanded ? 'Tap to shrink' : 'Tap QR to enlarge'}
-                </motion.p>
-              </AnimatePresence>
-              
-              {/* Share actions */}
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={copyLink}
-                  className="text-white/80 hover:text-white hover:bg-white/10"
-                >
-                  <Copy className="h-4 w-4 mr-1" />
-                  Copy
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={shareLink}
-                  className="text-white/80 hover:text-white hover:bg-white/10"
-                >
-                  <Share2 className="h-4 w-4 mr-1" />
-                  Share
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-
-          <Button 
-            variant="ghost" 
-            onClick={() => {
-              setPhase('idle');
-              setWasScanned(false);
-            }}
-            className="gap-2 text-muted-foreground"
-          >
-            <Camera className="h-4 w-4" />
-            Switch to Scanner
-          </Button>
-        </motion.div>
-      );
-    }
-
-    // Scanning mode
-    if (phase === 'scanning') {
-      return (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="flex flex-col items-center gap-4 py-4"
-        >
-          <div className="relative w-full max-w-xs aspect-square rounded-3xl overflow-hidden bg-black">
-            <video 
-              ref={videoRef} 
-              className="w-full h-full object-cover"
-              playsInline
-              muted
-            />
-            <canvas ref={canvasRef} className="hidden" />
-            
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/50" />
-              <div className="absolute inset-8 border-2 border-primary/50 rounded-2xl" />
-              
-              {[0, 1, 2, 3].map((i) => (
-                <motion.div
-                  key={i}
-                  className="absolute w-8 h-8"
-                  style={{
-                    top: i < 2 ? 24 : 'auto',
-                    bottom: i >= 2 ? 24 : 'auto',
-                    left: i % 2 === 0 ? 24 : 'auto',
-                    right: i % 2 === 1 ? 24 : 'auto',
-                  }}
-                  animate={{ opacity: [0.5, 1, 0.5] }}
-                  transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
-                >
-                  <div 
-                    className="w-full h-full border-primary"
-                    style={{
-                      borderTopWidth: i < 2 ? 3 : 0,
-                      borderBottomWidth: i >= 2 ? 3 : 0,
-                      borderLeftWidth: i % 2 === 0 ? 3 : 0,
-                      borderRightWidth: i % 2 === 1 ? 3 : 0,
-                      borderTopLeftRadius: i === 0 ? 12 : 0,
-                      borderTopRightRadius: i === 1 ? 12 : 0,
-                      borderBottomLeftRadius: i === 2 ? 12 : 0,
-                      borderBottomRightRadius: i === 3 ? 12 : 0,
-                    }}
-                  />
-                </motion.div>
-              ))}
-              
-              <motion.div
-                className="absolute left-8 right-8 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent"
-                animate={{ top: ['20%', '80%', '20%'] }}
-                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-              />
-            </div>
-          </div>
-
-          <p className="text-sm text-muted-foreground">
-            Point at their FriendDrop code
-          </p>
-
-          <Button 
-            variant="ghost" 
-            onClick={() => {
-              stopScanning();
-              setPhase('idle');
-            }}
-          >
-            Cancel
-          </Button>
-        </motion.div>
-      );
-    }
-
-    // QR Detected animation
-    if (phase === 'detected') {
-      return (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center gap-6 py-12"
-        >
-          <motion.div
-            className="relative"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", bounce: 0.5 }}
-          >
-            <motion.div
-              className="w-32 h-32 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center"
-              animate={{ 
-                scale: [1, 1.1, 1],
-                boxShadow: [
-                  '0 0 30px hsl(var(--primary) / 0.4)',
-                  '0 0 60px hsl(var(--primary) / 0.7)',
-                  '0 0 30px hsl(var(--primary) / 0.4)',
-                ]
-              }}
-              transition={{ repeat: Infinity, duration: 1 }}
-            >
-              <Check className="h-16 w-16 text-primary-foreground" />
-            </motion.div>
-
-            {/* Ripple effects */}
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                className="absolute inset-0 rounded-full border-2 border-primary"
-                initial={{ scale: 1, opacity: 0.8 }}
-                animate={{ scale: 2.5, opacity: 0 }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 1.5,
-                  delay: i * 0.5,
-                  ease: "easeOut",
-                }}
-              />
-            ))}
-          </motion.div>
-
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-lg font-semibold text-primary"
-          >
-            Code Detected!
-          </motion.p>
-        </motion.div>
-      );
-    }
-
-    // Found user - show profile
-    if (phase === 'found' && foundUser) {
-      return (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          className="flex flex-col items-center gap-6 py-6"
-        >
-          <motion.div
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring" }}
-            className="relative"
-          >
-            <div className="absolute -inset-3 rounded-full bg-gradient-to-br from-primary to-accent opacity-30 blur-lg" />
-            <Avatar className="h-28 w-28 border-4 border-primary/50 relative">
-              <AvatarImage src={foundUser.avatar_url || undefined} />
-              <AvatarFallback className="text-3xl bg-primary/20">
-                {foundUser.username[0]?.toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          </motion.div>
-
-          <div className="text-center space-y-1">
-            <h3 className="text-2xl font-bold">
-              {foundUser.display_name || foundUser.username}
-            </h3>
-            <p className="text-muted-foreground">@{foundUser.username?.trim()}</p>
-            {foundUser.bio && (
-              <p className="text-sm text-muted-foreground max-w-xs mt-2">{foundUser.bio}</p>
-            )}
-          </div>
-
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setFoundUser(null);
-                setPhase('idle');
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAddFriend}
-              className="gradient-animated gap-2"
-              disabled={sendRequest.isPending}
-            >
-              <UserPlus className="h-4 w-4" />
-              Add Friend
-            </Button>
-          </div>
-        </motion.div>
-      );
-    }
-
-    // Exchanging animation
-    if (phase === 'exchanging') {
-      return (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center gap-8 py-12"
-        >
-          <div className="relative flex items-center gap-8">
-            {/* My avatar */}
-            <motion.div
-              animate={{ x: [0, 20, 0] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-            >
-              <Avatar className="h-20 w-20 border-4 border-primary/50">
-                <AvatarImage src={profile?.avatar_url || undefined} />
-                <AvatarFallback>{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
-              </Avatar>
-            </motion.div>
-
-            {/* Heart icon */}
-            <motion.div
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ repeat: Infinity, duration: 0.5 }}
-            >
-              <Heart className="h-8 w-8 text-pink-500 fill-pink-500" />
-            </motion.div>
-
-            {/* Their avatar */}
-            <motion.div
-              animate={{ x: [0, -20, 0] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-            >
-              <Avatar className="h-20 w-20 border-4 border-accent/50">
-                <AvatarImage src={foundUser?.avatar_url || undefined} />
-                <AvatarFallback>{foundUser?.username?.[0]?.toUpperCase()}</AvatarFallback>
-              </Avatar>
-            </motion.div>
-          </div>
-
-          <motion.p
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-            className="text-muted-foreground"
-          >
-            Connecting...
-          </motion.p>
-        </motion.div>
-      );
-    }
-
-    // Success animation
-    if (phase === 'success') {
-      return (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center gap-6 py-12"
-        >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
-            className="relative"
-          >
-            <motion.div
-              className="w-32 h-32 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center"
-              animate={{
-                boxShadow: [
-                  '0 0 40px rgba(34, 197, 94, 0.3)',
-                  '0 0 80px rgba(34, 197, 94, 0.5)',
-                  '0 0 40px rgba(34, 197, 94, 0.3)',
-                ],
-              }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            >
-              <Check className="h-16 w-16 text-white" />
-            </motion.div>
-
-            {/* Confetti-like particles */}
-            {[...Array(8)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute w-3 h-3 rounded-full"
-                style={{
-                  background: i % 2 === 0 ? 'hsl(var(--primary))' : 'hsl(var(--accent))',
-                  top: '50%',
-                  left: '50%',
-                }}
-                initial={{ scale: 0, x: 0, y: 0 }}
-                animate={{
-                  scale: [0, 1, 0],
-                  x: Math.cos((i * Math.PI) / 4) * 100,
-                  y: Math.sin((i * Math.PI) / 4) * 100,
-                }}
-                transition={{ duration: 1, delay: 0.3 }}
-              />
-            ))}
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="text-center"
-          >
-            <h3 className="text-2xl font-bold mb-1">Friend Added!</h3>
-            <p className="text-muted-foreground">You can now message each other</p>
-          </motion.div>
-        </motion.div>
-      );
-    }
-
-    return null;
   };
 
-  // Render trigger based on variant
   const renderTrigger = () => {
     switch (variant) {
       case 'icon':
@@ -973,17 +890,17 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
           <motion.button
             onClick={handleOpen}
             className="w-full p-4 rounded-2xl bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 flex items-center gap-4"
-            whileHover={{ scale: 1.02 }}
+            whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
           >
-            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0">
               <ArrowLeftRight className="h-6 w-6 text-primary-foreground" />
             </div>
             <div className="text-left">
               <h4 className="font-semibold">FriendDrop</h4>
               <p className="text-sm text-muted-foreground">Add friends instantly with QR</p>
             </div>
-            <Sparkles className="ml-auto h-5 w-5 text-primary" />
+            <Sparkles className="ml-auto h-5 w-5 text-primary shrink-0" />
           </motion.button>
         );
       default:
@@ -1000,20 +917,18 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     <>
       {renderTrigger()}
 
-      {/* Main Dialog */}
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md p-6 border-0 bg-background/95 backdrop-blur-xl rounded-3xl overflow-hidden [&>button]:hidden">
+        <DialogContent className="sm:max-w-md p-6 border-0 bg-background/95 backdrop-blur-2xl rounded-3xl overflow-hidden [&>button]:hidden">
           <AnimatePresence mode="wait">
             {renderContent()}
           </AnimatePresence>
 
-          {/* Custom close button */}
-          {phase !== 'success' && phase !== 'exchanging' && (
+          {phase !== 'success' && phase !== 'exchanging' && phase !== 'detected' && (
             <Button
               variant="ghost"
               size="icon"
               onClick={handleClose}
-              className="absolute top-4 right-4 h-8 w-8 rounded-full"
+              className="absolute top-4 right-4 h-9 w-9 rounded-full"
             >
               <X className="h-4 w-4" />
             </Button>
