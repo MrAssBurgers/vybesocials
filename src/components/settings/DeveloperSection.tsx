@@ -9,7 +9,8 @@ import {
   ChevronRight,
   Lock,
   Sparkles,
-  Terminal
+  Terminal,
+  Crown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -19,11 +20,30 @@ import { getEventLog, clearEventLog } from '@/lib/analytics';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
+import { useAuth } from '@/lib/auth';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { StripeSettingsSection } from '@/components/admin/settings/StripeSettingsSection';
+import { SecretsManagerSection } from '@/components/admin/settings/SecretsManagerSection';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CreditCard, Key } from 'lucide-react';
 
 export function DeveloperSection() {
   const [flags, setFlags] = useState<FeatureFlags>(getFeatureFlags());
   const [showAnalytics, setShowAnalytics] = useState(false);
   const debugPanel = useDebugPanel();
+  const { profile } = useAuth();
+
+  const { data: isOwner } = useQuery({
+    queryKey: ['is-owner', profile?.user_id],
+    queryFn: async () => {
+      if (!profile?.user_id) return false;
+      const { data } = await supabase.rpc('is_owner', { _user_id: profile.user_id });
+      return !!data;
+    },
+    enabled: !!profile?.user_id,
+    staleTime: 60_000,
+  });
 
   const handleFlagChange = (flag: keyof FeatureFlags, value: boolean) => {
     haptics.tap();
@@ -225,6 +245,47 @@ export function DeveloperSection() {
           </motion.div>
         )}
       </motion.div>
+
+      {/* Owner Settings */}
+      {isOwner && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="liquid-glass-card p-4 sm:p-6"
+        >
+          <div className="flex items-start gap-4 mb-6">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Crown className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-base mb-1">Owner Settings</h3>
+              <p className="text-sm text-muted-foreground">
+                Platform configuration & API keys
+              </p>
+            </div>
+          </div>
+
+          <Tabs defaultValue="secrets" className="w-full">
+            <TabsList className="w-full justify-start">
+              <TabsTrigger value="secrets" className="gap-2">
+                <Key className="h-4 w-4" />
+                API Keys
+              </TabsTrigger>
+              <TabsTrigger value="payments" className="gap-2">
+                <CreditCard className="h-4 w-4" />
+                Payments
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="secrets" className="mt-4">
+              <SecretsManagerSection />
+            </TabsContent>
+            <TabsContent value="payments" className="mt-4">
+              <StripeSettingsSection />
+            </TabsContent>
+          </Tabs>
+        </motion.div>
+      )}
     </div>
   );
 }
