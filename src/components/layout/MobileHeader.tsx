@@ -1,3 +1,4 @@
+import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Bell, Target, Flame } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,7 +10,7 @@ import { HeaderSearch } from './HeaderSearch';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
-export function MobileHeader() {
+export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHeader(_props, ref) {
   const { profile } = useAuth();
   const { data: unreadCount = 0 } = useUnreadCount();
   const streakCount = useStreakCount();
@@ -104,4 +105,5 @@ export function MobileHeader() {
       </div>
     </header>
   );
-}
+});
+MobileHeader.displayName = 'MobileHeader';

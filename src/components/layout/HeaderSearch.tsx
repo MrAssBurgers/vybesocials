@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, memo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, X, TrendingUp, Clock, Users, Hash, Film, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -98,7 +98,7 @@ const SearchResultItem = memo(function SearchResultItem({
   );
 });
 
-export function HeaderSearch({ className }: { className?: string }) {
+export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: string }>(function HeaderSearch({ className }, ref) {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -438,4 +438,5 @@ export function HeaderSearch({ className }: { className?: string }) {
       </AnimatePresence>
     </div>
   );
-}
+});
+HeaderSearch.displayName = 'HeaderSearch';
