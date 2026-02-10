@@ -393,8 +393,10 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
               <div className="space-y-3">
                 <Section title="Secrets & Config" icon={CreditCard} defaultOpen>
                   <Row label="STRIPE_SECRET_KEY" value={<StatusBadge exists={stripeSecrets.STRIPE_SECRET_KEY ?? false} />} />
+                  <Row label="STRIPE_WEBHOOK_SECRET" value={<StatusBadge exists={stripeSecrets.STRIPE_WEBHOOK_SECRET ?? false} />} />
                   <Row label="STRIPE_CLIENT_ID" value={<StatusBadge exists={stripeSecrets.STRIPE_CLIENT_ID ?? false} />} />
                   <Row label="STRIPE_PUBLISHABLE_KEY" value={<StatusBadge exists={stripeSecrets.STRIPE_PUBLISHABLE_KEY ?? false} />} />
+                  <Row label="Stripe Enabled" value={stripeSecrets.stripe_enabled ? 'Yes' : 'No'} variant={stripeSecrets.stripe_enabled ? 'success' : 'default'} />
                   <Row label="Stripe Mode" value={stripeSecrets.stripe_mode || 'unknown'} variant={String(stripeSecrets.stripe_mode) === 'live' ? 'warning' : 'default'} />
                   <Row label="OAuth Redirect" value={`${window.location.origin}/business`} />
                   <div className="flex gap-2 pt-2">
