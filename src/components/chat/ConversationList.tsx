@@ -556,8 +556,8 @@ const ConversationContent = memo(function ConversationContent({
           </button>
         )}
         {isPinned && (
-          <div className="absolute -top-1 -right-1 bg-primary rounded-full p-0.5">
-            <Pin className="h-2.5 w-2.5 text-primary-foreground" />
+          <div className="absolute -top-1 -right-1 bg-primary rounded-full p-[3px] border-2 border-background shadow-sm">
+            <Pin className="h-2.5 w-2.5 text-primary-foreground fill-primary-foreground" />
           </div>
         )}
       </div>
