@@ -297,7 +297,7 @@ export default function AdminSettings() {
         if (error) throw error;
       }
 
-      // Auto-validate after save
+      // Auto-validate after save (non-blocking — don't let secret key issues block publishable key saves)
       try {
         const headers = await getFunctionAuthHeaders();
         const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-stripe-config`, {
@@ -306,8 +306,12 @@ export default function AdminSettings() {
         const result = await res.json();
         setValidationResult(result);
         setLastValidation(new Date());
-        if (!result.valid && result.errors?.length) {
-          return { warnings: result.errors };
+        // Only return warnings about the publishable key, not the secret key
+        const pkWarnings = (result.errors || []).filter((e: string) =>
+          e.toLowerCase().includes('publishable')
+        );
+        if (pkWarnings.length > 0) {
+          return { warnings: pkWarnings };
         }
       } catch { /* validation call failed, save still succeeded */ }
       return { warnings: [] };
