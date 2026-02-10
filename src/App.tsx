@@ -139,6 +139,7 @@ function AppWithPreloader() {
   useAutoUpdate();
   useRealtimeProfiles();
 
+  // Dismiss splash when preload completes
   useEffect(() => {
     if (preloadStatus.isComplete && showSplash) {
       const timer = setTimeout(() => {
@@ -147,16 +148,19 @@ function AppWithPreloader() {
       }, 300);
       return () => clearTimeout(timer);
     }
-    // Safety: never block rendering for more than 5 seconds
-    if (showSplash) {
-      const safety = setTimeout(() => {
-        setShowSplash(false);
-        hasInitialLoadCompleted = true;
-        console.warn('[VYBE] Splash safety timeout — forcing render');
-      }, 5000);
-      return () => clearTimeout(safety);
-    }
   }, [preloadStatus.isComplete, showSplash]);
+
+  // SAFETY: Unconditional 3-second max splash — never blocks rendering
+  // This runs once on mount and is never reset by re-renders
+  useEffect(() => {
+    if (hasInitialLoadCompleted) return;
+    const safety = setTimeout(() => {
+      setShowSplash(false);
+      hasInitialLoadCompleted = true;
+      console.warn('[VYBE] Splash safety timeout — forcing render');
+    }, 3000);
+    return () => clearTimeout(safety);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
