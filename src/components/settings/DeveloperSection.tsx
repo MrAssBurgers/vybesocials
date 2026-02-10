@@ -73,7 +73,7 @@ export function DeveloperSection() {
             className="w-full justify-between h-12 sm:h-14"
             onClick={() => {
               haptics.tap();
-              navigate('/admin-settings');
+              navigate('/admin/settings');
             }}
           >
             <span className="flex items-center gap-2.5">
