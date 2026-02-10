@@ -6,6 +6,37 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function verifyAdmin(supabaseClient: any, req: Request) {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) throw new Error("Unauthorized");
+  const token = authHeader.replace("Bearer ", "");
+  const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
+  if (userError || !userData.user) throw new Error("Unauthorized");
+
+  const { data: rolesAuth } = await supabaseClient
+    .from("user_roles_auth")
+    .select("role")
+    .eq("user_id", userData.user.id);
+  let isAdmin = rolesAuth?.some((r: any) => r.role === "admin" || r.role === "owner");
+
+  if (!isAdmin) {
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("id")
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
+    if (profile) {
+      const { data: roles } = await supabaseClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", profile.id);
+      isAdmin = roles?.some((r: any) => r.role === "admin" || r.role === "owner");
+    }
+  }
+  if (!isAdmin) throw new Error("Forbidden: admin only");
+  return userData.user;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -18,38 +49,90 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // Verify admin
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Unauthorized");
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError || !userData.user) throw new Error("Unauthorized");
+    await verifyAdmin(supabaseClient, req);
 
-    // Check both user_roles (profile-keyed) and user_roles_auth (auth-keyed)
-    const { data: rolesAuth } = await supabaseClient
-      .from("user_roles_auth")
-      .select("role")
-      .eq("user_id", userData.user.id);
-    let isAdmin = rolesAuth?.some((r: any) => r.role === "admin" || r.role === "owner");
+    const body = await req.json();
+    const { action } = body;
 
-    if (!isAdmin) {
-      // Fallback: check legacy user_roles table via profile lookup
-      const { data: profile } = await supabaseClient
-        .from("profiles")
-        .select("id")
-        .eq("user_id", userData.user.id)
-        .maybeSingle();
-      if (profile) {
-        const { data: roles } = await supabaseClient
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", profile.id);
-        isAdmin = roles?.some((r: any) => r.role === "admin" || r.role === "owner");
+    // ── SQL Execution action ──
+    if (action === "execute_sql") {
+      const { sql } = body;
+      if (!sql || typeof sql !== "string") {
+        return new Response(JSON.stringify({ error: "SQL query string is required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Safety: block destructive DDL (DROP DATABASE, TRUNCATE without WHERE-like safety)
+      const upperSql = sql.toUpperCase().trim();
+      const blocked = ["DROP DATABASE", "DROP SCHEMA", "ALTER DATABASE"];
+      for (const b of blocked) {
+        if (upperSql.includes(b)) {
+          return new Response(JSON.stringify({ error: `Blocked: "${b}" is not allowed` }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      try {
+        // Use the rpc to run raw sql via a db function, or just use the REST api
+        // We'll use the postgres connection through supabase-js by calling rpc
+        // Since there's no built-in raw SQL rpc, we query using the postgrest approach
+        // For SELECT queries, we can parse and route, but for full SQL we need a db function
+        
+        // Create a temporary function approach - use pg_catalog or direct fetch
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+        
+        // Use the Supabase REST SQL endpoint (available via service role)
+        const sqlResp = await fetch(`${supabaseUrl}/rest/v1/rpc/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceKey}`,
+            apikey: serviceKey,
+          },
+          body: JSON.stringify({}),
+        });
+
+        // The REST API doesn't support raw SQL directly, so we'll use the pg meta API
+        // which is available at /pg/query for service role
+        const pgResp = await fetch(`${supabaseUrl}/pg/query`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceKey}`,
+            apikey: serviceKey,
+          },
+          body: JSON.stringify({ query: sql }),
+        });
+
+        if (!pgResp.ok) {
+          const errText = await pgResp.text();
+          return new Response(JSON.stringify({ 
+            error: `SQL error: ${errText}`,
+            status: pgResp.status 
+          }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const result = await pgResp.json();
+        return new Response(JSON.stringify({ 
+          success: true, 
+          result,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (sqlErr: any) {
+        return new Response(JSON.stringify({ error: `SQL execution failed: ${sqlErr.message}` }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
-    if (!isAdmin) throw new Error("Forbidden: admin only");
 
-    const { messages } = await req.json();
+    // ── AI Chat action (default) ──
+    const { messages } = body;
     if (!messages || !Array.isArray(messages)) {
       throw new Error("messages array is required");
     }
@@ -62,27 +145,39 @@ serve(async (req) => {
 You have deep knowledge of the VYBE app architecture:
 - React + TypeScript + Tailwind CSS + Vite frontend
 - Supabase backend (PostgreSQL, Edge Functions, Auth, Storage, Realtime)
-- Key tables: profiles, posts, comments, likes, follows, conversations, messages, notifications, reports, user_roles, badges, user_badges, challenges, business_profiles, business_products, business_orders, events, communities, channels, analytics_events
+- Key tables: profiles, posts, comments, likes, follows, conversations, messages, notifications, reports, user_roles, user_roles_auth, badges, user_badges, challenges, business_profiles, business_products, business_orders, events, communities, channels, analytics_events
 - Stripe Connect for business payments
 - AI features powered by Lovable AI Gateway
 - Capacitor for native mobile (iOS/Android)
 
+IMPORTANT — SQL EXECUTION:
+You can execute SQL queries directly! When a user asks you to fix data, query the database, or make changes, you should provide the SQL and tell them to click the "Run SQL" button that appears with your code blocks. Format SQL in code blocks with the language tag \`sql\`.
+
+When the user says "run it" or "execute it" after you provide SQL, respond with the SQL wrapped in a special format:
+\`\`\`sql:execute
+YOUR SQL HERE
+\`\`\`
+
+This will automatically trigger execution. Use this for:
+- SELECT queries to inspect data
+- UPDATE/INSERT/DELETE to fix data issues
+- CREATE/ALTER for schema changes
+
+Safety rules:
+- Always use LIMIT on SELECT queries (max 100)
+- Warn before destructive operations (DELETE, DROP, TRUNCATE)
+- Never DROP DATABASE or DROP SCHEMA
+- Show the query first and explain what it does before auto-executing
+
 You can help admins with:
-
-1. **Database Management**: Write SQL queries, suggest schema changes, debug data issues, analyze table contents
-2. **Feature Planning**: Design new features, suggest implementation approaches, plan database schema
+1. **Database Management**: Write & execute SQL queries, fix data issues, analyze tables
+2. **Feature Planning**: Design new features, suggest implementation approaches
 3. **Bug Diagnosis**: Analyze error logs, suggest fixes, explain error patterns
-4. **Content Moderation**: Help with moderation strategies, flag patterns, user management
-5. **Performance**: Suggest optimizations, identify bottlenecks, recommend indexing strategies
-6. **Business Logic**: Stripe integration help, analytics queries, growth strategies
+4. **Content Moderation**: Help with moderation strategies, flag patterns
+5. **Performance**: Suggest optimizations, identify bottlenecks, indexing strategies
+6. **Business Logic**: Stripe integration help, analytics queries
 7. **Edge Functions**: Help write/debug Deno edge functions
-8. **UI/UX**: Suggest component improvements, accessibility fixes, design patterns
-
-When providing SQL queries, always:
-- Use proper RLS considerations
-- Suggest safe read-only queries first
-- Warn about destructive operations
-- Include LIMIT clauses
+8. **UI/UX**: Suggest component improvements, accessibility fixes
 
 Format responses with markdown for readability. Use code blocks for SQL/code.
 Be concise but thorough. Think step-by-step for complex requests.`;

@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.validate-stripe-config]
 verify_jwt = false
+
+[functions.admin-ai-builder]
+verify_jwt = false
+
+[functions.admin-debug-tools]
+verify_jwt = false
