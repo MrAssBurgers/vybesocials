@@ -37,8 +37,8 @@ serve(async (req) => {
     logStep("User authenticated", { userId });
 
     // Admin check
-    const { data: isAdmin } = await supabaseClient.rpc('is_admin', { _user_id: userId });
-    if (!isAdmin) {
+    const { data: isOwnerResult } = await supabaseClient.rpc('is_owner', { _user_id: userId });
+    if (!isOwnerResult) {
       return new Response(JSON.stringify({ error: "Access denied" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 403,

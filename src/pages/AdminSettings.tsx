@@ -1,23 +1,36 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { useUserRole } from '@/hooks/useModeration';
 import { useAuth } from '@/lib/auth';
 import { StripeSettingsSection } from '@/components/admin/settings/StripeSettingsSection';
 import { Settings, CreditCard, Loader2, ShieldAlert } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+function useIsOwner() {
+  const { profile } = useAuth();
+  return useQuery({
+    queryKey: ['is-owner', profile?.user_id],
+    queryFn: async () => {
+      if (!profile?.user_id) return false;
+      const { data } = await supabase.rpc('is_owner', { _user_id: profile.user_id });
+      return !!data;
+    },
+    enabled: !!profile?.user_id,
+    staleTime: 60_000,
+  });
+}
 
 export default function AdminSettings() {
-  const { profile } = useAuth();
-  const { data: userRole, isLoading: roleLoading } = useUserRole();
+  const { data: isOwner, isLoading: roleLoading } = useIsOwner();
   const navigate = useNavigate();
-  const isAdmin = userRole === 'admin';
 
   useEffect(() => {
-    if (!roleLoading && !isAdmin) {
+    if (!roleLoading && !isOwner) {
       navigate('/home');
     }
-  }, [roleLoading, isAdmin, navigate]);
+  }, [roleLoading, isOwner, navigate]);
 
   if (roleLoading) {
     return (
@@ -29,7 +42,7 @@ export default function AdminSettings() {
     );
   }
 
-  if (!isAdmin) {
+  if (!isOwner) {
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">

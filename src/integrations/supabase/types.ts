@@ -7105,6 +7105,7 @@ export type Database = {
         Args: { _conversation_id: string }
         Returns: boolean
       }
+      is_owner: { Args: { _user_id: string }; Returns: boolean }
       is_server_member: { Args: { p_server_id: string }; Returns: boolean }
       is_stripe_enabled: { Args: never; Returns: boolean }
       is_username_available: { Args: { p_username: string }; Returns: boolean }
@@ -7140,7 +7141,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user" | "owner_wife"
+      app_role: "admin" | "moderator" | "user" | "owner_wife" | "owner"
       badge_category:
         | "role"
         | "patreon"
@@ -7277,7 +7278,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user", "owner_wife"],
+      app_role: ["admin", "moderator", "user", "owner_wife", "owner"],
       badge_category: [
         "role",
         "patreon",
