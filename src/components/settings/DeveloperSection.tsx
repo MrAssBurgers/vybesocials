@@ -62,19 +62,60 @@ export function DeveloperSection() {
   const eventLog = getEventLog();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Owner Settings - shown first */}
+      {isOwner && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="liquid-glass-card p-3 sm:p-6"
+        >
+          <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-semibold text-sm sm:text-base mb-0.5 sm:mb-1">Owner Settings</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Platform configuration & API keys
+              </p>
+            </div>
+          </div>
+
+          <Tabs defaultValue="secrets" className="w-full">
+            <TabsList className="w-full justify-start overflow-x-auto">
+              <TabsTrigger value="secrets" className="gap-1.5 text-xs sm:text-sm px-2.5 sm:px-4">
+                <Key className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                API Keys
+              </TabsTrigger>
+              <TabsTrigger value="payments" className="gap-1.5 text-xs sm:text-sm px-2.5 sm:px-4">
+                <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                Payments
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="secrets" className="mt-3 sm:mt-4">
+              <SecretsManagerSection />
+            </TabsContent>
+            <TabsContent value="payments" className="mt-3 sm:mt-4">
+              <StripeSettingsSection />
+            </TabsContent>
+          </Tabs>
+        </motion.div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="liquid-glass-card p-4 sm:p-6"
+        transition={{ delay: isOwner ? 0.1 : 0 }}
+        className="liquid-glass-card p-3 sm:p-6"
       >
-        <div className="flex items-start gap-4 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Code2 className="w-6 h-6 text-primary" />
+        <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Code2 className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
           </div>
-          <div>
-            <h3 className="font-semibold text-base mb-1">Developer Options</h3>
-            <p className="text-sm text-muted-foreground">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm sm:text-base mb-0.5 sm:mb-1">Developer Options</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Advanced settings for testing and debugging
             </p>
           </div>
@@ -84,41 +125,41 @@ export function DeveloperSection() {
         {debugPanel?.isAdmin && (
           <Button
             variant="outline"
-            className="w-full justify-between mb-6 h-12"
+            className="w-full justify-between mb-4 sm:mb-6 h-10 sm:h-12 text-xs sm:text-sm"
             onClick={() => {
               haptics.tap();
               debugPanel.setIsOpen(true);
             }}
           >
             <span className="flex items-center gap-2">
-              <Terminal className="w-4 h-4" />
+              <Terminal className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               Open Production DevTools
             </span>
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </Button>
         )}
 
         {/* Feature Flags */}
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="font-medium text-sm flex items-center gap-2">
-              <Layers className="w-4 h-4 text-muted-foreground" />
+            <h4 className="font-medium text-xs sm:text-sm flex items-center gap-2">
+              <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
               Feature Flags
             </h4>
-            <Button variant="ghost" size="sm" onClick={handleReset}>
+            <Button variant="ghost" size="sm" onClick={handleReset} className="text-xs h-7 sm:h-8">
               <RefreshCw className="w-3 h-3 mr-1" />
               Reset
             </Button>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {/* Debug Panel */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <Bug className="w-4 h-4 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">Debug Panel</p>
-                  <p className="text-xs text-muted-foreground">Show debug info overlay</p>
+            <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg bg-muted/30">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <Bug className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-medium">Debug Panel</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Show debug info overlay</p>
                 </div>
               </div>
               <Switch
@@ -128,12 +169,12 @@ export function DeveloperSection() {
             </div>
 
             {/* AI Features */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <Sparkles className="w-4 h-4 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">AI Smart Replies</p>
-                  <p className="text-xs text-muted-foreground">AI-suggested message responses</p>
+            <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg bg-muted/30">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-medium">AI Smart Replies</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">AI-suggested message responses</p>
                 </div>
               </div>
               <Switch
@@ -143,12 +184,12 @@ export function DeveloperSection() {
             </div>
 
             {/* Analytics */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <Zap className="w-4 h-4 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">Analytics</p>
-                  <p className="text-xs text-muted-foreground">Track app usage events</p>
+            <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg bg-muted/30">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-medium">Analytics</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Track app usage events</p>
                 </div>
               </div>
               <Switch
@@ -158,15 +199,15 @@ export function DeveloperSection() {
             </div>
 
             {/* Minis - Always disabled, coming soon */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 opacity-60">
-              <div className="flex items-center gap-3">
-                <Lock className="w-4 h-4 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium flex items-center gap-2">
+            <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg bg-muted/30 opacity-60">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2">
                     VYBE Minis
-                    <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+                    <Badge variant="secondary" className="text-[10px] sm:text-xs px-1.5">Coming Soon</Badge>
                   </p>
-                  <p className="text-xs text-muted-foreground">Mini apps platform</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Mini apps platform</p>
                 </div>
               </div>
               <Switch disabled checked={false} />
@@ -179,8 +220,8 @@ export function DeveloperSection() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="liquid-glass-card p-4 sm:p-6"
+        transition={{ delay: isOwner ? 0.2 : 0.1 }}
+        className="liquid-glass-card p-3 sm:p-6"
       >
         <button
           onClick={() => setShowAnalytics(!showAnalytics)}
@@ -245,47 +286,6 @@ export function DeveloperSection() {
           </motion.div>
         )}
       </motion.div>
-
-      {/* Owner Settings */}
-      {isOwner && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="liquid-glass-card p-4 sm:p-6"
-        >
-          <div className="flex items-start gap-4 mb-6">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Crown className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-base mb-1">Owner Settings</h3>
-              <p className="text-sm text-muted-foreground">
-                Platform configuration & API keys
-              </p>
-            </div>
-          </div>
-
-          <Tabs defaultValue="secrets" className="w-full">
-            <TabsList className="w-full justify-start">
-              <TabsTrigger value="secrets" className="gap-2">
-                <Key className="h-4 w-4" />
-                API Keys
-              </TabsTrigger>
-              <TabsTrigger value="payments" className="gap-2">
-                <CreditCard className="h-4 w-4" />
-                Payments
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="secrets" className="mt-4">
-              <SecretsManagerSection />
-            </TabsContent>
-            <TabsContent value="payments" className="mt-4">
-              <StripeSettingsSection />
-            </TabsContent>
-          </Tabs>
-        </motion.div>
-      )}
     </div>
   );
 }
