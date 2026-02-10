@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { Progress } from '@/components/ui/progress';
-import { format, subMinutes, subHours } from 'date-fns';
+import { format, subMinutes, subHours, startOfDay } from 'date-fns';
 
 interface LiveUser {
   id: string;
@@ -33,7 +33,8 @@ export function AdminLiveAnalytics() {
       const now = new Date();
       const fiveMinAgo = subMinutes(now, 5).toISOString();
       const oneHourAgo = subHours(now, 1).toISOString();
-      const oneDayAgo = subHours(now, 24).toISOString();
+      // Use local midnight for "today" queries instead of 24h ago
+      const todayStart = startOfDay(now).toISOString();
 
       // Get active users (last 5 minutes based on any activity)
       const { count: activeNow } = await supabase
@@ -51,7 +52,7 @@ export function AdminLiveAnalytics() {
       const { count: postsDay } = await supabase
         .from('posts')
         .select('id', { count: 'exact', head: true })
-        .gte('created_at', oneDayAgo);
+        .gte('created_at', todayStart);
 
       // Likes in last hour
       const { count: likesHour } = await supabase
@@ -69,7 +70,7 @@ export function AdminLiveAnalytics() {
       const { count: signupsToday } = await supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
-        .gte('created_at', oneDayAgo);
+        .gte('created_at', todayStart);
 
       // Live activity (people in calls/streams)
       const { count: inCalls } = await supabase

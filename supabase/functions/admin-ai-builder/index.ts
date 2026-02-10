@@ -25,11 +25,28 @@ serve(async (req) => {
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError || !userData.user) throw new Error("Unauthorized");
 
-    const { data: roles } = await supabaseClient
-      .from("user_roles")
+    // Check both user_roles (profile-keyed) and user_roles_auth (auth-keyed)
+    const { data: rolesAuth } = await supabaseClient
+      .from("user_roles_auth")
       .select("role")
       .eq("user_id", userData.user.id);
-    const isAdmin = roles?.some((r: any) => r.role === "admin" || r.role === "owner");
+    let isAdmin = rolesAuth?.some((r: any) => r.role === "admin" || r.role === "owner");
+
+    if (!isAdmin) {
+      // Fallback: check legacy user_roles table via profile lookup
+      const { data: profile } = await supabaseClient
+        .from("profiles")
+        .select("id")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (profile) {
+        const { data: roles } = await supabaseClient
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", profile.id);
+        isAdmin = roles?.some((r: any) => r.role === "admin" || r.role === "owner");
+      }
+    }
     if (!isAdmin) throw new Error("Forbidden: admin only");
 
     const { messages } = await req.json();

@@ -27,13 +27,27 @@ serve(async (req) => {
     const { data: userData, error: userError } = await adminClient.auth.getUser(token);
     if (userError || !userData.user) throw new Error("Unauthorized");
 
-    // Check admin or owner role
-    const { data: roles } = await adminClient
-      .from("user_roles")
+    // Check both user_roles_auth (auth-keyed) and user_roles (profile-keyed)
+    const { data: rolesAuth } = await adminClient
+      .from("user_roles_auth")
       .select("role")
       .eq("user_id", userData.user.id);
+    let isAdminOrOwner = rolesAuth?.some((r: any) => r.role === "admin" || r.role === "owner");
 
-    const isAdminOrOwner = roles?.some((r: any) => r.role === "admin" || r.role === "owner");
+    if (!isAdminOrOwner) {
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("id")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (profile) {
+        const { data: roles } = await adminClient
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", profile.id);
+        isAdminOrOwner = roles?.some((r: any) => r.role === "admin" || r.role === "owner");
+      }
+    }
     if (!isAdminOrOwner) throw new Error("Forbidden: admin only");
 
     // Check env vars first, then fall back to app_secrets table
