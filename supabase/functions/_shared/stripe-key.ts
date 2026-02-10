@@ -10,8 +10,9 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.2";
  */
 export async function getStripeSecretKey(): Promise<string> {
   // 1. Try environment variable first (fastest, no DB round-trip)
+  // But skip it if it's a restricted key (rk_) since those don't work with Connect
   const envKey = Deno.env.get("STRIPE_SECRET_KEY");
-  if (envKey && envKey.length > 0) {
+  if (envKey && envKey.length > 0 && !envKey.startsWith("rk_")) {
     return envKey;
   }
 
