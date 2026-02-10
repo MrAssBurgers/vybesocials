@@ -289,8 +289,8 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
        <nav 
          ref={ref}
          className="fixed bottom-0 left-0 right-0 w-full pointer-events-auto"
-         style={{
-           zIndex: 1,
+        style={{
+          zIndex: 5002,
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
@@ -302,7 +302,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         data-tutorial-bottomnav
       >
         {/* Clean minimal nav bar - solid background */}
-        <div className="mx-3 mb-2 rounded-2xl bg-background border border-border shadow-lg">
+        <div className="mx-3 mb-2 rounded-2xl bg-transparent backdrop-blur-md border border-border shadow-xl shadow-black/30">
           <div className="grid grid-cols-5 h-14 px-1 relative z-10">
           {navItems.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
