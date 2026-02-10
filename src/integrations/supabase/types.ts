@@ -7025,6 +7025,7 @@ export type Database = {
         Returns: boolean
       }
       ensure_profile: { Args: never; Returns: string }
+      execute_admin_sql: { Args: { sql_query: string }; Returns: Json }
       filter_profanity: { Args: { input_text: string }; Returns: string }
       force_sync_my_challenges: { Args: never; Returns: undefined }
       generate_invite_code: { Args: never; Returns: string }

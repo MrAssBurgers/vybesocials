@@ -75,52 +75,27 @@ serve(async (req) => {
       }
 
       try {
-        // Use the rpc to run raw sql via a db function, or just use the REST api
-        // We'll use the postgres connection through supabase-js by calling rpc
-        // Since there's no built-in raw SQL rpc, we query using the postgrest approach
-        // For SELECT queries, we can parse and route, but for full SQL we need a db function
-        
-        // Create a temporary function approach - use pg_catalog or direct fetch
-        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-        
-        // Use the Supabase REST SQL endpoint (available via service role)
-        const sqlResp = await fetch(`${supabaseUrl}/rest/v1/rpc/`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${serviceKey}`,
-            apikey: serviceKey,
-          },
-          body: JSON.stringify({}),
+        // Use the service-role client to call our secure SQL function
+        const { data, error: rpcError } = await supabaseClient.rpc('execute_admin_sql', {
+          sql_query: sql,
         });
 
-        // The REST API doesn't support raw SQL directly, so we'll use the pg meta API
-        // which is available at /pg/query for service role
-        const pgResp = await fetch(`${supabaseUrl}/pg/query`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${serviceKey}`,
-            apikey: serviceKey,
-          },
-          body: JSON.stringify({ query: sql }),
-        });
-
-        if (!pgResp.ok) {
-          const errText = await pgResp.text();
-          return new Response(JSON.stringify({ 
-            error: `SQL error: ${errText}`,
-            status: pgResp.status 
-          }), {
+        if (rpcError) {
+          return new Response(JSON.stringify({ error: `SQL error: ${rpcError.message}` }), {
             status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
 
-        const result = await pgResp.json();
+        // Check if the function returned an error object
+        if (data && typeof data === 'object' && !Array.isArray(data) && data.error) {
+          return new Response(JSON.stringify({ error: data.error, detail: data.detail }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
         return new Response(JSON.stringify({ 
           success: true, 
-          result,
+          result: data ?? [],
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
