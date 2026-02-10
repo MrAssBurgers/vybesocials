@@ -6964,7 +6964,9 @@ export type Database = {
         }[]
       }
       get_like_count: { Args: { p_post_id: string }; Returns: number }
-      get_login_streak_status: { Args: never; Returns: Json }
+      get_login_streak_status:
+        | { Args: never; Returns: Json }
+        | { Args: { p_timezone?: string }; Returns: Json }
       get_mutual_friends: {
         Args: { current_user_id: string; target_user_id: string }
         Returns: {
@@ -7151,7 +7153,9 @@ export type Database = {
         Args: { p_username: string }
         Returns: undefined
       }
-      update_login_streak: { Args: never; Returns: Json }
+      update_login_streak:
+        | { Args: never; Returns: Json }
+        | { Args: { p_timezone?: string }; Returns: Json }
       use_theme_code: { Args: { p_code: string }; Returns: string }
       validate_invite_code: {
         Args: { _code: string }

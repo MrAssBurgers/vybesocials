@@ -5,6 +5,9 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 
+// Get IANA timezone string for the client
+const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 interface StreakResult {
   success: boolean;
   streak: number;
@@ -33,7 +36,7 @@ export function useLoginStreak() {
   const { data: streakStatus, isLoading } = useQuery({
     queryKey: ['login-streak', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_login_streak_status');
+      const { data, error } = await supabase.rpc('get_login_streak_status', { p_timezone: clientTimezone });
       if (error) throw error;
       return data as unknown as StreakResult;
     },
@@ -44,7 +47,7 @@ export function useLoginStreak() {
   // Mutation to update streak
   const updateStreakMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.rpc('update_login_streak');
+      const { data, error } = await supabase.rpc('update_login_streak', { p_timezone: clientTimezone });
       if (error) throw error;
       return data as unknown as StreakResult;
     },
@@ -125,7 +128,7 @@ export function useStreakCount() {
   const { data } = useQuery({
     queryKey: ['login-streak', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_login_streak_status');
+      const { data, error } = await supabase.rpc('get_login_streak_status', { p_timezone: clientTimezone });
       if (error) throw error;
       return data as unknown as StreakResult;
     },
