@@ -123,11 +123,12 @@ function MainScreen({
             </div>
             
             {/* QR Code - big and clear */}
-            <div className="w-full aspect-square rounded-xl bg-white p-2.5 shadow-inner">
+            <div className="w-full aspect-square rounded-xl bg-white p-3 relative z-10" style={{ boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.04)' }}>
               <img
                 src={qrCodeUrl}
                 alt="Your QR Code"
-                className="w-full h-full rounded-lg"
+                className="w-full h-full rounded-lg brightness-105 contrast-105"
+                style={{ imageRendering: 'crisp-edges' }}
               />
               {/* Center avatar overlay on QR */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ marginTop: 36 }}>
