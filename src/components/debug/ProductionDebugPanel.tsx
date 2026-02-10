@@ -119,6 +119,35 @@ const EDGE_FUNCTIONS = [
 // ── AI Chat Types ──
 type AiMessage = { role: 'user' | 'assistant'; content: string };
 
+// ── SQL block parser for AI messages ──
+function parseMessageBlocks(content: string) {
+  const blocks: { type: 'text' | 'sql' | 'sql_execute' | 'code'; content: string; lang?: string }[] = [];
+  const codeBlockRegex = /```(sql:execute|sql|[a-z]*)\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      blocks.push({ type: 'text', content: content.slice(lastIndex, match.index) });
+    }
+    const lang = match[1];
+    if (lang === 'sql:execute') {
+      blocks.push({ type: 'sql_execute', content: match[2].trim(), lang: 'sql' });
+    } else if (lang === 'sql') {
+      blocks.push({ type: 'sql', content: match[2].trim(), lang: 'sql' });
+    } else {
+      blocks.push({ type: 'code', content: match[2].trim(), lang: lang || 'text' });
+    }
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    blocks.push({ type: 'text', content: content.slice(lastIndex) });
+  }
+
+  return blocks;
+}
+
 export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   const { user, session } = useAuth();
   const { logs, network } = useDebugLogs();
@@ -149,6 +178,9 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   const [aiInput, setAiInput] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const aiScrollRef = useRef<HTMLDivElement>(null);
+
+  // SQL execution state
+  const [sqlResults, setSqlResults] = useState<Record<string, { loading: boolean; result?: any; error?: string }>>({});
 
   const errorLogs = logs.filter(l => ['error', 'stripe', 'network'].includes(l.type));
 
@@ -265,6 +297,30 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
       setFnResult(`✗ Exception: ${err.message}`);
     }
     setFnLoading(false);
+  };
+
+  // ── SQL Execution ──
+  const executeSql = async (sql: string, blockId: string) => {
+    setSqlResults(prev => ({ ...prev, [blockId]: { loading: true } }));
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-ai-builder`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ action: 'execute_sql', sql }),
+      });
+      const data = await resp.json();
+      if (data.error) {
+        setSqlResults(prev => ({ ...prev, [blockId]: { loading: false, error: data.error } }));
+      } else {
+        setSqlResults(prev => ({ ...prev, [blockId]: { loading: false, result: data.result } }));
+      }
+    } catch (err: any) {
+      setSqlResults(prev => ({ ...prev, [blockId]: { loading: false, error: err.message } }));
+    }
   };
 
   // ── Feature Flags ──
@@ -444,8 +500,8 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
                   <div className="flex flex-wrap gap-1.5 justify-center">
                     {[
                       'Show active users today',
-                      'SQL to find spam reports',
-                      'How to add a new badge',
+                      'Fix missing profile data',
+                      'Run SELECT * FROM reports LIMIT 10',
                       'Debug auth issues',
                     ].map(q => (
                       <button
@@ -461,12 +517,88 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
               )}
               {aiMessages.map((msg, i) => (
                 <div key={i} className={cn(
-                  "text-xs rounded-xl px-3 py-2.5 max-w-[90%] whitespace-pre-wrap",
+                  "text-xs rounded-xl px-3 py-2.5 max-w-[90%]",
                   msg.role === 'user'
-                    ? "ml-auto bg-primary text-primary-foreground"
-                    : "mr-auto bg-card border border-border text-foreground"
+                    ? "ml-auto bg-primary text-primary-foreground whitespace-pre-wrap"
+                    : "mr-auto bg-card border border-border text-foreground space-y-2"
                 )}>
-                  {msg.content}
+                  {msg.role === 'user' ? msg.content : (
+                    parseMessageBlocks(msg.content).map((block, bi) => {
+                      const blockId = `${i}-${bi}`;
+                      if (block.type === 'sql' || block.type === 'sql_execute') {
+                        return (
+                          <div key={bi} className="space-y-1.5">
+                            <div className="bg-background/80 rounded-lg p-2 font-mono text-[10px] overflow-x-auto whitespace-pre border border-border/50">
+                              {block.content}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-[10px] px-2 gap-1"
+                                disabled={sqlResults[blockId]?.loading}
+                                onClick={() => executeSql(block.content, blockId)}
+                              >
+                                <Play className={cn("w-3 h-3", sqlResults[blockId]?.loading && "animate-spin")} />
+                                {sqlResults[blockId]?.loading ? 'Running…' : 'Run SQL'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-[10px] px-2 gap-1"
+                                onClick={() => { navigator.clipboard.writeText(block.content); }}
+                              >
+                                <Copy className="w-3 h-3" /> Copy
+                              </Button>
+                            </div>
+                            {sqlResults[blockId]?.error && (
+                              <div className="text-[10px] font-mono p-2 rounded bg-destructive/10 text-destructive border border-destructive/20 overflow-x-auto">
+                                ❌ {sqlResults[blockId].error}
+                              </div>
+                            )}
+                            {sqlResults[blockId]?.result && (
+                              <div className="text-[10px] font-mono p-2 rounded bg-green-500/10 border border-green-500/20 overflow-x-auto max-h-48 overflow-y-auto">
+                                {Array.isArray(sqlResults[blockId].result) ? (
+                                  sqlResults[blockId].result.length === 0 ? (
+                                    <span className="text-foreground/50">No rows returned</span>
+                                  ) : (
+                                    <table className="w-full">
+                                      <thead>
+                                        <tr>
+                                          {Object.keys(sqlResults[blockId].result[0] || {}).map(col => (
+                                            <th key={col} className="px-1.5 py-0.5 text-left text-foreground/70 font-semibold whitespace-nowrap">{col}</th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {sqlResults[blockId].result.slice(0, 50).map((row: any, ri: number) => (
+                                          <tr key={ri} className="border-t border-border/20">
+                                            {Object.values(row).map((val: any, ci: number) => (
+                                              <td key={ci} className="px-1.5 py-0.5 max-w-[120px] truncate text-foreground/80">{String(val ?? 'null')}</td>
+                                            ))}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )
+                                ) : (
+                                  <pre className="whitespace-pre-wrap text-foreground/80">{JSON.stringify(sqlResults[blockId].result, null, 2)}</pre>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      if (block.type === 'code') {
+                        return (
+                          <div key={bi} className="bg-background/80 rounded-lg p-2 font-mono text-[10px] overflow-x-auto whitespace-pre border border-border/50">
+                            {block.content}
+                          </div>
+                        );
+                      }
+                      return <span key={bi} className="whitespace-pre-wrap">{block.content}</span>;
+                    })
+                  )}
                 </div>
               ))}
               {aiLoading && (
