@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Shield, Globe, CreditCard, UserCheck, Wifi, AlertTriangle,
   ChevronDown, ChevronRight, RefreshCw, ExternalLink, Copy, Check,
-  Database, Zap, ToggleLeft, Play, Table2, Eye, Bot, Send, Trash2
+  Database, Zap, ToggleLeft, Play, Table2, Eye, Bot, Send, Trash2,
+  Terminal, Loader2, Clock, CheckCircle2, XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -179,8 +180,14 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   const [aiLoading, setAiLoading] = useState(false);
   const aiScrollRef = useRef<HTMLDivElement>(null);
 
-  // SQL execution state
+  // SQL execution state (AI inline)
   const [sqlResults, setSqlResults] = useState<Record<string, { loading: boolean; result?: any; error?: string }>>({});
+
+  // SQL Editor tab state
+  const [sqlEditorQuery, setSqlEditorQuery] = useState('SELECT * FROM profiles LIMIT 10;');
+  const [sqlEditorResult, setSqlEditorResult] = useState<{ loading: boolean; result?: any; error?: string; duration?: number } | null>(null);
+  const [sqlHistory, setSqlHistory] = useState<{ query: string; timestamp: number; success: boolean; duration: number }[]>([]);
+  const [sqlConnected, setSqlConnected] = useState<'checking' | 'connected' | 'error'>('checking');
 
   const errorLogs = logs.filter(l => ['error', 'stripe', 'network'].includes(l.type));
 
@@ -323,6 +330,49 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
     }
   };
 
+  // ── SQL Editor execute ──
+  const executeSqlEditor = async () => {
+    if (!sqlEditorQuery.trim()) return;
+    setSqlEditorResult({ loading: true });
+    const start = performance.now();
+    try {
+      const sess = (await supabase.auth.getSession()).data.session;
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-ai-builder`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sess?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ action: 'execute_sql', sql: sqlEditorQuery.trim() }),
+      });
+      const data = await resp.json();
+      const duration = Math.round(performance.now() - start);
+      if (data.error) {
+        setSqlEditorResult({ loading: false, error: data.error, duration });
+        setSqlHistory(prev => [{ query: sqlEditorQuery.trim(), timestamp: Date.now(), success: false, duration }, ...prev].slice(0, 20));
+        setSqlConnected('connected');
+      } else {
+        setSqlEditorResult({ loading: false, result: data.result, duration });
+        setSqlHistory(prev => [{ query: sqlEditorQuery.trim(), timestamp: Date.now(), success: true, duration }, ...prev].slice(0, 20));
+        setSqlConnected('connected');
+      }
+    } catch (err: any) {
+      const duration = Math.round(performance.now() - start);
+      setSqlEditorResult({ loading: false, error: err.message, duration });
+      setSqlConnected('error');
+    }
+  };
+
+  // Check SQL connection on open
+  useEffect(() => {
+    if (isOpen) {
+      setSqlConnected('checking');
+      supabase.from('profiles').select('id').limit(1).then(({ error }) => {
+        setSqlConnected(error ? 'error' : 'connected');
+      });
+    }
+  }, [isOpen]);
+
   // ── Feature Flags ──
   const toggleFlag = (key: string) => {
     const newValue = !flags[key];
@@ -448,23 +498,26 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
 
         {/* Tabs */}
         <Tabs defaultValue="ai" className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="mx-4 mt-2 grid grid-cols-6 h-10 bg-muted/50">
-            <TabsTrigger value="ai" className="text-[10px] px-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+          <TabsList className="mx-4 mt-2 grid grid-cols-7 h-10 bg-muted/50">
+            <TabsTrigger value="ai" className="text-[10px] px-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Bot className="w-3.5 h-3.5" />
             </TabsTrigger>
-            <TabsTrigger value="overview" className="text-[10px] px-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="sql" className="text-[10px] px-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Terminal className="w-3.5 h-3.5" />
+            </TabsTrigger>
+            <TabsTrigger value="overview" className="text-[10px] px-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Globe className="w-3.5 h-3.5" />
             </TabsTrigger>
-            <TabsTrigger value="stripe" className="text-[10px] px-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="stripe" className="text-[10px] px-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <CreditCard className="w-3.5 h-3.5" />
             </TabsTrigger>
-            <TabsTrigger value="database" className="text-[10px] px-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="database" className="text-[10px] px-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Database className="w-3.5 h-3.5" />
             </TabsTrigger>
-            <TabsTrigger value="functions" className="text-[10px] px-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="functions" className="text-[10px] px-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Zap className="w-3.5 h-3.5" />
             </TabsTrigger>
-            <TabsTrigger value="flags" className="text-[10px] px-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="flags" className="text-[10px] px-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <ToggleLeft className="w-3.5 h-3.5" />
             </TabsTrigger>
           </TabsList>
@@ -622,6 +675,195 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
                   <Send className="w-3.5 h-3.5" />
                 </Button>
               </form>
+            </div>
+          </TabsContent>
+
+          {/* ═══ SQL EDITOR TAB ═══ */}
+          <TabsContent value="sql" className="flex-1 flex flex-col overflow-hidden m-0">
+            {/* Header with connection indicator */}
+            <div className="px-4 pt-3 pb-2 border-b border-border bg-card/50">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                  <Terminal className="w-4 h-4 text-primary drop-shadow-[0_1px_3px_rgba(0,0,0,0.3)]" /> SQL Editor
+                </h3>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className={cn(
+                      "w-2 h-2 rounded-full",
+                      sqlConnected === 'connected' ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.5)]" :
+                      sqlConnected === 'error' ? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" :
+                      "bg-yellow-500 animate-pulse"
+                    )} />
+                    <span className="text-[10px] text-foreground/60">
+                      {sqlConnected === 'connected' ? 'Connected' : sqlConnected === 'error' ? 'Error' : 'Checking…'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-foreground/60 mt-1">
+                Execute SQL directly — changes apply to all users on refresh
+              </p>
+            </div>
+
+            {/* Editor area */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="p-3 space-y-2">
+                <textarea
+                  value={sqlEditorQuery}
+                  onChange={(e) => setSqlEditorQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      executeSqlEditor();
+                    }
+                  }}
+                  className="w-full min-h-[120px] max-h-[200px] resize-y bg-background border border-border rounded-lg p-3 font-mono text-xs text-foreground placeholder:text-foreground/30 focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="SELECT * FROM profiles LIMIT 10;"
+                  spellCheck={false}
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-foreground/40 font-mono">⌘+Enter to run</span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-[10px] px-2 text-foreground/60"
+                      onClick={() => { setSqlEditorQuery(''); setSqlEditorResult(null); }}
+                    >
+                      Clear
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-[10px] px-3 gap-1.5"
+                      onClick={executeSqlEditor}
+                      disabled={sqlEditorResult?.loading || !sqlEditorQuery.trim()}
+                    >
+                      {sqlEditorResult?.loading ? (
+                        <><Loader2 className="w-3 h-3 animate-spin" /> Running…</>
+                      ) : (
+                        <><Play className="w-3 h-3" /> Execute</>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Results */}
+              <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2">
+                {sqlEditorResult?.loading && (
+                  <div className="flex items-center justify-center gap-2 py-8 text-foreground/50">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-xs">Executing query…</span>
+                  </div>
+                )}
+
+                {sqlEditorResult?.error && !sqlEditorResult.loading && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 space-y-1">
+                    <div className="flex items-center gap-2 text-destructive">
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span className="text-xs font-semibold">Error</span>
+                      {sqlEditorResult.duration !== undefined && (
+                        <span className="text-[10px] text-foreground/50 ml-auto">{sqlEditorResult.duration}ms</span>
+                      )}
+                    </div>
+                    <p className="text-[10px] font-mono text-destructive/80 whitespace-pre-wrap">{sqlEditorResult.error}</p>
+                  </div>
+                )}
+
+                {sqlEditorResult?.result && !sqlEditorResult.loading && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                      <span className="text-xs font-semibold text-foreground">Success</span>
+                      {sqlEditorResult.duration !== undefined && (
+                        <span className="text-[10px] text-foreground/50">{sqlEditorResult.duration}ms</span>
+                      )}
+                      {Array.isArray(sqlEditorResult.result) && (
+                        <Badge variant="secondary" className="text-[10px] ml-auto">{sqlEditorResult.result.length} rows</Badge>
+                      )}
+                    </div>
+                    {Array.isArray(sqlEditorResult.result) && sqlEditorResult.result.length > 0 ? (
+                      <div className="max-h-[300px] overflow-auto rounded-lg border border-border">
+                        <table className="w-full text-[10px] font-mono">
+                          <thead>
+                            <tr className="bg-muted/50 sticky top-0">
+                              {Object.keys(sqlEditorResult.result[0]).map(col => (
+                                <th key={col} className="px-2 py-1.5 text-left text-foreground/70 font-semibold whitespace-nowrap border-b border-border">{col}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sqlEditorResult.result.slice(0, 100).map((row: any, i: number) => (
+                              <tr key={i} className="border-t border-border/20 hover:bg-muted/20">
+                                {Object.values(row).map((val: any, j: number) => (
+                                  <td key={j} className="px-2 py-1 max-w-[150px] truncate text-foreground/80">{String(val ?? 'null')}</td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : Array.isArray(sqlEditorResult.result) && sqlEditorResult.result.length === 0 ? (
+                      <p className="text-[11px] text-foreground/50 text-center py-4">Query returned no rows</p>
+                    ) : (
+                      <pre className="text-[10px] font-mono p-2 rounded-lg bg-muted/30 border border-border/50 whitespace-pre-wrap text-foreground/80 max-h-48 overflow-auto">
+                        {JSON.stringify(sqlEditorResult.result, null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                )}
+
+                {/* Query History */}
+                {sqlHistory.length > 0 && (
+                  <div className="space-y-1.5 pt-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-foreground/60 flex items-center gap-1.5">
+                        <Clock className="w-3 h-3" /> History
+                      </span>
+                      <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-foreground/50" onClick={() => setSqlHistory([])}>
+                        Clear
+                      </Button>
+                    </div>
+                    {sqlHistory.map((h, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setSqlEditorQuery(h.query)}
+                        className="w-full text-left text-[10px] font-mono p-2 rounded-lg border border-border/30 bg-card/50 hover:bg-muted/30 transition-colors space-y-0.5"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {h.success ? <CheckCircle2 className="w-2.5 h-2.5 text-green-500 flex-shrink-0" /> : <XCircle className="w-2.5 h-2.5 text-destructive flex-shrink-0" />}
+                          <span className="text-foreground/50">{new Date(h.timestamp).toLocaleTimeString()}</span>
+                          <span className="text-foreground/40 ml-auto">{h.duration}ms</span>
+                        </div>
+                        <p className="text-foreground/70 truncate">{h.query}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {!sqlEditorResult && sqlHistory.length === 0 && (
+                  <div className="text-center py-8 space-y-3">
+                    <Terminal className="w-10 h-10 mx-auto text-primary/30" />
+                    <p className="text-xs text-foreground/50">Write SQL and hit Execute</p>
+                    <div className="flex flex-wrap gap-1.5 justify-center">
+                      {[
+                        'SELECT * FROM profiles LIMIT 10;',
+                        'SELECT count(*) FROM posts;',
+                        'SELECT * FROM user_roles_auth;',
+                        'SELECT * FROM reports WHERE status = \'pending\';',
+                      ].map(q => (
+                        <button
+                          key={q}
+                          onClick={() => setSqlEditorQuery(q)}
+                          className="text-[10px] px-2.5 py-1.5 rounded-full border border-border bg-card hover:bg-muted/50 text-foreground/70 hover:text-foreground transition-colors"
+                        >
+                          {q.length > 35 ? q.slice(0, 35) + '…' : q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </TabsContent>
 
