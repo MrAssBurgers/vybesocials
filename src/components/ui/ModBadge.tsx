@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { forwardRef, memo, useMemo } from 'react';
 
 interface ModBadgeProps {
-  role: 'admin' | 'moderator' | null;
+  role: 'admin' | 'moderator' | 'owner' | null;
   className?: string;
   showLabel?: boolean;
 }
@@ -19,7 +19,7 @@ export const ModBadge = memo(forwardRef<HTMLSpanElement, ModBadgeProps>(
 
     if (!role) return null;
 
-    const isAdmin = role === 'admin';
+    const isAdmin = role === 'admin' || role === 'owner';
 
     return (
       <>

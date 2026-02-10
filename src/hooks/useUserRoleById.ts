@@ -10,16 +10,20 @@ export function useUserRoleById(userId: string | undefined) {
     queryFn: async () => {
       if (!userId) return null;
       
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
+      // Check both user_roles (profile-keyed) and user_roles_auth (auth-keyed)
+      const [profileRoles, authRoles] = await Promise.all([
+        supabase.from('user_roles').select('role').eq('user_id', userId),
+        supabase.from('user_roles_auth').select('role').eq('user_id', userId),
+      ]);
       
-      if (error && error.code !== 'PGRST116') throw error;
+      const allRoles = [
+        ...((profileRoles.data || []).map(r => r.role)),
+        ...((authRoles.data || []).map(r => r.role)),
+      ];
       
-      const roles = (data || []).map((r) => r.role);
-      if (roles.includes('admin')) return 'admin' as const;
-      if (roles.includes('moderator')) return 'moderator' as const;
+      if (allRoles.includes('owner')) return 'owner' as const;
+      if (allRoles.includes('admin')) return 'admin' as const;
+      if (allRoles.includes('moderator')) return 'moderator' as const;
       return null;
     },
     enabled: !!userId,
@@ -44,13 +48,15 @@ export function useUsersRoles(userIds: string[]) {
       if (error && error.code !== 'PGRST116') throw error;
       
       // Build a map of userId -> highest role
-      const roleMap: Record<string, 'admin' | 'moderator' | null> = {};
+      const roleMap: Record<string, 'admin' | 'moderator' | 'owner' | null> = {};
       
       for (const row of data || []) {
         const current = roleMap[row.user_id];
-        if (row.role === 'admin') {
+        if (row.role === 'owner') {
+          roleMap[row.user_id] = 'owner';
+        } else if (row.role === 'admin' && current !== 'owner') {
           roleMap[row.user_id] = 'admin';
-        } else if (row.role === 'moderator' && current !== 'admin') {
+        } else if (row.role === 'moderator' && current !== 'admin' && current !== 'owner') {
           roleMap[row.user_id] = 'moderator';
         }
       }
