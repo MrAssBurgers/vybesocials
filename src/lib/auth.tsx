@@ -38,6 +38,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  authReady: boolean;
   banInfo: BanInfo | null;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -478,6 +479,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       loading,
+      authReady: isInitialized,
       banInfo,
       signUp,
       signIn,
