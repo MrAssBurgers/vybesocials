@@ -55,9 +55,9 @@ export const useBanStatus = () => {
       return data;
     },
     enabled: !!profile?.id,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 0,
     refetchInterval: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 };

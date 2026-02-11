@@ -31,17 +31,18 @@ export const MemeBanScreen = ({ reason, expiresAt, customGifUrl }: MemeBanScreen
   }, [backgrounds, customGifUrl]);
 
   return (
-    <div className="fixed inset-0 z-[9999] overflow-hidden bg-black">
-      {/* Fullscreen GIF background - stretched to fill */}
+    <div className="fixed inset-0 z-[9999] overflow-hidden bg-black" style={{ width: '100vw', height: '100dvh' }}>
+      {/* Fullscreen GIF background - stretched to fill entire viewport */}
       <img
         src={backgroundUrl}
         alt=""
-        className="absolute inset-0 h-full w-full object-cover"
+        className="absolute inset-0 w-full h-full"
+        style={{ objectFit: 'cover', objectPosition: 'center', width: '100vw', height: '100dvh' }}
         draggable={false}
       />
 
       {/* Slight overlay for text readability */}
-      <div className="absolute inset-0 bg-black/30" />
+      <div className="absolute inset-0 bg-black/30" style={{ width: '100vw', height: '100dvh' }} />
 
       <div className="relative z-10 flex min-h-full items-center justify-center p-6">
         <motion.div
