@@ -501,7 +501,7 @@ export default function UploadPage() {
                     {previews.length < 10 && (
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="aspect-square flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-border/60 hover:border-primary/40 transition-all rounded-lg"
+                        className="aspect-square flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-muted-foreground/20 hover:border-primary/40 transition-all rounded-lg"
                         style={{ backgroundColor: 'hsl(var(--muted) / 0.5)' }}
                       >
                         <Plus className="w-5 h-5 text-muted-foreground" />
@@ -560,7 +560,7 @@ export default function UploadPage() {
                   "py-16 sm:py-20",
                   isDragging
                     ? "border-primary bg-primary/5 scale-[1.01]"
-                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                    : "border-muted-foreground/20 hover:border-primary/40 hover:bg-muted/30"
                 )}
                 style={{ backgroundColor: isDragging ? undefined : 'hsl(var(--muted) / 0.15)' }}
               >
