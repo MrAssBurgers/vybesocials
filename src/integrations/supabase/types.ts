@@ -7237,6 +7237,7 @@ export type Database = {
           is_pinned: boolean
           like_count: number
           media_url: string
+          media_urls: string[]
           tags: string[]
           thumbnail_url: string
           type: string
@@ -7294,6 +7295,7 @@ export type Database = {
           is_pinned: boolean
           like_count: number
           media_url: string
+          media_urls: string[]
           tags: string[]
           thumbnail_url: string
           type: string

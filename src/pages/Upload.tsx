@@ -14,12 +14,13 @@ import { useCreatePost } from '@/hooks/usePosts';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon, Wand2, ImagePlus, ArrowLeft } from 'lucide-react';
+import { Image, Video, Film, X, Plus, Camera as CameraIcon, Upload as UploadIcon, Wand2, ImagePlus, ArrowLeft, Type, Images } from 'lucide-react';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { Label } from '@/components/ui/label';
 
 const contentTypes = [
-  { id: 'post', label: 'Post', icon: Image, description: 'Share a photo' },
+  { id: 'text', label: 'Text', icon: Type, description: 'Share your thoughts' },
+  { id: 'post', label: 'Post', icon: Image, description: 'Share photos' },
   { id: 'short', label: 'Clip', icon: Film, description: 'Quick vertical video' },
   { id: 'video', label: 'Video', icon: Video, description: 'Longer video content' },
 ];
@@ -34,9 +35,11 @@ export default function UploadPage() {
   const contentSafety = useContentSafety();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [contentType, setContentType] = useState<'post' | 'short' | 'video'>('post');
+  const [contentType, setContentType] = useState<'text' | 'post' | 'short' | 'video'>('post');
   const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [caption, setCaption] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
@@ -185,9 +188,35 @@ export default function UploadPage() {
   }, [contentSafety, generateThumbnailsFromVideo]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) handleFileSelect(selectedFile);
+    const selectedFiles = e.target.files;
+    if (!selectedFiles) return;
+    
+    if (selectedFiles.length > 1) {
+      handleMultiFileSelect(Array.from(selectedFiles));
+    } else if (selectedFiles[0]) {
+      handleFileSelect(selectedFiles[0]);
+    }
   };
+
+  const handleMultiFileSelect = useCallback((selectedFiles: File[]) => {
+    const imageFiles = selectedFiles.filter(f => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+      toast.error('Please select image files for carousel posts');
+      return;
+    }
+    if (imageFiles.length > 10) {
+      toast.error('Maximum 10 images per post');
+      return;
+    }
+    const urls = imageFiles.map(f => URL.createObjectURL(f));
+    setFiles(imageFiles);
+    setPreviews(urls);
+    setFile(imageFiles[0]);
+    setPreview(urls[0]);
+    setContentType('post');
+    contentSafety.reset();
+    setShowSafetyScanner(true);
+  }, [contentSafety]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -255,9 +284,10 @@ export default function UploadPage() {
   };
 
   const handleSubmit = async () => {
-    if (!file || !user) { toast.error('Please select a file to upload'); return; }
+    if (contentType !== 'text' && !file && files.length === 0) { toast.error('Please select a file to upload'); return; }
+    if (contentType === 'text' && !caption.trim()) { toast.error('Please write something to share'); return; }
+    if (!user) { toast.error('Please sign in first'); return; }
     
-    // For long-form videos, require a title
     if (contentType === 'video' && !videoTitle.trim()) {
       toast.error('Please add a title for your video');
       return;
@@ -268,13 +298,13 @@ export default function UploadPage() {
     try {
       const progressInterval = setInterval(() => setUploadProgress(prev => Math.min(prev + 5, 90)), 300);
       
-      // Combine title and description into caption for long-form videos
       const finalCaption = contentType === 'video' 
         ? `${videoTitle}${videoDescription ? `\n\n${videoDescription}` : ''}${caption ? `\n\n${caption}` : ''}`
         : caption;
       
       await createPost.mutateAsync({ 
-        mediaFile: file, 
+        mediaFile: files.length <= 1 ? file || undefined : undefined,
+        mediaFiles: files.length > 1 ? files : undefined,
         caption: finalCaption, 
         type: contentType, 
         tags,
@@ -297,11 +327,14 @@ export default function UploadPage() {
 
   const clearFile = () => {
     if (preview) URL.revokeObjectURL(preview);
+    previews.forEach(p => URL.revokeObjectURL(p));
     if (thumbnailPreview && !generatedThumbnails.includes(thumbnailPreview)) {
       URL.revokeObjectURL(thumbnailPreview);
     }
     setFile(null);
+    setFiles([]);
     setPreview(null);
+    setPreviews([]);
     setVideoTitle('');
     setVideoDescription('');
     setThumbnailFile(null);
@@ -355,9 +388,9 @@ export default function UploadPage() {
         <h1 className="text-2xl font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">Create Post</h1>
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">Content Type</label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {contentTypes.map((type) => (
-              <button key={type.id} onClick={() => setContentType(type.id as 'post' | 'short' | 'video')}
+              <button key={type.id} onClick={() => setContentType(type.id as 'text' | 'post' | 'short' | 'video')}
                 className={`p-3 rounded-xl border-2 transition-all backdrop-blur-sm shadow-lg ${contentType === type.id ? 'border-primary bg-primary/20' : 'border-border/60 bg-background/70 hover:border-primary/50'}`}>
                 <type.icon className={`w-6 h-6 mx-auto mb-1 ${contentType === type.id ? 'text-primary' : 'text-foreground/80'}`} />
                 <p className={`text-sm font-medium ${contentType === type.id ? 'text-primary' : 'text-foreground'}`}>{type.label}</p>
@@ -367,17 +400,26 @@ export default function UploadPage() {
           </div>
         </div>
         
+        {contentType !== 'text' && (
         <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">Media</label>
-          {preview ? (
+          <label className="text-sm font-medium text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">Media {contentType === 'post' && <span className="text-xs text-muted-foreground">(select multiple for carousel)</span>}</label>
+          {previews.length > 1 ? (
+            <div className="relative rounded-xl overflow-hidden bg-background/80 backdrop-blur-sm border border-border/50 shadow-lg p-3">
+              <div className="grid grid-cols-3 gap-2">
+                {previews.map((p, i) => (
+                  <div key={i} className="relative aspect-square rounded-lg overflow-hidden">
+                    <img src={p} alt={`Preview ${i+1}`} className="w-full h-full object-cover" />
+                    <span className="absolute top-1 left-1 bg-background/80 text-xs px-1.5 py-0.5 rounded-full font-medium">{i+1}</span>
+                  </div>
+                ))}
+              </div>
+              <button onClick={clearFile} className="absolute top-2 right-2 p-2 rounded-full bg-background/90 hover:bg-background shadow-lg border border-border/50"><X className="w-4 h-4" /></button>
+              <p className="text-xs text-muted-foreground mt-2 text-center">{previews.length} images • swipeable carousel</p>
+            </div>
+          ) : preview ? (
             <div className="relative rounded-xl overflow-hidden bg-background/80 backdrop-blur-sm border border-border/50 shadow-lg">
               {file?.type.startsWith('video/') ? (
-                <video 
-                  src={preview} 
-                  className="w-full max-h-[60vh] object-contain mx-auto"
-                  controls 
-                  playsInline
-                />
+                <video src={preview} className="w-full max-h-[60vh] object-contain mx-auto" controls playsInline />
               ) : (
                 <img src={preview} alt="Preview" className="w-full max-h-96 object-contain" />
               )}
@@ -387,21 +429,22 @@ export default function UploadPage() {
             <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()}
               className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer backdrop-blur-sm shadow-lg ${isDragging ? 'border-primary bg-primary/20 scale-[1.02]' : 'border-border/60 bg-background/70 hover:border-primary/50'}`}>
               <UploadIcon className={`w-12 h-12 mx-auto mb-4 ${isDragging ? 'text-primary' : 'text-foreground/70'}`} />
-              <p className={`text-lg font-medium mb-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] ${isDragging ? 'text-primary' : 'text-foreground'}`}>{isDragging ? 'Drop to upload' : 'Drag and drop your file here'}</p>
-              <p className="text-sm text-foreground/70 mb-4">or click to browse</p>
+              <p className={`text-lg font-medium mb-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] ${isDragging ? 'text-primary' : 'text-foreground'}`}>{isDragging ? 'Drop to upload' : 'Drag and drop files here'}</p>
+              <p className="text-sm text-foreground/70 mb-4">Select multiple images for a carousel</p>
               <div className="flex flex-wrap gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
-                <Button variant="outline" className="bg-background/80 border-border/60 shadow-md" onClick={() => fileInputRef.current?.click()}><Plus className="w-4 h-4 mr-2" />Choose File</Button>
+                <Button variant="outline" className="bg-background/80 border-border/60 shadow-md" onClick={() => fileInputRef.current?.click()}><Plus className="w-4 h-4 mr-2" />Choose Files</Button>
                 <Button variant="outline" className="bg-background/80 border-border/60 shadow-md" onClick={() => setShowCamera(true)}><CameraIcon className="w-4 h-4 mr-2" />Camera</Button>
                 <Button variant="outline" onClick={() => setShowAIVideoGenerator(true)} className="bg-primary/20 border-primary/50 hover:border-primary/70 shadow-md">
                   <Wand2 className="w-4 h-4 mr-2 text-primary" />AI Video
                 </Button>
               </div>
-              <p className="text-xs text-foreground/60 mt-4">Supports: JPG, PNG, GIF, WebP, MP4, WebM • Videos up to 2GB, no duration limit</p>
+              <p className="text-xs text-foreground/60 mt-4">Up to 10 images per carousel • JPG, PNG, GIF, WebP, MP4, WebM</p>
             </div>
           )}
-          <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleInputChange} className="hidden" />
+          <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleInputChange} className="hidden" />
           <input ref={thumbnailInputRef} type="file" accept="image/*" onChange={handleCustomThumbnail} className="hidden" />
         </div>
+        )}
         
         {/* Long-form video details */}
         {contentType === 'video' && file && (
@@ -487,7 +530,7 @@ export default function UploadPage() {
             maxLength={2200} 
           />
           <div className="flex items-center justify-between">
-            <AICaptionGenerator tags={tags} contentType={contentType} onSelectCaption={setCaption} />
+            <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
             <span className="text-xs text-muted-foreground">{caption.length}/2200</span>
           </div>
         </div>
@@ -502,7 +545,7 @@ export default function UploadPage() {
           </div>
         </div>
         {isUploading && (<div className="space-y-2"><Progress value={uploadProgress} className="h-2" /><p className="text-sm text-center text-muted-foreground">Uploading... {uploadProgress}%</p></div>)}
-        <Button onClick={handleSubmit} disabled={!file || isUploading} className="w-full" size="lg">{isUploading ? 'Uploading...' : 'Share'}</Button>
+        <Button onClick={handleSubmit} disabled={(contentType !== 'text' && !file && files.length === 0) || (contentType === 'text' && !caption.trim()) || isUploading} className="w-full" size="lg">{isUploading ? 'Uploading...' : 'Share'}</Button>
       </div>
     </AppLayout>
   );

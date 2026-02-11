@@ -381,12 +381,12 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           </Tooltip>
         </div>
 
-        {/* Communities Section - Show user's servers */}
+        {/* Hubs Section - Show user's hubs */}
         {!collapsed && (
           <div className="px-3 py-2">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Communities
+                Hubs
               </span>
               <Link to="/community" className="text-xs text-primary hover:underline">
                 View all
@@ -404,7 +404,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                       {server.icon_url ? (
                         <AvatarImage src={server.icon_url} />
                       ) : (
-                        <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xs">
+                        <AvatarFallback className="bg-gradient-to-br from-primary/80 to-accent/80 text-primary-foreground text-xs">
                           {server.name[0]?.toUpperCase()}
                         </AvatarFallback>
                       )}
@@ -422,10 +422,10 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               <div className="p-3 rounded-xl liquid-glass-subtle text-center">
                 <Users className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
                 <p className="text-xs text-muted-foreground">
-                  You're not in any communities yet
+                  You haven't joined any hubs yet
                 </p>
                 <Link to="/community" className="text-xs text-primary hover:underline mt-1 block">
-                  Browse servers
+                  Browse hubs
                 </Link>
               </div>
             )}
