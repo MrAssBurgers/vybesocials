@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Users, Compass, Sparkles } from 'lucide-react';
+import { Loader2, Globe, Sparkles } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts } from '@/hooks/useInfinitePosts';
 import { PostCard } from '@/components/posts/PostCard';
@@ -135,13 +135,12 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
   // Pull to refresh with proper cache invalidation
   const handleRefresh = useCallback(async () => {
-    // Force invalidate the cache to ensure fresh data
-    if (activeTab === 'foryou') {
-      queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
-      await refetchForYou();
-    } else {
+    if (activeTab === 'following') {
       queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
       await refetchFollowing();
+    } else {
+      queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
+      await refetchForYou();
     }
   }, [activeTab, queryClient, refetchForYou, refetchFollowing]);
 
@@ -179,7 +178,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       (entries) => {
         if (entries[0].isIntersecting) {
           const state = fetchStateRef.current;
-          if (state.activeTab === 'foryou' && state.hasNextForYou && !state.isFetchingNextForYou) {
+          if ((state.activeTab === 'foryou' || state.activeTab === 'global') && state.hasNextForYou && !state.isFetchingNextForYou) {
             fetchNextForYou();
           } else if (state.activeTab === 'following' && state.hasNextFollowing && !state.isFetchingNextFollowing) {
             fetchNextFollowing();
@@ -288,9 +287,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
               <TabsTrigger value="following" className="flex-1 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 Following
               </TabsTrigger>
-              <TabsTrigger value="communities" className="flex-1 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" onClick={() => navigate('/community')}>
-                <Users className="h-4 w-4 mr-1.5" />
-                Servers
+              <TabsTrigger value="global" className="flex-1 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                <Globe className="h-4 w-4 mr-1.5" />
+                Global
               </TabsTrigger>
             </TabsList>
 
@@ -316,6 +315,19 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
                 loadMoreRef={activeTab === 'following' ? loadMoreRef : () => {}}
                 emptyIcon="👋"
                 emptyText="Follow creators to see their posts here!"
+                onExplore={() => navigate('/explore')}
+              />
+            </TabsContent>
+
+            <TabsContent value="global" className="space-y-4" forceMount style={{ display: activeTab === 'global' ? 'block' : 'none' }}>
+              <PostList
+                posts={forYouPosts}
+                isLoading={forYouLoading}
+                isFetching={forYouFetching}
+                isFetchingNext={isFetchingNextForYou}
+                loadMoreRef={activeTab === 'global' ? loadMoreRef : () => {}}
+                emptyIcon="🌍"
+                emptyText="No posts yet. Be the first to share something!"
                 onExplore={() => navigate('/explore')}
               />
             </TabsContent>
