@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { ServerSafetyGate } from './ServerSafetyGate';
 import { useChannelMessages, useSendChannelMessage, ChannelMessage, useMyServerRole } from '@/hooks/useServers';
 import { useAuth } from '@/lib/auth';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -265,13 +266,15 @@ const MessageItem = memo(function MessageItem({
           </DropdownMenu>
         </div>
 
-        {/* Media */}
-        {message.media_url && message.media_type === 'image' && (
-          <img
-            src={message.media_url}
-            alt=""
-            className="mt-2 max-w-[85%] sm:max-w-sm rounded-lg"
-          />
+        {/* Media - with safety gating */}
+        {message.media_url && (message.media_type === 'image' || message.media_type === 'video') && (
+          <div className="mt-2">
+            <ServerSafetyGate
+              mediaUrl={message.media_url}
+              mediaType={message.media_type}
+              className="max-w-[85%] sm:max-w-sm"
+            />
+          </div>
         )}
       </div>
     </div>

@@ -23,7 +23,7 @@ import { MembersSheetTrigger } from '@/components/community/MembersPanel';
 import { CreateServerDialog } from '@/components/community/CreateServerDialog';
 import { JoinServerDialog } from '@/components/community/JoinServerDialog';
 import { CreateChannelDialog } from '@/components/community/CreateChannelDialog';
-import { ServerSettingsSheet } from '@/components/community/ServerSettingsSheet';
+import { ServerManagement } from '@/components/community/ServerManagement';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
 import { 
@@ -336,7 +336,7 @@ export default function Community() {
         </div>
 
         {selectedCommunityId && myRole && (
-          <ServerSettingsSheet
+          <ServerManagement
             serverId={selectedCommunityId}
             myRole={myRole === 'moderator' ? 'admin' : myRole}
             open={showSettings}
