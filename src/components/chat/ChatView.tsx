@@ -2447,9 +2447,11 @@ const MessageBubble = memo(function MessageBubble({
                 <div className="flex items-center gap-0.5">
                   <Eye className="h-3 w-3 text-primary/60" />
                   {message.views && message.views.length > 0 && (
-                    <span className="text-[9px] font-medium text-primary/60">
-                      {message.views.length}
-                    </span>
+                    <>
+                      <span className="text-[9px] font-medium text-primary/60">
+                        Read {format(new Date(message.views[0].viewed_at), 'HH:mm')}
+                      </span>
+                    </>
                   )}
                 </div>
               ) : (
