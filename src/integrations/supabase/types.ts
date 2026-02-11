@@ -1334,6 +1334,60 @@ export type Database = {
           },
         ]
       }
+      channel_permissions: {
+        Row: {
+          can_attach_media: boolean
+          can_manage: boolean
+          can_pin: boolean
+          can_send: boolean
+          can_view: boolean
+          channel_id: string
+          created_at: string
+          id: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          can_attach_media?: boolean
+          can_manage?: boolean
+          can_pin?: boolean
+          can_send?: boolean
+          can_view?: boolean
+          channel_id: string
+          created_at?: string
+          id?: string
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          can_attach_media?: boolean
+          can_manage?: boolean
+          can_pin?: boolean
+          can_send?: boolean
+          can_view?: boolean
+          channel_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_permissions_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_permissions_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channels: {
         Row: {
           created_at: string
@@ -7111,6 +7165,10 @@ export type Database = {
         Returns: boolean
       }
       check_and_grant_owner_badges: { Args: never; Returns: undefined }
+      check_channel_permission: {
+        Args: { p_channel_id: string; p_permission: string }
+        Returns: boolean
+      }
       claim_challenge_reward: {
         Args: { p_reward_id: string; p_user_id: string }
         Returns: Json
