@@ -199,8 +199,8 @@ export default function Community() {
   // ── Community detail view ──
   if (selectedCommunityId && selectedCommunity) {
     return (
-      <AppLayout hideRightSidebar fullWidth>
-        <div className="h-[calc(100dvh-4rem)] md:h-dvh flex flex-col overflow-hidden bg-background">
+      <AppLayout hideRightSidebar fullWidth noPadding>
+        <div className="h-[calc(100dvh-3.5rem)] md:h-screen flex flex-col overflow-hidden bg-background">
           {/* Header with server switcher */}
           <motion.div
             initial={{ opacity: 0, y: -10 }}
