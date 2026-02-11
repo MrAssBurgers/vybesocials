@@ -21,7 +21,7 @@ export const CHALLENGE_ROUTES: Record<string, string> = {
   'channel_message': '/communities',
   'bookmark': '/explore',
   'complete_profile': '/settings',
-  'invite': '/referrals',
+  'invite': '/invite-friends',
   'daily_login': '/',
   'login': '/',
 };
