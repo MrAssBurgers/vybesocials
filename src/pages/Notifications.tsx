@@ -140,7 +140,7 @@ export default function NotificationsPage() {
               )}
             </div>
             <Link
-              to="/referrals"
+              to="/invite-friends"
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-sm transition-all active:scale-95"
             >
               <Gift className="h-4 w-4" />

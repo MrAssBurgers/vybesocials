@@ -235,7 +235,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               </Link>
               
               <Link
-                to="/referrals"
+                to="/invite-friends"
                 onClick={triggerNavFeedback}
                 className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
               >
@@ -313,7 +313,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
                   <Link
-                    to="/referrals"
+                    to="/invite-friends"
                     onClick={triggerNavFeedback}
                     className="p-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
                   >
