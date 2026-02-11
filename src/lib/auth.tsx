@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkBanStatus = async (profileId: string) => {
     const { data, error } = await supabase
       .from('user_bans')
-      .select('reason, expires_at, is_permanent, is_meme_ban')
+      .select('reason, expires_at, is_permanent, is_meme_ban, custom_gif_url')
       .eq('user_id', profileId)
       .or(`is_permanent.eq.true,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
