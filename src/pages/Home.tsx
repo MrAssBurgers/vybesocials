@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Globe, Sparkles } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts } from '@/hooks/useInfinitePosts';
+import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -94,6 +94,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const { user, profile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('foryou');
   
+  // Personalized "For You" feed based on user interests
   const {
     data: forYouData,
     isLoading: forYouLoading,
@@ -102,6 +103,17 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextForYou,
     isFetchingNextPage: isFetchingNextForYou,
     refetch: refetchForYou,
+  } = usePersonalizedFeed();
+
+  // Global feed - shows ALL posts
+  const {
+    data: globalData,
+    isLoading: globalLoading,
+    isFetching: globalFetching,
+    fetchNextPage: fetchNextGlobal,
+    hasNextPage: hasNextGlobal,
+    isFetchingNextPage: isFetchingNextGlobal,
+    refetch: refetchGlobal,
   } = useInfinitePosts();
   
   const {
@@ -125,6 +137,12 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     [forYouData]
   );
   
+  const globalPosts = useMemo(() => 
+    (globalData?.pages.flatMap(page => page.posts) || [])
+      .filter(post => post.type === 'post' || post.type === 'video'), 
+    [globalData]
+  );
+  
   const followingPosts = useMemo(() => 
     (followingData?.pages.flatMap(page => page.posts) || [])
       .filter(post => post.type === 'post' || post.type === 'video'), 
@@ -138,11 +156,14 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     if (activeTab === 'following') {
       queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
       await refetchFollowing();
-    } else {
+    } else if (activeTab === 'global') {
       queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
+      await refetchGlobal();
+    } else {
+      queryClient.invalidateQueries({ queryKey: ['personalized-feed'] });
       await refetchForYou();
     }
-  }, [activeTab, queryClient, refetchForYou, refetchFollowing]);
+  }, [activeTab, queryClient, refetchForYou, refetchGlobal, refetchFollowing]);
 
   const { pullDistance, isRefreshing, threshold } = usePullToRefresh({
     onRefresh: handleRefresh,
@@ -156,8 +177,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const fetchStateRef = useRef({
     activeTab,
     hasNextForYou,
+    hasNextGlobal,
     hasNextFollowing,
     isFetchingNextForYou,
+    isFetchingNextGlobal,
     isFetchingNextFollowing,
   });
   
@@ -166,11 +189,13 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     fetchStateRef.current = {
       activeTab,
       hasNextForYou,
+      hasNextGlobal,
       hasNextFollowing,
       isFetchingNextForYou,
+      isFetchingNextGlobal,
       isFetchingNextFollowing,
     };
-  }, [activeTab, hasNextForYou, hasNextFollowing, isFetchingNextForYou, isFetchingNextFollowing]);
+  }, [activeTab, hasNextForYou, hasNextGlobal, hasNextFollowing, isFetchingNextForYou, isFetchingNextGlobal, isFetchingNextFollowing]);
 
   // Set up observer once and update target when it changes
   useEffect(() => {
@@ -178,8 +203,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       (entries) => {
         if (entries[0].isIntersecting) {
           const state = fetchStateRef.current;
-          if ((state.activeTab === 'foryou' || state.activeTab === 'global') && state.hasNextForYou && !state.isFetchingNextForYou) {
+          if (state.activeTab === 'foryou' && state.hasNextForYou && !state.isFetchingNextForYou) {
             fetchNextForYou();
+          } else if (state.activeTab === 'global' && state.hasNextGlobal && !state.isFetchingNextGlobal) {
+            fetchNextGlobal();
           } else if (state.activeTab === 'following' && state.hasNextFollowing && !state.isFetchingNextFollowing) {
             fetchNextFollowing();
           }
@@ -199,7 +226,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       observer.disconnect();
       observerRef.current = null;
     };
-  }, [fetchNextForYou, fetchNextFollowing]);
+  }, [fetchNextForYou, fetchNextGlobal, fetchNextFollowing]);
 
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
     // Disconnect from previous node
@@ -301,7 +328,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
                 isFetchingNext={isFetchingNextForYou}
                 loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
                 emptyIcon="✨"
-                emptyText="No posts yet. Be the first to share something!"
+                emptyText="No posts matching your interests yet. Explore or check Global!"
                 onExplore={() => navigate('/explore')}
               />
             </TabsContent>
@@ -321,10 +348,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
             <TabsContent value="global" className="space-y-4" forceMount style={{ display: activeTab === 'global' ? 'block' : 'none' }}>
               <PostList
-                posts={forYouPosts}
-                isLoading={forYouLoading}
-                isFetching={forYouFetching}
-                isFetchingNext={isFetchingNextForYou}
+                posts={globalPosts}
+                isLoading={globalLoading}
+                isFetching={globalFetching}
+                isFetchingNext={isFetchingNextGlobal}
                 loadMoreRef={activeTab === 'global' ? loadMoreRef : () => {}}
                 emptyIcon="🌍"
                 emptyText="No posts yet. Be the first to share something!"

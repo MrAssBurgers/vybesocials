@@ -7277,6 +7277,35 @@ export type Database = {
       }
       get_owner_auth_id: { Args: never; Returns: string }
       get_owner_wife_auth_id: { Args: never; Returns: string }
+      get_personalized_feed: {
+        Args: {
+          p_interests?: string[]
+          p_limit?: number
+          p_offset?: number
+          p_type?: string
+          p_user_id: string
+        }
+        Returns: {
+          author_avatar_url: string
+          author_id: string
+          author_username: string
+          caption: string
+          comment_count: number
+          created_at: string
+          id: string
+          is_bookmarked: boolean
+          is_liked: boolean
+          is_pinned: boolean
+          like_count: number
+          media_url: string
+          media_urls: string[]
+          relevance_score: number
+          tags: string[]
+          thumbnail_url: string
+          type: string
+          view_count: number
+        }[]
+      }
       get_posts_with_counts: {
         Args: {
           p_author_id?: string

@@ -223,3 +223,63 @@ export function usePrefetchPosts() {
     prefetch();
   }, [profile, queryClient]);
 }
+
+// Personalized "For You" feed - shows posts matching user's onboarding interests
+export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
+  const { profile } = useAuth();
+
+  const query = useInfiniteQuery({
+    queryKey: ['personalized-feed', type, profile?.id],
+    queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
+      const isFirstPage = pageParam === 0;
+      const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
+      const offset = isFirstPage ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
+
+      // Get user's interests from profile
+      const userInterests = (profile as any)?.interests || [];
+
+      if (userInterests.length === 0 || !profile?.id) {
+        // No interests = fall back to regular posts (trending)
+        const { data, error } = await supabase.rpc('get_posts_with_counts', {
+          p_type: type || null,
+          p_author_id: null,
+          p_user_id: profile?.id || null,
+          p_offset: offset,
+          p_limit: limit,
+        });
+        if (error) throw error;
+        const posts = (data || []).map(transformPost);
+        presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
+        return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
+      }
+
+      // Use personalized feed RPC
+      const { data, error } = await supabase.rpc('get_personalized_feed', {
+        p_user_id: profile.id,
+        p_interests: userInterests,
+        p_type: type || null,
+        p_offset: offset,
+        p_limit: limit,
+      });
+
+      if (error) throw error;
+
+      const posts = (data || []).map(transformPost);
+      presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
+
+      return {
+        posts,
+        nextPage: posts.length >= limit ? pageParam + 1 : null,
+      };
+    },
+    getNextPageParam: (lastPage) => lastPage.nextPage,
+    initialPageParam: 0,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
+  });
+
+  return query;
+}
