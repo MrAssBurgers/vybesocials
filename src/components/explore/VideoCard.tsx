@@ -169,19 +169,19 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
         </Link>
         
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-[13px] leading-[1.3] line-clamp-2 text-foreground group-hover:text-primary transition-colors">
+          <h3 className="font-semibold text-[13px] leading-[1.3] line-clamp-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] group-hover:text-primary transition-colors">
             {post.caption || 'Untitled'}
           </h3>
           <div className="flex items-center gap-1 mt-1">
             <Link 
               to={`/u/${post.author.username}`}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors truncate"
+              className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] hover:text-foreground transition-colors truncate"
               onClick={(e) => e.stopPropagation()}
             >
               {post.author.username}
             </Link>
           </div>
-          <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+          <p className="text-[11px] text-foreground/50 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] mt-0.5">
             {formatViewCount(viewCount)} views · {timeAgo}
           </p>
         </div>
