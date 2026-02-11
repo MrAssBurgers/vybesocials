@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { PRESENCE } from '@/lib/constants';
 
 interface PresenceUser {
   user_id: string;
@@ -121,7 +122,7 @@ export function useChatPresence(conversationId: string | undefined) {
     const fetchPresence = async () => {
       if (!isMounted) return;
       try {
-        const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+        const presenceWindow = new Date(Date.now() - 30000).toISOString();
         
         const { data: presenceData } = await supabase
           .from('chat_presence')
@@ -131,15 +132,15 @@ export function useChatPresence(conversationId: string | undefined) {
           `)
           .eq('conversation_id', conversationId)
           .neq('user_id', profileId)
-          .gt('last_seen_at', thirtySecondsAgo);
+          .gt('last_seen_at', presenceWindow);
 
-        const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
+        const typingWindow = new Date(Date.now() - PRESENCE.TYPING_TIMEOUT_MS).toISOString();
         const { data: typingData } = await supabase
           .from('typing_indicators')
           .select('user_id')
           .eq('conversation_id', conversationId)
           .neq('user_id', profileId)
-          .gt('started_at', fiveSecondsAgo);
+          .gt('started_at', typingWindow);
 
         if (!isMounted) return;
 
