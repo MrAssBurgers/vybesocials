@@ -271,7 +271,7 @@ export default function UploadPage() {
 
       <div className="fixed inset-0 -z-10 bg-background" />
 
-      <div className="max-w-lg mx-auto min-h-screen flex flex-col">
+      <div className="w-full max-w-lg mx-auto min-h-[100dvh] flex flex-col">
         {/* ━━━ HEADER ━━━ */}
         <motion.div
           initial={{ y: -20, opacity: 0 }}
@@ -516,7 +516,6 @@ export default function UploadPage() {
                             >
                               <X className="w-3 h-3 text-white" />
                             </button>
-                            {/* Show overflow count on last visible */}
                             {i === 5 && previews.length > 6 && (
                               <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                                 <span className="text-white font-bold text-lg">+{previews.length - 6}</span>
@@ -538,12 +537,12 @@ export default function UploadPage() {
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="relative rounded-2xl overflow-hidden"
+                      className="relative rounded-2xl overflow-hidden bg-muted/10"
                     >
                       {file?.type.startsWith('video/') ? (
-                        <video src={preview} className="w-full max-h-[55vh] object-contain bg-black/5 rounded-2xl" controls playsInline />
+                        <video src={preview} className="w-full max-h-[50dvh] object-contain rounded-2xl" controls playsInline />
                       ) : (
-                        <img src={preview} alt="" className="w-full rounded-2xl" style={{ maxHeight: '55vh', objectFit: 'cover' }} />
+                        <img src={preview} alt="" className="w-full max-h-[50dvh] object-contain rounded-2xl" />
                       )}
                       <button
                         onClick={clearFile}
@@ -564,21 +563,21 @@ export default function UploadPage() {
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
                   className={cn(
-                    "mt-3 rounded-2xl border border-dashed p-5 cursor-pointer transition-all text-center",
+                    "mt-3 rounded-2xl border border-dashed p-8 cursor-pointer transition-all text-center",
                     isDragging
                       ? "border-primary bg-primary/5 scale-[1.01]"
                       : "border-border/25 hover:border-border/50"
                   )}
                 >
-                  <div className="flex flex-col items-center gap-1.5">
+                  <div className="flex flex-col items-center gap-2">
                     <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                      "w-12 h-12 rounded-xl flex items-center justify-center transition-colors",
                       isDragging ? "bg-primary/15 text-primary" : "bg-muted/40 text-muted-foreground/50"
                     )}>
                       <UploadIcon className="w-5 h-5" />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {isDragging ? 'Drop here' : 'Add photos or videos'}
+                    <p className="text-sm text-muted-foreground">
+                      {isDragging ? 'Drop here' : 'Tap to add photos or videos'}
                     </p>
                     <p className="text-[10px] text-muted-foreground/40">Up to 10 images per carousel</p>
                   </div>
