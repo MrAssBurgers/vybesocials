@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +28,16 @@ export function ProfileSection() {
     username: profile?.username || '',
     bio: profile?.bio || '',
   });
+
+  // Keep form in sync when profile data updates (e.g. after save or refetch)
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        username: profile.username || '',
+        bio: profile.bio || '',
+      });
+    }
+  }, [profile?.username, profile?.bio]);
   
   // Fetch primary badge for display name styling preview
   const { data: primaryBadge } = useUserPrimaryBadge(profile?.id);
