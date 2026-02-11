@@ -22,7 +22,7 @@ import { useLiveMemberCount, useAllServerMemberCounts } from '@/hooks/useLiveMem
 import { ChannelChat } from '@/components/community/ChannelChat';
 import { CreateServerDialog } from '@/components/community/CreateServerDialog';
 import { JoinServerDialog } from '@/components/community/JoinServerDialog';
-import { ServerSettingsSheet } from '@/components/community/ServerSettingsSheet';
+import { ServerManagement } from '@/components/community/ServerManagement';
 
 export default function Spaces() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -639,7 +639,7 @@ export default function Spaces() {
       <CreateServerDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} />
       <JoinServerDialog open={showJoinDialog} onOpenChange={setShowJoinDialog} />
       {selectedSpace && (
-        <ServerSettingsSheet
+        <ServerManagement
           serverId={selectedSpace.id}
           myRole={selectedSpace.myRole}
           open={showSettings}

@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import { useServer, useChannels, useMyServerRole, Channel, ServerRole } from '@/hooks/useServers';
 import { useUnreadCountPerChannel, useMarkChannelRead } from '@/hooks/useServerNotifications';
 import { CreateChannelDialog } from './CreateChannelDialog';
-import { ServerSettingsSheet } from './ServerSettingsSheet';
+import { ServerManagement } from './ServerManagement';
 import { toast } from 'sonner';
 
 interface ChannelSidebarProps {
@@ -138,7 +138,7 @@ export const ChannelSidebar = memo(function ChannelSidebar({
         serverId={serverId}
       />
 
-      <ServerSettingsSheet
+      <ServerManagement
         open={showSettings}
         onOpenChange={setShowSettings}
         serverId={serverId}
