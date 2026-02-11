@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/select';
 import { useServer, useServerMembers, useChannels, useLeaveServer, useRemoveServerMember, useUpdateServerMemberRole, ServerRole } from '@/hooks/useServers';
 import { useUpdateServer, useDeleteServer, useRegenerateInviteCode, useDeleteChannel, useUploadServerIcon } from '@/hooks/useServerSettings';
+import { useChannelPermissions, useUpdateChannelPermission } from '@/hooks/useChannelPermissions';
 import { CreateChannelDialog } from './CreateChannelDialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -554,6 +555,8 @@ function MembersTab({ members, canManage, isOwner, handleKickMember, handleChang
 
 // ─── CHANNELS TAB ────────────────────────────────────────────────────
 function ChannelsTab({ channels, handleDeleteChannel, setShowCreateChannel }: any) {
+  const [editingPermsChannel, setEditingPermsChannel] = useState<string | null>(null);
+
   const channelIcon = (type: string) => {
     switch (type) {
       case 'voice': return <Volume2 className="h-4 w-4 text-green-400" />;
@@ -571,36 +574,131 @@ function ChannelsTab({ channels, handleDeleteChannel, setShowCreateChannel }: an
 
       <div className="space-y-1">
         {channels.map((channel: any) => (
-          <div key={channel.id} className="flex items-center justify-between p-3 rounded-xl bg-card/60 border border-border/30 hover:border-border/60 transition-colors group">
-            <div className="flex items-center gap-3">
-              {channelIcon(channel.type)}
-              <div>
-                <p className="font-medium text-sm">{channel.name}</p>
-                <p className="text-[10px] text-muted-foreground capitalize">{channel.type} channel</p>
+          <div key={channel.id} className="rounded-xl border border-border/30 overflow-hidden">
+            <div className="flex items-center justify-between p-3 bg-card/60 hover:border-border/60 transition-colors group">
+              <div className="flex items-center gap-3">
+                {channelIcon(channel.type)}
+                <div>
+                  <p className="font-medium text-sm">{channel.name}</p>
+                  <p className="text-[10px] text-muted-foreground capitalize">{channel.type} channel</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"
+                  onClick={() => setEditingPermsChannel(editingPermsChannel === channel.id ? null : channel.id)}
+                >
+                  <Shield className="h-3.5 w-3.5" />
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete #{channel.name}?</AlertDialogTitle>
+                      <AlertDialogDescription>This will permanently delete the channel and all messages.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDeleteChannel(channel.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
 
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete #{channel.name}?</AlertDialogTitle>
-                  <AlertDialogDescription>This will permanently delete the channel and all messages.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => handleDeleteChannel(channel.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            {/* Permission Editor */}
+            <AnimatePresence>
+              {editingPermsChannel === channel.id && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <ChannelPermissionEditor channelId={channel.id} />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         ))}
         {channels.length === 0 && <p className="text-center text-muted-foreground py-8 text-sm">No channels yet</p>}
       </div>
+    </div>
+  );
+}
+
+// ─── CHANNEL PERMISSION EDITOR ───────────────────────────────────────
+function ChannelPermissionEditor({ channelId }: { channelId: string }) {
+  const { data: permissions = [] } = useChannelPermissions(channelId);
+  const updatePerm = useUpdateChannelPermission();
+
+  const editableRoles = ['admin', 'moderator', 'member'];
+  const permFields = [
+    { key: 'can_view', label: 'View', icon: Eye },
+    { key: 'can_send', label: 'Send', icon: Hash },
+    { key: 'can_manage', label: 'Manage', icon: Settings },
+    { key: 'can_pin', label: 'Pin', icon: Sparkles },
+    { key: 'can_attach_media', label: 'Media', icon: Camera },
+  ] as const;
+
+  const roleLabels: Record<string, string> = {
+    admin: 'Admin',
+    moderator: 'Mod',
+    member: 'Member',
+  };
+
+  return (
+    <div className="px-3 py-3 border-t border-border/20 bg-muted/10 space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Role Permissions</p>
+      <p className="text-[10px] text-muted-foreground mb-3">Owner always has full access</p>
+      
+      {/* Header */}
+      <div className="grid grid-cols-6 gap-1 text-[9px] text-muted-foreground uppercase tracking-wider font-semibold px-1">
+        <span>Role</span>
+        {permFields.map(f => (
+          <span key={f.key} className="text-center">{f.label}</span>
+        ))}
+      </div>
+
+      {editableRoles.map(role => {
+        const perm = permissions.find((p: any) => p.role === role);
+        if (!perm) return null;
+
+        return (
+          <div key={role} className="grid grid-cols-6 gap-1 items-center py-1.5 px-1 rounded-lg hover:bg-muted/20 transition-colors">
+            <span className={cn(
+              "text-xs font-medium capitalize",
+              role === 'admin' ? 'text-red-400' : role === 'moderator' ? 'text-blue-400' : 'text-muted-foreground'
+            )}>
+              {roleLabels[role]}
+            </span>
+            {permFields.map(f => (
+              <div key={f.key} className="flex justify-center">
+                <Switch
+                  checked={perm[f.key]}
+                  onCheckedChange={(checked) => {
+                    updatePerm.mutate({
+                      channelId,
+                      role,
+                      field: f.key,
+                      value: checked,
+                    });
+                  }}
+                  className="scale-75"
+                />
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -613,10 +711,10 @@ function RolesTab({ members, roleBadgeVariant }: any) {
   });
 
   const roleConfig = [
-    { role: 'owner', label: 'Owner', desc: 'Full control over the server', icon: Crown, color: 'text-amber-400' },
-    { role: 'admin', label: 'Admins', desc: 'Can manage channels, members & settings', icon: Shield, color: 'text-red-400' },
-    { role: 'moderator', label: 'Moderators', desc: 'Can manage messages & moderate members', icon: Gavel, color: 'text-blue-400' },
-    { role: 'member', label: 'Members', desc: 'Standard access to channels', icon: Users, color: 'text-muted-foreground' },
+    { role: 'owner', label: 'Owner', desc: 'Full control — all permissions on all channels', icon: Crown, color: 'text-amber-400' },
+    { role: 'admin', label: 'Admins', desc: 'Can manage channels, members, settings & permissions', icon: Shield, color: 'text-red-400' },
+    { role: 'moderator', label: 'Moderators', desc: 'Can pin messages & moderate members per channel', icon: Gavel, color: 'text-blue-400' },
+    { role: 'member', label: 'Members', desc: 'Standard access — configurable per channel', icon: Users, color: 'text-muted-foreground' },
   ];
 
   return (
@@ -756,10 +854,10 @@ function InvitesTab({ server, canManage, copiedInvite, handleCopyInvite, handleR
           </div>
         </div>
         <div className="flex gap-2">
-          <Input value={server?.invite_code ? `vybeapp.lovable.app/community?join=${server.invite_code}` : ''} readOnly className="text-xs font-mono rounded-xl" />
+          <Input value={server?.invite_code ? `vybehub.app/community?join=${server.invite_code}` : ''} readOnly className="text-xs font-mono rounded-xl" />
           <Button variant="outline" size="icon" className="shrink-0 rounded-xl" onClick={() => {
             if (server?.invite_code) {
-              navigator.clipboard.writeText(`vybeapp.lovable.app/community?join=${server.invite_code}`);
+              navigator.clipboard.writeText(`vybehub.app/community?join=${server.invite_code}`);
               toast.success('Link copied!');
             }
           }}>

@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ServerSafetyGate } from './ServerSafetyGate';
 import { useChannelMessages, useSendChannelMessage, ChannelMessage, useMyServerRole } from '@/hooks/useServers';
+import { useMyChannelPermissions } from '@/hooks/useChannelPermissions';
 import { useAuth } from '@/lib/auth';
 import { format, isToday, isYesterday } from 'date-fns';
 import { toast } from 'sonner';
@@ -28,9 +29,11 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
   const { data: messages = [], isLoading } = useChannelMessages(channelId);
   const sendMessage = useSendChannelMessage();
   const { data: myRole } = useMyServerRole(serverId);
+  const { data: myPerms } = useMyChannelPermissions(channelId, serverId);
   const [messageText, setMessageText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const canSend = myPerms?.can_send !== false;
   const canModerate = myRole === 'owner' || myRole === 'admin' || myRole === 'moderator';
 
   // Scroll to bottom on new messages
@@ -154,29 +157,35 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
       </ScrollArea>
 
       {/* Input - mobile optimized with safe area */}
-      <div className="px-3 sm:px-4 py-2 sm:py-3 border-t border-border bg-background/95 backdrop-blur-sm pb-safe">
-        <div className="flex items-center gap-2">
-          <Input
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={`Message #${channelName}`}
-            className="flex-1 h-10 sm:h-10 text-[15px] sm:text-sm"
-          />
-          <Button
-            size="icon"
-            onClick={handleSend}
-            disabled={!messageText.trim() || sendMessage.isPending}
-            className="h-10 w-10 flex-shrink-0"
-          >
-            {sendMessage.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
+      {canSend ? (
+        <div className="px-3 sm:px-4 py-2 sm:py-3 border-t border-border bg-background/95 backdrop-blur-sm pb-safe">
+          <div className="flex items-center gap-2">
+            <Input
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder={`Message #${channelName}`}
+              className="flex-1 h-10 sm:h-10 text-[15px] sm:text-sm"
+            />
+            <Button
+              size="icon"
+              onClick={handleSend}
+              disabled={!messageText.trim() || sendMessage.isPending}
+              className="h-10 w-10 flex-shrink-0"
+            >
+              {sendMessage.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="px-3 sm:px-4 py-3 border-t border-border bg-muted/30 text-center pb-safe">
+          <p className="text-xs text-muted-foreground">You don't have permission to send messages in this channel</p>
+        </div>
+      )}
     </div>
   );
 });
