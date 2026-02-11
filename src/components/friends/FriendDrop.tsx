@@ -32,8 +32,8 @@ interface FoundUser {
   bio: string | null;
 }
 
-const smoothSpring = { type: "spring" as const, stiffness: 300, damping: 28 };
-const gentleSpring = { type: "spring" as const, stiffness: 200, damping: 24 };
+const smoothSpring = { type: "spring" as const, stiffness: 400, damping: 30 };
+const gentleSpring = { type: "spring" as const, stiffness: 300, damping: 26 };
 
 // --- Main idle screen: QR + Scanner side by side ---
 function MainScreen({
@@ -65,10 +65,10 @@ function MainScreen({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
-      transition={{ duration: 0.3 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
       className="flex flex-col items-center gap-5 py-3"
     >
       {/* Header */}
@@ -106,11 +106,7 @@ function MainScreen({
           style={{ boxShadow: '0 4px 24px hsl(var(--primary) / 0.15)' }}
         >
           <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-accent" />
-          <motion.div
-            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/8 to-transparent pointer-events-none"
-            animate={{ x: ['-100%', '200%'] }}
-            transition={{ repeat: Infinity, duration: 4, ease: "easeInOut", repeatDelay: 2 }}
-          />
+          {/* Removed shimmer animation for performance */}
           <div className="relative w-full h-full p-3 flex flex-col items-center justify-between">
             {/* Mini avatar + name */}
             <div className="flex items-center gap-1.5 shrink-0">
@@ -223,8 +219,6 @@ function MainScreen({
             >
               <motion.div
                 className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/15 to-accent/15 border border-primary/20 flex items-center justify-center"
-                animate={{ scale: [1, 1.06, 1] }}
-                transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
               >
                 <Camera className="h-6 w-6 text-primary" />
               </motion.div>
@@ -262,12 +256,12 @@ function DetectedPhase() {
       animate={{ opacity: 1 }}
       className="flex flex-col items-center gap-6 py-16"
     >
-      <motion.div
-        className="relative"
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ ...smoothSpring, bounce: 0.4 }}
-      >
+        <motion.div
+          className="relative"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ ...smoothSpring, bounce: 0.3 }}
+        >
         <motion.div
           className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-xl"
           animate={{ 
@@ -282,13 +276,13 @@ function DetectedPhase() {
           <Check className="h-10 w-10 text-primary-foreground" />
         </motion.div>
 
-        {[0, 1, 2].map((i) => (
+        {[0, 1].map((i) => (
           <motion.div
             key={i}
             className="absolute inset-0 rounded-full border border-primary/30"
             initial={{ scale: 1, opacity: 0.5 }}
             animate={{ scale: 2.5, opacity: 0 }}
-            transition={{ repeat: Infinity, duration: 1.8, delay: i * 0.6, ease: "easeOut" }}
+            transition={{ repeat: Infinity, duration: 1.8, delay: i * 0.7, ease: "easeOut" }}
           />
         ))}
       </motion.div>
@@ -478,8 +472,8 @@ function SuccessPhase({ foundUser }: { foundUser: FoundUser | null }) {
           <Check className="h-10 w-10 text-primary-foreground" />
         </motion.div>
 
-        {/* Themed confetti particles */}
-        {[...Array(10)].map((_, i) => (
+        {/* Themed confetti particles - reduced count */}
+        {[...Array(6)].map((_, i) => (
           <motion.div
             key={i}
             className="absolute w-2 h-2 rounded-full"
@@ -491,11 +485,11 @@ function SuccessPhase({ foundUser }: { foundUser: FoundUser | null }) {
             initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
             animate={{
               scale: [0, 1.2, 0],
-              x: Math.cos((i * Math.PI * 2) / 10) * 70,
-              y: Math.sin((i * Math.PI * 2) / 10) * 70,
+              x: Math.cos((i * Math.PI * 2) / 6) * 65,
+              y: Math.sin((i * Math.PI * 2) / 6) * 65,
               opacity: [1, 1, 0],
             }}
-            transition={{ duration: 0.9, delay: 0.15 + i * 0.03 }}
+            transition={{ duration: 0.7, delay: 0.15 + i * 0.04 }}
           />
         ))}
         
@@ -949,14 +943,13 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
             {/* Card emerging from wallet */}
             <motion.div
               className="relative rounded-3xl bg-background/95 backdrop-blur-2xl p-5 overflow-hidden"
-              initial={{ y: 120, scaleX: 0.88, scaleY: 0.6, opacity: 0, borderRadius: '24px' }}
-              animate={{ y: 0, scaleX: 1, scaleY: 1, opacity: 1, borderRadius: '24px' }}
+              initial={{ y: 80, scaleX: 0.92, scaleY: 0.7, opacity: 0 }}
+              animate={{ y: 0, scaleX: 1, scaleY: 1, opacity: 1 }}
               transition={{
                 type: "spring",
-                stiffness: 260,
-                damping: 26,
-                mass: 0.8,
-                opacity: { duration: 0.25 },
+                stiffness: 350,
+                damping: 28,
+                opacity: { duration: 0.15 },
               }}
               style={{
                 transformOrigin: 'bottom center',
