@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { 
   Heart, MessageCircle, UserPlus, UserCheck, Check, X, 
-  Users, PhoneMissed, Gem, Bell, RefreshCw, Sparkles, ShieldAlert 
+  Users, PhoneMissed, Bell, RefreshCw, Sparkles, ShieldAlert, BellRing
 } from 'lucide-react';
 import { useNotifications, useMarkNotificationsRead, NotificationType } from '@/hooks/useNotifications';
 import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends';
@@ -12,7 +12,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -23,6 +22,35 @@ import { useChatPrefetch, useNotificationChatPrefetch } from '@/hooks/useChatPre
 import { MouthZoomProvider, useMouthZoom } from '@/components/notifications/MouthZoomTransition';
 import { NotificationTransitionProvider, useNotificationTransition } from '@/components/notifications/NotificationTransitionProvider';
 import { useNotificationHoverPrefetch } from '@/hooks/useMouthZoomTransition';
+
+// ─── Icon color mapping ───
+const ICON_CONFIG: Record<NotificationType, { icon: React.ElementType; color: string; bg: string }> = {
+  like: { icon: Heart, color: 'text-rose-500', bg: 'bg-rose-500/10' },
+  comment: { icon: MessageCircle, color: 'text-sky-500', bg: 'bg-sky-500/10' },
+  follow: { icon: UserPlus, color: 'text-violet-500', bg: 'bg-violet-500/10' },
+  friend_request: { icon: Users, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+  friend_accepted: { icon: UserCheck, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+  friend_declined: { icon: X, color: 'text-destructive', bg: 'bg-destructive/10' },
+  message: { icon: MessageCircle, color: 'text-primary', bg: 'bg-primary/10' },
+  mention: { icon: Sparkles, color: 'text-amber-400', bg: 'bg-amber-400/10' },
+  missed_call: { icon: PhoneMissed, color: 'text-destructive', bg: 'bg-destructive/10' },
+  announcement: { icon: BellRing, color: 'text-primary', bg: 'bg-primary/10' },
+  content_removed: { icon: ShieldAlert, color: 'text-destructive', bg: 'bg-destructive/10' },
+};
+
+const NOTIFICATION_TEXT: Record<NotificationType, string> = {
+  like: 'liked your post',
+  comment: 'commented on your post',
+  follow: 'started following you',
+  friend_request: 'sent you a friend request',
+  friend_accepted: 'accepted your friend request',
+  friend_declined: 'declined your friend request',
+  message: 'sent you a message',
+  mention: 'mentioned you',
+  missed_call: 'tried to call you',
+  announcement: 'posted an announcement',
+  content_removed: 'removed your content',
+};
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
@@ -35,16 +63,9 @@ export default function NotificationsPage() {
   const { prefetchConversation } = useChatPrefetch();
   const [activeTab, setActiveTab] = useState('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [transitionState, setTransitionState] = useState<{
-    isAnimating: boolean;
-    sourceRect: DOMRect | null;
-    actor: { id: string; username: string; avatar_url: string | null; display_name: string | null } | null;
-  }>({ isAnimating: false, sourceRect: null, actor: null });
 
-  // Enable notification → chat prefetching
   useNotificationChatPrefetch();
 
-  // Pull to refresh functionality
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     await Promise.all([
@@ -61,149 +82,74 @@ export default function NotificationsPage() {
     threshold: 80,
   });
 
-  // Mark notifications as read when viewing this page
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      markRead.mutate();
-    }, 500);
+    const timeout = setTimeout(() => { markRead.mutate(); }, 500);
     return () => clearTimeout(timeout);
   }, []);
 
-  const getNotificationIcon = (type: NotificationType) => {
-    const iconClass = "h-4 w-4";
-    switch (type) {
-      case 'like':
-        return <Heart className={cn(iconClass, "text-primary fill-primary")} />;
-      case 'comment':
-        return <MessageCircle className={cn(iconClass, "text-accent")} />;
-      case 'follow':
-        return <UserPlus className={cn(iconClass, "text-primary")} />;
-      case 'friend_request':
-        return <Users className={cn(iconClass, "text-accent")} />;
-      case 'friend_accepted':
-        return <UserCheck className={cn(iconClass, "text-primary")} />;
-      case 'friend_declined':
-        return <X className={cn(iconClass, "text-destructive")} />;
-      case 'missed_call':
-        return <PhoneMissed className={cn(iconClass, "text-destructive")} />;
-      case 'content_removed':
-        return <ShieldAlert className={cn(iconClass, "text-destructive")} />;
-      default:
-        return <Bell className={cn(iconClass, "text-muted-foreground")} />;
-    }
-  };
-
-  const getNotificationText = (type: NotificationType) => {
-    switch (type) {
-      case 'like':
-        return 'liked your post';
-      case 'comment':
-        return 'commented on your post';
-      case 'follow':
-        return 'started following you';
-      case 'friend_request':
-        return 'sent you a friend request';
-      case 'friend_accepted':
-        return 'accepted your friend request';
-      case 'friend_declined':
-        return 'declined your friend request';
-      case 'message':
-        return 'sent you a message';
-      case 'mention':
-        return 'mentioned you';
-      case 'missed_call':
-        return 'tried to call you';
-      case 'content_removed':
-        return 'removed your content';
-      default:
-        return '';
-    }
-  };
+  const pendingRequests = friendRequests?.incoming || [];
+  const unreadNotifications = notifications?.filter(n => !n.read) || [];
+  const readNotifications = notifications?.filter(n => n.read) || [];
 
   const handleAcceptRequest = (requestId: string) => {
     respondToRequest.mutate({ requestId, action: 'accept' });
   };
-
   const handleDeclineRequest = (requestId: string) => {
     respondToRequest.mutate({ requestId, action: 'decline' });
   };
-
-  const pendingRequests = friendRequests?.incoming || [];
-
-  // Separate unread and read notifications
-  const unreadNotifications = notifications?.filter(n => !n.read) || [];
-  const readNotifications = notifications?.filter(n => n.read) || [];
 
   return (
     <NotificationTransitionProvider>
     <MouthZoomProvider>
     <AppLayout>
-      <div className="max-w-xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-24">
-        {/* Pull to refresh indicator */}
+      <div className="max-w-lg mx-auto px-4 py-5 pb-24">
+        {/* Pull to refresh */}
         <AnimatePresence>
-        {pullDistance > 0 && (
+          {pullDistance > 0 && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               className="flex justify-center mb-4"
             >
-              <motion.div
-                animate={{ rotate: isPulling ? 360 : pullDistance * 2 }}
-                transition={{ duration: isPulling ? 0.5 : 0 }}
-              >
-                <RefreshCw className={cn(
-                  "h-6 w-6 transition-colors",
-                  isPulling ? "text-primary" : "text-muted-foreground"
-                )} />
+              <motion.div animate={{ rotate: isPulling ? 360 : pullDistance * 2 }} transition={{ duration: isPulling ? 0.5 : 0 }}>
+                <RefreshCw className={cn("h-5 w-5", isPulling ? "text-primary" : "text-muted-foreground")} />
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Header with Crystal Share Button */}
+        {/* Minimal header */}
         <motion.div 
-          initial={{ opacity: 0, y: -10 }}
+          initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-5 sm:mb-6"
+          transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+          className="mb-6"
         >
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-              <Bell className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold">Notifications</h1>
-              {notifications && notifications.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {unreadNotifications.length} unread
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/invite-friends')}
-              className="relative group h-10 w-10 sm:h-11 sm:w-11 rounded-xl"
+          <h1 className="text-2xl font-bold tracking-tight">Notifications</h1>
+          {unreadNotifications.length > 0 && (
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-sm text-primary font-medium mt-0.5"
             >
-              <Gem className="h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
-              <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-accent rounded-full animate-pulse" />
-            </Button>
-          </div>
+              {unreadNotifications.length} new
+            </motion.p>
+          )}
         </motion.div>
 
+        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full mb-4 sm:mb-5 liquid-glass border border-foreground/10 p-1 h-12 sm:h-14 rounded-2xl">
+          <TabsList className="w-full mb-5 bg-muted/40 backdrop-blur-sm border border-border/30 p-1 h-11 rounded-xl">
             <TabsTrigger 
               value="all" 
-              className="flex-1 h-full rounded-xl text-sm sm:text-base font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              className="flex-1 h-full rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
             >
               All
             </TabsTrigger>
             <TabsTrigger 
               value="requests" 
-              className="flex-1 h-full rounded-xl text-sm sm:text-base font-medium relative data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              className="flex-1 h-full rounded-lg text-sm font-medium relative data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
             >
               Requests
               <AnimatePresence>
@@ -212,7 +158,8 @@ export default function NotificationsPage() {
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
-                    className="absolute -top-1 -right-1 h-5 w-5 bg-destructive rounded-full flex items-center justify-center text-[10px] text-destructive-foreground font-bold"
+                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                    className="absolute -top-1.5 -right-1 h-5 w-5 bg-destructive rounded-full flex items-center justify-center text-[10px] text-destructive-foreground font-bold shadow-sm"
                   >
                     {pendingRequests.length}
                   </motion.span>
@@ -221,186 +168,129 @@ export default function NotificationsPage() {
             </TabsTrigger>
           </TabsList>
 
+          {/* ─── ALL TAB ─── */}
           <TabsContent value="all" className="mt-0">
             <AnimatePresence mode="popLayout">
               {isLoading || isRefreshing ? (
-                <motion.div
-                  key="skeleton"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="space-y-3"
-                >
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <GlassCard key={i} className="p-4">
-                      <div className="flex items-center gap-4">
-                        <Skeleton className="h-12 w-12 sm:h-14 sm:w-14 rounded-full" />
-                        <div className="flex-1 space-y-2">
-                          <Skeleton className="h-4 w-3/4" />
-                          <Skeleton className="h-3 w-1/4" />
-                        </div>
+                <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-1">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3">
+                      <Skeleton className="h-11 w-11 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-3.5 w-3/4" />
+                        <Skeleton className="h-3 w-1/3" />
                       </div>
-                    </GlassCard>
+                    </div>
                   ))}
                 </motion.div>
               ) : notifications && notifications.length > 0 ? (
-                <motion.div
-                  key="notifications"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="space-y-3"
-                >
-                  {/* Unread section */}
+                <motion.div key="notifications" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  {/* Unread */}
                   {unreadNotifications.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">
-                        New
-                      </p>
-                      {unreadNotifications.map((notification, idx) => (
-                        <NotificationCard
-                          key={notification.id}
-                          notification={notification}
-                          index={idx}
-                          getNotificationIcon={getNotificationIcon}
-                          getNotificationText={getNotificationText}
-                        />
-                      ))}
+                    <div className="mb-2">
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">New</p>
+                      <div className="rounded-2xl bg-primary/[0.03] border border-primary/10 overflow-hidden">
+                        {unreadNotifications.map((notification, idx) => (
+                          <NotificationRow
+                            key={notification.id}
+                            notification={notification}
+                            index={idx}
+                            isLast={idx === unreadNotifications.length - 1}
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {/* Read section */}
+                  {/* Read */}
                   {readNotifications.length > 0 && (
-                    <div className="space-y-2 mt-4">
+                    <div className="mt-5">
                       {unreadNotifications.length > 0 && (
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">
-                          Earlier
-                        </p>
+                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">Earlier</p>
                       )}
-                      {readNotifications.map((notification, idx) => (
-                        <NotificationCard
-                          key={notification.id}
-                          notification={notification}
-                          index={idx}
-                          getNotificationIcon={getNotificationIcon}
-                          getNotificationText={getNotificationText}
-                          isRead
-                        />
-                      ))}
+                      <div className="rounded-2xl overflow-hidden">
+                        {readNotifications.map((notification, idx) => (
+                          <NotificationRow
+                            key={notification.id}
+                            notification={notification}
+                            index={idx}
+                            isRead
+                            isLast={idx === readNotifications.length - 1}
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
                 </motion.div>
               ) : (
-                <motion.div
-                  key="empty"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="text-center py-16"
-                >
-                  <GlassCard className="p-8 sm:p-12 inline-block">
-                    <motion.div
-                      animate={{ 
-                        rotate: [0, -10, 10, -10, 0],
-                        scale: [1, 1.1, 1]
-                      }}
-                      transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                      className="mb-4 inline-block"
-                    >
-                      <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-3xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mx-auto">
-                        <Sparkles className="h-8 w-8 sm:h-10 sm:w-10 text-primary" />
-                      </div>
-                    </motion.div>
-                    <h3 className="text-lg font-semibold mb-2">All caught up!</h3>
-                    <p className="text-sm text-muted-foreground max-w-[200px] mx-auto">
-                      When someone interacts with you, you'll see it here.
-                    </p>
-                  </GlassCard>
-                </motion.div>
+                <EmptyState
+                  icon={<Bell className="h-7 w-7 text-muted-foreground" />}
+                  title="You're all caught up"
+                  description="New notifications will appear here"
+                />
               )}
             </AnimatePresence>
           </TabsContent>
 
+          {/* ─── REQUESTS TAB ─── */}
           <TabsContent value="requests" className="mt-0">
             <AnimatePresence mode="popLayout">
               {pendingRequests.length > 0 ? (
-                <motion.div
-                  key="requests"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="space-y-3"
-                >
+                <motion.div key="requests" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
                   {pendingRequests.map((request, idx) => (
                     <motion.div
                       key={request.id}
-                      initial={{ opacity: 0, y: 20 }}
+                      initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, x: -100 }}
-                      transition={{ delay: idx * 0.05, duration: 0.2 }}
+                      exit={{ opacity: 0, x: -80, transition: { duration: 0.2 } }}
+                      transition={{ delay: idx * 0.04, duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
                     >
-                      <GlassCard className="p-4 sm:p-5">
-                        <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="flex items-center gap-3 p-3 rounded-2xl bg-card/50 border border-border/30">
+                        <Link to={`/u/${request.sender?.username}`}>
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={request.sender?.avatar_url || undefined} />
+                            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                              {request.sender?.username?.[0].toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </Link>
+                        <div className="flex-1 min-w-0">
                           <Link to={`/u/${request.sender?.username}`}>
-                            <Avatar className="h-12 w-12 sm:h-14 sm:w-14 ring-2 ring-primary/20 ring-offset-2 ring-offset-background">
-                              <AvatarImage src={request.sender?.avatar_url || undefined} />
-                              <AvatarFallback className="text-base sm:text-lg bg-gradient-to-br from-primary to-accent text-primary-foreground">
-                                {request.sender?.username?.[0].toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
+                            <p className="font-semibold text-sm truncate">
+                              {request.sender?.display_name || request.sender?.username}
+                            </p>
+                            <p className="text-xs text-muted-foreground">@{request.sender?.username}</p>
                           </Link>
-                          <div className="flex-1 min-w-0">
-                            <Link to={`/u/${request.sender?.username}`} className="hover:underline">
-                              <p className="font-semibold truncate text-sm sm:text-base">
-                                {request.sender?.display_name || request.sender?.username}
-                              </p>
-                              <p className="text-xs sm:text-sm text-muted-foreground">@{request.sender?.username}</p>
-                            </Link>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="icon"
-                              className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-gradient-to-r from-primary to-accent hover:opacity-90"
-                              onClick={() => handleAcceptRequest(request.id)}
-                              disabled={respondToRequest.isPending}
-                            >
-                              <Check className="h-4 w-4 sm:h-5 sm:w-5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl"
-                              onClick={() => handleDeclineRequest(request.id)}
-                              disabled={respondToRequest.isPending}
-                            >
-                              <X className="h-4 w-4 sm:h-5 sm:w-5" />
-                            </Button>
-                          </div>
                         </div>
-                      </GlassCard>
+                        <div className="flex gap-1.5">
+                          <Button
+                            size="sm"
+                            className="h-9 px-4 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold"
+                            onClick={() => handleAcceptRequest(request.id)}
+                            disabled={respondToRequest.isPending}
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-9 px-3 rounded-xl text-xs"
+                            onClick={() => handleDeclineRequest(request.id)}
+                            disabled={respondToRequest.isPending}
+                          >
+                            Decline
+                          </Button>
+                        </div>
+                      </div>
                     </motion.div>
                   ))}
                 </motion.div>
               ) : (
-                <motion.div
-                  key="empty-requests"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="text-center py-16"
-                >
-                  <GlassCard className="p-8 sm:p-12 inline-block">
-                    <motion.div
-                      animate={{ y: [0, -5, 0] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="mb-4 inline-block"
-                    >
-                      <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-3xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mx-auto">
-                        <Users className="h-8 w-8 sm:h-10 sm:w-10 text-primary" />
-                      </div>
-                    </motion.div>
-                    <h3 className="text-lg font-semibold mb-2">No friend requests</h3>
-                    <p className="text-sm text-muted-foreground max-w-[200px] mx-auto">
-                      When someone wants to connect, you'll see their request here.
-                    </p>
-                  </GlassCard>
-                </motion.div>
+                <EmptyState
+                  icon={<Users className="h-7 w-7 text-muted-foreground" />}
+                  title="No requests"
+                  description="Friend requests will show up here"
+                />
               )}
             </AnimatePresence>
           </TabsContent>
@@ -412,8 +302,31 @@ export default function NotificationsPage() {
   );
 }
 
-// Notification Card Component
-interface NotificationCardProps {
+// ─── Empty State ───
+function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <motion.div
+      key="empty"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+      className="flex flex-col items-center justify-center py-20 text-center"
+    >
+      <motion.div
+        animate={{ y: [0, -4, 0] }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        className="h-14 w-14 rounded-2xl bg-muted/60 flex items-center justify-center mb-4"
+      >
+        {icon}
+      </motion.div>
+      <p className="font-semibold text-foreground">{title}</p>
+      <p className="text-sm text-muted-foreground mt-1 max-w-[220px]">{description}</p>
+    </motion.div>
+  );
+}
+
+// ─── Notification Row ───
+interface NotificationRowProps {
   notification: {
     id: string;
     type: NotificationType;
@@ -429,136 +342,103 @@ interface NotificationCardProps {
     };
   };
   index: number;
-  getNotificationIcon: (type: NotificationType) => React.ReactNode;
-  getNotificationText: (type: NotificationType) => string;
   isRead?: boolean;
+  isLast?: boolean;
 }
 
-function NotificationCard({ 
-  notification, 
-  index, 
-  getNotificationIcon, 
-  getNotificationText,
-  isRead 
-}: NotificationCardProps) {
+function NotificationRow({ notification, index, isRead, isLast }: NotificationRowProps) {
   const { startTransition: startChatTransition } = useMouthZoom();
   const { triggerTransition } = useNotificationTransition();
   const { onHover } = useNotificationHoverPrefetch();
-  const navigate = useNavigate();
-  
-  // Determine where this notification should navigate to
-  // - Like/Comment notifications → go to the post
-  // - Message notifications → go to chat (with animation)
-  // - Friend request/accepted/follow → go to profile
+
+  const config = ICON_CONFIG[notification.type] || ICON_CONFIG.announcement;
+  const Icon = config.icon;
+
   const shouldGoToPost = (notification.type === 'like' || notification.type === 'comment') && notification.post_id;
   const shouldGoToChat = notification.type === 'message';
-  
-  // Handle click - route to appropriate destination with smooth transitions
+
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (shouldGoToPost && notification.post_id) {
-      // Animate transition to post
-      triggerTransition(e, {
-        type: 'post',
-        postId: notification.post_id,
-      });
+      triggerTransition(e, { type: 'post', postId: notification.post_id });
     } else if (shouldGoToChat && notification.actor?.id) {
-      // Use mouth zoom animation for chat navigation
-      startChatTransition(
-        e,
-        notification.actor.id,
-        notification.actor.username,
-        notification.actor.avatar_url,
-        notification.actor.display_name
-      );
+      startChatTransition(e, notification.actor.id, notification.actor.username, notification.actor.avatar_url, notification.actor.display_name);
     } else {
-      // Animate transition to profile
-      triggerTransition(e, {
-        type: 'profile',
-        userId: notification.actor.id,
-        username: notification.actor.username,
-        avatarUrl: notification.actor.avatar_url,
-        displayName: notification.actor.display_name,
-      });
+      triggerTransition(e, { type: 'profile', userId: notification.actor.id, username: notification.actor.username, avatarUrl: notification.actor.avatar_url, displayName: notification.actor.display_name });
     }
   }, [shouldGoToPost, shouldGoToChat, notification, startChatTransition, triggerTransition]);
 
-  // Prefetch on hover for chat notifications
   const handleMouseEnter = useCallback(() => {
-    if (shouldGoToChat && notification.actor?.id) {
-      onHover(notification.actor.id);
-    }
+    if (shouldGoToChat && notification.actor?.id) onHover(notification.actor.id);
   }, [shouldGoToChat, notification.actor?.id, onHover]);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.03, duration: 0.2 }}
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ 
+        delay: index * 0.035, 
+        duration: 0.35, 
+        ease: [0.25, 0.1, 0.25, 1]
+      }}
       onMouseEnter={handleMouseEnter}
       onClick={handleClick}
-      className="cursor-pointer select-none"
+      className={cn(
+        "flex items-center gap-3 px-3 py-3 cursor-pointer select-none",
+        "transition-colors duration-150",
+        "hover:bg-foreground/[0.04] active:bg-foreground/[0.07]",
+        !isLast && "border-b border-border/20",
+        isRead && "opacity-60"
+      )}
     >
-      <GlassCard 
-        interactive
-        className={cn(
-          "p-4 sm:p-5 transition-transform duration-150",
-          "active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-          // Prevent outline glitch on hold
-          "outline-none touch-manipulation",
-          isRead && "opacity-70"
-        )}
-      >
-        <div className="flex items-center gap-3 sm:gap-4 pointer-events-none">
-          <div className="relative flex-shrink-0">
-            <Avatar className={cn(
-              "h-12 w-12 sm:h-14 sm:w-14 transition-all",
-              !isRead && "ring-2 ring-primary/30 ring-offset-2 ring-offset-background"
-            )}>
-              <AvatarImage src={notification.actor.avatar_url || undefined} />
-              <AvatarFallback className="text-base sm:text-lg bg-gradient-to-br from-primary/50 to-accent/50">
-                {notification.actor.username[0].toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className={cn(
-              "absolute -bottom-1 -right-1 p-1.5 rounded-full",
-              isRead ? "bg-muted" : "bg-background shadow-md"
-            )}>
-              {getNotificationIcon(notification.type)}
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm sm:text-base leading-snug">
-              <StyledUsername
-                userId={notification.actor.id}
-                username={notification.actor.username}
-                displayName={notification.actor.display_name}
-                className="font-semibold"
-              />{' '}
-              <span className={isRead ? "text-muted-foreground" : ""}>
-                {getNotificationText(notification.type)}
-              </span>
-            </p>
-            {notification.type === 'content_removed' && notification.reason && (
-              <p className="text-xs text-destructive/80 mt-1 bg-destructive/10 rounded-md px-2 py-1">
-                Reason: {notification.reason}
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-            </p>
-          </div>
-          {!notification.read && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="w-2.5 h-2.5 rounded-full bg-primary flex-shrink-0"
-            />
-          )}
+      {/* Avatar with icon badge */}
+      <div className="relative shrink-0">
+        <Avatar className="h-11 w-11">
+          <AvatarImage src={notification.actor.avatar_url || undefined} />
+          <AvatarFallback className="bg-muted text-foreground text-sm font-semibold">
+            {notification.actor.username[0].toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className={cn(
+          "absolute -bottom-0.5 -right-0.5 h-5 w-5 rounded-full flex items-center justify-center ring-2 ring-background",
+          config.bg
+        )}>
+          <Icon className={cn("h-2.5 w-2.5", config.color)} fill={notification.type === 'like' ? 'currentColor' : 'none'} />
         </div>
-      </GlassCard>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] leading-snug">
+          <StyledUsername
+            userId={notification.actor.id}
+            username={notification.actor.username}
+            displayName={notification.actor.display_name}
+            className="font-semibold"
+          />{' '}
+          <span className="text-muted-foreground">{NOTIFICATION_TEXT[notification.type] || ''}</span>
+        </p>
+        {notification.type === 'content_removed' && notification.reason && (
+          <p className="text-[11px] text-destructive/80 mt-1 bg-destructive/10 rounded-md px-2 py-0.5 inline-block">
+            {notification.reason}
+          </p>
+        )}
+        <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+        </p>
+      </div>
+
+      {/* Unread dot */}
+      {!notification.read && (
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30, delay: index * 0.035 + 0.1 }}
+          className="w-2 h-2 rounded-full bg-primary shrink-0"
+        />
+      )}
     </motion.div>
   );
 }

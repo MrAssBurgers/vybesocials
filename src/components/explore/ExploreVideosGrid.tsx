@@ -33,7 +33,7 @@ export const ExploreVideosGrid = memo(function ExploreVideosGrid({
 }: ExploreVideosGridProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-7">
         {Array.from({ length: 8 }).map((_, i) => (
           <motion.div 
             key={i} 
@@ -71,13 +71,13 @@ export const ExploreVideosGrid = memo(function ExploreVideosGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-7">
       {videos.map((post, index) => (
         <motion.div
           key={post.id}
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: index * 0.03, duration: 0.3 }}
+          transition={{ delay: index * 0.04, duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
         >
           <VideoCard post={post} />
         </motion.div>
