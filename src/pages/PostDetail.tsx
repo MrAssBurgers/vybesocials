@@ -70,7 +70,7 @@ function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: 
   const isVideo = type === 'video' || type === 'short';
 
   return (
-    <div className="relative bg-black/20 min-h-[300px] lg:min-h-[500px] flex items-center justify-center">
+    <div className="relative bg-muted/20 min-h-[300px] lg:min-h-[500px] flex items-center justify-center">
       {/* Blurred background fill */}
       {isLoaded && !isVideo && (
         <div 
@@ -313,327 +313,338 @@ export default function PostDetailPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl mx-auto pb-6">
-        {/* Sticky header bar */}
-        <div className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-background/60 backdrop-blur-2xl backdrop-saturate-150 border-b border-white/10">
-          <button
-            onClick={() => navigate(-1)}
-            className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors active:scale-90"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <Link to={`/u/${post.author.username}`} className="flex items-center gap-2.5 flex-1 min-w-0">
-            <Avatar className="h-8 w-8 ring-2 ring-primary/20">
-              <AvatarImage src={post.author.avatar_url || undefined} />
-              <AvatarFallback className="text-xs">{post.author.username[0].toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <StyledUsername
-                userId={post.author.id}
-                username={post.author.username}
-                className="font-semibold text-sm truncate"
-                preferDisplayName={false}
-              />
-              <p className="text-[11px] text-muted-foreground leading-none mt-0.5">
-                {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-              </p>
-            </div>
-          </Link>
-          
-          {/* More menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
-                <MoreHorizontal className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              {isOwnPost && (
-                <DropdownMenuItem onClick={() => setIsEditOpen(true)}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit Post
-                </DropdownMenuItem>
-              )}
-              {canDelete && (
-                <DropdownMenuItem onClick={handleDelete} className="text-destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Post
-                </DropdownMenuItem>
-              )}
-              <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
-                <DialogTrigger asChild>
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                    <Flag className="h-4 w-4 mr-2" />
-                    Report
-                  </DropdownMenuItem>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Report Post</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <Select value={reportReason} onValueChange={setReportReason}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a reason" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="spam">Spam</SelectItem>
-                        <SelectItem value="harassment">Harassment</SelectItem>
-                        <SelectItem value="inappropriate">Inappropriate content</SelectItem>
-                        <SelectItem value="violence">Violence</SelectItem>
-                        <SelectItem value="copyright">Copyright violation</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={handleReport} disabled={!reportReason} className="w-full">
-                      Submit Report
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-              {!isOwnPost && (
-                <DropdownMenuItem onClick={handleBlockUser} className="text-destructive">
-                  <Ban className="h-4 w-4 mr-2" />
-                  Block @{post.author.username}
-                </DropdownMenuItem>
-              )}
-              {isModOrAdmin && !isOwnPost && (
-                <ModeratorMenuItems
+      <div className="max-w-xl mx-auto pb-6">
+        {/* Sticky header */}
+        <div className="sticky top-2 z-30">
+          <div className="mx-3 mt-2 liquid-glass rounded-2xl flex items-center gap-3 px-3 py-2">
+            <button
+              onClick={() => navigate(-1)}
+              className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors active:scale-90"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+
+            <Link to={`/u/${post.author.username}`} className="flex items-center gap-2.5 flex-1 min-w-0">
+              <Avatar className="h-8 w-8 ring-2 ring-primary/20">
+                <AvatarImage src={post.author.avatar_url || undefined} />
+                <AvatarFallback className="text-xs">{post.author.username[0].toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <StyledUsername
                   userId={post.author.id}
                   username={post.author.username}
-                  postId={post.id}
-                  onWarnClick={() => setWarnDialogOpen(true)}
-                  onBanClick={() => setBanDialogOpen(true)}
-                  onMemeBanClick={() => setMemeBanDialogOpen(true)}
-                  onDeleteContentClick={(type, id) => setDeleteContentDialog({ type, id })}
+                  className="font-semibold text-sm truncate"
+                  preferDisplayName={false}
                 />
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <ModeratorDialogs
-            userId={post.author.id}
-            username={post.author.username}
-            warnDialogOpen={warnDialogOpen}
-            setWarnDialogOpen={setWarnDialogOpen}
-            banDialogOpen={banDialogOpen}
-            setBanDialogOpen={setBanDialogOpen}
-            memeBanDialogOpen={memeBanDialogOpen}
-            setMemeBanDialogOpen={setMemeBanDialogOpen}
-            deleteContentDialog={deleteContentDialog}
-            setDeleteContentDialog={setDeleteContentDialog}
-          />
-          {isOwnPost && (
-            <EditPostDialog
-              open={isEditOpen}
-              onOpenChange={setIsEditOpen}
-              post={{ id: post.id, caption: post.caption || '', tags: post.tags || [] }}
+                <p className="text-[11px] text-muted-foreground leading-none mt-0.5">
+                  {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                </p>
+              </div>
+            </Link>
+
+            {/* More menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+                  <MoreHorizontal className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 liquid-glass-card">
+                {isOwnPost && (
+                  <DropdownMenuItem onClick={() => setIsEditOpen(true)}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit Post
+                  </DropdownMenuItem>
+                )}
+                {canDelete && (
+                  <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Post
+                  </DropdownMenuItem>
+                )}
+                <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+                  <DialogTrigger asChild>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                      <Flag className="h-4 w-4 mr-2" />
+                      Report
+                    </DropdownMenuItem>
+                  </DialogTrigger>
+                  <DialogContent className="liquid-glass-card">
+                    <DialogHeader>
+                      <DialogTitle>Report Post</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <Select value={reportReason} onValueChange={setReportReason}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a reason" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="spam">Spam</SelectItem>
+                          <SelectItem value="harassment">Harassment</SelectItem>
+                          <SelectItem value="inappropriate">Inappropriate content</SelectItem>
+                          <SelectItem value="violence">Violence</SelectItem>
+                          <SelectItem value="copyright">Copyright violation</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button onClick={handleReport} disabled={!reportReason} className="w-full">
+                        Submit Report
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                {!isOwnPost && (
+                  <DropdownMenuItem onClick={handleBlockUser} className="text-destructive">
+                    <Ban className="h-4 w-4 mr-2" />
+                    Block @{post.author.username}
+                  </DropdownMenuItem>
+                )}
+                {isModOrAdmin && !isOwnPost && (
+                  <ModeratorMenuItems
+                    userId={post.author.id}
+                    username={post.author.username}
+                    postId={post.id}
+                    onWarnClick={() => setWarnDialogOpen(true)}
+                    onBanClick={() => setBanDialogOpen(true)}
+                    onMemeBanClick={() => setMemeBanDialogOpen(true)}
+                    onDeleteContentClick={(type, id) => setDeleteContentDialog({ type, id })}
+                  />
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <ModeratorDialogs
+              userId={post.author.id}
+              username={post.author.username}
+              warnDialogOpen={warnDialogOpen}
+              setWarnDialogOpen={setWarnDialogOpen}
+              banDialogOpen={banDialogOpen}
+              setBanDialogOpen={setBanDialogOpen}
+              memeBanDialogOpen={memeBanDialogOpen}
+              setMemeBanDialogOpen={setMemeBanDialogOpen}
+              deleteContentDialog={deleteContentDialog}
+              setDeleteContentDialog={setDeleteContentDialog}
             />
-          )}
+
+            {isOwnPost && (
+              <EditPostDialog
+                open={isEditOpen}
+                onOpenChange={setIsEditOpen}
+                post={{ id: post.id, caption: post.caption || '', tags: post.tags || [] }}
+              />
+            )}
+          </div>
         </div>
 
-        {/* Media — flush with card below */}
-        <div className="mx-3 overflow-hidden rounded-t-2xl">
-          <PostDetailMedia 
-            type={post.type} 
-            mediaUrl={post.media_url} 
-            caption={post.caption || undefined} 
+        {/* Post card */}
+        <div className="mx-3 mt-3 overflow-hidden rounded-3xl liquid-glass-card shadow-xl">
+          <PostDetailMedia
+            type={post.type}
+            mediaUrl={post.media_url}
+            caption={post.caption || undefined}
           />
-        </div>
 
-        {/* Content card — seamlessly connected to media */}
-        <div className="mx-3 rounded-b-2xl bg-background/90 backdrop-blur-2xl backdrop-saturate-150 border border-t-0 border-white/10 shadow-xl overflow-hidden">
-          {/* Action bar */}
-          <div className="px-4 pt-3 pb-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <motion.button 
+          <div className="border-t border-border/40">
+            {/* Action bar */}
+            <div className="px-4 pt-3 pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <motion.button
+                    whileTap={{ scale: 0.75 }}
+                    onClick={handleLike}
+                    className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
+                  >
+                    <motion.div
+                      animate={isLiked ? { scale: [1, 1.4, 1] } : {}}
+                      transition={{ duration: 0.35, ease: 'easeOut' }}
+                    >
+                      <Heart
+                        className={cn(
+                          'h-7 w-7 transition-colors',
+                          isLiked ? 'fill-primary text-primary' : 'text-foreground'
+                        )}
+                        strokeWidth={isLiked ? 0 : 2}
+                      />
+                    </motion.div>
+                  </motion.button>
+
+                  <motion.button
+                    whileTap={{ scale: 0.75 }}
+                    onClick={() => commentInputRef.current?.focus()}
+                    className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
+                  >
+                    <MessageCircle className="h-7 w-7 text-foreground" strokeWidth={2} />
+                  </motion.button>
+
+                  <motion.button
+                    whileTap={{ scale: 0.75, rotate: 15 }}
+                    onClick={handleShare}
+                    className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
+                  >
+                    <Share2 className="h-7 w-7 text-foreground" strokeWidth={2} />
+                  </motion.button>
+                </div>
+
+                <motion.button
                   whileTap={{ scale: 0.75 }}
-                  onClick={handleLike}
+                  onClick={handleBookmark}
                   className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
                 >
                   <motion.div
-                    animate={isLiked ? { scale: [1, 1.4, 1] } : {}}
-                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                    animate={isBookmarked ? { scale: [1, 1.3, 1] } : {}}
+                    transition={{ duration: 0.3 }}
                   >
-                    <Heart
+                    <Bookmark
                       className={cn(
-                        "h-7 w-7 transition-colors",
-                        isLiked ? "fill-red-500 text-red-500" : "text-white/90"
+                        'h-7 w-7 transition-colors',
+                        isBookmarked ? 'fill-neon-yellow text-neon-yellow' : 'text-foreground'
                       )}
-                      strokeWidth={isLiked ? 0 : 2}
+                      strokeWidth={isBookmarked ? 0 : 2}
                     />
                   </motion.div>
                 </motion.button>
-                <motion.button 
-                  whileTap={{ scale: 0.75 }}
-                  onClick={() => commentInputRef.current?.focus()}
-                  className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
-                >
-                  <MessageCircle className="h-7 w-7 text-white/90" strokeWidth={2} />
-                </motion.button>
-                <motion.button 
-                  whileTap={{ scale: 0.75, rotate: 15 }}
-                  onClick={handleShare}
-                  className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
-                >
-                  <Share2 className="h-7 w-7 text-white/90" strokeWidth={2} />
-                </motion.button>
               </div>
-              <motion.button 
-                whileTap={{ scale: 0.75 }}
-                onClick={handleBookmark}
-                className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
-              >
-                <motion.div
-                  animate={isBookmarked ? { scale: [1, 1.3, 1] } : {}}
-                  transition={{ duration: 0.3 }}
-                >
-                  <Bookmark
-                    className={cn(
-                      "h-7 w-7 transition-colors",
-                      isBookmarked ? "fill-yellow-400 text-yellow-400" : "text-white/90"
-                    )}
-                    strokeWidth={isBookmarked ? 0 : 2}
-                  />
-                </motion.div>
-              </motion.button>
+
+              {/* Like count */}
+              <p className="font-semibold text-sm mt-1 text-foreground">{likeCount.toLocaleString()} likes</p>
+
+              {/* Caption */}
+              {post.caption && (
+                <div className="mt-1.5">
+                  <p className="text-sm text-foreground">
+                    <Link to={`/u/${post.author.username}`} className="font-bold mr-1.5 hover:underline">
+                      {post.author.username}
+                    </Link>
+                    {post.caption}
+                  </p>
+                </div>
+              )}
+
+              {/* Tags */}
+              {post.tags && post.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {post.tags.map((tag) => (
+                    <Link
+                      key={tag}
+                      to={`/explore?tag=${tag}`}
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      #{tag}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Timestamp */}
+              <p className="text-[11px] text-muted-foreground mt-2 uppercase tracking-wide">
+                {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+              </p>
             </div>
 
-            {/* Like count */}
-            <p className="font-bold text-sm mt-1 text-white/90">{likeCount.toLocaleString()} likes</p>
+            {/* Divider */}
+            <div className="h-px bg-border/50 mx-4" />
 
-            {/* Caption */}
-            {post.caption && (
-              <div className="mt-1.5">
-                <p className="text-sm text-white/90">
-                  <Link to={`/u/${post.author.username}`} className="font-bold mr-1.5 hover:underline">
-                    {post.author.username}
-                  </Link>
-                  {post.caption}
-                </p>
-              </div>
-            )}
+            {/* Comments section */}
+            <div className="px-4 py-3">
+              <h3 className="text-sm font-semibold text-muted-foreground mb-4">
+                {post.comment_count > 0 ? `Comments (${post.comment_count})` : 'Comments'}
+              </h3>
 
-            {/* Tags */}
-            {post.tags && post.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {post.tags.map((tag) => (
-                  <Link
-                    key={tag}
-                    to={`/explore?tag=${tag}`}
-                    className="text-xs font-medium text-primary hover:underline"
-                  >
-                    #{tag}
-                  </Link>
-                ))}
-              </div>
-            )}
-
-            {/* Timestamp */}
-            <p className="text-[11px] text-muted-foreground mt-2 uppercase tracking-wide">
-              {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-            </p>
-          </div>
-
-          {/* Divider */}
-          <div className="h-px bg-white/10 mx-4" />
-
-        {/* Comments section */}
-        <div className="px-4 py-3">
-          <h3 className="text-sm font-semibold text-muted-foreground mb-4">
-            {post.comment_count > 0 ? `Comments (${post.comment_count})` : 'Comments'}
-          </h3>
-
-          <div className="space-y-3 max-h-[50vh] overflow-y-auto overscroll-contain pr-1">
-            {commentsLoading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex gap-3 p-3">
-                  <Skeleton className="h-9 w-9 rounded-full flex-shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-3.5 w-20" />
-                    <Skeleton className="h-3.5 w-full" />
-                  </div>
-                </div>
-              ))
-            ) : commentsList.length > 0 ? (
-              commentsList.map((comment) => (
-                <motion.div
-                  key={comment.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex gap-3 group bg-white/5 backdrop-blur-md rounded-2xl p-3 border border-white/10"
-                >
-                  <Link to={`/u/${comment.user.username}`} className="flex-shrink-0">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={comment.user.avatar_url || undefined} />
-                      <AvatarFallback className="text-xs">{comment.user.username[0].toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                  </Link>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white/90">
-                          <Link to={`/u/${comment.user.username}`}>
-                            <StyledUsername
-                              userId={comment.user.id}
-                              username={comment.user.username}
-                              className="font-bold text-sm mr-1.5"
-                              preferDisplayName={false}
-                            />
-                          </Link>
-                          <span className="break-words">{comment.text}</span>
-                        </p>
-                        {comment.image_url && (
-                          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2">
-                            <img 
-                              src={comment.image_url} 
-                              alt="" 
-                              className="max-w-[200px] max-h-[150px] rounded-xl object-cover border border-white/10"
-                            />
-                          </motion.div>
-                        )}
-                        <p className="text-[11px] text-muted-foreground mt-1">
-                          {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
-                        </p>
+              <div className="space-y-3 max-h-[50vh] overflow-y-auto overscroll-contain pr-1">
+                {commentsLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex gap-3 p-3">
+                      <Skeleton className="h-9 w-9 rounded-full flex-shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-3.5 w-20" />
+                        <Skeleton className="h-3.5 w-full" />
                       </div>
-                      {profile?.id === comment.user.id && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity rounded-full text-destructive">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent className="liquid-glass-card">
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete comment?</AlertDialogTitle>
-                              <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => deleteComment.mutate({ commentId: comment.id, postId: post.id })}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
                     </div>
+                  ))
+                ) : commentsList.length > 0 ? (
+                  commentsList.map((comment) => (
+                    <motion.div
+                      key={comment.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex gap-3 group liquid-glass-subtle rounded-2xl p-3"
+                    >
+                      <Link to={`/u/${comment.user.username}`} className="flex-shrink-0">
+                        <Avatar className="h-9 w-9">
+                          <AvatarImage src={comment.user.avatar_url || undefined} />
+                          <AvatarFallback className="text-xs">{comment.user.username[0].toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                      </Link>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-foreground">
+                              <Link to={`/u/${comment.user.username}`}>
+                                <StyledUsername
+                                  userId={comment.user.id}
+                                  username={comment.user.username}
+                                  className="font-bold text-sm mr-1.5"
+                                  preferDisplayName={false}
+                                />
+                              </Link>
+                              <span className="break-words">{comment.text}</span>
+                            </p>
+                            {comment.image_url && (
+                              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2">
+                                <img
+                                  src={comment.image_url}
+                                  alt=""
+                                  className="max-w-[200px] max-h-[150px] rounded-xl object-cover border border-border/30"
+                                />
+                              </motion.div>
+                            )}
+                            <p className="text-[11px] text-muted-foreground mt-1">
+                              {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                            </p>
+                          </div>
+                          {profile?.id === comment.user.id && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity rounded-full text-destructive"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="liquid-glass-card">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete comment?</AlertDialogTitle>
+                                  <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteComment.mutate({ commentId: comment.id, postId: post.id })}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <span className="text-3xl mb-2">💬</span>
+                    <p className="text-sm text-muted-foreground font-medium">No comments yet</p>
+                    <p className="text-xs text-muted-foreground/60 mt-0.5">Be the first to share your thoughts</p>
                   </div>
-                </motion.div>
-              ))
-            ) : (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <span className="text-3xl mb-2">💬</span>
-                <p className="text-sm text-muted-foreground font-medium">No comments yet</p>
-                <p className="text-xs text-muted-foreground/60 mt-0.5">Be the first to share your thoughts</p>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
-        </div>{/* end content card */}
 
         {/* Comment input - sticky bottom */}
         {profile && (
