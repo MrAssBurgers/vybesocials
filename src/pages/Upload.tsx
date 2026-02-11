@@ -232,7 +232,7 @@ export default function UploadPage() {
   if (showAIVideoGenerator) return <AIVideoGenerator onVideoGenerated={handleAIVideoGenerated} onClose={() => setShowAIVideoGenerator(false)} />;
 
   return (
-    <AppLayout hideNav>
+    <AppLayout hideNav hideRightSidebar>
       {/* Solid opaque cover — sits ABOVE the AppBackground (z-0) to fully block it */}
       <div className="fixed inset-0 z-[5]" style={{ backgroundColor: 'hsl(var(--background))' }} />
 
