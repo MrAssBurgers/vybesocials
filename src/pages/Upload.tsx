@@ -315,36 +315,44 @@ export default function UploadPage() {
         </div>
 
         {/* ━━━━ TYPE SELECTOR ━━━━ */}
-        <div className="px-4 py-3 bg-background border-b border-border/50">
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-            {contentTypes.map((t) => {
+        <div className="px-4 py-3 border-b border-border/50" style={{ backgroundColor: 'hsl(var(--background))' }}>
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide max-w-2xl mx-auto">
+            {contentTypes.map((t, i) => {
               const active = contentType === t.id;
               return (
-                <button
+                <motion.button
                   key={t.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
                   onClick={() => { setContentType(t.id); if (t.id === 'text') clearFile(); }}
                   className={cn(
                     "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200",
                     active
-                      ? "bg-primary text-primary-foreground shadow-sm"
+                      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
                       : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   )}
                 >
                   <t.icon className="w-3.5 h-3.5" />
                   {t.label}
-                </button>
+                </motion.button>
               );
             })}
           </div>
         </div>
 
         {/* ━━━━ SCROLLABLE COMPOSER AREA ━━━━ */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
 
           {/* User row */}
-          <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+          <div className="flex items-center gap-3 px-4 pt-4 pb-2 max-w-2xl mx-auto">
             {/* Avatar */}
-            <div className="w-11 h-11 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary flex-shrink-0">
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }} 
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              className="w-11 h-11 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary flex-shrink-0"
+            >
               <div className="w-full h-full rounded-full overflow-hidden bg-card">
                 {profile?.avatar_url ? (
                   <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
@@ -354,7 +362,7 @@ export default function UploadPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </motion.div>
 
             <div className="flex flex-col gap-0.5">
               {profile && (
@@ -378,7 +386,8 @@ export default function UploadPage() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -4, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute top-full left-0 mt-1.5 z-50 min-w-[170px] py-1.5 rounded-xl bg-card border border-border shadow-xl"
+                      className="absolute top-full left-0 mt-1.5 z-50 min-w-[170px] py-1.5 rounded-xl border border-border shadow-xl"
+                      style={{ backgroundColor: 'hsl(var(--card))' }}
                     >
                       {visibilityOptions.map((opt) => (
                         <button
@@ -405,7 +414,7 @@ export default function UploadPage() {
           </div>
 
           {/* Caption input */}
-          <div className="px-4 pb-2">
+          <div className="px-4 pb-2 max-w-2xl mx-auto">
             <textarea
               ref={captionRef}
               value={caption}
@@ -443,105 +452,162 @@ export default function UploadPage() {
             )}
           </div>
 
-          {/* ━━━ MEDIA PREVIEW ━━━ */}
+          {/* ━━━ MEDIA PREVIEW — properly contained ━━━ */}
           {contentType !== 'text' && hasMedia && (
-            <div className="px-4 pb-4">
+            <motion.div 
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="px-4 pb-4 max-w-2xl mx-auto"
+            >
               {previews.length > 1 ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
+                  {/* Smart grid with proper aspect ratios */}
                   <div className={cn(
-                    "grid gap-1 rounded-2xl overflow-hidden border border-border",
+                    "grid gap-1.5 rounded-2xl overflow-hidden border border-border",
                     previews.length === 2 && "grid-cols-2",
-                    previews.length === 3 && "grid-cols-2",
+                    previews.length === 3 && "grid-cols-3",
                     previews.length >= 4 && "grid-cols-3"
-                  )}>
-                    {previews.slice(0, 6).map((p, i) => (
-                      <div
+                  )} style={{ backgroundColor: 'hsl(var(--muted))' }}>
+                    {previews.slice(0, 9).map((p, i) => (
+                      <motion.div
                         key={i}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: i * 0.05 }}
                         className={cn(
-                          "relative group",
-                          previews.length === 3 && i === 0 && "row-span-2",
-                          "aspect-square"
+                          "relative group aspect-square overflow-hidden",
+                          previews.length === 3 && i === 0 && "row-span-2 col-span-2"
                         )}
                       >
-                        <img src={p} alt="" className="w-full h-full object-cover" />
-                        <button
+                        <img src={p} alt="" className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <motion.button
+                          whileTap={{ scale: 0.85 }}
                           onClick={() => removeFileAtIndex(i)}
-                          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-background/90 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                          className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg"
+                          style={{ backgroundColor: 'hsl(var(--background) / 0.9)' }}
                         >
-                          <X className="w-3 h-3 text-foreground" />
-                        </button>
-                        {i === 5 && previews.length > 6 && (
-                          <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                            <span className="text-foreground font-bold text-lg">+{previews.length - 6}</span>
+                          <X className="w-3.5 h-3.5 text-foreground" />
+                        </motion.button>
+                        {i === 8 && previews.length > 9 && (
+                          <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}>
+                            <span className="text-foreground font-bold text-lg">+{previews.length - 9}</span>
                           </div>
                         )}
-                      </div>
+                      </motion.div>
                     ))}
+                    {/* Add more tile inside grid */}
+                    {previews.length < 10 && (
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="aspect-square flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-border/60 hover:border-primary/40 transition-all rounded-lg"
+                        style={{ backgroundColor: 'hsl(var(--muted) / 0.5)' }}
+                      >
+                        <Plus className="w-5 h-5 text-muted-foreground" />
+                        <span className="text-[10px] font-medium text-muted-foreground">Add</span>
+                      </button>
+                    )}
                   </div>
-                  {previews.length < 10 && (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-1.5 text-xs text-primary font-medium hover:text-primary/80 transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add more
-                    </button>
-                  )}
+                  <p className="text-[11px] text-muted-foreground text-center">{previews.length}/10 photos</p>
                 </div>
               ) : preview && (
-                <div className="relative rounded-2xl overflow-hidden border border-border bg-muted">
+                <div className="relative rounded-2xl overflow-hidden border border-border" style={{ backgroundColor: 'hsl(var(--muted))' }}>
                   {file?.type.startsWith('video/') ? (
-                    <video src={preview} className="w-full max-h-[50dvh] object-contain" controls playsInline />
+                    <video 
+                      src={preview} 
+                      className="w-full max-h-[55dvh] object-contain mx-auto block" 
+                      style={{ backgroundColor: 'hsl(var(--muted))' }}
+                      controls 
+                      playsInline 
+                    />
                   ) : (
-                    <img src={preview} alt="" className="w-full max-h-[50dvh] object-contain" />
+                    <img 
+                      src={preview} 
+                      alt="" 
+                      className="w-full max-h-[55dvh] object-contain mx-auto block"
+                      style={{ backgroundColor: 'hsl(var(--muted))' }}
+                    />
                   )}
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.85 }}
                     onClick={clearFile}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-background/90 border border-border flex items-center justify-center hover:bg-background transition-colors"
+                    className="absolute top-3 right-3 w-9 h-9 rounded-full border border-border flex items-center justify-center shadow-lg transition-colors hover:bg-background"
+                    style={{ backgroundColor: 'hsl(var(--background) / 0.9)' }}
                   >
                     <X className="w-4 h-4 text-foreground" />
-                  </button>
+                  </motion.button>
                 </div>
               )}
-            </div>
+            </motion.div>
           )}
 
-          {/* Drop zone — solid card style */}
+          {/* Drop zone — polished card style */}
           {contentType !== 'text' && !hasMedia && (
-            <div className="px-4 pb-4">
+            <motion.div 
+              initial={{ opacity: 0, y: 16 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              transition={{ duration: 0.35, delay: 0.1 }}
+              className="px-4 pb-4 max-w-2xl mx-auto"
+            >
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={cn(
-                  "rounded-2xl border-2 border-dashed p-10 cursor-pointer transition-all text-center bg-muted/30",
+                  "rounded-2xl border-2 border-dashed cursor-pointer transition-all text-center",
+                  "py-16 sm:py-20",
                   isDragging
                     ? "border-primary bg-primary/5 scale-[1.01]"
-                    : "border-border hover:border-primary/40 hover:bg-muted/50"
+                    : "border-border hover:border-primary/40 hover:bg-muted/30"
                 )}
+                style={{ backgroundColor: isDragging ? undefined : 'hsl(var(--muted) / 0.15)' }}
               >
-                <div className="flex flex-col items-center gap-3">
+                <motion.div 
+                  className="flex flex-col items-center gap-4"
+                  animate={isDragging ? { scale: 1.05 } : { scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                >
                   <div className={cn(
-                    "w-14 h-14 rounded-2xl flex items-center justify-center transition-colors",
+                    "w-16 h-16 rounded-2xl flex items-center justify-center transition-colors",
                     isDragging ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
                   )}>
-                    <UploadIcon className="w-6 h-6" />
+                    <UploadIcon className="w-7 h-7" />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">
                       {isDragging ? 'Drop here' : 'Tap to add photos or videos'}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Up to 10 images · Carousel supported</p>
+                    <p className="text-xs text-muted-foreground">Up to 10 images · Carousel supported</p>
                   </div>
-                </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setShowCamera(true); }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    >
+                      <CameraIcon className="w-3.5 h-3.5" /> Camera
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowAIVideoGenerator(true); }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    >
+                      <Wand2 className="w-3.5 h-3.5" /> AI Video
+                    </button>
+                  </div>
+                </motion.div>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* Video details */}
           {contentType === 'video' && file && (
-            <div className="px-4 pb-4">
-              <div className="space-y-3 p-4 rounded-2xl bg-card border border-border">
+            <motion.div 
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="px-4 pb-4 max-w-2xl mx-auto"
+            >
+              <div className="space-y-3 p-4 rounded-2xl border border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <Video className="w-4 h-4 text-primary" /> Video details
                 </div>
@@ -566,14 +632,14 @@ export default function UploadPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </motion.div>
           )}
         </div>
 
         {/* ━━━━ BOTTOM TOOLBAR — solid, pinned ━━━━ */}
         <div className="sticky bottom-0 z-30 border-t border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
           {/* Tool icons */}
-          <div className="flex items-center justify-between px-4 h-12">
+          <div className="flex items-center justify-between px-4 h-12 max-w-2xl mx-auto">
             <div className="flex items-center gap-1">
               {contentType !== 'text' && (
                 <>
@@ -608,7 +674,7 @@ export default function UploadPage() {
 
           {/* Suggested tags row */}
           {tags.length === 0 && (
-            <div className="flex gap-1.5 px-4 pb-3 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-1.5 px-4 pb-3 overflow-x-auto scrollbar-hide max-w-2xl mx-auto">
               {suggestedTags.slice(0, 7).map((tag) => (
                 <button
                   key={tag}
