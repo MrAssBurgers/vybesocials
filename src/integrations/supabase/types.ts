@@ -1190,8 +1190,57 @@ export type Database = {
           },
         ]
       }
+      challenge_templates: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          requirement_count: number
+          requirement_type: string
+          reward_badge_id: string | null
+          reward_xp: number | null
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          requirement_count?: number
+          requirement_type: string
+          reward_badge_id?: string | null
+          reward_xp?: number | null
+          title: string
+          type: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          requirement_count?: number
+          requirement_type?: string
+          reward_badge_id?: string | null
+          reward_xp?: number | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_templates_reward_badge_id_fkey"
+            columns: ["reward_badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       challenges: {
         Row: {
+          active_date: string | null
+          active_week_start: string | null
           created_at: string | null
           description: string | null
           ends_at: string | null
@@ -1202,10 +1251,13 @@ export type Database = {
           reward_badge_id: string | null
           reward_xp: number | null
           starts_at: string | null
+          template_id: string | null
           title: string
           type: string
         }
         Insert: {
+          active_date?: string | null
+          active_week_start?: string | null
           created_at?: string | null
           description?: string | null
           ends_at?: string | null
@@ -1216,10 +1268,13 @@ export type Database = {
           reward_badge_id?: string | null
           reward_xp?: number | null
           starts_at?: string | null
+          template_id?: string | null
           title: string
           type: string
         }
         Update: {
+          active_date?: string | null
+          active_week_start?: string | null
           created_at?: string | null
           description?: string | null
           ends_at?: string | null
@@ -1230,6 +1285,7 @@ export type Database = {
           reward_badge_id?: string | null
           reward_xp?: number | null
           starts_at?: string | null
+          template_id?: string | null
           title?: string
           type?: string
         }
@@ -1239,6 +1295,13 @@ export type Database = {
             columns: ["reward_badge_id"]
             isOneToOne: false
             referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenges_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "challenge_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -7468,6 +7531,7 @@ export type Database = {
         Args: { limit_count?: number }
         Returns: number
       }
+      rotate_challenges: { Args: never; Returns: undefined }
       set_active_background: {
         Args: { p_background_id: string }
         Returns: undefined

@@ -396,8 +396,13 @@ export default function ChallengesHubPage() {
                             animate={{ opacity: 1 }}
                             className="absolute top-2 right-2"
                           >
-                            <Badge className="bg-primary text-primary-foreground">
-                              ✓ Complete
+                            <Badge className={cn(
+                              "text-primary-foreground",
+                              challenge.is_claimed 
+                                ? "bg-muted-foreground/60" 
+                                : "bg-primary"
+                            )}>
+                              {challenge.is_claimed ? '✓ Completed' : '🎁 Claim XP'}
                             </Badge>
                           </motion.div>
                         )}
