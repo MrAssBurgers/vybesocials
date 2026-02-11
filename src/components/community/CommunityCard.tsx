@@ -1,27 +1,25 @@
 import { memo } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Crown, Shield, Radio, ArrowRight } from 'lucide-react';
+import { Users, Crown, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Community, CommunityRole } from '@/hooks/useCommunities';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { Button } from '@/components/ui/button';
 
 interface CommunityCardProps {
   community: Community & { myRole?: CommunityRole };
   onClick: () => void;
   unreadCount?: number;
-  index?: number;
 }
 
 // Gradient palette for cards
 const gradients = [
-  'from-violet-500 to-purple-600',
-  'from-blue-500 to-cyan-500',
-  'from-emerald-500 to-teal-500',
-  'from-orange-500 to-amber-500',
-  'from-pink-500 to-rose-500',
-  'from-indigo-500 to-blue-500',
-  'from-fuchsia-500 to-pink-500',
-  'from-cyan-500 to-sky-500',
+  'from-violet-500/80 to-purple-600/80',
+  'from-blue-500/80 to-cyan-500/80',
+  'from-emerald-500/80 to-teal-500/80',
+  'from-orange-500/80 to-amber-500/80',
+  'from-pink-500/80 to-rose-500/80',
+  'from-indigo-500/80 to-blue-500/80',
 ];
 
 function getGradient(id: string) {
@@ -36,130 +34,113 @@ export const CommunityCard = memo(function CommunityCard({
   community, 
   onClick,
   unreadCount = 0,
-  index = 0,
 }: CommunityCardProps) {
   const coverUrl = useSignedUrl(community.cover_url || community.banner_url);
   const iconUrl = useSignedUrl(community.icon_url);
   const gradient = getGradient(community.id);
   const isOwner = community.myRole === 'owner';
-  const isMod = community.myRole === 'moderator';
   const activeCount = community.active_now_count || 0;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ 
-        duration: 0.4, 
-        delay: index * 0.08,
-        ease: [0.25, 0.46, 0.45, 0.94]
-      }}
-      whileHover={{ y: -6, scale: 1.03 }}
-      whileTap={{ scale: 0.97 }}
+      whileHover={{ y: -4, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="relative cursor-pointer group h-full"
+      className="relative cursor-pointer group"
     >
-      <div className="liquid-glass rounded-2xl overflow-hidden border border-foreground/5 hover:border-primary/30 transition-all duration-300 h-full flex flex-col hover:shadow-[0_8px_30px_-8px_hsl(var(--primary)/0.3)]">
-        {/* Cover area */}
+      {/* Glass card container */}
+      <div className="liquid-glass rounded-2xl overflow-hidden border border-foreground/5 hover:border-primary/20 transition-all duration-300">
+        {/* Cover image / gradient */}
         <div className={cn(
-          "relative h-28 overflow-hidden shrink-0",
+          "relative h-32 overflow-hidden",
           !coverUrl && `bg-gradient-to-br ${gradient}`
         )}>
           {coverUrl && (
             <img 
               src={coverUrl} 
               alt="" 
-              className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+              className="absolute inset-0 w-full h-full object-cover"
               loading="lazy"
             />
           )}
           
-          {/* Shimmer on hover */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          {/* Overlay gradient */}
+          <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
           
-          {/* Bottom fade */}
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
-          
-          {/* Active badge */}
+          {/* Live activity indicator */}
           {activeCount > 0 && (
             <motion.div 
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/90 backdrop-blur-sm text-white text-[10px] font-semibold shadow-lg"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/90 backdrop-blur-sm text-white text-xs font-medium shadow-lg"
             >
-              <Radio className="h-2.5 w-2.5 animate-pulse" />
+              <Radio className="h-3 w-3 animate-pulse" />
               {activeCount} active
             </motion.div>
           )}
           
-          {/* Unread */}
+          {/* Unread badge */}
           {unreadCount > 0 && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-              className="absolute top-2.5 left-2.5 min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center shadow-lg"
-            >
+            <div className="absolute top-3 left-3 min-w-[22px] h-[22px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center shadow-lg">
               {unreadCount > 99 ? '99+' : unreadCount}
-            </motion.div>
+            </div>
           )}
           
-          {/* Role badge */}
-          {(isOwner || isMod) && (
-            <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full backdrop-blur-sm text-white text-[10px] font-medium"
-              style={{ background: isOwner ? 'rgba(245, 158, 11, 0.85)' : 'rgba(59, 130, 246, 0.85)' }}
-            >
-              {isOwner ? <Crown className="h-2.5 w-2.5" /> : <Shield className="h-2.5 w-2.5" />}
-              {isOwner ? 'Owner' : 'Mod'}
+          {/* Owner badge */}
+          {isOwner && (
+            <div className="absolute bottom-3 left-3 flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/90 backdrop-blur-sm text-white text-[10px] font-medium">
+              <Crown className="h-3 w-3" />
+              Owner
             </div>
           )}
         </div>
 
         {/* Content */}
-        <div className="p-3.5 flex flex-col flex-1">
+        <div className="p-4 space-y-3">
+          {/* Icon and name */}
           <div className="flex items-start gap-3">
-            {/* Icon overlapping cover */}
-            <div className="shrink-0 -mt-8 relative">
-              {iconUrl ? (
-                <img 
-                  src={iconUrl} 
-                  alt={community.name}
-                  className="w-11 h-11 rounded-xl object-cover border-2 border-background shadow-md"
-                />
-              ) : (
-                <div className={cn(
-                  "w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm border-2 border-background shadow-md",
-                  `bg-gradient-to-br ${gradient}`
-                )}>
-                  {community.name.slice(0, 2).toUpperCase()}
-                </div>
-              )}
-            </div>
+            {iconUrl ? (
+              <img 
+                src={iconUrl} 
+                alt={community.name}
+                className="w-12 h-12 rounded-xl object-cover border-2 border-background shadow-md -mt-8"
+              />
+            ) : (
+              <div className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg border-2 border-background shadow-md -mt-8",
+                `bg-gradient-to-br ${gradient}`
+              )}>
+                {community.name.slice(0, 2).toUpperCase()}
+              </div>
+            )}
             
-            <div className="flex-1 min-w-0 pt-0.5">
-              <h3 className="font-semibold text-sm text-foreground truncate">{community.name}</h3>
+            <div className="flex-1 min-w-0 pt-1">
+              <h3 className="font-semibold text-foreground truncate">{community.name}</h3>
               {community.description && (
-                <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
+                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                   {community.description}
                 </p>
               )}
             </div>
           </div>
           
-          {/* Footer */}
-          <div className="flex items-center justify-between mt-auto pt-3">
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Users className="h-3 w-3" />
+          {/* Stats and enter button */}
+          <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Users className="h-3.5 w-3.5" />
               <span>{community.member_count} members</span>
             </div>
             
-            <motion.div
-              className="flex items-center gap-1 text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-              whileHover={{ x: 3 }}
+            <Button 
+              size="sm" 
+              className="h-8 px-4 rounded-full text-xs font-medium"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+              }}
             >
               Enter
-              <ArrowRight className="h-3 w-3" />
-            </motion.div>
+            </Button>
           </div>
         </div>
       </div>
@@ -172,12 +153,10 @@ export const PublicCommunityCard = memo(function PublicCommunityCard({
   community,
   onJoin,
   isJoining,
-  index = 0,
 }: { 
   community: Community;
   onJoin: () => void;
   isJoining: boolean;
-  index?: number;
 }) {
   const coverUrl = useSignedUrl(community.cover_url || community.banner_url);
   const iconUrl = useSignedUrl(community.icon_url);
@@ -186,16 +165,12 @@ export const PublicCommunityCard = memo(function PublicCommunityCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.4, delay: index * 0.08, ease: [0.25, 0.46, 0.45, 0.94] }}
-      whileHover={{ y: -4, scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
-      className="liquid-glass rounded-2xl overflow-hidden border border-foreground/5 hover:border-primary/20 transition-all duration-300 h-full flex flex-col"
+      whileHover={{ y: -2 }}
+      className="liquid-glass rounded-2xl overflow-hidden border border-foreground/5"
     >
       {/* Cover */}
       <div className={cn(
-        "relative h-24 overflow-hidden shrink-0",
+        "relative h-24",
         !coverUrl && `bg-gradient-to-br ${gradient}`
       )}>
         {coverUrl && (
@@ -211,17 +186,17 @@ export const PublicCommunityCard = memo(function PublicCommunityCard({
         )}
       </div>
 
-      <div className="p-3.5 space-y-3 flex flex-col flex-1">
+      <div className="p-4 space-y-3">
         <div className="flex items-start gap-3">
           {iconUrl ? (
             <img 
               src={iconUrl} 
               alt={community.name}
-              className="w-10 h-10 rounded-lg object-cover border-2 border-background -mt-6 shrink-0"
+              className="w-10 h-10 rounded-lg object-cover border-2 border-background -mt-6"
             />
           ) : (
             <div className={cn(
-              "w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm border-2 border-background -mt-6 shrink-0",
+              "w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm border-2 border-background -mt-6",
               `bg-gradient-to-br ${gradient}`
             )}>
               {community.name.slice(0, 2).toUpperCase()}
@@ -230,25 +205,22 @@ export const PublicCommunityCard = memo(function PublicCommunityCard({
           
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-sm truncate">{community.name}</h3>
-            <p className="text-[11px] text-muted-foreground">{community.member_count} members</p>
+            <p className="text-xs text-muted-foreground">{community.member_count} members</p>
           </div>
         </div>
         
         {community.description && (
-          <p className="text-[11px] text-muted-foreground line-clamp-2">{community.description}</p>
+          <p className="text-xs text-muted-foreground line-clamp-2">{community.description}</p>
         )}
         
-        <div className="mt-auto">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            className="w-full h-8 rounded-full text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-            onClick={onJoin}
-            disabled={isJoining}
-          >
-            {isJoining ? 'Joining...' : 'Join Community'}
-          </motion.button>
-        </div>
+        <Button 
+          size="sm" 
+          className="w-full h-8 rounded-full text-xs"
+          onClick={onJoin}
+          disabled={isJoining}
+        >
+          {isJoining ? 'Joining...' : 'Join Community'}
+        </Button>
       </div>
     </motion.div>
   );
