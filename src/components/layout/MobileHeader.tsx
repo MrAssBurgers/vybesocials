@@ -50,6 +50,7 @@ export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHea
             {/* Notifications */}
             <Link
               to="/notifications"
+              data-tutorial="notifications-badge"
               className={cn(
                 "relative flex items-center justify-center h-9 w-9 rounded-xl transition-all",
                 isNotificationsActive 
