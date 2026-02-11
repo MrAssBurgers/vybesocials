@@ -432,7 +432,7 @@ export default function PostDetailPage() {
         </div>
 
         {/* Media */}
-        <div className="overflow-hidden">
+        <div className="overflow-hidden rounded-b-none">
           <PostDetailMedia 
             type={post.type} 
             mediaUrl={post.media_url} 
@@ -440,101 +440,103 @@ export default function PostDetailPage() {
           />
         </div>
 
-        {/* Action bar */}
-        <div className="px-4 pt-3 pb-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1">
+        {/* Content card — frosted glass so it doesn't bleed into background */}
+        <div className="mx-3 -mt-1 rounded-2xl bg-background/80 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-xl overflow-hidden">
+          {/* Action bar */}
+          <div className="px-4 pt-3 pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <motion.button 
+                  whileTap={{ scale: 0.75 }}
+                  onClick={handleLike}
+                  className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
+                >
+                  <motion.div
+                    animate={isLiked ? { scale: [1, 1.4, 1] } : {}}
+                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                  >
+                    <Heart
+                      className={cn(
+                        "h-7 w-7 transition-colors",
+                        isLiked ? "fill-red-500 text-red-500" : "text-foreground"
+                      )}
+                      strokeWidth={isLiked ? 0 : 2}
+                    />
+                  </motion.div>
+                </motion.button>
+                <motion.button 
+                  whileTap={{ scale: 0.75 }}
+                  onClick={() => commentInputRef.current?.focus()}
+                  className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
+                >
+                  <MessageCircle className="h-7 w-7 text-foreground" strokeWidth={2} />
+                </motion.button>
+                <motion.button 
+                  whileTap={{ scale: 0.75, rotate: 15 }}
+                  onClick={handleShare}
+                  className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
+                >
+                  <Share2 className="h-7 w-7 text-foreground" strokeWidth={2} />
+                </motion.button>
+              </div>
               <motion.button 
                 whileTap={{ scale: 0.75 }}
-                onClick={handleLike}
+                onClick={handleBookmark}
                 className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
               >
                 <motion.div
-                  animate={isLiked ? { scale: [1, 1.4, 1] } : {}}
-                  transition={{ duration: 0.35, ease: 'easeOut' }}
+                  animate={isBookmarked ? { scale: [1, 1.3, 1] } : {}}
+                  transition={{ duration: 0.3 }}
                 >
-                  <Heart
+                  <Bookmark
                     className={cn(
                       "h-7 w-7 transition-colors",
-                      isLiked ? "fill-red-500 text-red-500" : "text-foreground"
+                      isBookmarked ? "fill-primary text-primary" : "text-foreground"
                     )}
-                    strokeWidth={isLiked ? 0 : 2}
+                    strokeWidth={isBookmarked ? 0 : 2}
                   />
                 </motion.div>
               </motion.button>
-              <motion.button 
-                whileTap={{ scale: 0.75 }}
-                onClick={() => commentInputRef.current?.focus()}
-                className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
-              >
-                <MessageCircle className="h-7 w-7 text-foreground" strokeWidth={2} />
-              </motion.button>
-              <motion.button 
-                whileTap={{ scale: 0.75, rotate: 15 }}
-                onClick={handleShare}
-                className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
-              >
-                <Share2 className="h-7 w-7 text-foreground" strokeWidth={2} />
-              </motion.button>
             </div>
-            <motion.button 
-              whileTap={{ scale: 0.75 }}
-              onClick={handleBookmark}
-              className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
-            >
-              <motion.div
-                animate={isBookmarked ? { scale: [1, 1.3, 1] } : {}}
-                transition={{ duration: 0.3 }}
-              >
-                <Bookmark
-                  className={cn(
-                    "h-7 w-7 transition-colors",
-                    isBookmarked ? "fill-primary text-primary" : "text-foreground"
-                  )}
-                  strokeWidth={isBookmarked ? 0 : 2}
-                />
-              </motion.div>
-            </motion.button>
+
+            {/* Like count */}
+            <p className="font-bold text-sm mt-1 text-foreground">{likeCount.toLocaleString()} likes</p>
+
+            {/* Caption */}
+            {post.caption && (
+              <div className="mt-1.5">
+                <p className="text-sm text-foreground">
+                  <Link to={`/u/${post.author.username}`} className="font-bold mr-1.5 hover:underline">
+                    {post.author.username}
+                  </Link>
+                  {post.caption}
+                </p>
+              </div>
+            )}
+
+            {/* Tags */}
+            {post.tags && post.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {post.tags.map((tag) => (
+                  <Link
+                    key={tag}
+                    to={`/explore?tag=${tag}`}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    #{tag}
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {/* Timestamp */}
+            <p className="text-[11px] text-muted-foreground mt-2 uppercase tracking-wide">
+              {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+            </p>
           </div>
 
-          {/* Like count */}
-          <p className="font-bold text-sm mt-1">{likeCount.toLocaleString()} likes</p>
-
-          {/* Caption */}
-          {post.caption && (
-            <div className="mt-1.5">
-              <p className="text-sm text-foreground">
-                <Link to={`/u/${post.author.username}`} className="font-bold mr-1.5 hover:underline">
-                  {post.author.username}
-                </Link>
-                {post.caption}
-              </p>
-            </div>
-          )}
-
-          {/* Tags */}
-          {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {post.tags.map((tag) => (
-                <Link
-                  key={tag}
-                  to={`/explore?tag=${tag}`}
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  #{tag}
-                </Link>
-              ))}
-            </div>
-          )}
-
-          {/* Timestamp */}
-          <p className="text-[11px] text-muted-foreground mt-2 uppercase tracking-wide">
-            {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-          </p>
-        </div>
-
-        {/* Divider */}
-        <div className="h-px bg-border mx-4" />
+          {/* Divider */}
+          <div className="h-px bg-white/10 mx-4" />
 
         {/* Comments section */}
         <div className="px-4 py-3">
@@ -631,10 +633,11 @@ export default function PostDetailPage() {
             )}
           </div>
         </div>
+        </div>{/* end content card */}
 
         {/* Comment input - sticky bottom */}
         {profile && (
-          <div className="sticky bottom-0 z-20 px-4 py-3 bg-background/70 backdrop-blur-2xl backdrop-saturate-150 border-t border-white/10">
+          <div className="sticky bottom-0 z-20 mx-3 mb-3 px-4 py-3 rounded-2xl bg-background/80 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-xl">
             {/* GIF preview */}
             <AnimatePresence>
               {commentGifUrl && (
