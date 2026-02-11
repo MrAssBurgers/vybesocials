@@ -65,7 +65,7 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="flex gap-3 group"
+      className="flex gap-3 group bg-white/5 backdrop-blur-md rounded-2xl p-3 border border-white/10"
     >
       <Link to={`/u/${comment.user.username}`}>
         <Avatar className="h-8 w-8 flex-shrink-0">

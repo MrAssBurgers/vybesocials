@@ -939,8 +939,6 @@ export function ChatView() {
         .insert({
           conversation_id: conversationId,
           sender_id: profile.id,
-          topic: 'general',
-          extension: 'text',
           content: null,
           media_url: mediaUrl,
           media_type: 'vybe',
