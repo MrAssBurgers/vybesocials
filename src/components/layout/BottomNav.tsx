@@ -313,10 +313,10 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         <div 
           className="mx-3 mb-2 rounded-2xl overflow-hidden border border-white/10"
           style={{
-            background: 'linear-gradient(135deg, hsl(var(--primary) / 0.15), hsl(var(--accent) / 0.12), hsl(var(--background) / 0.6))',
-            backdropFilter: 'blur(24px) saturate(160%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(160%)',
-            boxShadow: '0 8px 32px hsl(var(--primary) / 0.15), inset 0 1px 0 hsl(var(--primary) / 0.1)',
+            background: 'linear-gradient(135deg, hsl(var(--primary) / 0.35), hsl(var(--accent) / 0.28), hsl(var(--primary) / 0.2))',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+            boxShadow: '0 8px 32px hsl(var(--primary) / 0.3), inset 0 1px 0 hsl(var(--primary) / 0.15)',
           }}
         >
           <div className="grid grid-cols-5 h-14 px-1 relative z-10">
