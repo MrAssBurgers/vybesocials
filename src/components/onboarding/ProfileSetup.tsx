@@ -94,11 +94,9 @@ export function ProfileSetup({ data, onChange, username }: ProfileSetupProps) {
               placeholder="First name"
               value={data.firstName}
               onChange={(e) => {
-                const firstName = e.target.value;
                 onChange({ 
                   ...data, 
-                  firstName,
-                  displayName: `${firstName} ${data.lastName}`.trim() || data.displayName,
+                  firstName: e.target.value,
                 });
               }}
               className="bg-card border-border"
@@ -111,11 +109,9 @@ export function ProfileSetup({ data, onChange, username }: ProfileSetupProps) {
               placeholder="Last name"
               value={data.lastName}
               onChange={(e) => {
-                const lastName = e.target.value;
                 onChange({ 
                   ...data, 
-                  lastName,
-                  displayName: `${data.firstName} ${lastName}`.trim() || data.displayName,
+                  lastName: e.target.value,
                 });
               }}
               className="bg-card border-border"
@@ -132,7 +128,7 @@ export function ProfileSetup({ data, onChange, username }: ProfileSetupProps) {
             onChange={(e) => onChange({ ...data, displayName: e.target.value })}
             className="bg-card border-border"
           />
-          <p className="text-xs text-muted-foreground">Defaults to your username, but you can customize it</p>
+          <p className="text-xs text-muted-foreground">Your @{username} is your display name by default</p>
         </div>
 
         <div className="space-y-2">
