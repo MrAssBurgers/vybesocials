@@ -499,7 +499,7 @@ export default function UploadPage() {
           </div>
 
           {/* ━━━ MEDIA AREA — fills remaining space ━━━ */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 max-w-2xl mx-auto w-full" style={{ backgroundColor: 'hsl(var(--background))' }}>
+          <div className="flex-1 overflow-hidden px-4 py-3 max-w-2xl mx-auto w-full" style={{ backgroundColor: 'hsl(var(--background))' }}>
             {contentType !== 'text' && hasMedia && (
               <motion.div 
                 initial={{ opacity: 0, y: 12 }}
