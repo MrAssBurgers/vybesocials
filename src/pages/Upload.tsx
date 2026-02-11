@@ -233,9 +233,12 @@ export default function UploadPage() {
 
   return (
     <AppLayout hideNav>
+      {/* Solid opaque cover — sits ABOVE the AppBackground (z-0) to fully block it */}
+      <div className="fixed inset-0 z-[5]" style={{ backgroundColor: 'hsl(var(--background))' }} />
+
       {/* Safety scanner overlay */}
       {showSafetyScanner && file && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'hsl(var(--background) / 0.9)' }}>
           <ContentSafetyScanner isScanning={contentSafety.isScanning} result={contentSafety.result} message={contentSafety.message} scanDetails={contentSafety.scanDetails} onContinue={handleSafetyContinue} onCancel={handleSafetyCancel} onAppeal={handleSafetyAppeal} />
         </div>
       )}
@@ -246,7 +249,8 @@ export default function UploadPage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed inset-0 z-[100] bg-background flex items-center justify-center"
+            className="fixed inset-0 z-[100] flex items-center justify-center"
+            style={{ backgroundColor: 'hsl(var(--background))' }}
           >
             <motion.div
               initial={{ scale: 0, rotate: -180 }}
@@ -263,13 +267,11 @@ export default function UploadPage() {
         )}
       </AnimatePresence>
 
-      {/* SOLID background — no transparency */}
-      <div className="fixed inset-0 -z-10 bg-background" />
-
-      <div className="w-full max-w-lg mx-auto min-h-[100dvh] flex flex-col bg-background">
+      {/* Main content — z-[10] to sit above the solid cover */}
+      <div className="relative z-[10] w-full max-w-lg mx-auto min-h-[100dvh] flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
 
         {/* ━━━━ HEADER — solid, opaque ━━━━ */}
-        <div className="sticky top-0 z-40 bg-card border-b border-border">
+        <div className="sticky top-0 z-40 border-b border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
           <div className="flex items-center justify-between px-4 h-14">
             <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted transition-colors">
               <ArrowLeft className="w-5 h-5 text-foreground" />
@@ -569,7 +571,7 @@ export default function UploadPage() {
         </div>
 
         {/* ━━━━ BOTTOM TOOLBAR — solid, pinned ━━━━ */}
-        <div className="sticky bottom-0 z-30 bg-card border-t border-border">
+        <div className="sticky bottom-0 z-30 border-t border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
           {/* Tool icons */}
           <div className="flex items-center justify-between px-4 h-12">
             <div className="flex items-center gap-1">
