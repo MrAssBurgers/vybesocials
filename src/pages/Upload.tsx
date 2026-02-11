@@ -316,7 +316,7 @@ export default function UploadPage() {
 
         {/* ━━━━ TYPE SELECTOR ━━━━ */}
         <div className="px-4 py-3 border-b border-border/50" style={{ backgroundColor: 'hsl(var(--background))' }}>
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide max-w-2xl mx-auto">
+          <div className="flex gap-3 justify-evenly max-w-2xl mx-auto">
             {contentTypes.map((t, i) => {
               const active = contentType === t.id;
               return (
@@ -637,7 +637,7 @@ export default function UploadPage() {
         </div>
 
         {/* ━━━━ BOTTOM TOOLBAR — solid, pinned ━━━━ */}
-        <div className="sticky bottom-0 z-30 border-t border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
+        <div className="flex-shrink-0 z-30 border-t border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
           {/* Tool icons */}
           <div className="flex items-center justify-between px-4 h-12 max-w-2xl mx-auto">
             <div className="flex items-center gap-1">
