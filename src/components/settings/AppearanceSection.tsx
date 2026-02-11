@@ -48,6 +48,7 @@ export function AppearanceSection() {
               onClick={() => {
                 haptics.tap();
                 setTheme(option.id as 'dark' | 'light' | 'system');
+                toast.success(`Switched to ${option.label}`);
               }}
               className={cn(
                 'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 active:scale-95',

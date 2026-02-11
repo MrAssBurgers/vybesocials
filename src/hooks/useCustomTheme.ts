@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 
 export interface ThemeTokens {
@@ -351,6 +351,91 @@ function adjustLightness(hsl: string, amount: number): string {
   return hsl;
 }
 
+// Helper to invert HSL lightness for mode switching (dark<->light)
+function invertLightness(hsl: string): string {
+  try {
+    const parts = hsl.split(' ');
+    if (parts.length >= 3) {
+      const lightness = parseFloat(parts[2].replace('%', ''));
+      if (isNaN(lightness)) return hsl;
+      const inverted = 100 - lightness;
+      return `${parts[0]} ${parts[1]} ${inverted}%`;
+    }
+  } catch {}
+  return hsl;
+}
+
+// Helper to shift lightness toward light or dark range
+function shiftToMode(hsl: string, targetMode: 'light' | 'dark', type: 'bg' | 'text' | 'border' | 'accent'): string {
+  try {
+    const parts = hsl.split(' ');
+    if (parts.length < 3) return hsl;
+    const h = parts[0];
+    const s = parts[1];
+    const l = parseFloat(parts[2].replace('%', ''));
+    if (isNaN(l)) return hsl;
+
+    let newL = l;
+    if (targetMode === 'light') {
+      // For light mode: backgrounds should be bright, text should be dark
+      if (type === 'bg') newL = Math.max(88, Math.min(100, 100 - l * 0.15));
+      else if (type === 'text') newL = Math.max(5, Math.min(35, 100 - l));
+      else if (type === 'border') newL = Math.max(75, Math.min(92, 100 - l * 0.3));
+      else newL = Math.max(30, Math.min(60, l)); // accents stay vivid
+    } else {
+      // For dark mode: backgrounds should be dark, text should be bright
+      if (type === 'bg') newL = Math.max(2, Math.min(15, l * 0.15));
+      else if (type === 'text') newL = Math.max(85, Math.min(98, 100 - l));
+      else if (type === 'border') newL = Math.max(12, Math.min(25, l * 0.3));
+      else newL = Math.max(45, Math.min(70, l)); // accents stay vivid
+    }
+    return `${h} ${s} ${newL}%`;
+  } catch {}
+  return hsl;
+}
+
+/**
+ * Adapt a set of VYBE theme tokens to a target mode (dark/light).
+ * Keeps the same hue/saturation palette but shifts lightness values
+ * so the theme looks natural in the target mode.
+ */
+export function adaptThemeToMode(tokens: ThemeTokens, targetMode: 'dark' | 'light'): ThemeTokens {
+  // If the theme already matches the target mode, return as-is
+  if (tokens.mode === targetMode) return tokens;
+
+  return {
+    ...tokens,
+    mode: targetMode,
+    // Primary colors keep their hue but adjust slightly for contrast
+    colorPrimary: tokens.colorPrimary, // Keep primary vibrant
+    colorSecondary: shiftToMode(tokens.colorSecondary, targetMode, 'accent'),
+    colorAccent: tokens.colorAccent, // Keep accent vibrant
+    // Backgrounds
+    bgMain: shiftToMode(tokens.bgMain, targetMode, 'bg'),
+    bgCard: shiftToMode(tokens.bgCard, targetMode, 'bg'),
+    bgGradientFrom: tokens.bgGradientFrom ? shiftToMode(tokens.bgGradientFrom, targetMode, 'bg') : undefined,
+    bgGradientMid: tokens.bgGradientMid ? shiftToMode(tokens.bgGradientMid, targetMode, 'bg') : undefined,
+    bgGradientTo: tokens.bgGradientTo ? shiftToMode(tokens.bgGradientTo, targetMode, 'bg') : undefined,
+    // Glass & nav
+    glassBg: tokens.glassBg ? shiftToMode(tokens.glassBg, targetMode, 'bg') : undefined,
+    glassBorder: tokens.glassBorder ? shiftToMode(tokens.glassBorder, targetMode, 'border') : undefined,
+    sidebarBg: tokens.sidebarBg ? shiftToMode(tokens.sidebarBg, targetMode, 'bg') : undefined,
+    navBg: tokens.navBg ? shiftToMode(tokens.navBg, targetMode, 'bg') : undefined,
+    inputBg: tokens.inputBg ? shiftToMode(tokens.inputBg, targetMode, 'border') : undefined,
+    // Text
+    textPrimary: shiftToMode(tokens.textPrimary, targetMode, 'text'),
+    textSecondary: shiftToMode(tokens.textSecondary, targetMode, 'text'),
+    inputText: tokens.inputText ? shiftToMode(tokens.inputText, targetMode, 'text') : undefined,
+    buttonText: tokens.buttonText ? shiftToMode(tokens.buttonText, targetMode, 'text') : undefined,
+    // Borders
+    borderColor: tokens.borderColor ? shiftToMode(tokens.borderColor, targetMode, 'border') : undefined,
+    // Neons stay vibrant
+    neonPink: tokens.neonPink,
+    neonPurple: tokens.neonPurple,
+    neonCyan: tokens.neonCyan,
+  };
+}
+
 /**
  * Apply theme tokens to CSS variables.
  * 
@@ -509,8 +594,13 @@ export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackgr
     }
     
     // === MODE CLASS ===
-    root.classList.remove('light', 'dark');
-    root.classList.add(tokens.mode === 'light' ? 'light' : 'dark');
+    // Only set the class if it doesn't already match - avoids triggering MutationObserver loops
+    const currentMode = root.classList.contains('light') ? 'light' : 'dark';
+    const targetMode = tokens.mode === 'light' ? 'light' : 'dark';
+    if (currentMode !== targetMode) {
+      root.classList.remove('light', 'dark');
+      root.classList.add(targetMode);
+    }
     
     // Dispatch custom event for dynamic favicon and other theme-dependent features
     window.dispatchEvent(new CustomEvent('vybeThemeChange', { detail: tokens }));
@@ -539,32 +629,60 @@ export function applyBackgroundImage(imageUrl: string | null, opacity?: number, 
   }
 }
 
+// Track if we're currently applying a theme to prevent MutationObserver loops
+let _isApplyingTheme = false;
+
 export function useApplyUserTheme() {
   const { data: userTheme } = useUserTheme();
 
-  useEffect(() => {
+  // Helper to get and apply the right theme for a given mode
+  const applyForMode = useCallback((resolved: 'dark' | 'light') => {
+    if (_isApplyingTheme) return;
+    _isApplyingTheme = true;
+    
     try {
-      // First check for equipped community theme from localStorage
+      // First check equipped community theme
       const equippedThemeTokens = localStorage.getItem('vybe-custom-theme');
       if (equippedThemeTokens) {
         const tokens = JSON.parse(equippedThemeTokens) as ThemeTokens;
-        if (tokens && typeof tokens === 'object' && tokens.colorPrimary) {
-          applyThemeTokens(tokens);
-          return; // Use equipped theme, don't override with user theme
+        if (tokens?.colorPrimary) {
+          applyThemeTokens(adaptThemeToMode(tokens, resolved));
+          return;
         }
       }
 
-      // Fall back to user's saved theme from database
+      // Fall back to user's saved theme
       if (userTheme?.is_active && userTheme.theme_tokens) {
         const tokens = userTheme.theme_tokens as unknown as ThemeTokens;
-        if (tokens && typeof tokens === 'object' && tokens.colorPrimary) {
-          applyThemeTokens(tokens);
+        if (tokens?.colorPrimary) {
+          applyThemeTokens(adaptThemeToMode(tokens, resolved));
         }
       }
-    } catch (error) {
-      console.error('Error applying user theme:', error);
+    } catch {} finally {
+      // Allow next apply after a short delay
+      setTimeout(() => { _isApplyingTheme = false; }, 50);
     }
   }, [userTheme]);
+
+  // Listen for mode changes from the ThemeProvider (dark/light/system toggle)
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+          requestAnimationFrame(() => applyForMode(resolved));
+          break;
+        }
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, [applyForMode]);
+
+  useEffect(() => {
+    const resolvedMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+    applyForMode(resolvedMode);
+  }, [userTheme, applyForMode]);
 }
 
 // Hook to load and apply active background on app start
