@@ -454,6 +454,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 try {
                   const { error } = await lovable.auth.signInWithOAuth("google", {
                     redirect_uri: window.location.origin,
+                    extraParams: {
+                      prompt: "select_account",
+                    },
                   });
                   if (error) throw error;
                 } catch (error: any) {
