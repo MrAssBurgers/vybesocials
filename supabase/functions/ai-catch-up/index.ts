@@ -140,10 +140,18 @@ serve(async (req) => {
     const allInterests = [...new Set([...onboardingInterests, ...customTopics])]
       .filter(i => !excludedTopics.includes(i));
 
-    // Get recent posts from people user follows (last 24 hours)
+    // ── REAL-TIME DATA: Fetch actual counts from DB ──
+
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    
-    // Get followed users (use profile ID, not auth user ID)
+
+    // 1) Actual unread notifications count
+    const { count: notificationCount } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', profileId)
+      .eq('read', false);
+
+    // 2) Get followed users
     const { data: follows } = await supabase
       .from('follows')
       .select('following_id')
@@ -152,20 +160,21 @@ serve(async (req) => {
     const followingIds = follows?.map(f => f.following_id) || [];
     
     let postsContent = "";
-    let messagesContent = "";
+    let recentPostCount = 0;
     
     if (followingIds.length > 0) {
-      // Get recent posts from followed users (author_id is the profile ID)
-      const { data: posts } = await supabase
+      const { data: posts, count: postCount } = await supabase
         .from('posts')
         .select(`
           id, caption, created_at,
           profiles:author_id(username, display_name)
-        `)
+        `, { count: 'exact' })
         .in('author_id', followingIds)
         .gte('created_at', oneDayAgo)
         .order('created_at', { ascending: false })
         .limit(20);
+
+      recentPostCount = postCount || 0;
 
       if (posts?.length) {
         postsContent = posts.map(p => {
@@ -175,7 +184,7 @@ serve(async (req) => {
       }
     }
 
-    // Get unread message previews (just counts by conversation)
+    // 3) Unread conversations count
     const { data: conversations } = await supabase
       .from('conversation_members')
       .select(`
@@ -198,9 +207,17 @@ serve(async (req) => {
       }
     }
 
+    let messagesContent = "";
     if (unreadConvos > 0) {
       messagesContent = `You have ${unreadConvos} conversation${unreadConvos > 1 ? 's' : ''} with new messages.`;
     }
+
+    // 4) New followers in last 24h
+    const { count: newFollowerCount } = await supabase
+      .from('follows')
+      .select('id', { count: 'exact', head: true })
+      .eq('following_id', profileId)
+      .gte('created_at', oneDayAgo);
 
     // Fetch real-time data from Perplexity based on interests
     interface LiveUpdate {
@@ -214,7 +231,6 @@ serve(async (req) => {
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     
     if (PERPLEXITY_API_KEY && allInterests.length > 0) {
-      // Fetch updates for up to 5 interests in parallel
       const selectedInterests = allInterests.slice(0, 5);
       const fetchPromises = selectedInterests.map(async (interest: string): Promise<LiveUpdate | null> => {
         const result = await fetchPerplexityData(interest, PERPLEXITY_API_KEY);
@@ -238,9 +254,23 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    // Build context with REAL counts
     const contextParts = [];
+    
+    // Real notification count
+    const realNotifCount = notificationCount || 0;
+    if (realNotifCount > 0) {
+      contextParts.push(`You have ${realNotifCount} unread notification${realNotifCount > 1 ? 's' : ''}.`);
+    }
+    
+    // Real new followers
+    const realNewFollowers = newFollowerCount || 0;
+    if (realNewFollowers > 0) {
+      contextParts.push(`${realNewFollowers} new follower${realNewFollowers > 1 ? 's' : ''} in the last 24 hours.`);
+    }
+    
     if (postsContent) {
-      contextParts.push(`Recent posts from people you follow:\n${postsContent}`);
+      contextParts.push(`${recentPostCount} new post${recentPostCount > 1 ? 's' : ''} from people you follow:\n${postsContent}`);
     }
     if (messagesContent) {
       contextParts.push(messagesContent);
@@ -250,16 +280,19 @@ serve(async (req) => {
       contextParts.push(`Live updates based on your interests:\n${liveContent}`);
     }
 
-    const hasUpdates = postsContent || messagesContent;
+    const hasUpdates = postsContent || messagesContent || realNotifCount > 0 || realNewFollowers > 0;
     const hasLiveData = liveUpdates.length > 0;
     const hasInterests = allInterests.length > 0;
 
     if (!hasUpdates && !hasLiveData && !hasInterests) {
       return new Response(
         JSON.stringify({ 
-          summary: "All caught up! 🎉 No new posts or messages. Add some interests in settings to get personalized updates from the web!",
+          summary: "All caught up! 🎉 No new posts, messages, or notifications. Add some interests in settings to get personalized updates from the web!",
           hasPosts: false,
           hasMessages: false,
+          unreadCount: 0,
+          notificationCount: 0,
+          newFollowerCount: 0,
           liveUpdates: [],
           hasLiveData: false
         }),
@@ -270,17 +303,24 @@ serve(async (req) => {
     const briefStyle = briefPrefs?.brief_style || 'detailed';
     const systemPrompt = `You are VYBE's friendly AI assistant creating a personalized daily brief. Be conversational, warm, and engaging.
 
+CRITICAL RULES:
+- ONLY mention specific counts that are provided in the data below. 
+- If the data says 0 notifications, do NOT say "you have notifications"
+- If the data says 0 new messages, do NOT mention messages
+- Be ACCURATE with numbers — never invent or guess counts
+- If there's nothing new, say so cheerfully
+
 Your response should be a quick 2-3 sentence summary that:
-1. Mentions any new posts or messages briefly
-2. Highlights the most interesting/important live update
+1. Accurately reports real notification/message/follower counts if > 0
+2. Highlights the most interesting live update if available
 3. Feels like a friend catching you up
 
 Style: ${briefStyle === 'concise' ? 'Be very brief, just the essentials.' : 'Be engaging and add a bit of personality.'}
 
-Keep it under 50 words total. Use 1-2 emojis naturally.`;
+Keep it under 60 words total. Use 1-2 emojis naturally.`;
 
     const userPrompt = contextParts.length > 0
-      ? `Create a quick summary from this:\n\n${contextParts.join('\n\n')}`
+      ? `Here is the EXACT current data (use these numbers precisely, do not make up different numbers):\n\n${contextParts.join('\n\n')}`
       : `I'm interested in: ${allInterests.join(', ')}. Give me a friendly greeting and mention I should check back later for updates.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -296,7 +336,7 @@ Keep it under 50 words total. Use 1-2 emojis naturally.`;
           { role: "user", content: userPrompt },
         ],
         max_tokens: 200,
-        temperature: 0.7,
+        temperature: 0.5, // Lower temperature for more factual responses
       }),
     });
 
@@ -322,9 +362,12 @@ Keep it under 50 words total. Use 1-2 emojis naturally.`;
     return new Response(
       JSON.stringify({ 
         summary,
-        hasPosts: !!postsContent,
+        hasPosts: recentPostCount > 0,
         hasMessages: unreadConvos > 0,
         unreadCount: unreadConvos,
+        notificationCount: realNotifCount,
+        newFollowerCount: realNewFollowers,
+        recentPostCount,
         interests: allInterests,
         liveUpdates: liveUpdates,
         hasLiveData: hasLiveData

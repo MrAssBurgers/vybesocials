@@ -28,6 +28,9 @@ interface BriefData {
   hasPosts: boolean;
   hasMessages: boolean;
   unreadCount?: number;
+  notificationCount?: number;
+  newFollowerCount?: number;
+  recentPostCount?: number;
   liveUpdates: BriefUpdate[];
   hasLiveData: boolean;
 }
@@ -165,7 +168,7 @@ const BriefCard = memo(function BriefCard({
 
 // Cache key and helpers
 const BRIEF_CACHE_KEY = 'vybe_ai_brief_cache';
-const CACHE_TTL = 1000 * 60 * 15; // 15 minutes
+const CACHE_TTL = 1000 * 60 * 5; // 5 minutes — keep brief fresh
 
 function isValidBrief(data: unknown): data is BriefData {
   if (!data || typeof data !== 'object') return false;
@@ -279,13 +282,10 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   }, [user]);
 
   useEffect(() => {
-    if (open && !hasFetchedRef.current) {
+    if (open) {
+      // Always fetch fresh data when opened — ensures real-time accuracy
       hasFetchedRef.current = true;
-      if (briefData) {
-        fetchBrief(true);
-      } else {
-        fetchBrief(false);
-      }
+      fetchBrief(!!briefData); // background refresh if we have cached data
     }
     
     if (!open) {
@@ -394,22 +394,30 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                         {briefData.summary}
                       </p>
                       
-                      {/* Quick stats */}
-                      {(briefData.hasMessages || briefData.hasPosts) && (
-                        <div className="flex gap-3 mt-3">
-                          {briefData.hasMessages && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1 bg-background/50 px-2 py-1 rounded-lg">
-                              <MessageCircle className="h-3 w-3" />
-                              {briefData.unreadCount || 0} unread
-                            </span>
-                          )}
-                          {briefData.hasPosts && (
-                            <span className="text-xs text-muted-foreground bg-background/50 px-2 py-1 rounded-lg">
-                              New posts
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      {/* Real-time quick stats */}
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {(briefData.notificationCount ?? 0) > 0 && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1 bg-background/50 px-2 py-1 rounded-lg">
+                            🔔 {briefData.notificationCount} notification{(briefData.notificationCount ?? 0) > 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {briefData.hasMessages && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1 bg-background/50 px-2 py-1 rounded-lg">
+                            <MessageCircle className="h-3 w-3" />
+                            {briefData.unreadCount || 0} unread
+                          </span>
+                        )}
+                        {(briefData.newFollowerCount ?? 0) > 0 && (
+                          <span className="text-xs text-muted-foreground bg-background/50 px-2 py-1 rounded-lg">
+                            👥 {briefData.newFollowerCount} new follower{(briefData.newFollowerCount ?? 0) > 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {briefData.hasPosts && (
+                          <span className="text-xs text-muted-foreground bg-background/50 px-2 py-1 rounded-lg">
+                            📸 {briefData.recentPostCount || 0} new post{(briefData.recentPostCount ?? 0) > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </motion.div>
