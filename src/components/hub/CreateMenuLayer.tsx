@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Image, Zap } from "lucide-react";
+import { Camera, Image, Zap, ShoppingBag, Calendar, Users, Shield, X, ChevronLeft } from "lucide-react";
 import { VybeMiniIcon } from "@/components/ui/VybeMiniIcon";
 
 import { triggerHaptic } from "@/lib/haptics";
 import { playSound } from "@/lib/sounds";
 import { useIsMobileOrTablet } from "@/hooks/use-mobile";
-import { VYBEHub } from "./VYBEHub";
+import { useUserRole } from "@/hooks/useModeration";
 import { Camera as CameraComponent } from "@/components/camera";
 
 interface CreateMenuLayerProps {
@@ -21,96 +21,114 @@ const Z = {
   surface: 9999,
 } as const;
 
-type Action = "post" | "camera" | "hub";
+type View = "create" | "hub";
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 12, scale: 0.95 },
+  visible: (i: number) => ({
+    opacity: 1, y: 0, scale: 1,
+    transition: { delay: i * 0.04, type: "spring" as const, stiffness: 400, damping: 28 },
+  }),
+  exit: { opacity: 0, y: -8, scale: 0.97, transition: { duration: 0.1 } },
+  tap: { scale: 0.96, transition: { duration: 0.08 } },
+};
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.04 } },
+  exit: { opacity: 0, transition: { duration: 0.1 } },
+};
 
 export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
   const navigate = useNavigate();
   const { isMobileOrTablet } = useIsMobileOrTablet();
-  const [showHub, setShowHub] = useState(false);
+  const [view, setView] = useState<View>("create");
   const [showCamera, setShowCamera] = useState(false);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const recoverAttemptsRef = useRef(0);
+  const { data: userRole } = useUserRole();
+  const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
 
-  const close = () => onOpenChange(false);
+  const close = useCallback(() => {
+    onOpenChange(false);
+    // Reset view after exit animation
+    setTimeout(() => setView("create"), 200);
+  }, [onOpenChange]);
 
-  const handleAction = (action: Action) => {
+  const handleNavigate = useCallback((path: string) => {
+    triggerHaptic("light");
+    playSound("tap");
+    close();
+    navigate(path);
+  }, [close, navigate]);
+
+  const handleAction = useCallback((action: string) => {
     triggerHaptic("medium");
     playSound("pop");
 
-    close();
     switch (action) {
       case "post":
+        close();
         navigate("/upload");
         return;
       case "camera":
+        close();
         setShowCamera(true);
         return;
       case "hub":
-        setShowHub(true);
+        // Slide to hub view inline
+        triggerHaptic("light");
+        setView("hub");
         return;
     }
-  };
+  }, [close, navigate]);
 
-  const menuItems = useMemo(
-    () => [
-      {
-        id: "post" as const,
-        icon: Image,
-        label: "Post",
-        subtitle: "Share media",
-        gradient: "from-primary via-accent to-primary",
-      },
-      {
-        id: "camera" as const,
-        icon: Camera,
-        label: "Camera",
-        subtitle: "Capture moment",
-        gradient: "from-accent via-primary to-accent",
-      },
-      {
-        id: "hub" as const,
-        icon: Zap,
-        label: "Hub",
-        subtitle: "Create more",
-        gradient: "from-primary via-accent to-primary",
-      },
-    ],
-    [],
-  );
+  const createItems = useMemo(() => [
+    { id: "post", icon: Image, label: "Post", subtitle: "Share media", gradient: "from-primary via-accent to-primary" },
+    { id: "camera", icon: Camera, label: "Camera", subtitle: "Capture moment", gradient: "from-accent via-primary to-accent" },
+    { id: "hub", icon: Zap, label: "Hub", subtitle: "Explore more", gradient: "from-primary via-accent to-primary" },
+  ], []);
 
-  // FAILSAFE: if open but surface is covered/offscreen, close to avoid locked state
-  useEffect(() => {
-    if (!open) {
-      recoverAttemptsRef.current = 0;
-      return;
+  const hubItems = useMemo(() => {
+    const items = [
+      { path: '/market', icon: ShoppingBag, label: 'Marketplace', description: 'Buy & sell with friends', gradient: 'from-primary via-accent to-primary' },
+      { path: '/events', icon: Calendar, label: 'Community Events', description: "Discover what's happening", gradient: 'from-accent via-primary to-accent' },
+      { path: '/community', icon: Users, label: 'Communities', description: 'Group chats & channels', gradient: 'from-primary via-accent to-primary' },
+    ];
+    if (isModOrAdmin) {
+      items.push({ path: '/admin', icon: Shield, label: 'Admin Panel', description: 'Manage & moderate', gradient: 'from-destructive via-primary to-destructive' });
     }
+    return items;
+  }, [isModOrAdmin]);
 
+  // Reset view when menu closes
+  useEffect(() => {
+    if (!open) setView("create");
+  }, [open]);
+
+  // FAILSAFE
+  useEffect(() => {
+    if (!open) { recoverAttemptsRef.current = 0; return; }
     const t = window.setTimeout(() => {
       const el = surfaceRef.current;
       if (!el) return;
-
       const rect = el.getBoundingClientRect();
       const inViewport = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
-
       if (!inViewport) {
         recoverAttemptsRef.current += 1;
-        console.warn("[CreateMenu] Open but not visible; closing", { attempts: recoverAttemptsRef.current });
-        if (recoverAttemptsRef.current >= 2) {
-          onOpenChange(false);
-        }
+        if (recoverAttemptsRef.current >= 2) onOpenChange(false);
       }
     }, 350);
-
     return () => window.clearTimeout(t);
   }, [open, onOpenChange]);
 
   const portalTarget = typeof document !== "undefined" ? document.body : null;
   if (!portalTarget) return null;
 
+  const isHub = view === "hub";
+
   return createPortal(
     <>
-      {/* Nested modals/fullscreen */}
-      <VYBEHub isOpen={showHub} onClose={() => setShowHub(false)} />
       {showCamera && <CameraComponent onClose={() => setShowCamera(false)} />}
 
       <AnimatePresence>
@@ -128,97 +146,137 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
             />
 
             {/* Centered container */}
-            <div 
-              className="fixed inset-0 flex items-center justify-center pointer-events-none"
-              style={{ zIndex: Z.surface }}
-            >
-              {/* High-tech popup */}
+            <div className="fixed inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: Z.surface }}>
               <motion.div
                 ref={surfaceRef}
-                initial={{ opacity: 0, scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.92, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.97 }}
-                transition={{ duration: 0.15, ease: 'easeOut' }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
                 className="pointer-events-auto"
                 style={{ transform: 'translateZ(0)' }}
               >
-                {/* Outer glow ring */}
                 <div className="relative">
-                  {/* Static gradient border - no animation for performance */}
-                  <div 
-                    className="absolute -inset-[2px] rounded-[28px] bg-gradient-to-r from-primary via-accent to-primary opacity-50 blur-sm"
-                  />
-                  
-                  {/* Main card */}
-                  <div className="relative flex flex-col gap-4 p-6 rounded-3xl min-w-[320px] overflow-hidden bg-card/95 backdrop-blur-sm border border-border/50">
-                    {/* Inner glow effects */}
+                  {/* Gradient border glow */}
+                  <div className="absolute -inset-[2px] rounded-[28px] bg-gradient-to-r from-primary via-accent to-primary opacity-50 blur-sm" />
+
+                  {/* Main card - animates size change */}
+                  <motion.div
+                    layout
+                    transition={{ type: "spring", stiffness: 350, damping: 32 }}
+                    className="relative flex flex-col gap-3 p-6 rounded-3xl min-w-[320px] overflow-hidden bg-card/95 backdrop-blur-sm border border-border/50"
+                  >
+                    {/* Glow effects */}
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 pointer-events-none" />
                     <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
-                    
-                    {/* Scanline effect - hidden on mobile for performance */}
-                    <div className="absolute inset-0 pointer-events-none opacity-[0.02] hidden md:block" />
-                    
-                    {/* Top accent line */}
                     <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
-                    
-                    {/* Header - static icons for performance */}
-                    <div className="relative z-10 flex items-center justify-center gap-2 mb-2">
-                      <Zap className="w-4 h-4 text-primary" />
-                      <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">
-                        Create
-                      </span>
-                      <Zap className="w-4 h-4 text-primary" />
-                    </div>
-                    
-                    {/* Menu items */}
-                    <div className="relative z-10 flex flex-col gap-2">
-                      {menuItems.map((item, index) => (
-                        <button
-                          key={item.id}
-                          onClick={() => handleAction(item.id)}
-                          className="group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-primary/30 transition-colors duration-100 overflow-hidden active:scale-[0.98]"
-                          style={{ transform: 'translateZ(0)' }}
-                        >
-                          {/* Hover glow */}
-                          <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-accent/0 opacity-0 group-hover:opacity-100 transition-opacity duration-100" />
-                          
-                          {/* Icon */}
-                          <div className="relative">
-                            <div
-                              className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} p-[1px] group-hover:scale-105 transition-transform duration-100`}
+
+                    {/* Header */}
+                    <motion.div layout="position" className="relative z-10 flex items-center justify-center gap-2 mb-1">
+                      <AnimatePresence mode="wait">
+                        {isHub ? (
+                          <motion.div
+                            key="hub-header"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.15 }}
+                            className="flex items-center gap-2 w-full"
+                          >
+                            <button
+                              onClick={() => { triggerHaptic("light"); setView("create"); }}
+                              className="p-1.5 rounded-xl hover:bg-foreground/[0.06] transition-colors"
+                            >
+                              <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+                            </button>
+                            <div className="flex-1 flex items-center justify-center gap-2">
+                              <VybeMiniIcon size={16} showSparkles animated={false} />
+                              <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">VYBE Hub</span>
+                              <VybeMiniIcon size={16} showSparkles animated={false} />
+                            </div>
+                            <div className="w-7" /> {/* Spacer for centering */}
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            key="create-header"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            transition={{ duration: 0.15 }}
+                            className="flex items-center gap-2"
+                          >
+                            <Zap className="w-4 h-4 text-primary" />
+                            <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">Create</span>
+                            <Zap className="w-4 h-4 text-primary" />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+
+                    {/* Content area with slide transitions */}
+                    <div className="relative z-10">
+                      <AnimatePresence mode="wait" initial={false}>
+                        {!isHub ? (
+                          <motion.div
+                            key="create-items"
+                            variants={containerVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            className="flex flex-col gap-2"
+                          >
+                            {createItems.map((item, i) => (
+                              <MenuButton
+                                key={item.id}
+                                icon={item.icon}
+                                label={item.label}
+                                subtitle={item.subtitle}
+                                gradient={item.gradient}
+                                index={i}
+                                onClick={() => handleAction(item.id)}
+                              />
+                            ))}
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            key="hub-items"
+                            variants={containerVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            className="flex flex-col gap-2"
+                          >
+                            {hubItems.map((item, i) => (
+                              <MenuButton
+                                key={item.path}
+                                icon={item.icon}
+                                label={item.label}
+                                subtitle={item.description}
+                                gradient={item.gradient}
+                                index={i}
+                                isDestructive={item.path === '/admin'}
+                                onClick={() => handleNavigate(item.path)}
+                              />
+                            ))}
+                            {/* Close button */}
+                            <motion.button
+                              variants={itemVariants}
+                              custom={hubItems.length}
+                              whileTap="tap"
+                              onClick={close}
+                              className="mt-1 p-3 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 text-muted-foreground hover:text-foreground transition-colors duration-100 flex items-center justify-center gap-2"
                               style={{ transform: 'translateZ(0)' }}
                             >
-                              <div className="w-full h-full rounded-xl bg-card/80 flex items-center justify-center">
-                                <item.icon className="h-5 w-5 text-primary" />
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Text */}
-                          <div className="flex flex-col items-start flex-1 min-w-0">
-                            <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors duration-100">
-                              {item.label}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {item.subtitle}
-                            </span>
-                          </div>
-                          
-                          {/* Arrow */}
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-100">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                              <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
+                              <X className="h-4 w-4" />
+                              <span className="text-sm">Close</span>
+                            </motion.button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    
-                    {/* Bottom accent */}
+
                     <div className="absolute bottom-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
-                  </div>
+                  </motion.div>
                 </div>
               </motion.div>
             </div>
@@ -227,5 +285,62 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
       </AnimatePresence>
     </>,
     portalTarget,
+  );
+}
+
+/* ── Shared animated menu button ── */
+interface MenuButtonProps {
+  icon: React.ElementType;
+  label: string;
+  subtitle: string;
+  gradient: string;
+  index: number;
+  isDestructive?: boolean;
+  onClick: () => void;
+}
+
+function MenuButton({ icon: Icon, label, subtitle, gradient, index, isDestructive, onClick }: MenuButtonProps) {
+  const accentColor = isDestructive ? "destructive" : "primary";
+  return (
+    <motion.button
+      variants={itemVariants}
+      custom={index}
+      whileTap="tap"
+      onClick={onClick}
+      className={`group relative flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 hover:border-${accentColor}/30 transition-colors duration-100 overflow-hidden`}
+      style={{ transform: 'translateZ(0)' }}
+    >
+      {/* Hover glow */}
+      <div className={`absolute inset-0 bg-gradient-to-r from-${accentColor}/0 via-${accentColor}/5 to-accent/0 opacity-0 group-hover:opacity-100 transition-opacity duration-100`} />
+
+      {/* Icon */}
+      <div className="relative">
+        <div
+          className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} p-[1px] group-hover:scale-105 transition-transform duration-100`}
+          style={{ transform: 'translateZ(0)' }}
+        >
+          <div className="w-full h-full rounded-xl bg-card/80 flex items-center justify-center">
+            <Icon className={`h-5 w-5 text-${accentColor}`} />
+          </div>
+        </div>
+      </div>
+
+      {/* Text */}
+      <div className="flex flex-col items-start flex-1 min-w-0">
+        <span className={`text-sm font-semibold text-foreground group-hover:text-${accentColor} transition-colors duration-100`}>
+          {label}
+        </span>
+        <span className="text-xs text-muted-foreground">{subtitle}</span>
+      </div>
+
+      {/* Arrow */}
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-100">
+        <div className={`w-8 h-8 rounded-full bg-${accentColor}/10 border border-${accentColor}/20 flex items-center justify-center`}>
+          <svg className={`w-4 h-4 text-${accentColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </motion.button>
   );
 }
