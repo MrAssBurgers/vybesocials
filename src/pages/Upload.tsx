@@ -268,7 +268,7 @@ export default function UploadPage() {
       </AnimatePresence>
 
       {/* Main content — z-[10] to sit above the solid cover, full-screen on all devices */}
-      <div className="relative z-[10] w-full h-[100dvh] max-w-none mx-0 flex flex-col overflow-hidden" style={{ backgroundColor: 'hsl(var(--background))' }}>
+      <div className="relative z-[10] w-full h-[100dvh] max-w-none mx-0 flex flex-col" style={{ backgroundColor: 'hsl(var(--background))', overflow: 'hidden', overscrollBehavior: 'none' }}>
 
         {/* ━━━━ HEADER — solid, opaque ━━━━ */}
         <div className="sticky top-0 z-40 border-b border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
@@ -342,7 +342,7 @@ export default function UploadPage() {
         </div>
 
         {/* ━━━━ NON-SCROLLABLE COMPOSER AREA ━━━━ */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col" style={{ overflow: 'hidden' }}>
 
           {/* User row */}
           <div className="flex items-center gap-3 px-4 pt-3 pb-2 max-w-2xl mx-auto w-full">

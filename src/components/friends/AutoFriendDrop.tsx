@@ -593,16 +593,24 @@ export function AutoFriendDrop() {
     haptics.impact();
 
     // Confirm the drop for realtime sync
-    if (activeDropId) {
-      await friendDropSync.confirmDrop(activeDropId);
+    try {
+      if (activeDropId) {
+        await friendDropSync.confirmDrop(activeDropId);
+      }
+    } catch (e) {
+      console.warn('[FriendDrop] Confirm failed, continuing:', e);
     }
 
     try {
       await sendRequest.mutateAsync(foundUser.id);
       
       // Complete the drop - this triggers success on BOTH devices via realtime
-      if (activeDropId) {
-        await friendDropSync.completeDrop(activeDropId);
+      try {
+        if (activeDropId) {
+          await friendDropSync.completeDrop(activeDropId);
+        }
+      } catch (e) {
+        console.warn('[FriendDrop] Complete failed:', e);
       }
       
       // If no activeDropId (legacy flow), manually show success
@@ -615,9 +623,14 @@ export function AutoFriendDrop() {
     } catch (error: any) {
       if (error?.message?.includes('already')) {
         toast.info('Already friends or request pending!');
-        if (activeDropId) {
-          await friendDropSync.completeDrop(activeDropId);
-        } else {
+        try {
+          if (activeDropId) {
+            await friendDropSync.completeDrop(activeDropId);
+          } else {
+            setPhase('success');
+            autoCloseAfterSuccess();
+          }
+        } catch (e) {
           setPhase('success');
           autoCloseAfterSuccess();
         }
@@ -731,10 +744,10 @@ export function AutoFriendDrop() {
             {phase === 'activated' && (
               <motion.div
                 key="activated"
-                initial={{ y: 120, scaleX: 0.88, scaleY: 0.6, opacity: 0 }}
+                initial={{ y: 80, scaleX: 0.92, scaleY: 0.7, opacity: 0 }}
                 animate={{ y: 0, scaleX: 1, scaleY: 1, opacity: 1 }}
-                exit={{ y: -20, opacity: 0, scale: 0.97 }}
-                transition={{ type: "spring", stiffness: 380, damping: 32, opacity: { duration: 0.12 } }}
+                exit={{ y: -15, opacity: 0, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 320, damping: 28, opacity: { duration: 0.15 } }}
                 style={{ transformOrigin: 'bottom center' }}
                 className="flex flex-col items-center"
               >
@@ -748,9 +761,10 @@ export function AutoFriendDrop() {
 
                 {/* Credit Card Scanner — smaller */}
                 <motion.div
-                  className="relative w-72 rounded-2xl overflow-hidden shadow-2xl"
+                  className="relative w-72 rounded-2xl overflow-hidden"
                   style={{
-                    background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 50%, hsl(var(--primary) / 0.8) 100%)',
+                    background: 'linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.85) 40%, hsl(var(--accent)) 100%)',
+                    boxShadow: '0 25px 60px -12px hsl(var(--primary) / 0.4), 0 0 0 1px hsl(var(--primary) / 0.15)',
                   }}
                 >
                   {/* Card chip & branding */}
@@ -890,13 +904,14 @@ export function AutoFriendDrop() {
             {phase === 'found' && foundUser && (
               <motion.div
                 key="found"
-                initial={{ opacity: 0, scale: 0.9, rotateY: -90 }}
+                initial={{ opacity: 0, scale: 0.92, rotateY: -60 }}
                 animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                className="w-72 rounded-2xl overflow-hidden shadow-2xl"
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ type: "spring", stiffness: 280, damping: 22 }}
+                className="w-72 rounded-2xl overflow-hidden"
                 style={{
-                  background: 'linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(var(--primary)) 60%, hsl(var(--accent) / 0.8) 100%)',
+                  background: 'linear-gradient(145deg, hsl(var(--accent)) 0%, hsl(var(--primary)) 55%, hsl(var(--accent) / 0.85) 100%)',
+                  boxShadow: '0 25px 60px -12px hsl(var(--primary) / 0.35), 0 0 0 1px hsl(var(--primary) / 0.12)',
                 }}
               >
                 {/* Shimmer */}
@@ -910,19 +925,19 @@ export function AutoFriendDrop() {
                   <motion.div
                     initial={{ scale: 0.5, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.1, type: "spring", stiffness: 300, damping: 20 }}
+                    transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 18 }}
                   >
-                    <Avatar className="h-24 w-24 border-4 border-white/40 shadow-xl">
+                    <Avatar className="h-24 w-24 border-4 border-white/50 shadow-2xl">
                       <AvatarImage src={foundUser.avatar_url || ''} />
-                      <AvatarFallback className="text-2xl bg-white/20 text-white">
+                      <AvatarFallback className="text-2xl bg-white/25 text-white font-bold">
                         {foundUser.username?.[0]?.toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                   </motion.div>
                   
-                  <div className="text-center text-white">
-                    <h3 className="text-xl font-bold">{foundUser.display_name || foundUser.username}</h3>
-                    <p className="text-white/60 text-sm">@{foundUser.username}</p>
+                  <div className="text-center">
+                    <h3 className="text-xl font-bold text-white drop-shadow-lg">{foundUser.display_name || foundUser.username}</h3>
+                    <p className="text-white/70 text-sm drop-shadow-md">@{foundUser.username}</p>
                   </div>
 
                   <motion.div
@@ -957,9 +972,10 @@ export function AutoFriendDrop() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.25 }}
-                className="w-80 rounded-2xl overflow-hidden shadow-2xl relative"
+                className="w-80 rounded-2xl overflow-hidden relative"
                 style={{
-                  background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 50%, hsl(var(--primary) / 0.9) 100%)',
+                  background: 'linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.85) 40%, hsl(var(--accent)) 100%)',
+                  boxShadow: '0 25px 60px -12px hsl(var(--primary) / 0.4), 0 0 0 1px hsl(var(--primary) / 0.15)',
                   minHeight: 300,
                 }}
               >
@@ -1006,13 +1022,13 @@ export function AutoFriendDrop() {
                   </motion.div>
                   
                   <motion.div 
-                    className="text-center text-white z-10"
+                    className="text-center z-10"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.7 }}
                   >
-                    <p className="text-lg font-bold">Exchanging vibes...</p>
-                    <p className="text-white/60 text-sm mt-1">
+                    <p className="text-lg font-bold text-white drop-shadow-lg">Exchanging vibes...</p>
+                    <p className="text-white/70 text-sm mt-1 drop-shadow-md">
                       {foundUser?.display_name || foundUser?.username}
                     </p>
                   </motion.div>
@@ -1113,8 +1129,8 @@ export function AutoFriendDrop() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
                   >
-                    <h3 className="text-xl font-bold">You're connected!</h3>
-                    <p className="text-white/70 mt-1 text-sm">
+                    <h3 className="text-xl font-bold text-white drop-shadow-lg">You're connected!</h3>
+                    <p className="text-white/70 mt-1 text-sm drop-shadow-md">
                       {foundUser?.display_name || foundUser?.username} is now your friend 🎉
                     </p>
                     <motion.div
