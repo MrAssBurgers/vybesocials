@@ -177,6 +177,24 @@ export function ChatView() {
   
   const { settings } = useDMSettings(conversationId);
 
+  // Compute the latest time the other user read any of our messages
+  const lastReadAt = useMemo(() => {
+    if (!messages || !profile?.id) return null;
+    let latest: string | null = null;
+    for (const msg of messages) {
+      if (msg.sender_id === profile.id && msg.views) {
+        for (const view of msg.views) {
+          if (view.user_id !== profile.id && view.viewed_at) {
+            if (!latest || view.viewed_at > latest) {
+              latest = view.viewed_at;
+            }
+          }
+        }
+      }
+    }
+    return latest;
+  }, [messages, profile?.id]);
+
   const [messageText, setMessageText] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('permanent');
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
@@ -1245,6 +1263,7 @@ export function ChatView() {
               isTyping={typingUsers.length > 0}
               isInChat={presentUsers.length > 0}
               username={otherMember?.username}
+              lastReadAt={lastReadAt}
             />
           )}
         </div>

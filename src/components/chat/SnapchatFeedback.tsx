@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
@@ -186,6 +186,7 @@ interface LivePresenceBarProps {
   lastSeen?: string;
   username?: string;
   isInChat?: boolean;
+  lastReadAt?: string | null;
 }
 
 // Animated typing dots - CSS based for smoothness
@@ -203,6 +204,31 @@ const TypingDots = memo(function TypingDots() {
   );
 });
 
+// Live relative time hook - updates every second for recent, less often for older
+function useRelativeTime(timestamp: string | null | undefined): string | null {
+  const [now, setNow] = useState(Date.now());
+  
+  useEffect(() => {
+    if (!timestamp) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [timestamp]);
+  
+  return useMemo(() => {
+    if (!timestamp) return null;
+    const diff = now - new Date(timestamp).getTime();
+    if (diff < 0) return 'just now';
+    const seconds = Math.floor(diff / 1000);
+    if (seconds < 5) return 'just now';
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }, [timestamp, now]);
+}
+
 // Live presence bar showing real-time status
 export const LivePresenceBar = memo(function LivePresenceBar({
   isOnline,
@@ -210,8 +236,10 @@ export const LivePresenceBar = memo(function LivePresenceBar({
   lastSeen,
   username,
   isInChat,
+  lastReadAt,
 }: LivePresenceBarProps) {
-  // Simple status text without the dots (dots are animated separately)
+  const readTimeAgo = useRelativeTime(lastReadAt);
+
   const getStaticStatusText = () => {
     if (isInChat && !isTyping) return 'in chat';
     if (isOnline && !isTyping) return 'online';
@@ -231,10 +259,18 @@ export const LivePresenceBar = memo(function LivePresenceBar({
         />
       )}
       
-      {/* Status text - typing has static "typing" + animated dots */}
+      {/* Status text */}
       {isTyping ? (
         <span className="text-xs font-medium text-primary">
           typing<TypingDots />
+        </span>
+      ) : isInChat ? (
+        <span className="text-xs font-medium text-green-500">
+          reading
+        </span>
+      ) : readTimeAgo ? (
+        <span className="text-xs font-medium text-muted-foreground">
+          Read {readTimeAgo}
         </span>
       ) : (
         <span
