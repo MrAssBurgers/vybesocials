@@ -1,9 +1,37 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useEffect } from 'react';
 
 export const useBanStatus = () => {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Real-time subscription for instant ban detection
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const channel = supabase
+      .channel(`ban-status-${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_bans',
+          filter: `user_id=eq.${profile.id}`,
+        },
+        () => {
+          // Instantly invalidate ban status on any change
+          queryClient.invalidateQueries({ queryKey: ['ban-status', profile.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, queryClient]);
 
   return useQuery({
     queryKey: ['ban-status', profile?.id],
@@ -27,8 +55,8 @@ export const useBanStatus = () => {
       return data;
     },
     enabled: !!profile?.id,
-    staleTime: 10 * 60 * 1000, // 10 minutes stale time
-    refetchInterval: false, // Rely on realtime subscription instead of polling
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: false,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });

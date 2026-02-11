@@ -42,7 +42,7 @@ export function VYBEHub({ isOpen, onClose }: VYBEHubProps) {
       path: '/community', 
       icon: Users, 
       label: 'Communities', 
-      description: 'Discord-style servers',
+      description: 'Group chats & channels',
       gradient: 'from-primary via-accent to-primary'
     },
   ];
