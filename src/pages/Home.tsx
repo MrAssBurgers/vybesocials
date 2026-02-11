@@ -117,7 +117,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     refetch: refetchFollowing,
   } = useInfiniteFollowingPosts();
 
-  // Global feed - shows ALL posts
+  // Global feed - shows ALL posts (type 'post' only, no videos/clips)
   const {
     data: globalData,
     isLoading: globalLoading,
@@ -126,7 +126,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextGlobal,
     isFetchingNextPage: isFetchingNextGlobal,
     refetch: refetchGlobal,
-  } = useInfinitePosts();
+  } = useInfinitePosts('post');
 
   // Prefetch posts for faster navigation
   usePrefetchPosts();
@@ -153,8 +153,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   }, [forYouData, followingData]);
   
   const globalPosts = useMemo(() => 
-    (globalData?.pages.flatMap(page => page.posts) || [])
-      .filter(post => post.type === 'post'), 
+    globalData?.pages.flatMap(page => page.posts) || [], 
     [globalData]
   );
 
