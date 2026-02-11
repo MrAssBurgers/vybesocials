@@ -933,35 +933,58 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-[420px] p-0 border-0 bg-transparent shadow-none rounded-3xl overflow-visible [&>button]:hidden">
-          {/* Wallet base */}
+          {/* Wallet container */}
           <motion.div
             className="relative w-full"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.15 }}
           >
-            {/* Card emerging from wallet */}
+            {/* Wallet back layer - appears first */}
             <motion.div
-              className="relative rounded-3xl bg-background/95 backdrop-blur-2xl p-5 overflow-hidden"
-              initial={{ y: 80, scaleX: 0.92, scaleY: 0.7, opacity: 0 }}
+              className="absolute -bottom-4 left-1/2 w-[90%] h-8 rounded-b-2xl"
+              style={{ 
+                x: '-50%',
+                background: 'linear-gradient(to bottom, hsl(var(--primary) / 0.12), hsl(var(--primary) / 0.03))',
+                filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))',
+              }}
+              initial={{ opacity: 0, scaleX: 0.6 }}
+              animate={{ opacity: 1, scaleX: 1 }}
+              transition={{ delay: 0.05, duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            />
+            <motion.div
+              className="absolute -bottom-6 left-1/2 w-[80%] h-6 rounded-b-xl"
+              style={{ 
+                x: '-50%',
+                background: 'linear-gradient(to bottom, hsl(var(--primary) / 0.06), transparent)',
+              }}
+              initial={{ opacity: 0, scaleX: 0.4 }}
+              animate={{ opacity: 1, scaleX: 1 }}
+              transition={{ delay: 0.1, duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            />
+
+            {/* Card sliding up out of wallet */}
+            <motion.div
+              className="relative rounded-3xl bg-background/95 backdrop-blur-xl p-5 overflow-hidden will-change-transform"
+              initial={{ y: 100, scaleX: 0.9, scaleY: 0.6, opacity: 0 }}
               animate={{ y: 0, scaleX: 1, scaleY: 1, opacity: 1 }}
               transition={{
                 type: "spring",
-                stiffness: 350,
-                damping: 28,
-                opacity: { duration: 0.15 },
+                stiffness: 380,
+                damping: 32,
+                opacity: { duration: 0.12 },
               }}
               style={{
                 transformOrigin: 'bottom center',
-                boxShadow: '0 -4px 40px hsl(var(--primary) / 0.1), 0 20px 60px rgba(0,0,0,0.15)',
+                boxShadow: '0 -2px 30px hsl(var(--primary) / 0.08), 0 16px 48px rgba(0,0,0,0.12)',
               }}
             >
-              {/* Subtle top edge gleam */}
+              {/* Top edge gleam */}
               <motion.div
-                className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent"
+                className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
-                transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
+                transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
               />
 
               <AnimatePresence mode="wait">
@@ -979,22 +1002,6 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
                 </Button>
               )}
             </motion.div>
-
-            {/* Wallet slot at bottom */}
-            <motion.div
-              className="mx-auto w-[85%] h-3 rounded-b-2xl bg-gradient-to-b from-primary/20 to-primary/5"
-              initial={{ opacity: 0, scaleX: 0.7 }}
-              animate={{ opacity: 1, scaleX: 1 }}
-              transition={{ delay: 0.15, duration: 0.3, ease: "easeOut" }}
-              style={{ marginTop: -2 }}
-            />
-            <motion.div
-              className="mx-auto w-[75%] h-2 rounded-b-xl bg-gradient-to-b from-primary/10 to-transparent"
-              initial={{ opacity: 0, scaleX: 0.5 }}
-              animate={{ opacity: 1, scaleX: 1 }}
-              transition={{ delay: 0.2, duration: 0.3, ease: "easeOut" }}
-              style={{ marginTop: -1 }}
-            />
           </motion.div>
         </DialogContent>
       </Dialog>
