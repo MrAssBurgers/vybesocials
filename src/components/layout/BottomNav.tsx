@@ -286,23 +286,39 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         onClose={() => setShowAuthPrompt(false)}
       />
 
-       <nav 
+       <motion.nav 
          ref={ref}
          className="fixed bottom-0 left-0 right-0 w-full pointer-events-auto"
+        initial={false}
+        animate={{
+          y: isVisible ? 0 : 120,
+          opacity: isVisible ? 1 : 0,
+        }}
+        transition={{
+          type: 'spring',
+          stiffness: 380,
+          damping: 28,
+          mass: 0.8,
+        }}
         style={{
           zIndex: 5002,
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
-          transform: isVisible ? 'translateY(0)' : 'translateY(100%)',
-          opacity: isVisible ? 1 : 0,
-          transition: 'transform 0.2s ease-out, opacity 0.15s ease-out',
         }}
         aria-label="Bottom navigation"
         data-tutorial-bottomnav
       >
-        {/* Clean minimal nav bar - solid background */}
-        <div className="mx-3 mb-2 rounded-2xl backdrop-blur-md bg-background/60 overflow-hidden">
+        {/* Vybe-themed bubble nav */}
+        <div 
+          className="mx-3 mb-2 rounded-2xl overflow-hidden border border-white/10"
+          style={{
+            background: 'linear-gradient(135deg, hsl(var(--primary) / 0.15), hsl(var(--accent) / 0.12), hsl(var(--background) / 0.6))',
+            backdropFilter: 'blur(24px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+            boxShadow: '0 8px 32px hsl(var(--primary) / 0.15), inset 0 1px 0 hsl(var(--primary) / 0.1)',
+          }}
+        >
           <div className="grid grid-cols-5 h-14 px-1 relative z-10">
           {navItems.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
@@ -431,7 +447,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
             })}
           </div>
         </div>
-      </nav>
+      </motion.nav>
     </>
   );
 }));
