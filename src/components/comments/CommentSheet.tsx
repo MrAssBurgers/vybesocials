@@ -152,8 +152,8 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
             onDragEnd={handleDragEnd}
             className={cn(
               "fixed bottom-0 left-0 right-0 z-[91]",
-              "bg-background rounded-t-3xl overflow-hidden",
-              "shadow-2xl shadow-black/30",
+              "bg-background/70 backdrop-blur-2xl backdrop-saturate-150 rounded-t-3xl overflow-hidden",
+              "shadow-2xl shadow-black/30 border-t border-white/10",
               "flex flex-col",
               "max-h-[85vh]"
             )}
