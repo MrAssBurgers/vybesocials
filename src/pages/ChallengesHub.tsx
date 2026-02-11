@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useChallengeCountdown } from '@/hooks/useChallengeCountdown';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, Zap, Trophy, Clock, CheckCircle2, Gift, Flame, Star, ChevronRight, RefreshCw } from 'lucide-react';
+import { Target, Zap, Trophy, Clock, CheckCircle2, Gift, Flame, Star, ChevronRight, RefreshCw, Timer } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useChallengesWithProgress, CHALLENGE_ROUTES } from '@/hooks/useChallenges';
@@ -50,6 +51,7 @@ export default function ChallengesHubPage() {
   const [vybePassOpen, setVybePassOpen] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const { dailyTimeLeft, weeklyTimeLeft } = useChallengeCountdown();
 
   const handleChallengeClick = (challenge: typeof all[0]) => {
     if (challenge.is_completed) return;
@@ -275,6 +277,28 @@ export default function ChallengesHubPage() {
                 <div>
                   <p className="text-2xl font-bold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">{totalXP}</p>
                   <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">XP Earned</p>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+
+          {/* Reset Timers */}
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <GlassCard className="p-3">
+              <div className="flex items-center gap-2">
+                <Timer className="h-4 w-4 text-primary shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Daily resets in</p>
+                  <p className="text-sm font-bold text-primary tabular-nums">{dailyTimeLeft}</p>
+                </div>
+              </div>
+            </GlassCard>
+            <GlassCard className="p-3">
+              <div className="flex items-center gap-2">
+                <Timer className="h-4 w-4 text-accent shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Weekly resets in</p>
+                  <p className="text-sm font-bold text-accent tabular-nums">{weeklyTimeLeft}</p>
                 </div>
               </div>
             </GlassCard>
