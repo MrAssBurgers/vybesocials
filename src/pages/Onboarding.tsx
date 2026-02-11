@@ -36,8 +36,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   
   // Check if user needs to set username (Google OAuth users without profile)
   const needsUsername = !profile?.username;
-  // Total steps: username(optional) + age + interests + creators + profile + sensitivity + privacy + permissions + email + contacts + VYBE designer
-  const TOTAL_STEPS = needsUsername ? 11 : 10;
+  // Total steps: username(optional) + age + interests + creators + profile + sensitivity + privacy + permissions + email (then straight to VYBE designer)
+  const TOTAL_STEPS = needsUsername ? 10 : 9;
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -96,7 +96,6 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       case 6: return true; // Privacy
       case 7: return true; // Permissions - always allow proceeding (optional)
       case 8: return true; // Email verification is optional
-      case 9: return true; // Contact discovery is optional
       default: return true;
     }
   }, [needsUsername, step, usernameValid, dateOfBirth, userAge, interests.length, profileData.firstName.length, profileData.lastName.length]);
@@ -372,9 +371,6 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
                 {(needsUsername ? step === 9 : step === 8) && (
                   <EmailVerification />
                 )}
-                {(needsUsername ? step === 10 : step === 9) && (
-                  <ContactDiscovery onComplete={handleFinish} />
-                )}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -410,7 +406,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
               disabled={loading}
               className="flex items-center gap-1 sm:gap-2 gradient-animated text-sm sm:text-base"
             >
-              {loading ? 'Saving...' : t('onboarding.finish')}
+              {loading ? 'Saving...' : 'Design your VYBE'}
               <VybeMiniIcon size={18} showSparkles />
             </Button>
           )}
