@@ -153,7 +153,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   }, [forYouData, followingData]);
   
   const globalPosts = useMemo(() => 
-    globalData?.pages.flatMap(page => page.posts) || [], 
+    (globalData?.pages.flatMap(page => page.posts) || [])
+      .filter(post => post.type === 'post'), 
     [globalData]
   );
 
