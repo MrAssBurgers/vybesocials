@@ -71,7 +71,7 @@ function ServerSwitcher({
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56 bg-card/95 backdrop-blur-md border border-border p-1" sideOffset={8}>
+      <DropdownMenuContent align="start" className="w-56 bg-card/95 backdrop-blur-md border border-border p-1 max-h-[60vh] overflow-y-auto" sideOffset={8}>
         {(communities || []).map((c) => (
           <ServerSwitcherItem key={c.id} community={c} isSelected={c.id === selectedId} onSelect={() => onSelect(c.id)} />
         ))}
