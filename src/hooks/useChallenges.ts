@@ -7,16 +7,23 @@ import { useAuth } from '@/lib/auth';
  */
 export const CHALLENGE_ROUTES: Record<string, string> = {
   'post': '/upload',
+  'clip': '/upload',
+  'story': '/upload',
   'comment': '/explore',
   'like': '/explore',
+  'react': '/explore',
   'follow': '/explore',
   'follower': '/u/me',
+  'friend_added': '/explore',
   'message': '/messages',
   'new_conversation': '/messages',
+  'snap_sent': '/messages',
+  'channel_message': '/communities',
+  'bookmark': '/explore',
   'complete_profile': '/settings',
-  'invite': '/invite',
-  'login': '/', // No navigation needed
-  'snap_sent': '/messages', // For sending VYBEs
+  'invite': '/referrals',
+  'daily_login': '/',
+  'login': '/',
 };
 
 export interface Challenge {
