@@ -68,7 +68,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           {/* Main Content Area */}
           <main 
             className={cn(
-              "flex-1 min-w-0 h-screen overflow-x-hidden",
+              "flex-1 min-w-0 h-screen overflow-x-hidden relative z-[2]",
               noPadding ? "overflow-hidden" : "overflow-y-auto"
             )}
             style={{
@@ -108,7 +108,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
       <main
         data-app-scroll-container="true"
         className={cn(
-          "overflow-x-hidden",
+          "overflow-x-hidden relative z-[2]",
           noPadding ? "overflow-hidden" : "overflow-y-auto",
           noPadding ? "h-[calc(100dvh-3.5rem)]" : "h-full",
           hideNav ? "" : (!noPadding ? "pb-[calc(5rem+env(safe-area-inset-bottom))]" : ""),
