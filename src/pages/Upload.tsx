@@ -232,7 +232,7 @@ export default function UploadPage() {
   if (showAIVideoGenerator) return <AIVideoGenerator onVideoGenerated={handleAIVideoGenerated} onClose={() => setShowAIVideoGenerator(false)} />;
 
   return (
-    <AppLayout hideNav>
+    <AppLayout hideNav noPadding>
       {/* Solid opaque cover — sits ABOVE the AppBackground (z-0) to fully block it */}
       <div className="fixed inset-0 z-[5]" style={{ backgroundColor: 'hsl(var(--background))' }} />
 
@@ -460,7 +460,7 @@ export default function UploadPage() {
                     <button onClick={() => setShowCamera(true)} className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="Camera">
                       <CameraIcon className="w-[18px] h-[18px]" />
                     </button>
-                    <button onClick={() => setShowAIVideoGenerator(true)} className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="AI Video">
+                    <button onClick={() => setShowAIVideoGenerator(true)} className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="AI Features">
                       <Wand2 className="w-[18px] h-[18px]" />
                     </button>
                   </>
@@ -636,7 +636,7 @@ export default function UploadPage() {
                         onClick={(e) => { e.stopPropagation(); setShowAIVideoGenerator(true); }}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                       >
-                        <Wand2 className="w-3.5 h-3.5" /> AI Video
+                        <Wand2 className="w-3.5 h-3.5" /> AI Features
                       </button>
                     </div>
                   </motion.div>
