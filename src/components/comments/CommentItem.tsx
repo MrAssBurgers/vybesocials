@@ -90,7 +90,7 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
                 />
               </Link>
               {hasText && (
-                <span className="text-sm break-words">{comment.text}</span>
+                <span className="text-sm break-words text-foreground">{comment.text}</span>
               )}
             </div>
 
