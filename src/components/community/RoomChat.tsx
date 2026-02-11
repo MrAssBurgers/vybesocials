@@ -177,9 +177,9 @@ export const RoomChat = memo(function RoomChat({
         </ScrollArea>
       </div>
 
-      {/* Input - FIXED at bottom, never scrolls */}
+      {/* Input - pinned at bottom via flex shrink-0 */}
       {canPost ? (
-        <div className="sticky bottom-0 left-0 right-0 px-3 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md pb-safe z-10">
+        <div className="shrink-0 px-3 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md pb-safe z-10">
           <div className="flex items-center gap-2">
             <Input
               ref={inputRef}
@@ -206,7 +206,7 @@ export const RoomChat = memo(function RoomChat({
           </div>
         </div>
       ) : (
-        <div className="sticky bottom-0 left-0 right-0 px-4 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md text-center text-sm text-foreground/70 pb-safe z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
+        <div className="shrink-0 px-4 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md text-center text-sm text-foreground/70 pb-safe z-10">
           Only moderators can post in announcements
         </div>
       )}
