@@ -4089,7 +4089,8 @@ export type Database = {
           id: string
           is_pinned: boolean | null
           is_sensitive: boolean | null
-          media_url: string
+          media_url: string | null
+          media_urls: string[] | null
           tags: string[] | null
           thumbnail_url: string | null
           type: string
@@ -4103,7 +4104,8 @@ export type Database = {
           id?: string
           is_pinned?: boolean | null
           is_sensitive?: boolean | null
-          media_url: string
+          media_url?: string | null
+          media_urls?: string[] | null
           tags?: string[] | null
           thumbnail_url?: string | null
           type: string
@@ -4117,7 +4119,8 @@ export type Database = {
           id?: string
           is_pinned?: boolean | null
           is_sensitive?: boolean | null
-          media_url?: string
+          media_url?: string | null
+          media_urls?: string[] | null
           tags?: string[] | null
           thumbnail_url?: string | null
           type?: string
