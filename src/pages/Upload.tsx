@@ -267,8 +267,8 @@ export default function UploadPage() {
         )}
       </AnimatePresence>
 
-      {/* Main content — z-[10] to sit above the solid cover */}
-      <div className="relative z-[10] w-full max-w-lg mx-auto min-h-[100dvh] flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
+      {/* Main content — z-[10] to sit above the solid cover, full-screen on all devices */}
+      <div className="relative z-[10] w-screen h-screen max-w-none mx-0 flex flex-col overflow-hidden" style={{ backgroundColor: 'hsl(var(--background))' }}>
 
         {/* ━━━━ HEADER — solid, opaque ━━━━ */}
         <div className="sticky top-0 z-40 border-b border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
