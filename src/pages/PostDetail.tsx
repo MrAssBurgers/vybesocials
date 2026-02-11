@@ -431,8 +431,8 @@ export default function PostDetailPage() {
           )}
         </div>
 
-        {/* Media */}
-        <div className="overflow-hidden rounded-b-none">
+        {/* Media — flush with card below */}
+        <div className="mx-3 overflow-hidden rounded-t-2xl">
           <PostDetailMedia 
             type={post.type} 
             mediaUrl={post.media_url} 
@@ -440,8 +440,8 @@ export default function PostDetailPage() {
           />
         </div>
 
-        {/* Content card — frosted glass so it doesn't bleed into background */}
-        <div className="mx-3 -mt-1 rounded-2xl bg-background/80 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-xl overflow-hidden">
+        {/* Content card — seamlessly connected to media */}
+        <div className="mx-3 rounded-b-2xl bg-background/90 backdrop-blur-2xl backdrop-saturate-150 border border-t-0 border-white/10 shadow-xl overflow-hidden">
           {/* Action bar */}
           <div className="px-4 pt-3 pb-2">
             <div className="flex items-center justify-between">
@@ -458,7 +458,7 @@ export default function PostDetailPage() {
                     <Heart
                       className={cn(
                         "h-7 w-7 transition-colors",
-                        isLiked ? "fill-red-500 text-red-500" : "text-foreground"
+                        isLiked ? "fill-red-500 text-red-500" : "text-white/90"
                       )}
                       strokeWidth={isLiked ? 0 : 2}
                     />
@@ -469,14 +469,14 @@ export default function PostDetailPage() {
                   onClick={() => commentInputRef.current?.focus()}
                   className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
                 >
-                  <MessageCircle className="h-7 w-7 text-foreground" strokeWidth={2} />
+                  <MessageCircle className="h-7 w-7 text-white/90" strokeWidth={2} />
                 </motion.button>
                 <motion.button 
                   whileTap={{ scale: 0.75, rotate: 15 }}
                   onClick={handleShare}
                   className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
                 >
-                  <Share2 className="h-7 w-7 text-foreground" strokeWidth={2} />
+                  <Share2 className="h-7 w-7 text-white/90" strokeWidth={2} />
                 </motion.button>
               </div>
               <motion.button 
@@ -491,7 +491,7 @@ export default function PostDetailPage() {
                   <Bookmark
                     className={cn(
                       "h-7 w-7 transition-colors",
-                      isBookmarked ? "fill-primary text-primary" : "text-foreground"
+                      isBookmarked ? "fill-yellow-400 text-yellow-400" : "text-white/90"
                     )}
                     strokeWidth={isBookmarked ? 0 : 2}
                   />
@@ -500,12 +500,12 @@ export default function PostDetailPage() {
             </div>
 
             {/* Like count */}
-            <p className="font-bold text-sm mt-1 text-foreground">{likeCount.toLocaleString()} likes</p>
+            <p className="font-bold text-sm mt-1 text-white/90">{likeCount.toLocaleString()} likes</p>
 
             {/* Caption */}
             {post.caption && (
               <div className="mt-1.5">
-                <p className="text-sm text-foreground">
+                <p className="text-sm text-white/90">
                   <Link to={`/u/${post.author.username}`} className="font-bold mr-1.5 hover:underline">
                     {post.author.username}
                   </Link>
@@ -572,7 +572,7 @@ export default function PostDetailPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-foreground">
+                        <p className="text-sm text-white/90">
                           <Link to={`/u/${comment.user.username}`}>
                             <StyledUsername
                               userId={comment.user.id}
