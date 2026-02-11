@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   Home, Compass, MessageCircle, ShoppingBag, Calendar, Bell, Settings, 
-  PlusCircle, Shield, Users, LucideIcon
+  PlusCircle, Shield, Users, LucideIcon, Gift, Trophy
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -210,11 +210,11 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
             </Link>
             
             {/* Quick Actions */}
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/30">
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-muted/30">
               <Link
                 to="/notifications"
                 onClick={triggerNavFeedback}
-                className="relative flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                className="relative flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
               >
                 <Bell className="h-4 w-4" />
                 <span className="text-xs font-medium">Alerts</span>
@@ -225,12 +225,28 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                 )}
               </Link>
               
-              <div className="w-px h-5 bg-border/50" />
+              <Link
+                to="/challenges"
+                onClick={triggerNavFeedback}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+              >
+                <Trophy className="h-4 w-4" />
+                <span className="text-xs font-medium">Quests</span>
+              </Link>
+              
+              <Link
+                to="/referrals"
+                onClick={triggerNavFeedback}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+              >
+                <Gift className="h-4 w-4" />
+                <span className="text-xs font-medium">Referrals</span>
+              </Link>
               
               <Link
                 to="/settings"
                 onClick={triggerNavFeedback}
-                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
               >
                 <Settings className="h-4 w-4" />
                 <span className="text-xs font-medium">Settings</span>
@@ -279,6 +295,32 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent side="right">Notifications</TooltipContent>
+              </Tooltip>
+
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Link
+                    to="/challenges"
+                    onClick={triggerNavFeedback}
+                    className="p-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                  >
+                    <Trophy className="h-4 w-4" />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Challenges</TooltipContent>
+              </Tooltip>
+
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Link
+                    to="/referrals"
+                    onClick={triggerNavFeedback}
+                    className="p-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                  >
+                    <Gift className="h-4 w-4" />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Referrals</TooltipContent>
               </Tooltip>
               
               <Tooltip delayDuration={0}>
