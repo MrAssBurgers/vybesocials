@@ -199,7 +199,7 @@ export default function Community() {
   // ── Community detail view ──
   if (selectedCommunityId && selectedCommunity) {
     return (
-      <AppLayout hideRightSidebar fullWidth noPadding>
+      <AppLayout hideRightSidebar fullWidth noPadding hideNav>
         <div className="h-full flex flex-col overflow-hidden bg-background">
           {/* Header with server switcher */}
           <motion.div
