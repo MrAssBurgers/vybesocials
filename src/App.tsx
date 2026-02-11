@@ -38,6 +38,7 @@ import { usePostsRealtime } from "@/hooks/usePostsRealtime";
 import { usePrefetchBackgrounds } from '@/hooks/useUserBackgrounds';
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
+import { AppUpdateOverlay } from "@/components/app/AppUpdateOverlay";
 import { useDynamicFavicon } from "@/hooks/useDynamicFavicon";
 import { useDynamicManifest } from "@/hooks/useDynamicManifest";
 import { RewardNotificationProvider } from "@/components/vybepass/RewardNotificationProvider";
@@ -189,6 +190,7 @@ function AppWithPreloader() {
                               <WarningPopup />
                               <InvitePopup />
                               <BanCheck />
+                              <AppUpdateOverlay />
                             </TutorialProvider>
                           </DebugPanelProvider>
                         </BrowserRouter>
