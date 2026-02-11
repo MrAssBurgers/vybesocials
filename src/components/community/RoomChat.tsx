@@ -121,11 +121,11 @@ export const RoomChat = memo(function RoomChat({
   }
 
   return (
-    <div className="flex flex-col h-full bg-background/50 relative">
-      {/* Messages - scrollable area with fixed height */}
-      <div className="flex-1 overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 bg-background/50">
+      {/* Messages - scrollable area fills remaining space */}
+      <div className="flex-1 min-h-0 overflow-hidden">
         <ScrollArea className="h-full px-3">
-          <div className="py-4 pb-4">
+          <div className="py-4">
             {groupedMessages.map((group) => (
               <div key={group.date}>
                 {/* Date separator */}
