@@ -65,9 +65,12 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             onCollapsedChange={setLeftCollapsed}
           />
 
-          {/* Main Content Area - ONLY scrollable area */}
+          {/* Main Content Area */}
           <main 
-            className="flex-1 min-w-0 h-screen overflow-y-auto overflow-x-hidden"
+            className={cn(
+              "flex-1 min-w-0 h-screen overflow-x-hidden",
+              noPadding ? "overflow-hidden" : "overflow-y-auto"
+            )}
             style={{
               overscrollBehavior: 'contain',
               WebkitOverflowScrolling: 'touch',
@@ -77,7 +80,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             <div 
               className={cn(
                 "mx-auto w-full",
-                noPadding ? "" : "px-2 lg:px-3 py-3",
+                noPadding ? "h-full" : "px-2 lg:px-3 py-3",
                 fullWidth ? "" : "max-w-full"
               )}
             >
@@ -105,10 +108,10 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
       <main
         data-app-scroll-container="true"
         className={cn(
-          "h-full overflow-y-auto overflow-x-hidden",
+          "h-full overflow-x-hidden",
+          noPadding ? "overflow-hidden" : "overflow-y-auto",
           hideNav ? "" : "pb-[calc(5rem+env(safe-area-inset-bottom))]",
           hideNav ? "" : "pt-14",
-          noPadding ? "" : ""
         )}
         style={{
           WebkitOverflowScrolling: 'touch',
