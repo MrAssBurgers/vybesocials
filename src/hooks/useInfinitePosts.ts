@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { useEffect, useRef } from 'react';
 import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
 
-interface Post {
+export interface Post {
   id: string;
   type: string;
   media_url: string;

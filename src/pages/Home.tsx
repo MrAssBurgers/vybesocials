@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Globe, Sparkles } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
+import type { Post } from '@/hooks/useInfinitePosts';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -94,7 +95,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const { user, profile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('foryou');
   
-  // Personalized "For You" feed based on user interests
+  // Personalized feed (interest-matched posts)
   const {
     data: forYouData,
     isLoading: forYouLoading,
@@ -104,6 +105,17 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     isFetchingNextPage: isFetchingNextForYou,
     refetch: refetchForYou,
   } = usePersonalizedFeed();
+
+  // Following feed
+  const {
+    data: followingData,
+    isLoading: followingLoading,
+    isFetching: followingFetching,
+    fetchNextPage: fetchNextFollowing,
+    hasNextPage: hasNextFollowing,
+    isFetchingNextPage: isFetchingNextFollowing,
+    refetch: refetchFollowing,
+  } = useInfiniteFollowingPosts();
 
   // Global feed - shows ALL posts
   const {
@@ -115,53 +127,48 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     isFetchingNextPage: isFetchingNextGlobal,
     refetch: refetchGlobal,
   } = useInfinitePosts();
-  
-  const {
-    data: followingData,
-    isLoading: followingLoading,
-    isFetching: followingFetching,
-    fetchNextPage: fetchNextFollowing,
-    hasNextPage: hasNextFollowing,
-    isFetchingNextPage: isFetchingNextFollowing,
-    refetch: refetchFollowing,
-  } = useInfiniteFollowingPosts();
 
   // Prefetch posts for faster navigation
   usePrefetchPosts();
 
-  // Filter out shorts/clips - they should only appear in Clips section
-  // Keep posts and videos (long-form content)
-  const forYouPosts = useMemo(() => 
-    (forYouData?.pages.flatMap(page => page.posts) || [])
-      .filter(post => post.type === 'post' || post.type === 'video'), 
-    [forYouData]
-  );
+  // "For You" = personalized + following merged, deduped, sorted by date
+  const forYouPosts = useMemo(() => {
+    const personalized = (forYouData?.pages.flatMap(page => page.posts) || [])
+      .filter(post => post.type === 'post' || post.type === 'video');
+    const following = (followingData?.pages.flatMap(page => page.posts) || [])
+      .filter(post => post.type === 'post' || post.type === 'video');
+    
+    // Merge and deduplicate by post ID
+    const seen = new Set<string>();
+    const merged: Post[] = [];
+    for (const post of [...following, ...personalized]) {
+      if (!seen.has(post.id)) {
+        seen.add(post.id);
+        merged.push(post);
+      }
+    }
+    // Sort by date descending (newest first)
+    merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return merged;
+  }, [forYouData, followingData]);
   
   const globalPosts = useMemo(() => 
     (globalData?.pages.flatMap(page => page.posts) || [])
       .filter(post => post.type === 'post' || post.type === 'video'), 
     [globalData]
   );
-  
-  const followingPosts = useMemo(() => 
-    (followingData?.pages.flatMap(page => page.posts) || [])
-      .filter(post => post.type === 'post' || post.type === 'video'), 
-    [followingData]
-  );
 
   const queryClient = useQueryClient();
 
-  // Pull to refresh with proper cache invalidation
+  // Pull to refresh
   const handleRefresh = useCallback(async () => {
-    if (activeTab === 'following') {
-      queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
-      await refetchFollowing();
-    } else if (activeTab === 'global') {
+    if (activeTab === 'global') {
       queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
       await refetchGlobal();
     } else {
       queryClient.invalidateQueries({ queryKey: ['personalized-feed'] });
-      await refetchForYou();
+      queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
+      await Promise.all([refetchForYou(), refetchFollowing()]);
     }
   }, [activeTab, queryClient, refetchForYou, refetchGlobal, refetchFollowing]);
 
@@ -177,38 +184,36 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const fetchStateRef = useRef({
     activeTab,
     hasNextForYou,
-    hasNextGlobal,
     hasNextFollowing,
+    hasNextGlobal,
     isFetchingNextForYou,
-    isFetchingNextGlobal,
     isFetchingNextFollowing,
+    isFetchingNextGlobal,
   });
   
-  // Update refs when values change
   useEffect(() => {
     fetchStateRef.current = {
       activeTab,
       hasNextForYou,
-      hasNextGlobal,
       hasNextFollowing,
+      hasNextGlobal,
       isFetchingNextForYou,
-      isFetchingNextGlobal,
       isFetchingNextFollowing,
+      isFetchingNextGlobal,
     };
-  }, [activeTab, hasNextForYou, hasNextGlobal, hasNextFollowing, isFetchingNextForYou, isFetchingNextGlobal, isFetchingNextFollowing]);
+  }, [activeTab, hasNextForYou, hasNextFollowing, hasNextGlobal, isFetchingNextForYou, isFetchingNextFollowing, isFetchingNextGlobal]);
 
-  // Set up observer once and update target when it changes
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
           const state = fetchStateRef.current;
-          if (state.activeTab === 'foryou' && state.hasNextForYou && !state.isFetchingNextForYou) {
-            fetchNextForYou();
+          if (state.activeTab === 'foryou') {
+            // For You loads both personalized + following
+            if (state.hasNextForYou && !state.isFetchingNextForYou) fetchNextForYou();
+            if (state.hasNextFollowing && !state.isFetchingNextFollowing) fetchNextFollowing();
           } else if (state.activeTab === 'global' && state.hasNextGlobal && !state.isFetchingNextGlobal) {
             fetchNextGlobal();
-          } else if (state.activeTab === 'following' && state.hasNextFollowing && !state.isFetchingNextFollowing) {
-            fetchNextFollowing();
           }
         }
       },
@@ -216,17 +221,13 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     );
 
     observerRef.current = observer;
-
-    // If the sentinel node already mounted before this effect ran, start observing it now.
-    if (loadMoreNodeRef.current) {
-      observer.observe(loadMoreNodeRef.current);
-    }
+    if (loadMoreNodeRef.current) observer.observe(loadMoreNodeRef.current);
 
     return () => {
       observer.disconnect();
       observerRef.current = null;
     };
-  }, [fetchNextForYou, fetchNextGlobal, fetchNextFollowing]);
+  }, [fetchNextForYou, fetchNextFollowing, fetchNextGlobal]);
 
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
     // Disconnect from previous node
@@ -311,9 +312,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
                 <Sparkles className="h-4 w-4 mr-1.5" />
                 For You
               </TabsTrigger>
-              <TabsTrigger value="following" className="flex-1 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                Following
-              </TabsTrigger>
               <TabsTrigger value="global" className="flex-1 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 <Globe className="h-4 w-4 mr-1.5" />
                 Global
@@ -323,25 +321,12 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             <TabsContent value="foryou" className="space-y-4" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
               <PostList
                 posts={forYouPosts}
-                isLoading={forYouLoading}
-                isFetching={forYouFetching}
-                isFetchingNext={isFetchingNextForYou}
+                isLoading={forYouLoading && followingLoading}
+                isFetching={forYouFetching || followingFetching}
+                isFetchingNext={isFetchingNextForYou || isFetchingNextFollowing}
                 loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
                 emptyIcon="✨"
-                emptyText="No posts matching your interests yet. Explore or check Global!"
-                onExplore={() => navigate('/explore')}
-              />
-            </TabsContent>
-
-            <TabsContent value="following" className="space-y-4" forceMount style={{ display: activeTab === 'following' ? 'block' : 'none' }}>
-              <PostList
-                posts={followingPosts}
-                isLoading={followingLoading}
-                isFetching={followingFetching}
-                isFetchingNext={isFetchingNextFollowing}
-                loadMoreRef={activeTab === 'following' ? loadMoreRef : () => {}}
-                emptyIcon="👋"
-                emptyText="Follow creators to see their posts here!"
+                emptyText="No posts yet. Follow creators or check Global!"
                 onExplore={() => navigate('/explore')}
               />
             </TabsContent>
