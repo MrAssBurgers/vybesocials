@@ -1,6 +1,6 @@
 import { memo, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { MessageCircle, Megaphone, Image, Radio, HelpCircle } from 'lucide-react';
+import { MessageCircle, Megaphone, Image, Radio, HelpCircle, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Room, RoomType } from '@/hooks/useCommunities';
 
@@ -9,6 +9,8 @@ interface RoomTabsProps {
   selectedRoomId: string | null;
   onSelectRoom: (roomId: string) => void;
   unreadCounts?: Record<string, number>;
+  canManage?: boolean;
+  onCreateChannel?: () => void;
 }
 
 const roomIcons: Record<RoomType, typeof MessageCircle> = {
@@ -32,6 +34,8 @@ export const RoomTabs = memo(function RoomTabs({
   selectedRoomId,
   onSelectRoom,
   unreadCounts = {},
+  canManage = false,
+  onCreateChannel,
 }: RoomTabsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedTabRef = useRef<HTMLButtonElement>(null);
@@ -87,6 +91,15 @@ export const RoomTabs = memo(function RoomTabs({
           </motion.button>
         );
       })}
+      {canManage && onCreateChannel && (
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={onCreateChannel}
+          className="flex items-center justify-center h-8 w-8 rounded-full bg-foreground/5 hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          <Plus className="h-4 w-4" />
+        </motion.button>
+      )}
     </div>
   );
 });
