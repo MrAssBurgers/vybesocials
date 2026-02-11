@@ -310,10 +310,12 @@ export function useAppPreloader() {
           queryClient.setQueryData(['friend-requests', profileId], friendRequestsResult.value.data);
         }
 
-        // Cache stories and pre-sign URLs
+        // Cache stories and pre-sign URLs (must include profileId in key)
         if (storiesResult.status === 'fulfilled' && storiesResult.value.data) {
           const stories = storiesResult.value.data;
-          queryClient.setQueryData(['stories'], stories);
+          // Process stories into grouped format matching useStories output
+          const storyGroups = processStoriesIntoGroups(stories, profileId);
+          queryClient.setQueryData(['stories', profileId], storyGroups);
           
           const storyUrls = stories.flatMap((s: any) => [s.media_url, s.author?.avatar_url]).filter(Boolean);
           batchSignUrls(storyUrls).catch(() => {});
@@ -363,6 +365,39 @@ export function useAppPreloader() {
   }, [queryClient, updateStatus]);
 
   return status;
+}
+
+// Helper function to process raw stories into grouped format
+function processStoriesIntoGroups(stories: any[], profileId: string) {
+  const groupedMap = new Map<string, any>();
+
+  for (const story of stories) {
+    const authorId = story.author_id || story.author?.id;
+    if (!groupedMap.has(authorId)) {
+      groupedMap.set(authorId, {
+        user: story.author || {
+          id: story.author_id,
+          username: story.author?.username || 'Unknown',
+          avatar_url: story.author?.avatar_url || null,
+          display_name: story.author?.display_name || null,
+        },
+        stories: [],
+        hasUnviewed: false,
+      });
+    }
+    const group = groupedMap.get(authorId)!;
+    group.stories.push(story);
+  }
+
+  // Sort: own stories first, then others
+  const groups = Array.from(groupedMap.values());
+  groups.sort((a, b) => {
+    if (a.user.id === profileId) return -1;
+    if (b.user.id === profileId) return 1;
+    return 0;
+  });
+
+  return groups;
 }
 
 // Helper function to cache feed data in the correct format
