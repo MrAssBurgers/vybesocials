@@ -294,15 +294,11 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       background-color: hsl(0 0% 0% / 0.35) !important;
     }
 
-    /* Bottom navigation - brighter */
+    /* Bottom navigation - transparent outer shell, bubble handles its own styling */
     nav[aria-label="Bottom navigation"] {
-      background: linear-gradient(
-        180deg,
-        hsl(var(--glass) / 0.85),
-        hsl(var(--glass) / 0.75)
-      ) !important;
-      backdrop-filter: blur(30px) saturate(180%) brightness(1.2) !important;
-      -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(1.2) !important;
+      background: transparent !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
     }
 
     /* Header - brighter */
