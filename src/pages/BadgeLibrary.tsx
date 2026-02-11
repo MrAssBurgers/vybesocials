@@ -145,7 +145,7 @@ export default function BadgeLibraryPage() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"
             >
               {filteredBadges.map((badge, idx) => {
                 const isEarned = earnedBadgeIds.has(badge.id);
@@ -153,20 +153,22 @@ export default function BadgeLibraryPage() {
                 return (
                   <motion.div
                     key={badge.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.03 }}
                   >
                     <GlassCard 
                       className={cn(
-                        "p-4 text-center aspect-square flex flex-col items-center justify-center gap-2 relative overflow-hidden",
-                        !isEarned && "opacity-60"
+                        "p-5 flex flex-col items-center justify-center gap-3 relative overflow-hidden transition-all duration-200",
+                        isEarned 
+                          ? "hover:scale-[1.02] hover:shadow-lg" 
+                          : "opacity-50 grayscale"
                       )}
                     >
-                      {/* Lock overlay for unearned badges */}
+                      {/* Lock icon for unearned */}
                       {!isEarned && (
-                        <div className="absolute inset-0 bg-background/40 backdrop-blur-[2px] flex items-center justify-center z-10">
-                          <Lock className="h-6 w-6 text-muted-foreground" />
+                        <div className="absolute top-2.5 right-2.5 z-10">
+                          <Lock className="h-4 w-4 text-muted-foreground" />
                         </div>
                       )}
                       
@@ -178,26 +180,21 @@ export default function BadgeLibraryPage() {
                         gradient_to={badge.gradient_to}
                         effect={badge.effect}
                         is_animated={badge.is_animated}
-                        size="lg"
+                        size="xl"
                         locked={!isEarned}
                         showTooltip={false}
                       />
                       
-                      <div className="space-y-0.5">
-                        <p className="font-semibold text-sm truncate w-full">
+                      <div className="text-center space-y-0.5 w-full">
+                        <p className="font-bold text-sm truncate">
                           {badge.name}
                         </p>
                         {badge.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-2">
+                          <p className="text-[11px] text-muted-foreground line-clamp-1">
                             {badge.description}
                           </p>
                         )}
                       </div>
-                      
-                      {/* Category tag */}
-                      <span className="absolute top-2 right-2 text-xs px-1.5 py-0.5 rounded-full bg-secondary/80">
-                        {CATEGORY_LABELS[badge.category]?.icon}
-                      </span>
                     </GlassCard>
                   </motion.div>
                 );
