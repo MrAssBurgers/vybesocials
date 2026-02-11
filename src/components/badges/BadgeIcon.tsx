@@ -11,7 +11,7 @@ interface BadgeIconProps {
   gradient_to?: string | null;
   effect?: string | null;
   is_animated?: boolean;
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   showTooltip?: boolean;
   locked?: boolean;
   className?: string;
@@ -22,6 +22,7 @@ const sizeClasses = {
   sm: 'h-5 w-5 text-sm',
   md: 'h-6 w-6 text-base',
   lg: 'h-8 w-8 text-lg',
+  xl: 'h-14 w-14 text-3xl',
 };
 
 /**
