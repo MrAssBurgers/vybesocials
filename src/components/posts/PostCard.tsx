@@ -1,6 +1,6 @@
 import { useState, useRef, memo, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, Type } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/compone
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
+import { PostCarousel } from './PostCarousel';
 
 // Video player component - maintains the video's native aspect ratio (no cropping)
 // NEVER shows broken placeholder - graceful degradation
@@ -269,6 +270,7 @@ interface PostCardProps {
     id: string;
     type: string;
     media_url: string;
+    media_urls?: string[] | null;
     caption: string;
     tags: string[];
     created_at: string;
@@ -554,75 +556,69 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         />
       </div>
 
-      {/* Media - keep the video's native aspect ratio */}
-      <div 
-        className="relative w-full cursor-pointer"
-        onDoubleClick={handleDoubleTap}
-      >
-        {post.type === 'video' ? (
-          <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
-        ) : (
-          <NaturalAspectImage src={signedMediaUrl || ''} caption={post.caption} />
-        )}
+      {/* Media - carousel, single image, video, or text-only */}
+      {(() => {
+        const allUrls = post.media_urls && post.media_urls.length > 0
+          ? post.media_urls
+          : post.media_url ? [post.media_url] : [];
         
-        {/* Double tap heart animation - fun burst effect */}
-        <AnimatePresence>
-          {showHeart && (
-            <motion.div 
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              transition={{ duration: 0.4, type: 'spring', stiffness: 400, damping: 15 }}
-              className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            >
-              {/* Main heart with pop */}
-              <motion.div
-                animate={{ 
-                  scale: [0, 1.4, 0.9, 1.1, 1],
-                  rotate: [0, -15, 15, -5, 0]
-                }}
-                transition={{ duration: 0.6, type: 'spring', stiffness: 300 }}
-              >
-                <Heart className="h-28 w-28 text-rose-500 fill-rose-500 drop-shadow-2xl" />
-              </motion.div>
-              
-              {/* Particle burst */}
-              {[...Array(12)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute w-3 h-3 rounded-full bg-rose-400"
-                  initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                  animate={{ 
-                    scale: [0, 1.5, 0],
-                    x: Math.cos(i * 30 * Math.PI / 180) * 80,
-                    y: Math.sin(i * 30 * Math.PI / 180) * 80,
-                    opacity: [1, 1, 0],
-                  }}
-                  transition={{ duration: 0.6, delay: 0.1 }}
-                />
-              ))}
-              
-              {/* Mini hearts burst */}
-              {[...Array(6)].map((_, i) => (
-                <motion.div
-                  key={`heart-${i}`}
-                  className="absolute"
-                  initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                  animate={{ 
-                    scale: [0, 1, 0.5],
-                    x: Math.cos((i * 60 + 30) * Math.PI / 180) * 60,
-                    y: Math.sin((i * 60 + 30) * Math.PI / 180) * 60,
-                    opacity: [1, 1, 0],
-                  }}
-                  transition={{ duration: 0.7, delay: 0.15 }}
+        if (allUrls.length === 0) {
+          // Text-only post - no media section
+          return null;
+        }
+        
+        return (
+          <div className="relative w-full cursor-pointer" onDoubleClick={handleDoubleTap}>
+            {post.type === 'video' ? (
+              <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
+            ) : allUrls.length > 1 ? (
+              <PostCarousel urls={allUrls} onDoubleTap={handleDoubleTap} />
+            ) : (
+              <NaturalAspectImage src={signedMediaUrl || ''} caption={post.caption} />
+            )}
+            
+            {/* Double tap heart animation */}
+            <AnimatePresence>
+              {showHeart && (
+                <motion.div 
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ duration: 0.4, type: 'spring', stiffness: 400, damping: 15 }}
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
                 >
-                  <Heart className="h-6 w-6 text-pink-400 fill-pink-400" />
+                  <motion.div
+                    animate={{ scale: [0, 1.4, 0.9, 1.1, 1], rotate: [0, -15, 15, -5, 0] }}
+                    transition={{ duration: 0.6, type: 'spring', stiffness: 300 }}
+                  >
+                    <Heart className="h-28 w-28 text-rose-500 fill-rose-500 drop-shadow-2xl" />
+                  </motion.div>
+                  {[...Array(12)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="absolute w-3 h-3 rounded-full bg-rose-400"
+                      initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+                      animate={{ scale: [0, 1.5, 0], x: Math.cos(i * 30 * Math.PI / 180) * 80, y: Math.sin(i * 30 * Math.PI / 180) * 80, opacity: [1, 1, 0] }}
+                      transition={{ duration: 0.6, delay: 0.1 }}
+                    />
+                  ))}
+                  {[...Array(6)].map((_, i) => (
+                    <motion.div
+                      key={`heart-${i}`}
+                      className="absolute"
+                      initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+                      animate={{ scale: [0, 1, 0.5], x: Math.cos((i * 60 + 30) * Math.PI / 180) * 60, y: Math.sin((i * 60 + 30) * Math.PI / 180) * 60, opacity: [1, 1, 0] }}
+                      transition={{ duration: 0.7, delay: 0.15 }}
+                    >
+                      <Heart className="h-6 w-6 text-pink-400 fill-pink-400" />
+                    </motion.div>
+                  ))}
                 </motion.div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })()}
 
       {/* Actions - unified alignment */}
       <div className="p-4 space-y-3">

@@ -259,8 +259,9 @@ export function useCreatePost() {
 
   return useMutation({
     mutationFn: async (data: {
-      type: 'short' | 'post' | 'video';
-      mediaFile: File;
+      type: 'short' | 'post' | 'video' | 'text';
+      mediaFile?: File;
+      mediaFiles?: File[];
       caption: string;
       tags: string[];
       thumbnailFile?: File;
@@ -275,56 +276,53 @@ export function useCreatePost() {
         throw new Error('Caption contains blocked content');
       }
 
-      // Filter the caption
       const filteredCaption = filterBlockedContent(data.caption);
 
-      // Upload media first
-      const fileExt = data.mediaFile.name.split('.').pop();
-      const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
+      let publicUrl: string | null = null;
+      let mediaUrls: string[] | null = null;
 
-      const { error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(fileName, data.mediaFile);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(fileName);
+      // Handle multi-file upload (carousel)
+      if (data.mediaFiles && data.mediaFiles.length > 0) {
+        const uploadedUrls: string[] = [];
+        for (const file of data.mediaFiles) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${profile.user_id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+          const { error: uploadError } = await supabase.storage.from('media').upload(fileName, file);
+          if (uploadError) throw uploadError;
+          const { data: { publicUrl: url } } = supabase.storage.from('media').getPublicUrl(fileName);
+          uploadedUrls.push(url);
+        }
+        publicUrl = uploadedUrls[0];
+        mediaUrls = uploadedUrls;
+      } else if (data.mediaFile) {
+        // Single file upload
+        const fileExt = data.mediaFile.name.split('.').pop();
+        const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, data.mediaFile);
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl: url } } = supabase.storage.from('media').getPublicUrl(fileName);
+        publicUrl = url;
+      }
 
       // Handle thumbnail upload for videos
       let thumbnailUrl: string | null = null;
       
       if (data.thumbnailFile) {
-        // Upload custom thumbnail file
         const thumbExt = data.thumbnailFile.name.split('.').pop();
         const thumbFileName = `${profile.user_id}/thumb_${Date.now()}.${thumbExt}`;
-        
-        const { error: thumbError } = await supabase.storage
-          .from('media')
-          .upload(thumbFileName, data.thumbnailFile);
-        
+        const { error: thumbError } = await supabase.storage.from('media').upload(thumbFileName, data.thumbnailFile);
         if (!thumbError) {
-          const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
-            .from('media')
-            .getPublicUrl(thumbFileName);
+          const { data: { publicUrl: thumbPublicUrl } } = supabase.storage.from('media').getPublicUrl(thumbFileName);
           thumbnailUrl = thumbPublicUrl;
         }
       } else if (data.thumbnailDataUrl) {
-        // Convert data URL to blob and upload
         try {
           const response = await fetch(data.thumbnailDataUrl);
           const blob = await response.blob();
           const thumbFileName = `${profile.user_id}/thumb_${Date.now()}.jpg`;
-          
-          const { error: thumbError } = await supabase.storage
-            .from('media')
-            .upload(thumbFileName, blob, { contentType: 'image/jpeg' });
-          
+          const { error: thumbError } = await supabase.storage.from('media').upload(thumbFileName, blob, { contentType: 'image/jpeg' });
           if (!thumbError) {
-            const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
-              .from('media')
-              .getPublicUrl(thumbFileName);
+            const { data: { publicUrl: thumbPublicUrl } } = supabase.storage.from('media').getPublicUrl(thumbFileName);
             thumbnailUrl = thumbPublicUrl;
           }
         } catch (e) {
@@ -332,17 +330,21 @@ export function useCreatePost() {
         }
       }
 
+      // Determine post type
+      const postType = data.type === 'text' ? 'post' : data.type;
+
       // Create post
       const { data: post, error } = await supabase
         .from('posts')
         .insert({
           author_id: profile.id,
-          type: data.type,
+          type: postType,
           media_url: publicUrl,
+          media_urls: mediaUrls,
           thumbnail_url: thumbnailUrl,
           caption: filteredCaption,
           tags: data.tags,
-        })
+        } as any)
         .select()
         .single();
 
