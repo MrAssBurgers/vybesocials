@@ -294,15 +294,14 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
-          transform: isVisible ? 'translateY(0)' : 'translateY(100%)',
-          opacity: isVisible ? 1 : 0,
-          transition: 'transform 0.2s ease-out, opacity 0.15s ease-out',
+          transform: isVisible ? 'translateY(0)' : 'translateY(calc(100% + 16px))',
+          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
         aria-label="Bottom navigation"
         data-tutorial-bottomnav
       >
         {/* Clean minimal nav bar - solid background */}
-        <div className="mx-3 mb-2 rounded-2xl bg-transparent backdrop-blur-md border border-border shadow-xl shadow-black/30">
+        <div className="mx-3 mb-2 rounded-2xl bg-background/80 border-0 shadow-lg shadow-black/10">
           <div className="grid grid-cols-5 h-14 px-1 relative z-10">
           {navItems.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
