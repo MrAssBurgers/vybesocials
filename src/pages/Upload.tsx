@@ -637,29 +637,29 @@ export default function UploadPage() {
         </div>
 
         {/* ━━━━ BOTTOM TOOLBAR — solid, pinned ━━━━ */}
-        <div className="flex-shrink-0 z-30 border-t border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
+        <div className="flex-shrink-0 z-30 border-t border-border/50 pb-[env(safe-area-inset-bottom)]" style={{ backgroundColor: 'hsl(var(--card))' }}>
           {/* Tool icons */}
           <div className="flex items-center justify-between px-4 h-12 max-w-2xl mx-auto">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               {contentType !== 'text' && (
                 <>
-                  <button onClick={() => fileInputRef.current?.click()} className="w-10 h-10 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="Add media">
-                    <Image className="w-5 h-5" />
+                  <button onClick={() => fileInputRef.current?.click()} className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="Add media">
+                    <Image className="w-[18px] h-[18px]" />
                   </button>
-                  <button onClick={() => setShowCamera(true)} className="w-10 h-10 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="Camera">
-                    <CameraIcon className="w-5 h-5" />
+                  <button onClick={() => setShowCamera(true)} className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="Camera">
+                    <CameraIcon className="w-[18px] h-[18px]" />
                   </button>
-                  <button onClick={() => setShowAIVideoGenerator(true)} className="w-10 h-10 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="AI Video">
-                    <Wand2 className="w-5 h-5" />
+                  <button onClick={() => setShowAIVideoGenerator(true)} className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="AI Video">
+                    <Wand2 className="w-[18px] h-[18px]" />
                   </button>
                 </>
               )}
               <button
                 onClick={() => { const tag = prompt('Add a tag:'); if (tag) handleAddTag(tag); }}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
                 title="Add tag"
               >
-                <Hash className="w-5 h-5" />
+                <Hash className="w-[18px] h-[18px]" />
               </button>
               <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
             </div>
@@ -674,12 +674,12 @@ export default function UploadPage() {
 
           {/* Suggested tags row */}
           {tags.length === 0 && (
-            <div className="flex gap-1.5 px-4 pb-3 overflow-x-auto scrollbar-hide max-w-2xl mx-auto">
+            <div className="flex gap-2 px-4 pb-2.5 overflow-x-auto scrollbar-hide max-w-2xl mx-auto">
               {suggestedTags.slice(0, 7).map((tag) => (
                 <button
                   key={tag}
                   onClick={() => handleAddTag(tag)}
-                  className="flex-shrink-0 text-xs px-3 py-1 rounded-full bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors font-medium"
+                  className="flex-shrink-0 text-[11px] px-3 py-1 rounded-full border border-border/50 text-muted-foreground hover:bg-accent hover:text-accent-foreground hover:border-primary/30 transition-all font-medium"
                 >
                   #{tag}
                 </button>
