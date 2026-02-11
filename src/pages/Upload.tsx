@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, DragEvent } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, DragEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -16,13 +16,12 @@ import {
   Image, Video, Film, X, Plus, Camera as CameraIcon,
   Upload as UploadIcon, Wand2, ImagePlus, ArrowLeft, Type,
   Hash, Send, Globe, Users, Lock, ChevronDown,
-  Sparkles, Check
+  Sparkles, Check, Tag
 } from 'lucide-react';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-
-const suggestedTags = ['photography', 'art', 'music', 'gaming', 'food', 'travel', 'fashion', 'fitness', 'ai', 'vybe'];
+import { INTEREST_CATEGORIES, getSuggestedTagsForInterests, getTagCategories } from '@/lib/tagCategories';
 
 const visibilityOptions = [
   { id: 'public', label: 'Everyone', icon: Globe, description: 'Visible to all' },
@@ -191,10 +190,53 @@ export default function UploadPage() {
     if (sf) { if (!sf.type.startsWith('image/')) { toast.error('Select an image'); return; } setThumbnailFile(sf); setThumbnailPreview(URL.createObjectURL(sf)); setSelectedThumbnailIndex(null); }
   };
 
+  // Smart tag suggestions based on user's onboarding interests
+  const smartSuggestions = useMemo(() => {
+    const userInterests = (profile as any)?.interests || [];
+    if (userInterests.length === 0) {
+      // Fallback suggestions for users without interests
+      return INTEREST_CATEGORIES.slice(0, 10).flatMap(cat => 
+        cat.tags.slice(0, 2).map(tag => ({ tag, emoji: cat.emoji, category: cat.id }))
+      );
+    }
+    return getSuggestedTagsForInterests(userInterests);
+  }, [profile]);
+
+  // Filter suggestions to only show ones not already added
+  const filteredSuggestions = useMemo(() => {
+    return smartSuggestions.filter(s => !tags.includes(s.tag));
+  }, [smartSuggestions, tags]);
+
+  // Group suggestions by category for display
+  const groupedSuggestions = useMemo(() => {
+    const groups = new Map<string, { emoji: string; label: string; tags: string[] }>();
+    for (const s of filteredSuggestions) {
+      const cat = INTEREST_CATEGORIES.find(c => c.id === s.category);
+      if (!groups.has(s.category)) {
+        groups.set(s.category, { emoji: cat?.emoji || '🏷️', label: cat?.label || s.category, tags: [] });
+      }
+      groups.get(s.category)!.tags.push(s.tag);
+    }
+    return Array.from(groups.entries());
+  }, [filteredSuggestions]);
+
+  // Show which categories the current tags map to
+  const tagCategoryBadges = useMemo(() => {
+    const cats = new Set<string>();
+    tags.forEach(tag => {
+      getTagCategories(tag).forEach(c => cats.add(c));
+    });
+    return Array.from(cats).map(id => {
+      const cat = INTEREST_CATEGORIES.find(c => c.id === id);
+      return cat ? { id: cat.id, emoji: cat.emoji, label: cat.label } : null;
+    }).filter(Boolean) as { id: string; emoji: string; label: string }[];
+  }, [tags]);
+
   const handleSubmit = async () => {
     if (contentType !== 'text' && !file && files.length === 0) { toast.error('Add some media'); return; }
     if (contentType === 'text' && !caption.trim()) { toast.error('Write something to share'); return; }
     if (!user) { toast.error('Sign in first'); return; }
+    if (tags.length === 0) { toast.error('Add at least one tag so people can discover your post'); return; }
     if (contentType === 'video' && !videoTitle.trim()) { toast.error('Add a video title'); return; }
     setIsUploading(true); setUploadProgress(0);
     try {
@@ -225,7 +267,7 @@ export default function UploadPage() {
   };
 
   const hasMedia = file !== null || files.length > 0;
-  const canSubmit = contentType === 'text' ? caption.trim().length > 0 : hasMedia;
+  const canSubmit = (contentType === 'text' ? caption.trim().length > 0 : hasMedia) && tags.length > 0;
   const currentVisibility = visibilityOptions.find(v => v.id === visibility)!;
 
   if (showCamera) return <Camera onClose={() => setShowCamera(false)} />;
@@ -429,23 +471,73 @@ export default function UploadPage() {
               rows={1}
             />
 
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-1 mb-1">
-                {tags.map((tag) => (
-                  <motion.span
-                    key={tag}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    layout
-                    className="inline-flex items-center gap-1 text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full font-medium cursor-pointer hover:bg-primary/20 transition-colors"
-                    onClick={() => handleRemoveTag(tag)}
-                  >
-                    #{tag}
-                    <X className="w-2.5 h-2.5" />
-                  </motion.span>
-                ))}
+            {/* Tags section - REQUIRED */}
+            <div className="mt-2 mb-1">
+              {/* Tag requirement indicator */}
+              <div className="flex items-center gap-1.5 mb-2">
+                <Tag className={cn("w-3.5 h-3.5", tags.length > 0 ? "text-primary" : "text-destructive")} />
+                <span className={cn("text-xs font-medium", tags.length > 0 ? "text-primary" : "text-destructive")}>
+                  {tags.length === 0 ? 'Add at least 1 tag (required)' : `${tags.length} tag${tags.length > 1 ? 's' : ''}`}
+                </span>
+                {tagCategoryBadges.length > 0 && (
+                  <div className="flex items-center gap-1 ml-1">
+                    {tagCategoryBadges.slice(0, 3).map(cat => (
+                      <span key={cat.id} className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-accent-foreground font-medium">
+                        {cat.emoji} {cat.label}
+                      </span>
+                    ))}
+                    {tagCategoryBadges.length > 3 && (
+                      <span className="text-[10px] text-muted-foreground">+{tagCategoryBadges.length - 3}</span>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* Added tags */}
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {tags.map((tag) => (
+                    <motion.span
+                      key={tag}
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      layout
+                      className="inline-flex items-center gap-1 text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-medium cursor-pointer hover:bg-primary/20 transition-colors"
+                      onClick={() => handleRemoveTag(tag)}
+                    >
+                      #{tag}
+                      <X className="w-2.5 h-2.5" />
+                    </motion.span>
+                  ))}
+                </div>
+              )}
+
+              {/* Custom tag input */}
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex-1 relative">
+                  <Hash className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value.replace(/\s/g, ''))}
+                    onKeyDown={handleTagInputKeyDown}
+                    placeholder="Create your own tag..."
+                    className="w-full pl-8 pr-3 py-2 text-xs bg-muted/50 rounded-full border border-border/50 text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+                    maxLength={30}
+                  />
+                </div>
+                {tagInput.trim() && (
+                  <motion.button
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    onClick={() => handleAddTag(tagInput)}
+                    className="h-8 px-3 rounded-full bg-primary text-primary-foreground text-xs font-semibold"
+                  >
+                    Add
+                  </motion.button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* ━━━━ TOOLBAR — between caption and media ━━━━ */}
@@ -465,13 +557,6 @@ export default function UploadPage() {
                     </button>
                   </>
                 )}
-                <button
-                  onClick={() => { const tag = prompt('Add a tag:'); if (tag) handleAddTag(tag); }}
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
-                  title="Add tag"
-                >
-                  <Hash className="w-[18px] h-[18px]" />
-                </button>
                 <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
               </div>
 
@@ -483,19 +568,25 @@ export default function UploadPage() {
               </span>
             </div>
 
-            {tags.length === 0 && (
-              <div className="flex gap-2 pb-2 overflow-x-auto scrollbar-hide">
-                {suggestedTags.slice(0, 7).map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => handleAddTag(tag)}
-                    className="flex-shrink-0 text-[11px] px-3 py-1 rounded-full border border-border/50 text-muted-foreground hover:bg-accent hover:text-accent-foreground hover:border-primary/30 transition-all font-medium"
-                  >
-                    #{tag}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Smart tag suggestions based on user interests */}
+            <div className="pb-2 space-y-1.5">
+              {groupedSuggestions.slice(0, 3).map(([catId, group]) => (
+                <div key={catId}>
+                  <p className="text-[10px] text-muted-foreground font-medium mb-1">{group.emoji} {group.label}</p>
+                  <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+                    {group.tags.slice(0, 5).map((tag) => (
+                      <button
+                        key={tag}
+                        onClick={() => handleAddTag(tag)}
+                        className="flex-shrink-0 text-[11px] px-3 py-1 rounded-full border border-border/50 text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all font-medium"
+                      >
+                        #{tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* ━━━ MEDIA AREA — fills remaining space ━━━ */}
