@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
 import { Camera } from '@/components/camera/Camera';
 import { ContentSafetyScanner } from '@/components/safety/ContentSafetyScanner';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
@@ -16,11 +15,10 @@ import { StyledUsername } from '@/components/ui/StyledUsername';
 import {
   Image, Video, Film, X, Plus, Camera as CameraIcon,
   Upload as UploadIcon, Wand2, ImagePlus, ArrowLeft, Type,
-  Hash, Send, Layers, Globe, Users, Lock, ChevronDown,
-  Sparkles, MapPin, Calendar, UserPlus, Eye, EyeOff
+  Hash, Send, Globe, Users, Lock, ChevronDown,
+  Sparkles, Check
 } from 'lucide-react';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
-import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +29,13 @@ const visibilityOptions = [
   { id: 'followers', label: 'Followers', icon: Users, description: 'Only followers' },
   { id: 'private', label: 'Only me', icon: Lock, description: 'Private post' },
 ] as const;
+
+const contentTypes = [
+  { id: 'text' as const, icon: Type, label: 'Text' },
+  { id: 'post' as const, icon: Image, label: 'Photo' },
+  { id: 'short' as const, icon: Film, label: 'Clip' },
+  { id: 'video' as const, icon: Video, label: 'Video' },
+];
 
 export default function UploadPage() {
   const { isMobileOrTablet } = useIsMobileOrTablet();
@@ -57,7 +62,6 @@ export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [showVisibility, setShowVisibility] = useState(false);
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
-  const [showPreview, setShowPreview] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
 
   // Long-form video
@@ -242,7 +246,7 @@ export default function UploadPage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed inset-0 z-[100] bg-background/90 backdrop-blur-xl flex items-center justify-center"
+            className="fixed inset-0 z-[100] bg-background flex items-center justify-center"
           >
             <motion.div
               initial={{ scale: 0, rotate: -180 }}
@@ -250,18 +254,8 @@ export default function UploadPage() {
               transition={{ type: 'spring', stiffness: 200, damping: 15 }}
               className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-2xl shadow-primary/40"
             >
-              <motion.svg
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ delay: 0.3, duration: 0.4 }}
-                className="w-10 h-10 text-primary-foreground"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={3}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <motion.svg initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 0.3, duration: 0.4 }}
+                className="w-10 h-10 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
                 <motion.path d="M5 13l4 4L19 7" />
               </motion.svg>
             </motion.div>
@@ -269,441 +263,362 @@ export default function UploadPage() {
         )}
       </AnimatePresence>
 
+      {/* SOLID background — no transparency */}
       <div className="fixed inset-0 -z-10 bg-background" />
 
-      <div className="w-full max-w-lg mx-auto min-h-[100dvh] flex flex-col">
-        {/* ━━━ HEADER ━━━ */}
-        <motion.div
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.3 }}
-          className="sticky top-0 z-40 px-4 h-14 flex items-center justify-between bg-background/70 backdrop-blur-2xl border-b border-border/15"
-        >
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1 text-foreground/70 hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+      <div className="w-full max-w-lg mx-auto min-h-[100dvh] flex flex-col bg-background">
 
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-primary" />
-            <span className="text-sm font-bold text-foreground tracking-tight">Create</span>
+        {/* ━━━━ HEADER — solid, opaque ━━━━ */}
+        <div className="sticky top-0 z-40 bg-card border-b border-border">
+          <div className="flex items-center justify-between px-4 h-14">
+            <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted transition-colors">
+              <ArrowLeft className="w-5 h-5 text-foreground" />
+            </button>
+
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <span className="text-base font-bold text-foreground">Create</span>
+            </div>
+
+            <motion.button
+              onClick={handleSubmit}
+              disabled={!canSubmit || isUploading}
+              whileTap={canSubmit ? { scale: 0.92 } : {}}
+              className={cn(
+                "h-9 px-5 rounded-full text-sm font-bold transition-all duration-200",
+                canSubmit && !isUploading
+                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                  : "bg-muted text-muted-foreground cursor-not-allowed"
+              )}
+            >
+              {isUploading ? (
+                <span className="flex items-center gap-1.5">
+                  <motion.span className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"
+                    animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }} />
+                  {uploadProgress}%
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <Send className="w-3.5 h-3.5" />
+                  Share
+                </span>
+              )}
+            </motion.button>
           </div>
 
-          {/* Share button */}
-          <motion.button
-            onClick={handleSubmit}
-            disabled={!canSubmit || isUploading}
-            whileTap={canSubmit ? { scale: 0.9 } : {}}
-            className={cn(
-              "relative h-8 px-5 rounded-full text-xs font-bold transition-all duration-300 overflow-hidden",
-              canSubmit && !isUploading
-                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:shadow-primary/50"
-                : "bg-muted text-muted-foreground"
-            )}
-          >
-            {isUploading ? (
-              <span className="flex items-center gap-1.5">
-                <motion.span
-                  className="w-3 h-3 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }}
-                />
-                {uploadProgress}%
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <Send className="w-3 h-3" />
-                Share
-              </span>
-            )}
-            {/* Progress underline */}
-            {isUploading && (
-              <motion.div
-                className="absolute bottom-0 left-0 h-0.5 bg-primary-foreground/40"
-                initial={{ width: '0%' }}
-                animate={{ width: `${uploadProgress}%` }}
-              />
-            )}
-          </motion.button>
-        </motion.div>
+          {/* Upload progress bar */}
+          {isUploading && (
+            <motion.div className="h-0.5 bg-primary" initial={{ width: '0%' }} animate={{ width: `${uploadProgress}%` }} transition={{ duration: 0.3 }} />
+          )}
+        </div>
 
-        {/* ━━━ TYPE SELECTOR ━━━ */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="px-4 py-3"
-        >
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
-            {([
-              { id: 'text' as const, icon: Type, label: 'Text' },
-              { id: 'post' as const, icon: Image, label: 'Photo' },
-              { id: 'short' as const, icon: Film, label: 'Clip' },
-              { id: 'video' as const, icon: Video, label: 'Video' },
-            ]).map((t) => {
+        {/* ━━━━ TYPE SELECTOR ━━━━ */}
+        <div className="px-4 py-3 bg-background border-b border-border/50">
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+            {contentTypes.map((t) => {
               const active = contentType === t.id;
               return (
-                <motion.button
+                <button
                   key={t.id}
                   onClick={() => { setContentType(t.id); if (t.id === 'text') clearFile(); }}
-                  whileTap={{ scale: 0.95 }}
                   className={cn(
-                    "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap",
+                    "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200",
                     active
-                      ? "bg-foreground text-background"
-                      : "bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   )}
                 >
                   <t.icon className="w-3.5 h-3.5" />
                   {t.label}
-                </motion.button>
+                </button>
               );
             })}
           </div>
-        </motion.div>
+        </div>
 
-        {/* ━━━ COMPOSER ━━━ */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="flex-1 flex flex-col"
-        >
-          <div className="flex gap-3 px-4">
-            {/* Avatar with gradient ring */}
-            <div className="flex-shrink-0 pt-1">
-              <div className="w-10 h-10 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary">
-                <div className="w-full h-full rounded-full overflow-hidden bg-background">
-                  {profile?.avatar_url ? (
-                    <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground">
-                      {profile?.username?.[0]?.toUpperCase() || '?'}
-                    </div>
-                  )}
-                </div>
+        {/* ━━━━ SCROLLABLE COMPOSER AREA ━━━━ */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* User row */}
+          <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+            {/* Avatar */}
+            <div className="w-11 h-11 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary flex-shrink-0">
+              <div className="w-full h-full rounded-full overflow-hidden bg-card">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground">
+                    {profile?.username?.[0]?.toUpperCase() || '?'}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Composer body */}
-            <div className="flex-1 min-w-0 pb-4">
-              {/* Name + visibility */}
-              <div className="flex items-center gap-2 mb-1">
-                {profile && (
-                  <StyledUsername
-                    userId={profile.id}
-                    username={profile.username}
-                    displayName={profile.display_name}
-                    className="text-sm font-bold"
-                  />
-                )}
-                {/* Visibility pill */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowVisibility(!showVisibility)}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted/50 text-muted-foreground hover:bg-muted transition-colors"
-                  >
-                    <currentVisibility.icon className="w-2.5 h-2.5" />
-                    {currentVisibility.label}
-                    <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", showVisibility && "rotate-180")} />
-                  </button>
-                  <AnimatePresence>
-                    {showVisibility && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -4, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -4, scale: 0.95 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute top-full left-0 mt-1 z-50 min-w-[160px] py-1 rounded-xl bg-card/95 backdrop-blur-xl border border-border/30 shadow-xl"
-                      >
-                        {visibilityOptions.map((opt) => (
-                          <button
-                            key={opt.id}
-                            onClick={() => { setVisibility(opt.id); setShowVisibility(false); }}
-                            className={cn(
-                              "w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors",
-                              visibility === opt.id ? "text-primary bg-primary/10" : "text-foreground hover:bg-muted/50"
-                            )}
-                          >
-                            <opt.icon className="w-3.5 h-3.5" />
-                            <div className="text-left">
-                              <p className="font-medium">{opt.label}</p>
-                              <p className="text-[10px] text-muted-foreground">{opt.description}</p>
-                            </div>
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
+            <div className="flex flex-col gap-0.5">
+              {profile && (
+                <StyledUsername userId={profile.id} username={profile.username} displayName={profile.display_name} className="text-sm font-bold" />
+              )}
 
-              {/* Text input */}
-              <textarea
-                ref={captionRef}
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder={
-                  contentType === 'text' ? "What's on your mind?" :
-                  contentType === 'video' ? "Describe your video..." :
-                  "Write a caption..."
-                }
-                className={cn(
-                  "w-full bg-transparent text-foreground placeholder:text-muted-foreground/40 resize-none outline-none leading-relaxed",
-                  contentType === 'text' ? "text-[17px] min-h-[120px]" : "text-[15px] min-h-[48px]"
-                )}
-                maxLength={2200}
-                rows={1}
-              />
-
-              {/* Tags inline */}
-              <AnimatePresence>
-                {tags.length > 0 && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="flex flex-wrap gap-1 mt-1 overflow-hidden"
-                  >
-                    {tags.map((tag) => (
-                      <motion.span
-                        key={tag}
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.8, opacity: 0 }}
-                        layout
-                        className="inline-flex items-center gap-0.5 text-xs text-primary font-medium cursor-pointer hover:line-through transition-all"
-                        onClick={() => handleRemoveTag(tag)}
-                      >
-                        #{tag}
-                      </motion.span>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* ── Media previews ── */}
-              {contentType !== 'text' && hasMedia && (
-                <div className="mt-3">
-                  {previews.length > 1 ? (
-                    <div className="space-y-2">
-                      {/* Smart grid */}
-                      <div className={cn(
-                        "grid gap-1 rounded-2xl overflow-hidden",
-                        previews.length === 2 && "grid-cols-2",
-                        previews.length === 3 && "grid-cols-2",
-                        previews.length >= 4 && "grid-cols-3"
-                      )}>
-                        {previews.slice(0, 6).map((p, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: i * 0.04 }}
-                            className={cn(
-                              "relative group cursor-pointer",
-                              previews.length === 3 && i === 0 && "row-span-2",
-                              "aspect-square"
-                            )}
-                          >
-                            <img src={p} alt="" className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                            <button
-                              onClick={() => removeFileAtIndex(i)}
-                              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                            >
-                              <X className="w-3 h-3 text-white" />
-                            </button>
-                            {i === 5 && previews.length > 6 && (
-                              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                <span className="text-white font-bold text-lg">+{previews.length - 6}</span>
-                              </div>
-                            )}
-                          </motion.div>
-                        ))}
-                      </div>
-                      {previews.length < 10 && (
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          className="flex items-center gap-1 text-[11px] text-primary font-medium hover:text-primary/70 transition-colors"
-                        >
-                          <Plus className="w-3 h-3" />Add more
-                        </button>
-                      )}
-                    </div>
-                  ) : preview && (
+              {/* Visibility selector */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowVisibility(!showVisibility)}
+                  className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground hover:bg-accent transition-colors"
+                >
+                  <currentVisibility.icon className="w-3 h-3" />
+                  {currentVisibility.label}
+                  <ChevronDown className={cn("w-3 h-3 transition-transform", showVisibility && "rotate-180")} />
+                </button>
+                <AnimatePresence>
+                  {showVisibility && (
                     <motion.div
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="relative rounded-2xl overflow-hidden bg-muted/10"
+                      initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-0 mt-1.5 z-50 min-w-[170px] py-1.5 rounded-xl bg-card border border-border shadow-xl"
                     >
-                      {file?.type.startsWith('video/') ? (
-                        <video src={preview} className="w-full max-h-[50dvh] object-contain rounded-2xl" controls playsInline />
-                      ) : (
-                        <img src={preview} alt="" className="w-full max-h-[50dvh] object-contain rounded-2xl" />
-                      )}
-                      <button
-                        onClick={clearFile}
-                        className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center hover:bg-black/70 transition-colors"
-                      >
-                        <X className="w-3.5 h-3.5 text-white" />
-                      </button>
+                      {visibilityOptions.map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => { setVisibility(opt.id); setShowVisibility(false); }}
+                          className={cn(
+                            "w-full flex items-center gap-2.5 px-3 py-2.5 text-xs transition-colors",
+                            visibility === opt.id ? "text-primary bg-primary/10" : "text-foreground hover:bg-muted"
+                          )}
+                        >
+                          <opt.icon className="w-4 h-4" />
+                          <div className="text-left">
+                            <p className="font-medium">{opt.label}</p>
+                            <p className="text-[10px] text-muted-foreground">{opt.description}</p>
+                          </div>
+                          {visibility === opt.id && <Check className="w-3.5 h-3.5 ml-auto text-primary" />}
+                        </button>
+                      ))}
                     </motion.div>
                   )}
-                </div>
-              )}
-
-              {/* Drop zone when no media */}
-              {contentType !== 'text' && !hasMedia && (
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={cn(
-                    "mt-3 rounded-2xl border border-dashed p-8 cursor-pointer transition-all text-center",
-                    isDragging
-                      ? "border-primary bg-primary/5 scale-[1.01]"
-                      : "border-border/25 hover:border-border/50"
-                  )}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <div className={cn(
-                      "w-12 h-12 rounded-xl flex items-center justify-center transition-colors",
-                      isDragging ? "bg-primary/15 text-primary" : "bg-muted/40 text-muted-foreground/50"
-                    )}>
-                      <UploadIcon className="w-5 h-5" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {isDragging ? 'Drop here' : 'Tap to add photos or videos'}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground/40">Up to 10 images per carousel</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Video details */}
-              {contentType === 'video' && file && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 space-y-2.5 p-3 rounded-2xl bg-muted/20 border border-border/15">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                    <Video className="w-3.5 h-3.5 text-primary" />Video details
-                  </div>
-                  <Input value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} placeholder="Video title" className="h-8 text-sm bg-transparent border-border/20" maxLength={100} />
-                  <textarea value={videoDescription} onChange={(e) => setVideoDescription(e.target.value)} placeholder="Description..." className="w-full min-h-[50px] bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 resize-none outline-none border border-border/20 rounded-xl px-3 py-2" maxLength={5000} />
-                  {generatedThumbnails.length > 0 && (
-                    <div className="space-y-1">
-                      <span className="text-[11px] text-muted-foreground">Thumbnail</span>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {generatedThumbnails.map((th, i) => (
-                          <button key={i} onClick={() => handleThumbnailSelect(i)} className={cn("aspect-video rounded-lg overflow-hidden border-2 transition-all", selectedThumbnailIndex === i ? "border-primary" : "border-transparent hover:border-primary/30")}>
-                            <img src={th} alt="" className="w-full h-full object-cover" />
-                          </button>
-                        ))}
-                        <button onClick={() => thumbnailInputRef.current?.click()} className="aspect-video rounded-lg border-2 border-dashed border-border/30 flex items-center justify-center hover:border-primary/30 transition-colors">
-                          <ImagePlus className="w-3.5 h-3.5 text-muted-foreground" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              )}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
 
-          {/* ━━━ Divider ━━━ */}
-          <div className="flex-1" />
+          {/* Caption input */}
+          <div className="px-4 pb-2">
+            <textarea
+              ref={captionRef}
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder={
+                contentType === 'text' ? "What's on your mind?" :
+                contentType === 'video' ? "Describe your video..." :
+                "Write a caption..."
+              }
+              className={cn(
+                "w-full bg-transparent text-foreground placeholder:text-muted-foreground resize-none outline-none leading-relaxed",
+                contentType === 'text' ? "text-lg min-h-[140px]" : "text-[15px] min-h-[60px]"
+              )}
+              maxLength={2200}
+              rows={1}
+            />
 
-          {/* ━━━ BOTTOM TOOLBAR ━━━ */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.25 }}
-            className="sticky bottom-0 border-t border-border/15 bg-background/80 backdrop-blur-2xl"
-          >
-            {/* Media tools */}
-            <div className="flex items-center justify-between px-4 h-12">
-              <div className="flex items-center gap-0.5">
-                {contentType !== 'text' && (
-                  <>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-primary/10 transition-colors"
-                      title="Add media"
-                    >
-                      <Image className="w-[18px] h-[18px]" />
-                    </button>
-                    <button
-                      onClick={() => setShowCamera(true)}
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-primary/10 transition-colors"
-                      title="Camera"
-                    >
-                      <CameraIcon className="w-[18px] h-[18px]" />
-                    </button>
-                    <button
-                      onClick={() => setShowAIVideoGenerator(true)}
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-primary/10 transition-colors"
-                      title="AI Video"
-                    >
-                      <Wand2 className="w-[18px] h-[18px]" />
-                    </button>
-                  </>
-                )}
-
-                {/* Tag button */}
-                <button
-                  onClick={() => {
-                    const tag = prompt('Add a tag:');
-                    if (tag) handleAddTag(tag);
-                  }}
-                  className={cn(
-                    "w-9 h-9 rounded-full flex items-center justify-center transition-colors",
-                    tags.length > 0 ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                  )}
-                  title="Add tag"
-                >
-                  <Hash className="w-[18px] h-[18px]" />
-                </button>
-
-                {/* AI caption */}
-                <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
+            {/* Tags inline */}
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-1 mb-2">
+                {tags.map((tag) => (
+                  <motion.span
+                    key={tag}
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    layout
+                    className="inline-flex items-center gap-1 text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full font-medium cursor-pointer hover:bg-primary/20 transition-colors"
+                    onClick={() => handleRemoveTag(tag)}
+                  >
+                    #{tag}
+                    <X className="w-2.5 h-2.5" />
+                  </motion.span>
+                ))}
               </div>
+            )}
+          </div>
 
-              {/* Character count */}
-              <span className={cn(
-                "text-[11px] tabular-nums transition-colors",
-                caption.length > 2000 ? "text-destructive font-medium" : "text-muted-foreground/40"
-              )}>
-                {caption.length > 0 && `${caption.length}/2200`}
-              </span>
-            </div>
-
-            {/* Tag input row */}
-            <AnimatePresence>
-              {tags.length === 0 && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="flex gap-1.5 px-4 pb-3 overflow-x-auto scrollbar-hide">
-                    {suggestedTags.slice(0, 7).map((tag) => (
-                      <button
-                        key={tag}
-                        onClick={() => handleAddTag(tag)}
-                        className="flex-shrink-0 text-[11px] px-2.5 py-1 rounded-full border border-border/25 text-muted-foreground/60 hover:border-primary/30 hover:text-primary transition-colors"
+          {/* ━━━ MEDIA PREVIEW ━━━ */}
+          {contentType !== 'text' && hasMedia && (
+            <div className="px-4 pb-4">
+              {previews.length > 1 ? (
+                <div className="space-y-2">
+                  <div className={cn(
+                    "grid gap-1 rounded-2xl overflow-hidden border border-border",
+                    previews.length === 2 && "grid-cols-2",
+                    previews.length === 3 && "grid-cols-2",
+                    previews.length >= 4 && "grid-cols-3"
+                  )}>
+                    {previews.slice(0, 6).map((p, i) => (
+                      <div
+                        key={i}
+                        className={cn(
+                          "relative group",
+                          previews.length === 3 && i === 0 && "row-span-2",
+                          "aspect-square"
+                        )}
                       >
-                        #{tag}
-                      </button>
+                        <img src={p} alt="" className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => removeFileAtIndex(i)}
+                          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-background/90 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <X className="w-3 h-3 text-foreground" />
+                        </button>
+                        {i === 5 && previews.length > 6 && (
+                          <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                            <span className="text-foreground font-bold text-lg">+{previews.length - 6}</span>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
-                </motion.div>
+                  {previews.length < 10 && (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 text-xs text-primary font-medium hover:text-primary/80 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add more
+                    </button>
+                  )}
+                </div>
+              ) : preview && (
+                <div className="relative rounded-2xl overflow-hidden border border-border bg-muted">
+                  {file?.type.startsWith('video/') ? (
+                    <video src={preview} className="w-full max-h-[50dvh] object-contain" controls playsInline />
+                  ) : (
+                    <img src={preview} alt="" className="w-full max-h-[50dvh] object-contain" />
+                  )}
+                  <button
+                    onClick={clearFile}
+                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-background/90 border border-border flex items-center justify-center hover:bg-background transition-colors"
+                  >
+                    <X className="w-4 h-4 text-foreground" />
+                  </button>
+                </div>
               )}
-            </AnimatePresence>
-          </motion.div>
-        </motion.div>
+            </div>
+          )}
+
+          {/* Drop zone — solid card style */}
+          {contentType !== 'text' && !hasMedia && (
+            <div className="px-4 pb-4">
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={cn(
+                  "rounded-2xl border-2 border-dashed p-10 cursor-pointer transition-all text-center bg-muted/30",
+                  isDragging
+                    ? "border-primary bg-primary/5 scale-[1.01]"
+                    : "border-border hover:border-primary/40 hover:bg-muted/50"
+                )}
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <div className={cn(
+                    "w-14 h-14 rounded-2xl flex items-center justify-center transition-colors",
+                    isDragging ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                  )}>
+                    <UploadIcon className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {isDragging ? 'Drop here' : 'Tap to add photos or videos'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Up to 10 images · Carousel supported</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Video details */}
+          {contentType === 'video' && file && (
+            <div className="px-4 pb-4">
+              <div className="space-y-3 p-4 rounded-2xl bg-card border border-border">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Video className="w-4 h-4 text-primary" /> Video details
+                </div>
+                <Input value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} placeholder="Video title" className="h-10 text-sm bg-muted border-border" maxLength={100} />
+                <textarea value={videoDescription} onChange={(e) => setVideoDescription(e.target.value)} placeholder="Description..."
+                  className="w-full min-h-[60px] bg-muted text-sm text-foreground placeholder:text-muted-foreground resize-none outline-none border border-border rounded-xl px-3 py-2.5" maxLength={5000} />
+                {generatedThumbnails.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-xs font-medium text-muted-foreground">Thumbnail</span>
+                    <div className="grid grid-cols-4 gap-2">
+                      {generatedThumbnails.map((th, i) => (
+                        <button key={i} onClick={() => handleThumbnailSelect(i)}
+                          className={cn("aspect-video rounded-lg overflow-hidden border-2 transition-all", selectedThumbnailIndex === i ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40")}>
+                          <img src={th} alt="" className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                      <button onClick={() => thumbnailInputRef.current?.click()}
+                        className="aspect-video rounded-lg border-2 border-dashed border-border flex items-center justify-center hover:border-primary/40 transition-colors bg-muted">
+                        <ImagePlus className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ━━━━ BOTTOM TOOLBAR — solid, pinned ━━━━ */}
+        <div className="sticky bottom-0 z-30 bg-card border-t border-border">
+          {/* Tool icons */}
+          <div className="flex items-center justify-between px-4 h-12">
+            <div className="flex items-center gap-1">
+              {contentType !== 'text' && (
+                <>
+                  <button onClick={() => fileInputRef.current?.click()} className="w-10 h-10 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="Add media">
+                    <Image className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => setShowCamera(true)} className="w-10 h-10 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="Camera">
+                    <CameraIcon className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => setShowAIVideoGenerator(true)} className="w-10 h-10 rounded-full flex items-center justify-center text-primary hover:bg-muted transition-colors" title="AI Video">
+                    <Wand2 className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => { const tag = prompt('Add a tag:'); if (tag) handleAddTag(tag); }}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
+                title="Add tag"
+              >
+                <Hash className="w-5 h-5" />
+              </button>
+              <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
+            </div>
+
+            <span className={cn(
+              "text-xs tabular-nums font-medium",
+              caption.length > 2000 ? "text-destructive" : "text-muted-foreground"
+            )}>
+              {caption.length > 0 && `${caption.length}/2200`}
+            </span>
+          </div>
+
+          {/* Suggested tags row */}
+          {tags.length === 0 && (
+            <div className="flex gap-1.5 px-4 pb-3 overflow-x-auto scrollbar-hide">
+              {suggestedTags.slice(0, 7).map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => handleAddTag(tag)}
+                  className="flex-shrink-0 text-xs px-3 py-1 rounded-full bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors font-medium"
+                >
+                  #{tag}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleInputChange} className="hidden" />
