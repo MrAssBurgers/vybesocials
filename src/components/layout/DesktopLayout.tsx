@@ -19,39 +19,30 @@ export function DesktopLayout({ children, hideRightSidebar = false, fullWidth = 
     return <>{children}</>;
   }
 
-  // Tighter margins - reduced spacing between sidebars and content
-  const leftMargin = leftCollapsed ? 'lg:ml-14' : 'lg:ml-[180px] xl:ml-[200px] 2xl:ml-[220px]';
-  const rightMargin = hideRightSidebar ? '' : 'xl:mr-[240px] 2xl:mr-[280px]';
-
   return (
     <div className="min-h-screen w-full">
-      {/* Left Sidebar */}
-      <DesktopLeftSidebar 
-        collapsed={leftCollapsed} 
-        onCollapsedChange={setLeftCollapsed}
-      />
+      <div className="flex min-h-screen w-full">
+        {/* Left Sidebar */}
+        <DesktopLeftSidebar 
+          collapsed={leftCollapsed} 
+          onCollapsedChange={setLeftCollapsed}
+        />
 
-      {/* Main Content Area */}
-      <main 
-        className={cn(
-          "min-h-screen transition-[margin] duration-200 ease-out",
-          leftMargin,
-          rightMargin
-        )}
-      >
-        {/* Center content - fill available space */}
-        <div 
-          className={cn(
-            "mx-auto w-full px-2 lg:px-3",
-            fullWidth ? "" : "max-w-full"
-          )}
-        >
-          {children}
-        </div>
-      </main>
+        {/* Main Content Area */}
+        <main className="flex-1 min-w-0 min-h-screen overflow-x-hidden relative z-[2]">
+          <div 
+            className={cn(
+              "mx-auto w-full px-2 lg:px-3",
+              fullWidth ? "" : "max-w-full"
+            )}
+          >
+            {children}
+          </div>
+        </main>
 
-      {/* Right Sidebar */}
-      {!hideRightSidebar && <DesktopRightSidebar />}
+        {/* Right Sidebar */}
+        {!hideRightSidebar && <DesktopRightSidebar />}
+      </div>
     </div>
   );
 }
