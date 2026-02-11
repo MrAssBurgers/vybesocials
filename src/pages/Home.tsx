@@ -261,6 +261,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
       <div 
         className="max-w-xl mx-auto"
+        data-tutorial="tutorial-welcome-center"
         style={{ 
           transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : undefined 
         }}
@@ -277,7 +278,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         {/* Stories Bar */}
         <StoriesBar />
         
-        <div className="px-3 pb-6">
+        <div className="px-3 pb-6" data-tutorial="feed-area">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
               <TabsTrigger value="foryou" className="flex-1 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">

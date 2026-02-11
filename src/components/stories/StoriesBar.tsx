@@ -5,7 +5,6 @@ import { Plus } from 'lucide-react';
 import { useStories } from '@/hooks/useStories';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Skeleton } from '@/components/ui/skeleton';
 import { StoryViewer } from './StoryViewer';
 import { StoryCreator } from './StoryCreator';
 import { cn } from '@/lib/utils';
@@ -32,18 +31,8 @@ export const StoriesBar = memo(function StoriesBar() {
     }
   }, [storyGroups]);
 
-  if (isLoading) {
-    return (
-      <div className="flex gap-4 p-4 overflow-x-auto scrollbar-hide">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="flex flex-col items-center gap-2">
-            <Skeleton className="h-16 w-16 rounded-full" />
-            <Skeleton className="h-3 w-12" />
-          </div>
-        ))}
-      </div>
-    );
-  }
+  // Never show skeleton - render immediately with whatever data we have (or empty)
+  // The preloader already caches stories, so this should be instant
 
   const ownStoryGroup = storyGroups?.find((g) => g.user.id === profile?.id);
   const otherGroups = storyGroups?.filter((g) => g.user.id !== profile?.id) || [];
