@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Camera } from '@/components/camera/Camera';
 import { ContentSafetyScanner } from '@/components/safety/ContentSafetyScanner';
@@ -13,18 +12,25 @@ import { useCreatePost } from '@/hooks/usePosts';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import { StyledUsername } from '@/components/ui/StyledUsername';
 import {
   Image, Video, Film, X, Plus, Camera as CameraIcon,
   Upload as UploadIcon, Wand2, ImagePlus, ArrowLeft, Type,
-  Hash, Send, ChevronDown, Layers
+  Hash, Send, Layers, Globe, Users, Lock, ChevronDown,
+  Sparkles, MapPin, Calendar, UserPlus, Eye, EyeOff
 } from 'lucide-react';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { useAuth as useAuthProfile } from '@/lib/auth';
 
-const suggestedTags = ['photography', 'art', 'music', 'gaming', 'food', 'travel', 'fashion', 'fitness', 'ai'];
+const suggestedTags = ['photography', 'art', 'music', 'gaming', 'food', 'travel', 'fashion', 'fitness', 'ai', 'vybe'];
+
+const visibilityOptions = [
+  { id: 'public', label: 'Everyone', icon: Globe, description: 'Visible to all' },
+  { id: 'followers', label: 'Followers', icon: Users, description: 'Only followers' },
+  { id: 'private', label: 'Only me', icon: Lock, description: 'Private post' },
+] as const;
 
 export default function UploadPage() {
   const { isMobileOrTablet } = useIsMobileOrTablet();
@@ -49,8 +55,12 @@ export default function UploadPage() {
   const [showSafetyScanner, setShowSafetyScanner] = useState(false);
   const [showAIVideoGenerator, setShowAIVideoGenerator] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [showVisibility, setShowVisibility] = useState(false);
+  const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
+  const [showPreview, setShowPreview] = useState(false);
+  const [publishSuccess, setPublishSuccess] = useState(false);
 
-  // Long-form video specific fields
+  // Long-form video
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDescription, setVideoDescription] = useState('');
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
@@ -59,56 +69,49 @@ export default function UploadPage() {
   const [selectedThumbnailIndex, setSelectedThumbnailIndex] = useState<number | null>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-resize caption textarea
-  const autoResizeCaption = useCallback(() => {
+  // Auto-resize caption
+  useEffect(() => {
     const el = captionRef.current;
-    if (el) {
-      el.style.height = 'auto';
-      el.style.height = Math.min(el.scrollHeight, 200) + 'px';
-    }
+    if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 240) + 'px'; }
+  }, [caption]);
+
+  // Auto-focus on mount
+  useEffect(() => {
+    const timer = setTimeout(() => captionRef.current?.focus(), 300);
+    return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => { autoResizeCaption(); }, [caption, autoResizeCaption]);
-
-  // Generate thumbnails from video
   const generateThumbnailsFromVideo = useCallback((videoFile: File) => {
     const video = document.createElement('video');
-    video.crossOrigin = 'anonymous';
-    video.muted = true;
-    video.preload = 'metadata';
-    const captureFrame = (time: number): Promise<string> => {
-      return new Promise((resolve) => {
-        video.currentTime = time;
-        video.onseeked = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth || 1280;
-          canvas.height = video.videoHeight || 720;
-          const ctx = canvas.getContext('2d');
-          if (ctx) { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); resolve(canvas.toDataURL('image/jpeg', 0.85)); }
-          else resolve('');
-        };
-      });
-    };
+    video.crossOrigin = 'anonymous'; video.muted = true; video.preload = 'metadata';
+    const captureFrame = (time: number): Promise<string> => new Promise((resolve) => {
+      video.currentTime = time;
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1280; canvas.height = video.videoHeight || 720;
+        const ctx = canvas.getContext('2d');
+        if (ctx) { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); resolve(canvas.toDataURL('image/jpeg', 0.85)); }
+        else resolve('');
+      };
+    });
     video.onloadedmetadata = async () => {
-      const duration = video.duration;
-      const times = [duration * 0.1, duration * 0.25, duration * 0.5, duration * 0.75];
+      const d = video.duration;
       const thumbnails: string[] = [];
-      for (const time of times) { const thumb = await captureFrame(time); if (thumb) thumbnails.push(thumb); }
+      for (const t of [d * 0.1, d * 0.25, d * 0.5, d * 0.75]) { const thumb = await captureFrame(t); if (thumb) thumbnails.push(thumb); }
       setGeneratedThumbnails(thumbnails);
       if (thumbnails.length > 0) { setSelectedThumbnailIndex(0); setThumbnailPreview(thumbnails[0]); }
       URL.revokeObjectURL(video.src);
     };
-    video.src = URL.createObjectURL(videoFile);
-    video.load();
+    video.src = URL.createObjectURL(videoFile); video.load();
   }, []);
 
   const handleAIVideoGenerated = useCallback(async (videoUrl: string, videoBlob: Blob) => {
     setShowAIVideoGenerator(false);
-    const file = new File([videoBlob], `ai-video-${Date.now()}.mp4`, { type: 'video/mp4' });
+    const f = new File([videoBlob], `ai-video-${Date.now()}.mp4`, { type: 'video/mp4' });
     if (videoBlob.size === 0) {
-      try { const response = await fetch(videoUrl); const fetchedBlob = await response.blob(); handleFileSelect(new File([fetchedBlob], `ai-video-${Date.now()}.mp4`, { type: 'video/mp4' })); }
-      catch (err) { console.error('Error fetching AI video:', err); toast.error('Failed to load AI video'); }
-    } else { handleFileSelect(file); }
+      try { const r = await fetch(videoUrl); const b = await r.blob(); handleFileSelect(new File([b], `ai-video-${Date.now()}.mp4`, { type: 'video/mp4' })); }
+      catch { toast.error('Failed to load AI video'); }
+    } else handleFileSelect(f);
     if (!tags.includes('ai')) setTags(prev => [...prev, 'ai']);
   }, [tags]);
 
@@ -123,54 +126,49 @@ export default function UploadPage() {
     const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
     if (!validTypes.includes(selectedFile.type)) { toast.error('Invalid file type'); return; }
     const maxSize = selectedFile.type.startsWith('video/') ? 2 * 1024 * 1024 * 1024 : 50 * 1024 * 1024;
-    if (selectedFile.size > maxSize) { toast.error(`File too large`); return; }
+    if (selectedFile.size > maxSize) { toast.error('File too large'); return; }
     const url = URL.createObjectURL(selectedFile);
     setPreview(url); setFile(selectedFile);
     if (selectedFile.type.startsWith('video/')) {
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        if (video.duration > 60) { setContentType('video'); generateThumbnailsFromVideo(selectedFile); }
+      const v = document.createElement('video'); v.preload = 'metadata';
+      v.onloadedmetadata = () => {
+        if (v.duration > 60) { setContentType('video'); generateThumbnailsFromVideo(selectedFile); }
         else setContentType('short');
-        URL.revokeObjectURL(video.src);
+        URL.revokeObjectURL(v.src);
       };
-      video.src = url;
-    } else { setContentType('post'); }
+      v.src = url;
+    } else setContentType('post');
     contentSafety.reset(); setShowSafetyScanner(true);
   }, [contentSafety, generateThumbnailsFromVideo]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files;
-    if (!selectedFiles) return;
-    if (selectedFiles.length > 1) handleMultiFileSelect(Array.from(selectedFiles));
-    else if (selectedFiles[0]) handleFileSelect(selectedFiles[0]);
+    const sf = e.target.files; if (!sf) return;
+    if (sf.length > 1) handleMultiFileSelect(Array.from(sf));
+    else if (sf[0]) handleFileSelect(sf[0]);
   };
 
   const handleMultiFileSelect = useCallback((selectedFiles: File[]) => {
-    const imageFiles = selectedFiles.filter(f => f.type.startsWith('image/'));
-    if (imageFiles.length === 0) { toast.error('Please select image files'); return; }
-    if (imageFiles.length > 10) { toast.error('Maximum 10 images'); return; }
-    const urls = imageFiles.map(f => URL.createObjectURL(f));
-    setFiles(imageFiles); setPreviews(urls); setFile(imageFiles[0]); setPreview(urls[0]); setContentType('post');
+    const imgs = selectedFiles.filter(f => f.type.startsWith('image/'));
+    if (imgs.length === 0) { toast.error('Please select image files'); return; }
+    if (imgs.length > 10) { toast.error('Maximum 10 images'); return; }
+    const urls = imgs.map(f => URL.createObjectURL(f));
+    setFiles(imgs); setPreviews(urls); setFile(imgs[0]); setPreview(urls[0]); setContentType('post');
     contentSafety.reset(); setShowSafetyScanner(true);
   }, [contentSafety]);
 
   const removeFileAtIndex = useCallback((index: number) => {
     URL.revokeObjectURL(previews[index]);
-    const newFiles = files.filter((_, i) => i !== index);
-    const newPreviews = previews.filter((_, i) => i !== index);
-    setFiles(newFiles); setPreviews(newPreviews);
-    if (newFiles.length > 0) { setFile(newFiles[0]); setPreview(newPreviews[0]); }
-    else { setFile(null); setPreview(null); }
+    const nf = files.filter((_, i) => i !== index); const np = previews.filter((_, i) => i !== index);
+    setFiles(nf); setPreviews(np);
+    if (nf.length > 0) { setFile(nf[0]); setPreview(np[0]); } else { setFile(null); setPreview(null); }
   }, [files, previews]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }, []);
   const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }, []);
   const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault(); e.stopPropagation(); setIsDragging(false);
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    if (droppedFiles.length > 1) handleMultiFileSelect(droppedFiles);
-    else if (droppedFiles[0]) handleFileSelect(droppedFiles[0]);
+    const df = Array.from(e.dataTransfer.files);
+    if (df.length > 1) handleMultiFileSelect(df); else if (df[0]) handleFileSelect(df[0]);
   }, [handleFileSelect, handleMultiFileSelect]);
 
   const handleSafetyContinue = () => setShowSafetyScanner(false);
@@ -178,41 +176,37 @@ export default function UploadPage() {
   const handleSafetyAppeal = () => { contentSafety.submitAppeal(file?.type.startsWith('video/') ? 'video' : 'image', 'User appealed'); setShowSafetyScanner(false); };
 
   const handleAddTag = (tag: string) => {
-    const cleanTag = tag.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-    if (cleanTag && !tags.includes(cleanTag) && tags.length < 10) { setTags([...tags, cleanTag]); setTagInput(''); }
+    const c = tag.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+    if (c && !tags.includes(c) && tags.length < 10) { setTags([...tags, c]); setTagInput(''); }
   };
-  const handleRemoveTag = (tagToRemove: string) => setTags(tags.filter(tag => tag !== tagToRemove));
+  const handleRemoveTag = (t: string) => setTags(tags.filter(tag => tag !== t));
   const handleTagInputKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); handleAddTag(tagInput); } };
-
-  const handleThumbnailSelect = (index: number) => { setSelectedThumbnailIndex(index); setThumbnailPreview(generatedThumbnails[index]); setThumbnailFile(null); };
+  const handleThumbnailSelect = (i: number) => { setSelectedThumbnailIndex(i); setThumbnailPreview(generatedThumbnails[i]); setThumbnailFile(null); };
   const handleCustomThumbnail = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      if (!selectedFile.type.startsWith('image/')) { toast.error('Please select an image'); return; }
-      setThumbnailFile(selectedFile); setThumbnailPreview(URL.createObjectURL(selectedFile)); setSelectedThumbnailIndex(null);
-    }
+    const sf = e.target.files?.[0];
+    if (sf) { if (!sf.type.startsWith('image/')) { toast.error('Select an image'); return; } setThumbnailFile(sf); setThumbnailPreview(URL.createObjectURL(sf)); setSelectedThumbnailIndex(null); }
   };
 
   const handleSubmit = async () => {
-    if (contentType !== 'text' && !file && files.length === 0) { toast.error('Please select a file'); return; }
+    if (contentType !== 'text' && !file && files.length === 0) { toast.error('Add some media'); return; }
     if (contentType === 'text' && !caption.trim()) { toast.error('Write something to share'); return; }
-    if (!user) { toast.error('Please sign in first'); return; }
+    if (!user) { toast.error('Sign in first'); return; }
     if (contentType === 'video' && !videoTitle.trim()) { toast.error('Add a video title'); return; }
     setIsUploading(true); setUploadProgress(0);
     try {
-      const progressInterval = setInterval(() => setUploadProgress(prev => Math.min(prev + 5, 90)), 300);
-      const finalCaption = contentType === 'video' ? `${videoTitle}${videoDescription ? `\n\n${videoDescription}` : ''}${caption ? `\n\n${caption}` : ''}` : caption;
+      const pi = setInterval(() => setUploadProgress(prev => Math.min(prev + 5, 90)), 300);
+      const fc = contentType === 'video' ? `${videoTitle}${videoDescription ? `\n\n${videoDescription}` : ''}${caption ? `\n\n${caption}` : ''}` : caption;
       await createPost.mutateAsync({
         mediaFile: files.length <= 1 ? file || undefined : undefined,
         mediaFiles: files.length > 1 ? files : undefined,
-        caption: finalCaption, type: contentType, tags,
+        caption: fc, type: contentType, tags,
         thumbnailFile: thumbnailFile || undefined,
         thumbnailDataUrl: selectedThumbnailIndex !== null ? generatedThumbnails[selectedThumbnailIndex] : undefined,
       });
-      clearInterval(progressInterval); setUploadProgress(100);
-      toast.success('Posted!'); navigate('/home');
-    } catch (error) { console.error('Upload error:', error); toast.error('Failed to upload'); }
-    finally { setIsUploading(false); setUploadProgress(0); }
+      clearInterval(pi); setUploadProgress(100); setPublishSuccess(true);
+      setTimeout(() => { toast.success('Posted!'); navigate('/home'); }, 800);
+    } catch { toast.error('Failed to upload'); }
+    finally { setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 1000); }
   };
 
   const clearFile = () => {
@@ -228,88 +222,164 @@ export default function UploadPage() {
 
   const hasMedia = file !== null || files.length > 0;
   const canSubmit = contentType === 'text' ? caption.trim().length > 0 : hasMedia;
+  const currentVisibility = visibilityOptions.find(v => v.id === visibility)!;
 
   if (showCamera) return <Camera onClose={() => setShowCamera(false)} />;
   if (showAIVideoGenerator) return <AIVideoGenerator onVideoGenerated={handleAIVideoGenerated} onClose={() => setShowAIVideoGenerator(false)} />;
 
   return (
     <AppLayout hideNav>
+      {/* Safety scanner overlay */}
       {showSafetyScanner && file && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
           <ContentSafetyScanner isScanning={contentSafety.isScanning} result={contentSafety.result} message={contentSafety.message} scanDetails={contentSafety.scanDetails} onContinue={handleSafetyContinue} onCancel={handleSafetyCancel} onAppeal={handleSafetyAppeal} />
         </div>
       )}
 
+      {/* Publish success overlay */}
+      <AnimatePresence>
+        {publishSuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-[100] bg-background/90 backdrop-blur-xl flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+              className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-2xl shadow-primary/40"
+            >
+              <motion.svg
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ delay: 0.3, duration: 0.4 }}
+                className="w-10 h-10 text-primary-foreground"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={3}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <motion.path d="M5 13l4 4L19 7" />
+              </motion.svg>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="fixed inset-0 -z-10 bg-background" />
 
       <div className="max-w-lg mx-auto min-h-screen flex flex-col">
-        {/* ── Header ── */}
-        <div className="sticky top-0 z-40 flex items-center justify-between px-4 h-12 bg-background/80 backdrop-blur-2xl border-b border-border/20">
-          <button onClick={() => navigate(-1)} className="text-sm font-medium text-foreground/70 hover:text-foreground transition-colors">
-            Cancel
-          </button>
-          <span className="text-sm font-bold text-foreground tracking-tight">New post</span>
+        {/* ━━━ HEADER ━━━ */}
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.3 }}
+          className="sticky top-0 z-40 px-4 h-14 flex items-center justify-between bg-background/70 backdrop-blur-2xl border-b border-border/15"
+        >
           <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-1 text-foreground/70 hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            <span className="text-sm font-bold text-foreground tracking-tight">Create</span>
+          </div>
+
+          {/* Share button */}
+          <motion.button
             onClick={handleSubmit}
             disabled={!canSubmit || isUploading}
+            whileTap={canSubmit ? { scale: 0.9 } : {}}
             className={cn(
-              "text-sm font-bold transition-colors",
-              canSubmit && !isUploading ? "text-primary hover:text-primary/80" : "text-muted-foreground/40"
+              "relative h-8 px-5 rounded-full text-xs font-bold transition-all duration-300 overflow-hidden",
+              canSubmit && !isUploading
+                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:shadow-primary/50"
+                : "bg-muted text-muted-foreground"
             )}
           >
-            {isUploading ? `${uploadProgress}%` : 'Share'}
-          </button>
-        </div>
+            {isUploading ? (
+              <span className="flex items-center gap-1.5">
+                <motion.span
+                  className="w-3 h-3 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }}
+                />
+                {uploadProgress}%
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <Send className="w-3 h-3" />
+                Share
+              </span>
+            )}
+            {/* Progress underline */}
+            {isUploading && (
+              <motion.div
+                className="absolute bottom-0 left-0 h-0.5 bg-primary-foreground/40"
+                initial={{ width: '0%' }}
+                animate={{ width: `${uploadProgress}%` }}
+              />
+            )}
+          </motion.button>
+        </motion.div>
 
-        {/* ── Upload progress ── */}
-        <AnimatePresence>
-          {isUploading && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div className="h-0.5 bg-muted">
-                <motion.div className="h-full bg-primary" style={{ width: `${uploadProgress}%` }} transition={{ ease: 'easeOut' }} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* ━━━ TYPE SELECTOR ━━━ */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="px-4 py-3"
+        >
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+            {([
+              { id: 'text' as const, icon: Type, label: 'Text' },
+              { id: 'post' as const, icon: Image, label: 'Photo' },
+              { id: 'short' as const, icon: Film, label: 'Clip' },
+              { id: 'video' as const, icon: Video, label: 'Video' },
+            ]).map((t) => {
+              const active = contentType === t.id;
+              return (
+                <motion.button
+                  key={t.id}
+                  onClick={() => { setContentType(t.id); if (t.id === 'text') clearFile(); }}
+                  whileTap={{ scale: 0.95 }}
+                  className={cn(
+                    "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap",
+                    active
+                      ? "bg-foreground text-background"
+                      : "bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                  )}
+                >
+                  <t.icon className="w-3.5 h-3.5" />
+                  {t.label}
+                </motion.button>
+              );
+            })}
+          </div>
+        </motion.div>
 
-        {/* ── Type pills ── */}
-        <div className="px-4 py-3 flex gap-2">
-          {([
-            { id: 'text' as const, icon: Type, label: 'Text' },
-            { id: 'post' as const, icon: Image, label: 'Photo' },
-            { id: 'short' as const, icon: Film, label: 'Clip' },
-            { id: 'video' as const, icon: Video, label: 'Video' },
-          ]).map((t) => {
-            const active = contentType === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => { setContentType(t.id); if (t.id === 'text') clearFile(); }}
-                className={cn(
-                  "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 border",
-                  active
-                    ? "bg-foreground text-background border-foreground shadow-sm"
-                    : "bg-transparent text-muted-foreground border-border/40 hover:border-foreground/30 hover:text-foreground"
-                )}
-              >
-                <t.icon className="w-3 h-3" />
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex-1 flex flex-col">
-          {/* ── Composer row (avatar + caption) ── */}
-          <div className="flex gap-3 px-4 py-2">
-            {/* Avatar */}
-            <div className="flex-shrink-0 pt-0.5">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/60 to-accent/60 p-[1.5px]">
+        {/* ━━━ COMPOSER ━━━ */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="flex-1 flex flex-col"
+        >
+          <div className="flex gap-3 px-4">
+            {/* Avatar with gradient ring */}
+            <div className="flex-shrink-0 pt-1">
+              <div className="w-10 h-10 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary">
                 <div className="w-full h-full rounded-full overflow-hidden bg-background">
                   {profile?.avatar_url ? (
                     <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
+                    <div className="w-full h-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground">
                       {profile?.username?.[0]?.toUpperCase() || '?'}
                     </div>
                   )}
@@ -317,57 +387,139 @@ export default function UploadPage() {
               </div>
             </div>
 
-            {/* Caption */}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground mb-0.5">{profile?.username || 'you'}</p>
+            {/* Composer body */}
+            <div className="flex-1 min-w-0 pb-4">
+              {/* Name + visibility */}
+              <div className="flex items-center gap-2 mb-1">
+                {profile && (
+                  <StyledUsername
+                    userId={profile.id}
+                    username={profile.username}
+                    displayName={profile.display_name}
+                    className="text-sm font-bold"
+                  />
+                )}
+                {/* Visibility pill */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowVisibility(!showVisibility)}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted/50 text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    <currentVisibility.icon className="w-2.5 h-2.5" />
+                    {currentVisibility.label}
+                    <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", showVisibility && "rotate-180")} />
+                  </button>
+                  <AnimatePresence>
+                    {showVisibility && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute top-full left-0 mt-1 z-50 min-w-[160px] py-1 rounded-xl bg-card/95 backdrop-blur-xl border border-border/30 shadow-xl"
+                      >
+                        {visibilityOptions.map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => { setVisibility(opt.id); setShowVisibility(false); }}
+                            className={cn(
+                              "w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors",
+                              visibility === opt.id ? "text-primary bg-primary/10" : "text-foreground hover:bg-muted/50"
+                            )}
+                          >
+                            <opt.icon className="w-3.5 h-3.5" />
+                            <div className="text-left">
+                              <p className="font-medium">{opt.label}</p>
+                              <p className="text-[10px] text-muted-foreground">{opt.description}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Text input */}
               <textarea
                 ref={captionRef}
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
                 placeholder={
-                  contentType === 'text' ? "What's happening?" :
+                  contentType === 'text' ? "What's on your mind?" :
                   contentType === 'video' ? "Describe your video..." :
                   "Write a caption..."
                 }
                 className={cn(
-                  "w-full bg-transparent text-foreground placeholder:text-muted-foreground/50 resize-none outline-none leading-relaxed",
-                  contentType === 'text' ? "text-base min-h-[100px]" : "text-sm min-h-[44px]"
+                  "w-full bg-transparent text-foreground placeholder:text-muted-foreground/40 resize-none outline-none leading-relaxed",
+                  contentType === 'text' ? "text-[17px] min-h-[120px]" : "text-[15px] min-h-[48px]"
                 )}
                 maxLength={2200}
                 rows={1}
               />
 
-              {/* ── Media preview (inline, below caption like Threads/Instagram) ── */}
-              {contentType !== 'text' && (
-                <div className="mt-2">
-                  {/* Multi-image grid */}
+              {/* Tags inline */}
+              <AnimatePresence>
+                {tags.length > 0 && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="flex flex-wrap gap-1 mt-1 overflow-hidden"
+                  >
+                    {tags.map((tag) => (
+                      <motion.span
+                        key={tag}
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.8, opacity: 0 }}
+                        layout
+                        className="inline-flex items-center gap-0.5 text-xs text-primary font-medium cursor-pointer hover:line-through transition-all"
+                        onClick={() => handleRemoveTag(tag)}
+                      >
+                        #{tag}
+                      </motion.span>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* ── Media previews ── */}
+              {contentType !== 'text' && hasMedia && (
+                <div className="mt-3">
                   {previews.length > 1 ? (
                     <div className="space-y-2">
-                      <div className="grid grid-cols-3 gap-1.5 rounded-2xl overflow-hidden">
-                        {previews.map((p, i) => (
+                      {/* Smart grid */}
+                      <div className={cn(
+                        "grid gap-1 rounded-2xl overflow-hidden",
+                        previews.length === 2 && "grid-cols-2",
+                        previews.length === 3 && "grid-cols-2",
+                        previews.length >= 4 && "grid-cols-3"
+                      )}>
+                        {previews.slice(0, 6).map((p, i) => (
                           <motion.div
                             key={i}
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ delay: i * 0.04 }}
                             className={cn(
-                              "relative aspect-square group",
-                              i === 0 && previews.length === 2 && "col-span-2 row-span-2",
-                              i === 0 && previews.length >= 3 && "col-span-2 row-span-2"
+                              "relative group cursor-pointer",
+                              previews.length === 3 && i === 0 && "row-span-2",
+                              "aspect-square"
                             )}
                           >
                             <img src={p} alt="" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                             <button
                               onClick={() => removeFileAtIndex(i)}
-                              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
                             >
                               <X className="w-3 h-3 text-white" />
                             </button>
-                            {i === previews.length - 1 && previews.length >= 4 && (
-                              <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm">
-                                <span className="text-[10px] font-medium text-white flex items-center gap-0.5">
-                                  <Layers className="w-2.5 h-2.5" />{previews.length}
-                                </span>
+                            {/* Show overflow count on last visible */}
+                            {i === 5 && previews.length > 6 && (
+                              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                <span className="text-white font-bold text-lg">+{previews.length - 6}</span>
                               </div>
                             )}
                           </motion.div>
@@ -376,24 +528,22 @@ export default function UploadPage() {
                       {previews.length < 10 && (
                         <button
                           onClick={() => fileInputRef.current?.click()}
-                          className="flex items-center gap-1.5 text-xs text-primary font-medium hover:text-primary/80 transition-colors"
+                          className="flex items-center gap-1 text-[11px] text-primary font-medium hover:text-primary/70 transition-colors"
                         >
-                          <Plus className="w-3.5 h-3.5" />
-                          Add more photos
+                          <Plus className="w-3 h-3" />Add more
                         </button>
                       )}
                     </div>
-                  ) : preview ? (
-                    /* Single file preview */
+                  ) : preview && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="relative rounded-2xl overflow-hidden border border-border/20"
+                      className="relative rounded-2xl overflow-hidden"
                     >
                       {file?.type.startsWith('video/') ? (
                         <video src={preview} className="w-full max-h-[55vh] object-contain bg-black/5 rounded-2xl" controls playsInline />
                       ) : (
-                        <img src={preview} alt="" className="w-full max-h-[55vh] object-cover rounded-2xl" />
+                        <img src={preview} alt="" className="w-full rounded-2xl" style={{ maxHeight: '55vh', objectFit: 'cover' }} />
                       )}
                       <button
                         onClick={clearFile}
@@ -402,35 +552,11 @@ export default function UploadPage() {
                         <X className="w-3.5 h-3.5 text-white" />
                       </button>
                     </motion.div>
-                  ) : null}
+                  )}
                 </div>
               )}
 
-              {/* ── Toolbar row ── */}
-              {contentType !== 'text' && !hasMedia && (
-                <div className="flex items-center gap-1 mt-3 -ml-1">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-primary/10 transition-colors"
-                  >
-                    <Image className="w-[18px] h-[18px]" />
-                  </button>
-                  <button
-                    onClick={() => setShowCamera(true)}
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-primary/10 transition-colors"
-                  >
-                    <CameraIcon className="w-[18px] h-[18px]" />
-                  </button>
-                  <button
-                    onClick={() => setShowAIVideoGenerator(true)}
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-primary/10 transition-colors"
-                  >
-                    <Wand2 className="w-[18px] h-[18px]" />
-                  </button>
-                </div>
-              )}
-
-              {/* Drag-and-drop zone when no media */}
+              {/* Drop zone when no media */}
               {contentType !== 'text' && !hasMedia && (
                 <div
                   onDragOver={handleDragOver}
@@ -438,122 +564,151 @@ export default function UploadPage() {
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
                   className={cn(
-                    "mt-3 rounded-2xl border border-dashed p-6 text-center cursor-pointer transition-all",
+                    "mt-3 rounded-2xl border border-dashed p-5 cursor-pointer transition-all text-center",
                     isDragging
-                      ? "border-primary bg-primary/5"
-                      : "border-border/30 hover:border-border/60"
+                      ? "border-primary bg-primary/5 scale-[1.01]"
+                      : "border-border/25 hover:border-border/50"
                   )}
                 >
-                  <UploadIcon className={cn("w-8 h-8 mx-auto mb-2", isDragging ? "text-primary" : "text-muted-foreground/40")} />
-                  <p className="text-xs text-muted-foreground">
-                    {isDragging ? 'Drop files here' : 'Drag photos & videos here'}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground/50 mt-1">Up to 10 images per carousel</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Divider ── */}
-          <div className="mx-4 border-t border-border/15 my-1" />
-
-          {/* ── Tags & extras ── */}
-          <div className="px-4 py-2 space-y-3">
-            {/* AI caption */}
-            <div className="flex items-center justify-between">
-              <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
-              <span className="text-[10px] text-muted-foreground/50 tabular-nums">{caption.length}/2200</span>
-            </div>
-
-            {/* Tags */}
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {tags.map((tag) => (
-                  <motion.span
-                    key={tag}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.8, opacity: 0 }}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-medium cursor-pointer hover:bg-destructive/15 hover:text-destructive transition-colors"
-                    onClick={() => handleRemoveTag(tag)}
-                  >
-                    #{tag}
-                    <X className="w-2.5 h-2.5" />
-                  </motion.span>
-                ))}
-                <div className="flex-1 min-w-[120px]">
-                  <input
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={handleTagInputKeyDown}
-                    placeholder={tags.length === 0 ? "Add tags..." : "Add more..."}
-                    className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none py-1"
-                    maxLength={30}
-                  />
-                </div>
-              </div>
-              {tags.length === 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {suggestedTags.slice(0, 6).map((tag) => (
-                    <button
-                      key={tag}
-                      onClick={() => handleAddTag(tag)}
-                      className="text-[11px] px-2.5 py-1 rounded-lg border border-border/30 text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
-                    >
-                      #{tag}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Video details ── */}
-          {contentType === 'video' && file && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mx-4 mt-2 space-y-3 p-4 rounded-2xl border border-border/20 bg-muted/20">
-              <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                <Video className="w-3.5 h-3.5 text-primary" />
-                Video details
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Title</Label>
-                <Input value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} placeholder="Video title" className="h-8 text-sm bg-transparent border-border/30" maxLength={100} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Description</Label>
-                <textarea
-                  value={videoDescription}
-                  onChange={(e) => setVideoDescription(e.target.value)}
-                  placeholder="Tell viewers about your video..."
-                  className="w-full min-h-[60px] bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 resize-none outline-none border border-border/30 rounded-xl px-3 py-2"
-                  maxLength={5000}
-                />
-              </div>
-              {generatedThumbnails.length > 0 && (
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">Thumbnail</Label>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {generatedThumbnails.map((thumb, index) => (
-                      <button key={index} onClick={() => handleThumbnailSelect(index)}
-                        className={cn("relative aspect-video rounded-lg overflow-hidden border-2 transition-all", selectedThumbnailIndex === index ? "border-primary ring-1 ring-primary/20" : "border-transparent hover:border-primary/30")}>
-                        <img src={thumb} alt="" className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                    <button onClick={() => thumbnailInputRef.current?.click()}
-                      className="aspect-video rounded-lg border-2 border-dashed border-border/30 flex flex-col items-center justify-center hover:border-primary/30 transition-colors">
-                      <ImagePlus className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-[9px] text-muted-foreground mt-0.5">Custom</span>
-                    </button>
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                      isDragging ? "bg-primary/15 text-primary" : "bg-muted/40 text-muted-foreground/50"
+                    )}>
+                      <UploadIcon className="w-5 h-5" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {isDragging ? 'Drop here' : 'Add photos or videos'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/40">Up to 10 images per carousel</p>
                   </div>
                 </div>
               )}
-            </motion.div>
-          )}
-        </div>
 
-        <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleInputChange} className="hidden" />
-        <input ref={thumbnailInputRef} type="file" accept="image/*" onChange={handleCustomThumbnail} className="hidden" />
+              {/* Video details */}
+              {contentType === 'video' && file && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 space-y-2.5 p-3 rounded-2xl bg-muted/20 border border-border/15">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <Video className="w-3.5 h-3.5 text-primary" />Video details
+                  </div>
+                  <Input value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} placeholder="Video title" className="h-8 text-sm bg-transparent border-border/20" maxLength={100} />
+                  <textarea value={videoDescription} onChange={(e) => setVideoDescription(e.target.value)} placeholder="Description..." className="w-full min-h-[50px] bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 resize-none outline-none border border-border/20 rounded-xl px-3 py-2" maxLength={5000} />
+                  {generatedThumbnails.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-muted-foreground">Thumbnail</span>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {generatedThumbnails.map((th, i) => (
+                          <button key={i} onClick={() => handleThumbnailSelect(i)} className={cn("aspect-video rounded-lg overflow-hidden border-2 transition-all", selectedThumbnailIndex === i ? "border-primary" : "border-transparent hover:border-primary/30")}>
+                            <img src={th} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                        <button onClick={() => thumbnailInputRef.current?.click()} className="aspect-video rounded-lg border-2 border-dashed border-border/30 flex items-center justify-center hover:border-primary/30 transition-colors">
+                          <ImagePlus className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </div>
+          </div>
+
+          {/* ━━━ Divider ━━━ */}
+          <div className="flex-1" />
+
+          {/* ━━━ BOTTOM TOOLBAR ━━━ */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.25 }}
+            className="sticky bottom-0 border-t border-border/15 bg-background/80 backdrop-blur-2xl"
+          >
+            {/* Media tools */}
+            <div className="flex items-center justify-between px-4 h-12">
+              <div className="flex items-center gap-0.5">
+                {contentType !== 'text' && (
+                  <>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-primary/10 transition-colors"
+                      title="Add media"
+                    >
+                      <Image className="w-[18px] h-[18px]" />
+                    </button>
+                    <button
+                      onClick={() => setShowCamera(true)}
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-primary/10 transition-colors"
+                      title="Camera"
+                    >
+                      <CameraIcon className="w-[18px] h-[18px]" />
+                    </button>
+                    <button
+                      onClick={() => setShowAIVideoGenerator(true)}
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-primary hover:bg-primary/10 transition-colors"
+                      title="AI Video"
+                    >
+                      <Wand2 className="w-[18px] h-[18px]" />
+                    </button>
+                  </>
+                )}
+
+                {/* Tag button */}
+                <button
+                  onClick={() => {
+                    const tag = prompt('Add a tag:');
+                    if (tag) handleAddTag(tag);
+                  }}
+                  className={cn(
+                    "w-9 h-9 rounded-full flex items-center justify-center transition-colors",
+                    tags.length > 0 ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  )}
+                  title="Add tag"
+                >
+                  <Hash className="w-[18px] h-[18px]" />
+                </button>
+
+                {/* AI caption */}
+                <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
+              </div>
+
+              {/* Character count */}
+              <span className={cn(
+                "text-[11px] tabular-nums transition-colors",
+                caption.length > 2000 ? "text-destructive font-medium" : "text-muted-foreground/40"
+              )}>
+                {caption.length > 0 && `${caption.length}/2200`}
+              </span>
+            </div>
+
+            {/* Tag input row */}
+            <AnimatePresence>
+              {tags.length === 0 && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex gap-1.5 px-4 pb-3 overflow-x-auto scrollbar-hide">
+                    {suggestedTags.slice(0, 7).map((tag) => (
+                      <button
+                        key={tag}
+                        onClick={() => handleAddTag(tag)}
+                        className="flex-shrink-0 text-[11px] px-2.5 py-1 rounded-full border border-border/25 text-muted-foreground/60 hover:border-primary/30 hover:text-primary transition-colors"
+                      >
+                        #{tag}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </motion.div>
       </div>
+
+      <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleInputChange} className="hidden" />
+      <input ref={thumbnailInputRef} type="file" accept="image/*" onChange={handleCustomThumbnail} className="hidden" />
     </AppLayout>
   );
 }
