@@ -31,6 +31,8 @@ export interface Challenge {
   is_active: boolean;
   starts_at: string | null;
   ends_at: string | null;
+  active_date: string | null;
+  active_week_start: string | null;
 }
 
 export interface ChallengeProgress {
@@ -44,22 +46,63 @@ export interface ChallengeProgress {
 }
 
 /**
- * Fetch all active challenges
+ * Get today's date and this week's start in YYYY-MM-DD format
+ */
+function getDateFilters() {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  // Get Monday of current week
+  const day = now.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + mondayOffset);
+  const weekStart = monday.toISOString().split('T')[0];
+  return { today, weekStart };
+}
+
+/**
+ * Fetch active challenges for the current period (today's daily, this week's weekly, all achievements)
  */
 export function useChallenges() {
   return useQuery({
     queryKey: ['challenges'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { today, weekStart } = getDateFilters();
+      
+      // Fetch achievements (no date filter)
+      const { data: achievements, error: achError } = await supabase
         .from('challenges')
         .select('*')
         .eq('is_active', true)
-        .order('type', { ascending: true });
+        .eq('type', 'achievement');
       
-      if (error) throw error;
-      return data as Challenge[];
+      if (achError) throw achError;
+      
+      // Fetch today's daily challenges
+      const { data: dailies, error: dailyError } = await supabase
+        .from('challenges')
+        .select('*')
+        .eq('is_active', true)
+        .eq('type', 'daily')
+        .eq('active_date', today);
+      
+      if (dailyError) throw dailyError;
+      
+      // Fetch this week's weekly challenges
+      const { data: weeklies, error: weeklyError } = await supabase
+        .from('challenges')
+        .select('*')
+        .eq('is_active', true)
+        .eq('type', 'weekly')
+        .eq('active_week_start', weekStart);
+      
+      if (weeklyError) throw weeklyError;
+      
+      return [...(achievements || []), ...(dailies || []), ...(weeklies || [])] as Challenge[];
     },
-    staleTime: 1000 * 60 * 15,
+    staleTime: 1000 * 60 * 5,
+    // Refetch when window regains focus (handles day/week boundaries)
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -95,19 +138,40 @@ export function useUserChallengeProgress() {
 }
 
 /**
- * Get combined challenges with progress
+ * Get combined challenges with progress and reward claim status
  */
 export function useChallengesWithProgress() {
   const { data: challenges } = useChallenges();
   const { data: progress } = useUserChallengeProgress();
+  const { profile } = useAuth();
+
+  // Fetch claimed rewards to know which completed challenges have been claimed
+  const { data: claimedRewards } = useQuery({
+    queryKey: ['claimed-rewards', profile?.id],
+    queryFn: async () => {
+      if (!profile) return [];
+      const { data, error } = await supabase
+        .from('challenge_rewards')
+        .select('challenge_id, is_claimed')
+        .eq('user_id', profile.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!profile,
+    staleTime: 1000 * 60 * 2,
+  });
 
   const combined = challenges?.map(challenge => {
     const userProgress = progress?.find(p => p.challenge_id === challenge.id);
+    const reward = claimedRewards?.find(r => r.challenge_id === challenge.id);
+    const isClaimed = reward?.is_claimed === true;
+    
     return {
       ...challenge,
       current_count: userProgress?.current_count || 0,
       is_completed: userProgress?.is_completed || false,
       completed_at: userProgress?.completed_at || null,
+      is_claimed: isClaimed,
       progress_percentage: Math.min(
         100,
         ((userProgress?.current_count || 0) / challenge.requirement_count) * 100
