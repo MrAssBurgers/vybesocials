@@ -302,7 +302,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         data-tutorial-bottomnav
       >
         {/* Clean minimal nav bar - solid background */}
-        <div className="mx-3 mb-2 rounded-2xl backdrop-blur-md bg-background/60 overflow-hidden">
+        <div className="mx-3 mb-2 rounded-2xl overflow-hidden">
           <div className="grid grid-cols-5 h-14 px-1 relative z-10">
           {navItems.map((item) => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
