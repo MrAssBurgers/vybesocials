@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import jsQR from 'jsqr';
 import { useNFC } from '@/hooks/useNFC';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
+import { preloadCameraStream, getPreloadedStream } from '@/hooks/useCameraPreload';
 
 interface FriendDropProps {
   variant?: 'button' | 'icon' | 'banner';
@@ -654,6 +655,8 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       toast.error('Complete your profile first');
       return;
     }
+    // Preload camera immediately for instant scanner
+    preloadCameraStream();
     setIsOpen(true);
     setPhase('idle');
     setFoundUser(null);
@@ -671,9 +674,13 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     haptics.tap();
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-      });
+      // Try preloaded camera first for instant start
+      let stream = getPreloadedStream();
+      if (!stream) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+      }
       streamRef.current = stream;
       
       if (videoRef.current) {
@@ -932,7 +939,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       {renderTrigger()}
 
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-[420px] p-0 border-0 bg-transparent shadow-none rounded-3xl overflow-visible [&>button]:hidden">
+        <DialogContent className="sm:max-w-[380px] p-0 border-0 bg-transparent shadow-none rounded-3xl overflow-visible [&>button]:hidden">
           {/* Wallet container */}
           <motion.div
             className="relative w-full"
@@ -965,8 +972,8 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
             {/* Card sliding up out of wallet */}
             <motion.div
-              className="relative rounded-3xl bg-background/95 backdrop-blur-xl p-5 overflow-hidden will-change-transform"
-              initial={{ y: 100, scaleX: 0.9, scaleY: 0.6, opacity: 0 }}
+              className="relative rounded-3xl bg-background/95 backdrop-blur-xl p-4 overflow-hidden will-change-transform"
+              initial={{ y: 120, scaleX: 0.88, scaleY: 0.6, opacity: 0 }}
               animate={{ y: 0, scaleX: 1, scaleY: 1, opacity: 1 }}
               transition={{
                 type: "spring",
