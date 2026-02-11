@@ -19,6 +19,7 @@ import { useNFC } from '@/hooks/useNFC';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { preloadCameraStream, getPreloadedStream, stopPreloadedCamera } from '@/hooks/useCameraPreload';
 import jsQR from 'jsqr';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
@@ -415,6 +416,9 @@ export function AutoFriendDrop() {
       return;
     }
     
+    // Preload camera immediately for instant video
+    preloadCameraStream();
+    
     // Activate the exchange UI
     setIsActive(true);
     haptics.impact();
@@ -495,9 +499,13 @@ export function AutoFriendDrop() {
 
   const startScanning = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-      });
+      // Try preloaded camera first for instant start
+      let stream = getPreloadedStream();
+      if (!stream) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+      }
       streamRef.current = stream;
       
       if (videoRef.current) {
@@ -691,25 +699,56 @@ export function AutoFriendDrop() {
         </div>
       )}
 
-      {/* Exchange Modal - Credit card style */}
+      {/* Exchange Modal - Credit card wallet style */}
       <Dialog open={isActive} onOpenChange={handleClose}>
         <DialogContent 
           className="sm:max-w-md p-0 border-0 bg-transparent overflow-visible [&>button]:hidden"
         >
+          {/* Wallet back layers */}
+          <motion.div
+            className="absolute -bottom-3 left-1/2 w-[88%] h-6 rounded-b-2xl"
+            style={{ 
+              x: '-50%',
+              background: 'linear-gradient(to bottom, hsl(var(--primary) / 0.12), hsl(var(--primary) / 0.03))',
+            }}
+            initial={{ opacity: 0, scaleX: 0.5 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            transition={{ delay: 0.05, duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          />
+          <motion.div
+            className="absolute -bottom-5 left-1/2 w-[78%] h-4 rounded-b-xl"
+            style={{ 
+              x: '-50%',
+              background: 'linear-gradient(to bottom, hsl(var(--primary) / 0.06), transparent)',
+            }}
+            initial={{ opacity: 0, scaleX: 0.3 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            transition={{ delay: 0.1, duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          />
+
           <AnimatePresence mode="wait">
             
             {phase === 'activated' && (
               <motion.div
                 key="activated"
-                initial={{ opacity: 0, y: 40, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -20, scale: 0.97 }}
-                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                initial={{ y: 120, scaleX: 0.88, scaleY: 0.6, opacity: 0 }}
+                animate={{ y: 0, scaleX: 1, scaleY: 1, opacity: 1 }}
+                exit={{ y: -20, opacity: 0, scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 380, damping: 32, opacity: { duration: 0.12 } }}
+                style={{ transformOrigin: 'bottom center' }}
                 className="flex flex-col items-center"
               >
-                {/* Credit Card Scanner */}
+                {/* Top edge gleam */}
                 <motion.div
-                  className="relative w-80 rounded-2xl overflow-hidden shadow-2xl"
+                  className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent z-10"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
+                />
+
+                {/* Credit Card Scanner — smaller */}
+                <motion.div
+                  className="relative w-72 rounded-2xl overflow-hidden shadow-2xl"
                   style={{
                     background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 50%, hsl(var(--primary) / 0.8) 100%)',
                   }}
@@ -855,7 +894,7 @@ export function AutoFriendDrop() {
                 animate={{ opacity: 1, scale: 1, rotateY: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                className="w-80 rounded-2xl overflow-hidden shadow-2xl"
+                className="w-72 rounded-2xl overflow-hidden shadow-2xl"
                 style={{
                   background: 'linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(var(--primary)) 60%, hsl(var(--accent) / 0.8) 100%)',
                 }}
@@ -935,7 +974,7 @@ export function AutoFriendDrop() {
                   />
                 ))}
                 
-                <div className="relative flex flex-col items-center justify-center p-8 gap-6" style={{ minHeight: 300 }}>
+                <div className="relative flex flex-col items-center justify-center p-6 gap-5" style={{ minHeight: 260 }}>
                   {/* My profile flying out */}
                   <motion.div
                     className="absolute z-20"
@@ -1024,7 +1063,7 @@ export function AutoFriendDrop() {
                   transition={{ duration: 0.3 }}
                 />
                 
-                <div className="relative flex flex-col items-center justify-center p-8 gap-4" style={{ minHeight: 300 }}>
+                <div className="relative flex flex-col items-center justify-center p-6 gap-3" style={{ minHeight: 260 }}>
                   {/* Both avatars */}
                   <div className="relative flex items-center justify-center h-28 z-10">
                     <motion.div
