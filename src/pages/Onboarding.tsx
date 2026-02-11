@@ -63,19 +63,13 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [userAge, setUserAge] = useState<number | undefined>(undefined);
 
-  // Initialize displayName from username when available
+  // Username IS the display name by default
   useEffect(() => {
-    if (profile?.username && !profileData.displayName) {
-      setProfileData(prev => ({ ...prev, displayName: profile.username }));
+    const name = needsUsername ? username : profile?.username;
+    if (name) {
+      setProfileData(prev => ({ ...prev, displayName: name }));
     }
-  }, [profile?.username]);
-
-  // Update displayName when username changes (for new users)
-  useEffect(() => {
-    if (needsUsername && username && !profileData.displayName) {
-      setProfileData(prev => ({ ...prev, displayName: username }));
-    }
-  }, [username, needsUsername]);
+  }, [username, profile?.username, needsUsername]);
 
   // Get the actual step content based on whether username is needed
   const getStepContent = () => {
@@ -144,7 +138,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
       // Determine the final username
       const finalUsername = needsUsername ? username : profile?.username;
-      const finalDisplayName = profileData.displayName || finalUsername || `${profileData.firstName} ${profileData.lastName}`.trim();
+      // Username IS the display name - only override if user explicitly changed it
+      const finalDisplayName = profileData.displayName && profileData.displayName !== '' 
+        ? profileData.displayName 
+        : finalUsername || '';
 
       // Upsert profile with all onboarding data (handles both new and existing profiles)
       const { error } = await supabase
