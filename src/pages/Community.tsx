@@ -27,12 +27,13 @@ import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
 import { 
   Plus, Users, ArrowLeft, Settings, Search, Globe, Folder, 
-  Radio, MoreVertical, Share2, Bell, BellOff 
+  Radio, MoreVertical, Share2, Bell, ChevronDown 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,65 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+
+// Server switcher dropdown in header
+function ServerSwitcher({
+  communities,
+  selectedId,
+  onSelect,
+}: {
+  communities: ReturnType<typeof useMyCommunities>['data'];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const selected = (communities || []).find(c => c.id === selectedId);
+  const selectedIcon = useSignedUrl(selected?.icon_url);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-2 hover:bg-foreground/5 rounded-lg px-2 py-1 transition-colors">
+          <Avatar className="h-8 w-8 rounded-lg border border-foreground/10">
+            {selectedIcon ? (
+              <AvatarImage src={selectedIcon} alt={selected?.name} />
+            ) : null}
+            <AvatarFallback className="rounded-lg bg-primary/20 text-primary text-xs font-bold">
+              {selected?.name?.slice(0, 2).toUpperCase() || '??'}
+            </AvatarFallback>
+          </Avatar>
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56 bg-card/95 backdrop-blur-md border border-border p-1" sideOffset={8}>
+        {(communities || []).map((c) => (
+          <ServerSwitcherItem key={c.id} community={c} isSelected={c.id === selectedId} onSelect={() => onSelect(c.id)} />
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function ServerSwitcherItem({ community, isSelected, onSelect }: { community: any; isSelected: boolean; onSelect: () => void }) {
+  const iconUrl = useSignedUrl(community.icon_url);
+  return (
+    <DropdownMenuItem
+      onClick={onSelect}
+      className={cn(
+        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer",
+        isSelected && "bg-primary/10"
+      )}
+    >
+      <Avatar className="h-7 w-7 rounded-lg">
+        {iconUrl ? <AvatarImage src={iconUrl} alt={community.name} /> : null}
+        <AvatarFallback className="rounded-lg bg-primary/20 text-primary text-[10px] font-bold">
+          {community.name.slice(0, 2).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <span className="truncate text-sm font-medium">{community.name}</span>
+      {isSelected && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+    </DropdownMenuItem>
+  );
+}
 
 export default function Community() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -70,7 +130,6 @@ export default function Community() {
   const selectedCommunityIcon = useSignedUrl(selectedCommunity?.icon_url);
   const selectedCommunityLiveCount = useLiveMemberCount(selectedCommunityId || undefined);
 
-  // Filter out communities user is already in
   const myCommunityIds = useMemo(() => new Set(communities.map(c => c.id)), [communities]);
   const filteredPublicCommunities = useMemo(() => 
     publicCommunities.filter(c => !myCommunityIds.has(c.id)),
@@ -81,9 +140,7 @@ export default function Community() {
   useEffect(() => {
     if (selectedCommunityId && rooms.length > 0 && !selectedRoomId) {
       const chatRoom = rooms.find(r => r.room_type === 'chat') || rooms[0];
-      if (chatRoom) {
-        setSelectedRoomId(chatRoom.id);
-      }
+      if (chatRoom) setSelectedRoomId(chatRoom.id);
     }
   }, [selectedCommunityId, rooms, selectedRoomId]);
 
@@ -95,7 +152,7 @@ export default function Community() {
     setSearchParams(params, { replace: true });
   }, [selectedCommunityId, selectedRoomId, setSearchParams]);
 
-  // Update activity when browsing
+  // Update activity
   useEffect(() => {
     if (selectedCommunityId && profile?.id) {
       updateActivity.mutate({
@@ -103,8 +160,6 @@ export default function Community() {
         activityType: selectedRoomId ? 'chatting' : 'browsing',
         roomId: selectedRoomId || undefined,
       });
-
-      // Heartbeat every 2 minutes
       const interval = setInterval(() => {
         updateActivity.mutate({
           communityId: selectedCommunityId,
@@ -112,73 +167,70 @@ export default function Community() {
           roomId: selectedRoomId || undefined,
         });
       }, 2 * 60 * 1000);
-
       return () => clearInterval(interval);
     }
   }, [selectedCommunityId, selectedRoomId, profile?.id]);
 
-  const handleSelectCommunity = (communityId: string) => {
+  const handleSelectCommunity = useCallback((communityId: string) => {
     setSelectedCommunityId(communityId);
     setSelectedRoomId(null);
-  };
+  }, []);
 
-  const handleBackToList = () => {
+  const handleBackToList = useCallback(() => {
     setSelectedCommunityId(null);
     setSelectedRoomId(null);
-  };
+  }, []);
 
   const handleSwipeRoom = useCallback((direction: 'left' | 'right') => {
     if (!rooms.length || !selectedRoomId) return;
-    
     const currentIndex = rooms.findIndex(r => r.id === selectedRoomId);
     if (currentIndex === -1) return;
-
     const newIndex = direction === 'left' 
       ? Math.min(currentIndex + 1, rooms.length - 1)
       : Math.max(currentIndex - 1, 0);
-    
-    if (newIndex !== currentIndex) {
-      setSelectedRoomId(rooms[newIndex].id);
-    }
+    if (newIndex !== currentIndex) setSelectedRoomId(rooms[newIndex].id);
   }, [rooms, selectedRoomId]);
 
   const selectedRoom = rooms.find(r => r.id === selectedRoomId);
   const myRole = communities.find(c => c.id === selectedCommunityId)?.myRole;
 
-  // Community detail view
+  // ── Community detail view ──
   if (selectedCommunityId && selectedCommunity) {
     return (
       <AppLayout hideRightSidebar fullWidth>
         <div className="h-[calc(100vh-5rem)] md:h-screen flex flex-col overflow-hidden bg-background">
-          {/* Community header */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-background/95 backdrop-blur-sm">
+          {/* Header with server switcher */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50 bg-background/95 backdrop-blur-sm"
+          >
             <Button
               variant="ghost"
               size="icon"
               onClick={handleBackToList}
-              className="shrink-0 h-9 w-9"
+              className="shrink-0 h-8 w-8"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-4 w-4" />
             </Button>
             
-            <Avatar className="h-10 w-10 rounded-xl border border-foreground/10">
-              {selectedCommunityIcon ? (
-                <AvatarImage src={selectedCommunityIcon} alt={selectedCommunity.name} />
-              ) : null}
-              <AvatarFallback className="rounded-xl bg-primary text-primary-foreground font-semibold">
-                {selectedCommunity.name.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            {/* Server switcher */}
+            <ServerSwitcher
+              communities={communities}
+              selectedId={selectedCommunityId}
+              onSelect={handleSelectCommunity}
+            />
             
             <div className="flex-1 min-w-0">
-              <h2 className="font-semibold truncate text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{selectedCommunity.name}</h2>
-              <div className="flex items-center gap-2 text-xs text-foreground/80">
-                <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{selectedCommunity.member_count} members</span>
+              <h2 className="font-semibold text-sm truncate text-foreground">{selectedCommunity.name}</h2>
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span>{selectedCommunity.member_count} members</span>
                 {selectedCommunityLiveCount > 0 && (
                   <>
                     <span>•</span>
                     <span className="text-green-400 flex items-center gap-1">
-                      <Radio className="h-3 w-3 animate-pulse" />
+                      <Radio className="h-2.5 w-2.5 animate-pulse" />
                       {selectedCommunityLiveCount} active
                     </span>
                   </>
@@ -193,8 +245,8 @@ export default function Community() {
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9">
-                  <MoreVertical className="h-5 w-5 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4 text-foreground" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent 
@@ -206,25 +258,25 @@ export default function Community() {
                   navigator.clipboard.writeText(selectedCommunity.invite_code);
                   toast.success('Invite code copied!');
                 }}>
-                  <Share2 className="h-4 w-4 mr-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-                  <span className="text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Share Invite</span>
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share Invite
                 </DropdownMenuItem>
                 <DropdownMenuItem>
-                  <Bell className="h-4 w-4 mr-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-                  <span className="text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Notifications</span>
+                  <Bell className="h-4 w-4 mr-2" />
+                  Notifications
                 </DropdownMenuItem>
                 {(myRole === 'owner' || myRole === 'moderator') && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => setShowSettings(true)}>
-                      <Settings className="h-4 w-4 mr-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-                      <span className="text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Settings</span>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Settings
                     </DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          </motion.div>
 
           {/* Room tabs */}
           <RoomTabs
@@ -234,32 +286,44 @@ export default function Community() {
             unreadCounts={roomUnreadCounts}
           />
 
-          {/* Room content */}
+          {/* Room content with crossfade */}
           <SwipeableRoomContent
             onSwipeLeft={() => handleSwipeRoom('left')}
             onSwipeRight={() => handleSwipeRoom('right')}
           >
-            {selectedRoom ? (
-              <RoomChat
-                roomId={selectedRoom.id}
-                roomName={selectedRoom.name}
-                roomType={(selectedRoom.room_type || 'chat') as RoomType}
-                communityId={selectedCommunityId}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                <div className="h-20 w-20 rounded-2xl bg-muted flex items-center justify-center mb-4">
-                  <Users className="h-10 w-10 text-muted-foreground" />
-                </div>
-                <h2 className="text-xl font-semibold mb-2">Welcome!</h2>
-                <p className="text-muted-foreground max-w-sm">
-                  Select a room above to start chatting
-                </p>
-              </div>
-            )}
+            <AnimatePresence mode="wait">
+              {selectedRoom ? (
+                <motion.div
+                  key={selectedRoom.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="h-full"
+                >
+                  <RoomChat
+                    roomId={selectedRoom.id}
+                    roomName={selectedRoom.name}
+                    roomType={(selectedRoom.room_type || 'chat') as RoomType}
+                    communityId={selectedCommunityId}
+                  />
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex flex-col items-center justify-center h-full text-center p-8"
+                >
+                  <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+                    <Users className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h2 className="text-lg font-semibold mb-1">Welcome!</h2>
+                  <p className="text-sm text-muted-foreground">Select a room above to start chatting</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </SwipeableRoomContent>
 
-          {/* Live panel - only show on Live room */}
           {selectedRoom?.room_type === 'live' && (
             <div className="p-4 border-t border-border/50">
               <LivePanel communityId={selectedCommunityId} />
@@ -280,19 +344,29 @@ export default function Community() {
     );
   }
 
-  // Community list view
+  // ── Community list view ──
   return (
     <AppLayout>
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="flex items-center justify-between"
+        >
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-              <Users className="h-6 w-6 text-primary-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-            </div>
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              className="h-11 w-11 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0"
+            >
+              <Users className="h-5 w-5 text-primary-foreground" />
+            </motion.div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">Communities</h1>
-              <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+              <h1 className="text-2xl font-bold text-foreground">Communities</h1>
+              <p className="text-xs text-muted-foreground">
                 {communities.length} {communities.length === 1 ? 'community' : 'communities'}
               </p>
             </div>
@@ -303,37 +377,37 @@ export default function Community() {
               variant="outline"
               size="sm"
               onClick={() => setShowJoinDialog(true)}
-              className="gap-2 rounded-full"
+              className="gap-1.5 rounded-full text-xs h-8"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Join</span>
             </Button>
             <Button
               size="sm"
               onClick={() => setShowCreateDialog(true)}
-              className="gap-2 rounded-full"
+              className="gap-1.5 rounded-full text-xs h-8"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Create</span>
             </Button>
           </div>
-        </div>
+        </motion.div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'my' | 'discover')}>
-          <TabsList className="w-full max-w-md rounded-full p-1 h-11">
-            <TabsTrigger value="my" className="flex-1 gap-2 rounded-full">
-              <Folder className="h-4 w-4" />
+          <TabsList className="w-full max-w-md rounded-full p-1 h-10">
+            <TabsTrigger value="my" className="flex-1 gap-2 rounded-full text-sm">
+              <Folder className="h-3.5 w-3.5" />
               My Communities
             </TabsTrigger>
-            <TabsTrigger value="discover" className="flex-1 gap-2 rounded-full">
-              <Globe className="h-4 w-4" />
+            <TabsTrigger value="discover" className="flex-1 gap-2 rounded-full text-sm">
+              <Globe className="h-3.5 w-3.5" />
               Discover
             </TabsTrigger>
           </TabsList>
 
           {/* My Communities */}
-          <TabsContent value="my" className="mt-6">
+          <TabsContent value="my" className="mt-5">
             <AnimatePresence mode="wait">
               {communitiesLoading ? (
                 <CommunityGridSkeleton />
@@ -343,51 +417,52 @@ export default function Community() {
                   animate={{ opacity: 1, y: 0 }}
                   className="text-center py-16"
                 >
-                  <div className="h-20 w-20 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+                  <motion.div
+                    initial={{ scale: 0.8 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 200 }}
+                    className="h-20 w-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4"
+                  >
                     <Users className="h-10 w-10 text-muted-foreground" />
-                  </div>
+                  </motion.div>
                   <h3 className="text-xl font-semibold mb-2">No communities yet</h3>
-                  <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+                  <p className="text-muted-foreground mb-6 max-w-sm mx-auto text-sm">
                     Join or create a community to connect with others
                   </p>
                   <div className="flex justify-center gap-3">
-                    <Button variant="outline" onClick={() => setActiveTab('discover')}>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab('discover')}>
                       Discover
                     </Button>
-                    <Button onClick={() => setShowCreateDialog(true)}>
+                    <Button size="sm" onClick={() => setShowCreateDialog(true)}>
                       Create One
                     </Button>
                   </div>
                 </motion.div>
               ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
-                >
-                  {communities.map((community) => (
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                  {communities.map((community, i) => (
                     <CommunityCard
                       key={community.id}
                       community={community}
                       onClick={() => handleSelectCommunity(community.id)}
                       unreadCount={unreadCounts[community.id]}
+                      index={i}
                     />
                   ))}
-                </motion.div>
+                </div>
               )}
             </AnimatePresence>
           </TabsContent>
 
           {/* Discover */}
-          <TabsContent value="discover" className="mt-6 space-y-4">
-            {/* Search */}
+          <TabsContent value="discover" className="mt-5 space-y-4">
             <div className="relative max-w-md">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search communities..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-11 h-11 rounded-full bg-foreground/5 border-0"
+                className="pl-11 h-10 rounded-full bg-foreground/5 border-0 text-sm"
               />
             </div>
 
@@ -400,31 +475,28 @@ export default function Community() {
                   animate={{ opacity: 1, y: 0 }}
                   className="text-center py-16"
                 >
-                  <div className="h-20 w-20 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+                  <div className="h-20 w-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
                     <Globe className="h-10 w-10 text-muted-foreground" />
                   </div>
                   <h3 className="text-xl font-semibold mb-2">
                     {searchQuery ? 'No communities found' : 'No public communities yet'}
                   </h3>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground text-sm">
                     {searchQuery ? 'Try a different search' : 'Be the first to create one!'}
                   </p>
                 </motion.div>
               ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
-                >
-                  {filteredPublicCommunities.map((community) => (
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                  {filteredPublicCommunities.map((community, i) => (
                     <PublicCommunityCard
                       key={community.id}
                       community={community}
                       onJoin={() => joinCommunity.mutate(community.invite_code)}
                       isJoining={joinCommunity.isPending}
+                      index={i}
                     />
                   ))}
-                </motion.div>
+                </div>
               )}
             </AnimatePresence>
           </TabsContent>
@@ -440,24 +512,29 @@ export default function Community() {
 // Skeleton loader
 function CommunityGridSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="rounded-2xl overflow-hidden bg-card">
-          <div className="h-32 bg-muted animate-pulse" />
-          <div className="p-4 space-y-3">
+        <motion.div
+          key={i}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: i * 0.1 }}
+          className="rounded-2xl overflow-hidden bg-card/50"
+        >
+          <div className="h-28 bg-muted/50 animate-pulse" />
+          <div className="p-3.5 space-y-3">
             <div className="flex items-start gap-3">
-              <div className="w-12 h-12 rounded-xl bg-muted animate-pulse -mt-8" />
+              <div className="w-11 h-11 rounded-xl bg-muted/50 animate-pulse -mt-8" />
               <div className="flex-1 space-y-2 pt-1">
-                <div className="h-4 bg-muted animate-pulse rounded w-2/3" />
-                <div className="h-3 bg-muted animate-pulse rounded w-1/2" />
+                <div className="h-3.5 bg-muted/50 animate-pulse rounded w-2/3" />
+                <div className="h-3 bg-muted/50 animate-pulse rounded w-1/2" />
               </div>
             </div>
             <div className="flex justify-between pt-1">
-              <div className="h-3 bg-muted animate-pulse rounded w-20" />
-              <div className="h-8 bg-muted animate-pulse rounded-full w-16" />
+              <div className="h-3 bg-muted/50 animate-pulse rounded w-20" />
             </div>
           </div>
-        </div>
+        </motion.div>
       ))}
     </div>
   );
