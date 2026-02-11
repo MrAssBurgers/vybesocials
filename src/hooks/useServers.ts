@@ -394,6 +394,7 @@ export function useCreateChannel() {
     },
     onSuccess: (_, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: ['channels', serverId] });
+      queryClient.invalidateQueries({ queryKey: ['rooms', serverId] });
       toast.success('Channel created!');
     },
     onError: () => {

@@ -22,6 +22,7 @@ import { LivePanel } from '@/components/community/LivePanel';
 import { MembersSheetTrigger } from '@/components/community/MembersPanel';
 import { CreateServerDialog } from '@/components/community/CreateServerDialog';
 import { JoinServerDialog } from '@/components/community/JoinServerDialog';
+import { CreateChannelDialog } from '@/components/community/CreateChannelDialog';
 import { ServerSettingsSheet } from '@/components/community/ServerSettingsSheet';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
@@ -113,6 +114,7 @@ export default function Community() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'discover'>('my');
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
@@ -284,6 +286,8 @@ export default function Community() {
             selectedRoomId={selectedRoomId}
             onSelectRoom={setSelectedRoomId}
             unreadCounts={roomUnreadCounts}
+            canManage={myRole === 'owner' || myRole === 'moderator'}
+            onCreateChannel={() => setShowCreateChannel(true)}
           />
 
           {/* Room content with crossfade */}
@@ -338,6 +342,14 @@ export default function Community() {
             open={showSettings}
             onOpenChange={setShowSettings}
             onServerDeleted={handleBackToList}
+          />
+        )}
+
+        {selectedCommunityId && (
+          <CreateChannelDialog
+            open={showCreateChannel}
+            onOpenChange={setShowCreateChannel}
+            serverId={selectedCommunityId}
           />
         )}
       </AppLayout>
