@@ -95,7 +95,7 @@ export function usePushNotifications() {
       
       // Also check browser subscription status
       if (registrationRef.current) {
-        const subscription = await registrationRef.current.pushManager.getSubscription();
+        const subscription = await (registrationRef.current as any).pushManager.getSubscription();
         if (!subscription && data) {
           // DB says subscribed but browser isn't - clean up
           await supabase
@@ -146,7 +146,7 @@ export function usePushNotifications() {
       }
 
       // Subscribe to push notifications
-      const subscription = await registration.pushManager.subscribe({
+      const subscription = await (registration as any).pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
@@ -199,7 +199,7 @@ export function usePushNotifications() {
     try {
       // Unsubscribe from push
       if (registrationRef.current) {
-        const subscription = await registrationRef.current.pushManager.getSubscription();
+        const subscription = await (registrationRef.current as any).pushManager.getSubscription();
         if (subscription) {
           await subscription.unsubscribe();
           console.log('[Push] Unsubscribed from push');
