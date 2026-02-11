@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { 
   Heart, MessageCircle, UserPlus, UserCheck, Check, X, 
-  Users, PhoneMissed, Bell, RefreshCw, Sparkles, ShieldAlert, BellRing
+  Users, PhoneMissed, Bell, RefreshCw, Sparkles, ShieldAlert, BellRing, Gift
 } from 'lucide-react';
 import { useNotifications, useMarkNotificationsRead, NotificationType } from '@/hooks/useNotifications';
 import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends';
@@ -119,28 +119,39 @@ export default function NotificationsPage() {
           )}
         </AnimatePresence>
 
-        {/* Minimal header */}
+        {/* Header with referral button */}
         <motion.div 
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
           className="mb-6"
         >
-          <h1 className="text-2xl font-bold tracking-tight">Notifications</h1>
-          {unreadNotifications.length > 0 && (
-            <motion.p 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-sm text-primary font-medium mt-0.5"
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Notifications</h1>
+              {unreadNotifications.length > 0 && (
+                <motion.p 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-sm text-primary font-medium mt-0.5"
+                >
+                  {unreadNotifications.length} new
+                </motion.p>
+              )}
+            </div>
+            <Link
+              to="/referrals"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-sm transition-all active:scale-95"
             >
-              {unreadNotifications.length} new
-            </motion.p>
-          )}
+              <Gift className="h-4 w-4" />
+              <span>Referrals</span>
+            </Link>
+          </div>
         </motion.div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full mb-5 bg-muted/40 backdrop-blur-sm border border-border/30 p-1 h-11 rounded-xl">
+          <TabsList className="w-full mb-5 bg-card/70 backdrop-blur-md border border-border/30 p-1 h-11 rounded-xl">
             <TabsTrigger 
               value="all" 
               className="flex-1 h-full rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
@@ -189,7 +200,7 @@ export default function NotificationsPage() {
                   {unreadNotifications.length > 0 && (
                     <div className="mb-2">
                       <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">New</p>
-                      <div className="rounded-2xl bg-primary/[0.03] border border-primary/10 overflow-hidden">
+                      <div className="rounded-2xl bg-card/80 backdrop-blur-md border border-primary/10 overflow-hidden">
                         {unreadNotifications.map((notification, idx) => (
                           <NotificationRow
                             key={notification.id}
@@ -208,7 +219,7 @@ export default function NotificationsPage() {
                       {unreadNotifications.length > 0 && (
                         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">Earlier</p>
                       )}
-                      <div className="rounded-2xl overflow-hidden">
+                      <div className="rounded-2xl bg-card/80 backdrop-blur-md overflow-hidden">
                         {readNotifications.map((notification, idx) => (
                           <NotificationRow
                             key={notification.id}
@@ -245,7 +256,7 @@ export default function NotificationsPage() {
                       exit={{ opacity: 0, x: -80, transition: { duration: 0.2 } }}
                       transition={{ delay: idx * 0.04, duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
                     >
-                      <div className="flex items-center gap-3 p-3 rounded-2xl bg-card/50 border border-border/30">
+                      <div className="flex items-center gap-3 p-3 rounded-2xl bg-card/80 backdrop-blur-md border border-border/30">
                         <Link to={`/u/${request.sender?.username}`}>
                           <Avatar className="h-12 w-12">
                             <AvatarImage src={request.sender?.avatar_url || undefined} />
