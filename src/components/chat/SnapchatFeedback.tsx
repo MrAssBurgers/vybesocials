@@ -221,13 +221,15 @@ export const LivePresenceBar = memo(function LivePresenceBar({
 
   return (
     <div className="flex items-center gap-1.5">
-      {/* Status dot */}
-      <div
-        className={cn(
-          "w-2 h-2 rounded-full transition-colors duration-200",
-          isTyping ? "bg-primary animate-pulse" : isOnline ? "bg-green-500" : "bg-muted-foreground/50"
-        )}
-      />
+      {/* Status dot - only show when online or typing */}
+      {(isTyping || isOnline) && (
+        <div
+          className={cn(
+            "w-2 h-2 rounded-full transition-colors duration-200",
+            isTyping ? "bg-primary animate-pulse" : "bg-green-500"
+          )}
+        />
+      )}
       
       {/* Status text - typing has static "typing" + animated dots */}
       {isTyping ? (
