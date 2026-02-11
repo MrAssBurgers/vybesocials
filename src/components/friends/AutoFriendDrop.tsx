@@ -140,8 +140,9 @@ export function AutoFriendDrop() {
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   
+  const startScanLoopRef = useRef<() => void>(() => {});
   
-  // Simple card activation - no wallet animation needed
+  // Simple card activation - no wallet animation needed (kept for non-shake flows)
   const triggerCardRise = useCallback(() => {
     setPhase('activated');
     setTimeout(() => {
@@ -416,15 +417,41 @@ export function AutoFriendDrop() {
       return;
     }
     
-    // Preload camera immediately for instant video
-    preloadCameraStream();
+    // CRITICAL: Request camera access directly in the user gesture handler
+    // Browsers block getUserMedia when not triggered by a user action
+    let cameraStream: MediaStream | null = null;
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+      });
+    } catch (err) {
+      console.warn('[AutoFriendDrop] Camera access failed:', err);
+      // Continue without camera - QR code still works
+    }
     
     // Activate the exchange UI
     setIsActive(true);
     haptics.impact();
     
-    // Start with the card animation
-    triggerCardRise();
+    // Start with the card animation, then start scanning with the already-acquired stream
+    setPhase('activated');
+    setTimeout(() => {
+      haptics.success();
+    }, 300);
+    
+    // Start scanning with the pre-acquired stream
+    if (cameraStream) {
+      streamRef.current = cameraStream;
+      // Defer video attachment to next frame to let the UI render first
+      requestAnimationFrame(() => {
+        if (videoRef.current && cameraStream) {
+          videoRef.current.srcObject = cameraStream;
+          videoRef.current.play().then(() => {
+            startScanLoopRef.current();
+          }).catch(console.error);
+        }
+      });
+    }
     
     // Create a drop session for realtime sync (do this in background)
     friendDropSync.createDrop().then((drop) => {
@@ -437,14 +464,7 @@ export function AutoFriendDrop() {
     if (nativeFriendDrop.isAvailable) {
       nativeFriendDrop.startSession();
     }
-  }, [profile?.username, user, nativeFriendDrop, friendDropSync, triggerCardRise]);
-  
-  // Start QR scanning when phase transitions to activated (after card animation)
-  useEffect(() => {
-    if (phase === 'activated' && isActive) {
-      startScanning();
-    }
-  }, [phase, isActive]);
+  }, [profile?.username, user, nativeFriendDrop, friendDropSync]);
 
   // Swing detection - detects back-then-forward motion instantly
   useSwingDetection({
@@ -497,74 +517,6 @@ export function AutoFriendDrop() {
     }
   }, [friendDropSync, stopScanning]);
 
-  const startScanning = useCallback(async () => {
-    try {
-      // Try preloaded camera first for instant start
-      let stream = getPreloadedStream();
-      if (!stream) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-        });
-      }
-      streamRef.current = stream;
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) return;
-
-      const scanFrame = async () => {
-        if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
-          animationFrameRef.current = requestAnimationFrame(scanFrame);
-          return;
-        }
-
-        canvas.width = videoRef.current.videoWidth;
-        canvas.height = videoRef.current.videoHeight;
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'dontInvert',
-        });
-
-        if (code) {
-          const url = code.data;
-          
-          // Check for friend-drop URL (realtime sync)
-          const dropMatch = url?.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
-          if (dropMatch) {
-            const dropId = dropMatch[1];
-            await handleDropScan(dropId);
-            return;
-          }
-          
-          // Check for legacy add-friend URL
-          const userMatch = url?.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
-          if (userMatch) {
-            const userId = userMatch[1];
-            if (userId !== user?.id) {
-              handleFoundUser(userId);
-              return;
-            }
-          }
-        }
-
-        animationFrameRef.current = requestAnimationFrame(scanFrame);
-      };
-
-      scanFrame();
-    } catch (error) {
-      console.error('Camera error:', error);
-      // Camera not available - still show QR code
-    }
-  }, [user?.id, handleDropScan]);
-
   const handleFoundUser = useCallback(async (userId: string) => {
     stopScanning();
     haptics.success();
@@ -585,6 +537,74 @@ export function AutoFriendDrop() {
       handleClose();
     }
   }, [stopScanning]);
+
+  // Scan loop - processes video frames to detect QR codes
+  const startScanLoop = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return;
+
+    const scanFrame = async () => {
+      if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
+        animationFrameRef.current = requestAnimationFrame(scanFrame);
+        return;
+      }
+
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'dontInvert',
+      });
+
+      if (code) {
+        const url = code.data;
+        
+        const dropMatch = url?.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
+        if (dropMatch) {
+          await handleDropScan(dropMatch[1]);
+          return;
+        }
+        
+        const userMatch = url?.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
+        if (userMatch && userMatch[1] !== user?.id) {
+          handleFoundUser(userMatch[1]);
+          return;
+        }
+      }
+
+      animationFrameRef.current = requestAnimationFrame(scanFrame);
+    };
+
+    scanFrame();
+  }, [user?.id, handleDropScan, handleFoundUser]);
+
+  // Keep ref in sync
+  startScanLoopRef.current = startScanLoop;
+
+  const startScanning = useCallback(async () => {
+    try {
+      let stream = getPreloadedStream();
+      if (!stream) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+      }
+      streamRef.current = stream;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      startScanLoop();
+    } catch (error) {
+      console.error('Camera error:', error);
+    }
+  }, [startScanLoop]);
 
   const handleAddFriend = useCallback(async () => {
     if (!foundUser) return;
