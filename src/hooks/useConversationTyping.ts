@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { PRESENCE } from '@/lib/constants';
 
 interface TypingUser {
   userId: string;
@@ -16,18 +17,7 @@ export function useConversationTyping(conversationIds: string[]) {
   const { profile } = useAuth();
   const [typingMap, setTypingMap] = useState<Map<string, string[]>>(new Map());
 
-  // Clean up stale typing indicators (older than 5 seconds)
-  const cleanupStale = useCallback(() => {
-    const now = Date.now();
-    setTypingMap(prev => {
-      const newMap = new Map(prev);
-      let changed = false;
-      
-      // We track internal timestamps, but for simplicity we just clear on interval
-      // The realtime subscription will repopulate active typers
-      return newMap;
-    });
-  }, []);
+  const TYPING_TIMEOUT = PRESENCE.TYPING_TIMEOUT_MS;
 
   useEffect(() => {
     if (!profile?.id || !conversationIds.length) {
@@ -57,9 +47,9 @@ export function useConversationTyping(conversationIds: string[]) {
             // Someone started/updated typing
             if (data.user_id === profile.id) return; // Skip our own typing
             
-            // Check if typing indicator is recent (within 5 seconds)
+            // Check if typing indicator is recent
             const updatedAt = new Date(data.updated_at || data.created_at).getTime();
-            const isRecent = Date.now() - updatedAt < 5000;
+            const isRecent = Date.now() - updatedAt < TYPING_TIMEOUT;
             
             if (isRecent) {
               setTypingMap(prev => {
@@ -71,7 +61,7 @@ export function useConversationTyping(conversationIds: string[]) {
                 return newMap;
               });
               
-              // Auto-remove after 5 seconds
+              // Auto-remove after timeout
               setTimeout(() => {
                 setTypingMap(prev => {
                   const newMap = new Map(prev);
@@ -82,7 +72,7 @@ export function useConversationTyping(conversationIds: string[]) {
                   }
                   return newMap;
                 });
-              }, 5000);
+              }, TYPING_TIMEOUT);
             }
           } else if (payload.eventType === 'DELETE') {
             // Someone stopped typing
