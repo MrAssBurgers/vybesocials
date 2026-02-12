@@ -195,7 +195,22 @@ export function ChatView() {
     return latest;
   }, [messages, profile?.id]);
 
-  const [messageText, setMessageText] = useState('');
+  // Load draft from localStorage on mount / conversation change
+  const [messageText, setMessageText] = useState(() => {
+    if (!conversationId) return '';
+    try {
+      return localStorage.getItem(`draft:${conversationId}`) || '';
+    } catch { return ''; }
+  });
+
+  // Restore draft when switching conversations
+  useEffect(() => {
+    if (!conversationId) return;
+    try {
+      const saved = localStorage.getItem(`draft:${conversationId}`) || '';
+      setMessageText(saved);
+    } catch { /* ignore */ }
+  }, [conversationId]);
   const [viewMode, setViewMode] = useState<ViewMode>('permanent');
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -442,6 +457,17 @@ export function ChatView() {
     // Update text IMMEDIATELY - this is the critical path
     setMessageText(value);
     
+    // Auto-save draft to localStorage
+    try {
+      if (conversationId) {
+        if (value.length > 0) {
+          localStorage.setItem(`draft:${conversationId}`, value);
+        } else {
+          localStorage.removeItem(`draft:${conversationId}`);
+        }
+      }
+    } catch { /* quota exceeded or private browsing */ }
+    
     // Schedule typing indicator update (non-blocking)
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -473,6 +499,9 @@ export function ChatView() {
 
   const handleSend = useCallback(() => {
     if (!messageText.trim() || !conversationId) return;
+    
+    // Clear draft on send
+    try { localStorage.removeItem(`draft:${conversationId}`); } catch { /* */ }
 
     const text = messageText.trim();
     
