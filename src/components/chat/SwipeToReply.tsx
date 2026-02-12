@@ -32,9 +32,9 @@ export function SwipeToReply({
   const x = useMotionValue(0);
   
   // Reply icon transforms - smooth reveal
-  const replyOpacity = useTransform(x, [0, 25, SWIPE_THRESHOLD], [0, 0.5, 1]);
-  const replyScale = useTransform(x, [0, SWIPE_THRESHOLD], [0.5, 1]);
-  const replyX = useTransform(x, [0, SWIPE_THRESHOLD], [-10, 8]);
+  const replyOpacity = useTransform(x, [0, 15, 25, SWIPE_THRESHOLD], [0, 0, 0.5, 1]);
+  const replyScale = useTransform(x, [0, 15, SWIPE_THRESHOLD], [0, 0.5, 1]);
+  const replyX = useTransform(x, [0, SWIPE_THRESHOLD], [-20, 8]);
   
   // Icon rotation for satisfaction
   const replyRotate = useTransform(x, [0, SWIPE_THRESHOLD, MAX_SWIPE], [-45, 0, 10]);
