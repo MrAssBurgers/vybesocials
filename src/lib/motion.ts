@@ -2,12 +2,14 @@
 // Provides consistent easing, duration, and spring configs
 
 export const MOTION_CONFIG = {
-  // Spring configs for different use cases
+  // Spring configs - Apple-style liquid physics
   spring: {
     snappy: { type: 'spring', stiffness: 400, damping: 28 } as const,
     gentle: { type: 'spring', stiffness: 250, damping: 22 } as const,
     bouncy: { type: 'spring', stiffness: 350, damping: 18 } as const,
     slow: { type: 'spring', stiffness: 180, damping: 22 } as const,
+    liquid: { type: 'spring', stiffness: 260, damping: 24, mass: 0.9 } as const,
+    liquidSoft: { type: 'spring', stiffness: 180, damping: 22 } as const,
   },
   
   // Duration presets (in seconds)
@@ -38,12 +40,12 @@ export const MOTION_VARIANTS = {
     transition: { duration: MOTION_CONFIG.duration.normal },
   },
   
-  // Fade and slide up
+  // Fade and slide up - liquid spring
   fadeUp: {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: 20 },
-    transition: MOTION_CONFIG.spring.snappy,
+    initial: { opacity: 0, y: 12, scale: 0.99 },
+    animate: { opacity: 1, y: 0, scale: 1 },
+    exit: { opacity: 0, y: 12, scale: 0.99 },
+    transition: MOTION_CONFIG.spring.liquid,
   },
   
   // Scale in/out

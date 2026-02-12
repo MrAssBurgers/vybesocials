@@ -1,23 +1,21 @@
 import { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { liquidSpring } from '@/motion/liquidConfig';
 
 interface PageTransitionProps {
   children: ReactNode;
   className?: string;
 }
 
-// Smooth fade-up transition for page content
+// Apple-style liquid page transition with spring physics
 export function PageTransition({ children, className }: PageTransitionProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{
-        duration: 0.2,
-        ease: [0.25, 0.1, 0.25, 1], // Custom easing for smooth feel
-      }}
+      initial={{ opacity: 0, y: 10, scale: 0.99 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -6, scale: 0.99 }}
+      transition={liquidSpring}
       className={className}
     >
       {children}
@@ -25,7 +23,7 @@ export function PageTransition({ children, className }: PageTransitionProps) {
   );
 }
 
-// Section transition for staggered content loading
+// Section transition with liquid spring and stagger delay
 export function SectionTransition({ 
   children, 
   delay = 0,
@@ -37,12 +35,11 @@ export function SectionTransition({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{
-        duration: 0.25,
+        ...liquidSpring,
         delay,
-        ease: [0.25, 0.1, 0.25, 1],
       }}
       className={className}
     >
@@ -51,7 +48,7 @@ export function SectionTransition({
   );
 }
 
-// Card hover animation wrapper
+// Card hover with liquid spring physics
 export function CardHover({ 
   children, 
   className,
@@ -63,9 +60,9 @@ export function CardHover({
 }) {
   return (
     <motion.div
-      whileHover={{ scale, y: -2 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.15 }}
+      whileHover={{ scale, y: -3 }}
+      whileTap={{ scale: 0.96 }}
+      transition={liquidSpring}
       className={className}
     >
       {children}
@@ -73,11 +70,11 @@ export function CardHover({
   );
 }
 
-// List item stagger animation
+// List item stagger with liquid spring
 export function StaggerList({ 
   children, 
   className,
-  staggerDelay = 0.05,
+  staggerDelay = 0.04,
 }: { 
   children: ReactNode[]; 
   className?: string;
@@ -93,6 +90,7 @@ export function StaggerList({
           opacity: 1,
           transition: {
             staggerChildren: staggerDelay,
+            delayChildren: 0.02,
           },
         },
       }}
@@ -102,10 +100,10 @@ export function StaggerList({
         <motion.div
           key={index}
           variants={{
-            hidden: { opacity: 0, y: 10 },
-            visible: { opacity: 1, y: 0 },
+            hidden: { opacity: 0, y: 8, scale: 0.98 },
+            visible: { opacity: 1, y: 0, scale: 1 },
           }}
-          transition={{ duration: 0.2 }}
+          transition={liquidSpring}
         >
           {child}
         </motion.div>

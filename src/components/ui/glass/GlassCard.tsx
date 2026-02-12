@@ -1,6 +1,7 @@
 import { forwardRef, ReactNode, memo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { liquidSpring } from '@/motion/liquidConfig';
 import { useGlassIntensity } from './GlassIntensityProvider';
 import { useAccessibility } from '@/providers/AccessibilityProvider';
 
@@ -32,12 +33,13 @@ export const GlassCard = memo(forwardRef<HTMLDivElement, GlassCardProps>(
     return (
       <motion.div
         ref={ref}
-        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+        initial={reduceMotion ? false : { opacity: 0, y: 8, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={liquidSpring}
         whileHover={interactive && !reduceMotion ? { 
-          y: -2,
-          transition: { duration: 0.2 }
+          y: -3,
+          scale: 1.01,
+          transition: liquidSpring,
         } : undefined}
         className={cn(
           'relative overflow-hidden rounded-xl',

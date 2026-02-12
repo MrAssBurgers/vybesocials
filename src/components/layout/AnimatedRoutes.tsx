@@ -61,16 +61,18 @@ const PageFallback = memo(() => (
   <div className="min-h-screen bg-background" />
 ));
 
-// Ultra-smooth page transition - no black flash
+// Apple-style liquid page transition
 const pageVariants = {
-  initial: { opacity: 0.85 },
-  animate: { opacity: 1 },
+  initial: { opacity: 0, y: 6, scale: 0.998 },
+  animate: { opacity: 1, y: 0, scale: 1 },
 };
 
-// Instant transitions - no delay
+// Liquid spring for page transitions
 const pageTransition = {
-  duration: 0.05,
-  ease: 'linear' as const,
+  type: 'spring' as const,
+  stiffness: 260,
+  damping: 24,
+  mass: 0.9,
 };
 
 /**
