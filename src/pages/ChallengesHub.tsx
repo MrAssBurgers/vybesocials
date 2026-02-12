@@ -229,26 +229,44 @@ export default function ChallengesHubPage() {
                         </p>
                         <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">+{reward.xp_amount} XP</p>
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleClaimReward(reward.id);
-                        }}
-                        disabled={claimingId === reward.id}
-                        className="shrink-0"
+                      <motion.div
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.92 }}
                       >
-                        {claimingId === reward.id ? (
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                          >
-                            <Star className="h-4 w-4" />
-                          </motion.div>
-                        ) : (
-                          'Claim'
-                        )}
-                      </Button>
+                        <Button
+                          size="default"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleClaimReward(reward.id);
+                          }}
+                          disabled={claimingId === reward.id}
+                          className="shrink-0 px-5 py-2.5 text-sm font-bold shadow-[0_0_16px_hsl(var(--primary)/0.4)] hover:shadow-[0_0_24px_hsl(var(--primary)/0.6)] transition-shadow relative overflow-hidden"
+                        >
+                          {claimingId === reward.id ? (
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                            >
+                              <Star className="h-4 w-4" />
+                            </motion.div>
+                          ) : (
+                            <motion.span
+                              className="flex items-center gap-1.5"
+                              animate={{ 
+                                textShadow: [
+                                  '0 0 4px hsl(var(--primary-foreground) / 0.3)',
+                                  '0 0 12px hsl(var(--primary-foreground) / 0.6)',
+                                  '0 0 4px hsl(var(--primary-foreground) / 0.3)',
+                                ]
+                              }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                            >
+                              <Gift className="h-4 w-4" />
+                              Claim
+                            </motion.span>
+                          )}
+                        </Button>
+                      </motion.div>
                     </motion.div>
                   ))}
                 </div>
@@ -416,18 +434,33 @@ export default function ChallengesHubPage() {
                         {/* Completed overlay */}
                         {challenge.is_completed && (
                           <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
                             className="absolute top-2 right-2"
                           >
-                            <Badge className={cn(
-                              "text-primary-foreground",
-                              challenge.is_claimed 
-                                ? "bg-muted-foreground/60" 
-                                : "bg-primary"
-                            )}>
-                              {challenge.is_claimed ? '✓ Completed' : '🎁 Claim XP'}
-                            </Badge>
+                            {challenge.is_claimed ? (
+                              <Badge className="bg-muted-foreground/60 text-primary-foreground px-3 py-1">
+                                ✓ Completed
+                              </Badge>
+                            ) : (
+                              <motion.div
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                animate={{ 
+                                  boxShadow: [
+                                    '0 0 8px hsl(var(--primary) / 0.3)',
+                                    '0 0 20px hsl(var(--primary) / 0.6)',
+                                    '0 0 8px hsl(var(--primary) / 0.3)',
+                                  ]
+                                }}
+                                transition={{ duration: 1.5, repeat: Infinity }}
+                                className="rounded-full"
+                              >
+                                <Badge className="bg-primary text-primary-foreground px-4 py-1.5 text-sm font-bold cursor-pointer">
+                                  🎁 Claim XP
+                                </Badge>
+                              </motion.div>
+                            )}
                           </motion.div>
                         )}
                       </GlassCard>
