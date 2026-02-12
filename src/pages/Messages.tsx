@@ -20,9 +20,14 @@ export default function Messages() {
             ? 'h-[100dvh] fixed inset-0 z-50' 
             : 'h-[calc(100dvh-4rem)] md:h-screen'
           } 
-          flex max-w-full bg-background
+          flex max-w-full
         `}
-        style={{ overflow: 'hidden' }}
+        style={{ 
+          overflow: 'hidden',
+          background: 'hsl(var(--card) / 0.97)',
+          backdropFilter: 'blur(40px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+        }}
       >
         {/* Conversation list - hidden on mobile when in chat */}
         <div 
