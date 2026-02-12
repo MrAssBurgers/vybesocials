@@ -37,6 +37,8 @@ interface StyledUsernameProps {
     effect?: string | null;
     is_animated?: boolean;
   } | null;
+  /** Override color from equipped name_color cosmetic (takes priority over badge styling) */
+  nameColorOverride?: string | null;
 }
 
 /**
@@ -56,6 +58,7 @@ export const StyledUsername = memo(function StyledUsername({
   showAtSymbol = false,
   preferDisplayName = true,
   badgeStyle: preloadedStyle,
+  nameColorOverride,
 }: StyledUsernameProps) {
   // Generate unique ID early (before conditions)
   const elementId = useMemo(() => `styled-username-${Math.random().toString(36).slice(2, 9)}`, []);
@@ -95,6 +98,36 @@ export const StyledUsername = memo(function StyledUsername({
     if (typeof supports !== 'function') return true;
     return supports('background-image', gradient);
   }, [gradient]);
+
+  // If nameColorOverride is set, it takes priority over badge styling
+  if (nameColorOverride) {
+    const isGrad = nameColorOverride.startsWith('linear');
+    if (isGrad) {
+      return (
+        <span
+          className={className}
+          style={{
+            backgroundImage: nameColorOverride,
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            color: 'transparent',
+            display: 'inline-block',
+          }}
+        >
+          {nameToShow}
+        </span>
+      );
+    }
+    return (
+      <span
+        className={className}
+        style={{ color: nameColorOverride, textShadow: `0 0 10px ${nameColorOverride}40` }}
+      >
+        {nameToShow}
+      </span>
+    );
+  }
 
   // No badge styling OR unsupported/invalid gradient => render plain text (fully opaque)
   if (!gradient || !canUseGradientText) {

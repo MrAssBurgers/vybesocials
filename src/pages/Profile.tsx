@@ -249,15 +249,14 @@ export default function ProfilePage() {
                     "text-2xl font-bold flex items-center gap-2",
                     effectClass,
                   )}>
-                    <span style={nameColor ? { color: nameColor } : undefined}>
-                      <StyledUsername
-                        userId={profile.id}
-                        username={profile.username}
-                        displayName={profile.display_name}
-                        preferDisplayName={true}
-                        className="text-2xl font-bold"
-                      />
-                    </span>
+                    <StyledUsername
+                      userId={profile.id}
+                      username={profile.username}
+                      displayName={profile.display_name}
+                      preferDisplayName={true}
+                      className="text-2xl font-bold"
+                      nameColorOverride={nameColor}
+                    />
                     {showOwnerBadge && isOwner(profile.username) && <OwnerBadge />}
                     {showOwnerWifeBadge && isOwnerWife(profile.id) && <OwnerWifeRingBadge />}
                     {showModBadge && profileRole && <ModBadge role={profileRole} />}
@@ -270,7 +269,6 @@ export default function ProfilePage() {
                     'flex items-center gap-2',
                     !profile.display_name && effectClass,
                   )}
-                  style={{ color: !profile.display_name && nameColor ? nameColor : 'hsl(var(--foreground))', opacity: 1 }}
                 >
                   {!profile.display_name ? (
                     <StyledUsername
@@ -279,6 +277,7 @@ export default function ProfilePage() {
                       showAtSymbol={true}
                       preferDisplayName={false}
                       className="text-2xl font-bold"
+                      nameColorOverride={nameColor}
                     />
                   ) : (
                     `@${profile.username}`
