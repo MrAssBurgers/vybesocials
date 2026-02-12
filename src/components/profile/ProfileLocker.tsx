@@ -173,8 +173,7 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
       {/* ── Mini Profile Preview ──────────────────────────── */}
       <div className={cn(
         "w-full rounded-xl overflow-hidden relative",
-        tabId === 'themes' ? 'h-20' : 'h-16',
-        !item.unlocked && "grayscale opacity-50"
+        tabId === 'themes' ? 'h-20' : 'h-16'
       )}>
         {tabId === 'colors' && (
           <div className="w-full h-full bg-gradient-to-b from-muted/40 to-card/60 flex flex-col items-center justify-center gap-1.5 px-2">
