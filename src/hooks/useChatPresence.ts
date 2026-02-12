@@ -31,8 +31,9 @@ export function useChatPresence(conversationId: string | undefined) {
 
   // Fire-and-forget setTyping - never blocks the main thread
   const setTyping = useCallback((isTyping: boolean) => {
-    // Skip if no change
-    if (lastTypingStateRef.current === isTyping) return;
+    // For typing=true, always update timestamp (don't skip duplicates)
+    // For typing=false, skip if already false
+    if (!isTyping && lastTypingStateRef.current === false) return;
     lastTypingStateRef.current = isTyping;
     
     const cid = conversationIdRef.current;
