@@ -1,9 +1,8 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, memo, lazy, Suspense } from 'react';
 import './lib/i18n';
 import './styles/liquid.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { useRetroactiveSync } from "@/hooks/useRetroactiveSync";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, useLocation } from "react-router-dom";
@@ -11,42 +10,39 @@ import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
-import { EasterEggProvider } from "@/components/easter-eggs/EasterEggProvider";
 import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
 import { CallStoreProvider } from "@/lib/callStore";
-import { GlobalCallOverlay } from "@/components/call/GlobalCallOverlay";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
-import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
-import { GlobalMessageNotifications } from "@/components/notifications/GlobalMessageNotifications";
-import { TabNotificationBadge } from "@/components/notifications/TabNotificationBadge";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
 import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
-import { TutorialProvider } from "@/components/tutorial/TutorialProvider";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
-import { WarningPopup } from "@/components/moderation/WarningPopup";
-import { BannedScreen } from "@/components/auth/BannedScreen";
-import { MemeBanScreen } from "@/components/auth/MemeBanScreen";
-import { InvitePopup } from "@/components/invite/InvitePopup";
-import { useBanStatus } from "@/hooks/useBanStatus";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
-import { useGlobalRealtimeMessages } from "@/hooks/useGlobalRealtimeMessages";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
-import { usePrefetchBackgrounds } from '@/hooks/useUserBackgrounds';
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
-import { AppUpdateOverlay } from "@/components/app/AppUpdateOverlay";
-import { useDynamicFavicon } from "@/hooks/useDynamicFavicon";
-import { useDynamicManifest } from "@/hooks/useDynamicManifest";
-import { RewardNotificationProvider } from "@/components/vybepass/RewardNotificationProvider";
-import { useDailyLoginChallenge } from "@/hooks/useDailyLogin";
-import { StreakProvider } from "@/components/streak/StreakProvider";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
+
+// Lazy-load non-critical overlays and providers to reduce initial bundle
+const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
+const GlobalCallOverlay = lazy(() => import("@/components/call/GlobalCallOverlay").then(m => ({ default: m.GlobalCallOverlay })));
+const PushNotificationPrompt = lazy(() => import("@/components/notifications/PushNotificationPrompt").then(m => ({ default: m.PushNotificationPrompt })));
+const GlobalMessageNotifications = lazy(() => import("@/components/notifications/GlobalMessageNotifications").then(m => ({ default: m.GlobalMessageNotifications })));
+const TabNotificationBadge = lazy(() => import("@/components/notifications/TabNotificationBadge").then(m => ({ default: m.TabNotificationBadge })));
+const TutorialProvider = lazy(() => import("@/components/tutorial/TutorialProvider").then(m => ({ default: m.TutorialProvider })));
+const WarningPopup = lazy(() => import("@/components/moderation/WarningPopup").then(m => ({ default: m.WarningPopup })));
+const InvitePopup = lazy(() => import("@/components/invite/InvitePopup").then(m => ({ default: m.InvitePopup })));
+const AppUpdateOverlay = lazy(() => import("@/components/app/AppUpdateOverlay").then(m => ({ default: m.AppUpdateOverlay })));
+const RewardNotificationProvider = lazy(() => import("@/components/vybepass/RewardNotificationProvider").then(m => ({ default: m.RewardNotificationProvider })));
+const StreakProvider = lazy(() => import("@/components/streak/StreakProvider").then(m => ({ default: m.StreakProvider })));
+
+// Lazy-load deferred hooks via a wrapper component
+const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
 
 // Initialize stored fonts and custom animations on app load
 initializeStoredFonts();
@@ -93,44 +89,11 @@ function ScrollRestoration() {
   return null;
 }
 
-// Ban check component
-function BanCheck() {
-  const { data: banData } = useBanStatus();
-  
-  if (!banData) return null;
-  
-  if (banData.is_meme_ban) {
-    return <MemeBanScreen reason={banData.reason} expiresAt={banData.expires_at} customGifUrl={banData.custom_gif_url} />;
-  }
-  
-  return (
-    <BannedScreen 
-      reason={banData.reason} 
-      expiresAt={banData.expires_at} 
-      isPermanent={banData.is_permanent} 
-    />
-  );
-}
+// Lazy-load ban check
+const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
 // Track if initial load has completed (persists across navigations)
 let hasInitialLoadCompleted = false;
-
-// Component that requires AuthProvider context
-function AuthenticatedPreloads() {
-  // Prefetch user backgrounds for instant settings load
-  usePrefetchBackgrounds();
-  // Global realtime messages - ensures DMs update instantly everywhere
-  useGlobalRealtimeMessages();
-  // Dynamic favicon that syncs with user's VYBE theme colors
-  useDynamicFavicon();
-  // Dynamic PWA manifest with theme-colored icons
-  useDynamicManifest();
-  // Sync retroactive challenge progress and owner badges
-  useRetroactiveSync();
-  // Track daily login for challenges
-  useDailyLoginChallenge();
-  return null;
-}
 
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
@@ -166,40 +129,48 @@ function AppWithPreloader() {
       />
       <GlobalErrorHandler />
       <AuthProvider>
-        <AuthenticatedPreloads />
+        <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
         {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
         <AppBackgroundProvider>
           <CustomThemeProvider>
             <ThemeTransitionProvider>
-              <EasterEggProvider>
-                <CallStoreProvider>
-                  <RewardNotificationProvider>
-                    <StreakProvider>
-                      <TooltipProvider>
-                        <Toaster />
-                        <Sonner />
-                        <BrowserRouter>
-                          <DebugPanelProvider>
-                            <TutorialProvider>
-                              <ScrollRestoration />
-                              <AnimatedRoutes />
-                              <RootBottomNavMount />
-                              <PushNotificationPrompt />
-                              <GlobalMessageNotifications />
-                              <TabNotificationBadge />
-                              <GlobalCallOverlay />
-                              <WarningPopup />
-                              <InvitePopup />
-                              <BanCheck />
-                              <AppUpdateOverlay />
-                            </TutorialProvider>
-                          </DebugPanelProvider>
-                        </BrowserRouter>
-                      </TooltipProvider>
-                    </StreakProvider>
-                  </RewardNotificationProvider>
-                </CallStoreProvider>
-              </EasterEggProvider>
+              <Suspense fallback={null}>
+                <EasterEggProvider>
+                  <CallStoreProvider>
+                    <Suspense fallback={null}>
+                      <RewardNotificationProvider>
+                        <StreakProvider>
+                          <TooltipProvider>
+                            <Toaster />
+                            <Sonner />
+                            <BrowserRouter>
+                              <DebugPanelProvider>
+                                <Suspense fallback={null}>
+                                  <TutorialProvider>
+                                    <ScrollRestoration />
+                                    <AnimatedRoutes />
+                                    <RootBottomNavMount />
+                                    <Suspense fallback={null}>
+                                      <PushNotificationPrompt />
+                                      <GlobalMessageNotifications />
+                                      <TabNotificationBadge />
+                                      <GlobalCallOverlay />
+                                      <WarningPopup />
+                                      <InvitePopup />
+                                      <BanCheck />
+                                      <AppUpdateOverlay />
+                                    </Suspense>
+                                  </TutorialProvider>
+                                </Suspense>
+                              </DebugPanelProvider>
+                            </BrowserRouter>
+                          </TooltipProvider>
+                        </StreakProvider>
+                      </RewardNotificationProvider>
+                    </Suspense>
+                  </CallStoreProvider>
+                </EasterEggProvider>
+              </Suspense>
             </ThemeTransitionProvider>
           </CustomThemeProvider>
         </AppBackgroundProvider>
