@@ -211,6 +211,10 @@ export function useUserTheme() {
   });
 }
 
+// Flag to suppress useApplyUserTheme during save operations
+let _isSavingTheme = false;
+export function isSavingTheme() { return _isSavingTheme; }
+
 export function useSaveTheme() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -228,26 +232,42 @@ export function useSaveTheme() {
       const userId = user?.id;
       if (!userId) throw new Error('Not authenticated');
 
+      _isSavingTheme = true;
+
+      const payload = {
+        user_id: userId,
+        theme_name: themeName,
+        theme_tokens: themeTokens as any,
+        base_preset: basePreset,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      };
+
       const { error } = await supabase
         .from('user_themes')
-        .upsert({
-          user_id: userId,
-          theme_name: themeName,
-          theme_tokens: themeTokens as any,
-          base_preset: basePreset,
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        }, {
+        .upsert(payload, {
           onConflict: 'user_id',
         });
 
       if (error) throw error;
+
+      // Return the saved data so onSuccess can use it for optimistic update
+      return payload;
     },
-    onSuccess: () => {
+    onSuccess: (savedData) => {
+      // Optimistically set the query data to the saved theme BEFORE invalidating
+      // This prevents useApplyUserTheme from re-applying the old theme
+      queryClient.setQueryData(['user-theme', user?.id], (old: any) => ({
+        ...old,
+        ...savedData,
+      }));
       queryClient.invalidateQueries({ queryKey: ['user-theme'] });
       toast.success('Theme saved!');
+      // Allow re-application after a delay to let the query settle
+      setTimeout(() => { _isSavingTheme = false; }, 500);
     },
     onError: (error: any) => {
+      _isSavingTheme = false;
       console.error('Failed to save theme:', error);
       toast.error('Failed to save theme');
     },
@@ -637,7 +657,7 @@ export function useApplyUserTheme() {
 
   // Helper to get and apply the right theme for a given mode
   const applyForMode = useCallback((resolved: 'dark' | 'light') => {
-    if (_isApplyingTheme) return;
+    if (_isApplyingTheme || _isSavingTheme) return;
     _isApplyingTheme = true;
     
     try {
