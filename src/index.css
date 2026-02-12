@@ -3206,3 +3206,44 @@ img, video {
   66% { box-shadow: 0 0 20px 4px rgba(139, 92, 246, 0.3), 0 0 40px 8px rgba(16, 185, 129, 0.15); }
   100% { box-shadow: 0 0 20px 4px rgba(236, 72, 153, 0.3), 0 0 40px 8px rgba(139, 92, 246, 0.15); }
 }
+
+/* ── Effect Animation Classes (for locker & VybePass) ──── */
+.sparkle-name {
+  animation: sparkle-name 2s ease-in-out infinite;
+}
+.rainbow-name {
+  animation: rainbow-shift 3s linear infinite;
+  background: linear-gradient(90deg, #EC4899, #8B5CF6, #06B6D4, #10B981, #EAB308);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% 100%;
+}
+.fire-glow {
+  animation: fire-glow 1.5s ease-in-out infinite;
+  color: hsl(20 95% 55%);
+}
+.cosmic-name {
+  animation: cosmic-glow 3s ease-in-out infinite;
+  color: hsl(260 80% 70%);
+}
+.glitch-name {
+  animation: glitch-text 0.8s steps(4) infinite;
+}
+.neon-pulse-name {
+  animation: neon-pulse 2s ease-in-out infinite;
+}
+.shadow-flicker-name {
+  animation: shadow-flicker 2s ease-in-out infinite;
+}
+.aurora-wave-name {
+  animation: aurora-wave 4s ease-in-out infinite;
+  color: hsl(160 80% 55%);
+}
+.electric-surge-name {
+  animation: electric-surge 2s ease-in-out infinite;
+  color: hsl(50 100% 60%);
+}
+.plasma-storm-name {
+  animation: plasma-storm 3s ease-in-out infinite;
+  color: hsl(280 80% 65%);
+}

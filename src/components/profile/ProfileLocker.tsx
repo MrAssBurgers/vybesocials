@@ -173,7 +173,7 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
       {/* ── Mini Profile Preview ──────────────────────────── */}
       <div className={cn(
         "w-full rounded-xl overflow-hidden relative",
-        tabId === 'themes' ? 'h-20' : 'h-16'
+        tabId === 'themes' ? 'h-24' : tabId === 'effects' ? 'h-20' : 'h-16'
       )}>
         {tabId === 'colors' && (
           <div className="w-full h-full bg-gradient-to-b from-muted/40 to-card/60 flex flex-col items-center justify-center gap-1.5 px-2">
@@ -205,7 +205,7 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
         {tabId === 'effects' && (
           <div className="w-full h-full bg-gradient-to-b from-muted/40 to-card/60 flex flex-col items-center justify-center gap-1.5 px-2">
             <div className="w-7 h-7 rounded-full bg-muted/50 border border-border/40 shadow-sm" />
-            <span className={cn("text-[11px] font-bold text-foreground truncate max-w-full", effectClass)}>
+            <span className={cn("text-sm font-extrabold text-foreground truncate max-w-full", effectClass)}>
               {displayName}
             </span>
           </div>
@@ -465,7 +465,7 @@ export function ProfileLocker() {
             {hasCosmeticTab && (
               <div className={cn(
                 "grid gap-2",
-                activeTab === 'themes' ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-3 sm:grid-cols-4"
+                (activeTab === 'themes' || activeTab === 'effects') ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-3 sm:grid-cols-4"
               )}>
                 {tabItems.map(item => (
                   <ItemCard
