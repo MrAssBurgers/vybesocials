@@ -171,7 +171,8 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, 
         )}
 
         {tabId === 'effects' && (
-          <div className="w-full h-full flex items-center justify-center px-2">
+          <div className="w-full h-full bg-gradient-to-b from-muted/40 to-card/60 flex flex-col items-center justify-center gap-1.5 px-2">
+            <div className="w-7 h-7 rounded-full bg-muted/50 border border-border/40 shadow-sm" />
             <span className={cn("text-sm font-extrabold text-foreground truncate max-w-full", effectClass)}>
               {displayName}
             </span>

@@ -3098,14 +3098,14 @@ img, video {
 }
 
 @keyframes fire-glow {
-  0%, 100% { text-shadow: 0 0 4px hsl(20 90% 50% / 0.6), 0 0 8px hsl(30 90% 50% / 0.3); }
-  50% { text-shadow: 0 0 8px hsl(15 95% 55% / 0.8), 0 0 16px hsl(25 90% 50% / 0.5), 0 0 24px hsl(35 85% 45% / 0.3); }
+  0%, 100% { text-shadow: 0 0 6px hsl(20 90% 50% / 0.3), 0 0 20px hsl(30 90% 50% / 0.1); }
+  50% { text-shadow: 0 0 10px hsl(15 95% 55% / 0.4), 0 0 30px hsl(25 90% 50% / 0.15), 0 0 50px hsl(35 85% 45% / 0.08); }
 }
 
 @keyframes cosmic-glow {
-  0%, 100% { text-shadow: 0 0 6px hsl(260 80% 60% / 0.5), 0 0 12px hsl(200 80% 60% / 0.3); }
-  33% { text-shadow: 0 0 8px hsl(280 80% 65% / 0.6), 0 0 16px hsl(220 80% 55% / 0.4); }
-  66% { text-shadow: 0 0 10px hsl(300 75% 60% / 0.7), 0 0 20px hsl(240 80% 60% / 0.5); }
+  0%, 100% { text-shadow: 0 0 8px hsl(260 80% 60% / 0.25), 0 0 24px hsl(200 80% 60% / 0.1); }
+  33% { text-shadow: 0 0 10px hsl(280 80% 65% / 0.3), 0 0 30px hsl(220 80% 55% / 0.12); }
+  66% { text-shadow: 0 0 12px hsl(300 75% 60% / 0.35), 0 0 36px hsl(240 80% 60% / 0.15); }
 }
 
 @keyframes diamond-pulse {
@@ -3114,8 +3114,8 @@ img, video {
 }
 
 @keyframes sparkle-name {
-  0%, 100% { text-shadow: 0 0 4px hsl(var(--primary) / 0.4); opacity: 1; }
-  50% { text-shadow: 0 0 12px hsl(var(--primary) / 0.7), 0 0 20px hsl(var(--accent) / 0.4); opacity: 0.9; }
+  0%, 100% { text-shadow: 0 0 6px hsl(var(--primary) / 0.2); opacity: 1; }
+  50% { text-shadow: 0 0 14px hsl(var(--primary) / 0.35), 0 0 36px hsl(var(--accent) / 0.12); opacity: 0.9; }
 }
 
 /* ── Amplified Profile Effects (go crazy on profile view) ── */
@@ -3146,38 +3146,38 @@ img, video {
 }
 
 @keyframes neon-pulse {
-  0%, 100% { text-shadow: 0 0 4px hsl(var(--primary) / 0.5), 0 0 8px hsl(var(--primary) / 0.3); opacity: 1; }
-  50% { text-shadow: 0 0 12px hsl(var(--primary) / 1), 0 0 24px hsl(var(--primary) / 0.7), 0 0 48px hsl(var(--primary) / 0.4); opacity: 0.85; }
+  0%, 100% { text-shadow: 0 0 6px hsl(var(--primary) / 0.25), 0 0 20px hsl(var(--primary) / 0.1); opacity: 1; }
+  50% { text-shadow: 0 0 14px hsl(var(--primary) / 0.5), 0 0 36px hsl(var(--primary) / 0.2), 0 0 60px hsl(var(--primary) / 0.08); opacity: 0.85; }
 }
 
 @keyframes shadow-flicker {
-  0%, 100% { text-shadow: 0 0 4px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4); opacity: 1; }
-  20% { text-shadow: 0 0 8px rgba(0,0,0,0.8), 0 4px 16px rgba(0,0,0,0.6); opacity: 0.7; }
-  40% { text-shadow: 0 0 2px rgba(0,0,0,0.4); opacity: 1; }
-  60% { text-shadow: 0 0 12px rgba(0,0,0,0.9), 0 4px 20px rgba(0,0,0,0.7); opacity: 0.6; }
-  80% { text-shadow: 0 0 4px rgba(0,0,0,0.5); opacity: 0.95; }
+  0%, 100% { text-shadow: 0 0 6px rgba(0,0,0,0.3), 0 2px 16px rgba(0,0,0,0.15); opacity: 1; }
+  20% { text-shadow: 0 0 10px rgba(0,0,0,0.4), 0 4px 24px rgba(0,0,0,0.2); opacity: 0.7; }
+  40% { text-shadow: 0 0 4px rgba(0,0,0,0.2); opacity: 1; }
+  60% { text-shadow: 0 0 14px rgba(0,0,0,0.45), 0 4px 30px rgba(0,0,0,0.2); opacity: 0.6; }
+  80% { text-shadow: 0 0 6px rgba(0,0,0,0.25); opacity: 0.95; }
 }
 
 @keyframes aurora-wave {
-  0% { text-shadow: 0 0 8px hsl(160 80% 50% / 0.6), 0 0 16px hsl(200 80% 50% / 0.3); }
-  33% { text-shadow: 0 0 12px hsl(200 80% 55% / 0.7), 0 0 24px hsl(260 70% 50% / 0.4); }
-  66% { text-shadow: 0 0 10px hsl(280 75% 55% / 0.6), 0 0 20px hsl(160 80% 50% / 0.4); }
-  100% { text-shadow: 0 0 8px hsl(160 80% 50% / 0.6), 0 0 16px hsl(200 80% 50% / 0.3); }
+  0% { text-shadow: 0 0 10px hsl(160 80% 50% / 0.3), 0 0 30px hsl(200 80% 50% / 0.1); }
+  33% { text-shadow: 0 0 14px hsl(200 80% 55% / 0.35), 0 0 40px hsl(260 70% 50% / 0.12); }
+  66% { text-shadow: 0 0 12px hsl(280 75% 55% / 0.3), 0 0 35px hsl(160 80% 50% / 0.12); }
+  100% { text-shadow: 0 0 10px hsl(160 80% 50% / 0.3), 0 0 30px hsl(200 80% 50% / 0.1); }
 }
 
 @keyframes electric-surge {
-  0%, 100% { text-shadow: 0 0 4px hsl(50 100% 60% / 0.5); }
-  10% { text-shadow: 0 0 20px hsl(50 100% 60% / 1), 0 0 40px hsl(40 100% 50% / 0.6); }
-  20% { text-shadow: 0 0 4px hsl(50 100% 60% / 0.3); }
-  30% { text-shadow: 0 0 16px hsl(50 100% 60% / 0.8), 0 0 32px hsl(60 100% 50% / 0.5); }
-  40% { text-shadow: 0 0 4px hsl(50 100% 60% / 0.4); }
+  0%, 100% { text-shadow: 0 0 6px hsl(50 100% 60% / 0.25); }
+  10% { text-shadow: 0 0 20px hsl(50 100% 60% / 0.5), 0 0 50px hsl(40 100% 50% / 0.15); }
+  20% { text-shadow: 0 0 6px hsl(50 100% 60% / 0.15); }
+  30% { text-shadow: 0 0 16px hsl(50 100% 60% / 0.4), 0 0 44px hsl(60 100% 50% / 0.12); }
+  40% { text-shadow: 0 0 6px hsl(50 100% 60% / 0.2); }
 }
 
 @keyframes plasma-storm {
-  0%, 100% { text-shadow: 0 0 8px hsl(280 80% 60% / 0.6), 0 0 16px hsl(200 80% 50% / 0.3); }
-  25% { text-shadow: 0 0 16px hsl(320 80% 60% / 0.8), 0 0 32px hsl(260 80% 50% / 0.5), -2px 0 4px hsl(180 80% 50% / 0.4); }
-  50% { text-shadow: 0 0 20px hsl(200 80% 60% / 0.9), 0 0 40px hsl(280 80% 50% / 0.6), 2px 0 4px hsl(320 80% 50% / 0.4); }
-  75% { text-shadow: 0 0 12px hsl(260 80% 60% / 0.7), 0 0 24px hsl(200 80% 50% / 0.4); }
+  0%, 100% { text-shadow: 0 0 10px hsl(280 80% 60% / 0.3), 0 0 28px hsl(200 80% 50% / 0.1); }
+  25% { text-shadow: 0 0 16px hsl(320 80% 60% / 0.4), 0 0 40px hsl(260 80% 50% / 0.15), -2px 0 6px hsl(180 80% 50% / 0.12); }
+  50% { text-shadow: 0 0 20px hsl(200 80% 60% / 0.45), 0 0 50px hsl(280 80% 50% / 0.18), 2px 0 6px hsl(320 80% 50% / 0.12); }
+  75% { text-shadow: 0 0 12px hsl(260 80% 60% / 0.35), 0 0 34px hsl(200 80% 50% / 0.12); }
 }
 
 /* ── New Frame Animations ──────────────────────────────── */
