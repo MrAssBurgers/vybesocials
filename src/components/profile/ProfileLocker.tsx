@@ -173,15 +173,14 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
       {/* ── Mini Profile Preview ──────────────────────────── */}
       <div className={cn(
         "w-full rounded-xl overflow-hidden relative",
-        tabId === 'themes' ? 'h-16' : 'h-14',
-        !item.unlocked && "grayscale opacity-60"
+        tabId === 'themes' ? 'h-20' : 'h-16',
+        !item.unlocked && "grayscale opacity-50"
       )}>
         {tabId === 'colors' && (
-          // Show mini profile with colored name
-          <div className="w-full h-full bg-card/60 flex flex-col items-center justify-center gap-1 px-2">
-            <div className="w-6 h-6 rounded-full bg-muted/60 border border-border/30" />
+          <div className="w-full h-full bg-gradient-to-b from-muted/40 to-card/60 flex flex-col items-center justify-center gap-1.5 px-2">
+            <div className="w-7 h-7 rounded-full bg-muted/50 border border-border/40 shadow-sm" />
             <span
-              className="text-[10px] font-bold truncate max-w-full"
+              className="text-[11px] font-bold truncate max-w-full"
               style={!isGradient
                 ? { color: color || 'hsl(var(--foreground))' }
                 : { background: color, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }
@@ -193,33 +192,30 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
         )}
 
         {tabId === 'titles' && (
-          // Show mini profile with title badge
-          <div className="w-full h-full bg-card/60 flex flex-col items-center justify-center gap-1 px-2">
-            <div className="w-6 h-6 rounded-full bg-muted/60 border border-border/30" />
-            <div className="flex items-center gap-1">
+          <div className="w-full h-full bg-gradient-to-b from-muted/40 to-card/60 flex flex-col items-center justify-center gap-1.5 px-1">
+            <div className="w-7 h-7 rounded-full bg-muted/50 border border-border/40 shadow-sm" />
+            <div className="flex items-center gap-1 max-w-full">
               <span className="text-[9px] text-muted-foreground truncate">{displayName}</span>
-              <span className="text-[8px] px-1 py-px rounded-full bg-primary/15 text-primary font-bold truncate max-w-[50px]">
-                {item.reward_name}
-              </span>
             </div>
+            <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary font-bold truncate max-w-full -mt-0.5">
+              {item.reward_icon} {item.reward_name}
+            </span>
           </div>
         )}
 
         {tabId === 'effects' && (
-          // Show mini profile with name effect animation
-          <div className="w-full h-full bg-card/60 flex flex-col items-center justify-center gap-1 px-2">
-            <div className="w-6 h-6 rounded-full bg-muted/60 border border-border/30" />
-            <span className={cn("text-[10px] font-bold text-foreground truncate max-w-full", effectClass)}>
+          <div className="w-full h-full bg-gradient-to-b from-muted/40 to-card/60 flex flex-col items-center justify-center gap-1.5 px-2">
+            <div className="w-7 h-7 rounded-full bg-muted/50 border border-border/40 shadow-sm" />
+            <span className={cn("text-[11px] font-bold text-foreground truncate max-w-full", effectClass)}>
               {displayName}
             </span>
           </div>
         )}
 
         {tabId === 'frames' && (
-          // Show mini avatar with the frame ring/glow
-          <div className="w-full h-full bg-card/60 flex flex-col items-center justify-center gap-1 px-2">
+          <div className="w-full h-full bg-gradient-to-b from-muted/40 to-card/60 flex flex-col items-center justify-center gap-1.5 px-2">
             <div className={cn(
-              "w-8 h-8 rounded-full bg-muted/60 border border-border/30",
+              "w-9 h-9 rounded-full bg-muted/50",
               frameStyle?.ring,
               frameStyle?.shadow,
             )} />
@@ -227,26 +223,23 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
           </div>
         )}
 
-        {tabId === 'themes' && (
-          // Show mini profile card with theme gradient background
-          <div
-            className="w-full h-full relative"
-            style={{
-              background: preview
-                ? `linear-gradient(135deg, ${preview.from}, ${preview.to})`
-                : 'linear-gradient(135deg, hsl(var(--muted)), hsl(var(--card)))',
-            }}
-          >
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-2">
-              <div className="w-6 h-6 rounded-full bg-white/20 border border-white/30" />
-              <span className="text-[9px] font-medium text-white/80 truncate">{displayName}</span>
-              <div className="flex gap-1">
-                <div className="w-8 h-1 rounded-full bg-white/20" />
-                <div className="w-5 h-1 rounded-full bg-white/15" />
+        {tabId === 'themes' && (() => {
+          const bg = preview
+            ? `linear-gradient(135deg, ${preview.from} 0%, ${preview.to} 100%)`
+            : 'linear-gradient(135deg, hsl(var(--muted)), hsl(var(--card)))';
+          return (
+            <div className="w-full h-full relative" style={{ background: bg }}>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2">
+                <div className="w-7 h-7 rounded-full bg-white/25 border border-white/40 shadow-sm" />
+                <span className="text-[10px] font-bold text-white/90 truncate max-w-full drop-shadow-sm">{displayName}</span>
+                <div className="flex gap-1">
+                  <div className="w-10 h-1.5 rounded-full bg-white/25" />
+                  <div className="w-6 h-1.5 rounded-full bg-white/15" />
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Label */}

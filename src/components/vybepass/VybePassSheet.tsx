@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Star, Lock, Check, Gift, Trophy } from 'lucide-react';
+import { Star, Lock, Check, Gift, Trophy, Palette, Layers, Diamond, Wand2, Type } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -8,9 +8,90 @@ import { Badge } from '@/components/ui/badge';
 import { useVybePassTiers, useUserLevel } from '@/hooks/useVybePass';
 import { cn } from '@/lib/utils';
 
+// ── Preview maps (shared with locker) ───────────────────────────
+const NAME_COLOR_MAP: Record<string, string> = {
+  'Crimson': '#DC2626', 'Ocean Blue': '#2563EB', 'Emerald': '#059669',
+  'Sunset Orange': '#EA580C', 'Neon Pink': '#EC4899', 'Ice Blue': '#06B6D4',
+  'Royal Purple': '#7C3AED', 'Toxic Green': '#84CC16', 'Gold': '#EAB308',
+  'Diamond White': '#E2E8F0',
+  'Holographic': 'linear-gradient(90deg, #EC4899, #8B5CF6, #06B6D4, #10B981, #EAB308)',
+};
+
+const THEME_PREVIEW: Record<string, { from: string; to: string }> = {
+  'Midnight': { from: '#1e1b4b', to: '#312e81' },
+  'Sunset Vibes': { from: '#9a3412', to: '#dc2626' },
+  'Arctic': { from: '#164e63', to: '#0e7490' },
+  'Neon City': { from: '#701a75', to: '#be185d' },
+  'Inferno': { from: '#7c2d12', to: '#dc2626' },
+  'Galaxy': { from: '#1e1b4b', to: '#6d28d9' },
+  'Aurora Borealis': { from: '#064e3b', to: '#6d28d9' },
+  'Void': { from: '#0a0a0a', to: '#1c1917' },
+};
+
+const FRAME_COLORS: Record<string, string> = {
+  'Blue Glow': '#60A5FA', 'Fire Ring': '#F97316', 'Diamond Frame': '#67E8F9',
+  'Neon Ring': '#EC4899', 'Emerald Ring': '#34D399', 'Sunset Halo': '#FBBF24',
+  'Lightning Frame': '#FDE047', 'Obsidian Frame': '#52525B', 'Holographic Frame': '#A78BFA',
+};
+
+const EFFECT_CLASS_MAP: Record<string, string> = {
+  'Sparkle': 'sparkle-name', 'Rainbow Shift': 'rainbow-name', 'Fire Trail': 'fire-glow',
+  'Cosmic Glow': 'cosmic-name', 'Glitch': 'glitch-name', 'Neon Pulse': 'neon-pulse-name',
+  'Shadow Flicker': 'shadow-flicker-name', 'Aurora Wave': 'aurora-wave-name',
+  'Electric Surge': 'electric-surge-name', 'Plasma Storm': 'plasma-storm-name',
+};
+
 interface VybePassSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+// ── Reward preview component ────────────────────────────────────
+function RewardPreview({ type, name }: { type: string; name: string }) {
+  if (type === 'name_color') {
+    const color = NAME_COLOR_MAP[name];
+    if (!color) return null;
+    const isGrad = color.startsWith('linear');
+    return (
+      <div
+        className="w-6 h-6 rounded-full border border-background shadow-sm shrink-0"
+        style={{ background: isGrad ? color : color }}
+      />
+    );
+  }
+
+  if (type === 'profile_theme') {
+    const preview = THEME_PREVIEW[name];
+    if (!preview) return null;
+    return (
+      <div
+        className="w-10 h-6 rounded-lg shrink-0 overflow-hidden"
+        style={{ background: `linear-gradient(135deg, ${preview.from}, ${preview.to})` }}
+      />
+    );
+  }
+
+  if (type === 'cosmetic') {
+    const frameColor = FRAME_COLORS[name];
+    if (!frameColor) return null;
+    return (
+      <div
+        className="w-7 h-7 rounded-full shrink-0"
+        style={{ boxShadow: `0 0 6px ${frameColor}, inset 0 0 0 2px ${frameColor}` }}
+      />
+    );
+  }
+
+  if (type === 'effect') {
+    const cls = EFFECT_CLASS_MAP[name];
+    return (
+      <span className={cn("text-[10px] font-bold text-foreground shrink-0", cls)}>
+        Abc
+      </span>
+    );
+  }
+
+  return null;
 }
 
 export function VybePassSheet({ open, onOpenChange }: VybePassSheetProps) {
@@ -22,10 +103,12 @@ export function VybePassSheet({ open, onOpenChange }: VybePassSheetProps) {
 
   const getRewardTypeIcon = (type: string) => {
     switch (type) {
+      case 'name_color': return <Palette className="h-4 w-4" />;
+      case 'profile_theme': return <Layers className="h-4 w-4" />;
+      case 'cosmetic': return <Diamond className="h-4 w-4" />;
+      case 'effect': return <Wand2 className="h-4 w-4" />;
+      case 'title': return <Type className="h-4 w-4" />;
       case 'badge': return <Trophy className="h-4 w-4" />;
-      case 'cosmetic': return <VybeMiniIcon size={16} showSparkles />;
-      case 'effect': return <Star className="h-4 w-4" />;
-      case 'title': return <Gift className="h-4 w-4" />;
       default: return <Gift className="h-4 w-4" />;
     }
   };
@@ -62,7 +145,7 @@ export function VybePassSheet({ open, onOpenChange }: VybePassSheetProps) {
                   transition={{ delay: idx * 0.03 }}
                   onClick={() => setSelectedTier(isSelected ? null : tier.id)}
                   className={cn(
-                    "relative p-4 rounded-xl border transition-all cursor-pointer",
+                    "relative p-4 rounded-xl border transition-all cursor-pointer backdrop-blur-md",
                     isUnlocked 
                       ? "bg-primary/5 border-primary/30" 
                       : "bg-secondary/30 border-border/50",
@@ -98,10 +181,12 @@ export function VybePassSheet({ open, onOpenChange }: VybePassSheetProps) {
                         )}>
                           {tier.reward_name}
                         </h4>
+                        {/* Inline preview */}
+                        <RewardPreview type={tier.reward_type} name={tier.reward_name} />
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         {getRewardTypeIcon(tier.reward_type)}
-                        <span className="capitalize">{tier.reward_type}</span>
+                        <span className="capitalize">{tier.reward_type.replace('_', ' ')}</span>
                         <span>•</span>
                         <span>{tier.xp_required.toLocaleString()} XP</span>
                       </div>
