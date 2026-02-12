@@ -1,145 +1,106 @@
 /**
  * Camera Preload Hook
  * 
- * Pre-starts the camera stream so video appears instantly when a call begins.
- * Like FaceTime - shows your video immediately while connecting.
+ * Provides camera access on-demand from user gestures only.
+ * CRITICAL: getUserMedia must be called from click/tap handlers, never from useEffect.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
-interface CameraPreloadState {
+interface CameraState {
   stream: MediaStream | null;
   isReady: boolean;
   error: string | null;
 }
 
-// Global preloaded stream cache - keeps camera warm across component mounts
-let globalPreloadedStream: MediaStream | null = null;
-let preloadPromise: Promise<MediaStream> | null = null;
+// Global stream cache
+let globalStream: MediaStream | null = null;
 
 /**
- * Preload camera stream globally (call this early, e.g., when call buttons are visible)
+ * Request camera stream - MUST be called from a user gesture (click/tap)
  */
-export async function preloadCameraStream(): Promise<MediaStream | null> {
-  // Already preloaded
-  if (globalPreloadedStream && globalPreloadedStream.active) {
-    return globalPreloadedStream;
-  }
+export async function requestCameraStream(): Promise<MediaStream | null> {
+  if (globalStream?.active) return globalStream;
 
-  // Already preloading
-  if (preloadPromise) {
-    return preloadPromise;
-  }
-
-  preloadPromise = (async () => {
-    try {
-      console.log('[CameraPreload] Starting camera preload...');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user',
-        },
-        audio: false, // Audio handled separately by Daily
-      });
-      
-      globalPreloadedStream = stream;
-      console.log('[CameraPreload] Camera preloaded successfully');
-      return stream;
-    } catch (err) {
-      console.warn('[CameraPreload] Failed to preload camera:', err);
-      return null;
-    } finally {
-      preloadPromise = null;
-    }
-  })();
-
-  return preloadPromise;
-}
-
-/**
- * Stop the preloaded camera stream
- */
-export function stopPreloadedCamera() {
-  if (globalPreloadedStream) {
-    globalPreloadedStream.getTracks().forEach(track => track.stop());
-    globalPreloadedStream = null;
-    console.log('[CameraPreload] Preloaded camera stopped');
+  try {
+    console.log('[Camera] Requesting camera from user gesture...');
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: 'user',
+      },
+      audio: false,
+    });
+    globalStream = stream;
+    console.log('[Camera] Camera ready');
+    return stream;
+  } catch (err) {
+    console.warn('[Camera] Failed:', err);
+    return null;
   }
 }
 
 /**
- * Get the current preloaded stream (if any)
+ * Stop the camera stream and release resources
  */
-export function getPreloadedStream(): MediaStream | null {
-  if (globalPreloadedStream?.active) {
-    return globalPreloadedStream;
+export function stopCameraStream() {
+  if (globalStream) {
+    globalStream.getTracks().forEach(track => track.stop());
+    globalStream = null;
+    console.log('[Camera] Stopped');
   }
-  return null;
 }
 
 /**
- * Hook for instant camera access in video calls
+ * Get the current active stream (if any)
  */
-export function useCameraPreload(enabled: boolean = true) {
-  const [state, setState] = useState<CameraPreloadState>({
-    stream: getPreloadedStream(),
-    isReady: !!getPreloadedStream()?.active,
+export function getActiveStream(): MediaStream | null {
+  return globalStream?.active ? globalStream : null;
+}
+
+/**
+ * Hook for camera access - all methods are gesture-safe
+ */
+export function useCameraPreload(_enabled: boolean = true) {
+  const [state, setState] = useState<CameraState>({
+    stream: getActiveStream(),
+    isReady: !!getActiveStream(),
     error: null,
   });
-  
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const mountedRef = useRef(true);
 
-  // Start preloading when enabled
-  useEffect(() => {
-    if (!enabled) {
-      setState({ stream: null, isReady: false, error: null });
-      return;
+  // Start camera - call this from onClick/onTap only
+  const start = useCallback(async () => {
+    const existing = getActiveStream();
+    if (existing) {
+      setState({ stream: existing, isReady: true, error: null });
+      return existing;
     }
 
-    mountedRef.current = true;
-
-    const startPreload = async () => {
-      // Check for existing stream first
-      const existing = getPreloadedStream();
-      if (existing) {
-        setState({ stream: existing, isReady: true, error: null });
-        return;
+    try {
+      const stream = await requestCameraStream();
+      if (stream) {
+        setState({ stream, isReady: true, error: null });
+      } else {
+        setState({ stream: null, isReady: false, error: 'Camera unavailable' });
       }
+      return stream;
+    } catch (err: any) {
+      setState({ stream: null, isReady: false, error: err.message });
+      return null;
+    }
+  }, []);
 
-      try {
-        const stream = await preloadCameraStream();
-        if (mountedRef.current && stream) {
-          setState({ stream, isReady: true, error: null });
-        }
-      } catch (err: any) {
-        if (mountedRef.current) {
-          setState({ stream: null, isReady: false, error: err.message });
-        }
-      }
-    };
-
-    startPreload();
-
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [enabled]);
-
-  // Attach stream to video element
   const attachToVideo = useCallback((videoElement: HTMLVideoElement | null) => {
     if (!videoElement || !state.stream) return;
-    
     if (videoElement.srcObject !== state.stream) {
       videoElement.srcObject = state.stream;
       videoElement.play().catch(console.error);
     }
   }, [state.stream]);
 
-  // Stop and cleanup
   const stop = useCallback(() => {
-    stopPreloadedCamera();
+    stopCameraStream();
     setState({ stream: null, isReady: false, error: null });
   }, []);
 
@@ -148,18 +109,23 @@ export function useCameraPreload(enabled: boolean = true) {
     isReady: state.isReady,
     error: state.error,
     attachToVideo,
+    start,
     stop,
   };
 }
 
 /**
- * Hook to preload camera when hovering over call buttons (anticipatory loading)
+ * No-op warmup - camera is now only started on explicit user gesture
  */
 export function useCameraWarmup() {
   const warmup = useCallback(() => {
-    // Start preloading on hover/focus
-    preloadCameraStream();
+    // Intentionally no-op: camera must only start from direct user tap
   }, []);
 
   return { warmup };
 }
+
+// Legacy exports for compatibility
+export const preloadCameraStream = requestCameraStream;
+export const stopPreloadedCamera = stopCameraStream;
+export const getPreloadedStream = getActiveStream;
