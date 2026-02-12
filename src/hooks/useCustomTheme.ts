@@ -255,6 +255,9 @@ export function useSaveTheme() {
       return payload;
     },
     onSuccess: (savedData) => {
+      // Clear any equipped community theme so the saved theme takes priority on refresh
+      localStorage.removeItem('vybe-custom-theme');
+      
       // Optimistically set the query data to the saved theme BEFORE invalidating
       // This prevents useApplyUserTheme from re-applying the old theme
       queryClient.setQueryData(['user-theme', user?.id], (old: any) => ({
