@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Award, Sparkles, ShoppingBag, Lock, Check, Crown, Shield, Heart, BadgeCheck, ChevronDown, Type, Wand2, Diamond, Zap } from 'lucide-react';
+import { Award, ShoppingBag, Lock, Check, Crown, Shield, Heart, BadgeCheck, ChevronDown, Type, Wand2, Diamond, Zap, Palette, Layers, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -16,6 +16,33 @@ import { isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+
+// ── Name color map ──────────────────────────────────────────────
+const NAME_COLOR_MAP: Record<string, string> = {
+  'Crimson': '#DC2626',
+  'Ocean Blue': '#2563EB',
+  'Emerald': '#059669',
+  'Sunset Orange': '#EA580C',
+  'Neon Pink': '#EC4899',
+  'Ice Blue': '#06B6D4',
+  'Royal Purple': '#7C3AED',
+  'Toxic Green': '#84CC16',
+  'Gold': '#EAB308',
+  'Diamond White': '#E2E8F0',
+  'Holographic': 'linear-gradient(90deg, #EC4899, #8B5CF6, #06B6D4, #10B981, #EAB308)',
+};
+
+// ── Profile theme preview colors ────────────────────────────────
+const THEME_PREVIEW: Record<string, { from: string; to: string }> = {
+  'Midnight': { from: '#1e1b4b', to: '#312e81' },
+  'Sunset Vibes': { from: '#9a3412', to: '#dc2626' },
+  'Arctic': { from: '#164e63', to: '#0e7490' },
+  'Neon City': { from: '#701a75', to: '#be185d' },
+  'Inferno': { from: '#7c2d12', to: '#dc2626' },
+  'Galaxy': { from: '#1e1b4b', to: '#6d28d9' },
+  'Aurora Borealis': { from: '#064e3b', to: '#6d28d9' },
+  'Void': { from: '#0a0a0a', to: '#1c1917' },
+};
 
 interface BadgeSettings {
   show_owner_badge: boolean;
@@ -104,7 +131,6 @@ function CosmeticCard({ item, isEquipped, onToggle, delay = 0 }: {
           : "bg-muted/30 border-transparent opacity-40 cursor-not-allowed"
       )}
     >
-      {/* Equipped glow ring */}
       {isEquipped && (
         <motion.div
           layoutId={`equip-ring-${item.id}`}
@@ -113,7 +139,6 @@ function CosmeticCard({ item, isEquipped, onToggle, delay = 0 }: {
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
         />
       )}
-
       <div className="relative">
         <motion.span
           className={cn("text-3xl block", !item.unlocked && "grayscale")}
@@ -122,8 +147,6 @@ function CosmeticCard({ item, isEquipped, onToggle, delay = 0 }: {
         >
           {item.reward_icon}
         </motion.span>
-
-        {/* Status indicator */}
         <AnimatePresence>
           {isEquipped && (
             <motion.div
@@ -142,7 +165,147 @@ function CosmeticCard({ item, isEquipped, onToggle, delay = 0 }: {
           </div>
         )}
       </div>
+      <div className="text-center space-y-0.5">
+        <span className="text-[11px] font-semibold text-foreground leading-tight block">{item.reward_name}</span>
+        <span className="text-[9px] text-muted-foreground font-medium">Level {item.level}</span>
+      </div>
+    </motion.button>
+  );
+}
 
+// ── Name Color Card ─────────────────────────────────────────────
+function NameColorCard({ item, isEquipped, onToggle, delay = 0 }: {
+  item: LockerItem;
+  isEquipped: boolean;
+  onToggle: () => void;
+  delay?: number;
+}) {
+  const color = NAME_COLOR_MAP[item.reward_name];
+  const isGradient = color?.startsWith('linear');
+
+  return (
+    <motion.button
+      initial={{ opacity: 0, scale: 0.85 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay, type: 'spring', stiffness: 400, damping: 25 }}
+      whileHover={item.unlocked ? { scale: 1.08, y: -2 } : undefined}
+      whileTap={item.unlocked ? { scale: 0.92 } : undefined}
+      onClick={item.unlocked ? onToggle : undefined}
+      className={cn(
+        "relative flex flex-col items-center gap-2 p-3.5 rounded-2xl border-2 transition-all duration-300",
+        item.unlocked
+          ? isEquipped
+            ? "bg-primary/8 border-primary/60 shadow-lg shadow-primary/10"
+            : "bg-card/50 border-transparent hover:border-primary/30 hover:shadow-md cursor-pointer"
+          : "bg-muted/30 border-transparent opacity-40 cursor-not-allowed"
+      )}
+    >
+      {isEquipped && (
+        <motion.div className="absolute inset-0 rounded-2xl border-2 border-primary/40" />
+      )}
+      <div className="relative">
+        {/* Color swatch */}
+        <div
+          className={cn("w-10 h-10 rounded-full border-2 border-background shadow-md", !item.unlocked && "grayscale opacity-50")}
+          style={{
+            background: isGradient ? color : color || '#888',
+          }}
+        />
+        <AnimatePresence>
+          {isEquipped && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-green-500 shadow-md shadow-green-500/30 flex items-center justify-center"
+            >
+              <Check className="w-3 h-3 text-white" strokeWidth={3} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {!item.unlocked && (
+          <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-muted-foreground/20 flex items-center justify-center">
+            <Lock className="w-2.5 h-2.5 text-muted-foreground" />
+          </div>
+        )}
+      </div>
+      <div className="text-center space-y-0.5">
+        <span
+          className="text-[11px] font-bold leading-tight block"
+          style={!isGradient ? { color: item.unlocked ? color : undefined } : {
+            background: color,
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
+          {item.reward_name}
+        </span>
+        <span className="text-[9px] text-muted-foreground font-medium">Level {item.level}</span>
+      </div>
+    </motion.button>
+  );
+}
+
+// ── Profile Theme Card ──────────────────────────────────────────
+function ThemeCard({ item, isEquipped, onToggle, delay = 0 }: {
+  item: LockerItem;
+  isEquipped: boolean;
+  onToggle: () => void;
+  delay?: number;
+}) {
+  const preview = THEME_PREVIEW[item.reward_name];
+
+  return (
+    <motion.button
+      initial={{ opacity: 0, scale: 0.85 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay, type: 'spring', stiffness: 400, damping: 25 }}
+      whileHover={item.unlocked ? { scale: 1.05, y: -2 } : undefined}
+      whileTap={item.unlocked ? { scale: 0.95 } : undefined}
+      onClick={item.unlocked ? onToggle : undefined}
+      className={cn(
+        "relative flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all duration-300",
+        item.unlocked
+          ? isEquipped
+            ? "border-primary/60 shadow-lg shadow-primary/10"
+            : "border-transparent hover:border-primary/30 hover:shadow-md cursor-pointer"
+          : "border-transparent opacity-40 cursor-not-allowed"
+      )}
+    >
+      {isEquipped && (
+        <motion.div className="absolute inset-0 rounded-2xl border-2 border-primary/40" />
+      )}
+      {/* Theme preview mini card */}
+      <div
+        className={cn("w-full h-14 rounded-xl relative overflow-hidden", !item.unlocked && "grayscale opacity-50")}
+        style={{
+          background: preview
+            ? `linear-gradient(135deg, ${preview.from}, ${preview.to})`
+            : 'linear-gradient(135deg, hsl(var(--muted)), hsl(var(--card)))',
+        }}
+      >
+        {/* Mini avatar placeholder */}
+        <div className="absolute bottom-1.5 left-2 w-5 h-5 rounded-full bg-white/20 border border-white/30" />
+        <div className="absolute bottom-2 left-9 w-12 h-1.5 rounded-full bg-white/20" />
+        <div className="absolute bottom-2 right-2 w-6 h-1.5 rounded-full bg-white/15" />
+      </div>
+      <AnimatePresence>
+        {isEquipped && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-green-500 shadow-md shadow-green-500/30 flex items-center justify-center"
+          >
+            <Check className="w-3 h-3 text-white" strokeWidth={3} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {!item.unlocked && (
+        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-muted-foreground/20 flex items-center justify-center">
+          <Lock className="w-2.5 h-2.5 text-muted-foreground" />
+        </div>
+      )}
       <div className="text-center space-y-0.5">
         <span className="text-[11px] font-semibold text-foreground leading-tight block">{item.reward_name}</span>
         <span className="text-[9px] text-muted-foreground font-medium">Level {item.level}</span>
@@ -203,14 +366,19 @@ export function ProfileLocker() {
     }
   };
 
-  const handleEquip = (type: 'title' | 'effect' | 'frame', item: LockerItem) => {
+  const handleEquip = (type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme', item: LockerItem) => {
     if (!item.unlocked || equipItem.isPending) return;
     haptics.select();
 
-    const currentlyEquipped = type === 'title' ? lockerData?.equippedTitle
-      : type === 'effect' ? lockerData?.equippedEffect
-      : lockerData?.equippedFrame;
+    const equippedMap: Record<string, string | null | undefined> = {
+      title: lockerData?.equippedTitle,
+      effect: lockerData?.equippedEffect,
+      frame: lockerData?.equippedFrame,
+      name_color: lockerData?.equippedNameColor,
+      profile_theme: lockerData?.equippedProfileTheme,
+    };
 
+    const currentlyEquipped = equippedMap[type];
     const newValue = currentlyEquipped === item.reward_name ? null : item.reward_name;
 
     equipItem.mutate(
@@ -228,8 +396,13 @@ export function ProfileLocker() {
     );
   };
 
-  // Count equipped items
-  const equippedCount = [lockerData?.equippedTitle, lockerData?.equippedEffect, lockerData?.equippedFrame].filter(Boolean).length;
+  const equippedCount = [
+    lockerData?.equippedTitle,
+    lockerData?.equippedEffect,
+    lockerData?.equippedFrame,
+    lockerData?.equippedNameColor,
+    lockerData?.equippedProfileTheme,
+  ].filter(Boolean).length;
 
   return (
     <div className="space-y-3 pb-4">
@@ -244,7 +417,7 @@ export function ProfileLocker() {
           className="inline-flex items-center gap-2.5 px-5 py-2 rounded-2xl bg-gradient-to-r from-primary/15 via-accent/10 to-primary/15 border border-primary/20 shadow-sm"
           whileHover={{ scale: 1.02 }}
         >
-          <Sparkles className="w-4 h-4 text-primary" />
+          <Package className="w-4 h-4 text-primary" />
           <span className="text-sm font-bold text-foreground tracking-tight">Your Locker</span>
           {equippedCount > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-500 font-bold">{equippedCount} active</span>
@@ -296,7 +469,6 @@ export function ProfileLocker() {
             </div>
           )}
 
-          {/* Visibility toggles */}
           {(hasOwnerBadge || hasOwnerWifeBadge || hasModBadge || hasVerifiedBadge) && (
             <div className="rounded-2xl bg-card/40 p-3 space-y-1.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Visibility</span>
@@ -330,7 +502,6 @@ export function ProfileLocker() {
             </div>
           )}
 
-          {/* Locked */}
           {lockedBadges.length > 0 && (
             <div className="rounded-2xl bg-card/40 p-3">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1 mb-2.5">
@@ -367,6 +538,21 @@ export function ProfileLocker() {
         </div>
       </LockerSection>
 
+      {/* ── Name Colors ─────────────────────────────────────── */}
+      <LockerSection icon={Palette} title="Name Colors" count={lockerData?.name_colors.filter(t => t.unlocked).length}>
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          {lockerData?.name_colors.map((item, i) => (
+            <NameColorCard
+              key={item.id}
+              item={item}
+              isEquipped={lockerData.equippedNameColor === item.reward_name}
+              onToggle={() => handleEquip('name_color', item)}
+              delay={i * 0.05}
+            />
+          ))}
+        </div>
+      </LockerSection>
+
       {/* ── Titles ──────────────────────────────────────────── */}
       <LockerSection icon={Type} title="Titles" count={lockerData?.titles.filter(t => t.unlocked).length}>
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -397,7 +583,7 @@ export function ProfileLocker() {
         </div>
       </LockerSection>
 
-      {/* ── Cosmetics ───────────────────────────────────────── */}
+      {/* ── Avatar Frames ───────────────────────────────────── */}
       <LockerSection icon={Diamond} title="Avatar Frames" count={lockerData?.cosmetics.filter(t => t.unlocked).length}>
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
           {lockerData?.cosmetics.map((item, i) => (
@@ -406,6 +592,21 @@ export function ProfileLocker() {
               item={item}
               isEquipped={lockerData.equippedFrame === item.reward_name}
               onToggle={() => handleEquip('frame', item)}
+              delay={i * 0.05}
+            />
+          ))}
+        </div>
+      </LockerSection>
+
+      {/* ── Profile Themes ──────────────────────────────────── */}
+      <LockerSection icon={Layers} title="Profile Themes" count={lockerData?.profile_themes.filter(t => t.unlocked).length}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {lockerData?.profile_themes.map((item, i) => (
+            <ThemeCard
+              key={item.id}
+              item={item}
+              isEquipped={lockerData.equippedProfileTheme === item.reward_name}
+              onToggle={() => handleEquip('profile_theme', item)}
               delay={i * 0.05}
             />
           ))}
@@ -431,20 +632,8 @@ export function ProfileLocker() {
             Exclusive cosmetics and profile upgrades are on the way
           </p>
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
-            <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse" />
+            <Package className="w-3.5 h-3.5 text-primary animate-pulse" />
             <span className="text-xs font-bold text-foreground">Coming Soon</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2 mt-5">
-            {[
-              { icon: '✨', label: 'Effects' },
-              { icon: '🎭', label: 'Frames' },
-              { icon: '🌈', label: 'Themes' },
-            ].map((item) => (
-              <div key={item.label} className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-muted/20 border border-border/10 opacity-40">
-                <span className="text-xl grayscale">{item.icon}</span>
-                <span className="text-[9px] text-muted-foreground font-semibold">{item.label}</span>
-              </div>
-            ))}
           </div>
         </motion.div>
       </LockerSection>

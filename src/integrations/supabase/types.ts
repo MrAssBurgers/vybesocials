@@ -4226,6 +4226,8 @@ export type Database = {
           email: string | null
           equipped_effect: string | null
           equipped_frame: string | null
+          equipped_name_color: string | null
+          equipped_profile_theme: string | null
           equipped_title: string | null
           first_name: string | null
           id: string
@@ -4260,6 +4262,8 @@ export type Database = {
           email?: string | null
           equipped_effect?: string | null
           equipped_frame?: string | null
+          equipped_name_color?: string | null
+          equipped_profile_theme?: string | null
           equipped_title?: string | null
           first_name?: string | null
           id?: string
@@ -4294,6 +4298,8 @@ export type Database = {
           email?: string | null
           equipped_effect?: string | null
           equipped_frame?: string | null
+          equipped_name_color?: string | null
+          equipped_profile_theme?: string | null
           equipped_title?: string | null
           first_name?: string | null
           id?: string

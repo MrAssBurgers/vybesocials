@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, Eye, MoreHorizontal, Award, Sparkles } from 'lucide-react';
+import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, MoreHorizontal, Award, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/useProfile';
 import { usePosts } from '@/hooks/usePosts';
@@ -31,6 +31,62 @@ import { StyledUsername } from '@/components/ui/StyledUsername';
 import { ProfileLocker } from '@/components/profile/ProfileLocker';
 import { useLockerItems } from '@/hooks/useLockerItems';
 
+// ── Name color map ──────────────────────────────────────────────
+const NAME_COLOR_MAP: Record<string, string> = {
+  'Crimson': '#DC2626',
+  'Ocean Blue': '#2563EB',
+  'Emerald': '#059669',
+  'Sunset Orange': '#EA580C',
+  'Neon Pink': '#EC4899',
+  'Ice Blue': '#06B6D4',
+  'Royal Purple': '#7C3AED',
+  'Toxic Green': '#84CC16',
+  'Gold': '#EAB308',
+  'Diamond White': '#E2E8F0',
+  'Holographic': '#EC4899', // fallback solid for inline
+};
+
+// ── Profile theme gradients ─────────────────────────────────────
+const THEME_GRADIENTS: Record<string, string> = {
+  'Midnight': 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%)',
+  'Sunset Vibes': 'linear-gradient(135deg, #9a3412 0%, #dc2626 50%, #f59e0b 100%)',
+  'Arctic': 'linear-gradient(135deg, #164e63 0%, #0e7490 50%, #67e8f9 100%)',
+  'Neon City': 'linear-gradient(135deg, #701a75 0%, #be185d 50%, #ec4899 100%)',
+  'Inferno': 'linear-gradient(135deg, #7c2d12 0%, #dc2626 50%, #f97316 100%)',
+  'Galaxy': 'linear-gradient(135deg, #1e1b4b 0%, #6d28d9 50%, #a78bfa 100%)',
+  'Aurora Borealis': 'linear-gradient(135deg, #064e3b 0%, #6d28d9 40%, #06b6d4 70%, #10b981 100%)',
+  'Void': 'linear-gradient(135deg, #0a0a0a 0%, #1c1917 50%, #292524 100%)',
+};
+
+// ── Effect class map ────────────────────────────────────────────
+const EFFECT_CLASS_MAP: Record<string, string> = {
+  'Sparkle': 'animate-[sparkle-name-intense_1.5s_ease-in-out_infinite]',
+  'Rainbow Shift': 'animate-[rainbow-shift_2s_linear_infinite]',
+  'Fire Trail': 'animate-[fire-glow-intense_1s_ease-in-out_infinite]',
+  'Cosmic Glow': 'animate-[cosmic-glow-intense_3s_ease-in-out_infinite]',
+  'Glitch': 'animate-[glitch-text_0.3s_steps(2)_infinite]',
+  'Neon Pulse': 'animate-[neon-pulse_1.5s_ease-in-out_infinite]',
+  'Shadow Flicker': 'animate-[shadow-flicker_0.8s_ease-in-out_infinite]',
+  'Aurora Wave': 'animate-[aurora-wave_3s_ease-in-out_infinite]',
+  'Electric Surge': 'animate-[electric-surge_0.5s_ease-in-out_infinite]',
+  'Plasma Storm': 'animate-[plasma-storm_2s_ease-in-out_infinite]',
+};
+
+// ── Frame class map ─────────────────────────────────────────────
+const FRAME_CLASS_MAP: Record<string, string> = {
+  'Silver Ring': 'ring-[3px] ring-gray-400/60 shadow-[0_0_12px_2px_rgba(156,163,175,0.3)]',
+  'Blue Glow': 'ring-[3px] ring-blue-400/70 shadow-[0_0_20px_4px_rgba(96,165,250,0.35)]',
+  'Purple Aura': 'ring-[3px] ring-purple-500/70 shadow-[0_0_20px_4px_rgba(168,85,247,0.35)]',
+  'Gold Frame': 'ring-[3px] ring-yellow-400/80 shadow-[0_0_24px_6px_rgba(250,204,21,0.35)]',
+  'Diamond Frame': 'ring-[3px] ring-cyan-300/80 shadow-[0_0_28px_8px_rgba(103,232,249,0.4)] animate-[diamond-pulse_2s_ease-in-out_infinite]',
+  'Neon Ring': 'ring-[3px] ring-green-400/80 shadow-[0_0_24px_6px_rgba(74,222,128,0.4)] animate-[neon-ring-pulse_2s_ease-in-out_infinite]',
+  'Emerald Ring': 'ring-[3px] ring-emerald-500/70 shadow-[0_0_20px_4px_rgba(16,185,129,0.35)]',
+  'Sunset Halo': 'ring-[3px] ring-orange-400/80 shadow-[0_0_24px_6px_rgba(251,146,60,0.4)] animate-[sunset-halo_3s_ease-in-out_infinite]',
+  'Lightning Frame': 'ring-[3px] ring-yellow-300/80 shadow-[0_0_28px_8px_rgba(253,224,71,0.4)] animate-[lightning-flash_2s_ease-in-out_infinite]',
+  'Obsidian Frame': 'ring-[3px] ring-gray-800/90 shadow-[0_0_20px_4px_rgba(0,0,0,0.5),0_0_40px_8px_rgba(88,28,135,0.2)]',
+  'Holographic Frame': 'ring-[3px] ring-pink-400/60 shadow-[0_0_24px_6px_rgba(236,72,153,0.3)] animate-[holographic-shift_3s_linear_infinite]',
+};
+
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
@@ -49,26 +105,18 @@ export default function ProfilePage() {
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
   
-  // Live follower count for real-time updates
   const liveFollowerCount = useLiveFollowerCount(profile?.id);
-  
-  // Fetch user's badges
   const { data: userBadges } = useUserBadges(profile?.id);
   const { data: primaryBadge } = useUserPrimaryBadge(profile?.id);
-  
-  // Fetch equipped cosmetics
   const { data: lockerData } = useLockerItems(profile?.id);
 
-  // Own-profile check should be identity-based (usernames can have case/whitespace)
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
 
-  // Badge visibility settings - default to true if not set
   const badgeSettings = (profile as any)?.badge_settings || {};
   const showOwnerBadge = badgeSettings.show_owner_badge !== false;
   const showOwnerWifeBadge = badgeSettings.show_owner_wife_badge !== false;
   const showModBadge = badgeSettings.show_mod_badge !== false;
   
-  // Transform user badges for BadgeRow
   const displayBadges = userBadges?.slice(0, 5).map(ub => ({
     id: ub.badge.id,
     icon: ub.badge.icon,
@@ -80,16 +128,26 @@ export default function ProfilePage() {
     is_animated: ub.badge.is_animated,
   })) || [];
 
-  // Mark any DM conversation with this user as read when viewing their profile
   useEffect(() => {
     if (profile?.id && currentProfile?.id && profile.id !== currentProfile.id) {
       markConversationReadByUser.mutate(profile.id);
     }
   }, [profile?.id, currentProfile?.id]);
 
+  // Compute name color
+  const nameColor = lockerData?.equippedNameColor ? NAME_COLOR_MAP[lockerData.equippedNameColor] : undefined;
+  
+  // Compute effect class
+  const effectClass = lockerData?.equippedEffect ? EFFECT_CLASS_MAP[lockerData.equippedEffect] : undefined;
+  
+  // Compute frame class
+  const frameClass = lockerData?.equippedFrame ? FRAME_CLASS_MAP[lockerData.equippedFrame] : undefined;
+  
+  // Compute profile theme gradient
+  const themeGradient = lockerData?.equippedProfileTheme ? THEME_GRADIENTS[lockerData.equippedProfileTheme] : undefined;
+
   const handleFollow = async () => {
     if (!profile) return;
-    
     try {
       await follow.mutateAsync({
         targetId: profile.id,
@@ -104,7 +162,6 @@ export default function ProfilePage() {
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       await updateAvatar.mutateAsync(file);
       toast.success('Avatar updated!');
@@ -128,7 +185,6 @@ export default function ProfilePage() {
   const gridPosts = posts?.filter((p) => p.type === 'post' || p.type === 'video') || [];
   const shortPosts = posts?.filter((p) => p.type === 'short') || [];
 
-  // Transform short posts for ClipsGrid
   const clipsForGrid = shortPosts.map(post => ({
     id: post.id,
     media_url: post.media_url,
@@ -141,12 +197,6 @@ export default function ProfilePage() {
     is_bookmarked: post.is_bookmarked,
     view_count: post.view_count || 0,
   }));
-
-  const formatViewCount = (count: number) => {
-    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-    return count?.toString() || '0';
-  };
 
   if (isLoading) {
     return (
@@ -194,6 +244,14 @@ export default function ProfilePage() {
   return (
     <AppLayout>
       <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* Profile Theme Overlay */}
+        {themeGradient && (
+          <div
+            className="absolute inset-x-0 top-0 h-48 -z-10 opacity-40 pointer-events-none"
+            style={{ background: themeGradient }}
+          />
+        )}
+
         {/* Profile Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -204,11 +262,7 @@ export default function ProfilePage() {
           <div className="relative group">
             <div className={cn(
               "p-1 rounded-full transition-all duration-500",
-              lockerData?.equippedFrame === 'Blue Glow' && "ring-[3px] ring-blue-400/70 shadow-[0_0_20px_4px_rgba(96,165,250,0.35)]",
-              lockerData?.equippedFrame === 'Purple Aura' && "ring-[3px] ring-purple-500/70 shadow-[0_0_20px_4px_rgba(168,85,247,0.35)]",
-              lockerData?.equippedFrame === 'Gold Frame' && "ring-[3px] ring-yellow-400/80 shadow-[0_0_24px_6px_rgba(250,204,21,0.35)]",
-              lockerData?.equippedFrame === 'Diamond Frame' && "ring-[3px] ring-cyan-300/80 shadow-[0_0_28px_8px_rgba(103,232,249,0.4)] animate-[diamond-pulse_2s_ease-in-out_infinite]",
-              !lockerData?.equippedFrame && "story-ring",
+              frameClass || "story-ring",
             )}>
               <Avatar className="h-32 w-32 border-4 border-background">
                 <AvatarImage src={profile.avatar_url || undefined} />
@@ -234,22 +288,21 @@ export default function ProfilePage() {
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
               <div className="flex flex-col">
-                {/* Display Name with Badge Styling */}
+                {/* Display Name */}
                 {profile.display_name && (
                   <h1 className={cn(
                     "text-2xl font-bold flex items-center gap-2",
-                    lockerData?.equippedEffect === 'Sparkle' && "animate-[sparkle-name_2s_ease-in-out_infinite]",
-                    lockerData?.equippedEffect === 'Rainbow Shift' && "animate-[rainbow-shift_3s_linear_infinite]",
-                    lockerData?.equippedEffect === 'Fire Trail' && "animate-[fire-glow_1.5s_ease-in-out_infinite]",
-                    lockerData?.equippedEffect === 'Cosmic Glow' && "animate-[cosmic-glow_4s_ease-in-out_infinite]",
+                    effectClass,
                   )}>
-                    <StyledUsername
-                      userId={profile.id}
-                      username={profile.username}
-                      displayName={profile.display_name}
-                      preferDisplayName={true}
-                      className="text-2xl font-bold"
-                    />
+                    <span style={nameColor ? { color: nameColor } : undefined}>
+                      <StyledUsername
+                        userId={profile.id}
+                        username={profile.username}
+                        displayName={profile.display_name}
+                        preferDisplayName={true}
+                        className="text-2xl font-bold"
+                      />
+                    </span>
                     {showOwnerBadge && isOwner(profile.username) && <OwnerBadge />}
                     {showOwnerWifeBadge && isOwnerWife(profile.id) && <OwnerWifeRingBadge />}
                     {showModBadge && profileRole && <ModBadge role={profileRole} />}
@@ -257,8 +310,12 @@ export default function ProfilePage() {
                 )}
                 {/* Username */}
                 <p 
-                  className={`${profile.display_name ? 'text-sm font-medium drop-shadow-sm' : 'text-2xl font-bold'} flex items-center gap-2`}
-                  style={{ color: 'hsl(var(--foreground))', opacity: 1 }}
+                  className={cn(
+                    profile.display_name ? 'text-sm font-medium drop-shadow-sm' : 'text-2xl font-bold',
+                    'flex items-center gap-2',
+                    !profile.display_name && effectClass,
+                  )}
+                  style={{ color: !profile.display_name && nameColor ? nameColor : 'hsl(var(--foreground))', opacity: 1 }}
                 >
                   {!profile.display_name ? (
                     <StyledUsername
@@ -276,21 +333,21 @@ export default function ProfilePage() {
                   {!profile.display_name && showModBadge && profileRole && <ModBadge role={profileRole} />}
                 </p>
                 
-                 {/* Badge Row */}
-                 {displayBadges.length > 0 && (
-                   <div className="mt-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
-                     <BadgeRow badges={displayBadges} maxVisible={5} size="sm" />
-                   </div>
-                 )}
+                {/* Badge Row */}
+                {displayBadges.length > 0 && (
+                  <div className="mt-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+                    <BadgeRow badges={displayBadges} maxVisible={5} size="sm" />
+                  </div>
+                )}
                  
-                 {/* Equipped Title */}
-                 {lockerData?.equippedTitle && (
-                   <div className="mt-1.5">
-                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/30 text-primary">
-                       {lockerData.equippedTitle}
-                     </span>
-                   </div>
-                 )}
+                {/* Equipped Title */}
+                {lockerData?.equippedTitle && (
+                  <div className="mt-1.5">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/30 text-primary">
+                      {lockerData.equippedTitle}
+                    </span>
+                  </div>
+                )}
               </div>
               {isOwnProfile ? (
                 <Link to="/settings">
@@ -325,7 +382,6 @@ export default function ProfilePage() {
                     </Button>
                   </motion.div>
                   
-                  {/* Moderation Menu - only visible to mods/admins */}
                   {isModOrAdmin && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -376,7 +432,6 @@ export default function ProfilePage() {
               <p className="max-w-md drop-shadow-sm" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>{profile.bio}</p>
             )}
             
-            {/* Mutual Friends - only show on other people's profiles */}
             {!isOwnProfile && (
               <div className="mt-4">
                 <MutualFriendsDisplay targetUserId={profile.id} variant="compact" />
@@ -398,7 +453,7 @@ export default function ProfilePage() {
             </TabsTrigger>
             {isOwnProfile && (
               <TabsTrigger value="locker" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-                <Sparkles className="h-4 w-4" />
+                <Package className="h-4 w-4" />
                 <span>Locker</span>
               </TabsTrigger>
             )}
@@ -496,7 +551,6 @@ export default function ProfilePage() {
           )}
         </Tabs>
         
-        {/* Moderation Dialogs */}
         {profile && (
           <ModeratorDialogs
             userId={profile.id}

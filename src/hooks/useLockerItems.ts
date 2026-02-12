@@ -17,10 +17,14 @@ export interface LockerData {
   titles: LockerItem[];
   effects: LockerItem[];
   cosmetics: LockerItem[];
+  name_colors: LockerItem[];
+  profile_themes: LockerItem[];
   userLevel: number;
   equippedTitle: string | null;
   equippedEffect: string | null;
   equippedFrame: string | null;
+  equippedNameColor: string | null;
+  equippedProfileTheme: string | null;
 }
 
 export function useLockerItems(userId?: string) {
@@ -32,16 +36,14 @@ export function useLockerItems(userId?: string) {
     queryFn: async (): Promise<LockerData> => {
       if (!targetId) throw new Error('No user');
 
-      // Get auth user id for user_levels lookup
       const { data: prof } = await supabase
         .from('profiles')
-        .select('user_id, equipped_title, equipped_effect, equipped_frame')
+        .select('user_id, equipped_title, equipped_effect, equipped_frame, equipped_name_color, equipped_profile_theme')
         .eq('id', targetId)
         .single();
 
       const authId = prof?.user_id || targetId;
 
-      // Fetch user level and all tiers in parallel
       const [levelRes, tiersRes] = await Promise.all([
         supabase.from('user_levels').select('current_level').eq('user_id', authId).maybeSingle(),
         supabase.from('battle_pass_tiers').select('*').eq('is_premium', false).order('level', { ascending: true }),
@@ -65,10 +67,14 @@ export function useLockerItems(userId?: string) {
         titles: tiers.filter((t: any) => t.reward_type === 'title').map(mapTier),
         effects: tiers.filter((t: any) => t.reward_type === 'effect').map(mapTier),
         cosmetics: tiers.filter((t: any) => t.reward_type === 'cosmetic').map(mapTier),
+        name_colors: tiers.filter((t: any) => t.reward_type === 'name_color').map(mapTier),
+        profile_themes: tiers.filter((t: any) => t.reward_type === 'profile_theme').map(mapTier),
         userLevel,
         equippedTitle: (prof as any)?.equipped_title || null,
         equippedEffect: (prof as any)?.equipped_effect || null,
         equippedFrame: (prof as any)?.equipped_frame || null,
+        equippedNameColor: (prof as any)?.equipped_name_color || null,
+        equippedProfileTheme: (prof as any)?.equipped_profile_theme || null,
       };
     },
     enabled: !!targetId,
@@ -81,14 +87,20 @@ export function useEquipItem() {
   const { profile } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ type, value }: { type: 'title' | 'effect' | 'frame'; value: string | null }) => {
+    mutationFn: async ({ type, value }: { type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme'; value: string | null }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const col = type === 'title' ? 'equipped_title' : type === 'effect' ? 'equipped_effect' : 'equipped_frame';
+      const colMap: Record<string, string> = {
+        title: 'equipped_title',
+        effect: 'equipped_effect',
+        frame: 'equipped_frame',
+        name_color: 'equipped_name_color',
+        profile_theme: 'equipped_profile_theme',
+      };
 
       const { error } = await supabase
         .from('profiles')
-        .update({ [col]: value } as any)
+        .update({ [colMap[type]]: value } as any)
         .eq('id', profile.id);
 
       if (error) throw error;
