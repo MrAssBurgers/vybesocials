@@ -180,17 +180,17 @@ export function useChallengesWithProgress() {
 
   // Fetch claimed rewards to know which completed challenges have been claimed
   const { data: claimedRewards } = useQuery({
-    queryKey: ['claimed-rewards', profile?.id],
+    queryKey: ['claimed-rewards', profile?.user_id],
     queryFn: async () => {
-      if (!profile) return [];
+      if (!profile?.user_id) return [];
       const { data, error } = await supabase
         .from('challenge_rewards')
         .select('challenge_id, is_claimed')
-        .eq('user_id', profile.id);
+        .eq('user_id', profile.user_id);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!profile,
+    enabled: !!profile?.user_id,
     staleTime: 1000 * 60 * 2,
   });
 
