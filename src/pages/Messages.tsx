@@ -18,13 +18,13 @@ export default function Messages() {
         className={`
           ${hideNavOnMobile 
             ? 'h-[100dvh] fixed inset-0 z-50' 
-            : 'h-[calc(100dvh-4rem)] md:h-screen'
+            : 'min-h-[100dvh] md:min-h-screen h-[100dvh] md:h-screen'
           } 
           flex max-w-full
         `}
         style={{ 
           overflow: 'hidden',
-          background: 'hsl(var(--card) / 0.97)',
+          background: 'hsl(var(--card) / 1)',
           backdropFilter: 'blur(40px) saturate(180%)',
           WebkitBackdropFilter: 'blur(40px) saturate(180%)',
         }}
