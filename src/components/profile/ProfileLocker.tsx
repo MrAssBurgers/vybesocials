@@ -149,7 +149,7 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, 
             <span
               className="text-sm font-extrabold truncate max-w-full"
               style={!isGradient
-                ? { color: color || 'hsl(var(--foreground))', WebkitTextFillColor: color || 'hsl(var(--foreground))', textShadow: color ? `0 0 12px ${color}80, 0 0 4px ${color}40` : undefined }
+                ? { color: color || 'hsl(var(--foreground))', WebkitTextFillColor: color || 'hsl(var(--foreground))' }
                 : { background: color, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }
               }
             >
