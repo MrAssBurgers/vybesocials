@@ -110,6 +110,10 @@ export default function ChallengesHubPage() {
     setClaimingId(rewardId);
     try {
       const result = await claimReward.mutateAsync(rewardId);
+      // Also invalidate claimed-rewards so UI updates
+      await queryClient.invalidateQueries({ queryKey: ['claimed-rewards'] });
+      await queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards'] });
+      await queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
       if (result.level_result?.level_up) {
         toast.success(`🎉 Level Up! You're now level ${result.level_result.new_level}!`);
       } else {
