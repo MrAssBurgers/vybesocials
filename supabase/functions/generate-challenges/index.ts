@@ -22,19 +22,25 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get existing templates to avoid duplicates
-    const { data: existingTemplates } = await supabase
-      .from("challenge_templates")
+    // Get today's date and week start for setting active_date/active_week_start
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
+    const day = now.getUTCDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setUTCDate(now.getUTCDate() + mondayOffset);
+    const weekStart = monday.toISOString().split("T")[0];
+
+    const dayOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getUTCDay()];
+    const month = now.toLocaleString("en-US", { month: "long" });
+    const dayOfMonth = now.getUTCDate();
+
+    // Get existing active challenge titles to avoid duplicates
+    const { data: existingChallenges } = await supabase
+      .from("challenges")
       .select("title")
       .eq("is_active", true);
-
-    const existingTitles = (existingTemplates || []).map(t => t.title);
-
-    // Get today's date for themed challenges
-    const now = new Date();
-    const dayOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getDay()];
-    const month = now.toLocaleString("en-US", { month: "long" });
-    const dayOfMonth = now.getDate();
+    const existingTitles = (existingChallenges || []).map(t => t.title);
 
     const prompt = `Generate 6 unique social media app challenges for a platform called VYBE. Today is ${dayOfWeek}, ${month} ${dayOfMonth}.
 
@@ -109,12 +115,15 @@ Rules:
       console.error("AI gateway error:", response.status, errText);
       
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited, using fallback rotation" }), {
+        // Rate limited — fall back to template rotation
+        await supabase.rpc("rotate_challenges");
+        return new Response(JSON.stringify({ error: "Rate limited, used fallback rotation" }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Credits exhausted" }), {
+        await supabase.rpc("rotate_challenges");
+        return new Response(JSON.stringify({ error: "Credits exhausted, used fallback rotation" }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -144,21 +153,83 @@ Rules:
     ).map(c => ({
       title: c.title.slice(0, 30),
       description: c.description.slice(0, 60),
-      type: c.type,
+      type: c.type as "daily" | "weekly",
       requirement_type: c.requirement_type,
       requirement_count: Math.min(c.type === "daily" ? 5 : 25, Math.max(1, c.requirement_count)),
       reward_xp: Math.min(c.type === "daily" ? 40 : 100, Math.max(10, c.reward_xp)),
-      is_active: true,
     }));
 
     if (validChallenges.length === 0) {
       throw new Error("No valid challenges after sanitization");
     }
 
-    // Insert as new templates
+    const dailyChallenges = validChallenges.filter(c => c.type === "daily").slice(0, 3);
+    const weeklyChallenges = validChallenges.filter(c => c.type === "weekly").slice(0, 3);
+
+    // === DIRECTLY INSERT AS ACTIVE CHALLENGES (not templates) ===
+    
+    // 1. Deactivate old daily challenges for today (replace them)
+    if (dailyChallenges.length > 0) {
+      await supabase
+        .from("challenges")
+        .update({ is_active: false })
+        .eq("type", "daily")
+        .eq("active_date", today);
+      
+      // Also deactivate any older daily challenges still marked active  
+      await supabase
+        .from("challenges")
+        .update({ is_active: false })
+        .eq("type", "daily")
+        .lt("active_date", today)
+        .eq("is_active", true);
+    }
+
+    // 2. Deactivate old weekly challenges for this week (replace them)
+    if (weeklyChallenges.length > 0) {
+      await supabase
+        .from("challenges")
+        .update({ is_active: false })
+        .eq("type", "weekly")
+        .eq("active_week_start", weekStart);
+
+      await supabase
+        .from("challenges")
+        .update({ is_active: false })
+        .eq("type", "weekly")
+        .lt("active_week_start", weekStart)
+        .eq("is_active", true);
+    }
+
+    // 3. Insert new AI-generated challenges directly into the challenges table
+    const challengeRows = [
+      ...dailyChallenges.map(c => ({
+        title: c.title,
+        description: c.description,
+        type: "daily",
+        requirement_type: c.requirement_type,
+        requirement_count: c.requirement_count,
+        reward_xp: c.reward_xp,
+        is_active: true,
+        active_date: today,
+        active_week_start: null,
+      })),
+      ...weeklyChallenges.map(c => ({
+        title: c.title,
+        description: c.description,
+        type: "weekly",
+        requirement_type: c.requirement_type,
+        requirement_count: c.requirement_count,
+        reward_xp: c.reward_xp,
+        is_active: true,
+        active_date: null,
+        active_week_start: weekStart,
+      })),
+    ];
+
     const { data: inserted, error: insertError } = await supabase
-      .from("challenge_templates")
-      .insert(validChallenges)
+      .from("challenges")
+      .insert(challengeRows)
       .select();
 
     if (insertError) {
@@ -166,17 +237,24 @@ Rules:
       throw insertError;
     }
 
-    // Now run the rotation to pick from the fresh pool
-    const { error: rotateError } = await supabase.rpc("rotate_challenges");
-    if (rotateError) {
-      console.error("Rotation error:", rotateError);
-    }
+    // 4. Also save as templates for fallback rotation
+    const templateRows = validChallenges.map(c => ({
+      title: c.title,
+      description: c.description,
+      type: c.type,
+      requirement_type: c.requirement_type,
+      requirement_count: c.requirement_count,
+      reward_xp: c.reward_xp,
+      is_active: true,
+    }));
 
-    console.log(`Generated ${validChallenges.length} AI challenges, rotation complete`);
+    await supabase.from("challenge_templates").insert(templateRows);
+
+    console.log(`Generated ${challengeRows.length} AI challenges for today (${today}), week (${weekStart})`);
 
     return new Response(JSON.stringify({ 
       success: true, 
-      generated: validChallenges.length,
+      generated: challengeRows.length,
       challenges: inserted 
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
