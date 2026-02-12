@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, Eye, MoreHorizontal, Award } from 'lucide-react';
+import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, Eye, MoreHorizontal, Award, Sparkles } from 'lucide-react';
 import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/useProfile';
 import { usePosts } from '@/hooks/usePosts';
 import { useSavedPosts } from '@/hooks/useSavedPosts';
@@ -27,6 +27,7 @@ import { useLiveFollowerCount } from '@/hooks/useLiveFollowerCount';
 import { useUserBadges, useUserPrimaryBadge } from '@/hooks/useBadges';
 import { BadgeRow } from '@/components/badges';
 import { StyledUsername } from '@/components/ui/StyledUsername';
+import { ProfileLocker } from '@/components/profile/ProfileLocker';
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -361,16 +362,22 @@ export default function ProfilePage() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full mb-6 bg-card/80 border border-border">
             <TabsTrigger value="posts" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-              <Grid className="h-4 w-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+              <Grid className="h-4 w-4" />
               <span>Posts</span>
             </TabsTrigger>
             <TabsTrigger value="shorts" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-              <Film className="h-4 w-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+              <Film className="h-4 w-4" />
               <span>Clips</span>
             </TabsTrigger>
             {isOwnProfile && (
+              <TabsTrigger value="locker" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
+                <Sparkles className="h-4 w-4" />
+                <span>Locker</span>
+              </TabsTrigger>
+            )}
+            {isOwnProfile && (
               <TabsTrigger value="saved" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-                <Bookmark className="h-4 w-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+                <Bookmark className="h-4 w-4" />
                 <span>Saved</span>
               </TabsTrigger>
             )}
@@ -415,6 +422,12 @@ export default function ProfilePage() {
           <TabsContent value="shorts">
             <ClipsGrid clips={clipsForGrid} />
           </TabsContent>
+
+          {isOwnProfile && (
+            <TabsContent value="locker">
+              <ProfileLocker />
+            </TabsContent>
+          )}
 
           {isOwnProfile && (
             <TabsContent value="saved">

@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { haptics } from '@/lib/haptics';
-import { BadgeSettingsSection } from '@/components/settings/BadgeSettingsSection';
+// Badge settings moved to Profile Locker tab
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useUserPrimaryBadge } from '@/hooks/useBadges';
 import { supabase } from '@/integrations/supabase/client';
@@ -230,8 +230,7 @@ export function ProfileSection() {
         </motion.div>
       )}
 
-      {/* Badge Settings - only shows if user has badges */}
-      <BadgeSettingsSection />
+      {/* Badge settings moved to Profile → Locker tab */}
     </div>
   );
 }
