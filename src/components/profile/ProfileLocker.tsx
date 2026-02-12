@@ -86,32 +86,69 @@ const defaultSettings: BadgeSettings = {
   show_owner_wife_badge: true,
 };
 
+// ── Effect animation class map ──────────────────────────────────
+const EFFECT_CLASS_MAP: Record<string, string> = {
+  'Sparkle': 'sparkle-name',
+  'Rainbow Shift': 'rainbow-name',
+  'Fire Trail': 'fire-glow',
+  'Cosmic Glow': 'cosmic-name',
+  'Glitch': 'glitch-name',
+  'Neon Pulse': 'neon-pulse-name',
+  'Shadow Flicker': 'shadow-flicker-name',
+  'Aurora Wave': 'aurora-wave-name',
+  'Electric Surge': 'electric-surge-name',
+  'Plasma Storm': 'plasma-storm-name',
+};
+
+// ── Frame style map ─────────────────────────────────────────────
+const FRAME_STYLE_MAP: Record<string, { ring: string; shadow: string }> = {
+  'Blue Glow': { ring: 'ring-2 ring-blue-400', shadow: 'shadow-[0_0_8px_rgba(96,165,250,0.5)]' },
+  'Fire Ring': { ring: 'ring-2 ring-orange-500', shadow: 'shadow-[0_0_8px_rgba(249,115,22,0.5)]' },
+  'Diamond Frame': { ring: 'ring-2 ring-cyan-300', shadow: 'shadow-[0_0_8px_rgba(103,232,249,0.5)]' },
+  'Neon Ring': { ring: 'ring-2 ring-pink-500', shadow: 'shadow-[0_0_8px_rgba(236,72,153,0.5)]' },
+  'Emerald Ring': { ring: 'ring-2 ring-emerald-400', shadow: 'shadow-[0_0_8px_rgba(52,211,153,0.5)]' },
+  'Sunset Halo': { ring: 'ring-2 ring-amber-400', shadow: 'shadow-[0_0_8px_rgba(251,191,36,0.5)]' },
+  'Lightning Frame': { ring: 'ring-2 ring-yellow-300', shadow: 'shadow-[0_0_8px_rgba(253,224,71,0.5)]' },
+  'Obsidian Frame': { ring: 'ring-2 ring-zinc-600', shadow: 'shadow-[0_0_8px_rgba(82,82,91,0.5)]' },
+  'Holographic Frame': { ring: 'ring-2 ring-violet-400', shadow: 'shadow-[0_0_8px_rgba(167,139,250,0.5)]' },
+};
+
 // ── Item Card (generic) ─────────────────────────────────────────
-function ItemCard({ item, isEquipped, isSelected, onSelect, tabId }: {
+function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }: {
   item: LockerItem;
   isEquipped: boolean;
   isSelected: boolean;
   onSelect: () => void;
   tabId: TabId;
+  displayName: string;
 }) {
   const color = tabId === 'colors' ? NAME_COLOR_MAP[item.reward_name] : undefined;
   const isGradient = color?.startsWith('linear');
   const preview = tabId === 'themes' ? THEME_PREVIEW[item.reward_name] : undefined;
+  const effectClass = tabId === 'effects' ? EFFECT_CLASS_MAP[item.reward_name] : undefined;
+  const frameStyle = tabId === 'frames' ? FRAME_STYLE_MAP[item.reward_name] : undefined;
 
   return (
     <motion.button
-      whileHover={item.unlocked ? { scale: 1.05, y: -2 } : undefined}
-      whileTap={item.unlocked ? { scale: 0.95 } : undefined}
+      whileHover={item.unlocked ? { scale: 1.03, y: -2 } : undefined}
+      whileTap={item.unlocked ? { scale: 0.97 } : undefined}
       onClick={onSelect}
       className={cn(
-        "relative flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all duration-200",
+        "relative flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border transition-all duration-200",
+        "backdrop-blur-xl bg-card/30",
         isSelected
-          ? "border-primary bg-primary/10 shadow-lg shadow-primary/15"
+          ? "border-primary/60 bg-primary/10 shadow-lg shadow-primary/10"
           : item.unlocked
-            ? "border-transparent bg-card/50 hover:border-muted-foreground/20"
-            : "border-transparent bg-muted/20 opacity-45 cursor-default"
+            ? "border-border/30 hover:border-primary/30 hover:bg-card/50"
+            : "border-border/10 opacity-40 cursor-default"
       )}
     >
+      {/* Frosted glass overlay */}
+      <div className="absolute inset-0 rounded-2xl pointer-events-none overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.03] via-transparent to-foreground/[0.02]" />
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-foreground/10 to-transparent" />
+      </div>
+
       {/* Equipped checkmark */}
       <AnimatePresence>
         {isEquipped && (
@@ -133,36 +170,87 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId }: {
         </div>
       )}
 
-      {/* Visual */}
-      {tabId === 'colors' ? (
-        <div
-          className={cn("w-10 h-10 rounded-full border-2 border-background shadow-md", !item.unlocked && "grayscale opacity-50")}
-          style={{ background: isGradient ? color : color || '#888' }}
-        />
-      ) : tabId === 'themes' ? (
-        <div
-          className={cn("w-full h-12 rounded-xl relative overflow-hidden", !item.unlocked && "grayscale opacity-50")}
-          style={{
-            background: preview
-              ? `linear-gradient(135deg, ${preview.from}, ${preview.to})`
-              : 'linear-gradient(135deg, hsl(var(--muted)), hsl(var(--card)))',
-          }}
-        >
-          <div className="absolute bottom-1 left-2 w-4 h-4 rounded-full bg-white/20 border border-white/30" />
-          <div className="absolute bottom-1.5 left-7 w-10 h-1 rounded-full bg-white/20" />
-        </div>
-      ) : (
-        <motion.span
-          className={cn("text-2xl block", !item.unlocked && "grayscale")}
-          animate={isEquipped ? { scale: [1, 1.12, 1] } : {}}
-          transition={isEquipped ? { repeat: Infinity, duration: 2, ease: 'easeInOut' } : {}}
-        >
-          {item.reward_icon}
-        </motion.span>
-      )}
+      {/* ── Mini Profile Preview ──────────────────────────── */}
+      <div className={cn(
+        "w-full rounded-xl overflow-hidden relative",
+        tabId === 'themes' ? 'h-16' : 'h-14',
+        !item.unlocked && "grayscale opacity-60"
+      )}>
+        {tabId === 'colors' && (
+          // Show mini profile with colored name
+          <div className="w-full h-full bg-card/60 flex flex-col items-center justify-center gap-1 px-2">
+            <div className="w-6 h-6 rounded-full bg-muted/60 border border-border/30" />
+            <span
+              className="text-[10px] font-bold truncate max-w-full"
+              style={!isGradient
+                ? { color: color || 'hsl(var(--foreground))' }
+                : { background: color, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }
+              }
+            >
+              {displayName}
+            </span>
+          </div>
+        )}
+
+        {tabId === 'titles' && (
+          // Show mini profile with title badge
+          <div className="w-full h-full bg-card/60 flex flex-col items-center justify-center gap-1 px-2">
+            <div className="w-6 h-6 rounded-full bg-muted/60 border border-border/30" />
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] text-muted-foreground truncate">{displayName}</span>
+              <span className="text-[8px] px-1 py-px rounded-full bg-primary/15 text-primary font-bold truncate max-w-[50px]">
+                {item.reward_name}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {tabId === 'effects' && (
+          // Show mini profile with name effect animation
+          <div className="w-full h-full bg-card/60 flex flex-col items-center justify-center gap-1 px-2">
+            <div className="w-6 h-6 rounded-full bg-muted/60 border border-border/30" />
+            <span className={cn("text-[10px] font-bold text-foreground truncate max-w-full", effectClass)}>
+              {displayName}
+            </span>
+          </div>
+        )}
+
+        {tabId === 'frames' && (
+          // Show mini avatar with the frame ring/glow
+          <div className="w-full h-full bg-card/60 flex flex-col items-center justify-center gap-1 px-2">
+            <div className={cn(
+              "w-8 h-8 rounded-full bg-muted/60 border border-border/30",
+              frameStyle?.ring,
+              frameStyle?.shadow,
+            )} />
+            <span className="text-[9px] text-muted-foreground truncate max-w-full">{displayName}</span>
+          </div>
+        )}
+
+        {tabId === 'themes' && (
+          // Show mini profile card with theme gradient background
+          <div
+            className="w-full h-full relative"
+            style={{
+              background: preview
+                ? `linear-gradient(135deg, ${preview.from}, ${preview.to})`
+                : 'linear-gradient(135deg, hsl(var(--muted)), hsl(var(--card)))',
+            }}
+          >
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-2">
+              <div className="w-6 h-6 rounded-full bg-white/20 border border-white/30" />
+              <span className="text-[9px] font-medium text-white/80 truncate">{displayName}</span>
+              <div className="flex gap-1">
+                <div className="w-8 h-1 rounded-full bg-white/20" />
+                <div className="w-5 h-1 rounded-full bg-white/15" />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Label */}
-      <div className="text-center space-y-0.5 w-full">
+      <div className="text-center space-y-0.5 w-full relative z-[1]">
         {tabId === 'colors' && color ? (
           <span
             className="text-[10px] font-bold leading-tight block truncate"
@@ -395,6 +483,7 @@ export function ProfileLocker() {
                     isSelected={selectedItem?.id === item.id}
                     onSelect={() => setSelectedItem(selectedItem?.id === item.id ? null : item)}
                     tabId={activeTab}
+                    displayName={profile?.display_name || profile?.username || 'You'}
                   />
                 ))}
               </div>
