@@ -149,10 +149,7 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, 
             className="w-full h-full flex flex-col items-center justify-center gap-1.5 px-2"
             style={{ background: color && !isGradient ? `linear-gradient(180deg, ${color}15, ${color}08)` : isGradient ? 'linear-gradient(180deg, rgba(139,92,246,0.08), rgba(6,182,212,0.05))' : undefined }}
           >
-            <div
-              className="w-7 h-7 rounded-full border shadow-sm"
-              style={{ borderColor: color && !isGradient ? color : 'hsl(var(--border))', backgroundColor: color && !isGradient ? `${color}20` : 'hsl(var(--muted) / 0.5)', boxShadow: color && !isGradient ? `0 0 8px ${color}40` : undefined }}
-            />
+            
             <span
               className="text-sm font-extrabold truncate max-w-full"
               style={!isGradient
