@@ -130,8 +130,8 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
 
   return (
     <motion.button
-      whileHover={item.unlocked ? { scale: 1.03, y: -2 } : undefined}
-      whileTap={item.unlocked ? { scale: 0.97 } : undefined}
+      whileHover={{ scale: 1.03, y: -2 }}
+      whileTap={{ scale: 0.97 }}
       onClick={onSelect}
       className={cn(
         "relative flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border transition-all duration-200",
@@ -140,7 +140,7 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
           ? "border-primary/60 bg-primary/10 shadow-lg shadow-primary/10"
           : item.unlocked
             ? "border-border/30 hover:border-primary/30 hover:bg-card/50"
-            : "border-border/10 opacity-40 cursor-default"
+            : "border-border/20 cursor-default"
       )}
     >
       {/* Frosted glass overlay */}
@@ -246,7 +246,7 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
         {tabId === 'colors' && color ? (
           <span
             className="text-[10px] font-bold leading-tight block truncate"
-            style={!isGradient ? { color: item.unlocked ? color : undefined } : {
+            style={!isGradient ? { color: color } : {
               background: color,
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
