@@ -1,96 +1,62 @@
 
-# Owner Settings Revamp
+# Locker Overhaul: Full Cosmetics Hub
 
 ## What's Changing
+The Locker tab on your profile gets completely rebuilt into a clean, categorized cosmetics manager. The Themes tab is removed. Everything is organized into clear sections where you can equip/unequip items that actually show on your profile for everyone to see.
 
-The current Owner Settings page (`AdminSettings.tsx`) and the duplicated owner block in `DeveloperSection.tsx` will be consolidated into a single, polished, all-in-one Owner Settings page. Right now there are redundant components (`SecretsManagerSection`, `StripeSettingsSection`) and the settings page in `DeveloperSection.tsx` also renders its own copy. This revamp unifies everything into one clean experience with a proper setup wizard feel.
+## Categories in the New Locker
 
-## New Design: Single-Page Command Center
+1. **Badges** -- Pin up to 3 badges to display on your profile. Toggle which ones show. Earned badges are interactive, locked ones are grayed out.
 
-The new `AdminSettings.tsx` will be a single scrollable page with a clear top-to-bottom flow -- like a setup checklist. Each section shows a live status indicator so you know instantly what's configured and what's missing.
+2. **Titles** -- Equip a title that shows under your name (e.g., "Newcomer", "Rising Star", "Legend", "VYBE God"). Earned from leveling up.
 
-### Layout
+3. **Profile Effects** -- Equip name effects like Sparkle, Rainbow Shift, Fire Trail, Cosmic Glow. These show as animations near your username.
 
-```text
-+------------------------------------------+
-|  [Crown] Owner Command Center            |
-|  Platform-wide configuration             |
-+------------------------------------------+
-|                                          |
-|  SYSTEM STATUS BAR                       |
-|  [Stripe: Active] [Secret Key: Set]      |
-|  [Webhook: Not Set] [Mode: Test]         |
-|                                          |
-+------------------------------------------+
-|  SECTION 1: Payment Processing           |
-|  +--------------------------------------+|
-|  | Enable Stripe         [====toggle]   ||
-|  | Mode            [Test v]             ||
-|  | Publishable Key [pk_test_...] [eye]  ||
-|  +--------------------------------------+|
-|                                          |
-|  SECTION 2: Server-Side Keys             |
-|  +--------------------------------------+|
-|  | Stripe Secret Key    [Set]  [Update] ||
-|  | Webhook Secret       [---]  [Set]    ||
-|  +--------------------------------------+|
-|                                          |
-|  SECTION 3: Validation & Sync            |
-|  +--------------------------------------+|
-|  | [Run Full Validation]                ||
-|  | Last validated: 2 min ago            ||
-|  | Results: All checks passed           ||
-|  +--------------------------------------+|
-|                                          |
-|  [======== Save All Settings =========]  |
-+------------------------------------------+
-```
+4. **Cosmetics** -- Equip frames/auras like Blue Glow, Purple Aura, Gold Frame, Diamond Frame that appear around your avatar.
 
-## Key Improvements
+5. **Shop** -- Coming Soon teaser (kept as-is).
 
-1. **Status dashboard at the top** -- Colored badges showing the live state of every key/config. At a glance you see what's done and what needs attention.
-
-2. **Unified save flow** -- Stripe config (enable/mode/publishable key) saves to the `stripe_config` table. Secret keys save via the `manage-secrets` edge function. Both happen in one smooth flow. After saving, auto-validation runs and results display inline.
-
-3. **Auto-validation on save** -- After saving, the `validate-stripe-config` edge function runs automatically. Results (secret key mode match, key presence) display below in a checklist format showing green/red for each check.
-
-4. **DevTools sync** -- After any save, the query cache is invalidated for `admin-stripe-config`, `admin-secret-statuses`, and `stripe-config-status` so the DevTools panel (`ProductionDebugPanel`) picks up changes instantly without a manual refresh.
-
-5. **Remove duplication** -- The Owner Settings block currently embedded inside `DeveloperSection.tsx` (lines 68-105) will be replaced with a simple link/button to `/admin-settings`, removing the duplicate `SecretsManagerSection` and `StripeSettingsSection` renders from the settings page.
+## How Equipping Works
+- Each category shows your unlocked items and locked items
+- Tap an unlocked item to equip it (green checkmark appears)
+- Tap again to unequip
+- Only ONE item per category can be equipped at a time
+- Changes save instantly and are visible to everyone visiting your profile
 
 ## Technical Details
 
-### Files Modified
+### Database Changes
+- Add columns to `profiles` table:
+  - `equipped_title` (text, nullable) -- the equipped title name
+  - `equipped_effect` (text, nullable) -- the equipped effect name  
+  - `equipped_frame` (text, nullable) -- the equipped cosmetic/frame name
+- These are simple text fields storing the reward_name from `battle_pass_tiers`
 
-**`src/pages/AdminSettings.tsx`** -- Complete rewrite:
-- Merge all Stripe config + secrets management into one page
-- Top status bar with live badges for: Stripe enabled/disabled, mode, secret key, webhook secret, publishable key
-- Section 1: Payment toggle, mode selector, publishable key input (all from `stripe_config`)
-- Section 2: Secret key rows using `manage-secrets` edge function (inline edit with save)
-- Section 3: Validation panel -- button to run `validate-stripe-config`, shows results as a checklist
-- Single "Save Settings" button at bottom for Stripe config; secrets save individually inline
-- After any save, invalidate all related query keys so DevTools + rest of app see changes immediately
-- Uses `useQuery` + `useMutation` from TanStack for clean data flow
+### Determine Unlocked Items
+- Query `user_levels` to get the user's current level
+- Query `battle_pass_tiers` to get all tiers at or below that level
+- Filter by `reward_type` to separate titles, effects, and cosmetics
+- No new tables needed -- unlocks are derived from level
 
-**`src/components/settings/DeveloperSection.tsx`** -- Remove the owner settings block (lines 68-105) and replace with a navigation button:
-- Show a "Owner Command Center" card with a button linking to `/admin-settings`
-- Remove imports of `SecretsManagerSection` and `StripeSettingsSection`
+### Profile Display Updates
+- **Title**: Render equipped title as a small styled tag below the username on `Profile.tsx`
+- **Effect**: Apply CSS animation class to the username area (sparkle, rainbow-shift, fire-trail, cosmic-glow keyframes)
+- **Frame/Cosmetic**: Apply a styled border/glow effect around the avatar
 
-**`src/components/admin/settings/SecretsManagerSection.tsx`** -- Delete (no longer needed, logic moves into AdminSettings)
+### Component Changes
+- **Rewrite `ProfileLocker.tsx`**: Remove Themes tab. Replace with scrollable single-page layout with collapsible category sections (Badges, Titles, Effects, Cosmetics, Shop)
+- **Update `Profile.tsx`**: Read `equipped_title`, `equipped_effect`, `equipped_frame` from profile data and render them visually
+- **Badge pinning**: Wire up `is_pinned` and `pin_order` on `user_badges` table using the existing `useUpdateBadgeSettings` hook so users can choose which 3 badges display
 
-**`src/components/admin/settings/StripeSettingsSection.tsx`** -- Delete (no longer needed, logic moves into AdminSettings)
+### New Hook: `useLockerItems`
+- Fetches user level + battle pass tiers to compute which titles/effects/cosmetics are unlocked
+- Provides equip/unequip mutations that update the `profiles` table columns
+- Invalidates profile queries so changes reflect everywhere immediately
 
-### Edge Functions (No Changes Needed)
-- `manage-secrets` -- Already works correctly (list + set actions)
-- `validate-stripe-config` -- Already validates and returns status
-- `check-debug-secrets` -- Already reads from both env + app_secrets
-- `_shared/stripe-key.ts` -- Already resolves keys with DB fallback
+### Files to Create
+- `src/hooks/useLockerItems.ts` -- hook for fetching unlocked cosmetics and equip/unequip actions
 
-### Data Flow on Save
-1. Owner changes settings and clicks Save
-2. Stripe config (enabled, mode, publishable key) saves to `stripe_config` table
-3. If any secret key fields were edited, they save via `manage-secrets` edge function
-4. `validate-stripe-config` runs automatically post-save
-5. Results display inline as a validation checklist
-6. Query cache invalidated -- DevTools panel, any subscription checks, and all Stripe-related queries update instantly
-7. All backend functions already read from `app_secrets` table via `getStripeSecretKey()`, so changes are live for all users immediately
+### Files to Modify
+- `src/components/profile/ProfileLocker.tsx` -- full rewrite with categorized sections
+- `src/pages/Profile.tsx` -- display equipped title, effect, and frame
+- Database migration to add `equipped_title`, `equipped_effect`, `equipped_frame` to profiles
