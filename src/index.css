@@ -3107,3 +3107,13 @@ img, video {
   33% { text-shadow: 0 0 8px hsl(280 80% 65% / 0.6), 0 0 16px hsl(220 80% 55% / 0.4); }
   66% { text-shadow: 0 0 10px hsl(300 75% 60% / 0.7), 0 0 20px hsl(240 80% 60% / 0.5); }
 }
+
+@keyframes diamond-pulse {
+  0%, 100% { box-shadow: 0 0 20px 6px rgba(103, 232, 249, 0.3); }
+  50% { box-shadow: 0 0 32px 10px rgba(103, 232, 249, 0.5), 0 0 48px 16px rgba(103, 232, 249, 0.2); }
+}
+
+@keyframes sparkle-name {
+  0%, 100% { text-shadow: 0 0 4px hsl(var(--primary) / 0.4); opacity: 1; }
+  50% { text-shadow: 0 0 12px hsl(var(--primary) / 0.7), 0 0 20px hsl(var(--accent) / 0.4); opacity: 0.9; }
+}
