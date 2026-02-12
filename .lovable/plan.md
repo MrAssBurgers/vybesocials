@@ -1,62 +1,69 @@
 
-# Locker Overhaul: Full Cosmetics Hub
+# Mega Locker & VYBE Pass Overhaul
 
-## What's Changing
-The Locker tab on your profile gets completely rebuilt into a clean, categorized cosmetics manager. The Themes tab is removed. Everything is organized into clear sections where you can equip/unequip items that actually show on your profile for everyone to see.
+## What You'll Get
+- **50 individual levels** with no gaps -- every single level from 1 to 50 unlocks something
+- **Name Colors** -- new reward type that changes the color of your display name (Crimson, Ocean Blue, Emerald, Sunset Orange, Neon Pink, Ice Blue, etc.)
+- **Profile Themes** -- new reward type that changes how your profile looks to visitors (like Discord profile themes -- dark mode variants, gradient backgrounds, accent color shifts)
+- **Cooler Frames** -- more avatar frame options (Neon Ring, Emerald Ring, Sunset Halo, Lightning Frame, Obsidian Frame, Holographic Frame)
+- **More Effects** -- additional name effects (Glitch, Neon Pulse, Shadow Flicker, Aurora Wave, Electric Surge)
+- **Locker tab icon** changed to a proper locker/box icon instead of Sparkles
+- **Profile effects go crazy** -- when someone visits a profile, equipped effects are visually amplified with particle-like CSS animations
 
-## Categories in the New Locker
+## New Reward Types Added
 
-1. **Badges** -- Pin up to 3 badges to display on your profile. Toggle which ones show. Earned badges are interactive, locked ones are grayed out.
+| Type | What It Does | Example |
+|------|-------------|---------|
+| `name_color` | Changes display name color | "Crimson", "Ocean Blue", "Neon Pink" |
+| `profile_theme` | Changes profile card appearance for visitors | "Midnight", "Sunset Vibes", "Arctic" |
+| `effect` | Name animation (existing, expanded) | "Glitch", "Neon Pulse", "Aurora Wave" |
+| `cosmetic` | Avatar frame (existing, expanded) | "Neon Ring", "Holographic Frame" |
+| `title` | Title tag (existing, expanded) | "Trailblazer", "Icon", "Mythic" |
 
-2. **Titles** -- Equip a title that shows under your name (e.g., "Newcomer", "Rising Star", "Legend", "VYBE God"). Earned from leveling up.
+## All 50 Levels (every level has a reward)
 
-3. **Profile Effects** -- Equip name effects like Sparkle, Rainbow Shift, Fire Trail, Cosmic Glow. These show as animations near your username.
+Levels 1-10: Starter rewards (titles, basic colors, basic frames, basic effects)
+Levels 11-20: Intermediate rewards (more colors, cooler effects, better frames)
+Levels 21-30: Advanced rewards (profile themes, rare effects, premium frames)
+Levels 31-40: Elite rewards (neon/holographic items, glitch effects, mythic titles)
+Levels 41-50: Legendary rewards (best-in-class everything, VYBE God title at 50)
 
-4. **Cosmetics** -- Equip frames/auras like Blue Glow, Purple Aura, Gold Frame, Diamond Frame that appear around your avatar.
+## Profile Rendering Upgrades
 
-5. **Shop** -- Coming Soon teaser (kept as-is).
+- **Name Colors**: Applied as inline `style={{ color }}` on the username/display name
+- **Profile Themes**: Adds a gradient overlay or accent color shift to the profile header area
+- **Amplified Effects**: When viewing someone's profile, effects like Sparkle show larger text-shadow pulses, Rainbow Shift cycles faster, Fire Trail gets more intense glow, Cosmic Glow adds a subtle background pulse
+- **New Frames**: Each frame has unique ring color, shadow, and optional pulse animation
 
-## How Equipping Works
-- Each category shows your unlocked items and locked items
-- Tap an unlocked item to equip it (green checkmark appears)
-- Tap again to unequip
-- Only ONE item per category can be equipped at a time
-- Changes save instantly and are visible to everyone visiting your profile
+## Locker Tab Icon
+Changed from `Sparkles` to `Package` (lucide) which looks like a locker/container
 
 ## Technical Details
 
 ### Database Changes
-- Add columns to `profiles` table:
-  - `equipped_title` (text, nullable) -- the equipped title name
-  - `equipped_effect` (text, nullable) -- the equipped effect name  
-  - `equipped_frame` (text, nullable) -- the equipped cosmetic/frame name
-- These are simple text fields storing the reward_name from `battle_pass_tiers`
+1. **Add columns to `profiles`**:
+   - `equipped_name_color` (text, nullable) -- stores the equipped name color value
+   - `equipped_profile_theme` (text, nullable) -- stores the equipped profile theme name
 
-### Determine Unlocked Items
-- Query `user_levels` to get the user's current level
-- Query `battle_pass_tiers` to get all tiers at or below that level
-- Filter by `reward_type` to separate titles, effects, and cosmetics
-- No new tables needed -- unlocks are derived from level
+2. **Replace all 14 battle_pass_tiers rows** with 50 new rows spanning every level from 1-50 with no gaps. The `calculate_level_from_xp` function already derives level from tiers, so this just works.
 
-### Profile Display Updates
-- **Title**: Render equipped title as a small styled tag below the username on `Profile.tsx`
-- **Effect**: Apply CSS animation class to the username area (sparkle, rainbow-shift, fire-trail, cosmic-glow keyframes)
-- **Frame/Cosmetic**: Apply a styled border/glow effect around the avatar
-
-### Component Changes
-- **Rewrite `ProfileLocker.tsx`**: Remove Themes tab. Replace with scrollable single-page layout with collapsible category sections (Badges, Titles, Effects, Cosmetics, Shop)
-- **Update `Profile.tsx`**: Read `equipped_title`, `equipped_effect`, `equipped_frame` from profile data and render them visually
-- **Badge pinning**: Wire up `is_pinned` and `pin_order` on `user_badges` table using the existing `useUpdateBadgeSettings` hook so users can choose which 3 badges display
-
-### New Hook: `useLockerItems`
-- Fetches user level + battle pass tiers to compute which titles/effects/cosmetics are unlocked
-- Provides equip/unequip mutations that update the `profiles` table columns
-- Invalidates profile queries so changes reflect everywhere immediately
-
-### Files to Create
-- `src/hooks/useLockerItems.ts` -- hook for fetching unlocked cosmetics and equip/unequip actions
+3. **XP curve** -- smooth exponential curve so higher levels take proportionally more XP:
+   - Level 1: 0 XP, Level 10: 2000 XP, Level 20: 6000 XP, Level 30: 12000 XP, Level 40: 22000 XP, Level 50: 40000 XP
 
 ### Files to Modify
-- `src/components/profile/ProfileLocker.tsx` -- full rewrite with categorized sections
-- `src/pages/Profile.tsx` -- display equipped title, effect, and frame
-- Database migration to add `equipped_title`, `equipped_effect`, `equipped_frame` to profiles
+
+- **`src/hooks/useLockerItems.ts`** -- Add `name_colors` and `profile_themes` to the LockerData interface; filter tiers by the new reward types; add equip mutations for `name_color` and `profile_theme`
+- **`src/components/profile/ProfileLocker.tsx`** -- Add new sections for Name Colors and Profile Themes; change the Locker icon; add color preview swatches and theme previews in the cards
+- **`src/pages/Profile.tsx`** -- Change Locker tab icon to Package; render equipped name color on display name; render equipped profile theme as header styling; amplify profile effects with more intense CSS classes
+- **`src/index.css`** -- Add new keyframes for Glitch, Neon Pulse, Shadow Flicker, Aurora Wave, Electric Surge effects; add new frame animations (neon-ring-pulse, holographic-shift, lightning-flash); add profile theme background styles; amplify existing effect keyframes for profile view
+
+### New Hook Changes (`useLockerItems.ts`)
+- Interface gains `name_colors: LockerItem[]`, `profile_themes: LockerItem[]`, `equippedNameColor`, `equippedProfileTheme`
+- `useEquipItem` handles 5 types now: title, effect, frame, name_color, profile_theme
+- Maps to `equipped_title`, `equipped_effect`, `equipped_frame`, `equipped_name_color`, `equipped_profile_theme` columns
+
+### Profile Rendering Logic
+- Name color: `style={{ color: nameColorMap[equippedNameColor] }}` applied to StyledUsername wrapper
+- Profile theme: Conditional gradient overlay div behind the profile header
+- Amplified effects: Profile page uses more intense versions of the animation classes (e.g., `sparkle-name-intense` with bigger text-shadows and faster cycles)
+- New frames: Each adds unique ring/shadow CSS similar to existing Blue Glow / Diamond Frame patterns
