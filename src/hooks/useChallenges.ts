@@ -85,7 +85,7 @@ export function useChallenges() {
       
       if (achError) throw achError;
       
-      // Fetch today's daily challenges
+      // Fetch today's daily challenges (date-specific first)
       const { data: dailies, error: dailyError } = await supabase
         .from('challenges')
         .select('*')
@@ -95,7 +95,20 @@ export function useChallenges() {
       
       if (dailyError) throw dailyError;
       
-      // Fetch this week's weekly challenges
+      // Fallback: if no date-specific dailies, fetch ones with NULL active_date
+      let finalDailies = dailies || [];
+      if (finalDailies.length === 0) {
+        const { data: fallbackDailies, error: fbError } = await supabase
+          .from('challenges')
+          .select('*')
+          .eq('is_active', true)
+          .eq('type', 'daily')
+          .is('active_date', null);
+        if (fbError) throw fbError;
+        finalDailies = fallbackDailies || [];
+      }
+      
+      // Fetch this week's weekly challenges (date-specific first)
       const { data: weeklies, error: weeklyError } = await supabase
         .from('challenges')
         .select('*')
@@ -105,7 +118,20 @@ export function useChallenges() {
       
       if (weeklyError) throw weeklyError;
       
-      return [...(achievements || []), ...(dailies || []), ...(weeklies || [])] as Challenge[];
+      // Fallback: if no date-specific weeklies, fetch ones with NULL active_week_start
+      let finalWeeklies = weeklies || [];
+      if (finalWeeklies.length === 0) {
+        const { data: fallbackWeeklies, error: fbError } = await supabase
+          .from('challenges')
+          .select('*')
+          .eq('is_active', true)
+          .eq('type', 'weekly')
+          .is('active_week_start', null);
+        if (fbError) throw fbError;
+        finalWeeklies = fallbackWeeklies || [];
+      }
+      
+      return [...(achievements || []), ...finalDailies, ...finalWeeklies] as Challenge[];
     },
     staleTime: 1000 * 60 * 5,
     // Refetch when window regains focus (handles day/week boundaries)
