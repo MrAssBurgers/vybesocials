@@ -154,10 +154,10 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, 
               style={{ borderColor: color && !isGradient ? color : 'hsl(var(--border))', backgroundColor: color && !isGradient ? `${color}20` : 'hsl(var(--muted) / 0.5)', boxShadow: color && !isGradient ? `0 0 8px ${color}40` : undefined }}
             />
             <span
-              className="text-sm font-extrabold truncate max-w-full drop-shadow-sm"
+              className="text-sm font-extrabold truncate max-w-full"
               style={!isGradient
-                ? { color: color || 'hsl(var(--foreground))', textShadow: color ? `0 0 10px ${color}60` : undefined }
-                : { background: color, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }
+                ? { color: color || 'hsl(var(--foreground))', WebkitTextFillColor: color || 'hsl(var(--foreground))', textShadow: color ? `0 0 12px ${color}80, 0 0 4px ${color}40` : undefined }
+                : { background: color, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }
               }
             >
               {displayName}
