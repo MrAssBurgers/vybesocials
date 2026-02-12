@@ -203,11 +203,12 @@ export default function ProfilePage() {
           {/* Avatar */}
           <div className="relative group">
             <div className={cn(
-              "story-ring p-1",
-              lockerData?.equippedFrame === 'Blue Glow' && "ring-2 ring-blue-400 shadow-lg shadow-blue-400/30 rounded-full",
-              lockerData?.equippedFrame === 'Purple Aura' && "ring-2 ring-purple-500 shadow-lg shadow-purple-500/30 rounded-full",
-              lockerData?.equippedFrame === 'Gold Frame' && "ring-2 ring-yellow-400 shadow-lg shadow-yellow-400/40 rounded-full",
-              lockerData?.equippedFrame === 'Diamond Frame' && "ring-2 ring-cyan-300 shadow-lg shadow-cyan-300/40 rounded-full animate-pulse",
+              "p-1 rounded-full transition-all duration-500",
+              lockerData?.equippedFrame === 'Blue Glow' && "ring-[3px] ring-blue-400/70 shadow-[0_0_20px_4px_rgba(96,165,250,0.35)]",
+              lockerData?.equippedFrame === 'Purple Aura' && "ring-[3px] ring-purple-500/70 shadow-[0_0_20px_4px_rgba(168,85,247,0.35)]",
+              lockerData?.equippedFrame === 'Gold Frame' && "ring-[3px] ring-yellow-400/80 shadow-[0_0_24px_6px_rgba(250,204,21,0.35)]",
+              lockerData?.equippedFrame === 'Diamond Frame' && "ring-[3px] ring-cyan-300/80 shadow-[0_0_28px_8px_rgba(103,232,249,0.4)] animate-[diamond-pulse_2s_ease-in-out_infinite]",
+              !lockerData?.equippedFrame && "story-ring",
             )}>
               <Avatar className="h-32 w-32 border-4 border-background">
                 <AvatarImage src={profile.avatar_url || undefined} />
@@ -237,7 +238,7 @@ export default function ProfilePage() {
                 {profile.display_name && (
                   <h1 className={cn(
                     "text-2xl font-bold flex items-center gap-2",
-                    lockerData?.equippedEffect === 'Sparkle' && "animate-[pulse_2s_ease-in-out_infinite]",
+                    lockerData?.equippedEffect === 'Sparkle' && "animate-[sparkle-name_2s_ease-in-out_infinite]",
                     lockerData?.equippedEffect === 'Rainbow Shift' && "animate-[rainbow-shift_3s_linear_infinite]",
                     lockerData?.equippedEffect === 'Fire Trail' && "animate-[fire-glow_1.5s_ease-in-out_infinite]",
                     lockerData?.equippedEffect === 'Cosmic Glow' && "animate-[cosmic-glow_4s_ease-in-out_infinite]",
