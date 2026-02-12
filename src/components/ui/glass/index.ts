@@ -7,4 +7,6 @@ export { GlassSheet } from './GlassSheet';
 export { GlassInput } from './GlassInput';
 export { GlassChip } from './GlassChip';
 export { GlassToast } from './GlassToast';
+export { LiquidBottomSheet } from './LiquidBottomSheet';
+export { ExpandingCard } from './ExpandingCard';
 export { GlassIntensityProvider, useGlassIntensity, type GlassIntensity } from './GlassIntensityProvider';

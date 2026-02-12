@@ -1,5 +1,6 @@
 import { useState, useEffect, memo } from 'react';
 import './lib/i18n';
+import './styles/liquid.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { useRetroactiveSync } from "@/hooks/useRetroactiveSync";

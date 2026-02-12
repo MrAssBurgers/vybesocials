@@ -296,9 +296,9 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         }}
         transition={{
           type: 'spring',
-          stiffness: 380,
-          damping: 28,
-          mass: 0.8,
+          stiffness: 260,
+          damping: 24,
+          mass: 0.9,
         }}
         style={{
           zIndex: 5002,
@@ -311,7 +311,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
       >
         {/* Vybe-themed bubble nav */}
         <div 
-          className="mx-3 mb-2 rounded-2xl overflow-hidden border border-white/10"
+          className="mx-3 mb-2 rounded-[20px] overflow-hidden border border-white/10 liquid-glass-depth"
           style={{
             background: 'linear-gradient(135deg, hsl(var(--primary) / 0.35), hsl(var(--accent) / 0.28), hsl(var(--primary) / 0.2))',
             backdropFilter: 'blur(24px) saturate(180%)',
