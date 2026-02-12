@@ -2170,42 +2170,7 @@ const MessageBubble = memo(function MessageBubble({
         {/* Message bubble - Instagram-quality padding and radius (not for shared posts) */}
         {!isSharedPost && (
         <div className="relative group/bubble">
-          {/* Desktop-only quick action button (hidden on touch devices) */}
-          <div className={cn(
-            "absolute top-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity z-20 hidden sm:block",
-            isOwn ? "-left-8" : "-right-8"
-          )}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="p-1.5 rounded-full bg-muted/80 hover:bg-muted text-muted-foreground">
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align={isOwn ? "end" : "start"} className="min-w-[140px]">
-                <DropdownMenuItem onClick={onReply} className="gap-2 text-sm">
-                  <Reply className="h-4 w-4" /> Reply
-                </DropdownMenuItem>
-                {message.content && (
-                  <DropdownMenuItem onClick={copyToClipboard} className="gap-2 text-sm">
-                    <Copy className="h-4 w-4" /> Copy
-                  </DropdownMenuItem>
-                )}
-                {isOwn && message.content && !message.media_url && (
-                  <DropdownMenuItem onClick={() => onEdit?.()} className="gap-2 text-sm">
-                    <Edit3 className="h-4 w-4" /> Edit
-                  </DropdownMenuItem>
-                )}
-                {isOwn && (
-                  <DropdownMenuItem onClick={handleUnsend} className="gap-2 text-sm text-destructive focus:text-destructive">
-                    <Trash2 className="h-4 w-4" /> Unsend
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => { onDeleteForMe(); }} className="gap-2 text-sm text-muted-foreground">
-                  <EyeOff className="h-4 w-4" /> Delete for me
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {/* Quick action dots removed - actions available via long-press/right-click context menu */}
         <div
           className={cn(
             'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0',
