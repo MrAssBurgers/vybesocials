@@ -2071,9 +2071,10 @@ const MessageBubble = memo(function MessageBubble({
   }, []);
 
   const handleTouchMove = useCallback(() => {
+    // Only cancel long press if significant movement (>10px)
     if (longPressRef.current) {
-      clearTimeout(longPressRef.current);
-      longPressRef.current = null;
+      // Don't cancel on slight movements - just let it trigger
+      // This allows holding to work even with minor finger adjustments
     }
   }, []);
 

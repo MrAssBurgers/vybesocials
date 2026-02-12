@@ -229,12 +229,36 @@ const MessageBubble = memo(function MessageBubble({
   canModerate: boolean;
   isAnnouncement: boolean;
 }) {
+  // All hooks at the top
+  const [showMenu, setShowMenu] = useState(false);
+  const longPressRef = useRef<NodeJS.Timeout | null>(null);
+
   const copyToClipboard = () => {
     if (message.content) {
       navigator.clipboard.writeText(message.content);
       toast.success('Copied!');
     }
   };
+
+  const handleTouchStart = useCallback(() => {
+    longPressRef.current = setTimeout(() => {
+      setShowMenu(true);
+    }, 400);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current);
+      longPressRef.current = null;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback(() => {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current);
+      longPressRef.current = null;
+    }
+  }, []);
 
   return (
     <div className={cn(
@@ -271,12 +295,50 @@ const MessageBubble = memo(function MessageBubble({
             <p 
               className="text-sm text-foreground break-words flex-1 leading-relaxed min-w-0"
               style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              onTouchCancel={handleTouchEnd}
+              onTouchMove={handleTouchMove}
             >
               {message.content}
               {message.is_edited && (
                 <span className="text-[10px] text-muted-foreground/50 ml-1">(edited)</span>
               )}
             </p>
+
+            {showMenu && (
+              <>
+                {/* Menu backdrop */}
+                <div 
+                  className="fixed inset-0 bg-black/40 z-[99]"
+                  onClick={() => setShowMenu(false)}
+                />
+                {/* Menu */}
+                <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-2xl z-[100] min-w-[180px] py-2">
+                  <button
+                    onClick={() => { copyToClipboard(); setShowMenu(false); }}
+                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
+                  >
+                    <Copy className="h-4 w-4" />
+                    Copy
+                  </button>
+                  {isOwn && (
+                    <button
+                      className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      Edit
+                    </button>
+                  )}
+                  {(isOwn || canModerate) && (
+                    <button className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted text-destructive flex items-center gap-3">
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
