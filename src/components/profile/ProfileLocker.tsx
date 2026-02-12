@@ -16,33 +16,12 @@ import { isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+import {
+  NAME_COLOR_MAP, RESTRICTED_COLORS, THEME_PREVIEW, THEME_IMAGES,
+  EFFECT_CLASS_MAP, FRAME_STYLE_MAP, FRAME_COLORS,
+} from '@/lib/cosmeticConstants';
 
 // ── Constants ───────────────────────────────────────────────────
-const NAME_COLOR_MAP: Record<string, string> = {
-  'Crimson': '#DC2626',
-  'Ocean Blue': '#2563EB',
-  'Emerald': '#059669',
-  'Sunset Orange': '#EA580C',
-  'Neon Pink': '#EC4899',
-  'Ice Blue': '#06B6D4',
-  'Royal Purple': '#7C3AED',
-  'Toxic Green': '#84CC16',
-  'Gold': '#EAB308',
-  'Diamond White': '#E2E8F0',
-  'Holographic': 'linear-gradient(90deg, #EC4899, #8B5CF6, #06B6D4, #10B981, #EAB308)',
-};
-
-const THEME_PREVIEW: Record<string, { from: string; to: string }> = {
-  'Midnight': { from: '#1e1b4b', to: '#312e81' },
-  'Sunset Vibes': { from: '#9a3412', to: '#dc2626' },
-  'Arctic': { from: '#164e63', to: '#0e7490' },
-  'Neon City': { from: '#701a75', to: '#be185d' },
-  'Inferno': { from: '#7c2d12', to: '#dc2626' },
-  'Galaxy': { from: '#1e1b4b', to: '#6d28d9' },
-  'Aurora Borealis': { from: '#064e3b', to: '#6d28d9' },
-  'Void': { from: '#0a0a0a', to: '#1c1917' },
-};
-
 const TABS = [
   { id: 'badges', label: 'Badges', icon: Award },
   { id: 'colors', label: 'Colors', icon: Palette },
@@ -55,7 +34,6 @@ const TABS = [
 
 type TabId = typeof TABS[number]['id'];
 
-// Map tab ids to equip types
 const TAB_TO_EQUIP_TYPE: Record<string, 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme'> = {
   colors: 'name_color',
   titles: 'title',
@@ -86,47 +64,23 @@ const defaultSettings: BadgeSettings = {
   show_owner_wife_badge: true,
 };
 
-// ── Effect animation class map ──────────────────────────────────
-const EFFECT_CLASS_MAP: Record<string, string> = {
-  'Sparkle': 'sparkle-name',
-  'Rainbow Shift': 'rainbow-name',
-  'Fire Trail': 'fire-glow',
-  'Cosmic Glow': 'cosmic-name',
-  'Glitch': 'glitch-name',
-  'Neon Pulse': 'neon-pulse-name',
-  'Shadow Flicker': 'shadow-flicker-name',
-  'Aurora Wave': 'aurora-wave-name',
-  'Electric Surge': 'electric-surge-name',
-  'Plasma Storm': 'plasma-storm-name',
-};
-
-// ── Frame style map ─────────────────────────────────────────────
-const FRAME_STYLE_MAP: Record<string, { ring: string; shadow: string }> = {
-  'Blue Glow': { ring: 'ring-2 ring-blue-400', shadow: 'shadow-[0_0_8px_rgba(96,165,250,0.5)]' },
-  'Fire Ring': { ring: 'ring-2 ring-orange-500', shadow: 'shadow-[0_0_8px_rgba(249,115,22,0.5)]' },
-  'Diamond Frame': { ring: 'ring-2 ring-cyan-300', shadow: 'shadow-[0_0_8px_rgba(103,232,249,0.5)]' },
-  'Neon Ring': { ring: 'ring-2 ring-pink-500', shadow: 'shadow-[0_0_8px_rgba(236,72,153,0.5)]' },
-  'Emerald Ring': { ring: 'ring-2 ring-emerald-400', shadow: 'shadow-[0_0_8px_rgba(52,211,153,0.5)]' },
-  'Sunset Halo': { ring: 'ring-2 ring-amber-400', shadow: 'shadow-[0_0_8px_rgba(251,191,36,0.5)]' },
-  'Lightning Frame': { ring: 'ring-2 ring-yellow-300', shadow: 'shadow-[0_0_8px_rgba(253,224,71,0.5)]' },
-  'Obsidian Frame': { ring: 'ring-2 ring-zinc-600', shadow: 'shadow-[0_0_8px_rgba(82,82,91,0.5)]' },
-  'Holographic Frame': { ring: 'ring-2 ring-violet-400', shadow: 'shadow-[0_0_8px_rgba(167,139,250,0.5)]' },
-};
-
 // ── Item Card (generic) ─────────────────────────────────────────
-function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }: {
+function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, isRestricted }: {
   item: LockerItem;
   isEquipped: boolean;
   isSelected: boolean;
   onSelect: () => void;
   tabId: TabId;
   displayName: string;
+  isRestricted?: boolean;
 }) {
   const color = tabId === 'colors' ? NAME_COLOR_MAP[item.reward_name] : undefined;
   const isGradient = color?.startsWith('linear');
   const preview = tabId === 'themes' ? THEME_PREVIEW[item.reward_name] : undefined;
+  const themeImage = tabId === 'themes' ? THEME_IMAGES[item.reward_name] : undefined;
   const effectClass = tabId === 'effects' ? EFFECT_CLASS_MAP[item.reward_name] : undefined;
   const frameStyle = tabId === 'frames' ? FRAME_STYLE_MAP[item.reward_name] : undefined;
+  const frameColor = tabId === 'frames' ? FRAME_COLORS[item.reward_name] : undefined;
 
   return (
     <motion.button
@@ -138,7 +92,7 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
         "backdrop-blur-xl bg-card/30",
         isSelected
           ? "border-primary/60 bg-primary/10 shadow-lg shadow-primary/10"
-          : item.unlocked
+          : item.unlocked && !isRestricted
             ? "border-border/30 hover:border-primary/30 hover:bg-card/50"
             : "border-border/20 cursor-default"
       )}
@@ -164,9 +118,18 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
       </AnimatePresence>
 
       {/* Lock icon */}
-      {!item.unlocked && (
+      {(!item.unlocked || isRestricted) && (
         <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-muted-foreground/20 flex items-center justify-center z-10">
           <Lock className="w-2.5 h-2.5 text-muted-foreground" />
+        </div>
+      )}
+
+      {/* Restricted badge */}
+      {isRestricted && (
+        <div className="absolute top-1.5 left-1.5 z-10">
+          <span className="text-[7px] font-bold px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-500 uppercase">
+            {RESTRICTED_COLORS[item.reward_name] === 'owner' ? 'Owner' : 'Mod'}
+          </span>
         </div>
       )}
 
@@ -213,22 +176,23 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName }
 
         {tabId === 'frames' && (
           <div className="w-full h-full bg-gradient-to-b from-muted/40 to-card/60 flex flex-col items-center justify-center gap-1.5 px-2">
-            <div className={cn(
-              "w-9 h-9 rounded-full bg-muted/50",
-              frameStyle?.ring,
-              frameStyle?.shadow,
-            )} />
+            <div
+              className={cn("w-9 h-9 rounded-full bg-muted/50", frameStyle?.ring, frameStyle?.shadow)}
+              style={frameColor ? { boxShadow: `0 0 10px ${frameColor}, inset 0 0 0 2px ${frameColor}` } : undefined}
+            />
             <span className="text-[9px] text-muted-foreground truncate max-w-full">{displayName}</span>
           </div>
         )}
 
         {tabId === 'themes' && (() => {
-          const bg = preview
-            ? `linear-gradient(135deg, ${preview.from} 0%, ${preview.to} 100%)`
-            : 'linear-gradient(135deg, hsl(var(--muted)), hsl(var(--card)))';
           return (
-            <div className="w-full h-full relative" style={{ background: bg }}>
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2">
+            <div className="w-full h-full relative overflow-hidden">
+              {themeImage ? (
+                <img src={themeImage} alt={item.reward_name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full" style={{ background: preview ? `linear-gradient(135deg, ${preview.from}, ${preview.to})` : 'hsl(var(--muted))' }} />
+              )}
+              <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center gap-1.5 px-2">
                 <div className="w-7 h-7 rounded-full bg-white/25 border border-white/40 shadow-sm" />
                 <span className="text-[10px] font-bold text-white/90 truncate max-w-full drop-shadow-sm">{displayName}</span>
                 <div className="flex gap-1">
@@ -291,7 +255,15 @@ export function ProfileLocker() {
   const earnedBadges = userBadges.map(ub => ub.badge);
   const lockedBadges = allBadges.filter(b => !earnedBadgeIds.has(b.id) && !b.is_staff_badge);
 
-  // Badge settings
+  // Check if a color is restricted for the current user
+  const isColorRestricted = (name: string): boolean => {
+    const restriction = RESTRICTED_COLORS[name];
+    if (!restriction) return false;
+    if (restriction === 'owner') return !hasOwnerBadge;
+    if (restriction === 'mod') return !hasModBadge && !hasOwnerBadge;
+    return false;
+  };
+
   const handleToggle = (key: keyof BadgeSettings) => {
     haptics.select();
     setSettings(prev => ({ ...prev, [key]: !prev[key] }));
@@ -318,9 +290,10 @@ export function ProfileLocker() {
     }
   };
 
-  // Equip logic
   const handleEquip = (type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme', item: LockerItem) => {
     if (!item.unlocked || equipItem.isPending) return;
+    // Check role restriction for colors
+    if (type === 'name_color' && isColorRestricted(item.reward_name)) return;
     haptics.select();
 
     const equippedMap: Record<string, string | null | undefined> = {
@@ -349,7 +322,6 @@ export function ProfileLocker() {
     );
   };
 
-  // Get items for current tab
   const getTabItems = (): LockerItem[] => {
     if (!lockerData) return [];
     switch (activeTab) {
@@ -476,6 +448,7 @@ export function ProfileLocker() {
                     onSelect={() => setSelectedItem(selectedItem?.id === item.id ? null : item)}
                     tabId={activeTab}
                     displayName={profile?.display_name || profile?.username || 'You'}
+                    isRestricted={activeTab === 'colors' ? isColorRestricted(item.reward_name) : false}
                   />
                 ))}
               </div>
@@ -507,7 +480,12 @@ export function ProfileLocker() {
               </span>
             </div>
 
-            {!selectedItem.unlocked ? (
+            {activeTab === 'colors' && isColorRestricted(selectedItem.reward_name) ? (
+              <Button disabled className="w-full rounded-xl" size="lg">
+                <Crown className="w-4 h-4 mr-2" />
+                {RESTRICTED_COLORS[selectedItem.reward_name] === 'owner' ? 'OWNER ONLY' : 'MOD ONLY'}
+              </Button>
+            ) : !selectedItem.unlocked ? (
               <Button disabled className="w-full rounded-xl" size="lg">
                 <Lock className="w-4 h-4 mr-2" />
                 LOCKED — Level {selectedItem.level}
@@ -524,7 +502,7 @@ export function ProfileLocker() {
                 }}
               >
                 <Check className="w-4 h-4 mr-2" />
-                EQUIPPED
+                EQUIPPED — Tap to Unequip
               </Button>
             ) : (
               <Button
