@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useDisplayStyle } from '@/hooks/useDisplayStyle';
+import { NAME_COLOR_MAP } from '@/lib/cosmeticConstants';
 
 // Helper: allow stored values to be either raw HSL parts ("330 100% 70%"),
 // full CSS colors ("hsl(...)"/"rgb(...)"), or hex ("#ff00ff").
@@ -67,7 +68,15 @@ export const StyledUsername = memo(function StyledUsername({
   const { data: fetchedStyle } = useDisplayStyle(preloadedStyle !== undefined ? undefined : userId);
   
   const badge = preloadedStyle ?? fetchedStyle;
-  
+
+  // Resolve equipped name color: prop override > fetched equipped color
+  const resolvedNameColor = useMemo(() => {
+    if (nameColorOverride) return nameColorOverride;
+    const equipped = fetchedStyle?.equippedNameColor;
+    if (equipped) return NAME_COLOR_MAP[equipped] || null;
+    return null;
+  }, [nameColorOverride, fetchedStyle?.equippedNameColor]);
+
   const nameToShow = useMemo(() => {
     if (preferDisplayName && displayName) {
       return displayName;
@@ -99,15 +108,15 @@ export const StyledUsername = memo(function StyledUsername({
     return supports('background-image', gradient);
   }, [gradient]);
 
-  // If nameColorOverride is set, it takes priority over badge styling
-  if (nameColorOverride) {
-    const isGrad = nameColorOverride.startsWith('linear');
+  // If equipped name color is set, it takes priority over badge styling
+  if (resolvedNameColor) {
+    const isGrad = resolvedNameColor.startsWith('linear');
     if (isGrad) {
       return (
         <span
           className={className}
           style={{
-            backgroundImage: nameColorOverride,
+            backgroundImage: resolvedNameColor,
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
@@ -122,7 +131,7 @@ export const StyledUsername = memo(function StyledUsername({
     return (
       <span
         className={className}
-        style={{ color: nameColorOverride, textShadow: `0 0 10px ${nameColorOverride}40` }}
+        style={{ color: resolvedNameColor, textShadow: `0 0 10px ${resolvedNameColor}40` }}
       >
         {nameToShow}
       </span>

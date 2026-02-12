@@ -5,6 +5,7 @@ import { BadgeStyle } from '@/components/badges/StyledDisplayName';
 export interface DisplayStyle extends BadgeStyle {
   badgeIcon?: string;
   badgeName?: string;
+  equippedNameColor?: string | null;
 }
 
 /**
@@ -17,20 +18,26 @@ export function useDisplayStyle(userId: string | undefined) {
     queryFn: async (): Promise<DisplayStyle | null> => {
       if (!userId) return null;
       
-      const { data, error } = await supabase
-        .rpc('get_user_primary_badge', { p_user_id: userId });
+      // Fetch badge style and equipped color in parallel
+      const [badgeRes, profileRes] = await Promise.all([
+        supabase.rpc('get_user_primary_badge', { p_user_id: userId }),
+        supabase.from('profiles').select('equipped_name_color').eq('id', userId).maybeSingle(),
+      ]);
       
-      if (error || !data?.[0]) return null;
+      const badge = badgeRes.data?.[0];
+      const equippedColor = profileRes.data?.equipped_name_color;
       
-      const badge = data[0];
+      if (!badge && !equippedColor) return null;
+      
       return {
-        gradient_from: badge.gradient_from,
-        gradient_to: badge.gradient_to,
-        gradient_via: badge.gradient_via,
-        effect: badge.effect,
-        is_animated: badge.is_animated,
-        badgeIcon: badge.icon,
-        badgeName: badge.name,
+        gradient_from: badge?.gradient_from ?? null,
+        gradient_to: badge?.gradient_to ?? null,
+        gradient_via: badge?.gradient_via ?? null,
+        effect: badge?.effect ?? null,
+        is_animated: badge?.is_animated ?? false,
+        badgeIcon: badge?.icon,
+        badgeName: badge?.name,
+        equippedNameColor: equippedColor || null,
       };
     },
     enabled: !!userId,
