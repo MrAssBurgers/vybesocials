@@ -31,61 +31,11 @@ import { StyledUsername } from '@/components/ui/StyledUsername';
 import { ProfileLocker } from '@/components/profile/ProfileLocker';
 import { useLockerItems } from '@/hooks/useLockerItems';
 
-// ── Name color map ──────────────────────────────────────────────
-const NAME_COLOR_MAP: Record<string, string> = {
-  'Crimson': '#DC2626',
-  'Ocean Blue': '#2563EB',
-  'Emerald': '#059669',
-  'Sunset Orange': '#EA580C',
-  'Neon Pink': '#EC4899',
-  'Ice Blue': '#06B6D4',
-  'Royal Purple': '#7C3AED',
-  'Toxic Green': '#84CC16',
-  'Gold': '#EAB308',
-  'Diamond White': '#E2E8F0',
-  'Holographic': '#EC4899', // fallback solid for inline
-};
-
-// ── Profile theme gradients ─────────────────────────────────────
-const THEME_GRADIENTS: Record<string, string> = {
-  'Midnight': 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%)',
-  'Sunset Vibes': 'linear-gradient(135deg, #9a3412 0%, #dc2626 50%, #f59e0b 100%)',
-  'Arctic': 'linear-gradient(135deg, #164e63 0%, #0e7490 50%, #67e8f9 100%)',
-  'Neon City': 'linear-gradient(135deg, #701a75 0%, #be185d 50%, #ec4899 100%)',
-  'Inferno': 'linear-gradient(135deg, #7c2d12 0%, #dc2626 50%, #f97316 100%)',
-  'Galaxy': 'linear-gradient(135deg, #1e1b4b 0%, #6d28d9 50%, #a78bfa 100%)',
-  'Aurora Borealis': 'linear-gradient(135deg, #064e3b 0%, #6d28d9 40%, #06b6d4 70%, #10b981 100%)',
-  'Void': 'linear-gradient(135deg, #0a0a0a 0%, #1c1917 50%, #292524 100%)',
-};
-
-// ── Effect class map ────────────────────────────────────────────
-const EFFECT_CLASS_MAP: Record<string, string> = {
-  'Sparkle': 'animate-[sparkle-name-intense_1.5s_ease-in-out_infinite]',
-  'Rainbow Shift': 'animate-[rainbow-shift_2s_linear_infinite]',
-  'Fire Trail': 'animate-[fire-glow-intense_1s_ease-in-out_infinite]',
-  'Cosmic Glow': 'animate-[cosmic-glow-intense_3s_ease-in-out_infinite]',
-  'Glitch': 'animate-[glitch-text_0.3s_steps(2)_infinite]',
-  'Neon Pulse': 'animate-[neon-pulse_1.5s_ease-in-out_infinite]',
-  'Shadow Flicker': 'animate-[shadow-flicker_0.8s_ease-in-out_infinite]',
-  'Aurora Wave': 'animate-[aurora-wave_3s_ease-in-out_infinite]',
-  'Electric Surge': 'animate-[electric-surge_0.5s_ease-in-out_infinite]',
-  'Plasma Storm': 'animate-[plasma-storm_2s_ease-in-out_infinite]',
-};
-
-// ── Frame class map ─────────────────────────────────────────────
-const FRAME_CLASS_MAP: Record<string, string> = {
-  'Silver Ring': 'ring-[3px] ring-gray-400/60 shadow-[0_0_12px_2px_rgba(156,163,175,0.3)]',
-  'Blue Glow': 'ring-[3px] ring-blue-400/70 shadow-[0_0_20px_4px_rgba(96,165,250,0.35)]',
-  'Purple Aura': 'ring-[3px] ring-purple-500/70 shadow-[0_0_20px_4px_rgba(168,85,247,0.35)]',
-  'Gold Frame': 'ring-[3px] ring-yellow-400/80 shadow-[0_0_24px_6px_rgba(250,204,21,0.35)]',
-  'Diamond Frame': 'ring-[3px] ring-cyan-300/80 shadow-[0_0_28px_8px_rgba(103,232,249,0.4)] animate-[diamond-pulse_2s_ease-in-out_infinite]',
-  'Neon Ring': 'ring-[3px] ring-green-400/80 shadow-[0_0_24px_6px_rgba(74,222,128,0.4)] animate-[neon-ring-pulse_2s_ease-in-out_infinite]',
-  'Emerald Ring': 'ring-[3px] ring-emerald-500/70 shadow-[0_0_20px_4px_rgba(16,185,129,0.35)]',
-  'Sunset Halo': 'ring-[3px] ring-orange-400/80 shadow-[0_0_24px_6px_rgba(251,146,60,0.4)] animate-[sunset-halo_3s_ease-in-out_infinite]',
-  'Lightning Frame': 'ring-[3px] ring-yellow-300/80 shadow-[0_0_28px_8px_rgba(253,224,71,0.4)] animate-[lightning-flash_2s_ease-in-out_infinite]',
-  'Obsidian Frame': 'ring-[3px] ring-gray-800/90 shadow-[0_0_20px_4px_rgba(0,0,0,0.5),0_0_40px_8px_rgba(88,28,135,0.2)]',
-  'Holographic Frame': 'ring-[3px] ring-pink-400/60 shadow-[0_0_24px_6px_rgba(236,72,153,0.3)] animate-[holographic-shift_3s_linear_infinite]',
-};
+import {
+  NAME_COLOR_MAP, THEME_GRADIENTS, THEME_IMAGES, THEME_ACCENTS,
+  EFFECT_CLASS_MAP_INTENSE as EFFECT_CLASS_MAP,
+  FRAME_CLASS_MAP,
+} from '@/lib/cosmeticConstants';
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -143,8 +93,9 @@ export default function ProfilePage() {
   // Compute frame class
   const frameClass = lockerData?.equippedFrame ? FRAME_CLASS_MAP[lockerData.equippedFrame] : undefined;
   
-  // Compute profile theme gradient
   const themeGradient = lockerData?.equippedProfileTheme ? THEME_GRADIENTS[lockerData.equippedProfileTheme] : undefined;
+  const themeImage = lockerData?.equippedProfileTheme ? THEME_IMAGES[lockerData.equippedProfileTheme] : undefined;
+  const themeAccent = lockerData?.equippedProfileTheme ? THEME_ACCENTS[lockerData.equippedProfileTheme] : undefined;
 
   const handleFollow = async () => {
     if (!profile) return;
@@ -243,13 +194,17 @@ export default function ProfilePage() {
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Profile Theme Overlay */}
-        {themeGradient && (
-          <div
-            className="absolute inset-x-0 top-0 h-48 -z-10 opacity-40 pointer-events-none"
-            style={{ background: themeGradient }}
-          />
+      <div className="max-w-4xl mx-auto px-4 py-6 relative">
+        {/* Profile Theme - Full Page Transformation */}
+        {(themeImage || themeGradient) && (
+          <div className="absolute inset-0 -z-10 overflow-hidden rounded-2xl pointer-events-none">
+            {themeImage ? (
+              <img src={themeImage} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm scale-110" />
+            ) : (
+              <div className="absolute inset-0 opacity-40" style={{ background: themeGradient }} />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/60 to-background" />
+          </div>
         )}
 
         {/* Profile Header */}
