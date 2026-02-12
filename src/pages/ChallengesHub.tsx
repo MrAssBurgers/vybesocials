@@ -54,6 +54,14 @@ export default function ChallengesHubPage() {
   const { dailyTimeLeft, weeklyTimeLeft } = useChallengeCountdown();
 
   const handleChallengeClick = (challenge: typeof all[0]) => {
+    // If completed but not claimed, find reward and claim it
+    if (challenge.is_completed && !challenge.is_claimed) {
+      const reward = unclaimedRewards?.find(r => r.challenge_id === challenge.id);
+      if (reward) {
+        handleClaimReward(reward.id);
+        return;
+      }
+    }
     if (challenge.is_completed) return;
     
     const route = CHALLENGE_ROUTES[challenge.requirement_type];
@@ -455,9 +463,22 @@ export default function ChallengesHubPage() {
                                 }}
                                 transition={{ duration: 1.5, repeat: Infinity }}
                                 className="rounded-full"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const reward = unclaimedRewards?.find(r => r.challenge_id === challenge.id);
+                                  if (reward) {
+                                    handleClaimReward(reward.id);
+                                  } else {
+                                    // Reward may not be created yet — trigger click on card
+                                    handleChallengeClick(challenge);
+                                  }
+                                }}
                               >
                                 <Badge className="bg-primary text-primary-foreground px-4 py-1.5 text-sm font-bold cursor-pointer">
-                                  🎁 Claim XP
+                                  {claimingId && unclaimedRewards?.find(r => r.challenge_id === challenge.id)?.id === claimingId
+                                    ? '⏳ Claiming...'
+                                    : '🎁 Claim XP'
+                                  }
                                 </Badge>
                               </motion.div>
                             )}
