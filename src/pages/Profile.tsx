@@ -2,6 +2,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, Eye, MoreHorizontal, Award, Sparkles } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/useProfile';
 import { usePosts } from '@/hooks/usePosts';
 import { useSavedPosts } from '@/hooks/useSavedPosts';
@@ -28,6 +29,7 @@ import { useUserBadges, useUserPrimaryBadge } from '@/hooks/useBadges';
 import { BadgeRow } from '@/components/badges';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { ProfileLocker } from '@/components/profile/ProfileLocker';
+import { useLockerItems } from '@/hooks/useLockerItems';
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -53,6 +55,9 @@ export default function ProfilePage() {
   // Fetch user's badges
   const { data: userBadges } = useUserBadges(profile?.id);
   const { data: primaryBadge } = useUserPrimaryBadge(profile?.id);
+  
+  // Fetch equipped cosmetics
+  const { data: lockerData } = useLockerItems(profile?.id);
 
   // Own-profile check should be identity-based (usernames can have case/whitespace)
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
@@ -197,7 +202,13 @@ export default function ProfilePage() {
         >
           {/* Avatar */}
           <div className="relative group">
-            <div className="story-ring p-1">
+            <div className={cn(
+              "story-ring p-1",
+              lockerData?.equippedFrame === 'Blue Glow' && "ring-2 ring-blue-400 shadow-lg shadow-blue-400/30 rounded-full",
+              lockerData?.equippedFrame === 'Purple Aura' && "ring-2 ring-purple-500 shadow-lg shadow-purple-500/30 rounded-full",
+              lockerData?.equippedFrame === 'Gold Frame' && "ring-2 ring-yellow-400 shadow-lg shadow-yellow-400/40 rounded-full",
+              lockerData?.equippedFrame === 'Diamond Frame' && "ring-2 ring-cyan-300 shadow-lg shadow-cyan-300/40 rounded-full animate-pulse",
+            )}>
               <Avatar className="h-32 w-32 border-4 border-background">
                 <AvatarImage src={profile.avatar_url || undefined} />
                 <AvatarFallback className="text-4xl bg-secondary">
@@ -224,7 +235,13 @@ export default function ProfilePage() {
               <div className="flex flex-col">
                 {/* Display Name with Badge Styling */}
                 {profile.display_name && (
-                  <h1 className="text-2xl font-bold flex items-center gap-2">
+                  <h1 className={cn(
+                    "text-2xl font-bold flex items-center gap-2",
+                    lockerData?.equippedEffect === 'Sparkle' && "animate-[pulse_2s_ease-in-out_infinite]",
+                    lockerData?.equippedEffect === 'Rainbow Shift' && "animate-[rainbow-shift_3s_linear_infinite]",
+                    lockerData?.equippedEffect === 'Fire Trail' && "animate-[fire-glow_1.5s_ease-in-out_infinite]",
+                    lockerData?.equippedEffect === 'Cosmic Glow' && "animate-[cosmic-glow_4s_ease-in-out_infinite]",
+                  )}>
                     <StyledUsername
                       userId={profile.id}
                       username={profile.username}
@@ -262,6 +279,15 @@ export default function ProfilePage() {
                  {displayBadges.length > 0 && (
                    <div className="mt-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
                      <BadgeRow badges={displayBadges} maxVisible={5} size="sm" />
+                   </div>
+                 )}
+                 
+                 {/* Equipped Title */}
+                 {lockerData?.equippedTitle && (
+                   <div className="mt-1.5">
+                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/30 text-primary">
+                       {lockerData.equippedTitle}
+                     </span>
                    </div>
                  )}
               </div>

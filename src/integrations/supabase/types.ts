@@ -4224,6 +4224,9 @@ export type Database = {
           date_of_birth: string | null
           display_name: string | null
           email: string | null
+          equipped_effect: string | null
+          equipped_frame: string | null
+          equipped_title: string | null
           first_name: string | null
           id: string
           interests: string[] | null
@@ -4255,6 +4258,9 @@ export type Database = {
           date_of_birth?: string | null
           display_name?: string | null
           email?: string | null
+          equipped_effect?: string | null
+          equipped_frame?: string | null
+          equipped_title?: string | null
           first_name?: string | null
           id?: string
           interests?: string[] | null
@@ -4286,6 +4292,9 @@ export type Database = {
           date_of_birth?: string | null
           display_name?: string | null
           email?: string | null
+          equipped_effect?: string | null
+          equipped_frame?: string | null
+          equipped_title?: string | null
           first_name?: string | null
           id?: string
           interests?: string[] | null

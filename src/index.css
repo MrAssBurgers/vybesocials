@@ -3090,3 +3090,20 @@ img, video {
   animation: badge-shine 2s ease-in-out infinite;
   animation-delay: 1s;
 }
+
+/* ── Profile Effects Keyframes ─────────────────────────── */
+@keyframes rainbow-shift {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+@keyframes fire-glow {
+  0%, 100% { text-shadow: 0 0 4px hsl(20 90% 50% / 0.6), 0 0 8px hsl(30 90% 50% / 0.3); }
+  50% { text-shadow: 0 0 8px hsl(15 95% 55% / 0.8), 0 0 16px hsl(25 90% 50% / 0.5), 0 0 24px hsl(35 85% 45% / 0.3); }
+}
+
+@keyframes cosmic-glow {
+  0%, 100% { text-shadow: 0 0 6px hsl(260 80% 60% / 0.5), 0 0 12px hsl(200 80% 60% / 0.3); }
+  33% { text-shadow: 0 0 8px hsl(280 80% 65% / 0.6), 0 0 16px hsl(220 80% 55% / 0.4); }
+  66% { text-shadow: 0 0 10px hsl(300 75% 60% / 0.7), 0 0 20px hsl(240 80% 60% / 0.5); }
+}
