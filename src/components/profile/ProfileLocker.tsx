@@ -127,7 +127,13 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, 
       {/* Restricted badge */}
       {isRestricted && (
         <div className="absolute top-1.5 left-1.5 z-10">
-          <span className="text-[7px] font-bold px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-500 uppercase">
+          <span className={cn(
+            "text-[7px] font-bold px-1 py-0.5 rounded uppercase flex items-center gap-0.5",
+            RESTRICTED_COLORS[item.reward_name] === 'owner'
+              ? "bg-yellow-500/20 text-yellow-500"
+              : "bg-blue-500/20 text-blue-400"
+          )}>
+            {RESTRICTED_COLORS[item.reward_name] === 'owner' ? <Crown className="w-2 h-2" /> : <Shield className="w-2 h-2" />}
             {RESTRICTED_COLORS[item.reward_name] === 'owner' ? 'Owner' : 'Mod'}
           </span>
         </div>
@@ -139,12 +145,18 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, 
         tabId === 'themes' ? 'h-24' : tabId === 'effects' ? 'h-20' : 'h-16'
       )}>
         {tabId === 'colors' && (
-          <div className="w-full h-full bg-gradient-to-b from-muted/40 to-card/60 flex flex-col items-center justify-center gap-1.5 px-2">
-            <div className="w-7 h-7 rounded-full bg-muted/50 border border-border/40 shadow-sm" />
+          <div
+            className="w-full h-full flex flex-col items-center justify-center gap-1.5 px-2"
+            style={{ background: color && !isGradient ? `linear-gradient(180deg, ${color}15, ${color}08)` : isGradient ? 'linear-gradient(180deg, rgba(139,92,246,0.08), rgba(6,182,212,0.05))' : undefined }}
+          >
+            <div
+              className="w-7 h-7 rounded-full border shadow-sm"
+              style={{ borderColor: color && !isGradient ? color : 'hsl(var(--border))', backgroundColor: color && !isGradient ? `${color}20` : 'hsl(var(--muted) / 0.5)', boxShadow: color && !isGradient ? `0 0 8px ${color}40` : undefined }}
+            />
             <span
-              className="text-[11px] font-bold truncate max-w-full"
+              className="text-sm font-extrabold truncate max-w-full drop-shadow-sm"
               style={!isGradient
-                ? { color: color || 'hsl(var(--foreground))' }
+                ? { color: color || 'hsl(var(--foreground))', textShadow: color ? `0 0 10px ${color}60` : undefined }
                 : { background: color, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }
               }
             >
@@ -482,8 +494,11 @@ export function ProfileLocker() {
 
             {activeTab === 'colors' && isColorRestricted(selectedItem.reward_name) ? (
               <Button disabled className="w-full rounded-xl" size="lg">
-                <Crown className="w-4 h-4 mr-2" />
-                {RESTRICTED_COLORS[selectedItem.reward_name] === 'owner' ? 'OWNER ONLY' : 'MOD ONLY'}
+                {RESTRICTED_COLORS[selectedItem.reward_name] === 'owner' ? (
+                  <><Crown className="w-4 h-4 mr-2" /> OWNER ONLY</>
+                ) : (
+                  <><Shield className="w-4 h-4 mr-2" /> MOD ONLY</>
+                )}
               </Button>
             ) : !selectedItem.unlocked ? (
               <Button disabled className="w-full rounded-xl" size="lg">
