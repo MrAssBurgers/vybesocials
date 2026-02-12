@@ -448,22 +448,20 @@ export function ChatView() {
     }
     
     if (value.length > 0) {
-      // Only send typing indicator once per burst, not every keystroke
-      if (!typingUpdateScheduledRef.current) {
-        typingUpdateScheduledRef.current = true;
-        // Use queueMicrotask to defer network calls after render
-        queueMicrotask(() => {
-          setTyping(true);
-          setLiveTyping(true);
-        });
-      }
+      // Send typing indicator on every keystroke for accurate real-time feedback
+      // Non-blocking: deferred via microtask so input stays responsive
+      queueMicrotask(() => {
+        setTyping(true);
+        setLiveTyping(true);
+      });
+      typingUpdateScheduledRef.current = true;
       
-      // Reset typing indicator after pause
+      // Reset typing indicator after 3s pause (matches PRESENCE.TYPING_TIMEOUT_MS)
       typingTimeoutRef.current = setTimeout(() => {
         typingUpdateScheduledRef.current = false;
         setTyping(false);
         setLiveTyping(false);
-      }, 2000);
+      }, 3000);
     } else {
       typingUpdateScheduledRef.current = false;
       queueMicrotask(() => {
