@@ -2170,42 +2170,7 @@ const MessageBubble = memo(function MessageBubble({
         {/* Message bubble - Instagram-quality padding and radius (not for shared posts) */}
         {!isSharedPost && (
         <div className="relative group/bubble">
-          {/* Quick action button - OUTSIDE overflow-hidden so it's not clipped */}
-          <div className={cn(
-            "absolute top-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity z-20",
-            isOwn ? "-left-8" : "-right-8"
-          )}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="p-1.5 rounded-full bg-muted/80 hover:bg-muted text-muted-foreground">
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align={isOwn ? "end" : "start"} className="min-w-[140px]">
-                <DropdownMenuItem onClick={onReply} className="gap-2 text-sm">
-                  <Reply className="h-4 w-4" /> Reply
-                </DropdownMenuItem>
-                {message.content && (
-                  <DropdownMenuItem onClick={copyToClipboard} className="gap-2 text-sm">
-                    <Check className="h-4 w-4" /> Copy
-                  </DropdownMenuItem>
-                )}
-                {isOwn && message.content && !message.media_url && (
-                  <DropdownMenuItem onClick={() => onEdit?.()} className="gap-2 text-sm">
-                    <Edit3 className="h-4 w-4" /> Edit
-                  </DropdownMenuItem>
-                )}
-                {isOwn && (
-                  <DropdownMenuItem onClick={handleUnsend} className="gap-2 text-sm text-destructive focus:text-destructive">
-                    <Trash2 className="h-4 w-4" /> Unsend
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => { onDeleteForMe(); }} className="gap-2 text-sm text-muted-foreground">
-                  <EyeOff className="h-4 w-4" /> Delete for me
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {/* Quick action dots removed - actions only available via long-press context menu */}
         <div
           className={cn(
             'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0',
@@ -2520,14 +2485,23 @@ const MessageBubble = memo(function MessageBubble({
         </AnimatePresence>
 
         {/* Context menu backdrop + menu for long-press (mobile) */}
+        <AnimatePresence>
         {showContextMenu && (
           <>
-            <div 
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
               className="fixed inset-0 bg-black/40 z-[99]"
               onClick={() => { setShowContextMenu(false); menuOpenedRef.current = false; }}
             />
-            <div 
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-2xl z-[100] min-w-[200px] py-2 animate-in fade-in zoom-in-95 duration-150"
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-2xl z-[100] min-w-[200px] py-2"
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -2572,9 +2546,10 @@ const MessageBubble = memo(function MessageBubble({
               >
                 <EyeOff className="h-4 w-4" /> Delete for me
               </button>
-            </div>
+            </motion.div>
           </>
         )}
+        </AnimatePresence>
         {/* Edited indicator */}
         {message.is_edited && (
           <span className="text-[9px] text-muted-foreground/50 italic ml-1">(edited)</span>
