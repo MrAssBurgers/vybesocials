@@ -2055,14 +2055,12 @@ const MessageBubble = memo(function MessageBubble({
   }, [onUnsendForEveryone]);
 
   // Long press handlers for context menu
-  const handleTouchStart = useCallback(() => {
-    if (menuOpenedRef.current) return;
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
     longPressRef.current = setTimeout(() => {
-      if (!menuOpenedRef.current) {
-        menuOpenedRef.current = true;
-        setShowContextMenu(true);
-      }
-    }, 500);
+      menuOpenedRef.current = true;
+      setShowContextMenu(true);
+      // Prevent default to avoid text selection
+    }, 400);
   }, []);
 
   const handleTouchEnd = useCallback(() => {
@@ -2072,22 +2070,23 @@ const MessageBubble = memo(function MessageBubble({
     }
   }, []);
 
-  // Close menu when clicking outside
+  const handleTouchMove = useCallback(() => {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current);
+      longPressRef.current = null;
+    }
+  }, []);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    menuOpenedRef.current = true;
+    setShowContextMenu(true);
+  }, []);
+
+  // Reset menuOpenedRef when context menu closes
   useEffect(() => {
-    if (showContextMenu) {
-      const handleClickOutside = () => {
-        setShowContextMenu(false);
-        menuOpenedRef.current = false;
-      };
-      
-      const timeout = setTimeout(() => {
-        document.addEventListener('click', handleClickOutside, { once: true });
-      }, 100);
-      
-      return () => {
-        clearTimeout(timeout);
-        document.removeEventListener('click', handleClickOutside);
-      };
+    if (!showContextMenu) {
+      menuOpenedRef.current = false;
     }
   }, [showContextMenu]);
 
@@ -2189,6 +2188,8 @@ const MessageBubble = memo(function MessageBubble({
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
+          onTouchMove={handleTouchMove}
+          onContextMenu={handleContextMenu}
           onDoubleClick={onToggleReactions}
         >
 
