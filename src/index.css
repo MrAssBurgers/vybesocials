@@ -327,11 +327,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       stroke: hsl(var(--primary)) !important;
       opacity: 1 !important;
       mix-blend-mode: normal !important;
-      filter: 
-        drop-shadow(0 0 1px hsl(var(--background)))
-        drop-shadow(0 0 2px hsl(var(--background)))
-        drop-shadow(0 0 4px hsl(var(--accent) / 0.5)) !important;
-      -webkit-text-stroke: 0.5px hsl(var(--background) / 0.4);
+      filter: drop-shadow(0 0 1px hsl(var(--background))) !important;
       paint-order: stroke fill;
     }
     svg:not([data-themed-svg]):not(.create-button-gradient *) *, 
