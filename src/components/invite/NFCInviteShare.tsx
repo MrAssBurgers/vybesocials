@@ -125,7 +125,7 @@ export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
       if (error.name === 'NotAllowedError') {
         toast.error('NFC permission denied');
       } else if (error.name !== 'AbortError') {
-        toast.error('Failed to start NFC');
+        console.warn('[NFC Invite] Start failed:', error.message);
       }
     }
   }, [profile?.username, requestPermission]);
