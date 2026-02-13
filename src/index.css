@@ -79,6 +79,20 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     animation: none !important;
   }
 
+  /* Exempt cosmetic effect animations from iOS kill-switch */
+  .platform-ios .sparkle-name,
+  .platform-ios .rainbow-name,
+  .platform-ios .fire-glow,
+  .platform-ios .cosmic-name,
+  .platform-ios .glitch-name,
+  .platform-ios .neon-pulse-name,
+  .platform-ios .shadow-flicker-name,
+  .platform-ios .aurora-wave-name,
+  .platform-ios .electric-surge-name,
+  .platform-ios .plasma-storm-name {
+    animation: revert !important;
+  }
+
   /* Allow pulse for specific elements (loading states) */
   .platform-ios [data-allow-animation="true"] .animate-pulse,
   .platform-ios .orbit-sparkle {
@@ -152,6 +166,30 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   .perf-low *::after {
     animation: none !important;
     transition-duration: 0.05s !important;
+  }
+
+  /* Exempt cosmetic effect animations from perf-low kill-switch */
+  .perf-low .sparkle-name,
+  .perf-low .rainbow-name,
+  .perf-low .fire-glow,
+  .perf-low .cosmic-name,
+  .perf-low .glitch-name,
+  .perf-low .neon-pulse-name,
+  .perf-low .shadow-flicker-name,
+  .perf-low .aurora-wave-name,
+  .perf-low .electric-surge-name,
+  .perf-low .plasma-storm-name,
+  .perf-low [class*="animate-[sparkle"],
+  .perf-low [class*="animate-[fire"],
+  .perf-low [class*="animate-[cosmic"],
+  .perf-low [class*="animate-[neon"],
+  .perf-low [class*="animate-[shadow-flicker"],
+  .perf-low [class*="animate-[aurora"],
+  .perf-low [class*="animate-[electric"],
+  .perf-low [class*="animate-[plasma"],
+  .perf-low [class*="animate-[rainbow"],
+  .perf-low [class*="animate-[glitch"] {
+    animation: revert !important;
   }
 
   /* Mobile devices: General optimizations */
