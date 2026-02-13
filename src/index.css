@@ -80,18 +80,16 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   }
 
   /* Exempt cosmetic effect animations from iOS kill-switch */
-  .platform-ios .sparkle-name,
-  .platform-ios .rainbow-name,
-  .platform-ios .fire-glow,
-  .platform-ios .cosmic-name,
-  .platform-ios .glitch-name,
-  .platform-ios .neon-pulse-name,
-  .platform-ios .shadow-flicker-name,
-  .platform-ios .aurora-wave-name,
-  .platform-ios .electric-surge-name,
-  .platform-ios .plasma-storm-name {
-    animation: revert !important;
-  }
+  .platform-ios .sparkle-name { animation: sparkle-name 2s ease-in-out infinite !important; }
+  .platform-ios .rainbow-name { animation: rainbow-shift 3s linear infinite !important; }
+  .platform-ios .fire-glow { animation: fire-glow 1.5s ease-in-out infinite !important; }
+  .platform-ios .cosmic-name { animation: cosmic-glow 3s ease-in-out infinite !important; }
+  .platform-ios .glitch-name { animation: glitch-text 0.8s steps(4) infinite !important; }
+  .platform-ios .neon-pulse-name { animation: neon-pulse 2s ease-in-out infinite !important; }
+  .platform-ios .shadow-flicker-name { animation: shadow-flicker 2s ease-in-out infinite !important; }
+  .platform-ios .aurora-wave-name { animation: aurora-wave 4s ease-in-out infinite !important; }
+  .platform-ios .electric-surge-name { animation: electric-surge 2s ease-in-out infinite !important; }
+  .platform-ios .plasma-storm-name { animation: plasma-storm 3s ease-in-out infinite !important; }
 
   /* Allow pulse for specific elements (loading states) */
   .platform-ios [data-allow-animation="true"] .animate-pulse,
@@ -169,28 +167,26 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   }
 
   /* Exempt cosmetic effect animations from perf-low kill-switch */
-  .perf-low .sparkle-name,
-  .perf-low .rainbow-name,
-  .perf-low .fire-glow,
-  .perf-low .cosmic-name,
-  .perf-low .glitch-name,
-  .perf-low .neon-pulse-name,
-  .perf-low .shadow-flicker-name,
-  .perf-low .aurora-wave-name,
-  .perf-low .electric-surge-name,
-  .perf-low .plasma-storm-name,
-  .perf-low [class*="animate-[sparkle"],
-  .perf-low [class*="animate-[fire"],
-  .perf-low [class*="animate-[cosmic"],
-  .perf-low [class*="animate-[neon"],
-  .perf-low [class*="animate-[shadow-flicker"],
-  .perf-low [class*="animate-[aurora"],
-  .perf-low [class*="animate-[electric"],
-  .perf-low [class*="animate-[plasma"],
-  .perf-low [class*="animate-[rainbow"],
-  .perf-low [class*="animate-[glitch"] {
-    animation: revert !important;
-  }
+  .perf-low .sparkle-name { animation: sparkle-name 2s ease-in-out infinite !important; }
+  .perf-low .rainbow-name { animation: rainbow-shift 3s linear infinite !important; }
+  .perf-low .fire-glow { animation: fire-glow 1.5s ease-in-out infinite !important; }
+  .perf-low .cosmic-name { animation: cosmic-glow 3s ease-in-out infinite !important; }
+  .perf-low .glitch-name { animation: glitch-text 0.8s steps(4) infinite !important; }
+  .perf-low .neon-pulse-name { animation: neon-pulse 2s ease-in-out infinite !important; }
+  .perf-low .shadow-flicker-name { animation: shadow-flicker 2s ease-in-out infinite !important; }
+  .perf-low .aurora-wave-name { animation: aurora-wave 4s ease-in-out infinite !important; }
+  .perf-low .electric-surge-name { animation: electric-surge 2s ease-in-out infinite !important; }
+  .perf-low .plasma-storm-name { animation: plasma-storm 3s ease-in-out infinite !important; }
+  .perf-low [class*="animate-[sparkle"] { animation: sparkle-name 2s ease-in-out infinite !important; }
+  .perf-low [class*="animate-[fire"] { animation: fire-glow 1.5s ease-in-out infinite !important; }
+  .perf-low [class*="animate-[cosmic"] { animation: cosmic-glow 3s ease-in-out infinite !important; }
+  .perf-low [class*="animate-[neon"] { animation: neon-pulse 2s ease-in-out infinite !important; }
+  .perf-low [class*="animate-[shadow-flicker"] { animation: shadow-flicker 2s ease-in-out infinite !important; }
+  .perf-low [class*="animate-[aurora"] { animation: aurora-wave 4s ease-in-out infinite !important; }
+  .perf-low [class*="animate-[electric"] { animation: electric-surge 2s ease-in-out infinite !important; }
+  .perf-low [class*="animate-[plasma"] { animation: plasma-storm 3s ease-in-out infinite !important; }
+  .perf-low [class*="animate-[rainbow"] { animation: rainbow-shift 3s linear infinite !important; }
+  .perf-low [class*="animate-[glitch"] { animation: glitch-text 0.8s steps(4) infinite !important; }
 
   /* Mobile devices: General optimizations */
   .device-mobile .liquid-glass::after,
