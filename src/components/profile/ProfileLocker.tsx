@@ -1,4 +1,4 @@
-import { useState, memo, useCallback } from 'react';
+import { useState, memo, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Award, ShoppingBag, Lock, Check, Crown, Shield, Heart, BadgeCheck, Type, Wand2, Diamond, Zap, Palette, Layers, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -323,7 +323,7 @@ export function ProfileLocker() {
     );
   }, [lockerData, equipItem, hasRoleUnlock, isColorRestricted]);
 
-  const getTabItems = (): LockerItem[] => {
+  const tabItems = useMemo((): LockerItem[] => {
     if (!lockerData) return [];
     switch (activeTab) {
       case 'colors': return lockerData.name_colors.map(item => 
@@ -335,7 +335,7 @@ export function ProfileLocker() {
       case 'themes': return lockerData.profile_themes;
       default: return [];
     }
-  };
+  }, [lockerData, activeTab, hasRoleUnlock]);
 
   const isItemEquipped = useCallback((item: LockerItem): boolean => {
     if (!lockerData) return false;
@@ -352,7 +352,6 @@ export function ProfileLocker() {
     lockerData?.equippedProfileTheme,
   ].filter(Boolean).length;
 
-  const tabItems = getTabItems();
   const hasCosmeticTab = activeTab !== 'badges' && activeTab !== 'shop';
   const displayName = profile?.display_name || profile?.username || 'You';
 
@@ -376,7 +375,7 @@ export function ProfileLocker() {
       </div>
 
       {/* ── Tab Bar ────────────────────────────────────────── */}
-      <div className="relative overflow-x-auto scrollbar-hide -mx-1 px-1">
+      <div className="relative overflow-x-auto scrollbar-hide -mx-1 px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="flex gap-1 min-w-max pb-2">
           {TABS.map(tab => {
             const Icon = tab.icon;
@@ -390,16 +389,12 @@ export function ProfileLocker() {
                   setSelectedItem(null);
                 }}
                 className={cn(
-                  "relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap",
-                  isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  "relative flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap touch-manipulation",
+                  isActive ? "text-primary-foreground" : "text-muted-foreground active:bg-muted/60"
                 )}
               >
                 {isActive && (
-                  <motion.div
-                    layoutId="locker-tab-indicator"
-                    className="absolute inset-0 rounded-xl bg-primary shadow-md shadow-primary/25"
-                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                  />
+                  <div className="absolute inset-0 rounded-xl bg-primary shadow-md shadow-primary/25" />
                 )}
                 <span className="relative z-10 flex items-center gap-1.5">
                   <Icon style={{ width: 14, height: 14, minWidth: 14, minHeight: 14 }} />
@@ -413,52 +408,59 @@ export function ProfileLocker() {
 
       {/* ── Tab Content ───────────────────────────────────── */}
       <div className="flex-1 mt-2">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.12 }}
-          >
-            {activeTab === 'badges' && (
-              <BadgesContent
-                earnedBadges={earnedBadges}
-                lockedBadges={lockedBadges}
-                hasOwnerBadge={hasOwnerBadge}
-                hasOwnerWifeBadge={hasOwnerWifeBadge}
-                hasModBadge={hasModBadge}
-                hasVerifiedBadge={hasVerifiedBadge}
-                settings={settings}
-                handleToggle={handleToggle}
-                handleSaveBadgeSettings={handleSaveBadgeSettings}
-                savingBadges={savingBadges}
-              />
-            )}
+        {/* Instant tab switching - no AnimatePresence blocking */}
+        <div key={activeTab} className="animate-in fade-in duration-100">
+          {activeTab === 'badges' && (
+            <BadgesContent
+              earnedBadges={earnedBadges}
+              lockedBadges={lockedBadges}
+              hasOwnerBadge={hasOwnerBadge}
+              hasOwnerWifeBadge={hasOwnerWifeBadge}
+              hasModBadge={hasModBadge}
+              hasVerifiedBadge={hasVerifiedBadge}
+              settings={settings}
+              handleToggle={handleToggle}
+              handleSaveBadgeSettings={handleSaveBadgeSettings}
+              savingBadges={savingBadges}
+            />
+          )}
 
-            {activeTab === 'shop' && <ShopContent />}
+          {activeTab === 'shop' && <ShopContent />}
 
-            {hasCosmeticTab && (
-              <div className={cn(
-                "grid gap-2",
-                (activeTab === 'themes' || activeTab === 'effects') ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-3 sm:grid-cols-4"
-              )}>
-                {tabItems.map(item => (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    isEquipped={isItemEquipped(item)}
-                    isSelected={selectedItem?.id === item.id}
-                    onSelect={() => setSelectedItem(selectedItem?.id === item.id ? null : item)}
-                    tabId={activeTab}
-                    displayName={displayName}
-                    isRestricted={activeTab === 'colors' ? isColorRestricted(item.reward_name) : false}
-                  />
-                ))}
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>
+          {hasCosmeticTab && tabItems.length > 0 && (
+            <div className={cn(
+              "grid gap-2",
+              (activeTab === 'themes' || activeTab === 'effects') ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-3 sm:grid-cols-4"
+            )}>
+              {tabItems.map(item => (
+                <ItemCard
+                  key={item.id}
+                  item={item}
+                  isEquipped={isItemEquipped(item)}
+                  isSelected={selectedItem?.id === item.id}
+                  onSelect={() => setSelectedItem(selectedItem?.id === item.id ? null : item)}
+                  tabId={activeTab}
+                  displayName={displayName}
+                  isRestricted={activeTab === 'colors' ? isColorRestricted(item.reward_name) : false}
+                />
+              ))}
+            </div>
+          )}
+
+          {hasCosmeticTab && tabItems.length === 0 && lockerData && (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              No items available yet
+            </div>
+          )}
+
+          {hasCosmeticTab && !lockerData && (
+            <div className="grid grid-cols-3 gap-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-24 rounded-2xl bg-muted/30 animate-pulse" />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Bottom Action Bar ─────────────────────────────── */}
