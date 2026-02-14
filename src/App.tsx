@@ -1,5 +1,9 @@
 import { useState, useEffect, memo, lazy, Suspense } from 'react';
-import './lib/i18n';
+// Defer i18n initialization - loaded async instead of blocking main bundle
+const i18nPromise = import('./lib/i18n');
+if (typeof window !== 'undefined') {
+  i18nPromise.catch(() => {}); // Prevent unhandled rejection, i18n will retry
+}
 // Defer non-critical CSS - loaded after initial render
 const loadLiquidCSS = () => import('./styles/liquid.css');
 if (typeof window !== 'undefined') {
@@ -9,9 +13,6 @@ if (typeof window !== 'undefined') {
     setTimeout(loadLiquidCSS, 100);
   }
 }
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
@@ -35,6 +36,20 @@ const AnimatedRoutes = lazy(() => import("@/components/layout/AnimatedRoutes").t
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
+
+// Lazy-load toast/tooltip UI components - not needed for initial paint
+const LazyToaster = lazy(() => import("@/components/ui/toaster").then(m => ({ default: m.Toaster })));
+const LazySonner = lazy(() => import("@/components/ui/sonner").then(m => ({ default: m.Toaster })));
+const LazyTooltipProvider = lazy(() => import("@/components/ui/tooltip").then(m => ({ default: m.TooltipProvider })));
+
+// Simple passthrough tooltip provider for SSR/initial render
+function MinimalTooltipProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<>{children}</>}>
+      <LazyTooltipProvider>{children}</LazyTooltipProvider>
+    </Suspense>
+  );
+}
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -148,9 +163,8 @@ function AppWithPreloader() {
                     <Suspense fallback={null}>
                       <RewardNotificationProvider>
                         <StreakProvider>
-                          <TooltipProvider>
-                            <Toaster />
-                            <Sonner />
+                          <MinimalTooltipProvider>
+                            <Suspense fallback={null}><LazyToaster /><LazySonner /></Suspense>
                             <BrowserRouter>
                               <DebugPanelProvider>
                                 <Suspense fallback={null}>
@@ -172,7 +186,7 @@ function AppWithPreloader() {
                                 </Suspense>
                               </DebugPanelProvider>
                             </BrowserRouter>
-                          </TooltipProvider>
+                          </MinimalTooltipProvider>
                         </StreakProvider>
                       </RewardNotificationProvider>
                     </Suspense>
