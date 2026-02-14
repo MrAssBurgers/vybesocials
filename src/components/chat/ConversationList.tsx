@@ -688,9 +688,9 @@ const ConversationItem = memo(function ConversationItem({
   
   // Swipe gesture handling - more generous transforms for better UX
   const x = useMotionValue(0);
-  const deleteOpacity = useTransform(x, [-120, -30, 0], [1, 0.6, 0]);
-  const deleteScale = useTransform(x, [-120, -30, 0], [1, 0.9, 0.6]);
-  const backgroundColor = useTransform(x, [-60, 0], ['hsl(var(--destructive))', 'transparent']);
+  const deleteOpacity = useTransform(x, [-120, -40, -15, 0], [1, 0.8, 0, 0]);
+  const deleteScale = useTransform(x, [-120, -40, -15, 0], [1, 0.95, 0.5, 0.3]);
+  const deleteBgOpacity = useTransform(x, [-100, -30, -10, 0], [1, 0.6, 0, 0]);
   
   const handleDragEnd = useCallback((event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     isDraggingRef.current = false;
@@ -841,16 +841,17 @@ const ConversationItem = memo(function ConversationItem({
     return (
       <>
         <div className="relative mb-1.5">
-          {/* Delete indicator - positioned behind, full height */}
+          {/* Delete indicator - hidden at rest, slowly reveals behind frosted glass on swipe */}
           <motion.div 
-            className="absolute inset-0 flex items-center justify-end bg-destructive"
+            className="absolute inset-0 flex items-center justify-end"
             style={{ 
-              opacity: deleteOpacity,
+              opacity: deleteBgOpacity,
               borderRadius: '0.75rem',
+              background: 'hsl(var(--destructive))',
             }}
           >
             <motion.div 
-              style={{ scale: deleteScale }} 
+              style={{ scale: deleteScale, opacity: deleteOpacity }} 
               className="flex flex-col items-center gap-0.5 text-destructive-foreground pr-6"
             >
               <Trash2 className="h-5 w-5" />
