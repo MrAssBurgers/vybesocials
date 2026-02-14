@@ -2897,7 +2897,7 @@ img, video {
   100% { transform: translateY(-20px); opacity: 0; }
 }
 
-/* Lightweight card — NO backdrop-filter, NO mask-composite, NO animated pseudo-elements */
+/* ═══ FRIEND LINK — Lightweight GPU-accelerated cards ═══ */
 .cyber-card-lite {
   position: relative;
   background: hsl(var(--background) / 0.97);
@@ -2906,18 +2906,11 @@ img, video {
   contain: layout style paint;
 }
 
-/* Smooth card entrance — single GPU-accelerated keyframe */
+/* Card entrance — single GPU-accelerated keyframe */
 @keyframes cyber-card-slide-up {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, 40px, 0) scale(0.97);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
+  0% { opacity: 0; transform: translate3d(0, 40px, 0) scale(0.97); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
-
 .cyber-card-enter {
   animation: cyber-card-slide-up 0.3s cubic-bezier(0.23, 1, 0.32, 1) both;
   will-change: transform, opacity;
@@ -2928,12 +2921,74 @@ img, video {
   0% { opacity: 0; }
   100% { opacity: 1; }
 }
-
 .cyber-backdrop-enter {
   animation: cyber-backdrop-fade 0.2s ease-out both;
 }
 
-/* Legacy .cyber-card kept for found/exchanging/success phases */
+/* ── Phase transition animations ── */
+.cyber-phase-avatar {
+  animation: cyber-card-slide-up 0.25s cubic-bezier(0.23, 1, 0.32, 1) 0.05s both;
+}
+.cyber-phase-text {
+  animation: cyber-card-slide-up 0.25s cubic-bezier(0.23, 1, 0.32, 1) 0.1s both;
+}
+.cyber-phase-buttons {
+  animation: cyber-card-slide-up 0.25s cubic-bezier(0.23, 1, 0.32, 1) 0.15s both;
+}
+
+/* Exchanging — fly out / fly in */
+@keyframes cyber-fly-out {
+  0% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  100% { opacity: 0; transform: translate3d(0, -180px, 0) scale(0.3); }
+}
+.cyber-fly-out {
+  animation: cyber-fly-out 0.5s cubic-bezier(0.32, 0, 0.67, 0) both;
+}
+
+@keyframes cyber-fly-in {
+  0% { opacity: 0; transform: translate3d(0, 180px, 0) scale(0.3); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+.cyber-fly-in {
+  animation: cyber-fly-in 0.5s cubic-bezier(0.23, 1, 0.32, 1) 0.3s both;
+}
+
+/* Success — slide together */
+@keyframes cyber-slide-left {
+  0% { opacity: 0; transform: translate3d(-50px, 0, 0) scale(0.5); }
+  100% { opacity: 1; transform: translate3d(-20px, 0, 0) scale(1); }
+}
+.cyber-slide-left {
+  animation: cyber-slide-left 0.35s cubic-bezier(0.23, 1, 0.32, 1) 0.05s both;
+}
+
+@keyframes cyber-slide-right {
+  0% { opacity: 0; transform: translate3d(50px, 0, 0) scale(0.5); }
+  100% { opacity: 1; transform: translate3d(20px, 0, 0) scale(1); }
+}
+.cyber-slide-right {
+  animation: cyber-slide-right 0.35s cubic-bezier(0.23, 1, 0.32, 1) 0.08s both;
+}
+
+@keyframes cyber-check-pop {
+  0% { opacity: 0; transform: scale(0); }
+  60% { transform: scale(1.15); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.cyber-check-pop {
+  animation: cyber-check-pop 0.3s cubic-bezier(0.23, 1, 0.32, 1) 0.25s both;
+}
+
+/* Conic ring spin */
+@keyframes cyber-ring-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.cyber-ring-spin {
+  animation: cyber-ring-spin 4s linear infinite;
+}
+
+/* Legacy .cyber-card alias */
 .cyber-card {
   position: relative;
   background: hsl(var(--background) / 0.95);

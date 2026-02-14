@@ -1,13 +1,11 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  X, Check, Loader2, Smartphone, Zap,
-  ArrowLeftRight, Bluetooth, Wifi, ZoomIn, MessageCircle, Nfc,
-  Shield, Radio
+  X, Check, Zap,
+  Bluetooth, Wifi, ZoomIn, MessageCircle,
+  Radio
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
 import { useSendFriendRequest } from '@/hooks/useFriends';
@@ -20,7 +18,7 @@ import { useNFC } from '@/hooks/useNFC';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { preloadCameraStream, getPreloadedStream, stopPreloadedCamera } from '@/hooks/useCameraPreload';
+import { getPreloadedStream } from '@/hooks/useCameraPreload';
 import jsQR from 'jsqr';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
@@ -32,7 +30,7 @@ interface FoundUser {
   avatar_url: string | null;
 }
 
-// Expandable QR component with cyberpunk styling
+// Simple QR component — CSS transitions only, no framer-motion
 const ExpandableQR = memo(function ExpandableQR({
   qrCodeUrl,
   isExpanded,
@@ -50,38 +48,35 @@ const ExpandableQR = memo(function ExpandableQR({
   const avatarSize = isExpanded ? 48 : 24;
   
   return (
-    <motion.div
-      className="relative cursor-pointer overflow-hidden"
+    <div
+      className="relative cursor-pointer overflow-hidden active:scale-[0.98] transition-all duration-200 ease-out"
       onClick={onToggle}
-      animate={{
+      style={{
         width: size,
         height: size,
         padding: isExpanded ? 16 : 8,
-      }}
-      transition={{ type: "spring", stiffness: 300, damping: 25 }}
-      style={{
         borderRadius: 4,
         background: 'white',
         boxShadow: '0 0 20px hsl(var(--primary) / 0.15)',
       }}
-      whileTap={{ scale: 0.98 }}
     >
-      <motion.img
+      <img
         src={qrCodeUrl}
         alt="QR Code"
         className="w-full h-full"
-        initial={false}
-        animate={{ opacity: 1 }}
         style={{ borderRadius: 2 }}
       />
       
-      {/* Profile picture overlay */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <motion.div
-          className="relative overflow-hidden border-2 shadow-lg"
-          animate={{ width: avatarSize, height: avatarSize }}
-          transition={{ type: "spring", stiffness: 300, damping: 25 }}
-          style={{ background: 'white', borderRadius: 4, borderColor: 'hsl(var(--primary) / 0.3)' }}
+        <div
+          className="relative overflow-hidden border-2 shadow-lg transition-all duration-200 ease-out"
+          style={{
+            width: avatarSize,
+            height: avatarSize,
+            background: 'white',
+            borderRadius: 4,
+            borderColor: 'hsl(var(--primary) / 0.3)',
+          }}
         >
           {avatarUrl ? (
             <img src={avatarUrl} alt={username || 'Profile'} className="w-full h-full object-cover" />
@@ -90,7 +85,7 @@ const ExpandableQR = memo(function ExpandableQR({
               {username?.[0]?.toUpperCase() || 'V'}
             </div>
           )}
-        </motion.div>
+        </div>
       </div>
       
       {!isExpanded && (
@@ -100,17 +95,13 @@ const ExpandableQR = memo(function ExpandableQR({
       )}
       
       {isExpanded && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute bottom-2 left-0 right-0 text-center"
-        >
+        <div className="absolute bottom-2 left-0 right-0 text-center animate-fade-in">
           <span className="text-[9px] font-mono text-black/60 bg-white/80 px-2 py-1 rounded-sm">
             TAP TO MINIMIZE
           </span>
-        </motion.div>
+        </div>
       )}
-    </motion.div>
+    </div>
   );
 });
 
@@ -133,13 +124,6 @@ export function AutoFriendDrop() {
   const animationFrameRef = useRef<number | null>(null);
   
   const startScanLoopRef = useRef<() => void>(() => {});
-  
-  const triggerCardRise = useCallback(() => {
-    setPhase('activated');
-    setTimeout(() => {
-      haptics.success();
-    }, 300);
-  }, []);
 
   const fetchUser = async (userId: string): Promise<FoundUser | null> => {
     try {
@@ -259,11 +243,13 @@ export function AutoFriendDrop() {
     },
   });
 
-  const { hasWebNFC, isSupported: nfcSupported, shareProfile: nfcShareProfile, stopScan: nfcStopScan, startScan: nfcStartScan } = useNFC();
+  const { hasWebNFC, shareProfile: nfcShareProfile, stopScan: nfcStopScan } = useNFC();
   const nfcDiscoveryRef = useRef(false);
 
-  // Passive NFC listening
+  // Passive NFC listening — guard against iframe context
   useEffect(() => {
+    // NFC only works in top-level browsing context
+    if (window.self !== window.top) return;
     if (!hasWebNFC || !user?.id || isActive || !profile?.username) return;
     if (nfcDiscoveryRef.current) return;
 
@@ -373,7 +359,7 @@ export function AutoFriendDrop() {
   const handleBump = useCallback(async () => {
     if (!profile?.username || !user) return;
     
-    // Open UI FIRST — no blocking
+    // Open UI instantly
     setIsActive(true);
     haptics.impact();
     setPhase('activated');
@@ -388,7 +374,7 @@ export function AutoFriendDrop() {
       nativeFriendDrop.startSession();
     }
     
-    // Start camera AFTER entrance animation completes (300ms)
+    // Start camera AFTER entrance animation (350ms)
     setTimeout(async () => {
       try {
         let stream = getPreloadedStream();
@@ -610,7 +596,7 @@ export function AutoFriendDrop() {
 
   return (
     <>
-      {/* Cyberpunk bump indicator */}
+      {/* Bump indicator pill */}
       {!isActive && !isDismissed && isMobile && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in" style={{ animationDuration: '300ms' }}>
           <button
@@ -623,7 +609,6 @@ export function AutoFriendDrop() {
               WebkitBackdropFilter: 'blur(20px) saturate(180%)',
             }}
           >
-            {/* Single clean shimmer sweep via CSS */}
             <div className="friendlink-shimmer absolute inset-0 pointer-events-none rounded-lg" />
             
             <div className="friendlink-icon-wrap p-1.5 rounded-md relative z-[1]" style={{ background: 'hsl(var(--primary) / 0.1)' }}>
@@ -647,7 +632,6 @@ export function AutoFriendDrop() {
                     : 'SHAKE TO ACTIVATE'}
               </span>
             </div>
-            {/* Clean signal bars — pure CSS animation */}
             <div className="flex items-end gap-[2px] relative z-[1] h-4">
               {[0,1,2,3].map(i => (
                 <div
@@ -670,7 +654,7 @@ export function AutoFriendDrop() {
         </div>
       )}
 
-      {/* Exchange Modal — Lightweight overlay, no Dialog */}
+      {/* Full-screen modal — all CSS animations, zero framer-motion */}
       {isActive && (
         <div className="fixed inset-0 z-50">
           {/* Backdrop */}
@@ -682,400 +666,299 @@ export function AutoFriendDrop() {
           {/* Centered content */}
           <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
             <div className="pointer-events-auto">
-              <AnimatePresence mode="wait">
-                
-                {phase === 'activated' && (
-                  <div
-                    key="activated"
-                    className="cyber-card-enter flex flex-col items-center"
-                  >
-                    {/* Cyber Scanner Card */}
-                    <div
-                      className="relative w-72 rounded-lg overflow-hidden cyber-card-lite"
-                    >
-                      {/* HUD header */}
-                      <div className="flex items-center justify-between px-4 pt-3 pb-2 relative z-[4]">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-2 h-2 rounded-full cyber-dot-pulse"
-                            style={{ background: 'hsl(var(--primary))', boxShadow: '0 0 8px hsl(var(--primary) / 0.6)' }}
-                          />
-                          <div>
-                            <h3 className="font-mono text-xs font-bold tracking-[0.2em] text-primary cyber-glow-text">
-                              FRIEND LINK
-                            </h3>
-                            <p className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]">
-                              <span className="cyber-blink">▸</span>
-                              {' '}SCANNING
-                            </p>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-sm" onClick={handleClose}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
 
-                      {/* Live Scanner */}
-                      <div
-                        className="relative aspect-square mx-3 mb-2 rounded-sm overflow-hidden border"
-                        style={{ borderColor: 'hsl(var(--primary) / 0.3)' }}
-                      >
-                        <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-                        <canvas ref={canvasRef} className="hidden" />
-                        
-                        {/* Scanning beam — pure CSS */}
-                        <div className="cyber-scan-beam" />
-                        
-                        {/* Corner brackets */}
-                        <div className="absolute inset-0 pointer-events-none">
-                          {[0, 1, 2, 3].map((i) => (
-                            <div
-                              key={i}
-                              className="cyber-corner-bracket"
-                              style={{
-                                top: i < 2 ? 8 : 'auto',
-                                bottom: i >= 2 ? 8 : 'auto',
-                                left: i % 2 === 0 ? 8 : 'auto',
-                                right: i % 2 === 1 ? 8 : 'auto',
-                                borderTopWidth: i < 2 ? 2 : 0,
-                                borderBottomWidth: i >= 2 ? 2 : 0,
-                                borderLeftWidth: i % 2 === 0 ? 2 : 0,
-                                borderRightWidth: i % 2 === 1 ? 2 : 0,
-                              }}
-                            />
-                          ))}
-                          
-                          <div className="absolute top-2 left-2 right-2 flex justify-between">
-                            <span className="text-[7px] font-mono" style={{ color: 'hsl(var(--primary) / 0.7)' }}>
-                              OPTICAL.SCAN//v2.4
-                            </span>
-                            <span className="text-[7px] font-mono cyber-blink" style={{ color: 'hsl(var(--primary) / 0.7)' }}>
-                              ● LIVE
-                            </span>
-                          </div>
-                          
-                          <div className="absolute bottom-2 left-2 right-2 flex justify-between">
-                            <span className="text-[6px] font-mono" style={{ color: 'hsl(var(--primary) / 0.5)' }}>
-                              RES: 640×480
-                            </span>
-                            <span className="text-[6px] font-mono cyber-blink" style={{ color: 'hsl(var(--primary) / 0.5)', animationDuration: '2s' }}>
-                              QR.DECODE: READY
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* QR Code Section */}
-                      {!nativeFriendDrop.isAvailable && (
-                        <div className="px-3 pb-2">
-                          <div className="flex items-center gap-3 p-2 rounded-sm border relative overflow-hidden" style={{ borderColor: 'hsl(var(--primary) / 0.2)', background: 'hsl(var(--primary) / 0.03)' }}>
-                            <ExpandableQR
-                          qrCodeUrl={qrCodeUrl}
-                          isExpanded={isQrExpanded}
-                          onToggle={toggleQrExpand}
-                          avatarUrl={profile?.avatar_url}
-                          username={profile?.username}
-                        />
-                        <div className="flex-1 min-w-0 relative z-[1]">
-                          <p className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]">YOUR ID</p>
-                          <p className="font-mono text-xs text-foreground truncate">@{profile?.username}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Native nearby peers */}
-                  {nativeFriendDrop.isAvailable && nativeFriendDrop.nearbyPeers.length > 0 && (
-                    <div className="px-3 pb-3 space-y-1.5">
-                      <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground tracking-wider">
-                        <Wifi className="h-3 w-3 text-primary" />
-                        <span>NEARBY NODES</span>
-                      </div>
-                      {nativeFriendDrop.nearbyPeers.slice(0, 2).map((peer) => (
-                        <button
-                          key={peer.peerId}
-                          className="w-full flex items-center gap-2 p-2 rounded-sm border transition-colors"
-                          style={{ borderColor: 'hsl(var(--primary) / 0.15)', background: 'hsl(var(--primary) / 0.03)' }}
-                          onClick={() => {
-                            setFoundUser({
-                              id: peer.userId,
-                              username: peer.username,
-                              display_name: peer.displayName,
-                              avatar_url: peer.avatarUrl,
-                            });
-                            setPhase('found');
-                          }}
-                        >
-                          <Avatar className="h-8 w-8 rounded-sm cyber-avatar-ring">
-                            <AvatarImage src={peer.avatarUrl || ''} />
-                            <AvatarFallback className="text-xs font-mono rounded-sm">{peer.username[0]?.toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <span className="text-xs font-mono font-medium flex-1 text-left truncate">{peer.displayName || peer.username}</span>
-                          <Zap className="h-3 w-3 text-primary" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Card footer */}
-                  <div className="px-4 pb-3 pt-1 flex items-center justify-between relative z-[2]">
-                    <div className="flex items-center gap-1.5">
-                      <div
-                        className="w-1.5 h-1.5 rounded-full cyber-dot-pulse"
-                        style={{ background: 'hsl(142 76% 50%)' }}
-                      />
-                      <p className="text-[9px] font-mono text-muted-foreground tracking-wider">SCAN TARGET CODE</p>
-                    </div>
-                    <div className="flex gap-0.5 items-end h-3">
-                      {[0,1,2,3,4].map(i => (
+              {/* ── ACTIVATED PHASE ── */}
+              {phase === 'activated' && (
+                <div className="cyber-card-enter flex flex-col items-center">
+                  <div className="relative w-72 rounded-lg overflow-hidden cyber-card-lite">
+                    {/* HUD header */}
+                    <div className="flex items-center justify-between px-4 pt-3 pb-2 relative z-[4]">
+                      <div className="flex items-center gap-2">
                         <div
-                          key={i}
-                          className="friendlink-bar w-[2px] rounded-full"
-                          style={{ 
-                            background: 'hsl(var(--primary) / 0.6)',
-                            animationDelay: `${i * 120}ms`,
-                          }}
+                          className="w-2 h-2 rounded-full cyber-dot-pulse"
+                          style={{ background: 'hsl(var(--primary))', boxShadow: '0 0 8px hsl(var(--primary) / 0.6)' }}
                         />
-                      ))}
+                        <div>
+                          <h3 className="font-mono text-xs font-bold tracking-[0.2em] text-primary">
+                            FRIEND LINK
+                          </h3>
+                          <p className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]">
+                            <span className="cyber-blink">▸</span> SCANNING
+                          </p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-sm" onClick={handleClose}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* Live Scanner */}
+                    <div
+                      className="relative aspect-square mx-3 mb-2 rounded-sm overflow-hidden border"
+                      style={{ borderColor: 'hsl(var(--primary) / 0.3)' }}
+                    >
+                      <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                      <canvas ref={canvasRef} className="hidden" />
+                      
+                      {/* Scanning beam */}
+                      <div className="cyber-scan-beam" />
+                      
+                      {/* Corner brackets */}
+                      <div className="absolute inset-0 pointer-events-none">
+                        {[0, 1, 2, 3].map((i) => (
+                          <div
+                            key={i}
+                            className="cyber-corner-bracket"
+                            style={{
+                              top: i < 2 ? 8 : 'auto',
+                              bottom: i >= 2 ? 8 : 'auto',
+                              left: i % 2 === 0 ? 8 : 'auto',
+                              right: i % 2 === 1 ? 8 : 'auto',
+                              borderTopWidth: i < 2 ? 2 : 0,
+                              borderBottomWidth: i >= 2 ? 2 : 0,
+                              borderLeftWidth: i % 2 === 0 ? 2 : 0,
+                              borderRightWidth: i % 2 === 1 ? 2 : 0,
+                            }}
+                          />
+                        ))}
+                        
+                        {/* HUD text */}
+                        <div className="absolute top-2 left-2 right-2 flex justify-between">
+                          <span className="text-[7px] font-mono" style={{ color: 'hsl(var(--primary) / 0.7)' }}>
+                            OPTICAL.SCAN//v2.4
+                          </span>
+                          <span className="text-[7px] font-mono cyber-blink" style={{ color: 'hsl(var(--primary) / 0.7)' }}>
+                            ● LIVE
+                          </span>
+                        </div>
+                        
+                        <div className="absolute bottom-2 left-2 right-2 flex justify-between">
+                          <span className="text-[6px] font-mono" style={{ color: 'hsl(var(--primary) / 0.5)' }}>
+                            RES: 640×480
+                          </span>
+                          <span className="text-[6px] font-mono cyber-blink" style={{ color: 'hsl(var(--primary) / 0.5)', animationDuration: '2s' }}>
+                            QR.DECODE: READY
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* QR Code Section */}
+                    {!nativeFriendDrop.isAvailable && (
+                      <div className="px-3 pb-2">
+                        <div className="flex items-center gap-3 p-2 rounded-sm border relative overflow-hidden" style={{ borderColor: 'hsl(var(--primary) / 0.2)', background: 'hsl(var(--primary) / 0.03)' }}>
+                          <ExpandableQR
+                            qrCodeUrl={qrCodeUrl}
+                            isExpanded={isQrExpanded}
+                            onToggle={toggleQrExpand}
+                            avatarUrl={profile?.avatar_url}
+                            username={profile?.username}
+                          />
+                          <div className="flex-1 min-w-0 relative z-[1]">
+                            <p className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]">YOUR ID</p>
+                            <p className="font-mono text-xs text-foreground truncate">@{profile?.username}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Native nearby peers */}
+                    {nativeFriendDrop.isAvailable && nativeFriendDrop.nearbyPeers.length > 0 && (
+                      <div className="px-3 pb-3 space-y-1.5">
+                        <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground tracking-wider">
+                          <Wifi className="h-3 w-3 text-primary" />
+                          <span>NEARBY NODES</span>
+                        </div>
+                        {nativeFriendDrop.nearbyPeers.slice(0, 2).map((peer) => (
+                          <button
+                            key={peer.peerId}
+                            className="w-full flex items-center gap-2 p-2 rounded-sm border transition-colors"
+                            style={{ borderColor: 'hsl(var(--primary) / 0.15)', background: 'hsl(var(--primary) / 0.03)' }}
+                            onClick={() => {
+                              setFoundUser({
+                                id: peer.userId,
+                                username: peer.username,
+                                display_name: peer.displayName,
+                                avatar_url: peer.avatarUrl,
+                              });
+                              setPhase('found');
+                            }}
+                          >
+                            <Avatar className="h-8 w-8 rounded-sm">
+                              <AvatarImage src={peer.avatarUrl || ''} />
+                              <AvatarFallback className="text-xs font-mono rounded-sm">{peer.username[0]?.toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs font-mono font-medium flex-1 text-left truncate">{peer.displayName || peer.username}</span>
+                            <Zap className="h-3 w-3 text-primary" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Footer */}
+                    <div className="px-4 pb-3 pt-1 flex items-center justify-between relative z-[2]">
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          className="w-1.5 h-1.5 rounded-full cyber-dot-pulse"
+                          style={{ background: 'hsl(142 76% 50%)' }}
+                        />
+                        <p className="text-[9px] font-mono text-muted-foreground tracking-wider">SCAN TARGET CODE</p>
+                      </div>
+                      <div className="flex gap-0.5 items-end h-3">
+                        {[0,1,2,3,4].map(i => (
+                          <div
+                            key={i}
+                            className="friendlink-bar w-[2px] rounded-full"
+                            style={{ 
+                              background: 'hsl(var(--primary) / 0.6)',
+                              animationDelay: `${i * 120}ms`,
+                            }}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-                  </div>
-                )}
+              )}
 
-            {phase === 'found' && foundUser && (
-              <motion.div
-                key="found"
-                initial={{ opacity: 0, scale: 0.92 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ type: "spring", stiffness: 280, damping: 22 }}
-                className="w-72 rounded-lg overflow-hidden cyber-card relative"
-                style={{
-                  boxShadow: '0 0 40px hsl(var(--primary) / 0.2), 0 25px 60px -12px rgba(0,0,0,0.3)',
-                }}
-              >
-                {/* Cyber grid bg */}
-                <div className="absolute inset-0 cyber-grid-bg opacity-30 pointer-events-none" />
-                
-                <div className="relative p-6 flex flex-col items-center gap-4 z-[1]">
-                  {/* Avatar with rotating cyber ring */}
-                  <motion.div
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 18 }}
-                    className="relative"
-                  >
-                    <motion.div
-                      className="absolute -inset-2 rounded-lg"
-                      style={{
-                        background: 'conic-gradient(from 0deg, hsl(var(--primary) / 0.5), transparent, hsl(var(--accent) / 0.3), transparent, hsl(var(--primary) / 0.5))',
-                        padding: '1px',
-                      }}
-                      animate={{ rotate: 360 }}
-                      transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
-                    >
-                      <div className="w-full h-full rounded-lg bg-background" />
-                    </motion.div>
-                    <Avatar className="h-24 w-24 rounded-lg border-2 border-primary/30 relative shadow-2xl cyber-avatar-ring">
-                      <AvatarImage src={foundUser.avatar_url || ''} className="rounded-lg" />
-                      <AvatarFallback className="text-2xl font-mono font-bold rounded-lg bg-primary/10 text-primary">
-                        {foundUser.username?.[0]?.toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                  </motion.div>
-                  
-                  <div className="text-center">
-                    <h3 className="text-xl font-bold font-mono" style={{ animation: 'cyber-text-decode 0.5s ease-out forwards' }}>
-                      {foundUser.display_name || foundUser.username}
-                    </h3>
-                    <p className="text-muted-foreground text-xs font-mono tracking-wider">@{foundUser.username}</p>
-                  </div>
-
-                  <motion.div
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.25 }}
-                    className="flex gap-3 w-full"
-                  >
-                    <Button 
-                      variant="outline"
-                      className="flex-1 rounded-sm font-mono text-xs border-muted-foreground/20"
-                      onClick={handleClose}
-                    >
-                      ABORT
-                    </Button>
-                    <Button 
-                      className="flex-1 rounded-sm font-mono text-xs gap-1.5"
-                      onClick={handleAddFriend}
-                      style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.3)' }}
-                    >
-                      <Zap className="h-3.5 w-3.5" />
-                      LINK UP
-                    </Button>
-                  </motion.div>
-                </div>
-              </motion.div>
-            )}
-
-            {phase === 'exchanging' && (
-              <motion.div
-                key="exchanging"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.25 }}
-                className="w-80 rounded-lg overflow-hidden relative cyber-card"
-                style={{
-                  boxShadow: '0 0 50px hsl(var(--primary) / 0.25), 0 25px 60px -12px rgba(0,0,0,0.3)',
-                  minHeight: 300,
-                }}
-              >
-                {/* Data stream particles — pure CSS */}
-                {[0,1,2,3,4].map(i => (
-                  <div
-                    key={i}
-                    className="cyber-particle"
-                    style={{
-                      height: 8 + i * 4,
-                      left: `${15 + i * 16}%`,
-                      animationDelay: `${i * 0.2}s`,
-                      animationDuration: `${1.3 + i * 0.15}s`,
-                    }}
-                  />
-                ))}
-                
-                {/* Grid background */}
-                <div className="absolute inset-0 cyber-grid-bg opacity-20 pointer-events-none" />
-                
-                <div className="relative flex flex-col items-center justify-center p-6 gap-5 z-[1]" style={{ minHeight: 260 }}>
-                  {/* My profile flying out */}
-                  <motion.div
-                    className="absolute z-20"
-                    initial={{ scale: 1, y: 0 }}
-                    animate={{ scale: 0.3, y: -200, opacity: 0 }}
-                    transition={{ duration: 0.6, ease: [0.32, 0, 0.67, 0] }}
-                  >
-                    <Avatar className="h-20 w-20 rounded-lg border-2 border-primary/40 shadow-xl cyber-avatar-ring">
-                      <AvatarImage src={profile?.avatar_url || ''} className="rounded-lg" />
-                      <AvatarFallback className="text-xl font-mono font-bold rounded-lg">{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                  </motion.div>
-                  
-                  {/* Their profile flying in */}
-                  <motion.div
-                    className="relative z-10"
-                    initial={{ scale: 0.3, y: 200, opacity: 0 }}
-                    animate={{ scale: 1, y: 0, opacity: 1 }}
-                    transition={{ duration: 0.6, delay: 0.4, type: "spring", stiffness: 200, damping: 20 }}
-                  >
-                    <Avatar className="h-24 w-24 rounded-lg border-2 border-primary/40 shadow-2xl cyber-avatar-ring">
-                      <AvatarImage src={foundUser?.avatar_url || ''} className="rounded-lg" />
-                      <AvatarFallback className="text-2xl font-mono font-bold rounded-lg">{foundUser?.username?.[0]?.toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                  </motion.div>
-                  
-                  <div className="text-center z-10">
-                    <p
-                      className="text-sm font-mono font-bold tracking-wider cyber-glow-text cyber-sync-text"
-                      style={{ color: 'hsl(var(--primary))' }}
-                    >
-                      SYNCING DATA...
-                    </p>
-                    <p className="text-xs font-mono text-muted-foreground mt-1">
-                      {foundUser?.display_name || foundUser?.username}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {phase === 'success' && (
-              <motion.div
-                key="success"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                className="w-80 rounded-lg overflow-hidden shadow-2xl relative cyber-card"
-                style={{
-                  boxShadow: '0 0 60px hsl(var(--primary) / 0.3), 0 25px 60px -12px rgba(0,0,0,0.3)',
-                  minHeight: 300,
-                }}
-              >
-                {/* Grid */}
-                <div className="absolute inset-0 cyber-grid-bg opacity-20 pointer-events-none" />
-                
-                <div className="relative flex flex-col items-center justify-center p-6 gap-3 z-[1]" style={{ minHeight: 260 }}>
-                  {/* Both avatars */}
-                  <div className="relative flex items-center justify-center h-28 z-10">
-                    <motion.div
-                      className="absolute"
-                      initial={{ x: -60, scale: 0.5, opacity: 0 }}
-                      animate={{ x: -20, scale: 1, opacity: 1 }}
-                      transition={{ delay: 0.1, type: "spring", stiffness: 300, damping: 22 }}
-                    >
-                      <Avatar className="h-16 w-16 rounded-lg border-2 border-primary/30 shadow-xl cyber-avatar-ring">
-                        <AvatarImage src={profile?.avatar_url || ''} className="rounded-lg" />
-                        <AvatarFallback className="text-lg font-mono font-bold rounded-lg">{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                    </motion.div>
-                    
-                    <motion.div
-                      className="absolute"
-                      initial={{ x: 60, scale: 0.5, opacity: 0 }}
-                      animate={{ x: 20, scale: 1, opacity: 1 }}
-                      transition={{ delay: 0.15, type: "spring", stiffness: 300, damping: 22 }}
-                    >
-                      <Avatar className="h-16 w-16 rounded-lg border-2 border-primary/30 shadow-xl cyber-avatar-ring">
-                        <AvatarImage src={foundUser?.avatar_url || ''} className="rounded-lg" />
-                        <AvatarFallback className="text-lg font-mono font-bold rounded-lg">{foundUser?.username?.[0]?.toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                    </motion.div>
-                    
-                    {/* Shield check */}
-                    <motion.div
-                      className="absolute z-10"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: 0.3, type: "spring", stiffness: 400, damping: 15 }}
-                    >
-                      <div className="w-10 h-10 rounded-sm flex items-center justify-center"
-                        style={{ 
-                          background: 'hsl(var(--primary))',
-                          boxShadow: '0 0 20px hsl(var(--primary) / 0.5)',
+              {/* ── FOUND PHASE ── */}
+              {phase === 'found' && foundUser && (
+                <div className="cyber-card-enter w-72 rounded-lg overflow-hidden cyber-card-lite relative">
+                  <div className="relative p-6 flex flex-col items-center gap-4 z-[1]">
+                    {/* Avatar */}
+                    <div className="relative cyber-phase-avatar">
+                      <div
+                        className="absolute -inset-2 rounded-lg cyber-ring-spin"
+                        style={{
+                          background: 'conic-gradient(from 0deg, hsl(var(--primary) / 0.5), transparent, hsl(var(--accent) / 0.3), transparent, hsl(var(--primary) / 0.5))',
+                          padding: '1px',
                         }}
                       >
-                        <Check className="h-5 w-5 text-primary-foreground" strokeWidth={3} />
+                        <div className="w-full h-full rounded-lg bg-background" />
                       </div>
-                    </motion.div>
+                      <Avatar className="h-24 w-24 rounded-lg border-2 border-primary/30 relative shadow-2xl">
+                        <AvatarImage src={foundUser.avatar_url || ''} className="rounded-lg" />
+                        <AvatarFallback className="text-2xl font-mono font-bold rounded-lg bg-primary/10 text-primary">
+                          {foundUser.username?.[0]?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+                    
+                    <div className="text-center cyber-phase-text">
+                      <h3 className="text-xl font-bold font-mono">
+                        {foundUser.display_name || foundUser.username}
+                      </h3>
+                      <p className="text-muted-foreground text-xs font-mono tracking-wider">@{foundUser.username}</p>
+                    </div>
+
+                    <div className="flex gap-3 w-full cyber-phase-buttons">
+                      <Button 
+                        variant="outline"
+                        className="flex-1 rounded-sm font-mono text-xs border-muted-foreground/20"
+                        onClick={handleClose}
+                      >
+                        ABORT
+                      </Button>
+                      <Button 
+                        className="flex-1 rounded-sm font-mono text-xs gap-1.5"
+                        onClick={handleAddFriend}
+                        style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.3)' }}
+                      >
+                        <Zap className="h-3.5 w-3.5" />
+                        LINK UP
+                      </Button>
+                    </div>
                   </div>
-                  
-                  <motion.div 
-                    className="text-center z-10"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <h3 className="text-lg font-bold font-mono tracking-wider cyber-glow-text" style={{ color: 'hsl(var(--primary))' }}>
-                      LINK ESTABLISHED
-                    </h3>
-                    <p className="text-muted-foreground mt-1 text-xs font-mono">
-                      {foundUser?.display_name || foundUser?.username} synced
-                    </p>
-                    <motion.div
-                      className="flex items-center justify-center gap-2 mt-3 text-primary/70"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.5 }}
-                    >
-                      <MessageCircle className="h-3.5 w-3.5" />
-                      <span className="text-[10px] font-mono tracking-wider">OPENING CHANNEL...</span>
-                    </motion.div>
-                  </motion.div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )}
+
+              {/* ── EXCHANGING PHASE ── */}
+              {phase === 'exchanging' && (
+                <div
+                  className="cyber-card-enter w-80 rounded-lg overflow-hidden relative cyber-card-lite"
+                  style={{ minHeight: 300 }}
+                >
+                  <div className="relative flex flex-col items-center justify-center p-6 gap-5 z-[1]" style={{ minHeight: 260 }}>
+                    {/* My avatar flying out */}
+                    <div className="absolute z-20 cyber-fly-out">
+                      <Avatar className="h-20 w-20 rounded-lg border-2 border-primary/40 shadow-xl">
+                        <AvatarImage src={profile?.avatar_url || ''} className="rounded-lg" />
+                        <AvatarFallback className="text-xl font-mono font-bold rounded-lg">{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                    
+                    {/* Their avatar flying in */}
+                    <div className="relative z-10 cyber-fly-in">
+                      <Avatar className="h-24 w-24 rounded-lg border-2 border-primary/40 shadow-2xl">
+                        <AvatarImage src={foundUser?.avatar_url || ''} className="rounded-lg" />
+                        <AvatarFallback className="text-2xl font-mono font-bold rounded-lg">{foundUser?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                    
+                    <div className="text-center z-10 cyber-phase-text">
+                      <p className="text-sm font-mono font-bold tracking-wider cyber-sync-text" style={{ color: 'hsl(var(--primary))' }}>
+                        SYNCING DATA...
+                      </p>
+                      <p className="text-xs font-mono text-muted-foreground mt-1">
+                        {foundUser?.display_name || foundUser?.username}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── SUCCESS PHASE ── */}
+              {phase === 'success' && (
+                <div
+                  className="cyber-card-enter w-80 rounded-lg overflow-hidden shadow-2xl relative cyber-card-lite"
+                  style={{ minHeight: 300 }}
+                >
+                  <div className="relative flex flex-col items-center justify-center p-6 gap-3 z-[1]" style={{ minHeight: 260 }}>
+                    {/* Both avatars */}
+                    <div className="relative flex items-center justify-center h-28 z-10">
+                      <div className="absolute cyber-slide-left">
+                        <Avatar className="h-16 w-16 rounded-lg border-2 border-primary/30 shadow-xl">
+                          <AvatarImage src={profile?.avatar_url || ''} className="rounded-lg" />
+                          <AvatarFallback className="text-lg font-mono font-bold rounded-lg">{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                      </div>
+                      
+                      <div className="absolute cyber-slide-right">
+                        <Avatar className="h-16 w-16 rounded-lg border-2 border-primary/30 shadow-xl">
+                          <AvatarImage src={foundUser?.avatar_url || ''} className="rounded-lg" />
+                          <AvatarFallback className="text-lg font-mono font-bold rounded-lg">{foundUser?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                      </div>
+                      
+                      {/* Shield check */}
+                      <div className="absolute z-10 cyber-check-pop">
+                        <div className="w-10 h-10 rounded-sm flex items-center justify-center"
+                          style={{ 
+                            background: 'hsl(var(--primary))',
+                            boxShadow: '0 0 20px hsl(var(--primary) / 0.5)',
+                          }}
+                        >
+                          <Check className="h-5 w-5 text-primary-foreground" strokeWidth={3} />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-center z-10 cyber-phase-text">
+                      <h3 className="text-lg font-bold font-mono tracking-wider" style={{ color: 'hsl(var(--primary))' }}>
+                        LINK ESTABLISHED
+                      </h3>
+                      <p className="text-muted-foreground mt-1 text-xs font-mono">
+                        {foundUser?.display_name || foundUser?.username} synced
+                      </p>
+                      <div className="flex items-center justify-center gap-2 mt-3 text-primary/70 cyber-phase-buttons">
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        <span className="text-[10px] font-mono tracking-wider">OPENING CHANNEL...</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </div>
