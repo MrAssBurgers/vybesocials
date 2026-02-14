@@ -6,8 +6,7 @@
     <!-- Preconnect to external origins for faster loading -->
     <link rel="preconnect" href="https://cdn.gpteng.co" crossorigin />
     <link rel="dns-prefetch" href="https://cdn.gpteng.co" />
-    <!-- Preconnect to Supabase API for faster data fetching -->
-    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
+    <!-- DNS prefetch for Supabase API (preconnect removed - not used on initial paint) -->
     <link rel="dns-prefetch" href="%VITE_SUPABASE_URL%" />
     
     <!-- Preload critical font -->
@@ -85,15 +84,19 @@
         padding-left: env(safe-area-inset-left);
         padding-right: env(safe-area-inset-right);
       }
-      /* Splash screen placeholder for FCP */
-      #root:empty::after {
-        content: '';
+      /* Splash screen placeholder for FCP - renders visible content before JS */
+      .splash-loader {
         display: flex;
         align-items: center;
         justify-content: center;
         min-height: 100dvh;
         background: #0B0B10;
+        flex-direction: column;
+        gap: 16px;
       }
+      .splash-loader svg { width: 48px; height: 48px; }
+      .splash-loader .pulse { animation: pulse 1.5s ease-in-out infinite; }
+      @keyframes pulse { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
       /* NOTE: Avoid transforms on #root — they break position:fixed (e.g., bottom nav) on some browsers */
     </style>
     <meta property="og:title" content="VYBE - The Next Generation Social Platform">
@@ -102,7 +105,15 @@
   <meta name="twitter:description" content="VYBE - The Next Generation Social Platform. Share moments, connect with friends, and discover amazing content from creators worldwide.">
 </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static splash for instant FCP - removed by React on mount -->
+      <div class="splash-loader" aria-label="Loading VYBE">
+        <svg class="pulse" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="24" cy="24" r="20" stroke="#8B5CF6" stroke-width="3" stroke-linecap="round" stroke-dasharray="80 40" />
+        </svg>
+        <span style="color:#8B5CF6;font-size:14px;font-weight:600;letter-spacing:2px;">VYBE</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
