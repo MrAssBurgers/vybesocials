@@ -53,7 +53,7 @@ const OrderCancelled = lazy(() => import("@/pages/OrderCancelled"));
 
 // Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
-import { ProductionDebugPanel } from '@/components/debug/ProductionDebugPanel';
+const ProductionDebugPanel = lazy(() => import('@/components/debug/ProductionDebugPanel').then(m => ({ default: m.ProductionDebugPanel })));
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 // Minimal fallback - just shows content area, no skeleton flicker
@@ -179,7 +179,9 @@ export function AnimatedRoutes() {
           )}
           {/* Production debug panel — always mounted, admin-gated */}
           {isDebugAdmin && (
-            <ProductionDebugPanel isOpen={debugOpen} onClose={() => setDebugOpen(false)} />
+            <Suspense fallback={null}>
+              <ProductionDebugPanel isOpen={debugOpen} onClose={() => setDebugOpen(false)} />
+            </Suspense>
           )}
         </Suspense>
       </motion.div>

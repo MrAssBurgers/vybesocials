@@ -31,7 +31,7 @@ import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
-import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
+const AnimatedRoutes = lazy(() => import("@/components/layout/AnimatedRoutes").then(m => ({ default: m.AnimatedRoutes })));
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
