@@ -687,46 +687,46 @@ export function AutoFriendDrop() {
                 style={{ transformOrigin: 'bottom center' }}
                 className="flex flex-col items-center"
               >
-                {/* Outer glow pulse */}
+                {/* Outer glow pulse — subtle */}
                 <motion.div
                   className="absolute inset-0 rounded-lg pointer-events-none"
-                  style={{ background: 'radial-gradient(ellipse at center, hsl(var(--primary) / 0.15), transparent 70%)' }}
-                  animate={{ opacity: [0.4, 0.8, 0.4], scale: [0.95, 1.05, 0.95] }}
-                  transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+                  style={{ background: 'radial-gradient(ellipse at center, hsl(var(--primary) / 0.08), transparent 70%)' }}
+                  animate={{ opacity: [0.3, 0.5, 0.3] }}
+                  transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
                 />
 
                 {/* Cyber Scanner Card */}
                 <motion.div
                   className="relative w-72 rounded-lg overflow-hidden cyber-card"
                   style={{
-                    boxShadow: '0 0 50px hsl(var(--primary) / 0.25), 0 0 100px hsl(var(--primary) / 0.1), 0 25px 60px -12px rgba(0,0,0,0.4)',
+                    boxShadow: '0 0 30px hsl(var(--primary) / 0.15), 0 25px 50px -12px rgba(0,0,0,0.3)',
                   }}
-                  initial={{ rotateX: 15, scaleY: 0.85 }}
+                  initial={{ rotateX: 10, scaleY: 0.9 }}
                   animate={{ rotateX: 0, scaleY: 1 }}
                   transition={{ type: "spring", stiffness: 250, damping: 25, delay: 0.1 }}
                 >
-                  {/* Boot flash */}
+                  {/* Boot flash — reduced intensity */}
                   <motion.div
                     className="absolute inset-0 z-[5] pointer-events-none rounded-lg"
-                    style={{ background: 'hsl(var(--primary) / 0.4)' }}
-                    initial={{ opacity: 0.6 }}
+                    style={{ background: 'hsl(var(--primary) / 0.15)' }}
+                    initial={{ opacity: 0.4 }}
                     animate={{ opacity: 0 }}
-                    transition={{ duration: 0.4, delay: 0.1 }}
+                    transition={{ duration: 0.3, delay: 0.1 }}
                   />
 
-                  {/* Vertical data streams */}
-                  {[...Array(8)].map((_, i) => (
+                  {/* Vertical data streams — reduced count and opacity */}
+                  {[...Array(4)].map((_, i) => (
                     <motion.div
                       key={`stream-${i}`}
                       className="absolute w-px z-[3] pointer-events-none"
                       style={{
-                        height: 20 + Math.random() * 40,
-                        background: `linear-gradient(180deg, transparent, hsl(var(--primary) / ${0.3 + Math.random() * 0.3}), transparent)`,
-                        left: `${8 + i * 12}%`,
+                        height: 20 + i * 10,
+                        background: `linear-gradient(180deg, transparent, hsl(var(--primary) / 0.15), transparent)`,
+                        left: `${15 + i * 20}%`,
                       }}
                       initial={{ y: -60, opacity: 0 }}
-                      animate={{ y: 500, opacity: [0, 0.8, 0] }}
-                      transition={{ duration: 1 + Math.random() * 0.5, delay: 0.2 + i * 0.08, repeat: Infinity, repeatDelay: 1 + Math.random() * 2, ease: "linear" }}
+                      animate={{ y: 500, opacity: [0, 0.5, 0] }}
+                      transition={{ duration: 1.5, delay: 0.3 + i * 0.2, repeat: Infinity, repeatDelay: 2 + i * 0.5, ease: "linear" }}
                     />
                   ))}
 
@@ -783,13 +783,13 @@ export function AutoFriendDrop() {
                     
                     {/* Scanning beam */}
                     <motion.div
-                      className="absolute left-0 right-0 h-0.5 z-[2] pointer-events-none"
+                      className="absolute left-0 right-0 h-px z-[2] pointer-events-none"
                       style={{
-                        background: 'linear-gradient(90deg, transparent, hsl(var(--primary) / 0.8), hsl(var(--primary)), hsl(var(--primary) / 0.8), transparent)',
-                        boxShadow: '0 0 15px hsl(var(--primary) / 0.5), 0 0 30px hsl(var(--primary) / 0.2)',
+                        background: 'linear-gradient(90deg, transparent, hsl(var(--primary) / 0.5), hsl(var(--primary) / 0.7), hsl(var(--primary) / 0.5), transparent)',
+                        boxShadow: '0 0 8px hsl(var(--primary) / 0.3)',
                       }}
                       animate={{ top: ['0%', '100%', '0%'] }}
-                      transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                      transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
                     />
                     
                     {/* Cyber scanner overlay */}
@@ -940,17 +940,15 @@ export function AutoFriendDrop() {
                       />
                       <p className="text-[9px] font-mono text-muted-foreground tracking-wider">SCAN TARGET CODE</p>
                     </div>
-                    <div className="flex gap-0.5">
+                    <div className="flex gap-0.5 items-end h-3">
                       {[0,1,2,3,4].map(i => (
-                        <motion.div
+                        <div
                           key={i}
-                          className="w-0.5 rounded-full"
-                          style={{ background: 'hsl(var(--primary))', height: 6 }}
-                          animate={{ 
-                            height: [3, 8 + i, 3],
-                            opacity: [0.3, 0.9, 0.3],
+                          className="friendlink-bar w-[2px] rounded-full"
+                          style={{ 
+                            background: 'hsl(var(--primary) / 0.6)',
+                            animationDelay: `${i * 120}ms`,
                           }}
-                          transition={{ repeat: Infinity, duration: 0.6 + i * 0.1, delay: i * 0.05 }}
                         />
                       ))}
                     </div>
