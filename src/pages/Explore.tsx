@@ -226,10 +226,9 @@ function FullscreenClipsViewer({
   if (isLoading) {
     return (
       <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4" data-allow-animation="true">
-          <div className="w-16 h-16 rounded-full bg-muted/60 animate-pulse" />
-          <div className="h-4 w-32 bg-muted/60 rounded animate-pulse" />
-          <p className="text-sm text-muted-foreground mt-2">Loading clips...</p>
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-muted" />
+          <div className="h-4 w-32 bg-muted rounded" />
         </div>
       </div>
     );

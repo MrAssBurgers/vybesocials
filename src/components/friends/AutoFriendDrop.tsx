@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Check, Loader2, Smartphone, Zap,
-  ArrowLeftRight, Bluetooth, Wifi, ZoomIn, MessageCircle, Nfc,
-  Shield, Radio
+  ArrowLeftRight, Bluetooth, Wifi, ZoomIn, MessageCircle, Nfc
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -32,7 +31,8 @@ interface FoundUser {
   avatar_url: string | null;
 }
 
-// Expandable QR component with cyberpunk styling
+// Expandable QR component with tap-to-toggle and profile picture
+// ExpandableQR - Simple component without layout animations to prevent glitches
 const ExpandableQR = memo(function ExpandableQR({
   qrCodeUrl,
   isExpanded,
@@ -58,55 +58,63 @@ const ExpandableQR = memo(function ExpandableQR({
         height: size,
         padding: isExpanded ? 16 : 8,
       }}
-      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+      transition={{
+        type: "spring",
+        stiffness: 300,
+        damping: 25,
+      }}
       style={{
-        borderRadius: 4,
+        borderRadius: 16,
         background: 'white',
-        boxShadow: '0 0 20px hsl(var(--primary) / 0.15)',
       }}
       whileTap={{ scale: 0.98 }}
     >
       <motion.img
         src={qrCodeUrl}
         alt="QR Code"
-        className="w-full h-full"
+        className="w-full h-full rounded-lg"
         initial={false}
         animate={{ opacity: 1 }}
-        style={{ borderRadius: 2 }}
       />
       
-      {/* Profile picture overlay */}
+      {/* Profile picture overlay in center */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <motion.div
-          className="relative overflow-hidden border-2 shadow-lg"
+          className="relative rounded-full overflow-hidden border-2 border-white shadow-lg"
           animate={{ width: avatarSize, height: avatarSize }}
           transition={{ type: "spring", stiffness: 300, damping: 25 }}
-          style={{ background: 'white', borderRadius: 4, borderColor: 'hsl(var(--primary) / 0.3)' }}
+          style={{ background: 'white' }}
         >
           {avatarUrl ? (
-            <img src={avatarUrl} alt={username || 'Profile'} className="w-full h-full object-cover" />
+            <img 
+              src={avatarUrl} 
+              alt={username || 'Profile'} 
+              className="w-full h-full object-cover"
+            />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground text-xs font-bold font-mono">
+            <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground text-xs font-bold">
               {username?.[0]?.toUpperCase() || 'V'}
             </div>
           )}
         </motion.div>
       </div>
       
+      {/* Expand/shrink indicator */}
       {!isExpanded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-sm opacity-0 hover:opacity-100 transition-opacity duration-200">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-2xl opacity-0 hover:opacity-100 transition-opacity duration-200">
           <ZoomIn className="h-5 w-5 text-white" />
         </div>
       )}
       
+      {/* Shrink hint when expanded */}
       {isExpanded && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="absolute bottom-2 left-0 right-0 text-center"
         >
-          <span className="text-[9px] font-mono text-black/60 bg-white/80 px-2 py-1 rounded-sm">
-            TAP TO MINIMIZE
+          <span className="text-xs text-black/60 bg-white/80 px-2 py-1 rounded-full">
+            Tap to shrink
           </span>
         </motion.div>
       )}
@@ -134,6 +142,7 @@ export function AutoFriendDrop() {
   
   const startScanLoopRef = useRef<() => void>(() => {});
   
+  // Simple card activation - no wallet animation needed (kept for non-shake flows)
   const triggerCardRise = useCallback(() => {
     setPhase('activated');
     setTimeout(() => {
@@ -141,6 +150,7 @@ export function AutoFriendDrop() {
     }, 300);
   }, []);
 
+  // Fetch user helper
   const fetchUser = async (userId: string): Promise<FoundUser | null> => {
     try {
       const { data, error } = await supabase
@@ -155,19 +165,23 @@ export function AutoFriendDrop() {
     }
   };
   
+  // Track if we are the QR owner (our QR was scanned) or the scanner
   const [isQrOwner, setIsQrOwner] = useState(false);
   
+  // Auto-close and navigate to DM after success
   const autoCloseAfterSuccess = useCallback(async (friendId?: string) => {
+    // Create DM conversation with new friend
     const targetUserId = friendId || foundUser?.id;
     if (targetUserId) {
       try {
         const conversation = await createConversation.mutateAsync({ memberIds: [targetUserId] });
         setCreatedConversationId(conversation.id);
       } catch {
-        // Conversation might already exist
+        // Conversation might already exist, that's fine
       }
     }
     
+    // Close after 3 seconds and navigate to the DM
     setTimeout(() => {
       const convId = createdConversationId;
       setIsActive(false);
@@ -177,28 +191,34 @@ export function AutoFriendDrop() {
       setIsQrOwner(false);
       setCreatedConversationId(null);
       
+      // Navigate to the conversation if we created one
       if (convId) {
         navigate(`/messages/${convId}`);
       }
     }, 3000);
   }, [foundUser?.id, createConversation, createdConversationId, navigate]);
   
+  // Realtime sync for dual-device animation
   const friendDropSync = useFriendDropSync({
     enabled: isActive,
     onScanned: useCallback((drop) => {
+      // QR owner sees this when their QR is scanned - THEIR profile flies OUT
       haptics.success();
       setIsQrOwner(true);
       if (drop.to_user_id) {
         fetchUser(drop.to_user_id).then((scannedUser) => {
           if (scannedUser) {
             setFoundUser(scannedUser);
+            // Go to exchanging phase - show fly-out animation
             setPhase('exchanging');
+            // After animation, send friend request and complete
             setTimeout(async () => {
               try {
                 await sendRequest.mutateAsync(scannedUser.id);
               } catch {
-                // Already friends
+                // Already friends - that's ok
               }
+              // Mark as completed - both sides will see success
               if (activeDropId) {
                 await friendDropSync.completeDrop(activeDropId);
               }
@@ -208,19 +228,23 @@ export function AutoFriendDrop() {
       }
     }, [activeDropId, sendRequest]),
     onConfirmed: useCallback(() => {
+      // Both sides see this - transition to exchanging
       if (phase !== 'exchanging') {
         setPhase('exchanging');
         haptics.impact();
       }
     }, [phase]),
     onCompleted: useCallback(async () => {
+      // Both sides see this - show success, create DM, and auto-close
       setPhase('success');
       haptics.success();
       
+      // Create DM and navigate after delay
       const targetUserId = foundUser?.id;
       if (targetUserId) {
         try {
           const conversation = await createConversation.mutateAsync({ memberIds: [targetUserId] });
+          // Navigate after the success animation
           setTimeout(() => {
             setIsActive(false);
             setPhase('idle');
@@ -230,6 +254,7 @@ export function AutoFriendDrop() {
             navigate(`/messages/${conversation.id}`);
           }, 3000);
         } catch {
+          // Still close after 3 seconds even if DM creation fails
           setTimeout(() => {
             setIsActive(false);
             setPhase('idle');
@@ -242,9 +267,11 @@ export function AutoFriendDrop() {
     }, [foundUser?.id, createConversation, navigate]),
   });
   
+  // Native FriendDrop (Bluetooth/Nearby) - works on native apps
   const nativeFriendDrop = useNativeFriendDrop({
     enabled: isActive,
     onPeerFound: (peer) => {
+      // Show found peer immediately - they're nearby!
       setFoundUser({
         id: peer.userId,
         username: peer.username,
@@ -255,17 +282,20 @@ export function AutoFriendDrop() {
       stopScanning();
     },
     onPeerConnected: (peer) => {
+      // Auto-add when connection is confirmed (both devices detected each other)
       handleAutoAdd(peer.userId);
     },
   });
 
+  // Web NFC for NameDrop-like auto-discovery
   const { hasWebNFC, isSupported: nfcSupported, shareProfile: nfcShareProfile, stopScan: nfcStopScan, startScan: nfcStartScan } = useNFC();
   const nfcDiscoveryRef = useRef(false);
 
-  // Passive NFC listening
+  // Passive NFC listening on home screen — like Apple NameDrop
+  // When two phones with the app open get near each other, auto-trigger friend add
   useEffect(() => {
     if (!hasWebNFC || !user?.id || isActive || !profile?.username) return;
-    if (nfcDiscoveryRef.current) return;
+    if (nfcDiscoveryRef.current) return; // Already listening
 
     let cancelled = false;
     
@@ -273,24 +303,31 @@ export function AutoFriendDrop() {
       try {
         nfcDiscoveryRef.current = true;
         
+        // Start bidirectional NFC — broadcasts our profile and listens for theirs
         const started = await nfcShareProfile(user.id, async (theirUserId) => {
           if (cancelled || isActive) return;
           if (theirUserId === user.id) return;
           
+          console.log('[AutoFriendDrop] NFC NameDrop detected user:', theirUserId);
           haptics.success();
+          
+          // Auto-activate the FriendDrop UI with the found user
           setIsActive(true);
           setPhase('exchanging');
           
+          // Fetch their profile
           const theirProfile = await fetchUser(theirUserId);
           if (theirProfile) {
             setFoundUser(theirProfile);
           }
           
+          // Auto-send friend request
           try {
             await sendRequest.mutateAsync(theirUserId);
             setPhase('success');
             haptics.success();
             
+            // Create DM and navigate
             try {
               const conversation = await createConversation.mutateAsync({ memberIds: [theirUserId] });
               setTimeout(() => {
@@ -320,9 +357,10 @@ export function AutoFriendDrop() {
         });
         
         if (started) {
-          console.log('[AutoFriendDrop] Passive NFC active');
+          console.log('[AutoFriendDrop] Passive NFC NameDrop active — bring phones together');
         }
       } catch (e) {
+        console.log('[AutoFriendDrop] Passive NFC setup failed:', e);
         nfcDiscoveryRef.current = false;
       }
     };
@@ -336,21 +374,25 @@ export function AutoFriendDrop() {
     };
   }, [hasWebNFC, user?.id, isActive, profile?.username, nfcShareProfile, nfcStopScan, sendRequest, createConversation, navigate]);
 
+  // Toggle QR expansion
   const toggleQrExpand = useCallback(() => {
     setIsQrExpanded(prev => !prev);
     haptics.tap();
   }, []);
 
+  // QR code URL with friend-drop ID for realtime sync
   const myProfileUrl = activeDropId 
     ? `https://vybehub.app/friend-drop/${activeDropId}`
     : profile?.username 
       ? `https://vybehub.app/add-friend/${user?.id}`
       : '';
   
+  // Use white background QR for better scannability
   const qrCodeUrl = myProfileUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=000000&format=svg&ecc=H&margin=2`
     : '';
 
+  // Auto-add friend (for native peer-to-peer connection)
   const handleAutoAdd = useCallback(async (userId: string) => {
     if (phase === 'exchanging' || phase === 'success') return;
     
@@ -371,8 +413,12 @@ export function AutoFriendDrop() {
   }, [phase, sendRequest]);
 
   const handleBump = useCallback(async () => {
-    if (!profile?.username || !user) return;
+    if (!profile?.username || !user) {
+      return;
+    }
     
+    // CRITICAL: Request camera access directly in the user gesture handler
+    // Browsers block getUserMedia when not triggered by a user action
     let cameraStream: MediaStream | null = null;
     try {
       cameraStream = await navigator.mediaDevices.getUserMedia({
@@ -380,15 +426,23 @@ export function AutoFriendDrop() {
       });
     } catch (err) {
       console.warn('[AutoFriendDrop] Camera access failed:', err);
+      // Continue without camera - QR code still works
     }
     
+    // Activate the exchange UI
     setIsActive(true);
     haptics.impact();
-    setPhase('activated');
-    setTimeout(() => { haptics.success(); }, 300);
     
+    // Start with the card animation, then start scanning with the already-acquired stream
+    setPhase('activated');
+    setTimeout(() => {
+      haptics.success();
+    }, 300);
+    
+    // Start scanning with the pre-acquired stream
     if (cameraStream) {
       streamRef.current = cameraStream;
+      // Defer video attachment to next frame to let the UI render first
       requestAnimationFrame(() => {
         if (videoRef.current && cameraStream) {
           videoRef.current.srcObject = cameraStream;
@@ -399,23 +453,29 @@ export function AutoFriendDrop() {
       });
     }
     
+    // Create a drop session for realtime sync (do this in background)
     friendDropSync.createDrop().then((drop) => {
-      if (drop) setActiveDropId(drop.id);
+      if (drop) {
+        setActiveDropId(drop.id);
+      }
     });
     
+    // Start native peer discovery if available
     if (nativeFriendDrop.isAvailable) {
       nativeFriendDrop.startSession();
     }
   }, [profile?.username, user, nativeFriendDrop, friendDropSync]);
 
+  // Swing detection - detects back-then-forward motion instantly
   useSwingDetection({
     enabled: !isActive && !!profile?.username,
-    threshold: 6,
-    swingWindow: 500,
+    threshold: 6, // Lower threshold for responsive detection
+    swingWindow: 500, // 500ms to complete back-forward swing
     cooldown: 3000,
     onSwing: handleBump,
   });
 
+  // Stop scanning helper
   const stopScanning = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -427,10 +487,12 @@ export function AutoFriendDrop() {
     }
   }, []);
 
+  // Handle drop scan - called when scanner successfully scans QR
   const handleDropScan = useCallback(async (dropId: string) => {
     stopScanning();
     haptics.success();
 
+    // Register ourselves as the scanner
     const scannedDrop = await friendDropSync.scanDrop(dropId);
     if (!scannedDrop) {
       toast.error('This code has expired');
@@ -438,14 +500,19 @@ export function AutoFriendDrop() {
       return;
     }
 
+    // Store the drop ID for later
     setActiveDropId(dropId);
-    setIsQrOwner(false);
+    setIsQrOwner(false); // We are the scanner, not the owner
 
+    // Fetch the QR owner's profile and show exchanging animation
     if (scannedDrop.from_user_id) {
       const ownerProfile = await fetchUser(scannedDrop.from_user_id);
       if (ownerProfile) {
         setFoundUser(ownerProfile);
+        // Go to exchanging animation - profile flies IN
         setPhase('exchanging');
+        // The QR owner will handle sending the friend request and completing
+        // We just wait for the realtime 'completed' event to show success
       }
     }
   }, [friendDropSync, stopScanning]);
@@ -465,11 +532,13 @@ export function AutoFriendDrop() {
       if (error) throw error;
       setFoundUser(data);
     } catch (error) {
+      console.error('Error fetching user:', error);
       toast.error('Could not find user');
       handleClose();
     }
   }, [stopScanning]);
 
+  // Scan loop - processes video frames to detect QR codes
   const startScanLoop = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -493,11 +562,13 @@ export function AutoFriendDrop() {
 
       if (code) {
         const url = code.data;
+        
         const dropMatch = url?.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
         if (dropMatch) {
           await handleDropScan(dropMatch[1]);
           return;
         }
+        
         const userMatch = url?.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
         if (userMatch && userMatch[1] !== user?.id) {
           handleFoundUser(userMatch[1]);
@@ -511,6 +582,7 @@ export function AutoFriendDrop() {
     scanFrame();
   }, [user?.id, handleDropScan, handleFoundUser]);
 
+  // Keep ref in sync
   startScanLoopRef.current = startScanLoop;
 
   const startScanning = useCallback(async () => {
@@ -540,17 +612,19 @@ export function AutoFriendDrop() {
     setPhase('exchanging');
     haptics.impact();
 
+    // Confirm the drop for realtime sync
     try {
       if (activeDropId) {
         await friendDropSync.confirmDrop(activeDropId);
       }
     } catch (e) {
-      console.warn('[FriendDrop] Confirm failed:', e);
+      console.warn('[FriendDrop] Confirm failed, continuing:', e);
     }
 
     try {
       await sendRequest.mutateAsync(foundUser.id);
       
+      // Complete the drop - this triggers success on BOTH devices via realtime
       try {
         if (activeDropId) {
           await friendDropSync.completeDrop(activeDropId);
@@ -559,14 +633,16 @@ export function AutoFriendDrop() {
         console.warn('[FriendDrop] Complete failed:', e);
       }
       
+      // If no activeDropId (legacy flow), manually show success
       if (!activeDropId) {
         setPhase('success');
         haptics.success();
         autoCloseAfterSuccess();
       }
+      // Otherwise, the realtime onCompleted callback handles it
     } catch (error: any) {
       if (error?.message?.includes('already')) {
-        toast.info('Already linked!');
+        toast.info('Already friends or request pending!');
         try {
           if (activeDropId) {
             await friendDropSync.completeDrop(activeDropId);
@@ -587,9 +663,11 @@ export function AutoFriendDrop() {
 
   const handleClose = useCallback(async () => {
     stopScanning();
+    // Only cancel the drop if we're not in success phase (don't interfere with completed drops)
     if (activeDropId && phase !== 'success') {
       await friendDropSync.cancelDrop(activeDropId);
     }
+    // Stop native session if active
     if (nativeFriendDrop.isActive) {
       await nativeFriendDrop.stopSession();
     }
@@ -602,278 +680,180 @@ export function AutoFriendDrop() {
   }, [stopScanning, nativeFriendDrop, activeDropId, friendDropSync, phase]);
 
   useEffect(() => {
-    return () => { stopScanning(); };
+    return () => {
+      stopScanning();
+    };
   }, [stopScanning]);
 
-  if (!profile?.username) return null;
+  // Don't render anything if user not logged in
+  if (!profile?.username) {
+    return null;
+  }
 
   return (
     <>
-      {/* Cyberpunk bump indicator */}
+      {/* Subtle indicator that bump detection is active - only show on mobile */}
       {!isActive && !isDismissed && isMobile && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in" style={{ animationDuration: '300ms' }}>
+        <div
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in"
+          style={{ animationDuration: '300ms' }}
+        >
           <button
             onClick={handleBump}
-            className="friendlink-pill relative flex items-center gap-2.5 px-5 py-3 rounded-lg border active:scale-[0.97] transition-transform duration-150 touch-manipulation overflow-hidden"
-            style={{
-              background: 'hsl(var(--background) / 0.92)',
-              borderColor: 'hsl(var(--primary) / 0.25)',
-              backdropFilter: 'blur(20px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-            }}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-primary/12 backdrop-blur-lg border border-primary/20 shadow-md shadow-primary/8 active:scale-95 transition-transform duration-150 touch-manipulation"
           >
-            {/* Single clean shimmer sweep via CSS */}
-            <div className="friendlink-shimmer absolute inset-0 pointer-events-none rounded-lg" />
-            
-            <div className="friendlink-icon-wrap p-1.5 rounded-md relative z-[1]" style={{ background: 'hsl(var(--primary) / 0.1)' }}>
+            <div className="animate-wiggle">
               {hasWebNFC ? (
-                <Radio className="h-4 w-4 text-primary" />
+                <Nfc className="h-7 w-7 text-primary" />
               ) : nativeFriendDrop.isAvailable ? (
-                <Bluetooth className="h-4 w-4 text-primary" />
+                <Bluetooth className="h-7 w-7 text-primary" />
               ) : (
-                <Zap className="h-4 w-4 text-primary" />
+                <Smartphone className="h-7 w-7 text-primary" />
               )}
             </div>
-            <div className="flex flex-col items-start relative z-[1]">
-              <span className="text-[9px] text-primary font-mono font-bold tracking-[0.25em]">
-                FRIEND LINK
-              </span>
-              <span className="text-[7px] text-muted-foreground font-mono tracking-[0.15em]">
-                {hasWebNFC
-                  ? 'TAP PHONES'
-                  : nativeFriendDrop.isAvailable 
-                    ? 'PROXIMITY'
-                    : 'SHAKE TO ACTIVATE'}
-              </span>
-            </div>
-            {/* Clean signal bars — pure CSS animation */}
-            <div className="flex items-end gap-[2px] relative z-[1] h-4">
-              {[0,1,2,3].map(i => (
-                <div
-                  key={i}
-                  className="friendlink-bar w-[3px] rounded-full"
-                  style={{ 
-                    background: 'hsl(var(--primary))',
-                    animationDelay: `${i * 150}ms`,
-                  }}
-                />
-              ))}
-            </div>
+            <span className="text-xs text-primary font-medium">
+              {hasWebNFC
+                ? 'Tap phones to add friends'
+                : nativeFriendDrop.isAvailable 
+                  ? 'Bring phones together'
+                  : 'Swing to add friends'}
+            </span>
+            <Zap className="h-6 w-6 text-primary animate-pulse" />
             <button
-              onClick={(e) => { e.stopPropagation(); setIsDismissed(true); }}
-              className="ml-0.5 p-1 rounded-md hover:bg-primary/10 transition-colors touch-manipulation relative z-[1]"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsDismissed(true);
+              }}
+              className="ml-0.5 p-0.5 rounded-full hover:bg-primary/20 transition-colors touch-manipulation"
             >
-              <X className="h-3 w-3 text-muted-foreground" />
+              <X className="h-3.5 w-3.5 text-primary/70" />
             </button>
           </button>
         </div>
       )}
 
-      {/* Exchange Modal — Cyberpunk HUD */}
+      {/* Exchange Modal - Credit card wallet style */}
       <Dialog open={isActive} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md p-0 border-0 bg-transparent overflow-visible [&>button]:hidden">
+        <DialogContent 
+          className="sm:max-w-md p-0 border-0 bg-transparent overflow-visible [&>button]:hidden"
+        >
+          {/* Wallet back layers */}
+          <motion.div
+            className="absolute -bottom-3 left-1/2 w-[88%] h-6 rounded-b-2xl"
+            style={{ 
+              x: '-50%',
+              background: 'linear-gradient(to bottom, hsl(var(--primary) / 0.12), hsl(var(--primary) / 0.03))',
+            }}
+            initial={{ opacity: 0, scaleX: 0.5 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            transition={{ delay: 0.05, duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          />
+          <motion.div
+            className="absolute -bottom-5 left-1/2 w-[78%] h-4 rounded-b-xl"
+            style={{ 
+              x: '-50%',
+              background: 'linear-gradient(to bottom, hsl(var(--primary) / 0.06), transparent)',
+            }}
+            initial={{ opacity: 0, scaleX: 0.3 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            transition={{ delay: 0.1, duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          />
+
           <AnimatePresence mode="wait">
             
             {phase === 'activated' && (
               <motion.div
                 key="activated"
-                initial={{ y: 300, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -30, opacity: 0, scale: 0.95 }}
-                transition={{ 
-                  type: "spring", stiffness: 200, damping: 22,
-                  opacity: { duration: 0.2 },
-                }}
+                initial={{ y: 80, scaleX: 0.92, scaleY: 0.7, opacity: 0 }}
+                animate={{ y: 0, scaleX: 1, scaleY: 1, opacity: 1 }}
+                exit={{ y: -15, opacity: 0, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 320, damping: 28, opacity: { duration: 0.15 } }}
                 style={{ transformOrigin: 'bottom center' }}
                 className="flex flex-col items-center"
               >
-                {/* Outer glow pulse — subtle */}
+                {/* Top edge gleam */}
                 <motion.div
-                  className="absolute inset-0 rounded-lg pointer-events-none"
-                  style={{ background: 'radial-gradient(ellipse at center, hsl(var(--primary) / 0.08), transparent 70%)' }}
-                  animate={{ opacity: [0.3, 0.5, 0.3] }}
-                  transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                  className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent z-10"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
                 />
 
-                {/* Cyber Scanner Card */}
+                {/* Credit Card Scanner — smaller */}
                 <motion.div
-                  className="relative w-72 rounded-lg overflow-hidden cyber-card"
+                  className="relative w-72 rounded-2xl overflow-hidden"
                   style={{
-                    boxShadow: '0 0 30px hsl(var(--primary) / 0.15), 0 25px 50px -12px rgba(0,0,0,0.3)',
+                    background: 'linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.85) 40%, hsl(var(--accent)) 100%)',
+                    boxShadow: '0 25px 60px -12px hsl(var(--primary) / 0.4), 0 0 0 1px hsl(var(--primary) / 0.15)',
                   }}
-                  initial={{ rotateX: 10, scaleY: 0.9 }}
-                  animate={{ rotateX: 0, scaleY: 1 }}
-                  transition={{ type: "spring", stiffness: 250, damping: 25, delay: 0.1 }}
                 >
-                  {/* Boot flash — reduced intensity */}
-                  <motion.div
-                    className="absolute inset-0 z-[5] pointer-events-none rounded-lg"
-                    style={{ background: 'hsl(var(--primary) / 0.15)' }}
-                    initial={{ opacity: 0.4 }}
-                    animate={{ opacity: 0 }}
-                    transition={{ duration: 0.3, delay: 0.1 }}
-                  />
-
-                  {/* Vertical data streams — reduced count and opacity */}
-                  {[...Array(4)].map((_, i) => (
-                    <motion.div
-                      key={`stream-${i}`}
-                      className="absolute w-px z-[3] pointer-events-none"
-                      style={{
-                        height: 20 + i * 10,
-                        background: `linear-gradient(180deg, transparent, hsl(var(--primary) / 0.15), transparent)`,
-                        left: `${15 + i * 20}%`,
-                      }}
-                      initial={{ y: -60, opacity: 0 }}
-                      animate={{ y: 500, opacity: [0, 0.5, 0] }}
-                      transition={{ duration: 1.5, delay: 0.3 + i * 0.2, repeat: Infinity, repeatDelay: 2 + i * 0.5, ease: "linear" }}
-                    />
-                  ))}
-
-                  {/* HUD header with boot sequence */}
-                  <div className="flex items-center justify-between px-4 pt-3 pb-2 relative z-[4]">
-                    <div className="flex items-center gap-2">
-                      <motion.div
-                        className="w-2 h-2 rounded-full"
-                        style={{ background: 'hsl(var(--primary))', boxShadow: '0 0 8px hsl(var(--primary) / 0.6)' }}
-                        initial={{ scale: 0 }}
-                        animate={{ scale: [0, 1.4, 1], opacity: [0, 1, 1, 0.3, 1] }}
-                        transition={{ duration: 0.6, delay: 0.3, opacity: { repeat: Infinity, duration: 1, delay: 0.6 } }}
-                      />
+                  {/* Card chip & branding */}
+                  <div className="flex items-center justify-between px-5 pt-4 pb-2">
+                    <div className="flex items-center gap-2.5">
+                      {/* Chip */}
+                      <div className="w-10 h-7 rounded-md bg-gradient-to-br from-yellow-300/90 via-yellow-400/80 to-yellow-600/70 border border-yellow-500/30" />
                       <div>
-                        <motion.h3
-                          className="font-mono text-xs font-bold tracking-[0.2em] text-primary cyber-glow-text"
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.2, duration: 0.3 }}
-                        >
-                          FRIEND LINK
-                        </motion.h3>
-                        <motion.p
-                          className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.4 }}
-                        >
-                          <motion.span
-                            animate={{ opacity: [1, 0, 1] }}
-                            transition={{ repeat: Infinity, duration: 0.8, delay: 0.5 }}
-                          >
-                            ▸
-                          </motion.span>
-                          {' '}SCANNING
-                        </motion.p>
+                        <h3 className="font-bold text-sm text-white tracking-wide">FriendDrop</h3>
+                        <p className="text-[10px] text-white/50 uppercase tracking-widest">VYBE Connect</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-sm" onClick={handleClose}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/10" onClick={handleClose}>
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
 
-                  {/* Live Scanner with enhanced cyber overlay */}
-                  <motion.div
-                    className="relative aspect-square mx-3 mb-2 rounded-sm overflow-hidden border"
-                    style={{ borderColor: 'hsl(var(--primary) / 0.3)' }}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.15, duration: 0.4 }}
-                  >
-                    <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                  {/* Contactless icon */}
+                  <div className="absolute top-4 right-14">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round">
+                      <path d="M6 18.5a7.5 7.5 0 0 1 0-13" />
+                      <path d="M10 16a5 5 0 0 1 0-8" />
+                      <path d="M14 13.5a2 2 0 0 1 0-3" />
+                    </svg>
+                  </div>
+                  
+                  {/* Live Scanner */}
+                  <div className="relative aspect-square mx-4 mb-2 rounded-xl overflow-hidden border border-white/10">
+                    <video 
+                      ref={videoRef} 
+                      className="w-full h-full object-cover"
+                      playsInline
+                      muted
+                    />
                     <canvas ref={canvasRef} className="hidden" />
                     
-                    {/* Scanning beam */}
-                    <motion.div
-                      className="absolute left-0 right-0 h-px z-[2] pointer-events-none"
-                      style={{
-                        background: 'linear-gradient(90deg, transparent, hsl(var(--primary) / 0.5), hsl(var(--primary) / 0.7), hsl(var(--primary) / 0.5), transparent)',
-                        boxShadow: '0 0 8px hsl(var(--primary) / 0.3)',
-                      }}
-                      animate={{ top: ['0%', '100%', '0%'] }}
-                      transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
-                    />
-                    
-                    {/* Cyber scanner overlay */}
-                    <div className="absolute inset-0 pointer-events-none cyber-scanline-overlay">
-                      {/* Corner brackets with staggered entrance */}
+                    {/* Scanning overlay - minimal */}
+                    <div className="absolute inset-0 pointer-events-none">
+                      <motion.div
+                        className="absolute left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent"
+                        animate={{ top: ['10%', '90%', '10%'] }}
+                        transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+                      />
+                      
+                      {/* Corner brackets */}
                       {[0, 1, 2, 3].map((i) => (
-                        <motion.div
+                        <div
                           key={i}
-                          className="cyber-corner-bracket"
+                          className="absolute w-7 h-7 border-white/60"
                           style={{
-                            top: i < 2 ? 8 : 'auto',
-                            bottom: i >= 2 ? 8 : 'auto',
-                            left: i % 2 === 0 ? 8 : 'auto',
-                            right: i % 2 === 1 ? 8 : 'auto',
+                            top: i < 2 ? 10 : 'auto',
+                            bottom: i >= 2 ? 10 : 'auto',
+                            left: i % 2 === 0 ? 10 : 'auto',
+                            right: i % 2 === 1 ? 10 : 'auto',
                             borderTopWidth: i < 2 ? 2 : 0,
                             borderBottomWidth: i >= 2 ? 2 : 0,
                             borderLeftWidth: i % 2 === 0 ? 2 : 0,
                             borderRightWidth: i % 2 === 1 ? 2 : 0,
+                            borderRadius: 4,
                           }}
-                          initial={{ opacity: 0, scale: 0.5 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: 0.3 + i * 0.08, type: "spring", stiffness: 400, damping: 20 }}
                         />
                       ))}
-                      
-                      {/* HUD telemetry */}
-                      <div className="absolute top-2 left-2 right-2 flex justify-between">
-                        <motion.span 
-                          className="text-[7px] font-mono"
-                          style={{ color: 'hsl(var(--primary) / 0.7)' }}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.5 }}
-                        >
-                          OPTICAL.SCAN//v2.4
-                        </motion.span>
-                        <motion.span
-                          className="text-[7px] font-mono"
-                          style={{ color: 'hsl(var(--primary) / 0.7)' }}
-                          animate={{ opacity: [1, 0.3, 1] }}
-                          transition={{ repeat: Infinity, duration: 1 }}
-                        >
-                          ● LIVE
-                        </motion.span>
-                      </div>
-                      
-                      {/* Bottom HUD stats */}
-                      <motion.div
-                        className="absolute bottom-2 left-2 right-2 flex justify-between"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.6 }}
-                      >
-                        <span className="text-[6px] font-mono" style={{ color: 'hsl(var(--primary) / 0.5)' }}>
-                          RES: 640×480
-                        </span>
-                        <motion.span
-                          className="text-[6px] font-mono"
-                          style={{ color: 'hsl(var(--primary) / 0.5)' }}
-                          animate={{ opacity: [0.3, 0.7, 0.3] }}
-                          transition={{ repeat: Infinity, duration: 2 }}
-                        >
-                          QR.DECODE: READY
-                        </motion.span>
-                      </motion.div>
                     </div>
-                  </motion.div>
+                  </div>
                   
                   {/* QR Code Section */}
                   {!nativeFriendDrop.isAvailable && (
-                    <motion.div
-                      className="px-3 pb-2"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4, duration: 0.3 }}
-                    >
-                      <div className="flex items-center gap-3 p-2 rounded-sm border relative overflow-hidden" style={{ borderColor: 'hsl(var(--primary) / 0.2)', background: 'hsl(var(--primary) / 0.03)' }}>
-                        {/* Subtle shimmer */}
-                        <motion.div
-                          className="absolute inset-0 pointer-events-none"
-                          style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(var(--primary) / 0.05) 50%, transparent 100%)' }}
-                          animate={{ x: ['-100%', '200%'] }}
-                          transition={{ repeat: Infinity, duration: 3, ease: "linear", repeatDelay: 2 }}
-                        />
+                    <div className="px-4 pb-2">
+                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white/10 border border-white/10">
                         <ExpandableQR
                           qrCodeUrl={qrCodeUrl}
                           isExpanded={isQrExpanded}
@@ -881,28 +861,27 @@ export function AutoFriendDrop() {
                           avatarUrl={profile?.avatar_url}
                           username={profile?.username}
                         />
-                        <div className="flex-1 min-w-0 relative z-[1]">
-                          <p className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]">YOUR ID</p>
-                          <p className="font-mono text-xs text-foreground truncate">@{profile?.username}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-white/50 uppercase tracking-wider">Your code</p>
+                          <p className="font-bold text-sm text-white truncate">@{profile?.username}</p>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   )}
                   
                   {/* Native nearby peers */}
                   {nativeFriendDrop.isAvailable && nativeFriendDrop.nearbyPeers.length > 0 && (
-                    <div className="px-3 pb-3 space-y-1.5">
-                      <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground tracking-wider">
-                        <Wifi className="h-3 w-3 text-primary" />
-                        <span>NEARBY NODES</span>
+                    <div className="px-4 pb-3 space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-white/50">
+                        <Wifi className="h-3 w-3" />
+                        <span>Nearby</span>
                       </div>
                       {nativeFriendDrop.nearbyPeers.slice(0, 2).map((peer) => (
                         <motion.button
                           key={peer.peerId}
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className="w-full flex items-center gap-2 p-2 rounded-sm border transition-colors"
-                          style={{ borderColor: 'hsl(var(--primary) / 0.15)', background: 'hsl(var(--primary) / 0.03)' }}
+                          className="w-full flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/15 transition-colors"
                           onClick={() => {
                             setFoundUser({
                               id: peer.userId,
@@ -913,46 +892,31 @@ export function AutoFriendDrop() {
                             setPhase('found');
                           }}
                         >
-                          <Avatar className="h-8 w-8 rounded-sm cyber-avatar-ring">
+                          <Avatar className="h-8 w-8">
                             <AvatarImage src={peer.avatarUrl || ''} />
-                            <AvatarFallback className="text-xs font-mono rounded-sm">{peer.username[0]?.toUpperCase()}</AvatarFallback>
+                            <AvatarFallback className="text-xs">{peer.username[0]?.toUpperCase()}</AvatarFallback>
                           </Avatar>
-                          <span className="text-xs font-mono font-medium flex-1 text-left truncate">{peer.displayName || peer.username}</span>
-                          <Zap className="h-3 w-3 text-primary" />
+                          <span className="text-sm font-medium flex-1 text-left truncate text-white">{peer.displayName || peer.username}</span>
+                          <ArrowLeftRight className="h-3 w-3 text-white/60" />
                         </motion.button>
                       ))}
                     </div>
                   )}
                   
-                  {/* Card footer with animated status */}
-                  <motion.div
-                    className="px-4 pb-3 pt-1 flex items-center justify-between relative z-[2]"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.5 }}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <motion.div
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: 'hsl(142 76% 50%)' }}
-                        animate={{ opacity: [1, 0.3, 1] }}
-                        transition={{ repeat: Infinity, duration: 1.2 }}
-                      />
-                      <p className="text-[9px] font-mono text-muted-foreground tracking-wider">SCAN TARGET CODE</p>
-                    </div>
-                    <div className="flex gap-0.5 items-end h-3">
-                      {[0,1,2,3,4].map(i => (
-                        <div
+                  {/* Card footer */}
+                  <div className="px-5 pb-4 pt-1 flex items-center justify-between">
+                    <p className="text-xs text-white/40">Point camera at friend's code</p>
+                    <div className="flex gap-1">
+                      {[0,1,2].map(i => (
+                        <motion.div
                           key={i}
-                          className="friendlink-bar w-[2px] rounded-full"
-                          style={{ 
-                            background: 'hsl(var(--primary) / 0.6)',
-                            animationDelay: `${i * 120}ms`,
-                          }}
+                          className="w-1.5 h-1.5 rounded-full bg-white/40"
+                          animate={{ opacity: [0.3, 1, 0.3] }}
+                          transition={{ repeat: Infinity, duration: 1.5, delay: i * 0.3 }}
                         />
                       ))}
                     </div>
-                  </motion.div>
+                  </div>
                 </motion.div>
               </motion.div>
             )}
@@ -960,50 +924,40 @@ export function AutoFriendDrop() {
             {phase === 'found' && foundUser && (
               <motion.div
                 key="found"
-                initial={{ opacity: 0, scale: 0.92 }}
-                animate={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0, scale: 0.92, rotateY: -60 }}
+                animate={{ opacity: 1, scale: 1, rotateY: 0 }}
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ type: "spring", stiffness: 280, damping: 22 }}
-                className="w-72 rounded-lg overflow-hidden cyber-card relative"
+                className="w-72 rounded-2xl overflow-hidden"
                 style={{
-                  boxShadow: '0 0 40px hsl(var(--primary) / 0.2), 0 25px 60px -12px rgba(0,0,0,0.3)',
+                  background: 'linear-gradient(145deg, hsl(var(--accent)) 0%, hsl(var(--primary)) 55%, hsl(var(--accent) / 0.85) 100%)',
+                  boxShadow: '0 25px 60px -12px hsl(var(--primary) / 0.35), 0 0 0 1px hsl(var(--primary) / 0.12)',
                 }}
               >
-                {/* Cyber grid bg */}
-                <div className="absolute inset-0 cyber-grid-bg opacity-30 pointer-events-none" />
+                {/* Shimmer */}
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent rounded-2xl pointer-events-none"
+                  animate={{ x: ['-200%', '200%'] }}
+                  transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
+                />
                 
-                <div className="relative p-6 flex flex-col items-center gap-4 z-[1]">
-                  {/* Avatar with rotating cyber ring */}
+                <div className="relative p-6 flex flex-col items-center gap-4">
                   <motion.div
                     initial={{ scale: 0.5, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 18 }}
-                    className="relative"
                   >
-                    <motion.div
-                      className="absolute -inset-2 rounded-lg"
-                      style={{
-                        background: 'conic-gradient(from 0deg, hsl(var(--primary) / 0.5), transparent, hsl(var(--accent) / 0.3), transparent, hsl(var(--primary) / 0.5))',
-                        padding: '1px',
-                      }}
-                      animate={{ rotate: 360 }}
-                      transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
-                    >
-                      <div className="w-full h-full rounded-lg bg-background" />
-                    </motion.div>
-                    <Avatar className="h-24 w-24 rounded-lg border-2 border-primary/30 relative shadow-2xl cyber-avatar-ring">
-                      <AvatarImage src={foundUser.avatar_url || ''} className="rounded-lg" />
-                      <AvatarFallback className="text-2xl font-mono font-bold rounded-lg bg-primary/10 text-primary">
+                    <Avatar className="h-24 w-24 border-4 border-white/50 shadow-2xl">
+                      <AvatarImage src={foundUser.avatar_url || ''} />
+                      <AvatarFallback className="text-2xl bg-white/25 text-white font-bold">
                         {foundUser.username?.[0]?.toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                   </motion.div>
                   
                   <div className="text-center">
-                    <h3 className="text-xl font-bold font-mono" style={{ animation: 'cyber-text-decode 0.5s ease-out forwards' }}>
-                      {foundUser.display_name || foundUser.username}
-                    </h3>
-                    <p className="text-muted-foreground text-xs font-mono tracking-wider">@{foundUser.username}</p>
+                    <h3 className="text-xl font-bold text-white drop-shadow-lg">{foundUser.display_name || foundUser.username}</h3>
+                    <p className="text-white/70 text-sm drop-shadow-md">@{foundUser.username}</p>
                   </div>
 
                   <motion.div
@@ -1013,19 +967,18 @@ export function AutoFriendDrop() {
                     className="flex gap-3 w-full"
                   >
                     <Button 
-                      variant="outline"
-                      className="flex-1 rounded-sm font-mono text-xs border-muted-foreground/20"
+                      variant="secondary"
+                      className="flex-1 bg-white/15 text-white hover:bg-white/25 border-0"
                       onClick={handleClose}
                     >
-                      ABORT
+                      Cancel
                     </Button>
                     <Button 
-                      className="flex-1 rounded-sm font-mono text-xs gap-1.5"
+                      className="flex-1 bg-white text-primary hover:bg-white/90"
                       onClick={handleAddFriend}
-                      style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.3)' }}
                     >
-                      <Zap className="h-3.5 w-3.5" />
-                      LINK UP
+                      <ArrowLeftRight className="h-4 w-4 mr-2" />
+                      Add Friend
                     </Button>
                   </motion.div>
                 </div>
@@ -1039,33 +992,25 @@ export function AutoFriendDrop() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.25 }}
-                className="w-80 rounded-lg overflow-hidden relative cyber-card"
+                className="w-80 rounded-2xl overflow-hidden relative"
                 style={{
-                  boxShadow: '0 0 50px hsl(var(--primary) / 0.25), 0 25px 60px -12px rgba(0,0,0,0.3)',
+                  background: 'linear-gradient(145deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.85) 40%, hsl(var(--accent)) 100%)',
+                  boxShadow: '0 25px 60px -12px hsl(var(--primary) / 0.4), 0 0 0 1px hsl(var(--primary) / 0.15)',
                   minHeight: 300,
                 }}
               >
-                {/* Data stream particles */}
-                {[...Array(10)].map((_, i) => (
+                {/* Subtle particles - reduced count for performance */}
+                {[...Array(6)].map((_, i) => (
                   <motion.div
                     key={i}
-                    className="absolute w-px rounded-full"
-                    style={{
-                      height: 6 + Math.random() * 20,
-                      background: 'hsl(var(--primary) / 0.4)',
-                      left: `${10 + Math.random() * 80}%`,
-                      boxShadow: '0 0 4px hsl(var(--primary) / 0.3)',
-                    }}
-                    initial={{ y: 300, opacity: 0 }}
-                    animate={{ y: -20, opacity: [0, 0.6, 0] }}
-                    transition={{ duration: 1.5, delay: i * 0.15, repeat: Infinity, ease: "linear" }}
+                    className="absolute w-1 h-1 rounded-full bg-white/30"
+                    initial={{ x: Math.random() * 280, y: 300, opacity: 0 }}
+                    animate={{ y: -20, opacity: [0, 0.5, 0] }}
+                    transition={{ duration: 2, delay: i * 0.2, repeat: Infinity, ease: "easeOut" }}
                   />
                 ))}
                 
-                {/* Grid background */}
-                <div className="absolute inset-0 cyber-grid-bg opacity-20 pointer-events-none" />
-                
-                <div className="relative flex flex-col items-center justify-center p-6 gap-5 z-[1]" style={{ minHeight: 260 }}>
+                <div className="relative flex flex-col items-center justify-center p-6 gap-5" style={{ minHeight: 260 }}>
                   {/* My profile flying out */}
                   <motion.div
                     className="absolute z-20"
@@ -1073,9 +1018,11 @@ export function AutoFriendDrop() {
                     animate={{ scale: 0.3, y: -200, opacity: 0 }}
                     transition={{ duration: 0.6, ease: [0.32, 0, 0.67, 0] }}
                   >
-                    <Avatar className="h-20 w-20 rounded-lg border-2 border-primary/40 shadow-xl cyber-avatar-ring">
-                      <AvatarImage src={profile?.avatar_url || ''} className="rounded-lg" />
-                      <AvatarFallback className="text-xl font-mono font-bold rounded-lg">{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                    <Avatar className="h-20 w-20 border-3 border-white/80 shadow-xl">
+                      <AvatarImage src={profile?.avatar_url || ''} />
+                      <AvatarFallback className="text-xl bg-white/30 text-white font-bold">
+                        {profile?.username?.[0]?.toUpperCase()}
+                      </AvatarFallback>
                     </Avatar>
                   </motion.div>
                   
@@ -1086,9 +1033,11 @@ export function AutoFriendDrop() {
                     animate={{ scale: 1, y: 0, opacity: 1 }}
                     transition={{ duration: 0.6, delay: 0.4, type: "spring", stiffness: 200, damping: 20 }}
                   >
-                    <Avatar className="h-24 w-24 rounded-lg border-2 border-primary/40 shadow-2xl cyber-avatar-ring">
-                      <AvatarImage src={foundUser?.avatar_url || ''} className="rounded-lg" />
-                      <AvatarFallback className="text-2xl font-mono font-bold rounded-lg">{foundUser?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                    <Avatar className="h-24 w-24 border-4 border-white/70 shadow-2xl">
+                      <AvatarImage src={foundUser?.avatar_url || ''} />
+                      <AvatarFallback className="text-2xl bg-white/30 text-white font-bold">
+                        {foundUser?.username?.[0]?.toUpperCase()}
+                      </AvatarFallback>
                     </Avatar>
                   </motion.div>
                   
@@ -1098,15 +1047,8 @@ export function AutoFriendDrop() {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.7 }}
                   >
-                    <motion.p
-                      className="text-sm font-mono font-bold tracking-wider cyber-glow-text"
-                      style={{ color: 'hsl(var(--primary))' }}
-                      animate={{ opacity: [0.5, 1, 0.5] }}
-                      transition={{ repeat: Infinity, duration: 1.5 }}
-                    >
-                      SYNCING DATA...
-                    </motion.p>
-                    <p className="text-xs font-mono text-muted-foreground mt-1">
+                    <p className="text-lg font-bold text-white drop-shadow-lg">Exchanging vibes...</p>
+                    <p className="text-white/70 text-sm mt-1 drop-shadow-md">
                       {foundUser?.display_name || foundUser?.username}
                     </p>
                   </motion.div>
@@ -1120,29 +1062,28 @@ export function AutoFriendDrop() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                className="w-80 rounded-lg overflow-hidden shadow-2xl relative cyber-card"
+                className="w-80 rounded-2xl overflow-hidden shadow-2xl relative"
                 style={{
-                  boxShadow: '0 0 60px hsl(var(--primary) / 0.3), 0 25px 60px -12px rgba(0,0,0,0.3)',
+                  background: 'linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(var(--primary)) 50%, hsl(var(--accent) / 0.9) 100%)',
                   minHeight: 300,
                 }}
               >
-                {/* Glitch particles */}
-                {[...Array(12)].map((_, i) => (
+                {/* Celebration particles - reduced for perf */}
+                {[...Array(16)].map((_, i) => (
                   <motion.div
                     key={i}
-                    className="absolute rounded-sm"
+                    className="absolute rounded-full"
                     style={{
-                      width: 3 + Math.random() * 3,
-                      height: 3 + Math.random() * 3,
-                      background: i % 2 === 0 ? 'hsl(var(--primary))' : 'hsl(var(--accent))',
+                      width: 4 + Math.random() * 4,
+                      height: 4 + Math.random() * 4,
+                      background: i % 2 === 0 ? 'rgba(255,255,255,0.8)' : 'rgba(255,220,100,0.8)',
                       left: '50%',
-                      top: '35%',
-                      boxShadow: `0 0 6px ${i % 2 === 0 ? 'hsl(var(--primary) / 0.5)' : 'hsl(var(--accent) / 0.5)'}`,
+                      top: '40%',
                     }}
                     initial={{ scale: 0, opacity: 1 }}
                     animate={{ 
-                      x: Math.cos(i * 30 * Math.PI / 180) * (50 + Math.random() * 40),
-                      y: Math.sin(i * 30 * Math.PI / 180) * (50 + Math.random() * 40),
+                      x: Math.cos(i * 22.5 * Math.PI / 180) * (60 + Math.random() * 50),
+                      y: Math.sin(i * 22.5 * Math.PI / 180) * (60 + Math.random() * 50),
                       scale: [0, 1.5, 0],
                       opacity: [1, 1, 0],
                     }}
@@ -1150,19 +1091,15 @@ export function AutoFriendDrop() {
                   />
                 ))}
                 
-                {/* Flash */}
+                {/* Initial flash */}
                 <motion.div
-                  className="absolute inset-0 pointer-events-none rounded-lg"
-                  style={{ background: 'hsl(var(--primary) / 0.3)' }}
-                  initial={{ opacity: 0.5 }}
+                  className="absolute inset-0 bg-white pointer-events-none rounded-2xl"
+                  initial={{ opacity: 0.7 }}
                   animate={{ opacity: 0 }}
-                  transition={{ duration: 0.4 }}
+                  transition={{ duration: 0.3 }}
                 />
                 
-                {/* Grid */}
-                <div className="absolute inset-0 cyber-grid-bg opacity-20 pointer-events-none" />
-                
-                <div className="relative flex flex-col items-center justify-center p-6 gap-3 z-[1]" style={{ minHeight: 260 }}>
+                <div className="relative flex flex-col items-center justify-center p-6 gap-3" style={{ minHeight: 260 }}>
                   {/* Both avatars */}
                   <div className="relative flex items-center justify-center h-28 z-10">
                     <motion.div
@@ -1171,9 +1108,11 @@ export function AutoFriendDrop() {
                       animate={{ x: -20, scale: 1, opacity: 1 }}
                       transition={{ delay: 0.1, type: "spring", stiffness: 300, damping: 22 }}
                     >
-                      <Avatar className="h-16 w-16 rounded-lg border-2 border-primary/30 shadow-xl cyber-avatar-ring">
-                        <AvatarImage src={profile?.avatar_url || ''} className="rounded-lg" />
-                        <AvatarFallback className="text-lg font-mono font-bold rounded-lg">{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                      <Avatar className="h-18 w-18 border-3 border-white/80 shadow-xl">
+                        <AvatarImage src={profile?.avatar_url || ''} />
+                        <AvatarFallback className="text-lg bg-white/30 text-white font-bold">
+                          {profile?.username?.[0]?.toUpperCase()}
+                        </AvatarFallback>
                       </Avatar>
                     </motion.div>
                     
@@ -1183,50 +1122,45 @@ export function AutoFriendDrop() {
                       animate={{ x: 20, scale: 1, opacity: 1 }}
                       transition={{ delay: 0.15, type: "spring", stiffness: 300, damping: 22 }}
                     >
-                      <Avatar className="h-16 w-16 rounded-lg border-2 border-primary/30 shadow-xl cyber-avatar-ring">
-                        <AvatarImage src={foundUser?.avatar_url || ''} className="rounded-lg" />
-                        <AvatarFallback className="text-lg font-mono font-bold rounded-lg">{foundUser?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                      <Avatar className="h-18 w-18 border-3 border-white/80 shadow-xl">
+                        <AvatarImage src={foundUser?.avatar_url || ''} />
+                        <AvatarFallback className="text-lg bg-white/30 text-white font-bold">
+                          {foundUser?.username?.[0]?.toUpperCase()}
+                        </AvatarFallback>
                       </Avatar>
                     </motion.div>
                     
-                    {/* Shield check */}
+                    {/* Checkmark */}
                     <motion.div
                       className="absolute z-10"
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       transition={{ delay: 0.3, type: "spring", stiffness: 400, damping: 15 }}
                     >
-                      <div className="w-10 h-10 rounded-sm flex items-center justify-center"
-                        style={{ 
-                          background: 'hsl(var(--primary))',
-                          boxShadow: '0 0 20px hsl(var(--primary) / 0.5)',
-                        }}
-                      >
-                        <Check className="h-5 w-5 text-primary-foreground" strokeWidth={3} />
+                      <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-lg">
+                        <Check className="h-6 w-6 text-primary" strokeWidth={3} />
                       </div>
                     </motion.div>
                   </div>
                   
                   <motion.div 
-                    className="text-center z-10"
+                    className="text-center text-white z-10"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
                   >
-                    <h3 className="text-lg font-bold font-mono tracking-wider cyber-glow-text" style={{ color: 'hsl(var(--primary))' }}>
-                      LINK ESTABLISHED
-                    </h3>
-                    <p className="text-muted-foreground mt-1 text-xs font-mono">
-                      {foundUser?.display_name || foundUser?.username} synced
+                    <h3 className="text-xl font-bold text-white drop-shadow-lg">You're connected!</h3>
+                    <p className="text-white/70 mt-1 text-sm drop-shadow-md">
+                      {foundUser?.display_name || foundUser?.username} is now your friend 🎉
                     </p>
                     <motion.div
-                      className="flex items-center justify-center gap-2 mt-3 text-primary/70"
+                      className="flex items-center justify-center gap-2 mt-3 text-white/80"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.5 }}
                     >
-                      <MessageCircle className="h-3.5 w-3.5" />
-                      <span className="text-[10px] font-mono tracking-wider">OPENING CHANNEL...</span>
+                      <MessageCircle className="h-4 w-4" />
+                      <span className="text-sm">Opening chat...</span>
                     </motion.div>
                   </motion.div>
                 </div>

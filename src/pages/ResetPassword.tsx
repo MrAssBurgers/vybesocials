@@ -1,74 +1,44 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { VYBELogo } from '@/components/ui/VYBELogo';
-import { Eye, EyeOff, Lock, CheckCircle, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
-  const [checking, setChecking] = useState(true);
 
-  // Listen for PASSWORD_RECOVERY event from Supabase auth
+  // Check if we have a valid recovery session
   useEffect(() => {
-    // First check if there's already a session (user might have landed here with a valid token)
-    const checkExistingSession = async () => {
+    const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setIsReady(true);
-        setChecking(false);
-        return true;
+      
+      // If there's a hash fragment with access_token, Supabase will handle it
+      const hash = window.location.hash;
+      if (hash && hash.includes('access_token')) {
+        // Let Supabase process the token
+        return;
       }
-      return false;
+      
+      // If no session and no token in URL, redirect to landing
+      if (!session && !hash) {
+        toast.error('Invalid or expired reset link');
+        navigate('/');
+      }
     };
-
-    // Listen for auth state changes - Supabase auto-processes the recovery token from URL
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setIsReady(true);
-        setChecking(false);
-      } else if (event === 'SIGNED_IN' && session) {
-        // Sometimes recovery comes as SIGNED_IN
-        setIsReady(true);
-        setChecking(false);
-      }
-    });
-
-    // Check existing session, and if none, wait a bit for the auth event
-    checkExistingSession().then((hasSession) => {
-      if (!hasSession) {
-        // Give Supabase time to process the URL token
-        setTimeout(() => {
-          setChecking(prev => {
-            // If still checking after timeout, check session one more time
-            if (prev) {
-              checkExistingSession().then((found) => {
-                if (!found) {
-                  toast.error('Invalid or expired reset link');
-                  navigate('/');
-                }
-              });
-            }
-            return false;
-          });
-        }, 3000);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    
+    checkSession();
   }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -124,21 +94,6 @@ export default function ResetPassword() {
           <p className="text-muted-foreground mb-4">
             Your password has been successfully updated. Redirecting you now...
           </p>
-        </motion.div>
-      </div>
-    );
-  }
-
-  if (checking) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center gap-4"
-        >
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-muted-foreground text-sm">Verifying reset link...</p>
         </motion.div>
       </div>
     );
@@ -215,7 +170,7 @@ export default function ResetPassword() {
             type="submit"
             className="w-full gradient-animated text-white"
             size="lg"
-            disabled={loading || !isReady}
+            disabled={loading}
           >
             {loading ? 'Updating...' : 'Update Password'}
           </Button>

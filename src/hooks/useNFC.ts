@@ -247,11 +247,12 @@ export function useNFC() {
       
       if (error.name === 'NotAllowedError') {
         toast.error('NFC permission denied. Enable in browser settings.');
-      } else if (error.name === 'NotSupportedError' || error.name === 'AbortError') {
-        // Silently fail for unsupported or aborted
+      } else if (error.name === 'NotSupportedError') {
+        toast.error('NFC not supported on this device.');
+      } else if (error.name === 'AbortError') {
         return false;
       } else {
-        console.warn('[NFC] Start failed:', error.message);
+        toast.error('Failed to start NFC');
       }
       return false;
     }
@@ -413,7 +414,7 @@ export function useNFC() {
       if (error.name === 'NotAllowedError') {
         toast.error('NFC permission denied. Enable in settings.');
       } else if (error.name !== 'AbortError') {
-        console.warn('[NFC] Share start failed:', error.message);
+        toast.error('Failed to start NFC');
       }
       return false;
     }

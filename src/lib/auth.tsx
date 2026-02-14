@@ -347,7 +347,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const handleBeforeUnload = () => {
       if (sessionStorage.getItem('vybe-session-only') === 'true') {
         // Clear the auth data from localStorage so session doesn't persist
-        localStorage.removeItem('sb-agtcyxjxgkdyoxwxkjth-auth-token');
+        localStorage.removeItem('sb-eabvbtkxdbttjpdpbmuw-auth-token');
         sessionStorage.removeItem('vybe-session-only');
       }
     };

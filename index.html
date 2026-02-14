@@ -5,9 +5,8 @@
     
     <!-- Preconnect to external origins for faster loading -->
     <link rel="preconnect" href="https://cdn.gpteng.co" crossorigin />
-    <link rel="dns-prefetch" href="https://cdn.gpteng.co" />
-    <!-- Preconnect to Supabase API origin used on initial page load -->
     <link rel="preconnect" href="https://agtcyxjxgkdyoxwxkjth.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://cdn.gpteng.co" />
     <link rel="dns-prefetch" href="https://agtcyxjxgkdyoxwxkjth.supabase.co" />
     
     <!-- Preload critical font -->
@@ -35,8 +34,7 @@
     
     <meta property="og:site_name" content="VYBE" />
     <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/wmAXh32hstROft2pajZRmnKKwFp2/social-images/social-1770237150063-VYBELogov2.png">
-    <meta property="og:url" content="https://vybehub.app" />
-    <link rel="canonical" href="https://vybehub.app" />
+    <meta property="og:url" content="https://vybeapp.lovable.app" />
     
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -60,10 +58,10 @@
     
     <!-- Critical inline CSS for faster LCP -->
     <style>
-      html, body { margin: 0; padding: 0; min-height: 100dvh; background: #0B0B10; color: #fff; }
-      #root { min-height: 100dvh; background: #0B0B10; display: flex; flex-direction: column; }
+      html, body { margin: 0; padding: 0; min-height: 100vh; background: #0B0B10; }
+      #root { min-height: 100vh; background: #0B0B10; }
       /* Prevent layout shift */
-      img, video { max-width: 100%; height: auto; content-visibility: auto; }
+      img, video { max-width: 100%; height: auto; }
       /* Native app feel */
       body { 
         -webkit-tap-highlight-color: transparent;
@@ -71,7 +69,6 @@
         -webkit-user-select: none;
         user-select: none;
         overscroll-behavior: contain;
-        font-family: system-ui, -apple-system, sans-serif;
       }
       /* Allow text selection in inputs and text areas */
       input, textarea, [contenteditable="true"] {
@@ -85,19 +82,6 @@
         padding-left: env(safe-area-inset-left);
         padding-right: env(safe-area-inset-right);
       }
-      /* Splash screen placeholder for FCP - renders visible content before JS */
-      .splash-loader {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 100dvh;
-        background: #0B0B10;
-        flex-direction: column;
-        gap: 16px;
-      }
-      .splash-loader svg { width: 48px; height: 48px; }
-      .splash-loader .pulse { animation: pulse 1.5s ease-in-out infinite; }
-      @keyframes pulse { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
       /* NOTE: Avoid transforms on #root — they break position:fixed (e.g., bottom nav) on some browsers */
     </style>
     <meta property="og:title" content="VYBE - The Next Generation Social Platform">
@@ -106,29 +90,7 @@
   <meta name="twitter:description" content="VYBE - The Next Generation Social Platform. Share moments, connect with friends, and discover amazing content from creators worldwide.">
 </head>
   <body>
-    <div id="root">
-      <!-- Static splash for instant FCP - removed by React on mount - v2 -->
-      <div class="splash-loader" id="static-splash" aria-label="Loading VYBE">
-        <svg class="pulse" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="24" cy="24" r="20" stroke="#8B5CF6" stroke-width="3" stroke-linecap="round" stroke-dasharray="80 40" />
-        </svg>
-        <span style="color:#8B5CF6;font-size:14px;font-weight:600;letter-spacing:2px;">VYBE</span>
-        <div id="splash-fallback" style="display:none;margin-top:24px;text-align:center;">
-          <p style="color:#8B5CF6;font-size:13px;margin-bottom:12px;">Taking longer than expected...</p>
-          <button onclick="window.location.reload()" style="background:#8B5CF6;color:#fff;border:none;padding:10px 24px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;">Reload</button>
-        </div>
-      </div>
-    </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      // Safety: if React doesn't mount within 8 seconds, show reload button
-      setTimeout(function() {
-        var splash = document.getElementById('static-splash');
-        var fallback = document.getElementById('splash-fallback');
-        if (splash && fallback && splash.parentElement && splash.parentElement.id === 'root' && !document.querySelector('[data-reactroot]') && splash.offsetParent !== null) {
-          fallback.style.display = 'block';
-        }
-      }, 8000);
-    </script>
   </body>
 </html>

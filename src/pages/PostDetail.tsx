@@ -315,8 +315,8 @@ export default function PostDetailPage() {
     <AppLayout>
       <div className="max-w-xl mx-auto pb-6">
         {/* Sticky header */}
-        <div className="sticky top-0 z-30">
-          <div className="mx-3 mt-1 liquid-glass rounded-2xl flex items-center gap-3 px-3 py-2">
+        <div className="sticky top-2 z-30">
+          <div className="mx-3 mt-2 liquid-glass rounded-2xl flex items-center gap-3 px-3 py-2">
             <button
               onClick={() => navigate(-1)}
               className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors active:scale-90"

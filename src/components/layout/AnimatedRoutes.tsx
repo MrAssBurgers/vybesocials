@@ -6,8 +6,8 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 
-// All pages lazy-loaded for smaller initial bundle
-const Home = lazy(() => import("@/pages/Home"));
+// CRITICAL PAGE - Load eagerly for instant first navigation
+import Home from "@/pages/Home";
 
 // High-priority pages - lazy but prefetched early
 const Explore = lazy(() => import("@/pages/Explore"));
@@ -53,7 +53,7 @@ const OrderCancelled = lazy(() => import("@/pages/OrderCancelled"));
 
 // Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
-const ProductionDebugPanel = lazy(() => import('@/components/debug/ProductionDebugPanel').then(m => ({ default: m.ProductionDebugPanel })));
+import { ProductionDebugPanel } from '@/components/debug/ProductionDebugPanel';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 // Minimal fallback - just shows content area, no skeleton flicker
@@ -84,12 +84,13 @@ export function AnimatedRoutes() {
   // Always capture errors/network — independent of panel visibility
   useDebugCapture();
   
-  // Preload critical routes (including Home) after initial render, then secondary
+  // Preload all routes after initial render
   useEffect(() => {
-    preloadCriticalRoutes();
+    // Preload secondary routes after a short delay
     const timer = setTimeout(() => {
       preloadSecondaryRoutes();
-    }, 2000);
+    }, 1000);
+    
     return () => clearTimeout(timer);
   }, []);
   
@@ -179,9 +180,7 @@ export function AnimatedRoutes() {
           )}
           {/* Production debug panel — always mounted, admin-gated */}
           {isDebugAdmin && (
-            <Suspense fallback={null}>
-              <ProductionDebugPanel isOpen={debugOpen} onClose={() => setDebugOpen(false)} />
-            </Suspense>
+            <ProductionDebugPanel isOpen={debugOpen} onClose={() => setDebugOpen(false)} />
           )}
         </Suspense>
       </motion.div>

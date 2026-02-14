@@ -15,66 +15,48 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 // Singleton scroll direction detection to prevent duplicate listeners
-let scrollDirectionCleanup: (() => void) | null = null;
+let scrollDirectionListener: (() => void) | null = null;
 let scrollVisibility = true;
 const scrollVisibilityListeners = new Set<(visible: boolean) => void>();
 
 function setupScrollDirectionListener() {
-  if (scrollDirectionCleanup) return;
+  if (scrollDirectionListener) return;
   
   let lastScrollY = 0;
   let ticking = false;
 
-  const handleScroll = (e?: Event) => {
-    if (ticking) return;
-    ticking = true;
-    window.requestAnimationFrame(() => {
-      // Check both window scroll and the app scroll container
-      const scrollContainer = document.querySelector('[data-app-scroll-container="true"]');
-      const currentScrollY = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
-      const scrollDiff = currentScrollY - lastScrollY;
-      
-      if (Math.abs(scrollDiff) > 10) {
-        scrollVisibility = !(scrollDiff > 0 && currentScrollY > 50);
-      }
-      
-      if (currentScrollY < 50) {
-        scrollVisibility = true;
-      }
-      
-      lastScrollY = currentScrollY;
-      ticking = false;
-      
-      scrollVisibilityListeners.forEach(fn => fn(scrollVisibility));
-    });
+  const handleScroll = () => {
+    if (!ticking) {
+      window.requestAnimationFrame(() => {
+        const currentScrollY = window.scrollY;
+        const scrollDiff = currentScrollY - lastScrollY;
+        
+        if (Math.abs(scrollDiff) > 10) {
+          if (scrollDiff > 0 && currentScrollY > 50) {
+            scrollVisibility = false;
+          } else {
+            scrollVisibility = true;
+          }
+        }
+        
+        if (currentScrollY < 50) {
+          scrollVisibility = true;
+        }
+        
+        lastScrollY = currentScrollY;
+        ticking = false;
+        
+        // Notify all listeners
+        scrollVisibilityListeners.forEach(fn => fn(scrollVisibility));
+      });
+      ticking = true;
+    }
   };
 
-  // Listen on both window AND the app scroll container
   window.addEventListener('scroll', handleScroll, { passive: true });
-  
-  // Also attach to the main scroll container when it appears
-  const observer = new MutationObserver(() => {
-    const container = document.querySelector('[data-app-scroll-container="true"]');
-    if (container && !(container as any).__scrollBound) {
-      container.addEventListener('scroll', handleScroll, { passive: true });
-      (container as any).__scrollBound = true;
-    }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-  
-  // Initial check
-  const container = document.querySelector('[data-app-scroll-container="true"]');
-  if (container) {
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    (container as any).__scrollBound = true;
-  }
-
-  scrollDirectionCleanup = () => {
+  scrollDirectionListener = () => {
     window.removeEventListener('scroll', handleScroll);
-    observer.disconnect();
-    const el = document.querySelector('[data-app-scroll-container="true"]');
-    if (el) el.removeEventListener('scroll', handleScroll);
-    scrollDirectionCleanup = null;
+    scrollDirectionListener = null;
   };
 }
 
@@ -90,8 +72,9 @@ function useScrollDirection() {
 
     return () => {
       scrollVisibilityListeners.delete(setIsVisible);
-      if (scrollVisibilityListeners.size === 0 && scrollDirectionCleanup) {
-        scrollDirectionCleanup();
+      // Only cleanup if no more listeners
+      if (scrollVisibilityListeners.size === 0 && scrollDirectionListener) {
+        scrollDirectionListener();
       }
     };
   }, []);

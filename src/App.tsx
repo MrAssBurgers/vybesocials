@@ -1,6 +1,9 @@
-import { useEffect, memo, lazy, Suspense } from 'react';
-import './lib/i18n'; // Must be synchronous - needed before React renders
-// liquid.css is loaded inside AppWithPreloader useEffect
+import { useState, useEffect, memo, lazy, Suspense } from 'react';
+import './lib/i18n';
+import './styles/liquid.css';
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
@@ -9,7 +12,7 @@ import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
 import { CallStoreProvider } from "@/lib/callStore";
-
+import { SplashScreen } from "@/components/ui/SplashScreen";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
@@ -20,31 +23,10 @@ import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
-const AnimatedRoutes = lazy(() => 
-  import("@/components/layout/AnimatedRoutes")
-    .then(m => ({ default: m.AnimatedRoutes }))
-    .catch(() => {
-      // Retry once on chunk load failure (common after deployments)
-      return import("@/components/layout/AnimatedRoutes").then(m => ({ default: m.AnimatedRoutes }));
-    })
-);
+import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
-
-// Lazy-load toast/tooltip UI components - not needed for initial paint
-const LazyToaster = lazy(() => import("@/components/ui/toaster").then(m => ({ default: m.Toaster })));
-const LazySonner = lazy(() => import("@/components/ui/sonner").then(m => ({ default: m.Toaster })));
-const LazyTooltipProvider = lazy(() => import("@/components/ui/tooltip").then(m => ({ default: m.TooltipProvider })));
-
-// Simple passthrough tooltip provider for SSR/initial render
-function MinimalTooltipProvider({ children }: { children: React.ReactNode }) {
-  return (
-    <Suspense fallback={<>{children}</>}>
-      <LazyTooltipProvider>{children}</LazyTooltipProvider>
-    </Suspense>
-  );
-}
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -62,9 +44,9 @@ const StreakProvider = lazy(() => import("@/components/streak/StreakProvider").t
 // Lazy-load deferred hooks via a wrapper component
 const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
 
-// Initialize stored fonts and custom animations on app load (with safety catch)
-try { initializeStoredFonts(); } catch (e) { console.warn('[App] initializeStoredFonts failed:', e); }
-try { initializeCustomAnimations(); } catch (e) { console.warn('[App] initializeCustomAnimations failed:', e); }
+// Initialize stored fonts and custom animations on app load
+initializeStoredFonts();
+initializeCustomAnimations();
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
@@ -110,17 +92,15 @@ function ScrollRestoration() {
 // Lazy-load ban check
 const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
+// Track if initial load has completed (persists across navigations)
+let hasInitialLoadCompleted = false;
 
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
-  // Background data prefetch happens silently
-  useAppPreloader();
-
-  // Load deferred CSS after mount
-  useEffect(() => {
-    import('./styles/liquid.css').catch(() => {});
-  }, []);
-
+  const preloadStatus = useAppPreloader();
+  // Only show splash on truly initial load, not on navigation
+  const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
+  
   // Auto-update checker
   useAutoUpdate();
   
@@ -128,8 +108,25 @@ function AppWithPreloader() {
   useRealtimeProfiles();
   usePostsRealtime();
 
+  useEffect(() => {
+    // Only hide splash when preloading is truly complete
+    if (preloadStatus.isComplete && showSplash) {
+      // Small delay for smooth transition
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+        hasInitialLoadCompleted = true;
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [preloadStatus.isComplete, showSplash]);
+
   return (
     <>
+      <SplashScreen 
+        isVisible={showSplash} 
+        status={preloadStatus.step}
+        progress={preloadStatus.progress}
+      />
       <GlobalErrorHandler />
       <AuthProvider>
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
@@ -143,8 +140,9 @@ function AppWithPreloader() {
                     <Suspense fallback={null}>
                       <RewardNotificationProvider>
                         <StreakProvider>
-                          <MinimalTooltipProvider>
-                            <Suspense fallback={null}><LazyToaster /><LazySonner /></Suspense>
+                          <TooltipProvider>
+                            <Toaster />
+                            <Sonner />
                             <BrowserRouter>
                               <DebugPanelProvider>
                                 <Suspense fallback={null}>
@@ -166,7 +164,7 @@ function AppWithPreloader() {
                                 </Suspense>
                               </DebugPanelProvider>
                             </BrowserRouter>
-                          </MinimalTooltipProvider>
+                          </TooltipProvider>
                         </StreakProvider>
                       </RewardNotificationProvider>
                     </Suspense>

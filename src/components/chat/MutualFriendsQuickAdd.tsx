@@ -19,21 +19,22 @@ const containerVariants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
-    transition: { staggerChildren: 0.03 },
+    transition: { staggerChildren: 0.05 },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 8 },
+  hidden: { opacity: 0, scale: 0.9 },
   show: { 
     opacity: 1, 
-    y: 0,
-    transition: { duration: 0.15, ease: 'easeOut' as const }
+    scale: 1,
+    transition: { type: 'spring' as const, stiffness: 400, damping: 25 }
   },
   exit: {
     opacity: 0,
-    scale: 0.95,
-    transition: { duration: 0.1 }
+    scale: 0.8,
+    x: -100,
+    transition: { duration: 0.2 }
   }
 };
 
@@ -358,17 +359,18 @@ function SnapchatStyleCard({
 
   return (
     <motion.div
+      layout
       variants={itemVariants}
       exit="exit"
       className="relative bg-card border border-border rounded-2xl p-2.5 sm:p-3 flex flex-col items-center text-center"
     >
-      {/* Dismiss X button */}
+      {/* Dismiss X button - Snapchat style (permanent hide) */}
       <button
         onClick={handleDismiss}
-        className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center transition-colors"
+        className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center transition-colors"
         title="Hide forever"
       >
-        <X className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+        <X className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground" />
       </button>
 
       {/* Avatar */}

@@ -366,24 +366,24 @@ export default function ProfilePage() {
             {/* Stats */}
             <div className="flex justify-center md:justify-start gap-8 mb-4">
               <div className="text-center">
-                <p className="font-bold text-xl text-foreground drop-shadow-md">{profile.post_count}</p>
-                <p className="text-sm font-medium text-foreground drop-shadow-sm">posts</p>
+                <p className="font-bold text-xl drop-shadow-md" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>{profile.post_count}</p>
+                <p className="text-sm font-medium drop-shadow-sm" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>posts</p>
               </div>
               <div className="text-center">
-                <p className="font-bold text-xl text-foreground drop-shadow-md">
+                <p className="font-bold text-xl drop-shadow-md" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>
                   {liveFollowerCount}
                 </p>
-                <p className="text-sm font-medium text-foreground drop-shadow-sm">followers</p>
+                <p className="text-sm font-medium drop-shadow-sm" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>followers</p>
               </div>
               <div className="text-center">
-                <p className="font-bold text-xl text-foreground drop-shadow-md">{profile.following_count}</p>
-                <p className="text-sm font-medium text-foreground drop-shadow-sm">following</p>
+                <p className="font-bold text-xl drop-shadow-md" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>{profile.following_count}</p>
+                <p className="text-sm font-medium drop-shadow-sm" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>following</p>
               </div>
             </div>
 
             {/* Bio */}
             {profile.bio && (
-              <p className="max-w-md text-foreground drop-shadow-sm">{profile.bio}</p>
+              <p className="max-w-md drop-shadow-sm" style={{ color: 'hsl(var(--foreground))', opacity: 1 }}>{profile.bio}</p>
             )}
             
             {!isOwnProfile && (
@@ -398,22 +398,22 @@ export default function ProfilePage() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full mb-6 bg-card/80 border border-border">
             <TabsTrigger value="posts" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-              <Grid style={{ width: 16, height: 16, minWidth: 16, minHeight: 16 }} />
+              <Grid className="h-4 w-4" />
               <span>Posts</span>
             </TabsTrigger>
             <TabsTrigger value="shorts" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-              <Film style={{ width: 16, height: 16, minWidth: 16, minHeight: 16 }} />
+              <Film className="h-4 w-4" />
               <span>Clips</span>
             </TabsTrigger>
             {isOwnProfile && (
               <TabsTrigger value="locker" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-                <Package style={{ width: 16, height: 16, minWidth: 16, minHeight: 16 }} />
+                <Package className="h-4 w-4" />
                 <span>Locker</span>
               </TabsTrigger>
             )}
             {isOwnProfile && (
               <TabsTrigger value="saved" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-                <Bookmark style={{ width: 16, height: 16, minWidth: 16, minHeight: 16 }} />
+                <Bookmark className="h-4 w-4" />
                 <span>Saved</span>
               </TabsTrigger>
             )}
