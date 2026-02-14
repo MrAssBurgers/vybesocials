@@ -114,7 +114,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           hideNav ? "" : "pt-14",
         )}
         style={{
-          height: noPadding ? 'calc(100dvh - 3.5rem)' : '100dvh',
+          height: hideNav ? '100dvh' : (noPadding ? 'calc(100dvh - 3.5rem)' : 'calc(100dvh)'),
           WebkitOverflowScrolling: 'touch',
           overscrollBehaviorY: 'contain',
         }}
