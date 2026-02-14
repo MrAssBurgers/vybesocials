@@ -7557,7 +7557,7 @@ export type Database = {
         Args: { p_auth_user_id: string }
         Returns: undefined
       }
-      track_daily_login: { Args: never; Returns: undefined }
+      track_daily_login: { Args: never; Returns: Json }
       trigger_badge_sync_for_user: {
         Args: { p_username: string }
         Returns: undefined

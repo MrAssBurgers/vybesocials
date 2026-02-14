@@ -42,9 +42,9 @@ serve(async (req) => {
       .eq("is_active", true);
     const existingTitles = (existingChallenges || []).map(t => t.title);
 
-    const prompt = `Generate 6 unique social media app challenges for a platform called VYBE. Today is ${dayOfWeek}, ${month} ${dayOfMonth}.
+    const prompt = `Generate 9 unique social media app challenges for a platform called VYBE. Today is ${dayOfWeek}, ${month} ${dayOfMonth}.
 
-Generate 3 DAILY challenges and 3 WEEKLY challenges. Make them creative, fun, and varied — never repeat the same boring patterns.
+Generate 6 DAILY challenges and 3 WEEKLY challenges. Make them creative, fun, and varied — never repeat the same boring patterns.
 
 Rules:
 - Each challenge MUST use one of these requirement_types: ${VALID_REQUIREMENT_TYPES.join(", ")}
@@ -55,7 +55,7 @@ Rules:
 - Titles should be catchy, Gen-Z friendly, max 25 chars
 - Descriptions should be action-oriented, max 50 chars
 - Don't reuse these existing titles: ${existingTitles.slice(0, 20).join(", ")}
-- Mix up the requirement_types — don't use the same type twice in dailies or weeklies
+- Mix up the requirement_types — use at least 5 different types across the 6 dailies
 - Consider the day of the week for thematic challenges (e.g. "Monday Motivation", "Friday Vibes")
 - Be creative with titles — use emojis sparingly, slang, pop culture references, puns`;
 
@@ -163,7 +163,7 @@ Rules:
       throw new Error("No valid challenges after sanitization");
     }
 
-    const dailyChallenges = validChallenges.filter(c => c.type === "daily").slice(0, 3);
+    const dailyChallenges = validChallenges.filter(c => c.type === "daily").slice(0, 6);
     const weeklyChallenges = validChallenges.filter(c => c.type === "weekly").slice(0, 3);
 
     // === DIRECTLY INSERT AS ACTIVE CHALLENGES (not templates) ===
