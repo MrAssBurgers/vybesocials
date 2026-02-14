@@ -44,9 +44,9 @@ export function useSafetySettings() {
         .from('user_safety_settings')
         .select('*')
         .eq('user_id', profile.id)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) throw error;
 
       // Return defaults if no settings exist
       if (!data) {
