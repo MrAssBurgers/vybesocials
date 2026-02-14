@@ -1,5 +1,6 @@
-import { useEffect, memo, lazy, Suspense } from 'react';
+import { useState, useEffect, memo, lazy, Suspense } from 'react';
 import './lib/i18n'; // Must be synchronous - needed before React renders
+// liquid.css is loaded inside AppWithPreloader useEffect
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
@@ -8,6 +9,7 @@ import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
 import { CallStoreProvider } from "@/lib/callStore";
+import { SplashScreen } from "@/components/ui/SplashScreen";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
@@ -15,19 +17,20 @@ import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
+import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
 const AnimatedRoutes = lazy(() => 
   import("@/components/layout/AnimatedRoutes")
     .then(m => ({ default: m.AnimatedRoutes }))
     .catch(() => {
+      // Retry once on chunk load failure (common after deployments)
       return import("@/components/layout/AnimatedRoutes").then(m => ({ default: m.AnimatedRoutes }));
     })
 );
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
-import { preloadCriticalRoutes, preloadSecondaryRoutes } from "@/lib/routePreloader";
 
 // Lazy-load toast/tooltip UI components - not needed for initial paint
 const LazyToaster = lazy(() => import("@/components/ui/toaster").then(m => ({ default: m.Toaster })));
@@ -69,8 +72,8 @@ try { initializeCustomAnimations(); } catch (e) { console.warn('[App] initialize
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 30,
-      gcTime: 1000 * 60 * 180,
+      staleTime: 1000 * 60 * 30, // 30 minutes - maximize cache hits
+      gcTime: 1000 * 60 * 180, // 3 hour cache for even better persistence
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
@@ -107,8 +110,15 @@ function ScrollRestoration() {
 // Lazy-load ban check
 const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
-// App wrapper component - no splash screen, loads instantly
-function AppContent() {
+// Track if initial load has completed (persists across navigations)
+let hasInitialLoadCompleted = false;
+
+// Preloader wrapper component - must be inside QueryClientProvider
+function AppWithPreloader() {
+  const preloadStatus = useAppPreloader();
+  // Only show splash on truly initial load, not on navigation
+  const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
+  
   // Load deferred CSS after mount
   useEffect(() => {
     import('./styles/liquid.css').catch(() => {});
@@ -117,21 +127,33 @@ function AppContent() {
   // Auto-update checker
   useAutoUpdate();
   
-  // Real-time profile sync
+  // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
 
-  // Preload routes in background for instant navigation
   useEffect(() => {
-    preloadCriticalRoutes();
-    setTimeout(() => preloadSecondaryRoutes(), 2000);
-  }, []);
+    // Only hide splash when preloading is truly complete
+    if (preloadStatus.isComplete && showSplash) {
+      // Small delay for smooth transition
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+        hasInitialLoadCompleted = true;
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [preloadStatus.isComplete, showSplash]);
 
   return (
     <>
+      <SplashScreen 
+        isVisible={showSplash} 
+        status={preloadStatus.step}
+        progress={preloadStatus.progress}
+      />
       <GlobalErrorHandler />
       <AuthProvider>
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
+        {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
         <AppBackgroundProvider>
           <CustomThemeProvider>
             <ThemeTransitionProvider>
@@ -186,7 +208,7 @@ const App = memo(() => {
         <ThemeProvider>
           <GlassIntensityProvider>
             <AccessibilityProvider>
-              <AppContent />
+              <AppWithPreloader />
             </AccessibilityProvider>
           </GlassIntensityProvider>
         </ThemeProvider>
