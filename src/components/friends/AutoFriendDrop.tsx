@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getPreloadedStream } from '@/hooks/useCameraPreload';
 import jsQR from 'jsqr';
+import { getPrimaryHex } from '@/lib/themeColor';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 
@@ -333,8 +334,9 @@ export function AutoFriendDrop() {
       ? `https://vybehub.app/add-friend/${user?.id}`
       : '';
   
+  const primaryHex = getPrimaryHex();
   const qrCodeUrl = myProfileUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=000000&format=svg&ecc=H&margin=2`
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=${primaryHex}&format=svg&ecc=H&margin=2`
     : '';
 
   const handleAutoAdd = useCallback(async (userId: string) => {
@@ -475,7 +477,7 @@ export function AutoFriendDrop() {
       
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'dontInvert',
+        inversionAttempts: 'attemptBoth',
       });
 
       if (code) {

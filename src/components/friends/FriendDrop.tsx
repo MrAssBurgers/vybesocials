@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import jsQR from 'jsqr';
+import { getPrimaryHex } from '@/lib/themeColor';
 import { useNFC } from '@/hooks/useNFC';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { preloadCameraStream, getPreloadedStream } from '@/hooks/useCameraPreload';
@@ -744,8 +745,9 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       ? `https://vybehub.app/add-friend/${user?.id}`
       : '';
   
+  const primaryHex = getPrimaryHex();
   const qrCodeUrl = myProfileUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=000000&format=svg&ecc=H&margin=2`
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=${primaryHex}&format=svg&ecc=H&margin=2`
     : '';
 
   const stopScanning = useCallback(() => {
@@ -837,7 +839,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'dontInvert',
+          inversionAttempts: 'attemptBoth',
         });
 
         if (code) {
