@@ -242,10 +242,29 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   return (
     <div className="min-h-screen bg-background overflow-hidden relative flex items-center justify-center">
-      {/* Simplified static background for better performance */}
+      {/* Smooth blended background — no hard edges */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/2 -left-1/2 w-full h-full gradient-animated opacity-10 blur-3xl" />
-        <div className="absolute -bottom-1/2 -right-1/2 w-full h-full gradient-animated opacity-10 blur-3xl" />
+        <div 
+          className="absolute w-[140%] h-[140%] -top-[30%] -left-[30%]"
+          style={{
+            background: 'radial-gradient(ellipse at 20% 20%, hsl(var(--primary) / 0.15) 0%, transparent 60%)',
+            filter: 'blur(80px)',
+          }}
+        />
+        <div 
+          className="absolute w-[140%] h-[140%] -bottom-[30%] -right-[30%]"
+          style={{
+            background: 'radial-gradient(ellipse at 80% 80%, hsl(var(--accent) / 0.12) 0%, transparent 60%)',
+            filter: 'blur(80px)',
+          }}
+        />
+        <div 
+          className="absolute w-[100%] h-[100%] top-[10%] left-[20%]"
+          style={{
+            background: 'radial-gradient(ellipse at 50% 50%, hsl(var(--primary) / 0.06) 0%, transparent 50%)',
+            filter: 'blur(60px)',
+          }}
+        />
       </div>
 
       {/* Main content - centered card */}
@@ -255,7 +274,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         transition={{ duration: 0.3 }}
         className="relative z-10 w-full max-w-md mx-4"
       >
-        <div className="glass-card rounded-3xl p-8 gradient-border">
+        <div className="liquid-glass-card rounded-3xl p-8 border border-white/[0.08]">
           {/* Centered Logo with clean smooth glow */}
           <div className="flex flex-col items-center mb-8 relative">
             {/* Smooth gradient glow behind logo */}
