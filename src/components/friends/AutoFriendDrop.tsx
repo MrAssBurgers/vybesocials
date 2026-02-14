@@ -716,32 +716,92 @@ export function AutoFriendDrop() {
             {phase === 'activated' && (
               <motion.div
                 key="activated"
-                initial={{ y: 80, scaleX: 0.92, scaleY: 0.7, opacity: 0 }}
-                animate={{ y: 0, scaleX: 1, scaleY: 1, opacity: 1 }}
-                exit={{ y: -15, opacity: 0, scale: 0.98 }}
-                transition={{ type: "spring", stiffness: 320, damping: 28, opacity: { duration: 0.15 } }}
+                initial={{ y: 300, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -30, opacity: 0, scale: 0.95 }}
+                transition={{ 
+                  type: "spring", stiffness: 200, damping: 22,
+                  opacity: { duration: 0.2 },
+                }}
                 style={{ transformOrigin: 'bottom center' }}
                 className="flex flex-col items-center"
               >
+                {/* Outer glow pulse */}
+                <motion.div
+                  className="absolute inset-0 rounded-lg pointer-events-none"
+                  style={{ background: 'radial-gradient(ellipse at center, hsl(var(--primary) / 0.15), transparent 70%)' }}
+                  animate={{ opacity: [0.4, 0.8, 0.4], scale: [0.95, 1.05, 0.95] }}
+                  transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+                />
+
                 {/* Cyber Scanner Card */}
                 <motion.div
                   className="relative w-72 rounded-lg overflow-hidden cyber-card"
                   style={{
-                    boxShadow: '0 0 40px hsl(var(--primary) / 0.2), 0 25px 60px -12px rgba(0,0,0,0.3)',
+                    boxShadow: '0 0 50px hsl(var(--primary) / 0.25), 0 0 100px hsl(var(--primary) / 0.1), 0 25px 60px -12px rgba(0,0,0,0.4)',
                   }}
+                  initial={{ rotateX: 15, scaleY: 0.85 }}
+                  animate={{ rotateX: 0, scaleY: 1 }}
+                  transition={{ type: "spring", stiffness: 250, damping: 25, delay: 0.1 }}
                 >
-                  {/* HUD header */}
-                  <div className="flex items-center justify-between px-4 pt-3 pb-2 relative z-[2]">
+                  {/* Boot flash */}
+                  <motion.div
+                    className="absolute inset-0 z-[5] pointer-events-none rounded-lg"
+                    style={{ background: 'hsl(var(--primary) / 0.4)' }}
+                    initial={{ opacity: 0.6 }}
+                    animate={{ opacity: 0 }}
+                    transition={{ duration: 0.4, delay: 0.1 }}
+                  />
+
+                  {/* Vertical data streams */}
+                  {[...Array(8)].map((_, i) => (
+                    <motion.div
+                      key={`stream-${i}`}
+                      className="absolute w-px z-[3] pointer-events-none"
+                      style={{
+                        height: 20 + Math.random() * 40,
+                        background: `linear-gradient(180deg, transparent, hsl(var(--primary) / ${0.3 + Math.random() * 0.3}), transparent)`,
+                        left: `${8 + i * 12}%`,
+                      }}
+                      initial={{ y: -60, opacity: 0 }}
+                      animate={{ y: 500, opacity: [0, 0.8, 0] }}
+                      transition={{ duration: 1 + Math.random() * 0.5, delay: 0.2 + i * 0.08, repeat: Infinity, repeatDelay: 1 + Math.random() * 2, ease: "linear" }}
+                    />
+                  ))}
+
+                  {/* HUD header with boot sequence */}
+                  <div className="flex items-center justify-between px-4 pt-3 pb-2 relative z-[4]">
                     <div className="flex items-center gap-2">
                       <motion.div
                         className="w-2 h-2 rounded-full"
-                        style={{ background: 'hsl(var(--primary))', boxShadow: '0 0 8px hsl(var(--primary) / 0.5)' }}
-                        animate={{ opacity: [1, 0.3, 1] }}
-                        transition={{ repeat: Infinity, duration: 1 }}
+                        style={{ background: 'hsl(var(--primary))', boxShadow: '0 0 8px hsl(var(--primary) / 0.6)' }}
+                        initial={{ scale: 0 }}
+                        animate={{ scale: [0, 1.4, 1], opacity: [0, 1, 1, 0.3, 1] }}
+                        transition={{ duration: 0.6, delay: 0.3, opacity: { repeat: Infinity, duration: 1, delay: 0.6 } }}
                       />
                       <div>
-                        <h3 className="font-mono text-xs font-bold tracking-[0.2em] text-primary cyber-glow-text">FRIEND LINK</h3>
-                        <p className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]">SCANNING</p>
+                        <motion.h3
+                          className="font-mono text-xs font-bold tracking-[0.2em] text-primary cyber-glow-text"
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.2, duration: 0.3 }}
+                        >
+                          FRIEND LINK
+                        </motion.h3>
+                        <motion.p
+                          className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.4 }}
+                        >
+                          <motion.span
+                            animate={{ opacity: [1, 0, 1] }}
+                            transition={{ repeat: Infinity, duration: 0.8, delay: 0.5 }}
+                          >
+                            ▸
+                          </motion.span>
+                          {' '}SCANNING
+                        </motion.p>
                       </div>
                     </div>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-sm" onClick={handleClose}>
@@ -749,16 +809,33 @@ export function AutoFriendDrop() {
                     </Button>
                   </div>
 
-                  {/* Live Scanner */}
-                  <div className="relative aspect-square mx-3 mb-2 rounded-sm overflow-hidden border" style={{ borderColor: 'hsl(var(--primary) / 0.2)' }}>
+                  {/* Live Scanner with enhanced cyber overlay */}
+                  <motion.div
+                    className="relative aspect-square mx-3 mb-2 rounded-sm overflow-hidden border"
+                    style={{ borderColor: 'hsl(var(--primary) / 0.3)' }}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.15, duration: 0.4 }}
+                  >
                     <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
                     <canvas ref={canvasRef} className="hidden" />
                     
+                    {/* Scanning beam */}
+                    <motion.div
+                      className="absolute left-0 right-0 h-0.5 z-[2] pointer-events-none"
+                      style={{
+                        background: 'linear-gradient(90deg, transparent, hsl(var(--primary) / 0.8), hsl(var(--primary)), hsl(var(--primary) / 0.8), transparent)',
+                        boxShadow: '0 0 15px hsl(var(--primary) / 0.5), 0 0 30px hsl(var(--primary) / 0.2)',
+                      }}
+                      animate={{ top: ['0%', '100%', '0%'] }}
+                      transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                    />
+                    
                     {/* Cyber scanner overlay */}
                     <div className="absolute inset-0 pointer-events-none cyber-scanline-overlay">
-                      {/* Corner brackets */}
+                      {/* Corner brackets with staggered entrance */}
                       {[0, 1, 2, 3].map((i) => (
-                        <div
+                        <motion.div
                           key={i}
                           className="cyber-corner-bracket"
                           style={{
@@ -771,28 +848,71 @@ export function AutoFriendDrop() {
                             borderLeftWidth: i % 2 === 0 ? 2 : 0,
                             borderRightWidth: i % 2 === 1 ? 2 : 0,
                           }}
+                          initial={{ opacity: 0, scale: 0.5 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.3 + i * 0.08, type: "spring", stiffness: 400, damping: 20 }}
                         />
                       ))}
                       
-                      {/* HUD info */}
+                      {/* HUD telemetry */}
                       <div className="absolute top-2 left-2 right-2 flex justify-between">
-                        <span className="text-[7px] font-mono" style={{ color: 'hsl(var(--primary) / 0.7)' }}>OPTICAL SCAN</span>
+                        <motion.span 
+                          className="text-[7px] font-mono"
+                          style={{ color: 'hsl(var(--primary) / 0.7)' }}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.5 }}
+                        >
+                          OPTICAL.SCAN//v2.4
+                        </motion.span>
                         <motion.span
                           className="text-[7px] font-mono"
                           style={{ color: 'hsl(var(--primary) / 0.7)' }}
                           animate={{ opacity: [1, 0.3, 1] }}
                           transition={{ repeat: Infinity, duration: 1 }}
                         >
-                          ● ACTIVE
+                          ● LIVE
                         </motion.span>
                       </div>
+                      
+                      {/* Bottom HUD stats */}
+                      <motion.div
+                        className="absolute bottom-2 left-2 right-2 flex justify-between"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                      >
+                        <span className="text-[6px] font-mono" style={{ color: 'hsl(var(--primary) / 0.5)' }}>
+                          RES: 640×480
+                        </span>
+                        <motion.span
+                          className="text-[6px] font-mono"
+                          style={{ color: 'hsl(var(--primary) / 0.5)' }}
+                          animate={{ opacity: [0.3, 0.7, 0.3] }}
+                          transition={{ repeat: Infinity, duration: 2 }}
+                        >
+                          QR.DECODE: READY
+                        </motion.span>
+                      </motion.div>
                     </div>
-                  </div>
+                  </motion.div>
                   
                   {/* QR Code Section */}
                   {!nativeFriendDrop.isAvailable && (
-                    <div className="px-3 pb-2">
-                      <div className="flex items-center gap-3 p-2 rounded-sm border" style={{ borderColor: 'hsl(var(--primary) / 0.15)', background: 'hsl(var(--primary) / 0.03)' }}>
+                    <motion.div
+                      className="px-3 pb-2"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4, duration: 0.3 }}
+                    >
+                      <div className="flex items-center gap-3 p-2 rounded-sm border relative overflow-hidden" style={{ borderColor: 'hsl(var(--primary) / 0.2)', background: 'hsl(var(--primary) / 0.03)' }}>
+                        {/* Subtle shimmer */}
+                        <motion.div
+                          className="absolute inset-0 pointer-events-none"
+                          style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(var(--primary) / 0.05) 50%, transparent 100%)' }}
+                          animate={{ x: ['-100%', '200%'] }}
+                          transition={{ repeat: Infinity, duration: 3, ease: "linear", repeatDelay: 2 }}
+                        />
                         <ExpandableQR
                           qrCodeUrl={qrCodeUrl}
                           isExpanded={isQrExpanded}
@@ -800,12 +920,12 @@ export function AutoFriendDrop() {
                           avatarUrl={profile?.avatar_url}
                           username={profile?.username}
                         />
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 relative z-[1]">
                           <p className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]">YOUR ID</p>
                           <p className="font-mono text-xs text-foreground truncate">@{profile?.username}</p>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   )}
                   
                   {/* Native nearby peers */}
@@ -843,21 +963,37 @@ export function AutoFriendDrop() {
                     </div>
                   )}
                   
-                  {/* Card footer */}
-                  <div className="px-4 pb-3 pt-1 flex items-center justify-between relative z-[2]">
-                    <p className="text-[9px] font-mono text-muted-foreground tracking-wider">SCAN TARGET CODE</p>
-                    <div className="flex gap-1">
-                      {[0,1,2].map(i => (
+                  {/* Card footer with animated status */}
+                  <motion.div
+                    className="px-4 pb-3 pt-1 flex items-center justify-between relative z-[2]"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <motion.div
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: 'hsl(142 76% 50%)' }}
+                        animate={{ opacity: [1, 0.3, 1] }}
+                        transition={{ repeat: Infinity, duration: 1.2 }}
+                      />
+                      <p className="text-[9px] font-mono text-muted-foreground tracking-wider">SCAN TARGET CODE</p>
+                    </div>
+                    <div className="flex gap-0.5">
+                      {[0,1,2,3,4].map(i => (
                         <motion.div
                           key={i}
-                          className="w-1 h-1 rounded-full"
-                          style={{ background: 'hsl(var(--primary))' }}
-                          animate={{ opacity: [0.2, 1, 0.2] }}
-                          transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.3 }}
+                          className="w-0.5 rounded-full"
+                          style={{ background: 'hsl(var(--primary))', height: 6 }}
+                          animate={{ 
+                            height: [3, 8 + i, 3],
+                            opacity: [0.3, 0.9, 0.3],
+                          }}
+                          transition={{ repeat: Infinity, duration: 0.6 + i * 0.1, delay: i * 0.05 }}
                         />
                       ))}
                     </div>
-                  </div>
+                  </motion.div>
                 </motion.div>
               </motion.div>
             )}
