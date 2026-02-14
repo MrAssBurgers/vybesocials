@@ -612,45 +612,99 @@ export function AutoFriendDrop() {
       {/* Cyberpunk bump indicator */}
       {!isActive && !isDismissed && isMobile && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in" style={{ animationDuration: '300ms' }}>
-          <button
+          <motion.button
             onClick={handleBump}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-sm border active:scale-95 transition-transform duration-150 touch-manipulation"
+            className="relative flex items-center gap-2.5 px-5 py-3 rounded-sm border active:scale-95 transition-transform duration-150 touch-manipulation overflow-hidden"
             style={{
-              background: 'hsl(var(--background) / 0.85)',
-              borderColor: 'hsl(var(--primary) / 0.3)',
-              backdropFilter: 'blur(12px)',
-              boxShadow: '0 0 20px hsl(var(--primary) / 0.15), inset 0 0 20px hsl(var(--primary) / 0.05)',
+              background: 'hsl(var(--background) / 0.9)',
+              borderColor: 'hsl(var(--primary) / 0.4)',
+              backdropFilter: 'blur(16px)',
+              boxShadow: '0 0 30px hsl(var(--primary) / 0.2), 0 0 60px hsl(var(--primary) / 0.08), inset 0 1px 0 hsl(var(--primary) / 0.1)',
             }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
           >
+            {/* Animated border glow */}
+            <motion.div
+              className="absolute inset-0 rounded-sm pointer-events-none"
+              style={{ border: '1px solid transparent' }}
+              animate={{
+                boxShadow: [
+                  'inset 0 0 8px hsl(var(--primary) / 0.1), 0 0 15px hsl(var(--primary) / 0.15)',
+                  'inset 0 0 12px hsl(var(--primary) / 0.2), 0 0 25px hsl(var(--primary) / 0.25)',
+                  'inset 0 0 8px hsl(var(--primary) / 0.1), 0 0 15px hsl(var(--primary) / 0.15)',
+                ],
+              }}
+              transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+            />
+            
+            {/* Scanline sweep */}
+            <motion.div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background: 'linear-gradient(180deg, transparent 0%, hsl(var(--primary) / 0.06) 50%, transparent 100%)',
+                height: '200%',
+              }}
+              animate={{ y: ['-100%', '0%'] }}
+              transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
+            />
+            
             <motion.div
               animate={{ 
-                boxShadow: ['0 0 0 hsl(var(--primary) / 0)', '0 0 12px hsl(var(--primary) / 0.4)', '0 0 0 hsl(var(--primary) / 0)'],
+                boxShadow: [
+                  '0 0 0 hsl(var(--primary) / 0), 0 0 0 hsl(var(--primary) / 0)',
+                  '0 0 14px hsl(var(--primary) / 0.5), 0 0 4px hsl(var(--primary) / 0.3)',
+                  '0 0 0 hsl(var(--primary) / 0), 0 0 0 hsl(var(--primary) / 0)',
+                ],
               }}
               transition={{ repeat: Infinity, duration: 2 }}
-              className="p-1 rounded-sm"
+              className="p-1.5 rounded-sm relative z-[1]"
+              style={{ background: 'hsl(var(--primary) / 0.08)' }}
             >
               {hasWebNFC ? (
-                <Radio className="h-5 w-5 text-primary" />
+                <Radio className="h-4 w-4 text-primary" />
               ) : nativeFriendDrop.isAvailable ? (
-                <Bluetooth className="h-5 w-5 text-primary" />
+                <Bluetooth className="h-4 w-4 text-primary" />
               ) : (
-                <Zap className="h-5 w-5 text-primary" />
+                <Zap className="h-4 w-4 text-primary" />
               )}
             </motion.div>
-            <span className="text-[10px] text-primary font-mono font-medium tracking-wider">
-              {hasWebNFC
-                ? 'TAP TO SYNC'
-                : nativeFriendDrop.isAvailable 
-                  ? 'PROXIMITY LINK'
-                  : 'SWING TO LINK'}
-            </span>
+            <div className="flex flex-col items-start relative z-[1]">
+              <span className="text-[9px] text-primary font-mono font-bold tracking-[0.25em] cyber-glow-text">
+                FRIEND LINK
+              </span>
+              <span className="text-[7px] text-muted-foreground font-mono tracking-[0.2em]">
+                {hasWebNFC
+                  ? 'TAP PHONES'
+                  : nativeFriendDrop.isAvailable 
+                    ? 'PROXIMITY'
+                    : 'SHAKE TO ACTIVATE'}
+              </span>
+            </div>
+            <div className="flex gap-0.5 relative z-[1]">
+              {[0,1,2,3].map(i => (
+                <motion.div
+                  key={i}
+                  className="w-0.5 rounded-full"
+                  style={{ 
+                    background: 'hsl(var(--primary))',
+                    height: 8 + Math.random() * 8,
+                  }}
+                  animate={{ 
+                    height: [4 + i * 2, 12 + i * 2, 4 + i * 2],
+                    opacity: [0.3, 0.8, 0.3],
+                  }}
+                  transition={{ repeat: Infinity, duration: 0.8 + i * 0.15, ease: "easeInOut" }}
+                />
+              ))}
+            </div>
             <button
               onClick={(e) => { e.stopPropagation(); setIsDismissed(true); }}
-              className="ml-1 p-0.5 rounded-sm hover:bg-primary/20 transition-colors touch-manipulation"
+              className="ml-0.5 p-0.5 rounded-sm hover:bg-primary/20 transition-colors touch-manipulation relative z-[1]"
             >
-              <X className="h-3 w-3 text-primary/50" />
+              <X className="h-3 w-3 text-primary/40" />
             </button>
-          </button>
+          </motion.button>
         </div>
       )}
 
@@ -686,7 +740,7 @@ export function AutoFriendDrop() {
                         transition={{ repeat: Infinity, duration: 1 }}
                       />
                       <div>
-                        <h3 className="font-mono text-xs font-bold tracking-[0.2em] text-primary cyber-glow-text">NEURAL LINK</h3>
+                        <h3 className="font-mono text-xs font-bold tracking-[0.2em] text-primary cyber-glow-text">FRIEND LINK</h3>
                         <p className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]">SCANNING</p>
                       </div>
                     </div>
