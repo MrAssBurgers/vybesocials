@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VybePassSheet } from '@/components/vybepass/VybePassSheet';
+import { ChallengeDetailSheet } from '@/components/challenges/ChallengeDetailSheet';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -51,23 +52,21 @@ export default function ChallengesHubPage() {
   const [vybePassOpen, setVybePassOpen] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [selectedChallenge, setSelectedChallenge] = useState<typeof all[0] | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const { dailyTimeLeft, weeklyTimeLeft } = useChallengeCountdown();
 
   const handleChallengeClick = (challenge: typeof all[0]) => {
-    // If completed but not claimed, find reward and claim it
-    if (challenge.is_completed && !challenge.is_claimed) {
-      const reward = unclaimedRewards?.find(r => r.challenge_id === challenge.id);
-      if (reward) {
-        handleClaimReward(reward.id);
-        return;
-      }
-    }
-    if (challenge.is_completed) return;
-    
-    const route = CHALLENGE_ROUTES[challenge.requirement_type];
-    if (route) {
-      toast.info(`Complete this challenge: ${challenge.title}`);
-      navigate(route);
+    // Always open the detail sheet
+    setSelectedChallenge(challenge);
+    setDetailOpen(true);
+  };
+
+  const handleClaimFromDetail = () => {
+    if (!selectedChallenge) return;
+    const reward = unclaimedRewards?.find(r => r.challenge_id === selectedChallenge.id);
+    if (reward) {
+      handleClaimReward(reward.id);
     }
   };
 
@@ -383,9 +382,7 @@ export default function ChallengesHubPage() {
                     transition={{ delay: idx * 0.05 }}
                   >
                     <div 
-                      className={cn(
-                        !challenge.is_completed && "cursor-pointer"
-                      )}
+                      className="cursor-pointer"
                       onClick={() => handleChallengeClick(challenge)}
                     >
                       <GlassCard 
@@ -514,6 +511,14 @@ export default function ChallengesHubPage() {
 
       {/* VYBE Pass Sheet */}
       <VybePassSheet open={vybePassOpen} onOpenChange={setVybePassOpen} />
+
+      {/* Challenge Detail Sheet */}
+      <ChallengeDetailSheet
+        challenge={selectedChallenge}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onClaim={handleClaimFromDetail}
+      />
     </AppLayout>
   );
 }
