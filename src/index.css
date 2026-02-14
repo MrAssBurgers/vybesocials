@@ -159,11 +159,11 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     -webkit-backdrop-filter: blur(4px) !important;
   }
 
-  .perf-low *,
-  .perf-low *::before,
-  .perf-low *::after {
+  .perf-low *:not([data-allow-animation="true"]):not([data-allow-animation="true"] *),
+  .perf-low *:not([data-allow-animation="true"]):not([data-allow-animation="true"] *)::before,
+  .perf-low *:not([data-allow-animation="true"]):not([data-allow-animation="true"] *)::after {
     animation: none !important;
-    transition-duration: 0.05s !important;
+    transition-duration: 0.08s !important;
   }
 
   /* Exempt cosmetic effect animations from perf-low kill-switch */
@@ -348,8 +348,8 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
        No more chasing individual elements.
        ============================================= */
 
-    /* 1) UNIVERSAL: Force ALL elements to be fully opaque with solid foreground color */
-    *:not(svg):not(svg *):not([class*="lucide"]) {
+    /* 1) UNIVERSAL: Force ALL elements to be fully opaque - but preserve colored text */
+    *:not(svg):not(svg *):not([class*="lucide"]):not([class*="text-primary"]):not([class*="text-destructive"]):not([class*="text-success"]):not([class*="text-warning"]):not([class*="text-accent"]):not([class*="text-red"]):not([class*="text-green"]):not([class*="text-blue"]):not([class*="text-orange"]):not([class*="text-yellow"]):not([class*="text-rose"]):not([class*="text-purple"]):not([class*="text-pink"]):not([class*="text-cyan"]) {
       color: hsl(var(--foreground)) !important;
       opacity: 1 !important;
       mix-blend-mode: normal !important;
@@ -807,9 +807,9 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     z-index: 1;
   }
   
-  /* Bottom nav must always be on top - override any stacking context */
+  /* Bottom nav must always be on top */
   nav[aria-label="Bottom navigation"] {
-    z-index: 2147483647 !important;
+    z-index: 5002 !important;
     isolation: isolate;
   }
 
@@ -820,7 +820,6 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   [data-radix-scroll-area-viewport] {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    scroll-behavior: smooth;
   }
 
   /* Snap scroll containers - for feeds and clip viewers */
@@ -1823,26 +1822,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     border-radius: 50%;
   }
 
-  /* Safe area support for iOS/Android notches */
-  .safe-top {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-  
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  
-  .safe-left {
-    padding-left: env(safe-area-inset-left, 0px);
-  }
-  
-  .safe-right {
-    padding-right: env(safe-area-inset-right, 0px);
-  }
-  
-  .safe-all {
-    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
-  }
+  /* Safe area utilities — defined once in .safe-area-top etc. above */
 
   /* Hide scrollbar for shorts feed */
   .no-scrollbar {
@@ -2367,14 +2347,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   display: none;
 }
 
-/* Safe area utilities for iOS notch/gesture bar */
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.pt-safe {
-  padding-top: env(safe-area-inset-top, 0px);
-}
+/* Safe area utilities — consolidated above in @layer base */
 
 .h-dvh {
   height: 100dvh;
