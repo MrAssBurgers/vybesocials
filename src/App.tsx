@@ -1,4 +1,4 @@
-import { useState, useEffect, memo, lazy, Suspense } from 'react';
+import { useEffect, memo, lazy, Suspense } from 'react';
 import './lib/i18n'; // Must be synchronous - needed before React renders
 // liquid.css is loaded inside AppWithPreloader useEffect
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -9,7 +9,7 @@ import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
 import { CallStoreProvider } from "@/lib/callStore";
-import { SplashScreen } from "@/components/ui/SplashScreen";
+// SplashScreen removed - app renders instantly now
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
@@ -110,14 +110,11 @@ function ScrollRestoration() {
 // Lazy-load ban check
 const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
-// Track if initial load has completed (persists across navigations)
-let hasInitialLoadCompleted = false;
 
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
-  const preloadStatus = useAppPreloader();
-  // Only show splash on truly initial load, not on navigation
-  const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
+  // Background data prefetch - app renders immediately, no splash blocking
+  useAppPreloader();
   
   // Load deferred CSS after mount
   useEffect(() => {
@@ -131,21 +128,8 @@ function AppWithPreloader() {
   useRealtimeProfiles();
   usePostsRealtime();
 
-  useEffect(() => {
-    if (preloadStatus.isComplete && showSplash) {
-      // Immediately hide splash - no delay needed
-      setShowSplash(false);
-      hasInitialLoadCompleted = true;
-    }
-  }, [preloadStatus.isComplete, showSplash]);
-
   return (
     <>
-      <SplashScreen 
-        isVisible={showSplash} 
-        status={preloadStatus.step}
-        progress={preloadStatus.progress}
-      />
       <GlobalErrorHandler />
       <AuthProvider>
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
