@@ -1,14 +1,6 @@
 import { useState, useEffect, memo, lazy, Suspense } from 'react';
 import './lib/i18n'; // Must be synchronous - needed before React renders
-// Defer non-critical CSS - loaded after initial render
-const loadLiquidCSS = () => import('./styles/liquid.css');
-if (typeof window !== 'undefined') {
-  if ('requestIdleCallback' in window) {
-    (window as any).requestIdleCallback(loadLiquidCSS);
-  } else {
-    setTimeout(loadLiquidCSS, 100);
-  }
-}
+// liquid.css is loaded inside AppWithPreloader useEffect
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
@@ -120,6 +112,11 @@ function AppWithPreloader() {
   // Only show splash on truly initial load, not on navigation
   const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
   
+  // Load deferred CSS after mount
+  useEffect(() => {
+    import('./styles/liquid.css').catch(() => {});
+  }, []);
+
   // Auto-update checker
   useAutoUpdate();
   
