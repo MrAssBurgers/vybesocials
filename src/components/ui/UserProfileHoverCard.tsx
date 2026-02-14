@@ -94,7 +94,8 @@ function useHoverProfile(username: string, enabled: boolean) {
 }
 
 // Mini mutual friends row component for hover card
-function MutualFriendsRow({ targetUserId }: { targetUserId: string }) {
+import { forwardRef as _forwardRef } from 'react';
+const MutualFriendsRow = _forwardRef<HTMLDivElement, { targetUserId: string }>(function MutualFriendsRow({ targetUserId, ...props }, ref) {
   const navigate = useNavigate();
   const { data: mutualFriends, isLoading } = useMutualFriendsWithUser(targetUserId);
 
@@ -114,7 +115,7 @@ function MutualFriendsRow({ targetUserId }: { targetUserId: string }) {
   const displayFriends = mutualFriends?.slice(0, 3) || [];
 
   return (
-    <div className="flex items-center gap-2">
+    <div ref={ref} className="flex items-center gap-2" {...props}>
       <div className="flex -space-x-1.5">
         {displayFriends.map((friend) => (
           <button
@@ -140,7 +141,7 @@ function MutualFriendsRow({ targetUserId }: { targetUserId: string }) {
       </span>
     </div>
   );
-}
+});
 
 export function UserProfileHoverCard({ 
   username, 

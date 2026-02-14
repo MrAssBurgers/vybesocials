@@ -84,7 +84,6 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, 
 
   return (
     <motion.button
-      whileHover={{ scale: 1.03, y: -2 }}
       whileTap={{ scale: 0.97 }}
       onClick={onSelect}
       className={cn(
@@ -269,6 +268,15 @@ export function ProfileLocker() {
     return false;
   };
 
+  // Check if user has role-based auto-unlock for an item
+  const hasRoleUnlock = (name: string): boolean => {
+    const restriction = RESTRICTED_COLORS[name];
+    if (!restriction) return false;
+    if (restriction === 'owner' && hasOwnerBadge) return true;
+    if (restriction === 'mod' && (hasModBadge || hasOwnerBadge)) return true;
+    return false;
+  };
+
   const handleToggle = (key: keyof BadgeSettings) => {
     haptics.select();
     setSettings(prev => ({ ...prev, [key]: !prev[key] }));
@@ -296,7 +304,8 @@ export function ProfileLocker() {
   };
 
   const handleEquip = (type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme', item: LockerItem) => {
-    if (!item.unlocked || equipItem.isPending) return;
+    if (!item.unlocked && !hasRoleUnlock(item.reward_name)) return;
+    if (equipItem.isPending) return;
     // Check role restriction for colors
     if (type === 'name_color' && isColorRestricted(item.reward_name)) return;
     haptics.select();
@@ -330,7 +339,9 @@ export function ProfileLocker() {
   const getTabItems = (): LockerItem[] => {
     if (!lockerData) return [];
     switch (activeTab) {
-      case 'colors': return lockerData.name_colors;
+      case 'colors': return lockerData.name_colors.map(item => 
+        hasRoleUnlock(item.reward_name) ? { ...item, unlocked: true } : item
+      );
       case 'titles': return lockerData.titles;
       case 'effects': return lockerData.effects;
       case 'frames': return lockerData.cosmetics;
@@ -362,7 +373,7 @@ export function ProfileLocker() {
       {/* ── Header ────────────────────────────────────────── */}
       <div className="text-center py-3">
         <div className="inline-flex items-center gap-2.5 px-5 py-2 rounded-2xl bg-gradient-to-r from-primary/15 via-accent/10 to-primary/15 border border-primary/20 shadow-sm">
-          <Package className="w-4 h-4 text-primary" />
+          <Package style={{ width: 16, height: 16 }} className="text-primary" />
           <span className="text-sm font-bold text-foreground tracking-tight">Your Locker</span>
           {equippedCount > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-500 font-bold">{equippedCount} active</span>
@@ -370,7 +381,7 @@ export function ProfileLocker() {
         </div>
         {lockerData && (
           <div className="flex items-center justify-center gap-1.5 mt-2">
-            <Zap className="w-3 h-3 text-primary" />
+            <Zap style={{ width: 12, height: 12 }} className="text-primary" />
             <span className="text-xs font-semibold text-muted-foreground">Level {lockerData.userLevel}</span>
           </div>
         )}
@@ -403,7 +414,7 @@ export function ProfileLocker() {
                   />
                 )}
                 <span className="relative z-10 flex items-center gap-1.5">
-                  <Icon className="w-3.5 h-3.5" />
+                  <Icon style={{ width: 14, height: 14, minWidth: 14, minHeight: 14 }} />
                   {tab.label}
                 </span>
               </button>
@@ -469,7 +480,7 @@ export function ProfileLocker() {
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
             className="sticky bottom-0 mt-4 rounded-2xl bg-card/90 backdrop-blur-xl border border-border/60 p-4 shadow-xl shadow-black/10"
           >
             <div className="flex items-center gap-3 mb-3">
