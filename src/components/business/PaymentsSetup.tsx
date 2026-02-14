@@ -36,7 +36,7 @@ export function PaymentsSetup({
 }: PaymentsSetupProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const { isReady: stripeReady, isLoading: stripeConfigLoading } = useStripeReady();
+  const { isReady: stripeReady } = useStripeReady();
   const [status, setStatus] = useState<StripeStatus>({
     connected: !!stripeAccountId,
     onboarding_complete: stripeOnboardingComplete,

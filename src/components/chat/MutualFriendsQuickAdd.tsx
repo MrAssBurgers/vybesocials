@@ -362,25 +362,37 @@ function SnapchatStyleCard({
       exit="exit"
       className="relative bg-card border border-border rounded-2xl p-2.5 sm:p-3 flex flex-col items-center text-center"
     >
-      {/* Dismiss X button */}
+      {/* Dismiss X button - smaller on mobile */}
       <button
         onClick={handleDismiss}
-        className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center transition-colors"
+        className="absolute top-1 right-1 sm:top-2 sm:right-2 h-4 w-4 sm:h-6 sm:w-6 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center transition-colors z-10"
         title="Hide forever"
       >
-        <X className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+        <X className="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
       </button>
 
-      {/* Avatar */}
-      <Avatar className="h-11 w-11 sm:h-14 sm:w-14 mb-1.5 sm:mb-2">
-        <AvatarImage src={user.avatar_url || undefined} />
-        <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-base sm:text-lg font-bold">
-          {(user.first_name?.[0] || user.username[0]).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
+      {/* Avatar - clickable to view profile */}
+      <button
+        onClick={() => navigate(`/u/${user.username}`)}
+        className="focus:outline-none"
+        type="button"
+      >
+        <Avatar className="h-11 w-11 sm:h-14 sm:w-14 mb-1.5 sm:mb-2 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all">
+          <AvatarImage src={user.avatar_url || undefined} />
+          <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-base sm:text-lg font-bold">
+            {(user.first_name?.[0] || user.username[0]).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      </button>
 
-      {/* Name */}
-      <p className="text-xs sm:text-sm font-semibold truncate w-full px-0.5">{fullName}</p>
+      {/* Name - clickable to view profile */}
+      <button
+        onClick={() => navigate(`/u/${user.username}`)}
+        className="text-xs sm:text-sm font-semibold truncate w-full px-0.5 hover:text-primary transition-colors cursor-pointer"
+        type="button"
+      >
+        {fullName}
+      </button>
       
       {/* Username or Mutual friends with clickable avatars */}
       {user.mutual_friends_count > 0 && user.mutual_friends && user.mutual_friends.length > 0 ? (

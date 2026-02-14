@@ -39,7 +39,8 @@ export function useStripeConfig() {
         stripe_publishable_key: null,
       };
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes cache
   });
 }
 
