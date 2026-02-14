@@ -2897,44 +2897,49 @@ img, video {
   100% { transform: translateY(-20px); opacity: 0; }
 }
 
+/* Lightweight card — NO backdrop-filter, NO mask-composite, NO animated pseudo-elements */
+.cyber-card-lite {
+  position: relative;
+  background: hsl(var(--background) / 0.97);
+  border: 1px solid hsl(var(--primary) / 0.25);
+  box-shadow: 0 0 30px hsl(var(--primary) / 0.1), 0 20px 40px -12px rgba(0,0,0,0.25);
+  contain: layout style paint;
+}
+
+/* Smooth card entrance — single GPU-accelerated keyframe */
+@keyframes cyber-card-slide-up {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 40px, 0) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.cyber-card-enter {
+  animation: cyber-card-slide-up 0.3s cubic-bezier(0.23, 1, 0.32, 1) both;
+  will-change: transform, opacity;
+}
+
+/* Backdrop fade */
+@keyframes cyber-backdrop-fade {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.cyber-backdrop-enter {
+  animation: cyber-backdrop-fade 0.2s ease-out both;
+}
+
+/* Legacy .cyber-card kept for found/exchanging/success phases */
 .cyber-card {
   position: relative;
-  background: linear-gradient(135deg, hsl(var(--background) / 0.95) 0%, hsl(var(--background) / 0.85) 100%);
-  border: 1px solid hsl(var(--primary) / 0.3);
-  backdrop-filter: blur(20px);
-}
-
-.cyber-card::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, hsl(var(--primary) / 0.6), hsl(var(--accent) / 0.3), hsl(var(--primary) / 0.6));
-  background-size: 200% 200%;
-  animation: cyber-border-flow 3s ease infinite;
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.cyber-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    hsl(var(--primary) / 0.02) 2px,
-    hsl(var(--primary) / 0.02) 4px
-  );
-  pointer-events: none;
-  z-index: 0;
+  background: hsl(var(--background) / 0.95);
+  border: 1px solid hsl(var(--primary) / 0.25);
+  box-shadow: 0 0 30px hsl(var(--primary) / 0.12), 0 20px 40px -12px rgba(0,0,0,0.25);
+  contain: layout style paint;
 }
 
 .cyber-scanline-overlay::after {
