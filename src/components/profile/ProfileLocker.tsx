@@ -268,6 +268,15 @@ export function ProfileLocker() {
     return false;
   };
 
+  // Check if user has role-based auto-unlock for an item
+  const hasRoleUnlock = (name: string): boolean => {
+    const restriction = RESTRICTED_COLORS[name];
+    if (!restriction) return false;
+    if (restriction === 'owner' && hasOwnerBadge) return true;
+    if (restriction === 'mod' && (hasModBadge || hasOwnerBadge)) return true;
+    return false;
+  };
+
   const handleToggle = (key: keyof BadgeSettings) => {
     haptics.select();
     setSettings(prev => ({ ...prev, [key]: !prev[key] }));
@@ -295,7 +304,8 @@ export function ProfileLocker() {
   };
 
   const handleEquip = (type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme', item: LockerItem) => {
-    if (!item.unlocked || equipItem.isPending) return;
+    if (!item.unlocked && !hasRoleUnlock(item.reward_name)) return;
+    if (equipItem.isPending) return;
     // Check role restriction for colors
     if (type === 'name_color' && isColorRestricted(item.reward_name)) return;
     haptics.select();
@@ -329,7 +339,9 @@ export function ProfileLocker() {
   const getTabItems = (): LockerItem[] => {
     if (!lockerData) return [];
     switch (activeTab) {
-      case 'colors': return lockerData.name_colors;
+      case 'colors': return lockerData.name_colors.map(item => 
+        hasRoleUnlock(item.reward_name) ? { ...item, unlocked: true } : item
+      );
       case 'titles': return lockerData.titles;
       case 'effects': return lockerData.effects;
       case 'frames': return lockerData.cosmetics;
