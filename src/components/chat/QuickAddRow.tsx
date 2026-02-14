@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { OnlineIndicator } from "@/components/ui/OnlineIndicator";
 import type { RecentMessageUser } from "@/lib/recentMessageUsers";
@@ -35,6 +36,7 @@ export function QuickAddRow({
   onSelect: (userId: string) => void;
   showOnlineIndicator?: boolean;
 }) {
+  const navigate = useNavigate();
   if (!users.length) return null;
 
   return (
@@ -60,7 +62,7 @@ export function QuickAddRow({
             variants={itemVariants}
             whileHover={{ scale: 1.1, y: -5 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => onSelect(u.id)}
+            onClick={() => navigate(`/u/${u.username}`)}
             className="flex flex-col items-center gap-1 min-w-[64px]"
             type="button"
           >

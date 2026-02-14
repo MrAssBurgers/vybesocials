@@ -22,6 +22,7 @@ serve(async (req) => {
     logStep("Function started");
 
     let stripeKey: string;
+    let keyMode: string | undefined;
     try {
       stripeKey = await getStripeSecretKey();
       const keyCheck = validateStripeKey(stripeKey);
@@ -32,6 +33,7 @@ serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
         );
       }
+      keyMode = keyCheck.mode;
     } catch {
       logStep("Stripe key not configured, returning gracefully");
       return new Response(
@@ -39,7 +41,7 @@ serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
-    logStep("Stripe key verified", { mode: keyCheck.mode, keyLength: stripeKey.length });
+    logStep("Stripe key verified", { mode: keyMode, keyLength: stripeKey.length });
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
