@@ -8,7 +8,7 @@
  * - Audio/video quality settings
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, forwardRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Settings, 
@@ -50,7 +50,7 @@ interface CallSettingsSheetProps {
   isVideoOff?: boolean;
 }
 
-export function CallSettingsSheet({
+export const CallSettingsSheet = forwardRef<HTMLDivElement, CallSettingsSheetProps>(function CallSettingsSheet({
   isOpen,
   onOpenChange,
   onMicChange,
@@ -62,7 +62,7 @@ export function CallSettingsSheet({
   isVideoCall = true,
   isMuted = false,
   isVideoOff = false,
-}: CallSettingsSheetProps) {
+}, _ref) {
   const [microphones, setMicrophones] = useState<MediaDevice[]>([]);
   const [cameras, setCameras] = useState<MediaDevice[]>([]);
   const [speakers, setSpeakers] = useState<MediaDevice[]>([]);
@@ -309,7 +309,7 @@ export function CallSettingsSheet({
       </SheetContent>
     </Sheet>
   );
-}
+});
 
 // Settings section wrapper
 function SettingsSection({ 
@@ -533,3 +533,5 @@ export function CallSettingsButton({ onClick }: { onClick: () => void }) {
     </motion.button>
   );
 }
+
+CallSettingsSheet.displayName = 'CallSettingsSheet';

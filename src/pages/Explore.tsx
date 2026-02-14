@@ -222,14 +222,13 @@ function FullscreenClipsViewer({
   const containerHeight = isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh';
   const CardComponent = isMobileOrTablet ? MobileShortCard : ShortCard;
 
-  // Show loading skeleton while fetching
-  if (isLoading) {
+  // Show loading only on initial load with no cached data
+  if (isLoading && clips.length === 0) {
     return (
       <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4" data-allow-animation="true">
-          <div className="w-16 h-16 rounded-full bg-muted/60 animate-pulse" />
-          <div className="h-4 w-32 bg-muted/60 rounded animate-pulse" />
-          <p className="text-sm text-muted-foreground mt-2">Loading clips...</p>
+        <div className="flex flex-col items-center gap-3" data-allow-animation="true">
+          <div className="w-12 h-12 rounded-full bg-muted/50 animate-pulse" />
+          <p className="text-sm text-muted-foreground">Loading clips...</p>
         </div>
       </div>
     );
