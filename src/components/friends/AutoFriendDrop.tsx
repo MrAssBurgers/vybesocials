@@ -7,7 +7,7 @@ import {
   Shield, Radio
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
 import { useSendFriendRequest } from '@/hooks/useFriends';
@@ -388,8 +388,8 @@ export function AutoFriendDrop() {
       nativeFriendDrop.startSession();
     }
     
-    // Start camera in background — doesn't block UI
-    requestAnimationFrame(async () => {
+    // Start camera AFTER entrance animation completes (300ms)
+    setTimeout(async () => {
       try {
         let stream = getPreloadedStream();
         if (!stream) {
@@ -406,7 +406,7 @@ export function AutoFriendDrop() {
       } catch (err) {
         console.warn('[AutoFriendDrop] Camera access failed:', err);
       }
-    });
+    }, 350);
   }, [profile?.username, user, nativeFriendDrop, friendDropSync]);
 
   useSwingDetection({
@@ -670,134 +670,106 @@ export function AutoFriendDrop() {
         </div>
       )}
 
-      {/* Exchange Modal — Cyberpunk HUD */}
-      <Dialog open={isActive} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md p-0 border-0 bg-transparent overflow-visible [&>button]:hidden">
-          <AnimatePresence mode="wait">
-            
-            {phase === 'activated' && (
-              <motion.div
-                key="activated"
-                initial={{ y: 60, opacity: 0, scale: 0.96 }}
-                animate={{ y: 0, opacity: 1, scale: 1 }}
-                exit={{ y: -20, opacity: 0, scale: 0.97 }}
-                transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
-                style={{ transformOrigin: 'bottom center' }}
-                className="flex flex-col items-center"
-              >
-                {/* Outer glow — pure CSS */}
-                <div className="cyber-outer-glow" />
-
-                {/* Cyber Scanner Card — single motion wrapper for entrance only */}
-                <div
-                  className="relative w-72 rounded-lg overflow-hidden cyber-card"
-                  style={{
-                    boxShadow: '0 0 30px hsl(var(--primary) / 0.15), 0 25px 50px -12px rgba(0,0,0,0.3)',
-                  }}
-                >
-                  {/* Data streams — pure CSS */}
-                  {[0,1,2].map(i => (
-                    <div
-                      key={`stream-${i}`}
-                      className="cyber-data-stream-line"
-                      style={{
-                        height: 20 + i * 10,
-                        left: `${20 + i * 25}%`,
-                        animationDelay: `${0.3 + i * 0.4}s`,
-                        animationDuration: `${1.8 + i * 0.3}s`,
-                      }}
-                    />
-                  ))}
-
-                  {/* HUD header */}
-                  <div className="flex items-center justify-between px-4 pt-3 pb-2 relative z-[4]">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-2 h-2 rounded-full cyber-dot-pulse"
-                        style={{ background: 'hsl(var(--primary))', boxShadow: '0 0 8px hsl(var(--primary) / 0.6)' }}
-                      />
-                      <div>
-                        <h3 className="font-mono text-xs font-bold tracking-[0.2em] text-primary cyber-glow-text">
-                          FRIEND LINK
-                        </h3>
-                        <p className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]">
-                          <span className="cyber-blink">▸</span>
-                          {' '}SCANNING
-                        </p>
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-sm" onClick={handleClose}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {/* Live Scanner */}
+      {/* Exchange Modal — Lightweight overlay, no Dialog */}
+      {isActive && (
+        <div className="fixed inset-0 z-50">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/60 cyber-backdrop-enter"
+            onClick={handleClose}
+          />
+          
+          {/* Centered content */}
+          <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div className="pointer-events-auto">
+              <AnimatePresence mode="wait">
+                
+                {phase === 'activated' && (
                   <div
-                    className="relative aspect-square mx-3 mb-2 rounded-sm overflow-hidden border"
-                    style={{ borderColor: 'hsl(var(--primary) / 0.3)' }}
+                    key="activated"
+                    className="cyber-card-enter flex flex-col items-center"
                   >
-                    <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-                    <canvas ref={canvasRef} className="hidden" />
-                    
-                    {/* Scanning beam — pure CSS */}
-                    <div className="cyber-scan-beam" />
-                    
-                    {/* Cyber scanner overlay */}
-                    <div className="absolute inset-0 pointer-events-none">
-                      {/* Corner brackets — pure CSS animation */}
-                      {[0, 1, 2, 3].map((i) => (
-                        <div
-                          key={i}
-                          className="cyber-corner-bracket"
-                          style={{
-                            top: i < 2 ? 8 : 'auto',
-                            bottom: i >= 2 ? 8 : 'auto',
-                            left: i % 2 === 0 ? 8 : 'auto',
-                            right: i % 2 === 1 ? 8 : 'auto',
-                            borderTopWidth: i < 2 ? 2 : 0,
-                            borderBottomWidth: i >= 2 ? 2 : 0,
-                            borderLeftWidth: i % 2 === 0 ? 2 : 0,
-                            borderRightWidth: i % 2 === 1 ? 2 : 0,
-                          }}
-                        />
-                      ))}
-                      
-                      {/* HUD telemetry — no motion wrappers */}
-                      <div className="absolute top-2 left-2 right-2 flex justify-between">
-                        <span 
-                          className="text-[7px] font-mono"
-                          style={{ color: 'hsl(var(--primary) / 0.7)' }}
-                        >
-                          OPTICAL.SCAN//v2.4
-                        </span>
-                        <span
-                          className="text-[7px] font-mono cyber-blink"
-                          style={{ color: 'hsl(var(--primary) / 0.7)' }}
-                        >
-                          ● LIVE
-                        </span>
+                    {/* Cyber Scanner Card */}
+                    <div
+                      className="relative w-72 rounded-lg overflow-hidden cyber-card-lite"
+                    >
+                      {/* HUD header */}
+                      <div className="flex items-center justify-between px-4 pt-3 pb-2 relative z-[4]">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-2 h-2 rounded-full cyber-dot-pulse"
+                            style={{ background: 'hsl(var(--primary))', boxShadow: '0 0 8px hsl(var(--primary) / 0.6)' }}
+                          />
+                          <div>
+                            <h3 className="font-mono text-xs font-bold tracking-[0.2em] text-primary cyber-glow-text">
+                              FRIEND LINK
+                            </h3>
+                            <p className="text-[8px] font-mono text-muted-foreground tracking-[0.3em]">
+                              <span className="cyber-blink">▸</span>
+                              {' '}SCANNING
+                            </p>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-sm" onClick={handleClose}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {/* Live Scanner */}
+                      <div
+                        className="relative aspect-square mx-3 mb-2 rounded-sm overflow-hidden border"
+                        style={{ borderColor: 'hsl(var(--primary) / 0.3)' }}
+                      >
+                        <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                        <canvas ref={canvasRef} className="hidden" />
+                        
+                        {/* Scanning beam — pure CSS */}
+                        <div className="cyber-scan-beam" />
+                        
+                        {/* Corner brackets */}
+                        <div className="absolute inset-0 pointer-events-none">
+                          {[0, 1, 2, 3].map((i) => (
+                            <div
+                              key={i}
+                              className="cyber-corner-bracket"
+                              style={{
+                                top: i < 2 ? 8 : 'auto',
+                                bottom: i >= 2 ? 8 : 'auto',
+                                left: i % 2 === 0 ? 8 : 'auto',
+                                right: i % 2 === 1 ? 8 : 'auto',
+                                borderTopWidth: i < 2 ? 2 : 0,
+                                borderBottomWidth: i >= 2 ? 2 : 0,
+                                borderLeftWidth: i % 2 === 0 ? 2 : 0,
+                                borderRightWidth: i % 2 === 1 ? 2 : 0,
+                              }}
+                            />
+                          ))}
+                          
+                          <div className="absolute top-2 left-2 right-2 flex justify-between">
+                            <span className="text-[7px] font-mono" style={{ color: 'hsl(var(--primary) / 0.7)' }}>
+                              OPTICAL.SCAN//v2.4
+                            </span>
+                            <span className="text-[7px] font-mono cyber-blink" style={{ color: 'hsl(var(--primary) / 0.7)' }}>
+                              ● LIVE
+                            </span>
+                          </div>
+                          
+                          <div className="absolute bottom-2 left-2 right-2 flex justify-between">
+                            <span className="text-[6px] font-mono" style={{ color: 'hsl(var(--primary) / 0.5)' }}>
+                              RES: 640×480
+                            </span>
+                            <span className="text-[6px] font-mono cyber-blink" style={{ color: 'hsl(var(--primary) / 0.5)', animationDuration: '2s' }}>
+                              QR.DECODE: READY
+                            </span>
+                          </div>
+                        </div>
                       </div>
                       
-                      {/* Bottom HUD stats */}
-                      <div className="absolute bottom-2 left-2 right-2 flex justify-between">
-                        <span className="text-[6px] font-mono" style={{ color: 'hsl(var(--primary) / 0.5)' }}>
-                          RES: 640×480
-                        </span>
-                        <span
-                          className="text-[6px] font-mono cyber-blink"
-                          style={{ color: 'hsl(var(--primary) / 0.5)', animationDuration: '2s' }}
-                        >
-                          QR.DECODE: READY
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* QR Code Section */}
-                  {!nativeFriendDrop.isAvailable && (
-                    <div className="px-3 pb-2">
-                      <div className="flex items-center gap-3 p-2 rounded-sm border relative overflow-hidden" style={{ borderColor: 'hsl(var(--primary) / 0.2)', background: 'hsl(var(--primary) / 0.03)' }}>
-                        <ExpandableQR
+                      {/* QR Code Section */}
+                      {!nativeFriendDrop.isAvailable && (
+                        <div className="px-3 pb-2">
+                          <div className="flex items-center gap-3 p-2 rounded-sm border relative overflow-hidden" style={{ borderColor: 'hsl(var(--primary) / 0.2)', background: 'hsl(var(--primary) / 0.03)' }}>
+                            <ExpandableQR
                           qrCodeUrl={qrCodeUrl}
                           isExpanded={isQrExpanded}
                           onToggle={toggleQrExpand}
@@ -868,8 +840,8 @@ export function AutoFriendDrop() {
                     </div>
                   </div>
                 </div>
-              </motion.div>
-            )}
+                  </div>
+                )}
 
             {phase === 'found' && foundUser && (
               <motion.div
@@ -1104,8 +1076,10 @@ export function AutoFriendDrop() {
               </motion.div>
             )}
           </AnimatePresence>
-        </DialogContent>
-      </Dialog>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
