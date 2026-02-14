@@ -58,11 +58,11 @@ export function useAppPreloader() {
       return;
     }
 
-    // Safety timeout - 4 seconds max (allows real data to load before forcing)
+    // Safety timeout - 3 seconds max (forces complete even if data hasn't loaded)
     const safetyTimeout = setTimeout(() => {
       console.warn('[Preloader] Safety timeout reached, forcing complete');
       setStatus({ step: 'Ready!', progress: 100, isComplete: true });
-    }, 4000);
+    }, 3000);
 
     const preload = async () => {
       const startTime = performance.now();

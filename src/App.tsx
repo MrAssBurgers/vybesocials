@@ -132,14 +132,10 @@ function AppWithPreloader() {
   usePostsRealtime();
 
   useEffect(() => {
-    // Only hide splash when preloading is truly complete
     if (preloadStatus.isComplete && showSplash) {
-      // Small delay for smooth transition
-      const timer = setTimeout(() => {
-        setShowSplash(false);
-        hasInitialLoadCompleted = true;
-      }, 300);
-      return () => clearTimeout(timer);
+      // Immediately hide splash - no delay needed
+      setShowSplash(false);
+      hasInitialLoadCompleted = true;
     }
   }, [preloadStatus.isComplete, showSplash]);
 

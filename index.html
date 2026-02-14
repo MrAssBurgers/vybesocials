@@ -108,13 +108,27 @@
   <body>
     <div id="root">
       <!-- Static splash for instant FCP - removed by React on mount -->
-      <div class="splash-loader" aria-label="Loading VYBE">
+      <div class="splash-loader" id="static-splash" aria-label="Loading VYBE">
         <svg class="pulse" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="24" cy="24" r="20" stroke="#8B5CF6" stroke-width="3" stroke-linecap="round" stroke-dasharray="80 40" />
         </svg>
         <span style="color:#8B5CF6;font-size:14px;font-weight:600;letter-spacing:2px;">VYBE</span>
+        <div id="splash-fallback" style="display:none;margin-top:24px;text-align:center;">
+          <p style="color:#8B5CF6;font-size:13px;margin-bottom:12px;">Taking longer than expected...</p>
+          <button onclick="window.location.reload()" style="background:#8B5CF6;color:#fff;border:none;padding:10px 24px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;">Reload</button>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Safety: if React doesn't mount within 8 seconds, show reload button
+      setTimeout(function() {
+        var splash = document.getElementById('static-splash');
+        var fallback = document.getElementById('splash-fallback');
+        if (splash && fallback && splash.parentElement && splash.parentElement.id === 'root' && !document.querySelector('[data-reactroot]') && splash.offsetParent !== null) {
+          fallback.style.display = 'block';
+        }
+      }, 8000);
+    </script>
   </body>
 </html>
