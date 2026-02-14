@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Checkbox } from '@/components/ui/checkbox';
+// Checkbox removed — using custom inline toggle for iOS compatibility
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Eye, EyeOff } from 'lucide-react';
@@ -418,20 +418,42 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="flex items-start gap-2"
+                  className="flex items-start gap-2.5"
                 >
-                  <Checkbox
-                    id="terms"
-                    checked={agreedToTerms}
-                    onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
-                    className="mt-0.5 h-4 w-4 md:h-5 md:w-5 rounded-full"
-                  />
-                  <label htmlFor="terms" className="text-sm text-muted-foreground leading-tight">
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={agreedToTerms}
+                    data-themed-svg
+                    onClick={() => setAgreedToTerms(!agreedToTerms)}
+                    className="shrink-0 rounded-full border transition-colors flex items-center justify-center mt-0.5"
+                    style={{
+                      WebkitAppearance: 'none',
+                      appearance: 'none',
+                      fontSize: 0,
+                      width: '18px',
+                      height: '18px',
+                      minWidth: '18px',
+                      minHeight: '18px',
+                      maxWidth: '18px',
+                      maxHeight: '18px',
+                      padding: 0,
+                      backgroundColor: agreedToTerms ? 'hsl(var(--primary))' : 'transparent',
+                      borderColor: agreedToTerms ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.5)',
+                    }}
+                  >
+                    {agreedToTerms && (
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-primary-foreground">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </button>
+                  <span className="text-sm text-muted-foreground leading-tight">
                     I agree to the{' '}
                     <a href="/terms" target="_blank" className="text-primary hover:underline">Terms of Use</a>
                     {' '}and{' '}
                     <a href="/privacy" target="_blank" className="text-primary hover:underline">Privacy Policy</a>
-                  </label>
+                  </span>
                 </motion.div>
               )}
             </AnimatePresence>
