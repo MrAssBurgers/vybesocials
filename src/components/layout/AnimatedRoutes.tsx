@@ -6,8 +6,8 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 
-// CRITICAL PAGE - Load eagerly for instant first navigation
-import Home from "@/pages/Home";
+// All pages lazy-loaded for smaller initial bundle
+const Home = lazy(() => import("@/pages/Home"));
 
 // High-priority pages - lazy but prefetched early
 const Explore = lazy(() => import("@/pages/Explore"));
@@ -84,13 +84,12 @@ export function AnimatedRoutes() {
   // Always capture errors/network — independent of panel visibility
   useDebugCapture();
   
-  // Preload all routes after initial render
+  // Preload critical routes (including Home) after initial render, then secondary
   useEffect(() => {
-    // Preload secondary routes after a short delay
+    preloadCriticalRoutes();
     const timer = setTimeout(() => {
       preloadSecondaryRoutes();
-    }, 1000);
-    
+    }, 2000);
     return () => clearTimeout(timer);
   }, []);
   
