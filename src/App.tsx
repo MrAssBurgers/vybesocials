@@ -20,7 +20,14 @@ import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
-const AnimatedRoutes = lazy(() => import("@/components/layout/AnimatedRoutes").then(m => ({ default: m.AnimatedRoutes })));
+const AnimatedRoutes = lazy(() => 
+  import("@/components/layout/AnimatedRoutes")
+    .then(m => ({ default: m.AnimatedRoutes }))
+    .catch(() => {
+      // Retry once on chunk load failure (common after deployments)
+      return import("@/components/layout/AnimatedRoutes").then(m => ({ default: m.AnimatedRoutes }));
+    })
+);
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
@@ -55,9 +62,9 @@ const StreakProvider = lazy(() => import("@/components/streak/StreakProvider").t
 // Lazy-load deferred hooks via a wrapper component
 const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
 
-// Initialize stored fonts and custom animations on app load
-initializeStoredFonts();
-initializeCustomAnimations();
+// Initialize stored fonts and custom animations on app load (with safety catch)
+try { initializeStoredFonts(); } catch (e) { console.warn('[App] initializeStoredFonts failed:', e); }
+try { initializeCustomAnimations(); } catch (e) { console.warn('[App] initializeCustomAnimations failed:', e); }
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;
