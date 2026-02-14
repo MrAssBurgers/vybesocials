@@ -354,15 +354,23 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       opacity: 1 !important;
       mix-blend-mode: normal !important;
     }
-    /* SVGs: VYBE-colored with high-contrast outline for visibility on any background */
-    svg:not([data-themed-svg]):not(.create-button-gradient *), 
-    [class*="lucide"]:not(.create-button-gradient *) {
+    /* SVGs: Ensure visibility but preserve semantic colors (liked hearts, bookmarks etc.) */
+    svg:not([data-themed-svg]):not(.create-button-gradient *):not([class*="fill-"]):not([class*="text-red"]):not([class*="text-rose"]):not([class*="text-yellow"]):not([class*="text-green"]):not([class*="text-orange"]):not([class*="text-blue"]):not([class*="text-white"]):not([class*="text-destructive"]):not([class*="text-success"]):not([class*="text-warning"]), 
+    [class*="lucide"]:not(.create-button-gradient *):not([class*="fill-"]):not([class*="text-red"]):not([class*="text-rose"]):not([class*="text-yellow"]):not([class*="text-green"]):not([class*="text-orange"]):not([class*="text-blue"]):not([class*="text-white"]):not([class*="text-destructive"]):not([class*="text-success"]):not([class*="text-warning"]) {
       color: hsl(var(--primary)) !important;
       stroke: hsl(var(--primary)) !important;
       opacity: 1 !important;
       mix-blend-mode: normal !important;
-      filter: drop-shadow(0 0 1px hsl(var(--background))) !important;
       paint-order: stroke fill;
+    }
+    /* Semantic-colored SVGs: preserve their color but ensure visibility */
+    svg[class*="fill-"], svg[class*="text-red"], svg[class*="text-rose"],
+    svg[class*="text-yellow"], svg[class*="text-green"], svg[class*="text-orange"],
+    svg[class*="text-blue"], svg[class*="text-white"],
+    [class*="lucide"][class*="fill-"], [class*="lucide"][class*="text-red"],
+    [class*="lucide"][class*="text-rose"], [class*="lucide"][class*="text-yellow"] {
+      opacity: 1 !important;
+      mix-blend-mode: normal !important;
     }
     svg:not([data-themed-svg]):not(.create-button-gradient *) *, 
     [class*="lucide"]:not(.create-button-gradient *) * {
@@ -533,9 +541,9 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       text-shadow: 0 1px 2px hsl(var(--background) / 0.2);
     }
 
-    /* 12) Remove black border outlines on avatars */
+    /* 12) Avatar borders - use subtle separator instead of removing */
     .border-background {
-      border-color: transparent !important;
+      border-color: hsl(var(--background) / 0.6) !important;
     }
 
     /* 13) Tap highlight suppression */
