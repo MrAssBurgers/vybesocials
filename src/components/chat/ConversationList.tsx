@@ -691,6 +691,7 @@ const ConversationItem = memo(function ConversationItem({
   const deleteOpacity = useTransform(x, [-120, -40, -15, 0], [1, 0.8, 0, 0]);
   const deleteScale = useTransform(x, [-120, -40, -15, 0], [1, 0.95, 0.5, 0.3]);
   const deleteBgOpacity = useTransform(x, [-100, -30, -10, 0], [1, 0.6, 0, 0]);
+  const deleteVisibility = useTransform(x, (v) => (v < -5 ? 'visible' : 'hidden') as 'visible' | 'hidden');
   
   const handleDragEnd = useCallback((event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     isDraggingRef.current = false;
@@ -843,9 +844,10 @@ const ConversationItem = memo(function ConversationItem({
         <div className="relative mb-1.5">
           {/* Delete indicator - hidden at rest, slowly reveals behind frosted glass on swipe */}
           <motion.div 
-            className="absolute inset-0 flex items-center justify-end"
+            className="absolute inset-0 flex items-center justify-end pointer-events-none"
             style={{ 
               opacity: deleteBgOpacity,
+              visibility: deleteVisibility,
               borderRadius: '0.75rem',
               background: 'hsl(var(--destructive))',
             }}
