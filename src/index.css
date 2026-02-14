@@ -2845,6 +2845,58 @@ img, video {
   100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0), inset 0 0 20px hsl(var(--primary) / 0.1); }
 }
 
+/* CSS-only scanning beam for HUD */
+@keyframes cyber-scan-beam {
+  0%, 100% { top: 0%; }
+  50% { top: 100%; }
+}
+
+/* CSS-only data stream falling */
+@keyframes cyber-stream-fall {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 0.5; }
+  90% { opacity: 0.5; }
+  100% { transform: translateY(500px); opacity: 0; }
+}
+
+/* CSS-only outer glow pulse */
+@keyframes cyber-outer-glow {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.5; }
+}
+
+/* CSS-only blink for LIVE indicator */
+@keyframes cyber-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* CSS-only subtle pulse for status dot */
+@keyframes cyber-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* CSS-only corner bracket entrance */
+@keyframes cyber-bracket-in {
+  0% { opacity: 0; transform: scale(0.5); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* CSS-only syncing text pulse */
+@keyframes cyber-sync-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* CSS-only data particle rise */
+@keyframes cyber-particle-rise {
+  0% { transform: translateY(300px); opacity: 0; }
+  15% { opacity: 0.6; }
+  85% { opacity: 0.6; }
+  100% { transform: translateY(-20px); opacity: 0; }
+}
+
 .cyber-card {
   position: relative;
   background: linear-gradient(135deg, hsl(var(--background) / 0.95) 0%, hsl(var(--background) / 0.85) 100%);
@@ -2890,12 +2942,84 @@ img, video {
   position: absolute;
   left: 10%;
   right: 10%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.8), transparent);
-  box-shadow: 0 0 15px 3px hsl(var(--primary) / 0.4);
-  animation: cyber-scanline 2s linear infinite;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.6), transparent);
+  box-shadow: 0 0 6px 1px hsl(var(--primary) / 0.25);
+  animation: cyber-scanline 3s linear infinite;
   z-index: 5;
   pointer-events: none;
+}
+
+/* CSS-only scan beam for activated card */
+.cyber-scan-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.5), hsl(var(--primary) / 0.7), hsl(var(--primary) / 0.5), transparent);
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.3);
+  animation: cyber-scan-beam 3.5s ease-in-out infinite;
+}
+
+/* CSS-only data streams */
+.cyber-data-stream-line {
+  position: absolute;
+  width: 1px;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, hsl(var(--primary) / 0.15), transparent);
+  animation: cyber-stream-fall 2s linear infinite;
+}
+
+/* CSS-only outer glow */
+.cyber-outer-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, hsl(var(--primary) / 0.08), transparent 70%);
+  animation: cyber-outer-glow 3s ease-in-out infinite;
+}
+
+/* CSS-only blink indicators */
+.cyber-blink {
+  animation: cyber-blink 1s ease-in-out infinite;
+}
+
+.cyber-dot-pulse {
+  animation: cyber-dot-pulse 1.2s ease-in-out infinite;
+}
+
+/* CSS-only corner brackets */
+.cyber-corner-bracket {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: hsl(var(--primary) / 0.8);
+  filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.5));
+  animation: cyber-bracket-in 0.3s ease-out both;
+}
+
+.cyber-corner-bracket:nth-child(1) { animation-delay: 0.3s; }
+.cyber-corner-bracket:nth-child(2) { animation-delay: 0.38s; }
+.cyber-corner-bracket:nth-child(3) { animation-delay: 0.46s; }
+.cyber-corner-bracket:nth-child(4) { animation-delay: 0.54s; }
+
+/* CSS-only data particles for exchanging phase */
+.cyber-particle {
+  position: absolute;
+  width: 1px;
+  border-radius: 2px;
+  box-shadow: 0 0 4px hsl(var(--primary) / 0.3);
+  background: hsl(var(--primary) / 0.4);
+  animation: cyber-particle-rise 1.5s linear infinite;
+}
+
+/* CSS-only syncing text */
+.cyber-sync-text {
+  animation: cyber-sync-pulse 1.5s ease-in-out infinite;
 }
 
 /* Friend Link pill — clean CSS-only animations */
@@ -2955,14 +3079,6 @@ img, video {
     linear-gradient(hsl(var(--primary) / 0.05) 1px, transparent 1px),
     linear-gradient(90deg, hsl(var(--primary) / 0.05) 1px, transparent 1px);
   background-size: 20px 20px;
-}
-
-.cyber-corner-bracket {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border-color: hsl(var(--primary) / 0.8);
-  filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.5));
 }
 
 /* Fast fade in */
