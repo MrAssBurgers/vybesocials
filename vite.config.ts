@@ -19,11 +19,46 @@ export default defineConfig(({ mode }) => ({
     // Optimize chunk splitting for faster loading
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-tooltip'],
-          'vendor-query': ['@tanstack/react-query'],
-          'vendor-motion': ['framer-motion'],
+        manualChunks(id) {
+          // Core React - small, loads first
+          if (id.includes('react-dom') || id.includes('react/')) {
+            return 'vendor-react';
+          }
+          if (id.includes('react-router-dom')) {
+            return 'vendor-router';
+          }
+          // UI components - defer
+          if (id.includes('@radix-ui')) {
+            return 'vendor-ui';
+          }
+          // Query - defer
+          if (id.includes('@tanstack/react-query')) {
+            return 'vendor-query';
+          }
+          // Motion - defer (large, often unused on initial paint)
+          if (id.includes('framer-motion')) {
+            return 'vendor-motion';
+          }
+          // Supabase
+          if (id.includes('@supabase')) {
+            return 'vendor-supabase';
+          }
+          // Daily.co call SDK - very large, rarely needed on load
+          if (id.includes('@daily-co')) {
+            return 'vendor-daily';
+          }
+          // date-fns
+          if (id.includes('date-fns')) {
+            return 'vendor-datefns';
+          }
+          // recharts
+          if (id.includes('recharts') || id.includes('d3-')) {
+            return 'vendor-charts';
+          }
+          // i18n
+          if (id.includes('i18next')) {
+            return 'vendor-i18n';
+          }
         },
       },
     },
@@ -31,6 +66,8 @@ export default defineConfig(({ mode }) => ({
     minify: 'esbuild',
     target: 'esnext',
     chunkSizeWarningLimit: 1000,
+    // Enable CSS code splitting
+    cssCodeSplit: true,
   },
   // Optimize dependency pre-bundling
   optimizeDeps: {
