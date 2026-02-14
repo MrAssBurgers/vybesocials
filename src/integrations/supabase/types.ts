@@ -7256,6 +7256,7 @@ export type Database = {
       }
       claim_profile_by_email: { Args: never; Returns: string }
       cleanup_old_friend_drops: { Args: never; Returns: undefined }
+      cleanup_stale_challenges: { Args: never; Returns: undefined }
       create_default_rooms: {
         Args: { p_server_id: string }
         Returns: undefined
