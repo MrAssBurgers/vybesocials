@@ -10,7 +10,7 @@ import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { formatDistanceToNow } from 'date-fns';
@@ -120,12 +120,7 @@ export default function NotificationsPage() {
         </AnimatePresence>
 
         {/* Header with referral button */}
-        <motion.div 
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-          className="mb-6"
-        >
+        <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground">Notifications</h1>
@@ -147,7 +142,7 @@ export default function NotificationsPage() {
               <span>Referrals</span>
             </Link>
           </div>
-        </motion.div>
+        </div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -182,14 +177,14 @@ export default function NotificationsPage() {
           {/* ─── ALL TAB ─── */}
           <TabsContent value="all" className="mt-0">
             <AnimatePresence mode="popLayout">
-              {isLoading || isRefreshing ? (
+              {isLoading && !notifications ? (
                 <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-1">
-                  {Array.from({ length: 6 }).map((_, i) => (
+                  {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3 p-3">
-                      <Skeleton className="h-11 w-11 rounded-full" />
+                      <div className="h-11 w-11 rounded-full bg-muted/40 animate-pulse" />
                       <div className="flex-1 space-y-2">
-                        <Skeleton className="h-3.5 w-3/4" />
-                        <Skeleton className="h-3 w-1/3" />
+                        <div className="h-3.5 w-3/4 bg-muted/40 rounded animate-pulse" />
+                        <div className="h-3 w-1/3 bg-muted/40 rounded animate-pulse" />
                       </div>
                     </div>
                   ))}
@@ -251,10 +246,10 @@ export default function NotificationsPage() {
                   {pendingRequests.map((request, idx) => (
                     <motion.div
                       key={request.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, x: -80, transition: { duration: 0.2 } }}
-                      transition={{ delay: idx * 0.04, duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0, x: -80, transition: { duration: 0.15 } }}
+                      transition={{ delay: Math.min(idx * 0.02, 0.1), duration: 0.15 }}
                     >
                       <div className="flex items-center gap-3 p-3 rounded-2xl bg-card/80 backdrop-blur-md border border-border/30">
                         <Link to={`/u/${request.sender?.username}`}>

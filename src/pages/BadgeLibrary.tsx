@@ -10,7 +10,7 @@ import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { Skeleton } from '@/components/ui/skeleton';
+
 import { cn } from '@/lib/utils';
 
 const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
@@ -138,7 +138,7 @@ export default function BadgeLibraryPage() {
           {isLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="aspect-square rounded-xl" />
+                <div key={i} className="aspect-square rounded-xl bg-muted/40 animate-pulse" />
               ))}
             </div>
           ) : filteredBadges.length > 0 ? (
@@ -153,9 +153,9 @@ export default function BadgeLibraryPage() {
                 return (
                   <motion.div
                     key={badge.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.03 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: Math.min(idx * 0.02, 0.2) }}
                   >
                     <GlassCard 
                       className={cn(
