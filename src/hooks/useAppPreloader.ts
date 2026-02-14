@@ -16,10 +16,10 @@ interface PreloadStatus {
  */
 export function useAppPreloader() {
   const queryClient = useQueryClient();
-  const [status] = useState<PreloadStatus>({
-    step: 'Ready!',
-    progress: 100,
-    isComplete: true,
+  const [status, setStatus] = useState<PreloadStatus>({
+    step: 'Initializing...',
+    progress: 0,
+    isComplete: false,
   });
   const hasStarted = useRef(false);
 
@@ -27,9 +27,11 @@ export function useAppPreloader() {
     if (hasStarted.current) return;
     hasStarted.current = true;
 
-    // Background data prefetch - non-blocking, app is already visible
+    // Background data prefetch - splash shows while loading
     const prefetchInBackground = async () => {
       try {
+        setStatus({ step: 'Connecting...', progress: 15, isComplete: false });
+
         let session = null;
         try {
           const authResult = await supabase.auth.getSession();
@@ -37,6 +39,8 @@ export function useAppPreloader() {
         } catch {
           // Auth failed, continue as guest
         }
+
+        setStatus({ step: 'Loading your feed...', progress: 40, isComplete: false });
 
         if (!session?.user) {
           // Guest - prefetch feed in background
@@ -50,12 +54,14 @@ export function useAppPreloader() {
             });
             if (data) cacheFeedData(queryClient, data as any[], null, 'feed_post');
           } catch {}
+          setStatus({ step: 'Ready!', progress: 100, isComplete: true });
           return;
         }
 
         const uid = session.user.id;
 
         // Get profile first (fast)
+        setStatus({ step: 'Loading profile...', progress: 50, isComplete: false });
         const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
@@ -67,7 +73,12 @@ export function useAppPreloader() {
           queryClient.setQueryData(['profile', profileId], profileData);
         }
 
-        if (!profileId) return;
+        if (!profileId) {
+          setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+          return;
+        }
+
+        setStatus({ step: 'Loading content...', progress: 70, isComplete: false });
 
         // Fire all background fetches in parallel - none of these block the UI
         Promise.allSettled([
@@ -125,19 +136,28 @@ export function useAppPreloader() {
             }),
         ]).catch(() => {});
 
+        setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+
         // Route preloading
         preloadCriticalRoutes();
         setTimeout(() => preloadSecondaryRoutes(), 3000);
 
       } catch (error) {
         console.warn('[Prefetch] Background error:', error);
+        // Always complete even on error - never leave user stuck
+        setStatus({ step: 'Ready!', progress: 100, isComplete: true });
       }
     };
 
-    // Delay background fetch slightly to let React paint first
-    requestAnimationFrame(() => {
-      prefetchInBackground();
-    });
+    // Start immediately
+    prefetchInBackground();
+
+    // Safety timeout - never stay on splash more than 4 seconds
+    const safetyTimer = setTimeout(() => {
+      setStatus(prev => prev.isComplete ? prev : { step: 'Ready!', progress: 100, isComplete: true });
+    }, 4000);
+
+    return () => clearTimeout(safetyTimer);
   }, [queryClient]);
 
   return status;

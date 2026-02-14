@@ -1,4 +1,4 @@
-import { useEffect, memo, lazy, Suspense } from 'react';
+import { useEffect, useState, memo, lazy, Suspense } from 'react';
 import './lib/i18n'; // Must be synchronous - needed before React renders
 // liquid.css is loaded inside AppWithPreloader useEffect
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -9,7 +9,7 @@ import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
 import { CallStoreProvider } from "@/lib/callStore";
-// SplashScreen removed - app renders instantly now
+import { SplashScreen } from "@/components/ui/SplashScreen";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
@@ -113,9 +113,19 @@ const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
-  // Background data prefetch - app renders immediately, no splash blocking
-  useAppPreloader();
+  // Background data prefetch with splash screen
+  const { step, progress, isComplete } = useAppPreloader();
+  const [showSplash, setShowSplash] = useState(true);
   
+  // Dismiss splash when preloader completes
+  useEffect(() => {
+    if (isComplete) {
+      // Brief delay for smooth transition
+      const timer = setTimeout(() => setShowSplash(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isComplete]);
+
   // Load deferred CSS after mount
   useEffect(() => {
     import('./styles/liquid.css').catch(() => {});
@@ -131,6 +141,7 @@ function AppWithPreloader() {
   return (
     <>
       <GlobalErrorHandler />
+      <SplashScreen isVisible={showSplash} status={step} progress={progress} />
       <AuthProvider>
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
         {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
