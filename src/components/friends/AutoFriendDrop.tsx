@@ -373,32 +373,13 @@ export function AutoFriendDrop() {
   const handleBump = useCallback(async () => {
     if (!profile?.username || !user) return;
     
-    let cameraStream: MediaStream | null = null;
-    try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-      });
-    } catch (err) {
-      console.warn('[AutoFriendDrop] Camera access failed:', err);
-    }
-    
+    // Open UI FIRST — no blocking
     setIsActive(true);
     haptics.impact();
     setPhase('activated');
     setTimeout(() => { haptics.success(); }, 300);
     
-    if (cameraStream) {
-      streamRef.current = cameraStream;
-      requestAnimationFrame(() => {
-        if (videoRef.current && cameraStream) {
-          videoRef.current.srcObject = cameraStream;
-          videoRef.current.play().then(() => {
-            startScanLoopRef.current();
-          }).catch(console.error);
-        }
-      });
-    }
-    
+    // Create drop in background
     friendDropSync.createDrop().then((drop) => {
       if (drop) setActiveDropId(drop.id);
     });
@@ -406,6 +387,26 @@ export function AutoFriendDrop() {
     if (nativeFriendDrop.isAvailable) {
       nativeFriendDrop.startSession();
     }
+    
+    // Start camera in background — doesn't block UI
+    requestAnimationFrame(async () => {
+      try {
+        let stream = getPreloadedStream();
+        if (!stream) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+          });
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+          startScanLoopRef.current();
+        }
+      } catch (err) {
+        console.warn('[AutoFriendDrop] Camera access failed:', err);
+      }
+    });
   }, [profile?.username, user, nativeFriendDrop, friendDropSync]);
 
   useSwingDetection({
@@ -677,13 +678,10 @@ export function AutoFriendDrop() {
             {phase === 'activated' && (
               <motion.div
                 key="activated"
-                initial={{ y: 300, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -30, opacity: 0, scale: 0.95 }}
-                transition={{ 
-                  type: "spring", stiffness: 200, damping: 22,
-                  opacity: { duration: 0.2 },
-                }}
+                initial={{ y: 60, opacity: 0, scale: 0.96 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: -20, opacity: 0, scale: 0.97 }}
+                transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
                 style={{ transformOrigin: 'bottom center' }}
                 className="flex flex-col items-center"
               >
