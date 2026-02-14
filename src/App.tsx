@@ -1,6 +1,14 @@
 import { useState, useEffect, memo, lazy, Suspense } from 'react';
 import './lib/i18n';
-import './styles/liquid.css';
+// Defer non-critical CSS - loaded after initial render
+const loadLiquidCSS = () => import('./styles/liquid.css');
+if (typeof window !== 'undefined') {
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(loadLiquidCSS);
+  } else {
+    setTimeout(loadLiquidCSS, 100);
+  }
+}
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
