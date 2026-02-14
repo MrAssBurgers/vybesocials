@@ -1,9 +1,5 @@
 import { useState, useEffect, memo, lazy, Suspense } from 'react';
-// Defer i18n initialization - loaded async instead of blocking main bundle
-const i18nPromise = import('./lib/i18n');
-if (typeof window !== 'undefined') {
-  i18nPromise.catch(() => {}); // Prevent unhandled rejection, i18n will retry
-}
+import './lib/i18n'; // Must be synchronous - needed before React renders
 // Defer non-critical CSS - loaded after initial render
 const loadLiquidCSS = () => import('./styles/liquid.css');
 if (typeof window !== 'undefined') {
