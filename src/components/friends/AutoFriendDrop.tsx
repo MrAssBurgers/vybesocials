@@ -612,55 +612,20 @@ export function AutoFriendDrop() {
       {/* Cyberpunk bump indicator */}
       {!isActive && !isDismissed && isMobile && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in" style={{ animationDuration: '300ms' }}>
-          <motion.button
+          <button
             onClick={handleBump}
-            className="relative flex items-center gap-2.5 px-5 py-3 rounded-sm border active:scale-95 transition-transform duration-150 touch-manipulation overflow-hidden"
+            className="friendlink-pill relative flex items-center gap-2.5 px-5 py-3 rounded-lg border active:scale-[0.97] transition-transform duration-150 touch-manipulation overflow-hidden"
             style={{
-              background: 'hsl(var(--background) / 0.9)',
-              borderColor: 'hsl(var(--primary) / 0.4)',
-              backdropFilter: 'blur(16px)',
-              boxShadow: '0 0 30px hsl(var(--primary) / 0.2), 0 0 60px hsl(var(--primary) / 0.08), inset 0 1px 0 hsl(var(--primary) / 0.1)',
+              background: 'hsl(var(--background) / 0.92)',
+              borderColor: 'hsl(var(--primary) / 0.25)',
+              backdropFilter: 'blur(20px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
             }}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.95 }}
           >
-            {/* Animated border glow */}
-            <motion.div
-              className="absolute inset-0 rounded-sm pointer-events-none"
-              style={{ border: '1px solid transparent' }}
-              animate={{
-                boxShadow: [
-                  'inset 0 0 8px hsl(var(--primary) / 0.1), 0 0 15px hsl(var(--primary) / 0.15)',
-                  'inset 0 0 12px hsl(var(--primary) / 0.2), 0 0 25px hsl(var(--primary) / 0.25)',
-                  'inset 0 0 8px hsl(var(--primary) / 0.1), 0 0 15px hsl(var(--primary) / 0.15)',
-                ],
-              }}
-              transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-            />
+            {/* Single clean shimmer sweep via CSS */}
+            <div className="friendlink-shimmer absolute inset-0 pointer-events-none rounded-lg" />
             
-            {/* Scanline sweep */}
-            <motion.div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background: 'linear-gradient(180deg, transparent 0%, hsl(var(--primary) / 0.06) 50%, transparent 100%)',
-                height: '200%',
-              }}
-              animate={{ y: ['-100%', '0%'] }}
-              transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-            />
-            
-            <motion.div
-              animate={{ 
-                boxShadow: [
-                  '0 0 0 hsl(var(--primary) / 0), 0 0 0 hsl(var(--primary) / 0)',
-                  '0 0 14px hsl(var(--primary) / 0.5), 0 0 4px hsl(var(--primary) / 0.3)',
-                  '0 0 0 hsl(var(--primary) / 0), 0 0 0 hsl(var(--primary) / 0)',
-                ],
-              }}
-              transition={{ repeat: Infinity, duration: 2 }}
-              className="p-1.5 rounded-sm relative z-[1]"
-              style={{ background: 'hsl(var(--primary) / 0.08)' }}
-            >
+            <div className="friendlink-icon-wrap p-1.5 rounded-md relative z-[1]" style={{ background: 'hsl(var(--primary) / 0.1)' }}>
               {hasWebNFC ? (
                 <Radio className="h-4 w-4 text-primary" />
               ) : nativeFriendDrop.isAvailable ? (
@@ -668,12 +633,12 @@ export function AutoFriendDrop() {
               ) : (
                 <Zap className="h-4 w-4 text-primary" />
               )}
-            </motion.div>
+            </div>
             <div className="flex flex-col items-start relative z-[1]">
-              <span className="text-[9px] text-primary font-mono font-bold tracking-[0.25em] cyber-glow-text">
+              <span className="text-[9px] text-primary font-mono font-bold tracking-[0.25em]">
                 FRIEND LINK
               </span>
-              <span className="text-[7px] text-muted-foreground font-mono tracking-[0.2em]">
+              <span className="text-[7px] text-muted-foreground font-mono tracking-[0.15em]">
                 {hasWebNFC
                   ? 'TAP PHONES'
                   : nativeFriendDrop.isAvailable 
@@ -681,30 +646,26 @@ export function AutoFriendDrop() {
                     : 'SHAKE TO ACTIVATE'}
               </span>
             </div>
-            <div className="flex gap-0.5 relative z-[1]">
+            {/* Clean signal bars — pure CSS animation */}
+            <div className="flex items-end gap-[2px] relative z-[1] h-4">
               {[0,1,2,3].map(i => (
-                <motion.div
+                <div
                   key={i}
-                  className="w-0.5 rounded-full"
+                  className="friendlink-bar w-[3px] rounded-full"
                   style={{ 
                     background: 'hsl(var(--primary))',
-                    height: 8 + Math.random() * 8,
+                    animationDelay: `${i * 150}ms`,
                   }}
-                  animate={{ 
-                    height: [4 + i * 2, 12 + i * 2, 4 + i * 2],
-                    opacity: [0.3, 0.8, 0.3],
-                  }}
-                  transition={{ repeat: Infinity, duration: 0.8 + i * 0.15, ease: "easeInOut" }}
                 />
               ))}
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); setIsDismissed(true); }}
-              className="ml-0.5 p-0.5 rounded-sm hover:bg-primary/20 transition-colors touch-manipulation relative z-[1]"
+              className="ml-0.5 p-1 rounded-md hover:bg-primary/10 transition-colors touch-manipulation relative z-[1]"
             >
-              <X className="h-3 w-3 text-primary/40" />
+              <X className="h-3 w-3 text-muted-foreground" />
             </button>
-          </motion.button>
+          </button>
         </div>
       )}
 
