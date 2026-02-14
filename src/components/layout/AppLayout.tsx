@@ -110,11 +110,11 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
         className={cn(
           "overflow-x-hidden relative z-[2]",
           noPadding ? "overflow-hidden" : "overflow-y-auto",
-          noPadding ? "h-[calc(100dvh-3.5rem)]" : "h-full",
           hideNav ? "" : (!noPadding ? "pb-[calc(5rem+env(safe-area-inset-bottom))]" : ""),
           hideNav ? "" : "pt-14",
         )}
         style={{
+          height: noPadding ? 'calc(100dvh - 3.5rem)' : '100dvh',
           WebkitOverflowScrolling: 'touch',
           overscrollBehaviorY: 'contain',
         }}
