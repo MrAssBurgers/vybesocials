@@ -55,7 +55,7 @@ function CyberHeader() {
         animate={{ opacity: 1, letterSpacing: '0.3em' }}
         transition={{ delay: 0.1, duration: 0.5 }}
       >
-        NEURAL LINK
+        FRIEND LINK
       </motion.h3>
       <motion.div
         className="h-px flex-1 max-w-[40px]"
@@ -558,7 +558,7 @@ function ExchangingPhase({
         >
           SYNCING DATA...
         </motion.p>
-        <p className="text-[10px] font-mono text-muted-foreground mt-1">ESTABLISHING NEURAL LINK</p>
+        <p className="text-[10px] font-mono text-muted-foreground mt-1">ESTABLISHING FRIEND LINK</p>
       </motion.div>
     </motion.div>
   );
@@ -1059,7 +1059,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
               <Zap className="h-6 w-6 text-primary" />
             </motion.div>
             <div className="text-left">
-              <h4 className="font-semibold font-mono text-sm tracking-wider">NEURAL LINK</h4>
+              <h4 className="font-semibold font-mono text-sm tracking-wider">FRIEND LINK</h4>
               <p className="text-xs text-muted-foreground font-mono">Sync with nearby users</p>
             </div>
             <Radio className="ml-auto h-5 w-5 text-primary shrink-0 animate-pulse" />
@@ -1069,7 +1069,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         return (
           <Button onClick={handleOpen} className="gap-2 font-mono text-xs rounded-sm">
             <Zap className="h-4 w-4" />
-            NEURAL LINK
+            FRIEND LINK
           </Button>
         );
     }
