@@ -78,7 +78,8 @@ export function useLockerItems(userId?: string) {
       };
     },
     enabled: !!targetId,
-    staleTime: 1000 * 60 * 2,
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
   });
 }
 

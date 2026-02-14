@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Award, ShoppingBag, Lock, Check, Crown, Shield, Heart, BadgeCheck, Type, Wand2, Diamond, Zap, Palette, Layers, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -64,8 +64,8 @@ const defaultSettings: BadgeSettings = {
   show_owner_wife_badge: true,
 };
 
-// ── Item Card (generic) ─────────────────────────────────────────
-function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, isRestricted }: {
+// ── Item Card (memoized for perf) ───────────────────────────────
+const ItemCard = memo(function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, isRestricted }: {
   item: LockerItem;
   isEquipped: boolean;
   isSelected: boolean;
@@ -83,11 +83,10 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, 
   const frameColor = tabId === 'frames' ? FRAME_COLORS[item.reward_name] : undefined;
 
   return (
-    <motion.button
-      whileTap={{ scale: 0.97 }}
+    <button
       onClick={onSelect}
       className={cn(
-        "relative flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border transition-all duration-200",
+        "relative flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border transition-all duration-150 active:scale-[0.97]",
         "backdrop-blur-xl bg-card/30",
         isSelected
           ? "border-primary/60 bg-primary/10 shadow-lg shadow-primary/10"
@@ -103,21 +102,14 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, 
       </div>
 
       {/* Equipped checkmark */}
-      <AnimatePresence>
-        {isEquipped && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0 }}
-            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-green-500 shadow-md shadow-green-500/30 flex items-center justify-center z-10"
-          >
-            <Check className="w-3 h-3 text-white" strokeWidth={3} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isEquipped && (
+        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-green-500 shadow-md shadow-green-500/30 flex items-center justify-center z-10">
+          <Check className="w-3 h-3 text-white" strokeWidth={3} />
+        </div>
+      )}
 
       {/* Lock icon */}
-      {(!item.unlocked || isRestricted) && (
+      {(!item.unlocked || isRestricted) && !isEquipped && (
         <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-muted-foreground/20 flex items-center justify-center z-10">
           <Lock className="w-2.5 h-2.5 text-muted-foreground" />
         </div>
@@ -188,25 +180,23 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, 
           </div>
         )}
 
-        {tabId === 'themes' && (() => {
-          return (
-            <div className="w-full h-full relative overflow-hidden">
-              {themeImage ? (
-                <img src={themeImage} alt={item.reward_name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full" style={{ background: preview ? `linear-gradient(135deg, ${preview.from}, ${preview.to})` : 'hsl(var(--muted))' }} />
-              )}
-              <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center gap-1.5 px-2">
-                <div className="w-7 h-7 rounded-full bg-white/25 border border-white/40 shadow-sm" />
-                <span className="text-[10px] font-bold text-white/90 truncate max-w-full drop-shadow-sm">{displayName}</span>
-                <div className="flex gap-1">
-                  <div className="w-10 h-1.5 rounded-full bg-white/25" />
-                  <div className="w-6 h-1.5 rounded-full bg-white/15" />
-                </div>
+        {tabId === 'themes' && (
+          <div className="w-full h-full relative overflow-hidden">
+            {themeImage ? (
+              <img src={themeImage} alt={item.reward_name} className="w-full h-full object-cover" loading="lazy" />
+            ) : (
+              <div className="w-full h-full" style={{ background: preview ? `linear-gradient(135deg, ${preview.from}, ${preview.to})` : 'hsl(var(--muted))' }} />
+            )}
+            <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center gap-1.5 px-2">
+              <div className="w-7 h-7 rounded-full bg-white/25 border border-white/40 shadow-sm" />
+              <span className="text-[10px] font-bold text-white/90 truncate max-w-full drop-shadow-sm">{displayName}</span>
+              <div className="flex gap-1">
+                <div className="w-10 h-1.5 rounded-full bg-white/25" />
+                <div className="w-6 h-1.5 rounded-full bg-white/15" />
               </div>
             </div>
-          );
-        })()}
+          </div>
+        )}
       </div>
 
       {/* Label */}
@@ -227,9 +217,9 @@ function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, 
         )}
         <span className="text-[9px] text-muted-foreground font-medium">Lv. {item.level}</span>
       </div>
-    </motion.button>
+    </button>
   );
-}
+});
 
 // ── Main Locker ─────────────────────────────────────────────────
 export function ProfileLocker() {
@@ -259,23 +249,21 @@ export function ProfileLocker() {
   const earnedBadges = userBadges.map(ub => ub.badge);
   const lockedBadges = allBadges.filter(b => !earnedBadgeIds.has(b.id) && !b.is_staff_badge);
 
-  // Check if a color is restricted for the current user
-  const isColorRestricted = (name: string): boolean => {
+  const isColorRestricted = useCallback((name: string): boolean => {
     const restriction = RESTRICTED_COLORS[name];
     if (!restriction) return false;
     if (restriction === 'owner') return !hasOwnerBadge;
     if (restriction === 'mod') return !hasModBadge && !hasOwnerBadge;
     return false;
-  };
+  }, [hasOwnerBadge, hasModBadge]);
 
-  // Check if user has role-based auto-unlock for an item
-  const hasRoleUnlock = (name: string): boolean => {
+  const hasRoleUnlock = useCallback((name: string): boolean => {
     const restriction = RESTRICTED_COLORS[name];
     if (!restriction) return false;
     if (restriction === 'owner' && hasOwnerBadge) return true;
     if (restriction === 'mod' && (hasModBadge || hasOwnerBadge)) return true;
     return false;
-  };
+  }, [hasOwnerBadge, hasModBadge]);
 
   const handleToggle = (key: keyof BadgeSettings) => {
     haptics.select();
@@ -303,10 +291,9 @@ export function ProfileLocker() {
     }
   };
 
-  const handleEquip = (type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme', item: LockerItem) => {
+  const handleEquip = useCallback((type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme', item: LockerItem) => {
     if (!item.unlocked && !hasRoleUnlock(item.reward_name)) return;
     if (equipItem.isPending) return;
-    // Check role restriction for colors
     if (type === 'name_color' && isColorRestricted(item.reward_name)) return;
     haptics.select();
 
@@ -334,7 +321,7 @@ export function ProfileLocker() {
         },
       }
     );
-  };
+  }, [lockerData, equipItem, hasRoleUnlock, isColorRestricted]);
 
   const getTabItems = (): LockerItem[] => {
     if (!lockerData) return [];
@@ -350,12 +337,12 @@ export function ProfileLocker() {
     }
   };
 
-  const isItemEquipped = (item: LockerItem): boolean => {
+  const isItemEquipped = useCallback((item: LockerItem): boolean => {
     if (!lockerData) return false;
     const key = TAB_TO_EQUIPPED_KEY[activeTab];
     if (!key) return false;
     return (lockerData[key] as string | null) === item.reward_name;
-  };
+  }, [lockerData, activeTab]);
 
   const equippedCount = [
     lockerData?.equippedTitle,
@@ -367,6 +354,7 @@ export function ProfileLocker() {
 
   const tabItems = getTabItems();
   const hasCosmeticTab = activeTab !== 'badges' && activeTab !== 'shop';
+  const displayName = profile?.display_name || profile?.username || 'You';
 
   return (
     <div className="flex flex-col min-h-[400px] pb-4">
@@ -428,10 +416,10 @@ export function ProfileLocker() {
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.12 }}
           >
             {activeTab === 'badges' && (
               <BadgesContent
@@ -463,7 +451,7 @@ export function ProfileLocker() {
                     isSelected={selectedItem?.id === item.id}
                     onSelect={() => setSelectedItem(selectedItem?.id === item.id ? null : item)}
                     tabId={activeTab}
-                    displayName={profile?.display_name || profile?.username || 'You'}
+                    displayName={displayName}
                     isRestricted={activeTab === 'colors' ? isColorRestricted(item.reward_name) : false}
                   />
                 ))}
@@ -480,7 +468,7 @@ export function ProfileLocker() {
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
             className="sticky bottom-0 mt-4 rounded-2xl bg-card/90 backdrop-blur-xl border border-border/60 p-4 shadow-xl shadow-black/10"
           >
             <div className="flex items-center gap-3 mb-3">
@@ -566,12 +554,10 @@ function BadgesContent({ earnedBadges, lockedBadges, hasOwnerBadge, hasOwnerWife
           </div>
           <div className="grid grid-cols-5 sm:grid-cols-7 gap-2">
             {earnedBadges.map((badge, i) => (
-              <motion.div
+              <div
                 key={badge.id}
-                initial={{ opacity: 0, scale: 0.7 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: i * 0.04, type: 'spring', stiffness: 400 }}
                 className="flex flex-col items-center gap-1 group"
+                style={{ animationDelay: `${Math.min(i * 20, 150)}ms` }}
               >
                 <div className="relative">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/20 flex items-center justify-center text-lg group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/15 transition-all duration-200">
@@ -582,7 +568,7 @@ function BadgesContent({ earnedBadges, lockedBadges, hasOwnerBadge, hasOwnerWife
                   </div>
                 </div>
                 <span className="text-[8px] text-muted-foreground text-center truncate w-full leading-tight">{badge.name}</span>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -627,13 +613,10 @@ function BadgesContent({ earnedBadges, lockedBadges, hasOwnerBadge, hasOwnerWife
             <Lock className="w-2.5 h-2.5" /> Locked
           </span>
           <div className="grid grid-cols-5 sm:grid-cols-7 gap-2">
-            {lockedBadges.slice(0, 14).map((badge, i) => (
-              <motion.div
+            {lockedBadges.slice(0, 14).map((badge) => (
+              <div
                 key={badge.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.4 }}
-                transition={{ delay: i * 0.02 }}
-                className="flex flex-col items-center gap-1"
+                className="flex flex-col items-center gap-1 opacity-40"
               >
                 <div className="relative">
                   <div className="w-10 h-10 rounded-xl bg-muted/40 border border-border/20 flex items-center justify-center text-lg grayscale">{badge.icon}</div>
@@ -642,7 +625,7 @@ function BadgesContent({ earnedBadges, lockedBadges, hasOwnerBadge, hasOwnerWife
                   </div>
                 </div>
                 <span className="text-[8px] text-muted-foreground text-center truncate w-full">{badge.name}</span>
-              </motion.div>
+              </div>
             ))}
           </div>
           {lockedBadges.length > 14 && (
@@ -662,19 +645,13 @@ function BadgesContent({ earnedBadges, lockedBadges, hasOwnerBadge, hasOwnerWife
 function ShopContent() {
   return (
     <div className="rounded-2xl bg-card/40 p-5 text-center">
-      <motion.span
-        className="inline-block text-5xl mb-3"
-        animate={{ y: [0, -6, 0] }}
-        transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-      >
-        🛍️
-      </motion.span>
+      <span className="inline-block text-5xl mb-3">🛍️</span>
       <h3 className="text-base font-bold text-foreground mb-1">Profile Shop</h3>
       <p className="text-xs text-muted-foreground mb-4 max-w-[200px] mx-auto leading-relaxed">
         Exclusive cosmetics and profile upgrades are on the way
       </p>
       <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
-        <Package className="w-3.5 h-3.5 text-primary animate-pulse" />
+        <Package className="w-3.5 h-3.5 text-primary" data-allow-animation="true" />
         <span className="text-xs font-bold text-foreground">Coming Soon</span>
       </div>
     </div>
