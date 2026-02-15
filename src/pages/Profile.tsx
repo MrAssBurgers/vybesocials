@@ -198,11 +198,11 @@ export default function ProfilePage() {
       {(themeImage || themeGradient) && (
         <div className="fixed inset-0 z-[3] overflow-hidden pointer-events-none">
           {themeImage ? (
-            <img src={themeImage} alt="" className="absolute inset-0 w-full h-full object-cover opacity-50 blur-[2px] scale-105" />
+            <img src={themeImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
           ) : (
-            <div className="absolute inset-0 opacity-50" style={{ background: themeGradient }} />
+            <div className="absolute inset-0" style={{ background: themeGradient }} />
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-background/40 to-background/70" />
+          <div className="absolute inset-0 bg-black/40" />
         </div>
       )}
       <div className="max-w-4xl mx-auto px-4 py-6 relative z-[4]">
