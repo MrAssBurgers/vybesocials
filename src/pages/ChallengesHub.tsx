@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useChallengesWithProgress, CHALLENGE_ROUTES } from '@/hooks/useChallenges';
 import { useUnclaimedRewards, useClaimReward, useNextLevelProgress, useVybePassTiers } from '@/hooks/useVybePass';
+import { useRewardNotifications } from '@/components/vybepass/RewardNotificationProvider';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -105,16 +106,21 @@ export default function ChallengesHubPage() {
 
   const displayChallenges = getDisplayChallenges();
 
+  const { showLevelUp } = useRewardNotifications();
+
   const handleClaimReward = async (rewardId: string) => {
     setClaimingId(rewardId);
     try {
       const result = await claimReward.mutateAsync(rewardId);
-      // Also invalidate claimed-rewards so UI updates
       await queryClient.invalidateQueries({ queryKey: ['claimed-rewards'] });
       await queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards'] });
       await queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
       if (result.level_result?.level_up) {
-        toast.success(`🎉 Level Up! You're now level ${result.level_result.new_level}!`);
+        showLevelUp({
+          oldLevel: result.level_result.old_level,
+          newLevel: result.level_result.new_level,
+          rewards: result.level_result.new_rewards || [],
+        });
       } else {
         toast.success(`+${result.xp_gained} XP claimed!`);
       }
