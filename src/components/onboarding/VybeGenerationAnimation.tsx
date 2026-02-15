@@ -1,8 +1,8 @@
-import { memo, useEffect, useState, useRef } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { cn } from '@/lib/utils';
-import { Check, Sparkles, Palette, Type, Zap, Stars, Heart, Sliders, Wand } from 'lucide-react';
+import { Check, Sparkles } from 'lucide-react';
 
 interface VybeGenerationAnimationProps {
   isGenerating: boolean;
@@ -11,181 +11,122 @@ interface VybeGenerationAnimationProps {
   onBuildComplete?: () => void;
 }
 
-// Static noise canvas for the generation effect
-function StaticNoiseCanvas({ progress, isActive }: { progress: number; isActive: boolean }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
-  
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !isActive) return;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    // Create image data for noise
-    const imageData = ctx.createImageData(width, height);
-    const data = imageData.data;
-    
-    let frameCount = 0;
-    
-    const animate = () => {
-      frameCount++;
-      
-      // Generate noise with decreasing intensity as progress increases
-      const noiseIntensity = Math.max(0, 1 - (progress / 100) * 1.2);
-      
-      for (let i = 0; i < data.length; i += 4) {
-        const noise = Math.random();
-        
-        // As progress increases, blend from static to theme colors
-        if (noise < noiseIntensity * 0.7) {
-          // Static noise pixels
-          const brightness = Math.floor(Math.random() * 100);
-          data[i] = brightness;     // R
-          data[i + 1] = brightness; // G
-          data[i + 2] = brightness; // B
-          data[i + 3] = Math.floor(200 * noiseIntensity); // A
-        } else if (noise < noiseIntensity) {
-          // Colored static pixels (primary/accent colors coming through)
-          const colorChoice = Math.random();
-          if (colorChoice < 0.5) {
-            // Primary color tint
-            data[i] = 220;     // R (pink)
-            data[i + 1] = 50;  // G
-            data[i + 2] = 150; // B
-          } else {
-            // Accent color tint
-            data[i] = 50;      // R
-            data[i + 1] = 200; // G (cyan)
-            data[i + 2] = 220; // B
-          }
-          data[i + 3] = Math.floor(150 * noiseIntensity);
-        } else {
-          // Transparent - let the background through
-          data[i] = 0;
-          data[i + 1] = 0;
-          data[i + 2] = 0;
-          data[i + 3] = 0;
-        }
-      }
-      
-      ctx.putImageData(imageData, 0, 0);
-      
-      // Slower frame rate for performance
-      if (isActive && noiseIntensity > 0.05) {
-        animationRef.current = requestAnimationFrame(animate);
-      }
-    };
-    
-    // Start animation
-    animationRef.current = requestAnimationFrame(animate);
-    
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [progress, isActive]);
-  
-  if (!isActive) return null;
-  
+// Pulsing ring layers that dissolve as progress increases
+function ProgressRings({ progress }: { progress: number }) {
   return (
-    <motion.canvas
-      ref={canvasRef}
-      width={200}
-      height={200}
-      initial={{ opacity: 1 }}
-      animate={{ opacity: Math.max(0, 1 - (progress / 100) * 1.5) }}
-      className="absolute inset-0 w-full h-full rounded-full mix-blend-overlay pointer-events-none"
-    />
+    <>
+      {/* Inner shimmer ring */}
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
+        className="absolute inset-0 rounded-full"
+        style={{
+          background: `conic-gradient(
+            from 0deg,
+            hsl(var(--primary) / ${0.6 * (1 - progress / 100)}),
+            hsl(var(--accent) / ${0.4 * (1 - progress / 100)}),
+            transparent 40%,
+            hsl(var(--primary) / ${0.6 * (1 - progress / 100)})
+          )`,
+          mask: 'radial-gradient(circle, transparent 60%, black 62%, black 68%, transparent 70%)',
+          WebkitMask: 'radial-gradient(circle, transparent 60%, black 62%, black 68%, transparent 70%)',
+        }}
+      />
+      {/* Outer glow ring */}
+      <motion.div
+        animate={{ rotate: -360 }}
+        transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
+        className="absolute -inset-3 rounded-full"
+        style={{
+          background: `conic-gradient(
+            from 180deg,
+            hsl(var(--accent) / ${0.3 * (1 - progress / 100)}),
+            transparent 30%,
+            hsl(var(--primary) / ${0.3 * (1 - progress / 100)}),
+            transparent 70%
+          )`,
+          filter: 'blur(6px)',
+        }}
+      />
+    </>
   );
 }
 
-// UI Elements that appear as the VYBE builds
-function BuildingUIElements({ progress }: { progress: number }) {
-  // Elements appear at different progress thresholds
-  const elements = [
-    { threshold: 20, label: 'Header', position: 'top-0 left-1/2 -translate-x-1/2 w-3/4 h-2' },
-    { threshold: 35, label: 'Nav', position: 'bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-2' },
-    { threshold: 50, label: 'Card', position: 'top-1/4 left-1/4 w-1/2 h-1/4' },
-    { threshold: 65, label: 'Feed', position: 'top-1/2 left-1/4 w-1/2 h-1/3' },
-    { threshold: 80, label: 'Button', position: 'bottom-1/4 right-1/4 w-1/4 h-2' },
-  ];
+// Orbiting dots
+function OrbitingDots({ isComplete }: { isComplete: boolean }) {
+  if (isComplete) return null;
 
   return (
-    <div className="absolute inset-0 pointer-events-none">
-      {elements.map((el, i) => (
+    <>
+      {[0, 1, 2, 3, 4, 5].map((i) => (
         <motion.div
           key={i}
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ 
-            opacity: progress >= el.threshold ? 1 : 0,
-            scale: progress >= el.threshold ? 1 : 0.5,
+          animate={{ rotate: 360 }}
+          transition={{
+            duration: 3 + i * 0.4,
+            repeat: Infinity,
+            ease: 'linear',
           }}
-          transition={{ 
-            duration: 0.4, 
-            delay: 0.1,
-            type: 'spring',
-            stiffness: 200,
-            damping: 20,
-          }}
-          className={cn(
-            "absolute rounded bg-primary/30 backdrop-blur-sm border border-primary/20",
-            el.position
-          )}
-        />
+          className="absolute inset-0 pointer-events-none"
+        >
+          <motion.div
+            animate={{
+              opacity: [0.4, 1, 0.4],
+              scale: [0.6, 1, 0.6],
+            }}
+            transition={{
+              duration: 1.5,
+              repeat: Infinity,
+              delay: i * 0.25,
+            }}
+            className="absolute rounded-full"
+            style={{
+              width: 6,
+              height: 6,
+              top: -3,
+              left: 'calc(50% - 3px)',
+              background: i % 2 === 0 ? 'hsl(var(--primary))' : 'hsl(var(--accent))',
+              boxShadow: `0 0 8px ${i % 2 === 0 ? 'hsl(var(--primary) / 0.6)' : 'hsl(var(--accent) / 0.6)'}`,
+            }}
+          />
+        </motion.div>
       ))}
-    </div>
+    </>
   );
 }
 
-// Particle burst effect at completion
+// Completion burst particles
 function CompletionBurst({ show }: { show: boolean }) {
-  const particles = Array.from({ length: 20 }, (_, i) => ({
-    id: i,
-    angle: (i / 20) * 360,
-    delay: Math.random() * 0.2,
-    size: 4 + Math.random() * 8,
-    distance: 80 + Math.random() * 60,
-  }));
-
   if (!show) return null;
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-visible">
-      {particles.map((p) => (
-        <motion.div
-          key={p.id}
-          initial={{ 
-            opacity: 1, 
-            scale: 0,
-            x: '50%',
-            y: '50%',
-          }}
-          animate={{ 
-            opacity: [1, 1, 0],
-            scale: [0, 1, 0.5],
-            x: `calc(50% + ${Math.cos(p.angle * Math.PI / 180) * p.distance}px)`,
-            y: `calc(50% + ${Math.sin(p.angle * Math.PI / 180) * p.distance}px)`,
-          }}
-          transition={{ 
-            duration: 0.8, 
-            delay: p.delay,
-            ease: 'easeOut',
-          }}
-          className="absolute rounded-full bg-primary"
-          style={{ 
-            width: p.size, 
-            height: p.size,
-            left: -p.size / 2,
-            top: -p.size / 2,
-          }}
-        />
-      ))}
+    <div className="absolute inset-0 pointer-events-none">
+      {Array.from({ length: 16 }, (_, i) => {
+        const angle = (i / 16) * 360;
+        const dist = 60 + Math.random() * 40;
+        return (
+          <motion.div
+            key={i}
+            initial={{ opacity: 1, scale: 0, x: 0, y: 0 }}
+            animate={{
+              opacity: [1, 0.8, 0],
+              scale: [0, 1.2, 0.3],
+              x: Math.cos((angle * Math.PI) / 180) * dist,
+              y: Math.sin((angle * Math.PI) / 180) * dist,
+            }}
+            transition={{ duration: 0.7, delay: Math.random() * 0.15, ease: 'easeOut' }}
+            className="absolute left-1/2 top-1/2 rounded-full"
+            style={{
+              width: 4 + Math.random() * 6,
+              height: 4 + Math.random() * 6,
+              marginLeft: -3,
+              marginTop: -3,
+              background: i % 2 === 0 ? 'hsl(var(--primary))' : 'hsl(var(--accent))',
+              boxShadow: `0 0 6px ${i % 2 === 0 ? 'hsl(var(--primary) / 0.5)' : 'hsl(var(--accent) / 0.5)'}`,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -199,8 +140,7 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
   const [progress, setProgress] = useState(0);
   const [showBurst, setShowBurst] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
-  
-  // Calculate progress based on build phase
+
   useEffect(() => {
     if (!isGenerating) {
       setProgress(0);
@@ -208,15 +148,13 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
       setIsComplete(false);
       return;
     }
-    
+
     const targetProgress = ((buildPhase + 1) / phases.length) * 100;
-    
-    // Animate to target
+
     const interval = setInterval(() => {
-      setProgress(prev => {
+      setProgress((prev) => {
         const diff = targetProgress - prev;
         if (Math.abs(diff) < 1) {
-          // Check if complete
           if (targetProgress >= 100 && !isComplete) {
             setIsComplete(true);
             setShowBurst(true);
@@ -224,151 +162,148 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
           }
           return targetProgress;
         }
-        return prev + diff * 0.1;
+        return prev + diff * 0.12;
       });
-    }, 50);
-    
+    }, 40);
+
     return () => clearInterval(interval);
   }, [isGenerating, buildPhase, phases.length, isComplete, onBuildComplete]);
-  
+
   return (
     <motion.div
       key="building"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 1.1 }}
+      exit={{ opacity: 0, scale: 1.05 }}
       className="relative z-10 h-full flex flex-col items-center justify-center p-6"
     >
-      {/* Central orb with static effect and building UI */}
-      <div className="relative mb-12">
-        {/* Outer glow ring */}
+      {/* Central orb */}
+      <div className="relative mb-12" style={{ width: 160, height: 160 }}>
+        {/* Ambient glow */}
         <motion.div
-          animate={{ 
-            scale: [1, 1.1, 1],
-            opacity: [0.5, 0.8, 0.5],
+          animate={{
+            scale: [1, 1.15, 1],
+            opacity: [0.4, 0.7, 0.4],
           }}
-          transition={{ 
-            duration: 2, 
-            repeat: Infinity,
-            ease: "easeInOut",
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute -inset-6 rounded-full"
+          style={{
+            background: 'radial-gradient(circle, hsl(var(--primary) / 0.25), hsl(var(--accent) / 0.15), transparent 70%)',
           }}
-          className="absolute inset-0 -m-4 rounded-full bg-gradient-to-r from-primary/30 via-accent/30 to-primary/30 blur-xl"
         />
-        
-        {/* Main orb container */}
-        <motion.div
-          animate={{ 
-            rotate: isComplete ? 0 : [0, 360],
-          }}
-          transition={{ 
-            rotate: { duration: 20, repeat: Infinity, ease: "linear" },
-          }}
-          className="w-40 h-40 rounded-full bg-gradient-conic from-primary via-accent to-primary p-1 relative"
-        >
-          {/* Inner content */}
-          <div className="w-full h-full rounded-full bg-background flex items-center justify-center relative overflow-hidden">
-            {/* Static noise overlay */}
-            <StaticNoiseCanvas progress={progress} isActive={isGenerating && !isComplete} />
-            
-            {/* Building UI elements that appear as static clears */}
-            <BuildingUIElements progress={progress} />
-            
-            {/* VYBE icon that reveals as static clears */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ 
-                opacity: Math.min(1, progress / 50),
-                scale: 0.8 + (progress / 100) * 0.2,
-              }}
-              className="relative z-10"
-            >
-              <VybeMiniIcon size={60} showSparkles={isComplete} />
-            </motion.div>
-            
-            {/* Completion burst */}
-            <CompletionBurst show={showBurst} />
-          </div>
-        </motion.div>
-        
-        {/* Orbiting particles */}
-        {!isComplete && [...Array(6)].map((_, i) => (
+
+        {/* Progress ring (circular arc) */}
+        <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 160 160">
+          {/* Track */}
+          <circle
+            cx="80" cy="80" r="76"
+            fill="none"
+            stroke="hsl(var(--muted))"
+            strokeWidth="3"
+            opacity={0.3}
+          />
+          {/* Progress arc */}
+          <motion.circle
+            cx="80" cy="80" r="76"
+            fill="none"
+            stroke="url(#progressGrad)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray={2 * Math.PI * 76}
+            strokeDashoffset={2 * Math.PI * 76 * (1 - progress / 100)}
+            style={{ filter: 'drop-shadow(0 0 4px hsl(var(--primary) / 0.5))' }}
+          />
+          <defs>
+            <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="hsl(var(--primary))" />
+              <stop offset="100%" stopColor="hsl(var(--accent))" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        {/* Spinning rings effect */}
+        <ProgressRings progress={progress} />
+
+        {/* Inner orb background */}
+        <div className="absolute inset-2 rounded-full bg-background border border-border/50 overflow-hidden flex items-center justify-center">
+          {/* Inner gradient that intensifies with progress */}
           <motion.div
-            key={i}
-            animate={{ rotate: 360 }}
-            transition={{ 
-              duration: 4 + i * 0.5, 
-              repeat: Infinity, 
-              ease: "linear",
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: `radial-gradient(circle at 40% 40%, hsl(var(--primary) / ${0.08 + (progress / 100) * 0.12}), transparent 60%)`,
             }}
-            className="absolute inset-0"
-            style={{ transform: `rotate(${i * 60}deg)` }}
+          />
+
+          {/* VYBE icon reveal */}
+          <motion.div
+            animate={{
+              opacity: Math.min(1, progress / 40),
+              scale: 0.85 + (progress / 100) * 0.15,
+            }}
+            transition={{ duration: 0.3 }}
+            className="relative z-10"
           >
-            <motion.div
-              animate={{ 
-                scale: [0.5, 1, 0.5],
-                opacity: [0.3, 1, 0.3],
-              }}
-              transition={{ 
-                duration: 1.5, 
-                repeat: Infinity, 
-                delay: i * 0.2,
-              }}
-              className="absolute -top-2 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full"
-              style={{
-                background: i % 2 === 0 ? 'hsl(var(--primary))' : 'hsl(var(--accent))',
-              }}
-            />
+            <VybeMiniIcon size={56} showSparkles={isComplete} />
           </motion.div>
-        ))}
+        </div>
+
+        {/* Orbiting dots */}
+        <OrbitingDots isComplete={isComplete} />
+
+        {/* Completion burst */}
+        <CompletionBurst show={showBurst} />
       </div>
-      
-      {/* Build phases */}
-      <div className="space-y-3 w-full max-w-sm">
+
+      {/* Build phases list */}
+      <div className="space-y-2.5 w-full max-w-sm">
         {phases.map((phase, index) => {
           const Icon = phase.icon;
           const isActive = buildPhase === index;
           const isCompletePhase = buildPhase > index;
-          
+
           return (
             <motion.div
               key={phase.label}
               initial={{ opacity: 0, x: -20 }}
-              animate={{ 
+              animate={{
                 opacity: isActive || isCompletePhase ? 1 : 0.3,
                 x: 0,
               }}
               transition={{ delay: index * 0.05 }}
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl transition-all duration-300",
-                isActive && "bg-primary/10 border border-primary/30 scale-[1.02]",
-                isCompletePhase && "text-primary"
+                'flex items-center gap-3 p-2.5 rounded-xl transition-all duration-300',
+                isActive && 'bg-primary/10 border border-primary/20',
+                isCompletePhase && 'text-primary'
               )}
             >
-              <div className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300",
-                isActive && "bg-primary text-primary-foreground shadow-lg shadow-primary/30",
-                isCompletePhase && "bg-primary/20 text-primary",
-                !isActive && !isCompletePhase && "bg-muted text-muted-foreground"
-              )}>
+              <div
+                className={cn(
+                  'w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300',
+                  isActive && 'bg-primary text-primary-foreground shadow-md shadow-primary/20',
+                  isCompletePhase && 'bg-primary/20 text-primary',
+                  !isActive && !isCompletePhase && 'bg-muted text-muted-foreground'
+                )}
+              >
                 {isCompletePhase ? (
                   <Check className="h-4 w-4" />
                 ) : (
-                  <Icon className={cn("h-4 w-4", isActive && "animate-pulse")} />
+                  <Icon className={cn('h-4 w-4', isActive && 'animate-pulse')} />
                 )}
               </div>
-              <span className={cn(
-                "text-sm font-medium",
-                isActive && "text-foreground font-semibold",
-                isCompletePhase && "text-foreground/80",
-                !isActive && !isCompletePhase && "text-foreground/40"
-              )}>
+              <span
+                className={cn(
+                  'text-sm font-medium flex-1',
+                  isActive && 'text-foreground font-semibold',
+                  isCompletePhase && 'text-foreground/80',
+                  !isActive && !isCompletePhase && 'text-foreground/40'
+                )}
+              >
                 {phase.label}
               </span>
               {isActive && (
                 <motion.div
                   animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  className="ml-auto"
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                 >
                   <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full" />
                 </motion.div>
@@ -377,15 +312,15 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
           );
         })}
       </div>
-      
-      {/* Progress indicator */}
+
+      {/* Progress percentage */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
+        transition={{ delay: 0.3 }}
         className="mt-6 text-center"
       >
-        <motion.span 
+        <motion.span
           className="text-2xl font-bold text-primary tabular-nums"
           animate={isComplete ? { scale: [1, 1.2, 1] } : {}}
           transition={{ duration: 0.4 }}
