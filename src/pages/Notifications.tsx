@@ -146,7 +146,7 @@ export default function NotificationsPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full mb-5 bg-card/70 backdrop-blur-md border border-border/30 p-1 h-11 rounded-xl">
+          <TabsList className="w-full mb-5 bg-card/90 border border-border/30 p-1 h-11 rounded-xl">
             <TabsTrigger 
               value="all" 
               className="flex-1 h-full rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
@@ -195,7 +195,7 @@ export default function NotificationsPage() {
                   {unreadNotifications.length > 0 && (
                     <div className="mb-2">
                       <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">New</p>
-                      <div className="rounded-2xl bg-card/80 backdrop-blur-md border border-primary/10 overflow-hidden">
+                      <div className="rounded-2xl bg-card/95 border border-primary/10 overflow-hidden">
                         {unreadNotifications.map((notification, idx) => (
                           <NotificationRow
                             key={notification.id}
@@ -214,7 +214,7 @@ export default function NotificationsPage() {
                       {unreadNotifications.length > 0 && (
                         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">Earlier</p>
                       )}
-                      <div className="rounded-2xl bg-card/80 backdrop-blur-md overflow-hidden">
+                      <div className="rounded-2xl bg-card/95 overflow-hidden">
                         {readNotifications.map((notification, idx) => (
                           <NotificationRow
                             key={notification.id}
