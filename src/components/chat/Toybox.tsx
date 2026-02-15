@@ -17,10 +17,13 @@ import {
   Settings,
   Shield,
   SmilePlus,
-  Package
+  Package,
+  Lock,
+  Crown
 } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useUserRole } from '@/hooks/useModeration';
+import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { Button } from '@/components/ui/button';
 import { 
   Popover,
@@ -34,6 +37,7 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import { GifPicker } from './GifPicker';
+import { UpgradeButton } from '@/components/premium/UpgradeButton';
 import { cn } from '@/lib/utils';
 
 interface ToyboxProps {
@@ -89,6 +93,7 @@ export const Toybox = memo(function Toybox({
   hasBusinessProfile,
 }: ToyboxProps) {
   const { data: userRole } = useUserRole();
+  const { isPremium } = usePremiumStatus();
   const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
@@ -97,6 +102,7 @@ export const Toybox = memo(function Toybox({
   const [showEmojis, setShowEmojis] = useState(false);
   const [selectedEmojiCategory, setSelectedEmojiCategory] = useState<keyof typeof EMOJI_CATEGORIES>('Smileys');
   const [showDMFeatures, setShowDMFeatures] = useState(false);
+  const [showPremiumPrompt, setShowPremiumPrompt] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
@@ -205,13 +211,22 @@ export const Toybox = memo(function Toybox({
     }] : []),
   ];
 
-  const dmFeatures = [
+  const handlePremiumDMFeature = useCallback((callback?: () => void) => {
+    if (isPremium) {
+      handleDMFeatureClick(callback);
+    } else {
+      setShowPremiumPrompt(true);
+    }
+  }, [isPremium, handleDMFeatureClick]);
+
+  const dmFeatures: { icon: any; label: string; description: string; onClick: () => void; color: string; premium?: boolean }[] = [
     {
       icon: Ghost,
       label: 'Vanish Threads',
       description: 'Messages auto-delete 👻',
-      onClick: () => handleDMFeatureClick(onOpenVanishThreads),
+      onClick: () => handlePremiumDMFeature(onOpenVanishThreads),
       color: 'text-purple-500',
+      premium: true,
     },
     {
       icon: Pin,
@@ -224,8 +239,9 @@ export const Toybox = memo(function Toybox({
       icon: Clock,
       label: 'Schedule Message',
       description: 'Send later 📅',
-      onClick: () => handleDMFeatureClick(onOpenScheduleMessage),
+      onClick: () => handlePremiumDMFeature(onOpenScheduleMessage),
       color: 'text-blue-500',
+      premium: true,
     },
     {
       icon: Settings,
@@ -384,20 +400,53 @@ export const Toybox = memo(function Toybox({
                 <X className="h-4 w-4" />
               </Button>
             </div>
+            {/* Premium upgrade prompt */}
+            <AnimatePresence>
+              {showPremiumPrompt && !isPremium && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 mb-2">
+                    <Crown className="h-5 w-5 text-primary shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold">Premium Feature</p>
+                      <p className="text-[10px] text-muted-foreground">Unlock this and 40+ perks</p>
+                    </div>
+                    <UpgradeButton label="Upgrade" size="sm" variant="default" className="text-xs h-7 px-3" />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="space-y-2">
-              {dmFeatures.map(({ icon: Icon, label, description, onClick, color }) => (
+              {dmFeatures.map(({ icon: Icon, label, description, onClick, color, premium }) => (
                 <motion.button
                   key={label}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={onClick}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left"
+                  className={cn(
+                    "w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left",
+                    premium && !isPremium && "opacity-70"
+                  )}
                 >
-                  <div className={cn("p-2 rounded-lg bg-background", color)}>
+                  <div className={cn("p-2 rounded-lg bg-background relative", color)}>
                     <Icon className="h-5 w-5" />
+                    {premium && !isPremium && (
+                      <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                        <Lock className="h-2 w-2 text-primary-foreground" />
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">{label}</p>
+                    <p className="font-medium text-sm flex items-center gap-1.5">
+                      {label}
+                      {premium && !isPremium && (
+                        <Crown className="h-3 w-3 text-primary" />
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground">{description}</p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
