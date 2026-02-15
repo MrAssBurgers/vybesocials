@@ -65,7 +65,7 @@ const defaultSettings: BadgeSettings = {
 };
 
 // ── Item Card (memoized for perf) ───────────────────────────────
-const ItemCard = memo(function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, isRestricted }: {
+const ItemCard = memo(function ItemCard({ item, isEquipped, isSelected, onSelect, tabId, displayName, isRestricted, justEquipped }: {
   item: LockerItem;
   isEquipped: boolean;
   isSelected: boolean;
@@ -73,6 +73,7 @@ const ItemCard = memo(function ItemCard({ item, isEquipped, isSelected, onSelect
   tabId: TabId;
   displayName: string;
   isRestricted?: boolean;
+  justEquipped?: boolean;
 }) {
   const color = tabId === 'colors' ? NAME_COLOR_MAP[item.reward_name] : undefined;
   const isGradient = color?.startsWith('linear');
@@ -88,6 +89,7 @@ const ItemCard = memo(function ItemCard({ item, isEquipped, isSelected, onSelect
       className={cn(
         "relative flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border transition-all duration-150 active:scale-[0.97]",
         "backdrop-blur-xl bg-card/30",
+        justEquipped && "animate-[equip-flash_0.6s_ease-out]",
         isSelected
           ? "border-primary/60 bg-primary/10 shadow-lg shadow-primary/10"
           : item.unlocked && !isRestricted
@@ -291,6 +293,8 @@ export function ProfileLocker() {
     }
   };
 
+  const [justEquipped, setJustEquipped] = useState<string | null>(null);
+
   const handleEquip = useCallback((type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme', item: LockerItem) => {
     if (!item.unlocked && !hasRoleUnlock(item.reward_name)) return;
     if (equipItem.isPending) return;
@@ -313,7 +317,13 @@ export function ProfileLocker() {
       {
         onSuccess: () => {
           haptics.success();
-          toast.success(newValue ? `${item.reward_name} equipped!` : `Unequipped`);
+          if (newValue) {
+            setJustEquipped(item.id);
+            setTimeout(() => setJustEquipped(null), 1200);
+            toast.success(`✨ ${item.reward_name} equipped!`, { duration: 2000 });
+          } else {
+            toast.success(`Unequipped`, { duration: 1500 });
+          }
         },
         onError: () => {
           haptics.error();
@@ -442,6 +452,7 @@ export function ProfileLocker() {
                   tabId={activeTab}
                   displayName={displayName}
                   isRestricted={activeTab === 'colors' ? isColorRestricted(item.reward_name) : false}
+                  justEquipped={justEquipped === item.id}
                 />
               ))}
             </div>
