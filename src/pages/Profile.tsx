@@ -33,6 +33,7 @@ import { ProfileLocker } from '@/components/profile/ProfileLocker';
 import { useLockerItems } from '@/hooks/useLockerItems';
 import { UpgradeButton } from '@/components/premium/UpgradeButton';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
+import { GiftPremiumButton } from '@/components/premium/GiftPremiumButton';
 
 import {
   NAME_COLOR_MAP, THEME_GRADIENTS, THEME_IMAGES, THEME_ACCENTS,
@@ -358,6 +359,13 @@ export default function ProfilePage() {
                       <MessageCircle className="h-4 w-4" />
                     </Button>
                   </motion.div>
+
+                  {profile.user_id && (
+                    <GiftPremiumButton
+                      targetUserId={profile.user_id}
+                      targetUsername={profile.username}
+                    />
+                  )}
                   
                   {isModOrAdmin && (
                     <DropdownMenu>

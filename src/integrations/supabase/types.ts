@@ -2769,6 +2769,33 @@ export type Database = {
           },
         ]
       }
+      gifted_premium: {
+        Row: {
+          created_at: string
+          gifted_by: string
+          id: string
+          is_active: boolean
+          revoked_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          gifted_by: string
+          id?: string
+          is_active?: boolean
+          revoked_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          gifted_by?: string
+          id?: string
+          is_active?: boolean
+          revoked_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       group_call_participants: {
         Row: {
           call_id: string
@@ -7502,6 +7529,7 @@ export type Database = {
         Args: { p_content_type?: string; p_user_id: string }
         Returns: Json
       }
+      has_gifted_premium: { Args: { p_user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
