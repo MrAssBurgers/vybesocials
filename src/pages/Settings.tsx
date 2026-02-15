@@ -13,6 +13,7 @@ import { SettingsNav, SettingsNavVertical, SettingsCategory } from '@/components
 import { ProfileSection } from '@/components/settings/ProfileSection';
 import { PrivacySection } from '@/components/settings/PrivacySection';
 import { ConnectionsSection } from '@/components/settings/ConnectionsSection';
+import { SubscriptionSection } from '@/components/settings/SubscriptionSection';
 import { AppearanceSection } from '@/components/settings/AppearanceSection';
 import { ThemesSection } from '@/components/settings/ThemesSection';
 import { FeedbackSection } from '@/components/settings/FeedbackSection';
@@ -44,6 +45,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
       profile: 'settingsNav.profileSettings',
       privacy: 'settingsNav.privacyAndSecurity',
       connections: 'settingsNav.connectedAccounts',
+      subscription: 'settingsNav.subscription',
       appearance: 'settingsNav.appearance',
       themes: 'settingsNav.customThemes',
       feedback: 'settingsNav.feedbackAndSounds',
@@ -63,6 +65,8 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
         return <PrivacySection />;
       case 'connections':
         return <ConnectionsSection />;
+      case 'subscription':
+        return <SubscriptionSection />;
       case 'appearance':
         return <AppearanceSection />;
       case 'themes':
