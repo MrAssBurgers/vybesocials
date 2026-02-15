@@ -109,9 +109,9 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0, tutorialId: 'sidebar-home' },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0, tutorialId: 'sidebar-explore' },
     { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages, tutorialId: 'sidebar-messages' },
-    { icon: Users, label: 'Community', path: '/community', badge: 0, tutorialId: 'sidebar-community' },
-    { icon: ShoppingBag, label: 'Market', path: '/market', badge: 0, tutorialId: 'sidebar-market' },
-    { icon: Calendar, label: 'Events', path: '/events', badge: 0, tutorialId: 'sidebar-events' },
+    { icon: Users, labelKey: 'nav.communities', path: '/community', badge: 0, tutorialId: 'sidebar-community' },
+    { icon: ShoppingBag, labelKey: 'sidebar.market', path: '/market', badge: 0, tutorialId: 'sidebar-market' },
+    { icon: Calendar, labelKey: 'sidebar.events', path: '/events', badge: 0, tutorialId: 'sidebar-events' },
   ];
 
   const handleSignOut = async () => {
@@ -205,7 +205,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                   />
                   {isOwner(profile.username) && <OwnerBadge />}
                 </p>
-                <p className="text-xs text-muted-foreground">View profile</p>
+                <p className="text-xs text-muted-foreground">{t('sidebar.viewProfile')}</p>
               </div>
             </Link>
             
@@ -217,7 +217,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                 className="relative flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
               >
                 <Bell className="h-4 w-4" />
-                <span className="text-xs font-medium">Alerts</span>
+                <span className="text-xs font-medium">{t('sidebar.alerts')}</span>
                 {unreadNotifications > 0 && (
                   <span className="h-4 min-w-4 px-1 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold">
                     {unreadNotifications > 9 ? '9+' : unreadNotifications}
@@ -231,7 +231,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                 className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
               >
                 <Trophy className="h-4 w-4" />
-                <span className="text-xs font-medium">Quests</span>
+                <span className="text-xs font-medium">{t('sidebar.quests')}</span>
               </Link>
               
               <Link
@@ -240,7 +240,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                 className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
               >
                 <Gift className="h-4 w-4" />
-                <span className="text-xs font-medium">Referrals</span>
+                <span className="text-xs font-medium">{t('sidebar.referrals')}</span>
               </Link>
               
               <Link
@@ -249,7 +249,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                 className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
               >
                 <Settings className="h-4 w-4" />
-                <span className="text-xs font-medium">Settings</span>
+                <span className="text-xs font-medium">{t('nav.settings')}</span>
               </Link>
             </div>
           </div>
@@ -257,7 +257,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
 
         {!collapsed && !profile && (
           <div className="mx-3 mb-3 p-3 rounded-xl liquid-glass-subtle">
-            <p className="text-sm text-muted-foreground text-center">Not signed in</p>
+            <p className="text-sm text-muted-foreground text-center">{t('sidebar.notSignedIn')}</p>
           </div>
         )}
 
@@ -274,7 +274,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                   </Avatar>
                 </Link>
               </TooltipTrigger>
-              <TooltipContent side="right">View Profile</TooltipContent>
+              <TooltipContent side="right">{t('sidebar.viewProfile')}</TooltipContent>
             </Tooltip>
             
             {/* Collapsed action buttons */}
@@ -294,7 +294,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                     )}
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">Notifications</TooltipContent>
+                <TooltipContent side="right">{t('nav.notifications')}</TooltipContent>
               </Tooltip>
 
               <Tooltip delayDuration={0}>
@@ -307,7 +307,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                     <Trophy className="h-4 w-4" />
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">Challenges</TooltipContent>
+                <TooltipContent side="right">{t('sidebar.quests')}</TooltipContent>
               </Tooltip>
 
               <Tooltip delayDuration={0}>
@@ -320,7 +320,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                     <Gift className="h-4 w-4" />
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">Referrals</TooltipContent>
+                <TooltipContent side="right">{t('sidebar.referrals')}</TooltipContent>
               </Tooltip>
               
               <Tooltip delayDuration={0}>
@@ -333,7 +333,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                     <Settings className="h-4 w-4" />
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">Settings</TooltipContent>
+                <TooltipContent side="right">{t('nav.settings')}</TooltipContent>
               </Tooltip>
             </div>
           </div>
@@ -351,10 +351,10 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               <div className="my-3 h-px" />
               {!collapsed && (
                 <p className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Moderation
+                  {t('sidebar.moderation')}
                 </p>
               )}
-              {renderNavItem({ icon: Shield, label: 'Admin Panel', path: '/admin', badge: 0 })}
+              {renderNavItem({ icon: Shield, labelKey: 'sidebar.adminPanel', path: '/admin', badge: 0 })}
             </>
           )}
         </nav>
@@ -386,10 +386,10 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           <div className="px-3 py-2">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Hubs
+                {t('sidebar.hubs')}
               </span>
               <Link to="/community" className="text-xs text-primary hover:underline">
-                View all
+                {t('sidebar.viewAll')}
               </Link>
             </div>
             {myServers.length > 0 ? (
@@ -414,7 +414,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                 ))}
                 {myServers.length > 4 && (
                   <Link to="/community" className="block text-center text-xs text-muted-foreground hover:text-foreground py-1">
-                    +{myServers.length - 4} more
+                    {t('sidebar.more', { count: myServers.length - 4 })}
                   </Link>
                 )}
               </div>
@@ -422,10 +422,10 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               <div className="p-3 rounded-xl liquid-glass-subtle text-center">
                 <Users className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
                 <p className="text-xs text-muted-foreground">
-                  You haven't joined any hubs yet
+                  {t('sidebar.noHubs')}
                 </p>
                 <Link to="/community" className="text-xs text-primary hover:underline mt-1 block">
-                  Browse hubs
+                  {t('sidebar.browseHubs')}
                 </Link>
               </div>
             )}
@@ -436,8 +436,8 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         {!collapsed && (
           <div className="px-3 pb-4 pt-1">
             <div className="flex items-center justify-center gap-4 text-[10px] text-muted-foreground">
-              <a href="/terms" className="hover:text-foreground transition-colors">Terms</a>
-              <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
+              <a href="/terms" className="hover:text-foreground transition-colors">{t('sidebar.terms')}</a>
+              <a href="/privacy" className="hover:text-foreground transition-colors">{t('sidebar.privacy')}</a>
               <span className="text-muted-foreground/50">v1.2</span>
             </div>
           </div>

@@ -146,29 +146,29 @@ export function DesktopRightSidebar() {
   const getContextCard = () => {
     if (location.pathname === '/clips' || location.pathname.startsWith('/clips')) {
       return {
-        title: 'Current Sound',
+        title: t('sidebar.currentSound'),
         icon: isMuted ? VolumeX : Volume2,
         action: () => setIsMuted(!isMuted),
-        actionLabel: isMuted ? 'Unmute' : 'Mute',
+        actionLabel: isMuted ? t('sidebar.unmute') : t('sidebar.mute'),
       };
     }
     if (location.pathname === '/market' || location.pathname.startsWith('/market')) {
       return {
-        title: 'Saved Listings',
+        title: t('sidebar.savedListings'),
         icon: Bookmark,
         link: '/market?filter=saved',
       };
     }
     if (location.pathname === '/events' || location.pathname.startsWith('/events')) {
       return {
-        title: 'Your RSVPs',
+        title: t('sidebar.yourRsvps'),
         icon: Calendar,
         link: '/events?filter=rsvp',
       };
     }
     if (location.pathname === '/explore' || location.pathname.startsWith('/explore')) {
       return {
-        title: 'Suggested Creators',
+        title: t('sidebar.suggestedCreators'),
         icon: Users,
       };
     }
@@ -193,7 +193,7 @@ export function DesktopRightSidebar() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                Online ({onlineFriends.length})
+                {t('sidebar.online')} ({onlineFriends.length})
               </span>
             </div>
             {friendsLoading ? (
@@ -211,12 +211,12 @@ export function DesktopRightSidebar() {
             ) : friends && friends.length > 0 ? (
               <div className="p-3 rounded-xl liquid-glass-subtle text-center">
                 <Users className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
-                <p className="text-xs text-muted-foreground">No friends online</p>
+                <p className="text-xs text-muted-foreground">{t('sidebar.noFriendsOnline')}</p>
               </div>
             ) : (
               <div className="p-3 rounded-xl liquid-glass-subtle text-center">
                 <Users className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
-                <p className="text-xs text-muted-foreground">No friends yet</p>
+                <p className="text-xs text-muted-foreground">{t('sidebar.noFriendsYet')}</p>
               </div>
             )}
           </div>
@@ -228,10 +228,10 @@ export function DesktopRightSidebar() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Recent Chats
+                {t('sidebar.recentChats')}
               </span>
               <Link to="/messages" className="text-xs text-primary hover:underline">
-                View all
+                {t('sidebar.viewAll')}
               </Link>
             </div>
             {conversationsLoading ? (
@@ -275,10 +275,10 @@ export function DesktopRightSidebar() {
                         {chat.isTyping ? (
                           <span className="text-primary flex items-center gap-1">
                             <TypingIndicator size="sm" />
-                            <span className="font-medium">typing</span>
+                            <span className="font-medium">{t('sidebar.typing')}</span>
                           </span>
                         ) : (
-                          chat.lastMessage || 'No messages yet'
+                          chat.lastMessage || t('sidebar.noMessagesYet')
                         )}
                       </p>
                     </div>
@@ -288,7 +288,7 @@ export function DesktopRightSidebar() {
             ) : (
               <div className="p-3 rounded-xl liquid-glass-subtle text-center">
                 <MessageCircle className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
-                <p className="text-xs text-muted-foreground">No chats yet</p>
+                <p className="text-xs text-muted-foreground">{t('sidebar.noChatsYet')}</p>
               </div>
             )}
           </div>
@@ -299,7 +299,7 @@ export function DesktopRightSidebar() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" /> Trending
+                <TrendingUp className="h-3 w-3" /> {t('sidebar.trending')}
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -319,10 +319,10 @@ export function DesktopRightSidebar() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                <ShoppingBag className="h-3 w-3" /> Market
+                <ShoppingBag className="h-3 w-3" /> {t('sidebar.market')}
               </span>
               <Link to="/market" className="text-xs text-primary hover:underline">
-                Browse
+                {t('sidebar.browse')}
               </Link>
             </div>
             {listingsLoading ? (
@@ -349,7 +349,7 @@ export function DesktopRightSidebar() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{item.title}</p>
                       <p className="text-xs text-primary font-semibold">
-                        {item.price === 0 ? 'Free' : `$${item.price}`}
+                        {item.price === 0 ? t('sidebar.free') : `$${item.price}`}
                       </p>
                     </div>
                   </Link>
@@ -358,7 +358,7 @@ export function DesktopRightSidebar() {
             ) : (
               <div className="p-3 rounded-xl liquid-glass-subtle text-center">
                 <ShoppingBag className="h-4 w-4 mx-auto text-foreground/60 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] mb-1" />
-                <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">No listings yet</p>
+                <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">{t('sidebar.noListingsYet')}</p>
               </div>
             )}
           </div>
@@ -370,10 +370,10 @@ export function DesktopRightSidebar() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wider flex items-center gap-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
                 <Calendar className="h-3 w-3 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" /> 
-                <span>Upcoming</span>
+                <span>{t('sidebar.upcoming')}</span>
               </span>
               <Link to="/events" className="text-xs text-primary hover:underline drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-                See all
+                {t('sidebar.seeAll')}
               </Link>
             </div>
             {eventsLoading ? (
@@ -392,7 +392,7 @@ export function DesktopRightSidebar() {
                     </p>
                     {event.user_rsvp === 'going' && (
                       <Badge variant="outline" className="mt-2 text-[10px]">
-                        RSVP'd
+                        {t('sidebar.rsvpd')}
                       </Badge>
                     )}
                   </Link>
@@ -401,7 +401,7 @@ export function DesktopRightSidebar() {
             ) : (
               <div className="p-3 rounded-xl liquid-glass-subtle text-center">
                 <Calendar className="h-4 w-4 mx-auto text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] mb-1" />
-                <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">No upcoming events</p>
+                <p className="text-xs text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">{t('sidebar.noUpcomingEvents')}</p>
               </div>
             )}
           </div>
