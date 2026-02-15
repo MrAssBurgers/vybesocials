@@ -2664,6 +2664,14 @@ img, video {
   animation: shake-wiggle 0.5s ease-out;
 }
 
+/* Equip flash animation - satisfying pulse when equipping cosmetics */
+@keyframes equip-flash {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 hsl(var(--primary) / 0.6); }
+  30% { transform: scale(1.05); box-shadow: 0 0 20px 4px hsl(var(--primary) / 0.4); }
+  60% { transform: scale(0.98); box-shadow: 0 0 8px 2px hsl(var(--primary) / 0.2); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+}
+
 /* Card from wallet - credit card sliding out of a wallet with 3D perspective */
 @keyframes card-from-wallet {
   0% {
