@@ -31,6 +31,8 @@ import { BadgeRow } from '@/components/badges';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { ProfileLocker } from '@/components/profile/ProfileLocker';
 import { useLockerItems } from '@/hooks/useLockerItems';
+import { UpgradeButton } from '@/components/premium/UpgradeButton';
+import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 
 import {
   NAME_COLOR_MAP, THEME_GRADIENTS, THEME_IMAGES, THEME_ACCENTS,
@@ -56,6 +58,7 @@ export default function ProfilePage() {
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
   const [premiumMemeBanOpen, setPremiumMemeBanOpen] = useState(false);
+  const { isPremium } = usePremiumStatus();
   
   const liveFollowerCount = useLiveFollowerCount(profile?.id);
   const { data: userBadges } = useUserBadges(profile?.id);
@@ -313,14 +316,25 @@ export default function ProfilePage() {
                 )}
               </div>
               {isOwnProfile ? (
-                <Link to="/settings">
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button variant="secondary" size="sm">
-                      <Settings className="h-4 w-4 mr-2" />
-                      Edit Profile
-                    </Button>
-                  </motion.div>
-                </Link>
+                <div className="flex gap-2">
+                  <Link to="/settings">
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button variant="secondary" size="sm">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Edit Profile
+                      </Button>
+                    </motion.div>
+                  </Link>
+                  {!isPremium && (
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <UpgradeButton
+                        label="Get Premium"
+                        variant="gradient"
+                        size="sm"
+                      />
+                    </motion.div>
+                  )}
+                </div>
               ) : (
                 <div className="flex gap-2">
                   <FriendButton userId={profile.id} size="sm" />
