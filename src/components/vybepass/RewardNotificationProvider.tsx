@@ -1,12 +1,20 @@
 import { useState, createContext, useContext, useCallback, ReactNode, useEffect } from 'react';
-import { useRealtimeChallengeRewards, ChallengeReward, useRealtimeLevelUpdates, useRealtimeChallengeProgress } from '@/hooks/useVybePass';
+import { useRealtimeChallengeRewards, ChallengeReward, useRealtimeLevelUpdates, useRealtimeChallengeProgress, useVybePassTiers } from '@/hooks/useVybePass';
 import { RewardClaimModal } from './RewardClaimModal';
+import { LevelUpModal, LevelUpReward } from './LevelUpModal';
 import { useAuth } from '@/lib/auth';
+
+interface LevelUpData {
+  oldLevel: number;
+  newLevel: number;
+  rewards: LevelUpReward[];
+}
 
 interface RewardNotificationContextType {
   pendingReward: ChallengeReward | null;
   showRewardModal: (reward: ChallengeReward) => void;
   dismissRewardModal: () => void;
+  showLevelUp: (data: LevelUpData) => void;
 }
 
 const RewardNotificationContext = createContext<RewardNotificationContextType | null>(null);
@@ -26,16 +34,18 @@ interface RewardNotificationProviderProps {
 export function RewardNotificationProvider({ children }: RewardNotificationProviderProps) {
   const [pendingReward, setPendingReward] = useState<ChallengeReward | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [levelUpData, setLevelUpData] = useState<LevelUpData | null>(null);
+  const [levelUpOpen, setLevelUpOpen] = useState(false);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
   const { profile } = useAuth();
+  const { data: tiers } = useVybePassTiers();
 
   // Check if onboarding is complete - delay popups until it is
   useEffect(() => {
     if (profile?.onboarding_completed) {
-      // Add a small delay after onboarding completes to avoid bombarding user
       const timer = setTimeout(() => {
         setIsOnboardingComplete(true);
-      }, 3000); // 3 second delay after onboarding
+      }, 3000);
       return () => clearTimeout(timer);
     } else {
       setIsOnboardingComplete(false);
@@ -43,36 +53,44 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
   }, [profile?.onboarding_completed]);
 
   const showRewardModal = useCallback((reward: ChallengeReward) => {
-    // Don't show rewards during onboarding
-    if (!isOnboardingComplete) {
-      if (import.meta.env.DEV) {
-        console.log('[RewardNotification] Skipping reward modal - onboarding not complete');
-      }
-      return;
-    }
-    
-    if (import.meta.env.DEV) {
-      console.log('[RewardNotification] Showing reward modal:', reward);
-    }
+    if (!isOnboardingComplete) return;
     setPendingReward(reward);
     setModalOpen(true);
   }, [isOnboardingComplete]);
 
   const dismissRewardModal = useCallback(() => {
     setModalOpen(false);
-    // Delay clearing reward to allow animation
     setTimeout(() => setPendingReward(null), 300);
   }, []);
 
+  const showLevelUp = useCallback((data: LevelUpData) => {
+    if (!isOnboardingComplete) return;
+    
+    // If we have tiers data, compute rewards from tiers for the levels gained
+    let rewards = data.rewards;
+    if ((!rewards || rewards.length === 0) && tiers) {
+      rewards = tiers
+        .filter(t => t.level > data.oldLevel && t.level <= data.newLevel && !t.is_premium)
+        .map(t => ({
+          level: t.level,
+          reward_type: t.reward_type,
+          reward_id: t.reward_id,
+          reward_name: t.reward_name,
+          reward_icon: t.reward_icon,
+        }));
+    }
+    
+    setLevelUpData({ ...data, rewards });
+    setLevelUpOpen(true);
+  }, [isOnboardingComplete, tiers]);
+
   // Subscribe to realtime reward updates - shows modal when challenge completes
-  useRealtimeChallengeRewards((reward) => {
-    showRewardModal(reward);
-  });
+  useRealtimeChallengeRewards(
+    (reward) => showRewardModal(reward),
+    (data) => showLevelUp(data),
+  );
 
-  // Subscribe to level updates
   useRealtimeLevelUpdates();
-
-  // Subscribe to challenge progress updates for instant UI refresh
   useRealtimeChallengeProgress();
 
   return (
@@ -81,6 +99,7 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
         pendingReward,
         showRewardModal,
         dismissRewardModal,
+        showLevelUp,
       }}
     >
       {children}
@@ -88,6 +107,13 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
         reward={pendingReward}
         open={modalOpen}
         onClose={dismissRewardModal}
+      />
+      <LevelUpModal
+        open={levelUpOpen}
+        onClose={() => setLevelUpOpen(false)}
+        oldLevel={levelUpData?.oldLevel || 1}
+        newLevel={levelUpData?.newLevel || 1}
+        rewards={levelUpData?.rewards || []}
       />
     </RewardNotificationContext.Provider>
   );

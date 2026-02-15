@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -164,12 +164,9 @@ export function useClaimReward() {
       queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile?.user_id] });
       queryClient.invalidateQueries({ queryKey: ['user-level', profile?.user_id] });
       queryClient.invalidateQueries({ queryKey: ['user-badges', profile?.user_id] });
+      queryClient.invalidateQueries({ queryKey: ['locker-items'] });
       
-      if (data.level_result?.level_up) {
-        toast.success(`🎉 Level Up! You're now level ${data.level_result.new_level}!`, {
-          duration: 5000,
-        });
-      }
+      // Level up is handled by the caller via the returned data
     },
   });
 }
@@ -179,11 +176,26 @@ export function useClaimReward() {
  * (challenge rewards, level updates, challenge progress)
  * Replaces 3 separate channels.
  */
-export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeReward) => void) {
+export function useRealtimeChallengeRewards(
+  onNewReward?: (reward: ChallengeReward) => void,
+  onLevelUp?: (data: { oldLevel: number; newLevel: number; rewards: VybePassReward[] }) => void,
+) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const callbackRef = useRef(onNewReward);
   callbackRef.current = onNewReward;
+  const levelUpRef = useRef(onLevelUp);
+  levelUpRef.current = onLevelUp;
+  const lastKnownLevel = useRef<number | null>(null);
+
+  // Track current level
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    const cached = queryClient.getQueryData<UserLevel>(['user-level', profile.user_id]);
+    if (cached) {
+      lastKnownLevel.current = cached.current_level;
+    }
+  }, [profile?.user_id, queryClient]);
 
   useEffect(() => {
     if (!profile?.user_id || !profile?.id) return;
@@ -232,8 +244,24 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
           table: 'user_levels',
           filter: `user_id=eq.${profile.user_id}`,
         },
-        () => {
+        (payload) => {
+          const newLevel = (payload.new as any)?.current_level;
+          const oldLevel = lastKnownLevel.current;
+          
           queryClient.invalidateQueries({ queryKey: ['user-level', profile.user_id] });
+          queryClient.invalidateQueries({ queryKey: ['locker-items'] });
+          
+          if (oldLevel && newLevel && newLevel > oldLevel) {
+            lastKnownLevel.current = newLevel;
+            const newRewards = (payload.new as any)?.unclaimed_rewards;
+            levelUpRef.current?.({
+              oldLevel,
+              newLevel,
+              rewards: Array.isArray(newRewards) ? newRewards : [],
+            });
+          } else if (newLevel) {
+            lastKnownLevel.current = newLevel;
+          }
         }
       )
       .on(
@@ -321,16 +349,13 @@ export function useGrantPostXP() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['user-level', profile?.user_id] });
+      queryClient.invalidateQueries({ queryKey: ['locker-items'] });
       
       toast.success(`+${data.xp_granted} XP for your ${data.content_type}!`, {
         duration: 3000,
       });
       
-      if (data.level_result?.level_up) {
-        toast.success(`🎉 Level Up! You're now level ${data.level_result.new_level}!`, {
-          duration: 5000,
-        });
-      }
+      // Level up is handled by the caller via the returned data
     },
   });
 }
