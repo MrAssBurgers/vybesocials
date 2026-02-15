@@ -27,7 +27,10 @@ export default function ClipsPage() {
   const shorts = useMemo(() => data?.pages.flatMap(page => page.posts) || [], [data]);
   
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [globalMuted, setGlobalMuted] = useState(true);
+  const [globalMuted, setGlobalMuted] = useState(() => {
+    const stored = localStorage.getItem('vybe-clips-muted');
+    return stored !== null ? stored === 'true' : true;
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -118,7 +121,11 @@ export default function ClipsPage() {
   }, [shorts]);
 
   const handleToggleMute = useCallback(() => {
-    setGlobalMuted(prev => !prev);
+    setGlobalMuted(prev => {
+      const next = !prev;
+      localStorage.setItem('vybe-clips-muted', String(next));
+      return next;
+    });
   }, []);
 
   if (isLoading) {

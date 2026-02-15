@@ -138,10 +138,10 @@ export const NanotechSwoosh = memo(forwardRef<HTMLDivElement, NanotechSwooshProp
       setPhase('settle');
     }, duration * 0.85);
 
-    // Complete animation
+    // Complete animation — keep short so rapid re-triggers aren't blocked
     const completeTimer = setTimeout(() => {
       onComplete?.();
-    }, duration + 800); // Extra time for settle effect
+    }, duration + 100);
 
     return () => {
       clearTimeout(midpointTimer);
