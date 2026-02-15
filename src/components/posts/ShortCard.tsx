@@ -194,6 +194,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     }
   }, [isHolding]);
 
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     
@@ -207,14 +209,23 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     const timeSinceLastTap = now - lastTapTime.current;
     
     if (timeSinceLastTap < 300) {
+      // Double tap detected — cancel pending single tap mute and trigger like
+      if (singleTapTimer.current) {
+        clearTimeout(singleTapTimer.current);
+        singleTapTimer.current = null;
+      }
       handleDoubleTap();
     } else {
-      if (onToggleMute) {
-        onToggleMute();
-      } else if (videoRef.current) {
-        videoRef.current.muted = !isMuted;
-        setIsMuted(!isMuted);
-      }
+      // Delay single tap action to check if a double tap follows
+      singleTapTimer.current = setTimeout(() => {
+        if (onToggleMute) {
+          onToggleMute();
+        } else if (videoRef.current) {
+          videoRef.current.muted = !isMuted;
+          setIsMuted(!isMuted);
+        }
+        singleTapTimer.current = null;
+      }, 300);
     }
     lastTapTime.current = now;
   }, [isMuted, onToggleMute, isHolding, isPlaying]);
