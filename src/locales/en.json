@@ -288,6 +288,8 @@
     "privacyDesc": "Security settings",
     "connections": "Connections",
     "connectionsDesc": "Linked accounts",
+    "subscription": "Subscription",
+    "subscriptionDesc": "Manage premium",
     "appearance": "Appearance",
     "appearanceDesc": "Look & feel",
     "themes": "Themes",
