@@ -40,19 +40,19 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
   };
 
   const getCategoryTitle = () => {
-    const titles: Record<SettingsCategory, string> = {
-      profile: 'Profile Settings',
-      privacy: 'Privacy & Security',
-      connections: 'Connected Accounts',
-      appearance: 'Appearance',
-      themes: 'Custom Themes',
-      feedback: 'Feedback & Sounds',
-      notifications: 'Notification Preferences',
-      language: 'Language & Region',
-      help: 'Help & Support',
-      developer: 'Developer Options',
+    const titleKeys: Record<SettingsCategory, string> = {
+      profile: 'settingsNav.profileSettings',
+      privacy: 'settingsNav.privacyAndSecurity',
+      connections: 'settingsNav.connectedAccounts',
+      appearance: 'settingsNav.appearance',
+      themes: 'settingsNav.customThemes',
+      feedback: 'settingsNav.feedbackAndSounds',
+      notifications: 'settingsNav.notificationPreferences',
+      language: 'settingsNav.languageAndRegion',
+      help: 'settingsNav.helpAndSupport',
+      developer: 'settingsNav.developerOptions',
     };
-    return titles[activeCategory];
+    return t(titleKeys[activeCategory]);
   };
 
   const renderContent = () => {
@@ -101,7 +101,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
             </div>
             <div className="min-w-0">
               <h1 className="text-lg sm:text-2xl font-bold truncate text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{t('settings.title')}</h1>
-              <p className="text-xs sm:text-sm text-foreground/80 truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Manage your account</p>
+              <p className="text-xs sm:text-sm text-foreground/80 truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{t('settingsNav.manageAccount')}</p>
             </div>
           </div>
         </motion.div>

@@ -17,6 +17,7 @@ import {
 import { haptics } from '@/lib/haptics';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
+import { useTranslation } from 'react-i18next';
 
 export type SettingsCategory = 
   | 'profile' 
@@ -36,22 +37,22 @@ interface SettingsNavProps {
 }
 
 const baseCategories = [
-  { id: 'profile' as const, label: 'Profile', icon: User, description: 'Your info' },
-  { id: 'privacy' as const, label: 'Privacy', icon: Lock, description: 'Security settings' },
-  { id: 'connections' as const, label: 'Connections', icon: Link2, description: 'Linked accounts' },
-  { id: 'appearance' as const, label: 'Appearance', icon: Palette, description: 'Look & feel' },
-  { id: 'themes' as const, label: 'Themes', icon: Sparkles, description: 'Custom themes' },
-  { id: 'feedback' as const, label: 'Feedback', icon: Vibrate, description: 'Haptics & sounds' },
-  { id: 'notifications' as const, label: 'Notifications', icon: Bell, description: 'Alerts' },
-  { id: 'language' as const, label: 'Language', icon: Globe, description: 'App language' },
-  { id: 'help' as const, label: 'Help', icon: HelpCircle, description: 'Support' },
+  { id: 'profile' as const, labelKey: 'settingsNav.profile', icon: User, descKey: 'settingsNav.profileDesc' },
+  { id: 'privacy' as const, labelKey: 'settingsNav.privacy', icon: Lock, descKey: 'settingsNav.privacyDesc' },
+  { id: 'connections' as const, labelKey: 'settingsNav.connections', icon: Link2, descKey: 'settingsNav.connectionsDesc' },
+  { id: 'appearance' as const, labelKey: 'settingsNav.appearance', icon: Palette, descKey: 'settingsNav.appearanceDesc' },
+  { id: 'themes' as const, labelKey: 'settingsNav.themes', icon: Sparkles, descKey: 'settingsNav.themesDesc' },
+  { id: 'feedback' as const, labelKey: 'settingsNav.feedback', icon: Vibrate, descKey: 'settingsNav.feedbackDesc' },
+  { id: 'notifications' as const, labelKey: 'settingsNav.notifications', icon: Bell, descKey: 'settingsNav.notificationsDesc' },
+  { id: 'language' as const, labelKey: 'settingsNav.language', icon: Globe, descKey: 'settingsNav.languageDesc' },
+  { id: 'help' as const, labelKey: 'settingsNav.help', icon: HelpCircle, descKey: 'settingsNav.helpDesc' },
 ];
 
 function useCategories() {
   const debugPanel = useDebugPanel();
   const showDev = import.meta.env.DEV || debugPanel?.isAdmin;
   if (showDev) {
-    return [...baseCategories, { id: 'developer' as const, label: 'Developer', icon: Code2, description: 'Dev tools' }];
+    return [...baseCategories, { id: 'developer' as const, labelKey: 'settingsNav.developer', icon: Code2, descKey: 'settingsNav.developerDesc' }];
   }
   return baseCategories;
 }
@@ -59,6 +60,7 @@ function useCategories() {
 // Mobile: Clean dropdown selector
 export function SettingsNav({ activeCategory, onCategoryChange }: SettingsNavProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { t } = useTranslation();
   const categories = useCategories();
   const activeItem = categories.find(c => c.id === activeCategory);
   const ActiveIcon = activeItem?.icon || User;
@@ -82,8 +84,8 @@ export function SettingsNav({ activeCategory, onCategoryChange }: SettingsNavPro
             <ActiveIcon className="w-5 h-5 text-primary" />
           </div>
           <div className="text-left">
-            <p className="font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{activeItem?.label}</p>
-            <p className="text-xs text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{activeItem?.description}</p>
+            <p className="font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{activeItem ? t(activeItem.labelKey) : ''}</p>
+            <p className="text-xs text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{activeItem ? t(activeItem.descKey) : ''}</p>
           </div>
         </div>
         <ChevronDown className={cn(
@@ -136,8 +138,8 @@ export function SettingsNav({ activeCategory, onCategoryChange }: SettingsNavPro
                     <cat.icon className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{cat.label}</p>
-                    <p className="text-xs text-foreground/80 truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{cat.description}</p>
+                    <p className="font-medium text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{t(cat.labelKey)}</p>
+                    <p className="text-xs text-foreground/80 truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{t(cat.descKey)}</p>
                   </div>
                   {activeCategory === cat.id && (
                     <Check className="w-4 h-4 text-primary flex-shrink-0" />
@@ -154,6 +156,7 @@ export function SettingsNav({ activeCategory, onCategoryChange }: SettingsNavPro
 
 // Horizontal nav for desktop (fits within main content area)
 export function SettingsNavVertical({ activeCategory, onCategoryChange }: SettingsNavProps) {
+  const { t } = useTranslation();
   const categories = useCategories();
   return (
     <nav className="flex flex-wrap gap-2">
@@ -173,7 +176,7 @@ export function SettingsNavVertical({ activeCategory, onCategoryChange }: Settin
           )}
         >
           <cat.icon className="w-4 h-4 flex-shrink-0" />
-          <span className="font-medium text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{cat.label}</span>
+          <span className="font-medium text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{t(cat.labelKey)}</span>
         </button>
       ))}
     </nav>
