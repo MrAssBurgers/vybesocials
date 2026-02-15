@@ -34,6 +34,7 @@ import {
 import { useShareTheme } from '@/hooks/useSharedThemes';
 import { cn } from '@/lib/utils';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
+import { useTheme } from '@/lib/theme';
 
 // Personality vibes from AI VYBE Designer - the 8 moods
 const PERSONALITY_VIBES = [
@@ -114,6 +115,7 @@ export function DesignYourVybe() {
   const generateTheme = useGenerateTheme();
   const shareTheme = useShareTheme();
   const { triggerTransition } = useThemeTransition();
+  const { setTheme: setGlobalTheme } = useTheme();
 
   const [prompt, setPrompt] = useState('');
   const [selectedPreset, setSelectedPreset] = useState<string>('classic');
@@ -219,6 +221,10 @@ export function DesignYourVybe() {
         const accentColor = preset.colorAccent || '330 80% 60%';
         
         triggerTransition(primaryColor, accentColor, () => {
+          // Sync the global ThemeProvider mode so it doesn't fight applyThemeTokens
+          const targetMode = preset.mode === 'light' ? 'light' : 'dark';
+          setGlobalTheme(targetMode);
+          
           setSelectedPreset(presetKey);
           setPreviewTheme(themeWithSettings);
           setGeneratedName(PRESET_INFO[presetKey]?.name || presetKey);
@@ -435,6 +441,7 @@ export function DesignYourVybe() {
 
   const handleReset = async () => {
     await resetTheme.mutateAsync();
+    setGlobalTheme('dark'); // Classic is dark mode
     setPreviewTheme(null);
     setGeneratedName('');
     setSelectedPreset('classic');

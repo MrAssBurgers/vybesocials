@@ -20,6 +20,7 @@ import {
 import { useImportThemeCode } from '@/hooks/useUISettings';
 import { applyThemeTokens } from '@/hooks/useCustomTheme';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
+import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -142,6 +143,7 @@ const ThemeCard = memo(function ThemeCard({
 
 export const ThemeMarketplace = memo(function ThemeMarketplace() {
   const { triggerTransition } = useThemeTransition();
+  const { setTheme: setGlobalTheme } = useTheme();
   
   // Data hooks
   const [searchQuery, setSearchQuery] = useState('');
@@ -197,6 +199,8 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
       tokens.colorPrimary || '280 70% 50%',
       tokens.colorAccent || '330 80% 60%',
       () => {
+        const targetMode = tokens.mode === 'light' ? 'light' : 'dark';
+        setGlobalTheme(targetMode);
         applyThemeTokens(tokens);
         setActiveThemeId(theme.id);
         localStorage.setItem('vybe-equipped-theme-id', theme.id);
@@ -204,7 +208,7 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
         toast.success(`Theme "${theme.theme_name}" applied!`);
       }
     );
-  }, [triggerTransition]);
+  }, [triggerTransition, setGlobalTheme]);
 
 
   // Import theme by code
