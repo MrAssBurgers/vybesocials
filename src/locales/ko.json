@@ -198,19 +198,8 @@
     "seeMore": "더 보기",
     "seeLess": "접기"
   },
-  "errors": {
-    "network": "네트워크 오류입니다. 연결을 확인해주세요.",
-    "auth": "인증 오류입니다. 다시 로그인해주세요.",
-    "notFound": "찾을 수 없습니다",
-    "serverError": "서버 오류입니다. 나중에 다시 시도해주세요."
-  },
-  "time": {
-    "now": "지금",
-    "minute": "{{count}}분",
-    "hour": "{{count}}시간",
-    "day": "{{count}}일",
-    "week": "{{count}}주",
-    "month": "{{count}}개월",
-    "year": "{{count}}년"
-  }
+  "errors": { "network": "네트워크 오류입니다. 연결을 확인해주세요.", "auth": "인증 오류입니다. 다시 로그인해주세요.", "notFound": "찾을 수 없습니다", "serverError": "서버 오류입니다. 나중에 다시 시도해주세요." },
+  "time": { "now": "지금", "minute": "{{count}}분", "hour": "{{count}}시간", "day": "{{count}}일", "week": "{{count}}주", "month": "{{count}}개월", "year": "{{count}}년" },
+  "sidebar": { "viewProfile": "프로필 보기", "alerts": "알림", "quests": "퀘스트", "referrals": "초대", "moderation": "관리", "adminPanel": "관리자 패널", "hubs": "허브", "viewAll": "전체 보기", "browseHubs": "허브 둘러보기", "noHubs": "아직 허브에 가입하지 않았습니다", "notSignedIn": "로그인하지 않음", "more": "+{{count}}개 더", "terms": "이용약관", "privacy": "개인정보", "community": "커뮤니티", "market": "마켓", "events": "이벤트", "online": "온라인", "noFriendsOnline": "온라인 친구 없음", "noFriendsYet": "아직 친구가 없습니다", "recentChats": "최근 채팅", "noMessagesYet": "아직 메시지가 없습니다", "noChatsYet": "아직 채팅이 없습니다", "trending": "인기", "browse": "둘러보기", "noListingsYet": "아직 목록이 없습니다", "upcoming": "예정", "seeAll": "모두 보기", "noUpcomingEvents": "예정된 이벤트 없음", "rsvpd": "참석 확인", "free": "무료", "currentSound": "현재 사운드", "mute": "음소거", "unmute": "음소거 해제", "savedListings": "저장된 목록", "yourRsvps": "내 참석 확인", "suggestedCreators": "추천 크리에이터", "typing": "입력 중" },
+  "settingsNav": { "profile": "프로필", "profileDesc": "내 정보", "privacy": "개인정보", "privacyDesc": "보안 설정", "connections": "연결", "connectionsDesc": "연결된 계정", "appearance": "화면", "appearanceDesc": "스타일 & 느낌", "themes": "테마", "themesDesc": "맞춤 테마", "feedback": "피드백", "feedbackDesc": "햅틱 & 사운드", "notifications": "알림", "notificationsDesc": "알림 설정", "language": "언어", "languageDesc": "앱 언어", "help": "도움말", "helpDesc": "지원", "developer": "개발자", "developerDesc": "개발 도구", "manageAccount": "계정 관리", "profileSettings": "프로필 설정", "privacyAndSecurity": "개인정보 & 보안", "connectedAccounts": "연결된 계정", "customThemes": "맞춤 테마", "feedbackAndSounds": "피드백 & 사운드", "notificationPreferences": "알림 환경설정", "languageAndRegion": "언어 & 지역", "helpAndSupport": "도움말 & 지원", "developerOptions": "개발자 옵션" }
 }

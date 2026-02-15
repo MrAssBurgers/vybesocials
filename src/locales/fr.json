@@ -241,19 +241,8 @@
     "outgoingRequests": "Demandes envoyées",
     "requestSent": "Demande envoyée"
   },
-  "errors": {
-    "network": "Erreur réseau. Vérifiez votre connexion.",
-    "auth": "Erreur d'authentification. Reconnectez-vous.",
-    "notFound": "Non trouvé",
-    "serverError": "Erreur serveur. Réessayez plus tard."
-  },
-  "time": {
-    "now": "maintenant",
-    "minute": "{{count}}min",
-    "hour": "{{count}}h",
-    "day": "{{count}}j",
-    "week": "{{count}}sem",
-    "month": "{{count}}mois",
-    "year": "{{count}}a"
-  }
+  "errors": { "network": "Erreur réseau. Vérifiez votre connexion.", "auth": "Erreur d'authentification. Reconnectez-vous.", "notFound": "Non trouvé", "serverError": "Erreur serveur. Réessayez plus tard." },
+  "time": { "now": "maintenant", "minute": "{{count}}min", "hour": "{{count}}h", "day": "{{count}}j", "week": "{{count}}sem", "month": "{{count}}mois", "year": "{{count}}a" },
+  "sidebar": { "viewProfile": "Voir le profil", "alerts": "Alertes", "quests": "Quêtes", "referrals": "Parrainages", "moderation": "Modération", "adminPanel": "Panneau admin", "hubs": "Hubs", "viewAll": "Tout voir", "browseHubs": "Parcourir les hubs", "noHubs": "Vous n'avez rejoint aucun hub", "notSignedIn": "Non connecté", "more": "+{{count}} de plus", "terms": "Conditions", "privacy": "Confidentialité", "community": "Communauté", "market": "Marché", "events": "Événements", "online": "En ligne", "noFriendsOnline": "Aucun ami en ligne", "noFriendsYet": "Pas encore d'amis", "recentChats": "Conversations récentes", "noMessagesYet": "Pas encore de messages", "noChatsYet": "Pas encore de conversations", "trending": "Tendances", "browse": "Parcourir", "noListingsYet": "Pas encore d'annonces", "upcoming": "À venir", "seeAll": "Tout voir", "noUpcomingEvents": "Pas d'événements à venir", "rsvpd": "Inscrit", "free": "Gratuit", "currentSound": "Son actuel", "mute": "Muet", "unmute": "Activer le son", "savedListings": "Annonces sauvegardées", "yourRsvps": "Vos inscriptions", "suggestedCreators": "Créateurs suggérés", "typing": "écrit" },
+  "settingsNav": { "profile": "Profil", "profileDesc": "Vos infos", "privacy": "Confidentialité", "privacyDesc": "Paramètres de sécurité", "connections": "Connexions", "connectionsDesc": "Comptes liés", "appearance": "Apparence", "appearanceDesc": "Style & aspect", "themes": "Thèmes", "themesDesc": "Thèmes personnalisés", "feedback": "Retour", "feedbackDesc": "Haptics & sons", "notifications": "Notifications", "notificationsDesc": "Alertes", "language": "Langue", "languageDesc": "Langue de l'app", "help": "Aide", "helpDesc": "Support", "developer": "Développeur", "developerDesc": "Outils dev", "manageAccount": "Gérer votre compte", "profileSettings": "Paramètres du profil", "privacyAndSecurity": "Confidentialité & Sécurité", "connectedAccounts": "Comptes connectés", "customThemes": "Thèmes personnalisés", "feedbackAndSounds": "Retour & Sons", "notificationPreferences": "Préférences de notifications", "languageAndRegion": "Langue & Région", "helpAndSupport": "Aide & Support", "developerOptions": "Options développeur" }
 }

@@ -198,19 +198,8 @@
     "seeMore": "Ver más",
     "seeLess": "Ver menos"
   },
-  "errors": {
-    "network": "Error de red. Por favor revisa tu conexión.",
-    "auth": "Error de autenticación. Por favor inicia sesión de nuevo.",
-    "notFound": "No encontrado",
-    "serverError": "Error del servidor. Por favor intenta más tarde."
-  },
-  "time": {
-    "now": "ahora",
-    "minute": "{{count}}m",
-    "hour": "{{count}}h",
-    "day": "{{count}}d",
-    "week": "{{count}}sem",
-    "month": "{{count}}mes",
-    "year": "{{count}}a"
-  }
+  "errors": { "network": "Error de red. Por favor revisa tu conexión.", "auth": "Error de autenticación. Por favor inicia sesión de nuevo.", "notFound": "No encontrado", "serverError": "Error del servidor. Por favor intenta más tarde." },
+  "time": { "now": "ahora", "minute": "{{count}}m", "hour": "{{count}}h", "day": "{{count}}d", "week": "{{count}}sem", "month": "{{count}}mes", "year": "{{count}}a" },
+  "sidebar": { "viewProfile": "Ver perfil", "alerts": "Alertas", "quests": "Misiones", "referrals": "Invitaciones", "moderation": "Moderación", "adminPanel": "Panel Admin", "hubs": "Hubs", "viewAll": "Ver todo", "browseHubs": "Explorar hubs", "noHubs": "Aún no te has unido a ningún hub", "notSignedIn": "No has iniciado sesión", "more": "+{{count}} más", "terms": "Términos", "privacy": "Privacidad", "community": "Comunidad", "market": "Mercado", "events": "Eventos", "online": "En línea", "noFriendsOnline": "Sin amigos en línea", "noFriendsYet": "Aún sin amigos", "recentChats": "Chats Recientes", "noMessagesYet": "Aún sin mensajes", "noChatsYet": "Aún sin chats", "trending": "Tendencias", "browse": "Explorar", "noListingsYet": "Aún sin anuncios", "upcoming": "Próximos", "seeAll": "Ver todos", "noUpcomingEvents": "Sin eventos próximos", "rsvpd": "Confirmado", "free": "Gratis", "currentSound": "Sonido Actual", "mute": "Silenciar", "unmute": "Activar sonido", "savedListings": "Anuncios Guardados", "yourRsvps": "Tus Confirmaciones", "suggestedCreators": "Creadores Sugeridos", "typing": "escribiendo" },
+  "settingsNav": { "profile": "Perfil", "profileDesc": "Tu info", "privacy": "Privacidad", "privacyDesc": "Config. de seguridad", "connections": "Conexiones", "connectionsDesc": "Cuentas vinculadas", "appearance": "Apariencia", "appearanceDesc": "Estilo y aspecto", "themes": "Temas", "themesDesc": "Temas personalizados", "feedback": "Retroalimentación", "feedbackDesc": "Háptica y sonidos", "notifications": "Notificaciones", "notificationsDesc": "Alertas", "language": "Idioma", "languageDesc": "Idioma de la app", "help": "Ayuda", "helpDesc": "Soporte", "developer": "Desarrollador", "developerDesc": "Herramientas dev", "manageAccount": "Administra tu cuenta", "profileSettings": "Config. de Perfil", "privacyAndSecurity": "Privacidad y Seguridad", "connectedAccounts": "Cuentas Conectadas", "customThemes": "Temas Personalizados", "feedbackAndSounds": "Retroalimentación y Sonidos", "notificationPreferences": "Preferencias de Notificaciones", "languageAndRegion": "Idioma y Región", "helpAndSupport": "Ayuda y Soporte", "developerOptions": "Opciones de Desarrollador" }
 }
