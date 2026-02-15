@@ -36,11 +36,20 @@ export function ThemeTransitionProvider({ children }: ThemeTransitionProviderPro
     accentColor = '330 80% 60%',
     onMidpoint?: () => void
   ) => {
+    // Force reset first so re-triggering always works (even if already active)
     setTransition({
-      isActive: true,
+      isActive: false,
       primaryColor,
       accentColor,
-      onMidpoint,
+    });
+    // Re-activate on next frame to guarantee AnimatePresence detects the change
+    requestAnimationFrame(() => {
+      setTransition({
+        isActive: true,
+        primaryColor,
+        accentColor,
+        onMidpoint,
+      });
     });
   }, []);
 
