@@ -27,6 +27,7 @@ import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
+import { useTheme } from '@/lib/theme';
 
 interface ThemeCardProps {
   theme: SharedTheme;
@@ -259,6 +260,7 @@ function ThemeGridSkeleton() {
 export function ThemeGallery() {
   const { profile } = useAuth();
   const { triggerTransition } = useThemeTransition();
+  const { setTheme: setGlobalTheme } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
   
@@ -292,6 +294,10 @@ export function ThemeGallery() {
     // Trigger global theme transition
     triggerTransition(primaryColor, accentColor, () => {
       try {
+        // Sync global theme mode so ThemeProvider doesn't fight the class change
+        const targetMode = theme.theme_tokens?.mode === 'light' ? 'light' : 'dark';
+        setGlobalTheme(targetMode);
+        
         applyThemeTokens(theme.theme_tokens);
         setActiveThemeId(theme.id);
         localStorage.setItem('vybe-equipped-theme-id', theme.id);
@@ -301,7 +307,7 @@ export function ThemeGallery() {
         console.error('Error applying theme:', error);
       }
     });
-  }, [triggerTransition]);
+  }, [triggerTransition, setGlobalTheme]);
 
 
   const handleLike = useCallback((themeId: string, isLiked: boolean) => {
