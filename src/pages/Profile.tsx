@@ -194,18 +194,18 @@ export default function ProfilePage() {
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto px-4 py-6 relative">
-        {/* Profile Theme - Full Page Transformation */}
-        {(themeImage || themeGradient) && (
-          <div className="absolute inset-0 -z-10 overflow-hidden rounded-2xl pointer-events-none">
-            {themeImage ? (
-              <img src={themeImage} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm scale-110" />
-            ) : (
-              <div className="absolute inset-0 opacity-40" style={{ background: themeGradient }} />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/60 to-background" />
-          </div>
-        )}
+      {/* Profile Theme - Full Page Takeover (rendered outside content container) */}
+      {(themeImage || themeGradient) && (
+        <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+          {themeImage ? (
+            <img src={themeImage} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40 blur-sm scale-110" />
+          ) : (
+            <div className="absolute inset-0 opacity-40" style={{ background: themeGradient }} />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background/80" />
+        </div>
+      )}
+      <div className="max-w-4xl mx-auto px-4 py-6 relative z-[1]">
 
         {/* Profile Header */}
         <motion.div
