@@ -28,6 +28,7 @@ import { useUserRole } from '@/hooks/useModeration';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
+import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
@@ -307,6 +308,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
+  const [premiumMemeBanOpen, setPremiumMemeBanOpen] = useState(false);
   const [deleteContentDialog, setDeleteContentDialog] = useState<{ type: 'post' | 'comment' | 'listing'; id: string } | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authPromptAction, setAuthPromptAction] = useState('');
@@ -538,6 +540,14 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                   onDeleteContentClick={(type, id) => setDeleteContentDialog({ type, id })}
                 />
               )}
+              {/* Premium meme ban - available to premium users on others' posts */}
+              {!isOwnPost && (
+                <PremiumMemeBanMenuItem
+                  userId={post.author.id}
+                  username={post.author.username}
+                  onOpen={() => setPremiumMemeBanOpen(true)}
+                />
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -553,6 +563,12 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           setMemeBanDialogOpen={setMemeBanDialogOpen}
           deleteContentDialog={deleteContentDialog}
           setDeleteContentDialog={setDeleteContentDialog}
+        />
+        <PremiumMemeBanDialog
+          userId={post.author.id}
+          username={post.author.username}
+          open={premiumMemeBanOpen}
+          onOpenChange={setPremiumMemeBanOpen}
         />
       </div>
 

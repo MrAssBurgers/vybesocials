@@ -23,6 +23,7 @@ import { useCreateConversation, useMarkConversationReadByUser } from '@/hooks/us
 import { ModBadge } from '@/components/ui/ModBadge';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
+import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useLiveFollowerCount } from '@/hooks/useLiveFollowerCount';
 import { useUserBadges, useUserPrimaryBadge } from '@/hooks/useBadges';
@@ -54,6 +55,7 @@ export default function ProfilePage() {
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
+  const [premiumMemeBanOpen, setPremiumMemeBanOpen] = useState(false);
   
   const liveFollowerCount = useLiveFollowerCount(profile?.id);
   const { data: userBadges } = useUserBadges(profile?.id);
@@ -363,6 +365,11 @@ export default function ProfilePage() {
                           onBanClick={() => setBanDialogOpen(true)}
                           onMemeBanClick={() => setMemeBanDialogOpen(true)}
                         />
+                        <PremiumMemeBanMenuItem
+                          userId={profile.id}
+                          username={profile.username}
+                          onOpen={() => setPremiumMemeBanOpen(true)}
+                        />
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
@@ -522,6 +529,14 @@ export default function ProfilePage() {
             setBanDialogOpen={setBanDialogOpen}
             memeBanDialogOpen={memeBanDialogOpen}
             setMemeBanDialogOpen={setMemeBanDialogOpen}
+          />
+        )}
+        {profile && (
+          <PremiumMemeBanDialog
+            userId={profile.id}
+            username={profile.username}
+            open={premiumMemeBanOpen}
+            onOpenChange={setPremiumMemeBanOpen}
           />
         )}
       </div>

@@ -24,6 +24,7 @@ import { ModBadge } from '@/components/ui/ModBadge';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
+import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { ShareSheet } from '@/components/share/ShareSheet';
@@ -72,6 +73,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
+  const [premiumMemeBanOpen, setPremiumMemeBanOpen] = useState(false);
   const [deleteContentDialog, setDeleteContentDialog] = useState<{ type: 'post' | 'comment' | 'listing'; id: string } | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isHolding, setIsHolding] = useState(false);
@@ -607,6 +609,13 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
                 onDeleteContentClick={(type, id) => setDeleteContentDialog({ type, id })}
               />
             )}
+            {!isOwnPost && post.author && (
+              <PremiumMemeBanMenuItem
+                userId={post.author.id}
+                username={post.author.username}
+                onOpen={() => setPremiumMemeBanOpen(true)}
+              />
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -700,6 +709,14 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           setMemeBanDialogOpen={setMemeBanDialogOpen}
           deleteContentDialog={deleteContentDialog}
           setDeleteContentDialog={setDeleteContentDialog}
+        />
+      )}
+      {post.author && (
+        <PremiumMemeBanDialog
+          userId={post.author.id}
+          username={post.author.username}
+          open={premiumMemeBanOpen}
+          onOpenChange={setPremiumMemeBanOpen}
         />
       )}
     </div>

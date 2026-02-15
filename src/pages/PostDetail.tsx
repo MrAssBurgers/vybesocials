@@ -3,6 +3,7 @@ import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, X, Loader2, Send, Smile, Pencil } from 'lucide-react';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
+import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { useUserRole } from '@/hooks/useModeration';
 import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -121,6 +122,7 @@ export default function PostDetailPage() {
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
+  const [premiumMemeBanOpen, setPremiumMemeBanOpen] = useState(false);
   const [deleteContentDialog, setDeleteContentDialog] = useState<{ type: 'post' | 'comment' | 'listing'; id: string } | null>(null);
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
@@ -410,6 +412,13 @@ export default function PostDetailPage() {
                     onDeleteContentClick={(type, id) => setDeleteContentDialog({ type, id })}
                   />
                 )}
+                {!isOwnPost && (
+                  <PremiumMemeBanMenuItem
+                    userId={post.author.id}
+                    username={post.author.username}
+                    onOpen={() => setPremiumMemeBanOpen(true)}
+                  />
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -424,6 +433,12 @@ export default function PostDetailPage() {
               setMemeBanDialogOpen={setMemeBanDialogOpen}
               deleteContentDialog={deleteContentDialog}
               setDeleteContentDialog={setDeleteContentDialog}
+            />
+            <PremiumMemeBanDialog
+              userId={post.author.id}
+              username={post.author.username}
+              open={premiumMemeBanOpen}
+              onOpenChange={setPremiumMemeBanOpen}
             />
 
             {isOwnPost && (
