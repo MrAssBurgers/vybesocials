@@ -36,19 +36,23 @@ export function ThemeTransitionProvider({ children }: ThemeTransitionProviderPro
     accentColor = '330 80% 60%',
     onMidpoint?: () => void
   ) => {
-    // Force reset first so re-triggering always works (even if already active)
+    // Force immediate reset + re-activate using double rAF to guarantee
+    // AnimatePresence unmounts/remounts even during rapid clicks
     setTransition({
       isActive: false,
       primaryColor,
       accentColor,
+      onMidpoint: undefined,
     });
-    // Re-activate on next frame to guarantee AnimatePresence detects the change
+    // Double rAF ensures the DOM flushes the unmount before remounting
     requestAnimationFrame(() => {
-      setTransition({
-        isActive: true,
-        primaryColor,
-        accentColor,
-        onMidpoint,
+      requestAnimationFrame(() => {
+        setTransition({
+          isActive: true,
+          primaryColor,
+          accentColor,
+          onMidpoint,
+        });
       });
     });
   }, []);
