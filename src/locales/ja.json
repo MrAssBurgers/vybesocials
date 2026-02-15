@@ -198,19 +198,8 @@
     "seeMore": "もっと見る",
     "seeLess": "閉じる"
   },
-  "errors": {
-    "network": "ネットワークエラー。接続を確認してください。",
-    "auth": "認証エラー。再度ログインしてください。",
-    "notFound": "見つかりません",
-    "serverError": "サーバーエラー。後でもう一度お試しください。"
-  },
-  "time": {
-    "now": "今",
-    "minute": "{{count}}分",
-    "hour": "{{count}}時間",
-    "day": "{{count}}日",
-    "week": "{{count}}週",
-    "month": "{{count}}ヶ月",
-    "year": "{{count}}年"
-  }
+  "errors": { "network": "ネットワークエラー。接続を確認してください。", "auth": "認証エラー。再度ログインしてください。", "notFound": "見つかりません", "serverError": "サーバーエラー。後でもう一度お試しください。" },
+  "time": { "now": "今", "minute": "{{count}}分", "hour": "{{count}}時間", "day": "{{count}}日", "week": "{{count}}週", "month": "{{count}}ヶ月", "year": "{{count}}年" },
+  "sidebar": { "viewProfile": "プロフィールを見る", "alerts": "アラート", "quests": "クエスト", "referrals": "紹介", "moderation": "モデレーション", "adminPanel": "管理パネル", "hubs": "ハブ", "viewAll": "すべて見る", "browseHubs": "ハブを探す", "noHubs": "まだハブに参加していません", "notSignedIn": "ログインしていません", "more": "+{{count}}件", "terms": "利用規約", "privacy": "プライバシー", "community": "コミュニティ", "market": "マーケット", "events": "イベント", "online": "オンライン", "noFriendsOnline": "オンラインの友達なし", "noFriendsYet": "まだ友達がいません", "recentChats": "最近のチャット", "noMessagesYet": "まだメッセージはありません", "noChatsYet": "まだチャットはありません", "trending": "トレンド", "browse": "閲覧", "noListingsYet": "まだ出品はありません", "upcoming": "今後の予定", "seeAll": "すべて見る", "noUpcomingEvents": "予定されたイベントなし", "rsvpd": "参加確認済み", "free": "無料", "currentSound": "現在のサウンド", "mute": "ミュート", "unmute": "ミュート解除", "savedListings": "保存した出品", "yourRsvps": "参加確認", "suggestedCreators": "おすすめクリエイター", "typing": "入力中" },
+  "settingsNav": { "profile": "プロフィール", "profileDesc": "あなたの情報", "privacy": "プライバシー", "privacyDesc": "セキュリティ設定", "connections": "接続", "connectionsDesc": "連携アカウント", "appearance": "外観", "appearanceDesc": "スタイル", "themes": "テーマ", "themesDesc": "カスタムテーマ", "feedback": "フィードバック", "feedbackDesc": "触覚&サウンド", "notifications": "通知", "notificationsDesc": "アラート", "language": "言語", "languageDesc": "アプリ言語", "help": "ヘルプ", "helpDesc": "サポート", "developer": "開発者", "developerDesc": "開発ツール", "manageAccount": "アカウント管理", "profileSettings": "プロフィール設定", "privacyAndSecurity": "プライバシー&セキュリティ", "connectedAccounts": "連携アカウント", "customThemes": "カスタムテーマ", "feedbackAndSounds": "フィードバック&サウンド", "notificationPreferences": "通知設定", "languageAndRegion": "言語&地域", "helpAndSupport": "ヘルプ&サポート", "developerOptions": "開発者オプション" }
 }
