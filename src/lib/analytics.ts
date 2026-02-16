@@ -7,6 +7,10 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export type AnalyticsEvent = 
+  // Heartbeat / presence
+  | 'heartbeat'
+  | 'page_view'
+  
   // Signup funnel
   | 'signup_started'
   | 'signup_completed'
@@ -236,4 +240,31 @@ if (typeof window !== 'undefined') {
       forceFlush();
     }
   });
+}
+
+/**
+ * Start a heartbeat that fires every 2 minutes while the page is visible.
+ * This ensures analytics_events reflects real active users.
+ */
+let heartbeatInterval: NodeJS.Timeout | null = null;
+
+export function startHeartbeat() {
+  if (heartbeatInterval) return;
+  
+  // Fire initial page_view
+  trackEvent('page_view', { path: window.location.pathname });
+  
+  // Heartbeat every 2 minutes
+  heartbeatInterval = setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      trackEvent('heartbeat', { path: window.location.pathname });
+    }
+  }, 2 * 60 * 1000);
+}
+
+export function stopHeartbeat() {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
 }

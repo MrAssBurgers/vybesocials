@@ -26,135 +26,244 @@ export function AdminLiveAnalytics() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [liveCount, setLiveCount] = useState(0);
 
-  // Fetch real-time stats
+  // Fetch real-time stats from MULTIPLE real data sources
   const { data: stats, isLoading, refetch } = useQuery({
     queryKey: ['admin-live-stats', refreshKey],
     queryFn: async () => {
       const now = new Date();
       const fiveMinAgo = subMinutes(now, 5).toISOString();
+      const fifteenMinAgo = subMinutes(now, 15).toISOString();
       const oneHourAgo = subHours(now, 1).toISOString();
-      // Use local midnight for "today" queries instead of 24h ago
       const todayStart = startOfDay(now).toISOString();
 
-      // Get active users (last 5 minutes based on any activity)
-      const { count: activeNow } = await supabase
-        .from('analytics_events')
-        .select('user_id', { count: 'exact', head: true })
-        .gte('created_at', fiveMinAgo);
+      // Active users: combine chat_presence + recent message senders + analytics events
+      const [
+        presenceResult,
+        recentSendersResult,
+        analyticsActiveResult,
+        messagesHourResult,
+        postsDayResult,
+        likesHourResult,
+        commentsHourResult,
+        signupsTodayResult,
+        callsResult,
+        totalUsersResult,
+        messagesTodayResult,
+        likesTodayResult,
+        commentsTodayResult,
+        followsTodayResult,
+      ] = await Promise.all([
+        // Users with recent chat presence (last 5 min)
+        supabase
+          .from('chat_presence')
+          .select('user_id', { count: 'exact', head: false })
+          .gte('last_seen_at', fiveMinAgo),
+        // Users who sent messages in last 15 min
+        supabase
+          .from('messages')
+          .select('sender_id')
+          .gte('created_at', fifteenMinAgo)
+          .limit(100),
+        // Analytics events in last 5 min
+        supabase
+          .from('analytics_events')
+          .select('user_id')
+          .gte('created_at', fiveMinAgo)
+          .not('user_id', 'is', null)
+          .limit(100),
+        // Messages in last hour
+        supabase
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', oneHourAgo),
+        // Posts today
+        supabase
+          .from('posts')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', todayStart),
+        // Likes in last hour
+        supabase
+          .from('likes')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', oneHourAgo),
+        // Comments in last hour
+        supabase
+          .from('comments')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', oneHourAgo),
+        // New signups today
+        supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', todayStart),
+        // Active calls
+        supabase
+          .from('calls')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'active'),
+        // Total users
+        supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true }),
+        // Messages today (for daily total)
+        supabase
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', todayStart),
+        // Likes today
+        supabase
+          .from('likes')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', todayStart),
+        // Comments today
+        supabase
+          .from('comments')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', todayStart),
+        // Follows today
+        supabase
+          .from('follows')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', todayStart),
+      ]);
 
-      // Messages in last hour
-      const { count: messagesHour } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', oneHourAgo);
-
-      // Posts in last 24h
-      const { count: postsDay } = await supabase
-        .from('posts')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', todayStart);
-
-      // Likes in last hour
-      const { count: likesHour } = await supabase
-        .from('likes')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', oneHourAgo);
-
-      // Comments in last hour
-      const { count: commentsHour } = await supabase
-        .from('comments')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', oneHourAgo);
-
-      // New signups today
-      const { count: signupsToday } = await supabase
-        .from('profiles')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', todayStart);
-
-      // Live activity (people in calls/streams)
-      const { count: inCalls } = await supabase
-        .from('calls')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'active');
-
-      // Total users
-      const { count: totalUsers } = await supabase
-        .from('profiles')
-        .select('id', { count: 'exact', head: true });
+      // Combine all active user IDs from multiple sources for accurate "Active Now"
+      const activeUserIds = new Set<string>();
+      (presenceResult.data || []).forEach((r: any) => r.user_id && activeUserIds.add(r.user_id));
+      (recentSendersResult.data || []).forEach((r: any) => r.sender_id && activeUserIds.add(r.sender_id));
+      (analyticsActiveResult.data || []).forEach((r: any) => r.user_id && activeUserIds.add(r.user_id));
 
       return {
-        activeNow: activeNow || 0,
-        messagesHour: messagesHour || 0,
-        postsDay: postsDay || 0,
-        likesHour: likesHour || 0,
-        commentsHour: commentsHour || 0,
-        signupsToday: signupsToday || 0,
-        inCalls: inCalls || 0,
-        totalUsers: totalUsers || 0,
+        activeNow: activeUserIds.size,
+        activeUserIds: Array.from(activeUserIds),
+        messagesHour: messagesHourResult.count || 0,
+        postsDay: postsDayResult.count || 0,
+        likesHour: likesHourResult.count || 0,
+        commentsHour: commentsHourResult.count || 0,
+        signupsToday: signupsTodayResult.count || 0,
+        inCalls: callsResult.count || 0,
+        totalUsers: totalUsersResult.count || 0,
+        messagesToday: messagesTodayResult.count || 0,
+        likesToday: likesTodayResult.count || 0,
+        commentsToday: commentsTodayResult.count || 0,
+        followsToday: followsTodayResult.count || 0,
       };
     },
-    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchInterval: 10000,
   });
 
-  // Fetch recent activity feed
+  // Fetch recent activity feed from REAL tables (messages, posts, likes, comments, follows)
   const { data: recentActivity = [] } = useQuery({
     queryKey: ['admin-recent-activity', refreshKey],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('analytics_events')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
+      const thirtyMinAgo = subMinutes(new Date(), 30).toISOString();
+      
+      // Pull recent activity from multiple real tables in parallel
+      const [messagesRes, postsRes, likesRes, commentsRes, followsRes] = await Promise.all([
+        supabase
+          .from('messages')
+          .select('id, sender_id, created_at, content')
+          .gte('created_at', thirtyMinAgo)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('posts')
+          .select('id, author_id, created_at, type, caption')
+          .gte('created_at', thirtyMinAgo)
+          .order('created_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('likes')
+          .select('id, user_id, created_at, post_id')
+          .gte('created_at', thirtyMinAgo)
+          .order('created_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('comments')
+          .select('id, user_id, created_at, text')
+          .gte('created_at', thirtyMinAgo)
+          .order('created_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('follows')
+          .select('id, follower_id, created_at')
+          .gte('created_at', thirtyMinAgo)
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ]);
 
-      if (error) throw error;
-      return data || [];
+      // Normalize into a unified activity feed
+      const activities: Array<{ id: string; event_name: string; created_at: string; user_id: string | null; detail?: string }> = [];
+      
+      (messagesRes.data || []).forEach(m => activities.push({
+        id: m.id, event_name: 'message_sent', created_at: m.created_at,
+        user_id: m.sender_id, detail: m.content?.substring(0, 30) || 'sent a message'
+      }));
+      (postsRes.data || []).forEach(p => activities.push({
+        id: p.id, event_name: `post_created`, created_at: p.created_at,
+        user_id: p.author_id, detail: `${p.type || 'post'}: ${p.caption?.substring(0, 30) || 'new post'}`
+      }));
+      (likesRes.data || []).forEach(l => activities.push({
+        id: l.id, event_name: 'post_liked', created_at: l.created_at,
+        user_id: l.user_id
+      }));
+      (commentsRes.data || []).forEach(c => activities.push({
+        id: c.id, event_name: 'comment_added', created_at: c.created_at,
+        user_id: c.user_id, detail: c.text?.substring(0, 30)
+      }));
+      (followsRes.data || []).forEach(f => activities.push({
+        id: f.id, event_name: 'user_followed', created_at: f.created_at,
+        user_id: f.follower_id
+      }));
+
+      // Sort by most recent
+      activities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return activities.slice(0, 20);
     },
-    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchInterval: 5000,
   });
 
-  // Fetch online presence
+  // Fetch online presence from combined sources
   const { data: onlineUsers = [] } = useQuery({
-    queryKey: ['admin-online-users', refreshKey],
+    queryKey: ['admin-online-users', refreshKey, stats?.activeUserIds],
     queryFn: async () => {
-      // Get users with recent activity
-      const fiveMinAgo = subMinutes(new Date(), 5).toISOString();
-      
-      const { data: recentEvents } = await supabase
-        .from('analytics_events')
-        .select('user_id, event_name, created_at')
-        .gte('created_at', fiveMinAgo)
-        .not('user_id', 'is', null)
-        .order('created_at', { ascending: false });
+      const activeIds = stats?.activeUserIds || [];
+      if (activeIds.length === 0) {
+        // Fallback: get most recently active users from chat_presence
+        const { data: presenceData } = await supabase
+          .from('chat_presence')
+          .select('user_id, last_seen_at')
+          .order('last_seen_at', { ascending: false })
+          .limit(20);
+        
+        if (!presenceData || presenceData.length === 0) return [];
+        
+        const userIds = [...new Set(presenceData.map(p => p.user_id))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .in('id', userIds);
+        
+        const presenceMap = new Map(presenceData.map(p => [p.user_id, p.last_seen_at]));
+        return (profiles || []).map(p => ({
+          ...p,
+          activity: 'recently active',
+          last_seen: presenceMap.get(p.id) || new Date().toISOString(),
+        }));
+      }
 
-      if (!recentEvents || recentEvents.length === 0) return [];
-
-      // Get unique user IDs
-      const userIds = [...new Set(recentEvents.map(e => e.user_id).filter(Boolean))];
-      
-      // Get profiles
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, username, avatar_url')
-        .in('id', userIds.slice(0, 20));
-
-      // Map to online users with their last activity
-      const userActivityMap = new Map<string, { activity: string; last_seen: string }>();
-      recentEvents.forEach(e => {
-        if (e.user_id && !userActivityMap.has(e.user_id)) {
-          userActivityMap.set(e.user_id, {
-            activity: e.event_name,
-            last_seen: e.created_at,
-          });
-        }
-      });
+        .in('id', activeIds.slice(0, 20));
 
       return (profiles || []).map(p => ({
         ...p,
-        activity: userActivityMap.get(p.id)?.activity || 'browsing',
-        last_seen: userActivityMap.get(p.id)?.last_seen || new Date().toISOString(),
+        activity: 'online',
+        last_seen: new Date().toISOString(),
       }));
     },
+    enabled: !!stats,
     refetchInterval: 15000,
   });
 
@@ -349,8 +458,9 @@ export function AdminLiveAnalytics() {
                     <span className={getActivityColor(event.event_name)}>
                       {getActivityIcon(event.event_name)}
                     </span>
-                    <span className="flex-1 text-sm font-mono truncate">
-                      {event.event_name}
+                    <span className="flex-1 text-sm truncate">
+                      <span className="font-medium">{event.event_name.replace(/_/g, ' ')}</span>
+                      {event.detail && <span className="text-muted-foreground ml-1">— {event.detail}</span>}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(event.created_at), 'HH:mm:ss')}

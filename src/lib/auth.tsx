@@ -6,6 +6,7 @@ import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, clearProfileCache } from '@/lib/profileCache';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import { logEvent } from '@/lib/debugLogger';
+import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -289,6 +290,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (session?.user) {
           logEvent('auth', 'Session active, fetching profile', { userId: session.user.id });
+          // Start heartbeat for live analytics
+          startHeartbeat();
           // Schedule token refresh for persistent sessions
           if (session.expires_at) {
             scheduleTokenRefresh(session.expires_at);
@@ -301,7 +304,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           logEvent('auth', 'No session — signed out');
           setProfile(null);
-          clearProfileCache(); // Clear cache on logout
+          clearProfileCache();
+          stopHeartbeat();
           setBanInfo(null);
           // Clear refresh timer on logout
           if (refreshTimerRef.current) {
