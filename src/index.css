@@ -3661,3 +3661,9 @@ img, video {
   0%, 100% { text-shadow: 0 0 8px rgba(245, 158, 11, 0.5), 0 0 16px rgba(234, 179, 8, 0.3); }
   50% { text-shadow: 0 0 20px rgba(245, 158, 11, 0.8), 0 0 40px rgba(234, 179, 8, 0.5), 0 0 60px rgba(251, 191, 36, 0.3); }
 }
+
+@keyframes premium-gold-shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}

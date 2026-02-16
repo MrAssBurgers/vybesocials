@@ -117,11 +117,14 @@ export const StyledUsername = memo(function StyledUsername({
           className={className}
           style={{
             backgroundImage: resolvedNameColor,
+            backgroundSize: '200% 100%',
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             color: 'transparent',
             display: 'inline-block',
+            animation: 'premium-gold-shimmer 3s ease-in-out infinite',
+            filter: 'drop-shadow(0 0 6px rgba(245,158,11,0.4))',
           }}
         >
           {nameToShow}
