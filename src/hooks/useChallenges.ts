@@ -174,7 +174,7 @@ export function useUserChallengeProgress() {
  * Get combined challenges with progress and reward claim status
  */
 export function useChallengesWithProgress() {
-  const { data: challenges } = useChallenges();
+  const { data: challenges, isLoading: challengesLoading } = useChallenges();
   const { data: progress } = useUserChallengeProgress();
   const { profile } = useAuth();
 
@@ -217,6 +217,7 @@ export function useChallengesWithProgress() {
     weekly: combined?.filter(c => c.type === 'weekly') || [],
     achievements: combined?.filter(c => c.type === 'achievement') || [],
     all: combined || [],
+    isLoading: challengesLoading,
   };
 }
 
