@@ -8,8 +8,8 @@
 /* Enhanced depth glass with VYBE theme tinting */
 .liquid-glass-depth {
   position: relative;
-  backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
-  -webkit-backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
+  backdrop-filter: blur(20px) saturate(170%);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
   background: linear-gradient(
     135deg,
     hsl(var(--primary) / 0.08),
@@ -19,20 +19,15 @@
   border: 1px solid hsl(var(--foreground) / 0.12);
   border-radius: 20px;
   box-shadow:
-    0 8px 32px hsl(var(--background) / 0.4),
-    0 2px 8px hsl(var(--primary) / 0.08),
-    inset 0 1px 0 hsl(var(--foreground) / 0.15),
-    inset 0 -1px 0 hsl(var(--background) / 0.3);
-  transition: box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    0 4px 16px hsl(var(--background) / 0.3),
+    inset 0 1px 0 hsl(var(--foreground) / 0.1);
+  transition: box-shadow 0.3s ease;
 }
 
 .liquid-glass-depth:hover {
   box-shadow:
-    0 14px 48px hsl(var(--background) / 0.5),
-    0 4px 16px hsl(var(--primary) / 0.15),
-    inset 0 1px 0 hsl(var(--foreground) / 0.2),
-    inset 0 -1px 0 hsl(var(--background) / 0.25);
+    0 8px 24px hsl(var(--background) / 0.4),
+    inset 0 1px 0 hsl(var(--foreground) / 0.15);
 }
 
 /* Specular highlight for depth glass */
@@ -56,9 +51,9 @@
 .liquid-modal-backdrop {
   position: fixed;
   inset: 0;
-  backdrop-filter: blur(30px) saturate(160%);
-  -webkit-backdrop-filter: blur(30px) saturate(160%);
-  background: hsl(var(--background) / 0.45);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  background: hsl(var(--background) / 0.55);
   display: flex;
   justify-content: center;
   align-items: center;
