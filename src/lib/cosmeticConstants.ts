@@ -78,6 +78,8 @@ export const THEME_ACCENTS: Record<string, { bg: string; text: string; card: str
   'Galaxy': { bg: '#1e1b4b', text: '#c4b5fd', card: 'rgba(109,40,217,0.35)', accent: '#a78bfa' },
   'Aurora Borealis': { bg: '#022c22', text: '#a7f3d0', card: 'rgba(109,40,217,0.3)', accent: '#34d399' },
   'Void': { bg: '#0a0a0a', text: '#a8a29e', card: 'rgba(28,25,23,0.6)', accent: '#57534e' },
+  // Premium exclusive
+  'Obsidian': { bg: '#0c0c0c', text: '#d4d4d8', card: 'rgba(26,26,46,0.5)', accent: '#a78bfa' },
 };
 
 // ── Theme Gradients (for backward compat) ───────────────────────
@@ -90,6 +92,8 @@ export const THEME_GRADIENTS: Record<string, string> = {
   'Galaxy': 'linear-gradient(135deg, #1e1b4b 0%, #6d28d9 50%, #a78bfa 100%)',
   'Aurora Borealis': 'linear-gradient(135deg, #064e3b 0%, #6d28d9 40%, #06b6d4 70%, #10b981 100%)',
   'Void': 'linear-gradient(135deg, #0a0a0a 0%, #1c1917 50%, #292524 100%)',
+  // Premium exclusive
+  'Obsidian': 'linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16132e 100%)',
 };
 
 // ── Effect Class Map ────────────────────────────────────────────
