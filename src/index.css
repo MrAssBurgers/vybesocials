@@ -3137,7 +3137,7 @@ img, video {
     inset 0 1px 0 hsl(0 0% 100% / 0.15);
   transform: translateZ(0);
   will-change: background-position;
-  border: 1px solid hsl(var(--foreground) / 0.15);
+  border: none;
 }
 
 /* ===========================================
