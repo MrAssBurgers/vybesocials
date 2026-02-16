@@ -65,7 +65,8 @@ export const StyledUsername = memo(function StyledUsername({
   const elementId = useMemo(() => `styled-username-${Math.random().toString(36).slice(2, 9)}`, []);
 
   // Fetch badge style if not pre-loaded
-  const { data: fetchedStyle } = useDisplayStyle(preloadedStyle !== undefined ? undefined : userId);
+  // Always fetch display style to get equippedNameColor, even if badge style is preloaded
+  const { data: fetchedStyle } = useDisplayStyle(userId);
   
   const badge = preloadedStyle ?? fetchedStyle;
 
