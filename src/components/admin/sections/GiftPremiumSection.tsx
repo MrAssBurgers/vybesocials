@@ -302,14 +302,12 @@ export function GiftPremiumSection() {
                     <><Crown className="h-3 w-3 mr-1" /> Pending</>
                   )}
                 </Badge>
-                {gift.is_active && (
-                  <button
-                    onClick={() => handleRevoke(gift.id, gift.username)}
-                    className="text-xs text-destructive hover:underline shrink-0"
-                  >
-                    Revoke
-                  </button>
-                )}
+                <button
+                  onClick={() => handleRevoke(gift.id, gift.username)}
+                  className="text-[11px] text-destructive font-medium hover:underline shrink-0 px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
+                >
+                  Revoke
+                </button>
               </div>
             ))}
           </div>
