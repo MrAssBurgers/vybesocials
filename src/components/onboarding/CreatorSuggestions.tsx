@@ -1,94 +1,13 @@
-import { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Shield, Check, Sparkles, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Crown, UserPlus, Check, Users } from 'lucide-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { useFollow } from '@/hooks/useProfile';
+import { FounderBadge, getFounderTier } from '@/components/badges/FounderBadge';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-
-// Owner username constant
-const OWNER_USERNAME = 'MrAssBurgers';
-
-// Fetch owner profile from profiles table with follower count (with realtime updates)
-function useOwnerProfile() {
-  const queryClient = useQueryClient();
-
-  const query = useQuery({
-    queryKey: ['owner-profile'],
-    queryFn: async () => {
-      // Robust lookup (handles case + accidental whitespace in stored usernames)
-      const { data: rows, error } = await supabase
-        .rpc('get_profile_by_username', { target_username: OWNER_USERNAME });
-
-      if (error) throw error;
-      const data = rows?.[0];
-      if (!data?.id) return null;
-
-      // Get follower count
-      const { count } = await supabase
-        .from('follows')
-        .select('id', { count: 'exact', head: true })
-        .eq('following_id', data.id);
-
-      return { ...data, follower_count: count || 0 };
-    },
-    refetchInterval: 10000, // Refetch every 10 seconds for live updates
-  });
-
-  // Subscribe to realtime follower changes
-  useEffect(() => {
-    if (!query.data?.id) return;
-
-    const channel = supabase
-      .channel(`owner-followers-${query.data.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'follows',
-          filter: `following_id=eq.${query.data.id}`,
-        },
-        () => {
-          // Refetch when followers change
-          queryClient.invalidateQueries({ queryKey: ['owner-profile'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [query.data?.id, queryClient]);
-
-  return query;
-}
-
-// Check if current user is following the owner
-function useIsFollowingOwner(ownerId: string | undefined) {
-  const { profile } = useAuth();
-  
-  return useQuery({
-    queryKey: ['is-following-owner', profile?.id, ownerId],
-    queryFn: async () => {
-      if (!profile?.id || !ownerId) return false;
-      
-      const { data } = await supabase
-        .from('follows')
-        .select('id')
-        .eq('follower_id', profile.id)
-        .eq('following_id', ownerId)
-        .maybeSingle();
-      
-      return !!data;
-    },
-    enabled: !!profile?.id && !!ownerId,
-  });
-}
+import { useState } from 'react';
 
 interface CreatorSuggestionsProps {
   interests: string[];
@@ -96,171 +15,223 @@ interface CreatorSuggestionsProps {
   onChange: (following: string[]) => void;
 }
 
-export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsProps) {
-  const { profile } = useAuth();
-  const queryClient = useQueryClient();
-  const {
-    data: ownerProfile,
-    isLoading,
-    isError,
-    isFetching,
-  } = useOwnerProfile();
-  
-  const { data: isFollowingOwner } = useIsFollowingOwner(ownerProfile?.id);
-  const followMutation = useFollow();
+function useFounderClaimStatus() {
+  const { user } = useAuth();
 
-  const handleFollow = async () => {
-    if (!ownerProfile?.id || !profile?.id) return;
-    
-    try {
-      await followMutation.mutateAsync({
-        targetId: ownerProfile.id,
-        isFollowing: isFollowingOwner ?? false,
-      });
-      
-      // Update local state for onboarding
-      if (!isFollowingOwner) {
-        onChange([...following, ownerProfile.id]);
-        toast.success('You are now following the owner! 🎉');
+  return useQuery({
+    queryKey: ['founder-claim-status', user?.id],
+    queryFn: async () => {
+      // Get config
+      const { data: config } = await supabase
+        .from('growth_config')
+        .select('value')
+        .eq('key', 'founding_program')
+        .single();
+
+      const val = config?.value as Record<string, any> | null;
+      const maxSlots = val?.max_slots ?? 1000;
+      const badgeId = val?.badge_id;
+      const isActive = val?.is_active ?? false;
+
+      // Count claimed
+      let claimedSlots = 0;
+      if (badgeId) {
+        const { count } = await supabase
+          .from('user_badges')
+          .select('*', { count: 'exact', head: true })
+          .eq('badge_id', badgeId);
+        claimedSlots = count || 0;
       }
-      
-      // Invalidate queries to update UI
-      queryClient.invalidateQueries({ queryKey: ['is-following-owner'] });
-      queryClient.invalidateQueries({ queryKey: ['owner-profile'] });
-    } catch {
-      toast.error('Failed to follow. Please try again.');
+
+      // Check if current user already has it
+      let userHasBadge = false;
+      if (user?.id && badgeId) {
+        const { data } = await supabase
+          .from('user_badges')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('badge_id', badgeId)
+          .maybeSingle();
+        userHasBadge = !!data;
+      }
+
+      return {
+        maxSlots,
+        claimedSlots,
+        remainingSlots: Math.max(0, maxSlots - claimedSlots),
+        isActive,
+        userHasBadge,
+        badgeId,
+        userPosition: userHasBadge ? claimedSlots : null,
+      };
+    },
+    staleTime: 1000 * 30,
+  });
+}
+
+export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsProps) {
+  const { user } = useAuth();
+  const { data: status, isLoading, refetch } = useFounderClaimStatus();
+  const [claiming, setClaiming] = useState(false);
+
+  const handleClaim = async () => {
+    if (!user?.id || !status?.badgeId || status.userHasBadge) return;
+    
+    setClaiming(true);
+    try {
+      // Try to insert the badge - the DB constraint will prevent duplicates
+      const { error } = await supabase
+        .from('user_badges')
+        .insert({
+          user_id: user.id,
+          badge_id: status.badgeId,
+          badge_type: 'special',
+          badge_name: 'Founding Member',
+        });
+
+      if (error && !error.message.includes('duplicate')) {
+        throw error;
+      }
+
+      toast.success('Founder badge claimed! You are in!');
+      onChange([...following, 'founder-claimed']);
+      await refetch();
+    } catch (err) {
+      console.error('Claim error:', err);
+      toast.error('Failed to claim badge. Please try again.');
+    } finally {
+      setClaiming(false);
     }
   };
+
+  const percentClaimed = status ? (status.claimedSlots / status.maxSlots) * 100 : 0;
+  const isClaimed = status?.userHasBadge || following.includes('founder-claimed');
+  const slotsGone = !status?.isActive && !isClaimed;
+
+  // Determine user's tier based on position
+  const userTier = status?.userPosition ? getFounderTier(status.userPosition) : 'founder';
 
   if (isLoading) {
     return (
       <div className="space-y-8">
         <div className="text-center">
-          <h2 className="text-2xl font-bold gradient-text">Follow the Owner</h2>
-          <p className="text-muted-foreground mt-2">
-            Stay connected with the app owner for updates and announcements
-          </p>
+          <h2 className="text-2xl font-bold gradient-text">Claim Your Founder Badge</h2>
+          <p className="text-muted-foreground mt-2">Loading...</p>
         </div>
-        <div className="bg-card rounded-2xl border border-border p-6">
-          <div className="flex flex-col items-center gap-4">
-            <Skeleton className="h-24 w-24 rounded-full" />
-            <div className="space-y-2 text-center">
-              <Skeleton className="h-6 w-32 mx-auto" />
-              <Skeleton className="h-4 w-24 mx-auto" />
-              <Skeleton className="h-4 w-20 mx-auto" />
-            </div>
-            <Skeleton className="h-10 w-28" />
-          </div>
-        </div>
+        <div className="h-64 bg-card rounded-2xl border border-border animate-pulse" />
       </div>
     );
   }
-
-  if (isError) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">Couldn't load the owner profile. Please try again.</p>
-      </div>
-    );
-  }
-
-  if (!ownerProfile) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold gradient-text">Follow the Owner</h2>
-          <p className="text-muted-foreground mt-2">
-            Stay connected with the app owner for updates and announcements
-          </p>
-        </div>
-        <div className="bg-card rounded-2xl border border-border p-6 text-center">
-          <p className="text-muted-foreground">We couldn't find @{OWNER_USERNAME} yet.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const alreadyFollowing = isFollowingOwner || following.includes(ownerProfile.id);
-  const followerCount = ownerProfile.follower_count;
-  const ownerUsername = (ownerProfile.username || OWNER_USERNAME).trim();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-2xl font-bold gradient-text">Follow the Owner</h2>
+        <h2 className="text-2xl font-bold gradient-text">Claim Your Founder Badge</h2>
         <p className="text-muted-foreground mt-2">
-          Stay connected with the app owner for updates and announcements
+          {slotsGone
+            ? 'All founder slots have been claimed'
+            : 'Limited to the first 1,000 users — forever'}
         </p>
       </div>
 
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="bg-card rounded-2xl border border-border p-6 text-center"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-card rounded-2xl border border-border p-6 text-center space-y-5"
       >
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <Avatar className="h-24 w-24 border-4 border-primary/20">
-              <AvatarImage src={ownerProfile.avatar_url || undefined} />
-              <AvatarFallback className="gradient-animated text-2xl">
-                {(ownerProfile.display_name?.[0] || ownerProfile.username?.[0] || 'O').toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="absolute -bottom-1 -right-1 bg-yellow-500 rounded-full p-1.5">
-              <Crown className="w-4 h-4 text-white" />
-            </div>
-          </div>
+        {/* Badge showcase */}
+        <div className="flex flex-col items-center gap-3">
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.2 }}
+          >
+            <FounderBadge
+              tier={userTier || 'founder'}
+              size="showcase"
+              showTooltip={false}
+              locked={slotsGone}
+            />
+          </motion.div>
 
           <div>
-            <h3 className="text-xl font-bold flex items-center justify-center gap-2">
-              {ownerProfile.display_name || ownerUsername}
-            </h3>
-            <p className="text-muted-foreground">@{ownerUsername}</p>
-            
-            {/* Live follower count with icon */}
-            <div className="flex items-center justify-center gap-1.5 mt-2">
-              <Users className="w-4 h-4 text-primary" />
-              <p className="text-sm text-primary font-medium">
-                {isFetching ? (
-                  <span className="inline-block w-12 h-4 bg-muted animate-pulse rounded" />
-                ) : (
-                  <>
-                    {followerCount.toLocaleString()} {followerCount === 1 ? 'follower' : 'followers'}
-                  </>
-                )}
-              </p>
-            </div>
-
-            {ownerProfile.bio && (
-              <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto">
-                {ownerProfile.bio}
-              </p>
-            )}
+            <h3 className="text-lg font-bold">VYBE Founder</h3>
+            <p className="text-xs text-muted-foreground">Permanent • Non-removable • Limited edition</p>
           </div>
+        </div>
 
+        {/* Tier breakdown */}
+        <div className="grid grid-cols-3 gap-2 text-center">
+          {[
+            { tier: 'legendary' as const, label: 'Legendary', range: 'First 100', slots: 100 },
+            { tier: 'elite' as const, label: 'Elite', range: 'First 500', slots: 500 },
+            { tier: 'founder' as const, label: 'Founder', range: 'First 1,000', slots: 1000 },
+          ].map(t => (
+            <div
+              key={t.tier}
+              className={`rounded-xl p-2.5 border ${
+                (status?.claimedSlots || 0) < t.slots
+                  ? 'border-primary/30 bg-primary/5'
+                  : 'border-border bg-muted/30'
+              }`}
+            >
+              <FounderBadge tier={t.tier} size="md" showTooltip={false} className="mx-auto" />
+              <p className="text-[11px] font-semibold mt-1.5">{t.label}</p>
+              <p className="text-[10px] text-muted-foreground">{t.range}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Progress */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Users className="h-3 w-3" />
+              {status?.claimedSlots || 0} claimed
+            </span>
+            <span className="text-muted-foreground">
+              {status?.remainingSlots || 0} remaining
+            </span>
+          </div>
+          <Progress value={percentClaimed} className="h-2" />
+        </div>
+
+        {/* Claim button */}
+        {isClaimed ? (
+          <motion.div
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-primary/10 border border-primary/20"
+          >
+            <Check className="h-5 w-5 text-primary" />
+            <span className="font-semibold text-primary">Badge Claimed!</span>
+          </motion.div>
+        ) : slotsGone ? (
+          <div className="py-3 rounded-xl bg-muted/50 text-muted-foreground text-sm font-medium">
+            All slots filled — Founder badge is closed forever
+          </div>
+        ) : (
           <Button
             size="lg"
-            onClick={handleFollow}
-            disabled={alreadyFollowing || followMutation.isPending}
-            className={alreadyFollowing ? 'bg-green-600 hover:bg-green-600' : 'gradient-animated'}
+            onClick={handleClaim}
+            disabled={claiming}
+            className="w-full gradient-animated text-base gap-2"
           >
-            {alreadyFollowing ? (
-              <>
-                <Check className="w-4 h-4 mr-2" />
-                Following
-              </>
+            {claiming ? (
+              'Claiming...'
             ) : (
               <>
-                <UserPlus className="w-4 h-4 mr-2" />
-                Follow
+                <Shield className="h-5 w-5" />
+                Claim Your Founder Badge
+                <Sparkles className="h-4 w-4" />
               </>
             )}
           </Button>
-        </div>
+        )}
       </motion.div>
 
-      <p className="text-center text-sm text-muted-foreground">
-        You can also skip this step and follow later from the profile page
+      <p className="text-center text-xs text-muted-foreground">
+        This badge appears next to your name everywhere — forever
       </p>
     </div>
   );
