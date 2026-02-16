@@ -124,11 +124,11 @@ export function AdminRolesSection() {
               userRoles.map((ur: any) => (
                 <div key={ur.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                   <Avatar>
-                    <AvatarImage src={ur.user?.avatar_url} />
-                    <AvatarFallback>{ur.user?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                    <AvatarImage src={ur.profile?.avatar_url} />
+                    <AvatarFallback>{ur.profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">@{ur.user?.username}</p>
+                    <p className="font-medium truncate">@{ur.profile?.username}</p>
                   </div>
                   <Badge className={ur.role === 'admin' ? 'bg-amber-500' : 'bg-primary'}>
                     {ur.role === 'admin' ? <Crown className="h-3 w-3 mr-1" /> : <Shield className="h-3 w-3 mr-1" />}
