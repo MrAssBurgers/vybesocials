@@ -2,8 +2,8 @@ import { memo, useCallback, useRef, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { useNavigate } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
+import { navigationRef } from '@/lib/navigationRef';
 
 interface MessageNotificationToastProps {
   toastId: string | number;
@@ -31,8 +31,12 @@ export const MessageNotificationToast = memo(function MessageNotificationToast({
   
   const handleClick = useCallback(() => {
     toast.dismiss(toastId);
-    // Navigate instantly to the DM — no portal animation delay
-    window.location.href = `/messages/${conversationId}`;
+    // Navigate instantly via React Router — no full page reload
+    if (navigationRef.current) {
+      navigationRef.current(`/messages/${conversationId}`);
+    } else {
+      window.location.href = `/messages/${conversationId}`;
+    }
   }, [toastId, conversationId]);
 
   return (

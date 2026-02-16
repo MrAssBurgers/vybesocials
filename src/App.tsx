@@ -25,6 +25,7 @@ import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
+import { NavigationRefSetter } from "@/components/layout/NavigationRefSetter";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
 
@@ -147,6 +148,7 @@ function AppWithPreloader() {
                               <DebugPanelProvider>
                                 <Suspense fallback={null}>
                                   <TutorialProvider>
+                                    <NavigationRefSetter />
                                     <ScrollRestoration />
                                     <AnimatedRoutes />
                                     <RootBottomNavMount />
