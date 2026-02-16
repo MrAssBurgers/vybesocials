@@ -84,7 +84,7 @@ const PERK_CATEGORIES = [
       { icon: Clock, label: 'Message Scheduling', desc: 'Schedule DMs to send later' },
       { icon: Lock, label: 'Secret Chats', desc: 'Self-destructing encrypted messages' },
       { icon: Upload, label: 'Bigger File Uploads', desc: '50MB vs 20MB limit' },
-      { icon: Send, label: 'Voice Messages', desc: 'Send voice notes in DMs' },
+      { icon: Send, label: 'Priority Support', desc: 'Get help faster from our team' },
       { icon: Eye, label: 'Read Receipt Control', desc: 'Toggle per conversation' },
       { icon: Gift, label: 'Gift Premium', desc: 'Send premium to a friend' },
     ],

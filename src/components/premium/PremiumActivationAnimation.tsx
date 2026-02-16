@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Crown, Sparkles, Zap, Shield, Star, Flame, Palette, MessageSquare, Upload, Eye, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 interface PremiumActivationAnimationProps {
   open: boolean;
@@ -21,6 +22,7 @@ const PREMIUM_PERKS = [
 
 export function PremiumActivationAnimation({ open, onComplete }: PremiumActivationAnimationProps) {
   const [phase, setPhase] = useState<'activating' | 'perks' | 'done'>('activating');
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!open) { setPhase('activating'); return; }
@@ -212,10 +214,13 @@ export function PremiumActivationAnimation({ open, onComplete }: PremiumActivati
               <Button
                 size="lg"
                 className="w-full h-12 text-base font-bold gap-2"
-                onClick={onComplete}
+                onClick={() => {
+                  onComplete();
+                  navigate('/settings?tab=subscription');
+                }}
               >
                 <Sparkles className="h-4 w-4" />
-                Let's Go!
+                See My Perks
               </Button>
             </motion.div>
           )}

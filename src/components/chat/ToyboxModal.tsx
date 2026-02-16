@@ -92,9 +92,9 @@ export function ToyboxModal({
       icon: <Mic className="h-6 w-6" />,
       label: 'Voice',
       color: 'bg-red-500',
-      premium: true,
+      premium: false,
       description: 'Send voice messages',
-      action: () => handlePremiumAction(onSelectVoice),
+      action: () => { onSelectVoice?.(); onOpenChange(false); },
     },
     {
       id: 'vanish',
