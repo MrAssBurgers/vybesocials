@@ -397,12 +397,17 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                         className="rounded-2xl p-2.5 create-button-gradient relative overflow-hidden"
                       >
                         {/* Continuous shimmer sweep */}
-                        <motion.div
-                          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent"
-                          animate={{ x: ['-100%', '200%'] }}
-                          transition={{ duration: 2.5, repeat: Infinity, ease: 'linear', repeatDelay: 1 }}
-                          style={{ width: '50%' }}
-                        />
+                        <div
+                          className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl"
+                        >
+                          <div
+                            className="absolute inset-0"
+                            style={{
+                              background: 'linear-gradient(90deg, transparent 0%, transparent 30%, rgba(255,255,255,0.25) 50%, transparent 70%, transparent 100%)',
+                              animation: 'shimmer-sweep 3s ease-in-out infinite',
+                            }}
+                          />
+                        </div>
                         <Plus className="h-6 w-6 text-white relative z-10" strokeWidth={2.5} />
                       </motion.div>
                     </motion.button>
