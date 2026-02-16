@@ -86,11 +86,6 @@ export function CallButtons({
 
   const isDisabled = state.phase !== 'idle' || isStarting !== null;
 
-  const handleTouchStart = (callType: CallType) => (e: React.TouchEvent) => {
-    e.preventDefault();
-    handleStartCall(callType);
-  };
-
   // Show green "Join Back" button when there's a lingering call
   if (hasLingeringCall) {
     return (
@@ -114,7 +109,6 @@ export function CallButtons({
         variant="ghost"
         size="icon"
         onClick={() => handleStartCall('audio')}
-        onTouchEnd={handleTouchStart('audio')}
         disabled={isDisabled}
         title={isGroupCall ? "Group audio call" : "Audio call"}
         className="active:scale-95 transition-transform touch-manipulation"
@@ -129,7 +123,6 @@ export function CallButtons({
         variant="ghost"
         size="icon"
         onClick={() => handleStartCall('video')}
-        onTouchEnd={handleTouchStart('video')}
         disabled={isDisabled}
         title={isGroupCall ? "Group FaceTime" : "FaceTime"}
         className="active:scale-95 transition-transform touch-manipulation"

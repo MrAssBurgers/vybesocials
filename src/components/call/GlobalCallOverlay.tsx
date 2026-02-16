@@ -288,26 +288,21 @@ export function GlobalCallOverlay() {
     }
   }, [elementHasTrack]);
 
-  // Create Daily call object lazily when needed (moved before the useEffect that uses it)
-
   // Create Daily call object lazily when needed
   const getOrCreateDaily = useCallback((): DailyCall => {
     if (dailyRef.current) return dailyRef.current;
 
-    if (import.meta.env.DEV) console.log('[CallOverlay] Creating Daily Call Object with CRYSTAL CLEAR HD settings');
+    const callType = stateRef.current.call?.callType || 'audio';
+    const isVideo = callType === 'video';
+    
+    if (import.meta.env.DEV) console.log('[CallOverlay] Creating Daily Call Object, type:', callType);
     
     const daily = DailyIframe.createCallObject({
       subscribeToTracksAutomatically: true,
-      // Enable audio/video sources - constraints applied via setInputDevicesAsync
+      // MOBILE FIX: Only request video source for video calls
+      // Requesting camera on audio calls causes unnecessary permission prompts on mobile
       audioSource: true,
-      videoSource: true,
-    });
-    
-    // Apply HD video constraints after creation for crystal clear quality
-    daily.setInputDevicesAsync({
-      videoDeviceId: undefined, // Use default camera with HD constraints
-    }).catch(() => {
-      // Ignore if not yet in call
+      videoSource: isVideo,
     });
 
     dailyRef.current = daily;
