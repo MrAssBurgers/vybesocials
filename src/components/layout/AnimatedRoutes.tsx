@@ -51,6 +51,7 @@ const OrderCancelled = lazy(() => import("@/pages/OrderCancelled"));
 const CreatorDashboard = lazy(() => import("@/pages/CreatorDashboard"));
 const AdvertiserDashboard = lazy(() => import("@/pages/AdvertiserDashboard"));
 const BusinessSubscriptions = lazy(() => import("@/pages/BusinessSubscriptions"));
+const FeatureVoting = lazy(() => import("@/pages/FeatureVoting"));
 
 // Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -140,6 +141,7 @@ export function AnimatedRoutes() {
             <Route path="/creator" element={<ProtectedRoute><CreatorDashboard /></ProtectedRoute>} />
             <Route path="/ads" element={<ProtectedRoute><AdvertiserDashboard /></ProtectedRoute>} />
             <Route path="/business-plans" element={<ProtectedRoute><BusinessSubscriptions /></ProtectedRoute>} />
+            <Route path="/roadmap" element={<ProtectedRoute><FeatureVoting /></ProtectedRoute>} />
             
             {/* Let /~oauth pass through to the cloud auth handler */}
             <Route path="/~oauth" element={null} />
