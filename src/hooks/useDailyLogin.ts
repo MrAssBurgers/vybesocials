@@ -9,16 +9,27 @@ import { toast } from 'sonner';
  * Formula: 15 XP × (1 + 0.3 × (streak - 1))
  * Day 1: 15 XP, Day 2: 19 XP, Day 5: 33 XP, Day 10: 55 XP
  */
+const SESSION_KEY = 'vybe_daily_login_tracked';
+
 export function useDailyLoginChallenge() {
   const { profile } = useAuth();
   const triggeredRef = useRef(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    // Guard: skip if already triggered this mount OR this session
     if (!profile?.id || triggeredRef.current) return;
+    
+    const today = new Date().toISOString().slice(0, 10);
+    const tracked = sessionStorage.getItem(SESSION_KEY);
+    if (tracked === today) {
+      triggeredRef.current = true;
+      return;
+    }
     
     const triggerLogin = async () => {
       triggeredRef.current = true;
+      sessionStorage.setItem(SESSION_KEY, today);
       
       try {
         const { data, error } = await supabase.rpc('track_daily_login');
