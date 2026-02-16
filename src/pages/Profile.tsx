@@ -2,6 +2,8 @@ import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, MoreHorizontal, Award, Package, Crown } from 'lucide-react';
+import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
+import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
 import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/useProfile';
 import { usePosts } from '@/hooks/usePosts';
@@ -474,13 +476,18 @@ export default function ProfilePage() {
                     >
                       {post.type === 'video' ? (
                         <>
-                          <video src={post.media_url} className="w-full h-full object-cover" muted />
+                          <VideoThumbnail
+                            videoUrl={post.media_url}
+                            thumbnailUrl={post.thumbnail_url}
+                            alt={post.caption || 'Video'}
+                            className="w-full h-full object-cover"
+                          />
                           <div className="absolute top-2 left-2 p-1.5 rounded-full bg-black/50">
                             <Play className="h-3 w-3 text-white" fill="white" />
                           </div>
                         </>
                       ) : (
-                        <img src={post.media_url} alt="" className="w-full h-full object-cover" />
+                        <ProfileGridImage url={post.media_url} alt={post.caption || ''} />
                       )}
                     </motion.div>
                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-sm">
@@ -521,13 +528,18 @@ export default function ProfilePage() {
                       >
                         {post.type === 'video' || post.type === 'short' ? (
                           <>
-                            <video src={post.media_url} className="w-full h-full object-cover" muted />
+                            <VideoThumbnail
+                              videoUrl={post.media_url}
+                              thumbnailUrl={post.thumbnail_url}
+                              alt={post.caption || 'Video'}
+                              className="w-full h-full object-cover"
+                            />
                             <div className="absolute top-2 left-2 p-1.5 rounded-full bg-black/50">
                               <Play className="h-3 w-3 text-white" fill="white" />
                             </div>
                           </>
                         ) : (
-                          <img src={post.media_url} alt="" className="w-full h-full object-cover" />
+                          <ProfileGridImage url={post.media_url} alt={post.caption || ''} />
                         )}
                       </motion.div>
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-sm">
@@ -571,4 +583,9 @@ export default function ProfilePage() {
       </div>
     </AppLayout>
   );
+}
+
+function ProfileGridImage({ url, alt }: { url: string; alt: string }) {
+  const signedUrl = useSignedUrl(url);
+  return <img src={signedUrl || url} alt={alt} className="w-full h-full object-cover" />;
 }
