@@ -118,14 +118,15 @@ export const StyledUsername = memo(function StyledUsername({
           className={className}
           style={{
             backgroundImage: resolvedNameColor,
-            backgroundSize: '200% 100%',
+            backgroundSize: '300% 100%',
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             color: 'transparent',
             display: 'inline-block',
-            animation: 'premium-gold-shimmer 3s ease-in-out infinite',
-            filter: 'drop-shadow(0 0 6px rgba(245,158,11,0.4))',
+            animation: 'premium-gold-shimmer 2.5s ease-in-out infinite',
+            filter: 'drop-shadow(0 0 8px rgba(245,158,11,0.5)) drop-shadow(0 0 20px rgba(245,158,11,0.2))',
+            textShadow: 'none',
           }}
         >
           {nameToShow}
