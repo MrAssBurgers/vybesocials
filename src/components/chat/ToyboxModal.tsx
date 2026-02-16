@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Image, Camera, Mic, Smile, MapPin, 
-  Clock, Flame, Gift, Sparkles, Zap, Crown, Lock
+  Clock, Flame, Gift, Sparkles, Zap, Crown, Lock, Laugh
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ interface ToyboxItem {
   color: string;
   action: () => void;
   premium?: boolean;
+  description?: string;
 }
 
 interface ToyboxModalProps {
@@ -29,6 +30,7 @@ interface ToyboxModalProps {
   onSelectVanish?: () => void;
   onSelectSchedule?: () => void;
   onSelectEffect?: () => void;
+  onSelectMemeBan?: () => void;
 }
 
 export function ToyboxModal({
@@ -42,6 +44,7 @@ export function ToyboxModal({
   onSelectVanish,
   onSelectSchedule,
   onSelectEffect,
+  onSelectMemeBan,
 }: ToyboxModalProps) {
   const { isPremium } = usePremiumStatus();
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -71,14 +74,6 @@ export function ToyboxModal({
       action: () => { onSelectCamera?.(); onOpenChange(false); },
     },
     {
-      id: 'voice',
-      icon: <Mic className="h-6 w-6" />,
-      label: 'Voice',
-      color: 'bg-red-500',
-      premium: true,
-      action: () => handlePremiumAction(onSelectVoice),
-    },
-    {
       id: 'gif',
       icon: <Smile className="h-6 w-6" />,
       label: 'GIF',
@@ -93,11 +88,21 @@ export function ToyboxModal({
       action: () => { onSelectLocation?.(); onOpenChange(false); },
     },
     {
+      id: 'voice',
+      icon: <Mic className="h-6 w-6" />,
+      label: 'Voice',
+      color: 'bg-red-500',
+      premium: true,
+      description: 'Send voice messages',
+      action: () => handlePremiumAction(onSelectVoice),
+    },
+    {
       id: 'vanish',
       icon: <Flame className="h-6 w-6" />,
       label: 'Vanish',
       color: 'bg-pink-500',
       premium: true,
+      description: 'Self-destructing messages',
       action: () => handlePremiumAction(onSelectVanish),
     },
     {
@@ -106,6 +111,7 @@ export function ToyboxModal({
       label: 'Schedule',
       color: 'bg-cyan-500',
       premium: true,
+      description: 'Schedule messages',
       action: () => handlePremiumAction(onSelectSchedule),
     },
     {
@@ -114,7 +120,17 @@ export function ToyboxModal({
       label: 'Effects',
       color: 'bg-yellow-500',
       premium: true,
+      description: 'Message effects & animations',
       action: () => handlePremiumAction(onSelectEffect),
+    },
+    {
+      id: 'memeban',
+      icon: <Laugh className="h-6 w-6" />,
+      label: 'Meme Ban',
+      color: 'bg-gradient-to-br from-amber-500 to-orange-600',
+      premium: true,
+      description: 'Ban users with memes (max 5 min)',
+      action: () => handlePremiumAction(onSelectMemeBan),
     },
   ];
 
@@ -193,35 +209,43 @@ export function ToyboxModal({
           {/* Items grid */}
           <div className="p-4">
             <div className="grid grid-cols-4 gap-3">
-              {items.map((item, index) => (
-                <motion.button
-                  key={item.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03 }}
-                  onClick={item.action}
-                  className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-muted/50 transition-colors active:scale-95 relative"
-                >
-                  <div className={cn(
-                    "h-12 w-12 rounded-full flex items-center justify-center text-white relative",
-                    item.color,
-                    item.premium && !isPremium && "opacity-70"
-                  )}>
-                    {item.icon}
-                    {item.premium && !isPremium && (
-                      <div className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center shadow-md">
-                        <Lock className="h-2.5 w-2.5 text-primary-foreground" />
-                      </div>
-                    )}
-                  </div>
-                  <span className={cn(
-                    "text-xs font-medium text-muted-foreground",
-                    item.premium && !isPremium && "opacity-70"
-                  )}>
-                    {item.label}
-                  </span>
-                </motion.button>
-              ))}
+              {items.map((item, index) => {
+                const isLocked = item.premium && !isPremium;
+                return (
+                  <motion.button
+                    key={item.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.03 }}
+                    onClick={item.action}
+                    className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-muted/50 transition-colors active:scale-95 relative"
+                  >
+                    <div className={cn(
+                      "h-12 w-12 rounded-full flex items-center justify-center text-white relative",
+                      item.color,
+                      isLocked && "opacity-40 grayscale"
+                    )}>
+                      {item.icon}
+                      {isLocked && (
+                        <div className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-muted border border-border flex items-center justify-center shadow-md">
+                          <Lock className="h-2.5 w-2.5 text-muted-foreground" />
+                        </div>
+                      )}
+                      {item.premium && isPremium && (
+                        <div className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center shadow-md">
+                          <Crown className="h-2.5 w-2.5 text-primary-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <span className={cn(
+                      "text-xs font-medium",
+                      isLocked ? "text-muted-foreground/50" : "text-muted-foreground"
+                    )}>
+                      {item.label}
+                    </span>
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
 
