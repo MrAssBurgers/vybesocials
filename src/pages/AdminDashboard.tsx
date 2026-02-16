@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Shield, Flag, AlertTriangle, Users, Ban, Crown, Megaphone, 
   Award, Activity, Calendar, Handshake, ImageIcon, ChevronRight,
-  BarChart3, MessageSquareWarning, Settings, Menu, X
+  BarChart3, MessageSquareWarning, Settings, Menu, X, ArrowLeft
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useUserRole, useReports, useContentFlags, useAllUserRoles } from '@/hooks/useModeration';
@@ -154,9 +154,20 @@ export default function AdminDashboard() {
     }
   };
 
+  const navigate = useNavigate();
+
   return (
-    <AppLayout>
-      <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+    <AppLayout hideNav noPadding>
+      <div className="flex h-[100dvh] overflow-hidden">
+        {/* Back button - mobile/tablet */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-3 left-3 z-50 lg:hidden rounded-full bg-background/80 backdrop-blur-sm border border-border/50"
+          onClick={() => navigate('/')}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
         {/* Mobile Sidebar Toggle */}
         <Button
           variant="ghost"
