@@ -29,7 +29,7 @@ export const NAME_COLOR_MAP: Record<string, string> = {
   'Justice Blue': '#3B82F6',
   'Guardian Green': '#22C55E',
   // Premium exclusive
-  'Premium Gold': 'linear-gradient(90deg, #F59E0B, #EAB308, #FBBF24)',
+  'Premium Gold': 'linear-gradient(90deg, #B45309, #F59E0B, #FDE68A, #FBBF24, #F59E0B, #B45309)',
 };
 
 // Colors restricted to specific roles (owner/mod)
