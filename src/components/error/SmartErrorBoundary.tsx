@@ -26,7 +26,23 @@ class SmartErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log to console in dev only
+    // Auto-recover from chunk loading errors (stale cache after deploy)
+    const msg = error?.message || '';
+    const isChunkError = msg.includes('Loading chunk') || 
+      msg.includes('Failed to fetch dynamically imported module') ||
+      msg.includes('Importing a module script failed') ||
+      msg.includes('error loading dynamically imported module') ||
+      msg.includes('Unable to preload CSS');
+    
+    if (isChunkError) {
+      // Clear caches and reload automatically
+      if ('caches' in window) {
+        caches.keys().then(names => names.forEach(name => caches.delete(name)));
+      }
+      window.location.reload();
+      return;
+    }
+
     if (import.meta.env.DEV) {
       console.error('[SmartErrorBoundary] Caught error:', error);
       console.error('[SmartErrorBoundary] Component stack:', errorInfo.componentStack);
@@ -34,6 +50,10 @@ class SmartErrorBoundary extends Component<Props, State> {
   }
 
   handleRefresh = () => {
+    // Clear caches before reload
+    if ('caches' in window) {
+      caches.keys().then(names => names.forEach(name => caches.delete(name)));
+    }
     window.location.reload();
   };
 
