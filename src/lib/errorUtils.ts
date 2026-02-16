@@ -5,6 +5,14 @@
 export function getUserFriendlyError(error: any): string {
   const message = error?.message || error?.toString() || '';
   
+  // OAuth popup errors (mobile browsers can't reliably use popups)
+  if (message.includes('Sign in was cancelled')) {
+    return '__SUPPRESS__'; // Not a real error — user closed popup or mobile suspended tab
+  }
+  if (message.includes('Popup was blocked')) {
+    return 'Pop-up blocked. Try opening the app in a new browser tab to sign in.';
+  }
+  
   // Authentication errors
   if (message.includes('Invalid login credentials')) {
     return 'Invalid email or password. Please try again.';
