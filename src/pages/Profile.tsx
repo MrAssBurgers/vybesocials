@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, MoreHorizontal, Award, Package } from 'lucide-react';
+import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, MoreHorizontal, Award, Package, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/useProfile';
 import { usePosts } from '@/hooks/usePosts';
@@ -326,15 +326,22 @@ export default function ProfilePage() {
                       </Button>
                     </motion.div>
                   </Link>
-                  {!isPremium && (
-                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    {isPremium ? (
+                      <Link to="/settings?tab=subscription">
+                        <Button variant="gradient" size="sm">
+                          <Crown className="h-4 w-4 mr-2" />
+                          Manage Premium
+                        </Button>
+                      </Link>
+                    ) : (
                       <UpgradeButton
                         label="Get Premium"
                         variant="gradient"
                         size="sm"
                       />
-                    </motion.div>
-                  )}
+                    )}
+                  </motion.div>
                 </div>
               ) : (
                 <div className="flex gap-2">
