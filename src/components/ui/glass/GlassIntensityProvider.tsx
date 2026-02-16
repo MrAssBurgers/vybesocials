@@ -18,16 +18,16 @@ interface GlassIntensityContextType {
 const GlassIntensityContext = createContext<GlassIntensityContextType | undefined>(undefined);
 
 const INTENSITY_CONFIG = {
-  calm: { blur: '16px', saturation: '150%', brightness: '1.02' },
-  normal: { blur: '40px', saturation: '200%', brightness: '1.05' },
-  max: { blur: '60px', saturation: '250%', brightness: '1.08' },
+  calm: { blur: '10px', saturation: '140%', brightness: '1.02' },
+  normal: { blur: '20px', saturation: '170%', brightness: '1.03' },
+  max: { blur: '30px', saturation: '200%', brightness: '1.05' },
 };
 
 // iOS-reduced intensity config
 const IOS_INTENSITY_CONFIG = {
-  calm: { blur: '8px', saturation: '120%', brightness: '1.02' },
-  normal: { blur: '10px', saturation: '130%', brightness: '1.03' },
-  max: { blur: '12px', saturation: '140%', brightness: '1.04' },
+  calm: { blur: '6px', saturation: '120%', brightness: '1.01' },
+  normal: { blur: '8px', saturation: '130%', brightness: '1.02' },
+  max: { blur: '12px', saturation: '140%', brightness: '1.03' },
 };
 
 // Detect if device is mobile for default high contrast
