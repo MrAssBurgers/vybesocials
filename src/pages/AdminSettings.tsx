@@ -6,6 +6,7 @@ import {
   Crown, Loader2, ShieldAlert, CreditCard, Key, Save, CheckCircle2, XCircle,
   Eye, EyeOff, Info, AlertCircle, Zap, RefreshCw, Shield, Activity,
 } from 'lucide-react';
+import { GiftPremiumSection } from '@/components/admin/sections/GiftPremiumSection';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -522,6 +523,9 @@ export default function AdminSettings() {
             onRun={runValidation}
           />
         </motion.div>
+
+        {/* ─── Section 4: Gift Premium ─── */}
+        <GiftPremiumSection />
 
         {/* Footer note */}
         <div className="flex items-start gap-2.5 p-3 rounded-lg bg-accent/50 border border-border/30">

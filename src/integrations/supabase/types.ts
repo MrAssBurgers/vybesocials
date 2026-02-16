@@ -2771,27 +2771,33 @@ export type Database = {
       }
       gifted_premium: {
         Row: {
+          accepted_at: string | null
           created_at: string
           gifted_by: string
           id: string
           is_active: boolean
           revoked_at: string | null
+          status: string
           user_id: string
         }
         Insert: {
+          accepted_at?: string | null
           created_at?: string
           gifted_by: string
           id?: string
           is_active?: boolean
           revoked_at?: string | null
+          status?: string
           user_id: string
         }
         Update: {
+          accepted_at?: string | null
           created_at?: string
           gifted_by?: string
           id?: string
           is_active?: boolean
           revoked_at?: string | null
+          status?: string
           user_id?: string
         }
         Relationships: []

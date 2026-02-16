@@ -55,11 +55,13 @@ export function GiftPremiumButton({ targetUserId, targetUsername }: GiftPremiumB
         .insert({
           user_id: targetUserId,
           gifted_by: user!.id,
+          is_active: false,
+          status: 'pending',
         });
 
       if (error) throw error;
 
-      toast.success(`Premium gifted to @${targetUsername}! 🎁`);
+      toast.success(`Premium gift sent to @${targetUsername}! They'll get a popup to accept it 🎁`);
       queryClient.invalidateQueries({ queryKey: ['gifted-premium-check', targetUserId] });
       queryClient.invalidateQueries({ queryKey: ['db-premium-status'] });
     } catch (err: any) {

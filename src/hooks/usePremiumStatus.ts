@@ -23,12 +23,13 @@ export function usePremiumStatus() {
         .eq('role', 'owner')
         .maybeSingle();
 
-      // Check gifted premium
+      // Check gifted premium (only accepted ones)
       const { data: giftedData } = await supabase
         .from('gifted_premium')
         .select('id')
         .eq('user_id', user.id)
         .eq('is_active', true)
+        .eq('status', 'accepted')
         .is('revoked_at', null)
         .maybeSingle();
 

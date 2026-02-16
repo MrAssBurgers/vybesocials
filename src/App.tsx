@@ -41,6 +41,7 @@ const InvitePopup = lazy(() => import("@/components/invite/InvitePopup").then(m 
 const AppUpdateOverlay = lazy(() => import("@/components/app/AppUpdateOverlay").then(m => ({ default: m.AppUpdateOverlay })));
 const RewardNotificationProvider = lazy(() => import("@/components/vybepass/RewardNotificationProvider").then(m => ({ default: m.RewardNotificationProvider })));
 const StreakProvider = lazy(() => import("@/components/streak/StreakProvider").then(m => ({ default: m.StreakProvider })));
+const PremiumGiftChecker = lazy(() => import("@/components/premium/PremiumGiftChecker").then(m => ({ default: m.PremiumGiftChecker })));
 
 // Lazy-load deferred hooks via a wrapper component
 const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
@@ -161,6 +162,7 @@ function AppWithPreloader() {
                                       <InvitePopup />
                                       <BanCheck />
                                       <AppUpdateOverlay />
+                                      <PremiumGiftChecker />
                                     </Suspense>
                                   </TutorialProvider>
                                 </Suspense>
