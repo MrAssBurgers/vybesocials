@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo, memo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Palette, Type, Wand2, Diamond, Layers, Lock, Check, Crown, Shield, Package, Zap } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
+import { Palette, Type, Wand2, Diamond, Layers, Lock, Check, Crown, Package, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLockerItems, useEquipItem, LockerItem } from '@/hooks/useLockerItems';
+import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { isOwner } from '@/components/ui/OwnerBadge';
@@ -166,6 +166,7 @@ export function SubscriptionLocker() {
   const { data: lockerData } = useLockerItems();
   const equipItem = useEquipItem();
   const { data: userRole } = useUserRoleById(profile?.id);
+  const { isPremium } = usePremiumStatus();
 
   const hasOwnerBadge = isOwner(profile?.username);
   const hasModBadge = !!userRole;
@@ -188,17 +189,19 @@ export function SubscriptionLocker() {
 
   const tabItems = useMemo((): LockerItem[] => {
     if (!lockerData) return [];
+    const markUnlocked = (item: LockerItem): LockerItem =>
+      isPremium ? { ...item, unlocked: true } : item;
     switch (activeTab) {
       case 'colors': return lockerData.name_colors.map(item =>
-        hasRoleUnlock(item.reward_name) ? { ...item, unlocked: true } : item
+        hasRoleUnlock(item.reward_name) ? { ...item, unlocked: true } : markUnlocked(item)
       );
-      case 'titles': return lockerData.titles;
-      case 'effects': return lockerData.effects;
-      case 'frames': return lockerData.cosmetics;
-      case 'themes': return lockerData.profile_themes;
+      case 'titles': return lockerData.titles.map(markUnlocked);
+      case 'effects': return lockerData.effects.map(markUnlocked);
+      case 'frames': return lockerData.cosmetics.map(markUnlocked);
+      case 'themes': return lockerData.profile_themes.map(markUnlocked);
       default: return [];
     }
-  }, [lockerData, activeTab, hasRoleUnlock]);
+  }, [lockerData, activeTab, hasRoleUnlock, isPremium]);
 
   const isItemEquipped = useCallback((item: LockerItem): boolean => {
     if (!lockerData) return false;
@@ -259,10 +262,10 @@ export function SubscriptionLocker() {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Package className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold text-sm">Your Cosmetics</h3>
+          <Crown className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold text-sm">Premium Cosmetics</h3>
           {equippedCount > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-500 font-bold">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-bold">
               {equippedCount} active
             </span>
           )}
@@ -335,7 +338,7 @@ export function SubscriptionLocker() {
       )}
 
       <p className="text-[10px] text-muted-foreground text-center mt-3">
-        Tap to equip or unequip • Earn more by leveling up
+        Tap to equip or unequip • Premium unlocks all cosmetics
       </p>
     </motion.div>
   );
