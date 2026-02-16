@@ -2197,7 +2197,19 @@ const MessageBubble = memo(function MessageBubble({
         {/* Message bubble - Instagram-quality padding and radius (not for shared posts) */}
         {!isSharedPost && (
         <div className="relative group/bubble">
-          {/* Quick action dots removed - actions available via long-press/right-click context menu */}
+          {/* Desktop-only 3-dot quick action menu (hidden on touch/mobile) */}
+          <div className="hidden sm:block absolute -top-1 z-10" style={{ [isOwn ? 'left' : 'right']: '-28px' }}>
+            <MessageActionMenu
+              messageId={message.id}
+              content={message.content}
+              isOwn={isOwn}
+              isTextMessage={!!message.content && !message.media_url}
+              onReply={onReply}
+              onEdit={onEdit}
+              onUnsendForEveryone={onUnsendForEveryone}
+              onDeleteForMe={onDeleteForMe}
+            />
+          </div>
         <div
           className={cn(
             'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0',
@@ -2391,6 +2403,18 @@ const MessageBubble = memo(function MessageBubble({
                   }}
                   onReply={onReply}
                   onViewed={onView}
+                  onSave={async () => {
+                    try {
+                      const { error } = await supabase
+                        .from('messages')
+                        .update({ media_type: 'image', viewed_at: new Date().toISOString() })
+                        .eq('id', message.id);
+                      if (error) throw error;
+                      toast.success('VYBE saved to chat');
+                    } catch {
+                      toast.error('Failed to save VYBE');
+                    }
+                  }}
                 />
               )}
             </div>

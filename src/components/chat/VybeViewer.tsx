@@ -1,21 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Reply, Camera, Eye } from 'lucide-react';
+import { X, Reply, Camera, Eye, Download } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { haptics } from '@/lib/haptics';
 
 interface VybeViewerProps {
   mediaUrl: string;
-  messageId?: string; // Track viewed state
+  messageId?: string;
   senderName?: string;
   senderAvatar?: string;
   isOpen: boolean;
-  isViewed?: boolean; // Track if already viewed (from server)
-  isOwn?: boolean; // Whether current user sent this VYBE
+  isViewed?: boolean;
+  isOwn?: boolean;
   onClose: () => void;
   onReply?: () => void;
-  onViewed?: () => void; // Callback when vybe is viewed
+  onViewed?: () => void;
+  onSave?: () => void;
 }
 
 export function VybeViewer({ 
@@ -29,6 +30,7 @@ export function VybeViewer({
   onClose,
   onReply,
   onViewed,
+  onSave,
 }: VybeViewerProps) {
   const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -204,18 +206,37 @@ export function VybeViewer({
               </div>
             </div>
             
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={(e) => {
-                e.stopPropagation();
-                haptics.impact();
-                onClose();
-              }}
-              className="p-3 rounded-full bg-black/50 hover:bg-black/70 transition-colors backdrop-blur-sm flex items-center justify-center"
-            >
-              <X className="h-6 w-6 text-white" strokeWidth={2.5} />
-            </motion.button>
+            <div className="flex items-center gap-2">
+              {/* Save to chat button */}
+              {onSave && (
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    haptics.success();
+                    onSave();
+                    onClose();
+                  }}
+                  className="p-3 rounded-full bg-black/50 hover:bg-black/70 transition-colors backdrop-blur-sm flex items-center justify-center"
+                >
+                  <Download className="h-5 w-5 text-white" strokeWidth={2.5} />
+                </motion.button>
+              )}
+              
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  haptics.impact();
+                  onClose();
+                }}
+                className="p-3 rounded-full bg-black/50 hover:bg-black/70 transition-colors backdrop-blur-sm flex items-center justify-center"
+              >
+                <X className="h-6 w-6 text-white" strokeWidth={2.5} />
+              </motion.button>
+            </div>
           </div>
 
           {/* VYBE Image - fullscreen with reveal animation */}
