@@ -68,20 +68,28 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   useEffect(() => {
     if (!isOAuthReturn) return;
 
-    // User appeared from OAuth — clear flag, redirect useEffect will handle navigation
+    // User appeared from OAuth — clear flag AND state so we stop showing blank screen
     if (user) {
       sessionStorage.removeItem('vybe-oauth-pending');
+      setIsOAuthReturn(false);
       return;
     }
 
-    // Fallback: if session never establishes after 8s, show login
+    // If authReady is true but no user, the session failed to establish — show login immediately
+    if (authReady) {
+      sessionStorage.removeItem('vybe-oauth-pending');
+      setIsOAuthReturn(false);
+      return;
+    }
+
+    // Fallback: if session never establishes after 10s, show login
     const timer = setTimeout(() => {
       sessionStorage.removeItem('vybe-oauth-pending');
       setIsOAuthReturn(false);
-    }, 8000);
+    }, 10000);
 
     return () => clearTimeout(timer);
-  }, [isOAuthReturn, user]);
+  }, [isOAuthReturn, user, authReady]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
