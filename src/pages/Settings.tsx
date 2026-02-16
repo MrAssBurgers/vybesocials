@@ -1,6 +1,5 @@
 import { useState, forwardRef, lazy, Suspense } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { LogOut, ChevronRight, Settings } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
@@ -96,11 +95,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
     <AppLayout>
       <div className="max-w-5xl mx-auto px-3 sm:px-6 py-3 sm:py-8 pb-24 sm:pb-8">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-4 sm:mb-6"
-        >
+        <div className="mb-4 sm:mb-6">
           <div className="flex items-center gap-2.5 sm:gap-3 mb-2">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
@@ -110,31 +105,21 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
               <p className="text-xs sm:text-sm text-foreground/80 truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{t('settingsNav.manageAccount')}</p>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Mobile: Dropdown category selector */}
         {isMobile && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-4"
-          >
+          <div className="mb-4">
             <SettingsNav 
               activeCategory={activeCategory} 
               onCategoryChange={setActiveCategory} 
             />
-          </motion.div>
+          </div>
         )}
 
         {/* Category selector for desktop (horizontal tabs style) */}
         {!isMobile && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-6"
-          >
+          <div className="mb-6">
             <div className="liquid-glass-card p-2 overflow-hidden">
               <div className="flex flex-wrap gap-2">
                 <SettingsNavVertical 
@@ -143,7 +128,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
                 />
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Content layout */}
@@ -153,38 +138,18 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
           <div className="flex-1 min-w-0">
             {/* Section title for desktop */}
             {!isMobile && (
-              <motion.div
-                key={`title-${activeCategory}`}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="mb-4"
-              >
+              <div className="mb-4">
                 <h2 className="text-lg font-semibold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{getCategoryTitle()}</h2>
-              </motion.div>
+              </div>
             )}
 
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeCategory}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
-                className="min-h-[400px]"
-              >
-                {renderContent()}
-              </motion.div>
-            </AnimatePresence>
+            <div key={activeCategory} className="min-h-[400px]">
+              {renderContent()}
+            </div>
 
             {/* Sign Out & App Info */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="mt-6 space-y-4 pb-4"
-            >
+            <div className="mt-6 space-y-4 pb-4">
               <Separator />
-
 
               <Button
                 variant="outline"
@@ -198,19 +163,14 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
                 <ChevronRight className="h-4 w-4" />
               </Button>
 
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="text-center py-4 text-muted-foreground"
-              >
+              <div className="text-center py-4 text-muted-foreground">
                 <div className="flex items-center justify-center gap-2 mb-1">
                   <VybeMiniIcon size={28} showSparkles />
                   <span className="font-display font-black text-xl gradient-text">VYBE</span>
                 </div>
                 <p className="text-xs">v{APP_VERSION}</p>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
