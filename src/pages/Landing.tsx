@@ -56,24 +56,29 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [showPassword, setShowPassword] = useState(false);
   const [showIntro, setShowIntro] = useState<boolean | null>(null); // null = still checking
   const [isOAuthReturn, setIsOAuthReturn] = useState(() => {
-    // Detect if we're returning from an OAuth redirect (tokens in URL hash)
+    // Check sessionStorage flag (set before redirect) — most reliable method
+    // Also check URL hash as fallback (tokens may be present before detectSessionInUrl clears them)
+    const hasOAuthFlag = sessionStorage.getItem('vybe-oauth-pending') === 'true';
     const hash = window.location.hash;
-    return hash.includes('access_token') || hash.includes('refresh_token') || hash.includes('type=recovery');
+    const hasHashTokens = hash.includes('access_token') || hash.includes('refresh_token') || hash.includes('type=recovery');
+    return hasOAuthFlag || hasHashTokens;
   });
 
   // Handle OAuth return: wait for session to establish or timeout
-  // CRITICAL: Don't clear isOAuthReturn based on authReady+!user because
-  // detectSessionInUrl is async and getSession() may resolve with null first
   useEffect(() => {
     if (!isOAuthReturn) return;
 
-    // User appeared from OAuth — redirect useEffect will handle navigation
-    if (user) return;
+    // User appeared from OAuth — clear flag, redirect useEffect will handle navigation
+    if (user) {
+      sessionStorage.removeItem('vybe-oauth-pending');
+      return;
+    }
 
-    // Fallback: if session never establishes after 5s, show login
+    // Fallback: if session never establishes after 8s, show login
     const timer = setTimeout(() => {
+      sessionStorage.removeItem('vybe-oauth-pending');
       setIsOAuthReturn(false);
-    }, 5000);
+    }, 8000);
 
     return () => clearTimeout(timer);
   }, [isOAuthReturn, user]);
@@ -507,14 +512,20 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               onClick={async () => {
                 setLoading(true);
                 try {
+                  // Set flag BEFORE redirect so we know we're returning from OAuth
+                  sessionStorage.setItem('vybe-oauth-pending', 'true');
                   const { error } = await lovable.auth.signInWithOAuth("google", {
                     redirect_uri: window.location.origin,
                     extraParams: {
                       prompt: "select_account",
                     },
                   });
-                  if (error) throw error;
+                  if (error) {
+                    sessionStorage.removeItem('vybe-oauth-pending');
+                    throw error;
+                  }
                 } catch (error: any) {
+                  sessionStorage.removeItem('vybe-oauth-pending');
                   const msg = getUserFriendlyError(error);
                   if (msg !== '__SUPPRESS__') {
                     toast.error(msg);
@@ -540,11 +551,16 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               onClick={async () => {
                 setLoading(true);
                 try {
+                  sessionStorage.setItem('vybe-oauth-pending', 'true');
                   const { error } = await lovable.auth.signInWithOAuth("apple", {
                     redirect_uri: window.location.origin,
                   });
-                  if (error) throw error;
+                  if (error) {
+                    sessionStorage.removeItem('vybe-oauth-pending');
+                    throw error;
+                  }
                 } catch (error: any) {
+                  sessionStorage.removeItem('vybe-oauth-pending');
                   const msg = getUserFriendlyError(error);
                   if (msg !== '__SUPPRESS__') {
                     toast.error(msg);
