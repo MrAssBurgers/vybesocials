@@ -277,9 +277,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         logEvent('auth', `onAuthStateChange: ${event}`, { hasSession: !!session });
-        // Skip if already initialized from getSession (prevents double profile fetches)
-        if (!authInitializedRef.current && event === 'INITIAL_SESSION') {
-          return; // Let getSession handle the first initialization
+        // Skip INITIAL_SESSION only if it has NO session (let getSession handle cold start).
+        // If INITIAL_SESSION has a session (e.g., OAuth redirect), process it immediately
+        // to avoid losing the session on iPad Safari where getSession() may not pick it up yet.
+        if (!authInitializedRef.current && event === 'INITIAL_SESSION' && !session) {
+          return; // Let getSession handle the first initialization when there's no session
         }
         
         setSession(session);
