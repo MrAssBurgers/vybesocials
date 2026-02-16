@@ -19,6 +19,7 @@ import { IntroFlow, hasSeenIntro, checkIntroStatus } from '@/components/intro/In
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
+import { FounderCounter } from '@/components/growth/FounderCounter';
 
 // Hide bottom nav on landing page
 function useHideBottomNav() {
@@ -539,6 +540,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             >
               👀 Browse as Guest
             </Button>
+          </div>
+
+          {/* Founder scarcity counter */}
+          <div className="mt-3">
+            <FounderCounter compact />
           </div>
 
           <p className="text-center text-sm text-muted-foreground mt-6">
