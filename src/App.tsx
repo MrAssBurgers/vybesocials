@@ -42,6 +42,7 @@ const AppUpdateOverlay = lazy(() => import("@/components/app/AppUpdateOverlay").
 const RewardNotificationProvider = lazy(() => import("@/components/vybepass/RewardNotificationProvider").then(m => ({ default: m.RewardNotificationProvider })));
 const StreakProvider = lazy(() => import("@/components/streak/StreakProvider").then(m => ({ default: m.StreakProvider })));
 const PremiumGiftChecker = lazy(() => import("@/components/premium/PremiumGiftChecker").then(m => ({ default: m.PremiumGiftChecker })));
+const TrackingConsentDialog = lazy(() => import("@/components/app/TrackingConsentDialog").then(m => ({ default: m.TrackingConsentDialog })));
 
 // Lazy-load deferred hooks via a wrapper component
 const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
@@ -163,6 +164,7 @@ function AppWithPreloader() {
                                       <BanCheck />
                                       <AppUpdateOverlay />
                                       <PremiumGiftChecker />
+                                      <TrackingConsentDialog />
                                     </Suspense>
                                   </TutorialProvider>
                                 </Suspense>
