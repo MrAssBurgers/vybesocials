@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, memo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Globe, Sparkles } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -6,6 +6,9 @@ import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePerso
 import type { Post } from '@/hooks/useInfinitePosts';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
+import { useShowAds } from '@/hooks/useShowAds';
+
+const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StoriesBar } from '@/components/stories/StoriesBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -34,7 +37,10 @@ interface PostListProps {
   emptyIcon: string;
   emptyText: string;
   onExplore?: () => void;
+  showAds?: boolean;
 }
+
+const AD_INTERVAL = 5; // Show an ad every N posts
 
 const PostList = memo(({ 
   posts, 
@@ -45,6 +51,7 @@ const PostList = memo(({
   emptyIcon,
   emptyText,
   onExplore,
+  showAds = false,
 }: PostListProps) => {
   // Show skeletons only on initial load with NO cached data
   if (isLoading && posts.length === 0) {
@@ -65,8 +72,16 @@ const PostList = memo(({
 
   return (
     <>
-      {posts.map((post) => (
-        <MemoizedPostCard key={post.id} post={post} />
+      {posts.map((post, index) => (
+        <div key={post.id}>
+          <MemoizedPostCard post={post} />
+          {/* Inject ad after every N posts */}
+          {showAds && (index + 1) % AD_INTERVAL === 0 && (
+            <Suspense fallback={null}>
+              <FeedAdCard />
+            </Suspense>
+          )}
+        </div>
       ))}
       <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
         {isFetchingNext && (
@@ -82,7 +97,8 @@ const PostList = memo(({
     prevProps.isFetching === nextProps.isFetching &&
     prevProps.isFetchingNext === nextProps.isFetchingNext &&
     prevProps.posts.length === nextProps.posts.length &&
-    prevProps.posts === nextProps.posts
+    prevProps.posts === nextProps.posts &&
+    prevProps.showAds === nextProps.showAds
   );
 });
 
@@ -94,6 +110,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const navigate = useNavigate();
   const { user, profile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('foryou');
+  const { showAds } = useShowAds();
   
   // Personalized feed (interest-matched posts)
   const {
@@ -327,6 +344,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
                 emptyIcon="✨"
                 emptyText="No posts yet. Follow creators or check Global!"
                 onExplore={() => navigate('/explore')}
+                showAds={showAds}
               />
             </TabsContent>
 
@@ -340,6 +358,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
                 emptyIcon="🌍"
                 emptyText="No posts yet. Be the first to share something!"
                 onExplore={() => navigate('/explore')}
+                showAds={showAds}
               />
             </TabsContent>
           </Tabs>

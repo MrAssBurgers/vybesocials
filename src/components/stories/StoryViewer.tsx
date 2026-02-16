@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { X, Pause, Play, Eye, Send, Heart, ChevronUp, Users } from 'lucide-react';
+import { X, Pause, Play, Eye, Send, Heart, ChevronUp, Users, Megaphone } from 'lucide-react';
 import { StoryGroup, useViewStory } from '@/hooks/useStories';
 import { useStoryLikes, useLikeStory } from '@/hooks/useStoryLikes';
 import { useAuth } from '@/lib/auth';
@@ -13,6 +13,9 @@ import { cn } from '@/lib/utils';
 import { StoryMedia } from './StoryMedia';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { navVisibility } from '@/lib/navVisibility';
+import { useShowAds } from '@/hooks/useShowAds';
+import { AdUnit } from '@/components/ads/AdUnit';
+import { AD_SLOTS } from '@/components/ads/FeedAdCard';
 
 interface StoryViewerProps {
   groups: StoryGroup[];
@@ -24,6 +27,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   const { profile } = useAuth();
   const viewStory = useViewStory();
   const likeStory = useLikeStory();
+  const { showAds } = useShowAds();
   
   const [groupIndex, setGroupIndex] = useState(initialGroupIndex);
   const [storyIndex, setStoryIndex] = useState(0);
@@ -34,6 +38,8 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   const [direction, setDirection] = useState(0);
   const [showLikesPanel, setShowLikesPanel] = useState(false);
   const [likeAnimating, setLikeAnimating] = useState(false);
+  const [showAdInterstitial, setShowAdInterstitial] = useState(false);
+  const groupsSinceAd = useRef(0);
   
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
@@ -91,6 +97,23 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
       setStoryIndex((prev) => prev + 1);
       setProgress(0);
     } else if (groupIndex < groups.length - 1) {
+      groupsSinceAd.current += 1;
+      // Show ad interstitial every 3 groups
+      if (showAds && groupsSinceAd.current >= 3) {
+        groupsSinceAd.current = 0;
+        setShowAdInterstitial(true);
+        setIsPaused(true);
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+          setShowAdInterstitial(false);
+          setIsPaused(false);
+          setDirection(1);
+          setGroupIndex((prev) => prev + 1);
+          setStoryIndex(0);
+          setProgress(0);
+        }, 5000);
+        return;
+      }
       setDirection(1);
       setGroupIndex((prev) => prev + 1);
       setStoryIndex(0);
@@ -563,6 +586,44 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
           </button>
         )}
       </div>
+
+      {/* Ad interstitial overlay */}
+      <AnimatePresence>
+        {showAdInterstitial && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[60] bg-background/95 backdrop-blur-md flex flex-col items-center justify-center gap-4 p-6"
+          >
+            <div className="flex items-center gap-1.5 mb-2">
+              <Megaphone className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Sponsored</span>
+            </div>
+            <AdUnit 
+              slot={AD_SLOTS.STORY_INTERSTITIAL} 
+              format="rectangle" 
+              responsive 
+              className="w-full max-w-sm min-h-[250px] rounded-xl overflow-hidden"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowAdInterstitial(false);
+                setIsPaused(false);
+                setDirection(1);
+                setGroupIndex((prev) => prev + 1);
+                setStoryIndex(0);
+                setProgress(0);
+              }}
+              className="text-muted-foreground"
+            >
+              Skip →
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
