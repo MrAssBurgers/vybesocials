@@ -1209,6 +1209,127 @@ export type Database = {
           },
         ]
       }
+      business_subscription_tiers: {
+        Row: {
+          analytics_level: string
+          created_at: string
+          description: string | null
+          features: Json
+          id: string
+          is_active: boolean
+          max_ad_credits_monthly: number | null
+          max_products: number | null
+          name: string
+          price_monthly: number
+          priority_support: boolean
+          promo_tools_enabled: boolean
+          rc_product_id: string | null
+          slug: string
+          sort_order: number
+          updated_at: string
+          visibility_boost_multiplier: number
+        }
+        Insert: {
+          analytics_level?: string
+          created_at?: string
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          max_ad_credits_monthly?: number | null
+          max_products?: number | null
+          name: string
+          price_monthly?: number
+          priority_support?: boolean
+          promo_tools_enabled?: boolean
+          rc_product_id?: string | null
+          slug: string
+          sort_order?: number
+          updated_at?: string
+          visibility_boost_multiplier?: number
+        }
+        Update: {
+          analytics_level?: string
+          created_at?: string
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          max_ad_credits_monthly?: number | null
+          max_products?: number | null
+          name?: string
+          price_monthly?: number
+          priority_support?: boolean
+          promo_tools_enabled?: boolean
+          rc_product_id?: string | null
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+          visibility_boost_multiplier?: number
+        }
+        Relationships: []
+      }
+      business_subscriptions: {
+        Row: {
+          business_id: string
+          cancelled_at: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          rc_subscription_id: string | null
+          started_at: string
+          status: string
+          tier_id: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          cancelled_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          rc_subscription_id?: string | null
+          started_at?: string
+          status?: string
+          tier_id: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          cancelled_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          rc_subscription_id?: string | null
+          started_at?: string
+          status?: string
+          tier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_subscriptions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_subscriptions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "business_profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_subscriptions_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "business_subscription_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_signals: {
         Row: {
           call_id: string
