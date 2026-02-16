@@ -28,11 +28,17 @@ export function ForgotPasswordDialog({ open, onClose }: ForgotPasswordDialogProp
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      // Call our standalone edge function instead of Supabase's built-in recovery
+      const { data, error } = await supabase.functions.invoke('send-auth-email', {
+        body: {
+          action: 'request_reset',
+          email: email.trim(),
+          redirectUrl: window.location.origin,
+        },
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       setSent(true);
       toast.success('Password reset email sent!');
@@ -84,7 +90,7 @@ export function ForgotPasswordDialog({ open, onClose }: ForgotPasswordDialogProp
                   Click the link in the email to reset your password.
                 </p>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Don't see it? Check your spam folder.
+                  Don't see it? Check your spam folder. The link expires in 1 hour.
                 </p>
                 <Button
                   onClick={handleClose}

@@ -4100,6 +4100,33 @@ export type Database = {
           },
         ]
       }
+      password_reset_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          token: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          token: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       payment_methods: {
         Row: {
           created_at: string
@@ -7288,6 +7315,7 @@ export type Database = {
         Returns: Json
       }
       claim_profile_by_email: { Args: never; Returns: string }
+      cleanup_expired_reset_tokens: { Args: never; Returns: undefined }
       cleanup_old_friend_drops: { Args: never; Returns: undefined }
       cleanup_stale_challenges: { Args: never; Returns: undefined }
       create_default_rooms: {

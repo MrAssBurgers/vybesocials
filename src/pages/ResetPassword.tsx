@@ -1,62 +1,63 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { VYBELogo } from '@/components/ui/VYBELogo';
-import { Eye, EyeOff, Lock, CheckCircle, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, CheckCircle, Loader2, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [tokenValid, setTokenValid] = useState(false);
 
-  // Listen for PASSWORD_RECOVERY event from Supabase auth
+  const resetToken = searchParams.get('token');
+
   useEffect(() => {
-    // First check if there's already a session (user might have landed here with a valid token)
+    // If we have our custom token, use our standalone flow
+    if (resetToken) {
+      setTokenValid(true);
+      setChecking(false);
+      return;
+    }
+
+    // Fallback: check for Supabase recovery event (legacy support)
     const checkExistingSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        setIsReady(true);
+        setTokenValid(true);
         setChecking(false);
         return true;
       }
       return false;
     };
 
-    // Listen for auth state changes - Supabase auto-processes the recovery token from URL
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setIsReady(true);
-        setChecking(false);
-      } else if (event === 'SIGNED_IN' && session) {
-        // Sometimes recovery comes as SIGNED_IN
-        setIsReady(true);
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+        setTokenValid(true);
         setChecking(false);
       }
     });
 
-    // Check existing session, and if none, wait a bit for the auth event
     checkExistingSession().then((hasSession) => {
       if (!hasSession) {
-        // Give Supabase time to process the URL token
         setTimeout(() => {
           setChecking(prev => {
-            // If still checking after timeout, check session one more time
             if (prev) {
               checkExistingSession().then((found) => {
                 if (!found) {
-                  toast.error('Invalid or expired reset link');
-                  navigate('/');
+                  setError('Invalid or expired reset link. Please request a new one.');
+                  setChecking(false);
                 }
               });
             }
@@ -69,7 +70,7 @@ export default function ResetPassword() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [resetToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,18 +89,31 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-      });
+      if (resetToken) {
+        // Use our standalone edge function
+        const { data, error: fnError } = await supabase.functions.invoke('send-auth-email', {
+          body: {
+            action: 'reset_password',
+            token: resetToken,
+            newPassword: password,
+          },
+        });
 
-      if (error) throw error;
+        if (fnError) throw fnError;
+        if (data?.error) throw new Error(data.error);
+      } else {
+        // Legacy Supabase flow
+        const { error } = await supabase.auth.updateUser({
+          password: password,
+        });
+        if (error) throw error;
+      }
 
       setSuccess(true);
       toast.success('Password updated successfully!');
       
-      // Redirect to home after a short delay
       setTimeout(() => {
-        navigate('/home');
+        navigate('/?mode=login');
       }, 2000);
     } catch (err: any) {
       setError(err.message || 'Failed to reset password');
@@ -122,7 +136,7 @@ export default function ResetPassword() {
           </div>
           <h1 className="text-2xl font-bold mb-2">Password Reset!</h1>
           <p className="text-muted-foreground mb-4">
-            Your password has been successfully updated. Redirecting you now...
+            Your password has been successfully updated. Redirecting to login...
           </p>
         </motion.div>
       </div>
@@ -144,9 +158,29 @@ export default function ResetPassword() {
     );
   }
 
+  if (!tokenValid && error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="glass-card rounded-3xl p-8 max-w-md w-full text-center"
+        >
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-destructive/20 flex items-center justify-center">
+            <AlertTriangle className="w-8 h-8 text-destructive" />
+          </div>
+          <h1 className="text-xl font-bold mb-2">Link Expired</h1>
+          <p className="text-muted-foreground text-sm mb-4">{error}</p>
+          <Button onClick={() => navigate('/?mode=login')} className="w-full">
+            Back to Login
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      {/* Background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/2 -left-1/2 w-full h-full gradient-animated opacity-10 blur-3xl" />
         <div className="absolute -bottom-1/2 -right-1/2 w-full h-full gradient-animated opacity-10 blur-3xl" />
@@ -215,7 +249,7 @@ export default function ResetPassword() {
             type="submit"
             className="w-full gradient-animated text-white"
             size="lg"
-            disabled={loading || !isReady}
+            disabled={loading}
           >
             {loading ? 'Updating...' : 'Update Password'}
           </Button>
