@@ -106,6 +106,13 @@ export function GiftPremiumSection() {
     if (!selectedUser || !user) return;
     setGifting(true);
     try {
+      // Remove any previously revoked gift so we can re-gift
+      await supabase
+        .from('gifted_premium')
+        .delete()
+        .eq('user_id', selectedUser.user_id)
+        .not('revoked_at', 'is', null);
+
       // Insert gift as pending (is_active = false, status = 'pending')
       const { error } = await supabase
         .from('gifted_premium')
@@ -153,7 +160,7 @@ export function GiftPremiumSection() {
     try {
       const { error } = await supabase
         .from('gifted_premium')
-        .update({ is_active: false, revoked_at: new Date().toISOString() })
+        .update({ is_active: false, status: 'revoked', revoked_at: new Date().toISOString() })
         .eq('id', giftId);
 
       if (error) throw error;

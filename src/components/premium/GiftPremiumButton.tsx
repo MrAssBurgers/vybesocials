@@ -50,6 +50,13 @@ export function GiftPremiumButton({ targetUserId, targetUsername }: GiftPremiumB
   const handleGift = async () => {
     setLoading(true);
     try {
+      // Remove any previously revoked gift so we can re-gift
+      await supabase
+        .from('gifted_premium')
+        .delete()
+        .eq('user_id', targetUserId)
+        .not('revoked_at', 'is', null);
+
       const { error } = await supabase
         .from('gifted_premium')
         .insert({
