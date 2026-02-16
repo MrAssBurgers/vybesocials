@@ -90,6 +90,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   .platform-ios .aurora-wave-name { animation: aurora-wave 4s ease-in-out infinite !important; }
   .platform-ios .electric-surge-name { animation: electric-surge 2s ease-in-out infinite !important; }
   .platform-ios .plasma-storm-name { animation: plasma-storm 3s ease-in-out infinite !important; }
+  .platform-ios .crown-glow-name { animation: crown-glow 2s ease-in-out infinite !important; }
 
   /* Allow pulse for specific elements (loading states) */
   .platform-ios [data-allow-animation="true"] .animate-pulse,
@@ -177,6 +178,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   .perf-low .aurora-wave-name { animation: aurora-wave 4s ease-in-out infinite !important; }
   .perf-low .electric-surge-name { animation: electric-surge 2s ease-in-out infinite !important; }
   .perf-low .plasma-storm-name { animation: plasma-storm 3s ease-in-out infinite !important; }
+  .perf-low .crown-glow-name { animation: crown-glow 2s ease-in-out infinite !important; }
   .perf-low [class*="animate-[sparkle"] { animation: sparkle-name 2s ease-in-out infinite !important; }
   .perf-low [class*="animate-[fire"] { animation: fire-glow 1.5s ease-in-out infinite !important; }
   .perf-low [class*="animate-[cosmic"] { animation: cosmic-glow 3s ease-in-out infinite !important; }
