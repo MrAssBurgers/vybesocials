@@ -3121,6 +3121,15 @@ img, video {
   }
 }
 
+@keyframes shimmer-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
 .create-button-gradient {
   background: linear-gradient(
     135deg,
