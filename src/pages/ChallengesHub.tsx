@@ -44,7 +44,7 @@ const TYPE_CONFIG = {
 export default function ChallengesHubPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { daily, weekly, achievements, all } = useChallengesWithProgress();
+  const { daily, weekly, achievements, all, isLoading } = useChallengesWithProgress();
   const { data: unclaimedRewards } = useUnclaimedRewards();
   const { data: tiers } = useVybePassTiers();
   const { currentXP, currentLevel, progressPercent, xpToNextLevel } = useNextLevelProgress();
@@ -87,7 +87,7 @@ export default function ChallengesHubPage() {
     }
   };
 
-  const isLoading = all.length === 0;
+  // isLoading now comes from the hook
   const completedCount = all.filter(c => c.is_completed).length;
   const totalXP = all.reduce((sum, c) => sum + (c.is_completed ? c.reward_xp : 0), 0);
 
@@ -496,6 +496,39 @@ export default function ChallengesHubPage() {
                   </motion.div>
                 );
               })}
+            </motion.div>
+          ) : displayChallenges.length === 0 && all.length > 0 && all.every(c => c.is_completed) ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center py-16"
+            >
+              <GlassCard className="p-8 inline-block">
+                <div className="text-5xl mb-4">🎉</div>
+                <h3 className="text-lg font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] mb-2">All Challenges Complete!</h3>
+                <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] mb-1">
+                  You crushed every challenge. New ones drop daily & weekly.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Come back tomorrow for fresh challenges ✨
+                </p>
+              </GlassCard>
+            </motion.div>
+          ) : displayChallenges.length === 0 && activeTab !== 'all' && all.length > 0 ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center py-16"
+            >
+              <GlassCard className="p-8 inline-block">
+                <CheckCircle2 className="h-12 w-12 text-primary mx-auto mb-4 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
+                <h3 className="text-lg font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] mb-2">All done here!</h3>
+                <p className="text-sm text-foreground/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
+                  {activeTab === 'daily' ? 'New daily challenges drop at midnight 🌙' : 
+                   activeTab === 'weekly' ? 'New weekly challenges start Monday 📅' :
+                   'No achievement challenges right now'}
+                </p>
+              </GlassCard>
             </motion.div>
           ) : (
             <motion.div
