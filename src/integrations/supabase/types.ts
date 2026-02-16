@@ -2142,7 +2142,10 @@ export type Database = {
           created_at: string
           id: string
           image_url: string | null
+          is_flagged: boolean | null
           post_id: string
+          safety_categories: string[] | null
+          safety_score: number | null
           text: string
           user_id: string
         }
@@ -2150,7 +2153,10 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          is_flagged?: boolean | null
           post_id: string
+          safety_categories?: string[] | null
+          safety_score?: number | null
           text: string
           user_id: string
         }
@@ -2158,7 +2164,10 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          is_flagged?: boolean | null
           post_id?: string
+          safety_categories?: string[] | null
+          safety_score?: number | null
           text?: string
           user_id?: string
         }
