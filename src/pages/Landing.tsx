@@ -40,7 +40,7 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, signIn, signUp } = useAuth();
+  const { user, profile: authProfile, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
@@ -107,39 +107,26 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const isInviteRoute = location.pathname.startsWith('/invite/');
   
   useEffect(() => {
-    async function checkAndRedirect() {
-      // In invite mode, auth check and redirects are handled by parent (InviteRedeem)
-      // The Landing component in invite mode ONLY shows intro, then signals completion
-      if (isInviteMode) {
-        console.log('[Landing] In invite mode - auth redirects handled by InviteRedeem');
-        return;
-      }
-      
-      if (!user) return;
-      
-      // If on invite route or in invite entry mode, don't auto-redirect to home
-      // Let the user complete the full first-time experience
-      if (isInviteRoute || isInviteEntryMode()) {
-        console.log('[Landing] In invite flow, skipping auto-redirect');
-        return;
-      }
-      
-      // Check if user has completed onboarding (has a username set)
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('username, onboarding_completed')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      
-      // If user has completed onboarding (has username), redirect to home
-      // Otherwise, let them stay on landing to go through the flow
-      if (profile?.username && profile?.onboarding_completed !== false) {
-        navigate('/home');
-      }
+    // In invite mode, auth check and redirects are handled by parent (InviteRedeem)
+    if (isInviteMode) {
+      console.log('[Landing] In invite mode - auth redirects handled by InviteRedeem');
+      return;
     }
     
-    checkAndRedirect();
-  }, [user, navigate, isInviteRoute, isInviteMode]);
+    if (!user) return;
+    
+    // If on invite route or in invite entry mode, don't auto-redirect to home
+    if (isInviteRoute || isInviteEntryMode()) {
+      console.log('[Landing] In invite flow, skipping auto-redirect');
+      return;
+    }
+    
+    // Use profile from auth context to avoid race condition on iPad Safari
+    // where a separate Supabase query runs before the JWT is fully established
+    if (authProfile?.username && authProfile?.onboarding_completed !== false) {
+      navigate('/home');
+    }
+  }, [user, authProfile, navigate, isInviteRoute, isInviteMode]);
 
   // Only hide the landing page if we're about to redirect (handled in useEffect)
   // Don't return null immediately - let the useEffect decide
