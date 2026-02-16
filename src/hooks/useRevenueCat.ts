@@ -15,6 +15,11 @@ export function useRevenueCat() {
     const instance = initRevenueCat(userId);
     setPurchases(instance);
 
+    if (!instance) {
+      setIsLoading(false);
+      return;
+    }
+
     // Fetch customer info
     instance.getCustomerInfo().then(info => {
       setCustomerInfo(info);
