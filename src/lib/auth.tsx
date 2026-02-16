@@ -328,10 +328,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session - this restores session from localStorage
     logEvent('auth', 'Initializing: checking existing session');
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
       // Mark as initialized so onAuthStateChange skips duplicate handling
       authInitializedRef.current = true;
       
+      // Handle stale/invalid refresh tokens gracefully
+      if (error) {
+        logEvent('auth', 'getSession error (stale token?) — starting fresh', { error: error.message });
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        clearProfileCache();
+        setLoading(false);
+        setIsInitialized(true);
+        return;
+      }
+
       logEvent('auth', 'getSession resolved', { hasSession: !!session, userId: session?.user?.id });
       setSession(session);
       setUser(session?.user ?? null);
