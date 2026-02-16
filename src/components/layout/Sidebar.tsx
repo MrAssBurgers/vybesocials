@@ -109,7 +109,7 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom Section */}
-      <div className="space-y-3 border-t border-white/10 pt-4">
+      <div className="space-y-3 pt-4" style={{ borderTop: '1px solid transparent', borderImage: 'linear-gradient(90deg, transparent 5%, hsl(var(--border) / 0.25) 50%, transparent 95%) 1' }}>
         {/* Profile Card */}
         <Link
           to={profile ? `/u/${profile.username}` : '/profile'}
