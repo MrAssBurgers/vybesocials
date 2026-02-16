@@ -101,10 +101,8 @@ export function AdminLiveAnalytics() {
           .from('calls')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'active'),
-        // Total users
-        supabase
-          .from('profiles')
-          .select('id', { count: 'exact', head: true }),
+        // Total users (real auth users)
+        supabase.rpc('get_auth_users_count'),
         // Messages today (for daily total)
         supabase
           .from('messages')
@@ -142,7 +140,7 @@ export function AdminLiveAnalytics() {
         commentsHour: commentsHourResult.count || 0,
         signupsToday: signupsTodayResult.count || 0,
         inCalls: callsResult.count || 0,
-        totalUsers: totalUsersResult.count || 0,
+        totalUsers: totalUsersResult.data || 0,
         messagesToday: messagesTodayResult.count || 0,
         likesToday: likesTodayResult.count || 0,
         commentsToday: commentsTodayResult.count || 0,
