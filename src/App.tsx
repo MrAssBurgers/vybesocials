@@ -47,9 +47,11 @@ const TrackingConsentDialog = lazy(() => import("@/components/app/TrackingConsen
 // Lazy-load deferred hooks via a wrapper component
 const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
 
-// Initialize stored fonts and custom animations on app load
+// Initialize stored fonts, custom animations, and validate env on app load
+import { runEnvSanityCheck } from '@/lib/envCheck';
 initializeStoredFonts();
 initializeCustomAnimations();
+runEnvSanityCheck();
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;

@@ -422,6 +422,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     clearProfileCache(); // Clear cache on logout
     
+    // Clear react-query cache to prevent stale data leaking across accounts
+    const qc = (window as any).__REACT_QUERY_CLIENT__;
+    if (qc && typeof qc.clear === 'function') {
+      qc.clear();
+    }
+    
     // Clear VYBE theme from localStorage so new accounts start fresh
     localStorage.removeItem('vybe-font-body');
     localStorage.removeItem('vybe-font-display');
