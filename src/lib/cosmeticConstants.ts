@@ -28,6 +28,8 @@ export const NAME_COLOR_MAP: Record<string, string> = {
   'Shield Silver': '#94A3B8',
   'Justice Blue': '#3B82F6',
   'Guardian Green': '#22C55E',
+  // Premium exclusive
+  'Premium Gold': 'linear-gradient(90deg, #F59E0B, #EAB308, #FBBF24)',
 };
 
 // Colors restricted to specific roles (owner/mod)
@@ -50,6 +52,8 @@ export const THEME_PREVIEW: Record<string, { from: string; to: string }> = {
   'Galaxy': { from: '#1e1b4b', to: '#6d28d9' },
   'Aurora Borealis': { from: '#064e3b', to: '#6d28d9' },
   'Void': { from: '#0a0a0a', to: '#1c1917' },
+  // Premium exclusive
+  'Obsidian': { from: '#0c0c0c', to: '#1a1a2e' },
 };
 
 // ── Theme Images ────────────────────────────────────────────────
@@ -100,6 +104,8 @@ export const EFFECT_CLASS_MAP: Record<string, string> = {
   'Aurora Wave': 'aurora-wave-name',
   'Electric Surge': 'electric-surge-name',
   'Plasma Storm': 'plasma-storm-name',
+  // Premium exclusive
+  'Crown Glow': 'crown-glow-name',
 };
 
 // Intense effect classes for profile view (amplified)
@@ -114,6 +120,8 @@ export const EFFECT_CLASS_MAP_INTENSE: Record<string, string> = {
   'Aurora Wave': 'animate-[aurora-wave_3s_ease-in-out_infinite]',
   'Electric Surge': 'animate-[electric-surge_0.5s_ease-in-out_infinite]',
   'Plasma Storm': 'animate-[plasma-storm_2s_ease-in-out_infinite]',
+  // Premium exclusive
+  'Crown Glow': 'animate-[crown-glow_2s_ease-in-out_infinite]',
 };
 
 // ── Frame Class Map ─────────────────────────────────────────────
