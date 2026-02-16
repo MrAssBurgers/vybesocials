@@ -6314,6 +6314,56 @@ export type Database = {
           },
         ]
       }
+      tips: {
+        Row: {
+          amount: number
+          created_at: string
+          creator_amount: number
+          creator_id: string
+          currency: string
+          id: string
+          message: string | null
+          platform_fee: number
+          status: string
+          stripe_payment_intent_id: string | null
+          tipper_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          creator_amount?: number
+          creator_id: string
+          currency?: string
+          id?: string
+          message?: string | null
+          platform_fee?: number
+          status?: string
+          stripe_payment_intent_id?: string | null
+          tipper_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          creator_amount?: number
+          creator_id?: string
+          currency?: string
+          id?: string
+          message?: string | null
+          platform_fee?: number
+          status?: string
+          stripe_payment_intent_id?: string | null
+          tipper_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tips_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creator_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trashed_conversations: {
         Row: {
           auto_delete_at: string | null
