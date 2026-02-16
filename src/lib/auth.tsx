@@ -274,6 +274,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Check if we're returning from an OAuth redirect
+    const isOAuthPending = sessionStorage.getItem('vybe-oauth-pending') === 'true';
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -301,6 +304,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setTimeout(() => {
             fetchProfile(session.user.id);
           }, 0);
+
+          // CRITICAL: If we were waiting for OAuth, mark as initialized now that we have a session
+          if (isOAuthPending) {
+            setLoading(false);
+            setIsInitialized(true);
+          }
         } else {
           logEvent('auth', 'No session — signed out');
           setProfile(null);
@@ -321,8 +330,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearBanExpiryTimer();
         }
         
-        setLoading(false);
-        setIsInitialized(true);
+        // Don't mark as initialized here if OAuth is pending and no session yet
+        // — wait for the SIGNED_IN event or the timeout in getSession below
+        if (!isOAuthPending || session?.user) {
+          setLoading(false);
+          setIsInitialized(true);
+        }
       }
     );
 
@@ -339,6 +352,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setProfile(null);
         clearProfileCache();
+        sessionStorage.removeItem('vybe-oauth-pending');
         setLoading(false);
         setIsInitialized(true);
         return;
@@ -354,10 +368,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           scheduleTokenRefresh(session.expires_at);
         }
         fetchProfile(session.user.id);
+        // Session found — always mark ready
+        setLoading(false);
+        setIsInitialized(true);
+      } else if (isOAuthPending) {
+        // OAuth pending but getSession returned null — detectSessionInUrl is still processing
+        // Don't mark as initialized yet; the onAuthStateChange SIGNED_IN event will do it
+        // Set a safety timeout so we don't hang forever
+        logEvent('auth', 'OAuth pending, waiting for detectSessionInUrl...');
+        setTimeout(() => {
+          // If still not initialized after 8s, give up and show login
+          setLoading(prev => {
+            if (prev) {
+              logEvent('auth', 'OAuth timeout — marking ready without session');
+              sessionStorage.removeItem('vybe-oauth-pending');
+              setIsInitialized(true);
+            }
+            return false;
+          });
+        }, 8000);
+      } else {
+        setLoading(false);
+        setIsInitialized(true);
       }
-      
-      setLoading(false);
-      setIsInitialized(true);
     });
 
     // Handle "session-only" mode (Remember Me unchecked)
