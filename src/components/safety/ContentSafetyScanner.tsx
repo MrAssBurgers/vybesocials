@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, ShieldCheck, ShieldAlert, ShieldX, Loader2, AlertTriangle, Volume2, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { AIDisclaimer } from '@/components/legal/AIDisclaimer';
 
 export type SafetyResult = 'scanning' | 'allowed' | 'warned' | 'blocked' | 'error';
 
@@ -270,6 +271,9 @@ export function ContentSafetyScanner({
           )}
         </div>
       )}
+
+      {/* AI Disclaimer */}
+      <AIDisclaimer variant="compact" className="pt-2" />
     </motion.div>
   );
 }

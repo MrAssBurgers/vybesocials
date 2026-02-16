@@ -15,6 +15,7 @@ import { ContactDiscovery } from '@/components/onboarding/ContactDiscovery';
 import { PrivacySettings } from '@/components/onboarding/PrivacySettings';
 import { PermissionsSetup } from '@/components/onboarding/PermissionsSetup';
 import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
+import { LegalAcceptance } from '@/components/onboarding/LegalAcceptance';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -36,8 +37,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   
   // Check if user needs to set username (Google OAuth users without profile)
   const needsUsername = !profile?.username;
-  // Total steps: username(optional) + age + interests + creators + profile + sensitivity + privacy + permissions + email (then straight to VYBE designer)
-  const TOTAL_STEPS = needsUsername ? 10 : 9;
+  // Total steps: username(optional) + age + interests + creators + profile + sensitivity + privacy + permissions + email + legal (then straight to VYBE designer)
+  const TOTAL_STEPS = needsUsername ? 11 : 10;
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -62,6 +63,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const [isPrivate, setIsPrivate] = useState(false);
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [userAge, setUserAge] = useState<number | undefined>(undefined);
+  const [legalAccepted, setLegalAccepted] = useState(false);
 
   // Username IS the display name by default
   useEffect(() => {
@@ -96,6 +98,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       case 6: return true; // Privacy
       case 7: return true; // Permissions - always allow proceeding (optional)
       case 8: return true; // Email verification is optional
+      case 9: return legalAccepted; // Must accept Terms & Privacy
       default: return true;
     }
   }, [needsUsername, step, usernameValid, dateOfBirth, userAge, interests.length, profileData.firstName.length, profileData.lastName.length]);
@@ -164,6 +167,14 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         });
 
       if (error) throw error;
+
+      // Record legal acceptance
+      if (legalAccepted) {
+        await supabase.from('legal_acceptances').upsert([
+          { user_id: user.id, document_type: 'tos', document_version: '2.0' },
+          { user_id: user.id, document_type: 'privacy', document_version: '2.0' },
+        ], { onConflict: 'user_id,document_type,document_version' });
+      }
 
       // Show the AI VYBE Designer
       setLoading(false);
@@ -370,6 +381,9 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
                 )}
                 {(needsUsername ? step === 9 : step === 8) && (
                   <EmailVerification />
+                )}
+                {(needsUsername ? step === 10 : step === 9) && (
+                  <LegalAcceptance accepted={legalAccepted} onChange={setLegalAccepted} />
                 )}
               </motion.div>
             </AnimatePresence>
