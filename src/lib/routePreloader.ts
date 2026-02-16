@@ -27,6 +27,9 @@ const routeImports: Record<string, () => Promise<any>> = {
   '/howudoin': () => import('@/pages/HowUDoinHub'),
   '/invite-friends': () => import('@/pages/InviteFriends'),
   '/feedback': () => import('@/pages/Feedback'),
+  '/admin': () => import('@/pages/AdminDashboard'),
+  '/admin/settings': () => import('@/pages/AdminSettings'),
+  '/admin/metrics': () => import('@/pages/AdminMetrics'),
 };
 
 // Track which routes have been preloaded
