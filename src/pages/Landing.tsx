@@ -63,7 +63,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     username: '',
   });
 
-  // Check intro status on mount - use database as source of truth
+  // Check intro status on mount - use auth context profile to avoid race conditions
   useEffect(() => {
     // If mode=login, skip intro completely
     if (modeParam === 'login') {
@@ -72,32 +72,28 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       return;
     }
     
-    // Check intro status (database first for logged-in users, then localStorage)
-    const checkStatus = async () => {
-      const userId = user?.id;
-      
-      // If user is logged in, check their full profile status
-      if (userId) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('intro_completed, onboarding_completed')
-          .eq('user_id', userId)
-          .maybeSingle();
-        
-        // If they've completed onboarding, they don't need to see the intro
-        if (profile?.onboarding_completed === true || profile?.intro_completed === true) {
+    // If user is logged in, use authProfile from context (avoids iPad Safari race condition)
+    if (user) {
+      if (authProfile) {
+        // Profile loaded — check if they've completed onboarding/intro
+        if ((authProfile as any).onboarding_completed === true || (authProfile as any).intro_completed === true) {
           setShowIntro(false);
           return;
         }
+      } else {
+        // Profile still loading, keep showIntro as null (loading state)
+        return;
       }
-      
-      // Fall back to regular intro status check
-      const hasCompleted = await checkIntroStatus(userId);
+    }
+    
+    // Not logged in or profile says intro not completed — check localStorage
+    const checkStatus = async () => {
+      const hasCompleted = await checkIntroStatus(user?.id);
       setShowIntro(!hasCompleted);
     };
     
     checkStatus();
-  }, [modeParam, user?.id]);
+  }, [modeParam, user?.id, authProfile]);
 
   // Redirect if already logged in AND has completed onboarding
   // First-time users (even if authenticated) should see intro if not completed
