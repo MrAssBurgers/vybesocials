@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { showMessageNotification } from '@/components/notifications/MessageNotificationToast';
 import { sendPushNotification } from '@/lib/pushNotifications';
+import { navigationRef } from '@/lib/navigationRef';
 
 /**
  * VYBE v1.1 - Perfect Message Notifications
@@ -61,7 +62,11 @@ async function showNativeNotification(
   notification.onclick = () => {
     window.focus();
     if (conversationId) {
-      window.location.href = `/messages/${conversationId}`;
+      if (navigationRef.current) {
+        navigationRef.current(`/messages/${conversationId}`);
+      } else {
+        window.location.href = `/messages/${conversationId}`;
+      }
     }
     notification.close();
   };
