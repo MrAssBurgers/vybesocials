@@ -135,6 +135,8 @@ export function AnimatedRoutes() {
             <Route path="/order-success" element={<OrderSuccess />} />
             <Route path="/order-cancelled" element={<OrderCancelled />} />
             
+            {/* Let /~oauth pass through to the cloud auth handler */}
+            <Route path="/~oauth" element={null} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           {/* Dev-only debug panel */}
