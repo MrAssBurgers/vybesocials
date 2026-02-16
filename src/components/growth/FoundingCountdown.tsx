@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
-import { Shield, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { useFoundingStatus } from '@/hooks/useGrowth';
 import { Progress } from '@/components/ui/progress';
+import { FounderBadge } from '@/components/badges/FounderBadge';
 
 export function FoundingCountdown() {
   const { data: status, isLoading } = useFoundingStatus();
@@ -20,12 +21,10 @@ export function FoundingCountdown() {
       className="liquid-glass-card rounded-2xl p-5 space-y-3 border border-primary/20"
     >
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shrink-0">
-          <Shield className="h-5 w-5 text-white" />
-        </div>
+        <FounderBadge tier="founder" size="lg" showTooltip={false} />
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-sm flex items-center gap-1.5">
-            🏛️ Founding Member
+            VYBE Founder
             {status.userIsFounder && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary font-semibold">
                 YOU
