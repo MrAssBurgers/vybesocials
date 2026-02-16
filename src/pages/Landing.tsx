@@ -55,6 +55,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showIntro, setShowIntro] = useState<boolean | null>(null); // null = still checking
+  const [isOAuthReturn, setIsOAuthReturn] = useState(() => {
+    // Detect if we're returning from an OAuth redirect (tokens in URL hash)
+    const hash = window.location.hash;
+    return hash.includes('access_token') || hash.includes('refresh_token') || hash.includes('type=recovery');
+  });
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -222,8 +227,18 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   };
 
   // Show intro flow for first-time visitors (null = still checking, true = show intro)
-  if (showIntro === null) {
-    // Still checking status - show minimal loading state
+  // If returning from OAuth redirect, show loading until auth processes the tokens
+  if (isOAuthReturn || showIntro === null) {
+    // Clear OAuth return flag once auth is ready and user is set
+    if (isOAuthReturn && authReady) {
+      if (user) {
+        // Session established from OAuth — redirect will happen via the useEffect above
+        return <div className="min-h-screen bg-background" />;
+      } else {
+        // Auth ready but no user — OAuth might have failed, show login
+        setIsOAuthReturn(false);
+      }
+    }
     return <div className="min-h-screen bg-background" />;
   }
   
