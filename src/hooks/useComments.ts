@@ -10,6 +10,9 @@ interface Comment {
   text: string;
   image_url: string | null;
   created_at: string;
+  is_flagged?: boolean;
+  safety_score?: number;
+  safety_categories?: string[];
   user: {
     id: string;
     username: string;
@@ -28,6 +31,9 @@ export function useComments(postId: string) {
           text,
           image_url,
           created_at,
+          is_flagged,
+          safety_score,
+          safety_categories,
           user:profiles!user_id (
             id,
             username,
@@ -43,6 +49,9 @@ export function useComments(postId: string) {
         ...comment,
         text: filterBlockedContent(comment.text),
         image_url: comment.image_url,
+        is_flagged: comment.is_flagged ?? false,
+        safety_score: comment.safety_score ?? 0,
+        safety_categories: comment.safety_categories ?? [],
         user: comment.user as unknown as { id: string; username: string; avatar_url: string | null },
       }));
     },
@@ -67,6 +76,41 @@ export function useCreateComment() {
 
       const filteredText = filterBlockedContent(text);
 
+      // Run AI safety scan on the comment text before inserting
+      let isFlagged = false;
+      let safetyScore = 0;
+      let safetyCategories: string[] = [];
+
+      if (filteredText.trim()) {
+        try {
+          const { data: scanResult, error: scanError } = await supabase.functions.invoke('scan-content-safety', {
+            body: {
+              type: 'text',
+              content: filteredText,
+            },
+          });
+
+          if (!scanError && scanResult) {
+            safetyScore = scanResult.score ?? 0;
+            safetyCategories = scanResult.categories ?? [];
+            
+            if (scanResult.result === 'blocked') {
+              toast.error(scanResult.message || 'This comment violates community guidelines.');
+              throw new Error('Comment blocked by AI safety check');
+            }
+            
+            if (scanResult.result === 'warned') {
+              isFlagged = true;
+            }
+          }
+        } catch (err: any) {
+          // If it's our intentional block, re-throw
+          if (err.message === 'Comment blocked by AI safety check') throw err;
+          // Otherwise allow comment through (fail-open for non-blocking errors)
+          console.warn('AI safety scan failed, allowing comment:', err);
+        }
+      }
+
       const { data, error } = await supabase
         .from('comments')
         .insert({
@@ -74,6 +118,9 @@ export function useCreateComment() {
           post_id: postId,
           text: filteredText,
           image_url: imageUrl || null,
+          is_flagged: isFlagged,
+          safety_score: safetyScore,
+          safety_categories: safetyCategories,
         })
         .select()
         .single();
@@ -90,11 +137,12 @@ export function useCreateComment() {
         });
       }
 
-      // Run AI moderation in background (non-blocking)
+      // Run additional AI moderation in background (non-blocking)
       if (filteredText.trim()) {
         moderateContent(filteredText, 'comment', data.id).then(result => {
           if (result.requires_review) {
-            console.log('Comment flagged for review:', data.id);
+            // Update the flag status if moderation catches something
+            supabase.from('comments').update({ is_flagged: true }).eq('id', data.id).then(() => {});
           }
         }).catch(console.error);
       }
@@ -116,7 +164,6 @@ export function useDeleteComment() {
     mutationFn: async ({ commentId, postId }: { commentId: string; postId: string }) => {
       if (!profile) throw new Error('Not authenticated');
 
-      // Verify the comment belongs to the user
       const { data: comment, error: fetchError } = await supabase
         .from('comments')
         .select('user_id')
