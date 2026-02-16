@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useInviteStats, useUserBadges, getInviteUrl } from '@/hooks/useInvites';
 import { InviteLeaderboard } from '@/components/invite/InviteLeaderboard';
+import { FoundingCountdown } from '@/components/growth/FoundingCountdown';
 import { NFCInviteShare } from '@/components/invite/NFCInviteShare';
 import { BumpToShare } from '@/components/invite/BumpToShare';
 import { PersonalQRCode } from '@/components/invite/PersonalQRCode';
@@ -19,9 +20,11 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 
 const MILESTONES = [
-  { count: 1, badge: 'First Invite', icon: '🌟', reward: 'Badge' },
-  { count: 3, badge: 'Rising Star', icon: '🎨', reward: 'Theme Unlock' },
-  { count: 10, badge: 'Early Builder', icon: '🏆', reward: 'Exclusive Badge' },
+  { count: 1, badge: 'Recruiter', icon: '🤝', reward: 'Badge' },
+  { count: 3, badge: 'Rising Star', icon: '🎨', reward: 'Cosmetic' },
+  { count: 10, badge: 'Influencer', icon: '🌟', reward: 'Premium Theme' },
+  { count: 25, badge: 'Evangelist', icon: '🌊', reward: 'Animated Name' },
+  { count: 50, badge: 'Growth Legend', icon: '👑', reward: 'Rare Cosmetic' },
 ];
 
 export default function InviteFriends() {
@@ -89,6 +92,9 @@ export default function InviteFriends() {
             Share VYBE with friends and earn rewards!
           </p>
         </motion.div>
+        
+        {/* Founding Member Countdown */}
+        <FoundingCountdown />
         
         {/* Invite Link Card */}
         <motion.div
@@ -187,7 +193,7 @@ export default function InviteFriends() {
           </div>
           
           {/* Milestones */}
-          <div className="grid grid-cols-3 gap-2 pt-2">
+          <div className="grid grid-cols-5 gap-2 pt-2">
             {MILESTONES.map((milestone) => {
               const achieved = currentCount >= milestone.count;
               return (
