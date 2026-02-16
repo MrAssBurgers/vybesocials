@@ -18,6 +18,7 @@ const PREMIUM_PERKS = [
   { icon: Eye, label: 'Profile Visitors', color: 'text-amber-400' },
   { icon: Shield, label: 'Premium Badge', color: 'text-primary' },
   { icon: Star, label: 'Priority in Explore', color: 'text-yellow-400' },
+  { icon: Shield, label: 'Ad-Free Experience', color: 'text-emerald-400' },
 ];
 
 export function PremiumActivationAnimation({ open, onComplete }: PremiumActivationAnimationProps) {

@@ -69,7 +69,7 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
 
               {/* Description */}
               <p className="text-sm text-muted-foreground text-center mb-6 leading-relaxed">
-                Your data will be used to personalize your feed, improve recommendations, and deliver a better experience. We do not sell your data to third parties.
+                Your data will be used to personalize your feed, improve recommendations, and show relevant ads. We do not sell your data to third parties. VYBE+ members enjoy an ad-free experience.
               </p>
 
               {/* Buttons */}
