@@ -43,10 +43,9 @@ class SmartErrorBoundary extends Component<Props, State> {
       return;
     }
 
-    if (import.meta.env.DEV) {
-      console.error('[SmartErrorBoundary] Caught error:', error);
-      console.error('[SmartErrorBoundary] Component stack:', errorInfo.componentStack);
-    }
+    // Always log errors so we can diagnose production crashes
+    console.error('[SmartErrorBoundary] Caught error:', error?.message, error?.stack);
+    console.error('[SmartErrorBoundary] Component stack:', errorInfo.componentStack);
   }
 
   handleRefresh = () => {
@@ -59,9 +58,12 @@ class SmartErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      // Show minimal reload button instead of full error UI
+      // Show error message + reload button so user can report the issue
       return (
-        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 gap-4">
+          <p className="text-sm text-muted-foreground text-center max-w-md break-words">
+            {this.state.error?.message || 'Something went wrong'}
+          </p>
           <button
             onClick={this.handleRefresh}
             className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-opacity"
