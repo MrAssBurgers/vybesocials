@@ -2052,6 +2052,225 @@ export type Database = {
           },
         ]
       }
+      creator_daily_stats: {
+        Row: {
+          ad_impressions: number
+          ad_revenue: number
+          cpm: number | null
+          created_at: string
+          creator_id: string
+          id: string
+          new_subscribers: number
+          rpm: number | null
+          stat_date: string
+          subscription_revenue: number
+          tip_revenue: number
+          views: number
+        }
+        Insert: {
+          ad_impressions?: number
+          ad_revenue?: number
+          cpm?: number | null
+          created_at?: string
+          creator_id: string
+          id?: string
+          new_subscribers?: number
+          rpm?: number | null
+          stat_date: string
+          subscription_revenue?: number
+          tip_revenue?: number
+          views?: number
+        }
+        Update: {
+          ad_impressions?: number
+          ad_revenue?: number
+          cpm?: number | null
+          created_at?: string
+          creator_id?: string
+          id?: string
+          new_subscribers?: number
+          rpm?: number | null
+          stat_date?: string
+          subscription_revenue?: number
+          tip_revenue?: number
+          views?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_daily_stats_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creator_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creator_earnings: {
+        Row: {
+          created_at: string
+          creator_amount: number
+          creator_id: string
+          currency: string
+          gross_amount: number
+          id: string
+          metadata: Json | null
+          paid_at: string | null
+          period_end: string | null
+          period_start: string | null
+          platform_fee: number
+          platform_fee_pct: number
+          source: string
+          status: string
+          stripe_transfer_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          creator_amount: number
+          creator_id: string
+          currency?: string
+          gross_amount: number
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          platform_fee: number
+          platform_fee_pct: number
+          source: string
+          status?: string
+          stripe_transfer_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          creator_amount?: number
+          creator_id?: string
+          currency?: string
+          gross_amount?: number
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          platform_fee?: number
+          platform_fee_pct?: number
+          source?: string
+          status?: string
+          stripe_transfer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_earnings_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creator_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creator_payouts: {
+        Row: {
+          amount: number
+          creator_id: string
+          currency: string
+          failed_reason: string | null
+          id: string
+          processed_at: string | null
+          requested_at: string
+          status: string
+          stripe_payout_id: string | null
+        }
+        Insert: {
+          amount: number
+          creator_id: string
+          currency?: string
+          failed_reason?: string | null
+          id?: string
+          processed_at?: string | null
+          requested_at?: string
+          status?: string
+          stripe_payout_id?: string | null
+        }
+        Update: {
+          amount?: number
+          creator_id?: string
+          currency?: string
+          failed_reason?: string | null
+          id?: string
+          processed_at?: string | null
+          requested_at?: string
+          status?: string
+          stripe_payout_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_payouts_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creator_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creator_profiles: {
+        Row: {
+          applied_at: string | null
+          approved_at: string | null
+          created_at: string
+          id: string
+          is_approved: boolean
+          lifetime_ad_impressions: number
+          lifetime_views: number
+          pending_payout: number
+          stripe_connect_account_id: string | null
+          stripe_onboarding_complete: boolean | null
+          subscriber_count: number
+          tax_form_submitted: boolean | null
+          tier: Database["public"]["Enums"]["creator_tier"]
+          tier_upgraded_at: string | null
+          total_earnings: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          is_approved?: boolean
+          lifetime_ad_impressions?: number
+          lifetime_views?: number
+          pending_payout?: number
+          stripe_connect_account_id?: string | null
+          stripe_onboarding_complete?: boolean | null
+          subscriber_count?: number
+          tax_form_submitted?: boolean | null
+          tier?: Database["public"]["Enums"]["creator_tier"]
+          tier_upgraded_at?: string | null
+          total_earnings?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          is_approved?: boolean
+          lifetime_ad_impressions?: number
+          lifetime_views?: number
+          pending_payout?: number
+          stripe_connect_account_id?: string | null
+          stripe_onboarding_complete?: boolean | null
+          subscriber_count?: number
+          tax_form_submitted?: boolean | null
+          tier?: Database["public"]["Enums"]["creator_tier"]
+          tier_upgraded_at?: string | null
+          total_earnings?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       dismissed_announcements: {
         Row: {
           announcement_id: string
@@ -7354,6 +7573,13 @@ export type Database = {
         Returns: string
       }
       get_comment_count: { Args: { p_post_id: string }; Returns: number }
+      get_creator_revenue_split: {
+        Args: {
+          p_source: string
+          p_tier: Database["public"]["Enums"]["creator_tier"]
+        }
+        Returns: number
+      }
       get_dm_safety_level: {
         Args: { user1_id: string; user2_id: string }
         Returns: string
@@ -7649,6 +7875,7 @@ export type Database = {
         | "achievement"
         | "beta"
         | "special"
+      creator_tier: "none" | "emerging" | "verified" | "elite"
       group_role: "owner" | "admin" | "member"
     }
     CompositeTypes: {
@@ -7787,6 +8014,7 @@ export const Constants = {
         "beta",
         "special",
       ],
+      creator_tier: ["none", "emerging", "verified", "elite"],
       group_role: ["owner", "admin", "member"],
     },
   },
