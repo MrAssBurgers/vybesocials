@@ -436,7 +436,7 @@ export function DesktopRightSidebar() {
       </ScrollArea>
 
       {/* Logout Button at Bottom */}
-      <div className="p-3 border-t border-white/10">
+      <div className="p-3" style={{ borderTop: '1px solid transparent', borderImage: 'linear-gradient(90deg, transparent 5%, hsl(var(--border) / 0.25) 50%, transparent 95%) 1' }}>
         <button
           onClick={handleSignOut}
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
