@@ -1,29 +1,33 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
-import { Shield, Users } from 'lucide-react';
+import { Shield } from 'lucide-react';
 
 /**
  * Public Founder Badge Counter — shows scarcity to drive urgency.
  * Displays: "X / 1,000 Founder Spots Claimed"
+ *
+ * Gracefully returns null if growth_config is missing or empty.
  */
 export function FounderCounter({ compact = false }: { compact?: boolean }) {
   const { data } = useQuery({
     queryKey: ['founder-counter'],
     queryFn: async () => {
-      // Get founder badge count from growth_config
-      const { data: config } = await supabase
+      // Use maybeSingle to avoid 406 when row doesn't exist
+      const { data: config, error } = await supabase
         .from('growth_config')
         .select('value')
         .eq('key', 'founding_program')
-        .single();
+        .maybeSingle();
 
-      if (!config?.value) return null;
+      if (error || !config?.value) return null;
 
       const val = config.value as Record<string, unknown>;
-      const badgeId = val.badge_id as string;
+      const badgeId = val.badge_id as string | null;
       const maxSlots = (val.max_slots as number) || 1000;
       const isActive = val.is_active as boolean;
+
+      if (!isActive || !badgeId) return null;
 
       // Count how many have the founder badge
       const { count } = await supabase
@@ -39,6 +43,7 @@ export function FounderCounter({ compact = false }: { compact?: boolean }) {
       };
     },
     staleTime: 1000 * 60 * 5,
+    retry: 1,
   });
 
   if (!data || !data.isActive) return null;
