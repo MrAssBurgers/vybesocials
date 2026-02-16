@@ -1,5 +1,5 @@
 import { useState, forwardRef, lazy, Suspense } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { LogOut, ChevronRight, Settings } from 'lucide-react';
@@ -31,8 +31,10 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
   const { t } = useTranslation();
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isMobile = useIsMobile();
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>('profile');
+  const initialTab = searchParams.get('tab') as SettingsCategory | null;
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialTab || 'profile');
 
   const handleSignOut = async () => {
     haptics.impact();
