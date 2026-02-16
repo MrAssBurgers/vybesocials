@@ -492,7 +492,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   });
                   if (error) throw error;
                 } catch (error: any) {
-                  toast.error(getUserFriendlyError(error));
+                  const msg = getUserFriendlyError(error);
+                  if (msg !== '__SUPPRESS__') {
+                    toast.error(msg);
+                  }
                   setLoading(false);
                 }
               }}
@@ -519,7 +522,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   });
                   if (error) throw error;
                 } catch (error: any) {
-                  toast.error(getUserFriendlyError(error));
+                  const msg = getUserFriendlyError(error);
+                  if (msg !== '__SUPPRESS__') {
+                    toast.error(msg);
+                  }
                   setLoading(false);
                 }
               }}
