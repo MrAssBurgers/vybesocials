@@ -40,7 +40,7 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, profile: authProfile, signIn, signUp } = useAuth();
+  const { user, profile: authProfile, signIn, signUp, authReady } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
@@ -72,6 +72,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       return;
     }
     
+    // CRITICAL: Don't make any decisions until auth is fully initialized
+    // This prevents the race condition on iPad Safari where OAuth callback
+    // hasn't been processed yet and we'd incorrectly show intro/login
+    if (!authReady) {
+      return; // Keep showIntro as null (loading state)
+    }
+    
     // If user is logged in, use authProfile from context (avoids iPad Safari race condition)
     if (user) {
       if (authProfile) {
@@ -93,7 +100,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     };
     
     checkStatus();
-  }, [modeParam, user?.id, authProfile]);
+  }, [modeParam, user?.id, authProfile, authReady]);
 
   // Redirect if already logged in AND has completed onboarding
   // First-time users (even if authenticated) should see intro if not completed
