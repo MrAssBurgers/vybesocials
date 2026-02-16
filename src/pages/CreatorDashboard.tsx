@@ -3,7 +3,8 @@ import { motion } from 'framer-motion';
 import {
   TrendingUp, DollarSign, Eye, Users, BarChart3, Wallet,
   Loader2, Sparkles, ArrowUpRight, ArrowDownRight, Clock,
-  Shield, Star, Zap, ChevronRight, BadgeCheck
+  Shield, Star, Zap, ChevronRight, BadgeCheck, CreditCard,
+  CheckCircle2, AlertCircle, ExternalLink
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -19,8 +20,13 @@ import {
   useCreatorEarnings,
   useCreatorDailyStats,
   useCreatorPayouts,
-  useRequestPayout,
 } from '@/hooks/useCreatorProfile';
+import {
+  useCreatorConnectStatus,
+  useCreatorConnectOnboard,
+  useProcessCreatorPayout,
+} from '@/hooks/useCreatorConnect';
+import { useQueryClient } from '@tanstack/react-query';
 
 const TIER_CONFIG = {
   none: { label: 'Not Enrolled', color: 'text-muted-foreground', bg: 'bg-muted', icon: Star },
@@ -46,6 +52,69 @@ function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 }
 
+// ─── Stripe Connect Setup Card ───
+function StripeConnectCard() {
+  const { data: connectStatus, isLoading } = useCreatorConnectStatus();
+  const { startOnboarding, isLoading: isOnboarding } = useCreatorConnectOnboard();
+
+  if (isLoading) return null;
+  if (connectStatus?.stripe_not_configured) return null;
+  if (connectStatus?.onboarding_complete) return null;
+
+  return (
+    <Card className="border-primary/30 bg-primary/5">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-primary/10">
+            <CreditCard className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm">Set Up Payouts</p>
+            <p className="text-xs text-muted-foreground">
+              {connectStatus?.connected
+                ? 'Complete your account setup to receive payouts'
+                : 'Connect your bank account to start earning'}
+            </p>
+          </div>
+        </div>
+
+        {connectStatus?.connected && (
+          <div className="flex gap-2 flex-wrap">
+            <StatusPill ok={connectStatus.details_submitted} label="Details" />
+            <StatusPill ok={connectStatus.charges_enabled} label="Charges" />
+            <StatusPill ok={connectStatus.payouts_enabled} label="Payouts" />
+          </div>
+        )}
+
+        <Button
+          size="sm"
+          className="w-full rounded-xl"
+          onClick={startOnboarding}
+          disabled={isOnboarding}
+        >
+          {isOnboarding ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <ExternalLink className="h-4 w-4 mr-2" />
+          )}
+          {connectStatus?.connected ? 'Continue Setup' : 'Set Up Payouts'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatusPill({ ok, label }: { ok?: boolean; label: string }) {
+  return (
+    <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
+      ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+    }`}>
+      {ok ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+      {label}
+    </div>
+  );
+}
+
 // ─── Apply Screen ───
 function ApplyScreen() {
   const apply = useApplyForPartner();
@@ -67,7 +136,6 @@ function ApplyScreen() {
           Grow through three creator tiers with increasing perks.
         </p>
 
-        {/* Tier preview */}
         <div className="w-full max-w-md space-y-3">
           {(['emerging', 'verified', 'elite'] as const).map((tier) => {
             const config = TIER_CONFIG[tier];
@@ -92,7 +160,6 @@ function ApplyScreen() {
           })}
         </div>
 
-        {/* Revenue splits */}
         <Card className="w-full max-w-md">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Revenue Sharing</CardTitle>
@@ -141,13 +208,14 @@ function CreatorDashboardContent({ creatorProfile }: { creatorProfile: any }) {
   const { data: earnings = [] } = useCreatorEarnings(creatorProfile.id);
   const { data: dailyStats = [] } = useCreatorDailyStats(creatorProfile.id);
   const { data: payouts = [] } = useCreatorPayouts(creatorProfile.id);
-  const requestPayout = useRequestPayout();
+  const { data: connectStatus } = useCreatorConnectStatus();
+  const { processPayout, isLoading: isPayoutLoading } = useProcessCreatorPayout();
+  const qc = useQueryClient();
 
   const tier = creatorProfile.tier as keyof typeof TIER_CONFIG;
   const config = TIER_CONFIG[tier] || TIER_CONFIG.emerging;
   const TierIcon = config.icon;
 
-  // Aggregate stats from daily
   const last30Revenue = dailyStats.reduce((sum: number, d: any) => sum + (d.ad_revenue || 0) + (d.subscription_revenue || 0) + (d.tip_revenue || 0), 0);
   const last30Views = dailyStats.reduce((sum: number, d: any) => sum + (d.views || 0), 0);
   const avgCpm = dailyStats.length > 0
@@ -156,6 +224,16 @@ function CreatorDashboardContent({ creatorProfile }: { creatorProfile: any }) {
   const avgRpm = dailyStats.length > 0
     ? dailyStats.reduce((sum: number, d: any) => sum + (d.rpm || 0), 0) / dailyStats.length
     : 0;
+
+  const canWithdraw = connectStatus?.onboarding_complete && creatorProfile.pending_payout > 0;
+
+  const handleWithdraw = async () => {
+    const success = await processPayout(creatorProfile.pending_payout);
+    if (success) {
+      qc.invalidateQueries({ queryKey: ['creator-payouts'] });
+      qc.invalidateQueries({ queryKey: ['creator-profile'] });
+    }
+  };
 
   return (
     <AppLayout>
@@ -169,50 +247,40 @@ function CreatorDashboardContent({ creatorProfile }: { creatorProfile: any }) {
                 <TierIcon className="h-3 w-3 mr-1" />
                 {config.label}
               </Badge>
+              {connectStatus?.onboarding_complete && (
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-0">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Payouts Active
+                </Badge>
+              )}
             </div>
           </div>
-          {creatorProfile.pending_payout > 0 && (
+          {canWithdraw && (
             <Button
               size="sm"
               className="rounded-xl"
-              onClick={() => requestPayout.mutate({
-                creatorId: creatorProfile.id,
-                amount: creatorProfile.pending_payout,
-              })}
-              disabled={requestPayout.isPending}
+              onClick={handleWithdraw}
+              disabled={isPayoutLoading}
             >
-              <Wallet className="h-4 w-4 mr-1" />
+              {isPayoutLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <Wallet className="h-4 w-4 mr-1" />
+              )}
               Withdraw
             </Button>
           )}
         </div>
 
+        {/* Stripe Connect Setup (shows only if not complete) */}
+        <StripeConnectCard />
+
         {/* Key Metrics */}
         <div className="grid grid-cols-2 gap-3">
-          <MetricCard
-            label="Total Earnings"
-            value={formatCurrency(creatorProfile.total_earnings || 0)}
-            icon={DollarSign}
-            trend="up"
-          />
-          <MetricCard
-            label="Pending Payout"
-            value={formatCurrency(creatorProfile.pending_payout || 0)}
-            icon={Wallet}
-            trend="neutral"
-          />
-          <MetricCard
-            label="30d Views"
-            value={last30Views.toLocaleString()}
-            icon={Eye}
-            trend="up"
-          />
-          <MetricCard
-            label="Subscribers"
-            value={(creatorProfile.subscriber_count || 0).toLocaleString()}
-            icon={Users}
-            trend="up"
-          />
+          <MetricCard label="Total Earnings" value={formatCurrency(creatorProfile.total_earnings || 0)} icon={DollarSign} trend="up" />
+          <MetricCard label="Pending Payout" value={formatCurrency(creatorProfile.pending_payout || 0)} icon={Wallet} trend="neutral" />
+          <MetricCard label="30d Views" value={last30Views.toLocaleString()} icon={Eye} trend="up" />
+          <MetricCard label="Subscribers" value={(creatorProfile.subscriber_count || 0).toLocaleString()} icon={Users} trend="up" />
         </div>
 
         {/* CPM / RPM */}
@@ -263,7 +331,7 @@ function CreatorDashboardContent({ creatorProfile }: { creatorProfile: any }) {
           </CardContent>
         </Card>
 
-        {/* Tabs: Earnings / Payouts / Splits */}
+        {/* Tabs */}
         <Tabs defaultValue="earnings">
           <TabsList className="w-full">
             <TabsTrigger value="earnings" className="flex-1">Earnings</TabsTrigger>
@@ -297,9 +365,7 @@ function CreatorDashboardContent({ creatorProfile }: { creatorProfile: any }) {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-primary">{formatCurrency(e.creator_amount)}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {e.platform_fee_pct}% fee
-                      </p>
+                      <p className="text-[10px] text-muted-foreground">{e.platform_fee_pct}% fee</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -412,16 +478,7 @@ export default function CreatorDashboard() {
     );
   }
 
-  // No creator profile yet — show apply screen
-  if (!creatorProfile) {
-    return <ApplyScreen />;
-  }
-
-  // Applied but not approved
-  if (creatorProfile.applied_at && !creatorProfile.is_approved) {
-    return <PendingScreen />;
-  }
-
-  // Full dashboard
+  if (!creatorProfile) return <ApplyScreen />;
+  if (creatorProfile.applied_at && !creatorProfile.is_approved) return <PendingScreen />;
   return <CreatorDashboardContent creatorProfile={creatorProfile} />;
 }
