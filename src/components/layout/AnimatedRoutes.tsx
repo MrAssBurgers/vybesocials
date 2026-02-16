@@ -1,7 +1,5 @@
 import { lazy, Suspense, memo, useEffect } from 'react';
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
-import { isLowEndDevice } from '@/lib/performanceConfig';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
@@ -61,17 +59,6 @@ const PageFallback = memo(() => (
   <div className="min-h-screen bg-background" />
 ));
 
-// Ultra-fast page transition - instant feel, no spring delay
-const pageVariants = {
-  initial: { opacity: 0.85 },
-  animate: { opacity: 1 },
-};
-
-const pageTransition = {
-  duration: 0.05,
-  ease: 'linear' as const,
-};
-
 /**
  * Animated Routes component - provides smooth page transitions
  * Critical pages are eagerly loaded for instant navigation
@@ -94,32 +81,10 @@ export function AnimatedRoutes() {
     return () => clearTimeout(timer);
   }, []);
   
-  // Get a simplified key for route grouping (avoid re-animating on same route)
-  const getRouteKey = () => {
-    const path = location.pathname;
-    // Group conversation messages to avoid transition between them
-    if (path.startsWith('/messages/') && path !== '/messages/new') {
-      return '/messages/:id';
-    }
-    // Group profile pages
-    if (path.startsWith('/u/')) {
-      return '/u/:username';
-    }
-    return path;
-  };
-
   return (
-    <AnimatePresence mode="sync" initial={false}>
-      <motion.div
-        key={getRouteKey()}
-        variants={pageVariants}
-        initial="initial"
-        animate="animate"
-        transition={pageTransition}
-        className="min-h-screen bg-background"
-      >
-        <Suspense fallback={<PageFallback />}>
-          <Routes location={location}>
+    <div className="min-h-screen bg-background">
+      <Suspense fallback={<PageFallback />}>
+        <Routes location={location}>
             {/* Public routes - no authentication required */}
             <Route path="/" element={<Landing />} />
             <Route path="/privacy" element={<Privacy />} />
@@ -183,7 +148,6 @@ export function AnimatedRoutes() {
             <ProductionDebugPanel isOpen={debugOpen} onClose={() => setDebugOpen(false)} />
           )}
         </Suspense>
-      </motion.div>
-    </AnimatePresence>
+      </div>
   );
 }
