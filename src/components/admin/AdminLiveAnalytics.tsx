@@ -162,7 +162,7 @@ export function AdminLiveAnalytics() {
       const [messagesRes, postsRes, likesRes, commentsRes, followsRes] = await Promise.all([
         supabase
           .from('messages')
-          .select('id, sender_id, created_at, content')
+          .select('id, sender_id, created_at')
           .gte('created_at', thirtyMinAgo)
           .order('created_at', { ascending: false })
           .limit(10),
@@ -197,7 +197,7 @@ export function AdminLiveAnalytics() {
       
       (messagesRes.data || []).forEach(m => activities.push({
         id: m.id, event_name: 'message_sent', created_at: m.created_at,
-        user_id: m.sender_id, detail: m.content?.substring(0, 30) || 'sent a message'
+        user_id: m.sender_id
       }));
       (postsRes.data || []).forEach(p => activities.push({
         id: p.id, event_name: `post_created`, created_at: p.created_at,
