@@ -51,7 +51,7 @@ export function AdminRolesSection() {
   };
 
   return (
-    <Card className="liquid-glass">
+    <Card className="liquid-glass h-full flex flex-col">
       <CardHeader>
         <div className="flex items-center gap-3">
           <Users className="h-5 w-5 text-primary" />
@@ -61,7 +61,7 @@ export function AdminRolesSection() {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 flex-1 flex flex-col overflow-hidden">
         {/* Add Role */}
         <div className="space-y-3 p-4 rounded-lg bg-muted/30">
           <h3 className="font-semibold flex items-center gap-2">
@@ -114,7 +114,7 @@ export function AdminRolesSection() {
         </div>
 
         {/* Role List */}
-        <ScrollArea className="h-[400px]">
+        <ScrollArea className="flex-1">
           <div className="space-y-2">
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground">Loading...</div>
