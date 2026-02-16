@@ -8155,6 +8155,7 @@ export type Database = {
         Args: { _profile_id: string }
         Returns: string
       }
+      get_auth_users_count: { Args: never; Returns: number }
       get_comment_count: { Args: { p_post_id: string }; Returns: number }
       get_creator_revenue_split: {
         Args: {
