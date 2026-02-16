@@ -350,16 +350,14 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                       whileTap={{ scale: 0.8 }}
                       whileHover={{ scale: 1.08 }}
                     >
-                      {/* Outer pulsing glow ring */}
+                      {/* Outer pulsing glow */}
                       <motion.div
-                        className="absolute rounded-2xl"
+                        className="absolute rounded-full pointer-events-none"
                         style={{
-                          inset: -3,
-                          background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))',
-                          backgroundSize: '300% 300%',
-                          animation: 'gradient-shift 4s ease infinite',
+                          inset: -6,
+                          background: 'radial-gradient(circle, hsl(var(--primary) / 0.6), hsl(var(--accent) / 0.4), transparent 70%)',
                           opacity: 0.5,
-                          filter: 'blur(8px)',
+                          filter: 'blur(14px)',
                         }}
                       />
                       
