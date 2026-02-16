@@ -57,7 +57,11 @@ export function useErrorReporter() {
 
     // Unhandled promise rejection handler
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      // Suppress auth guard errors — they're user-facing toasts, not bugs
+      if (event.reason?.isAuthGuard) return;
       const message = event.reason?.message || event.reason?.toString() || 'Unhandled promise rejection';
+      // Suppress generic "Not authenticated" from mutations — already shown as toast
+      if (message === 'Not authenticated') return;
       reportError(message, 'unhandledrejection');
     };
 
