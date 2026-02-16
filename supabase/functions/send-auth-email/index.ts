@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
 
       if (insertError) throw insertError;
 
-      const baseUrl = redirectUrl || "https://vybeapp.lovable.app";
+      const baseUrl = redirectUrl || "https://vybehub.app";
       const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
       await sendEmailWithFallback(resendKey, fromEmail, [email], "Reset Your VYBE Password", `
@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
         type: "magiclink",
         email,
         options: {
-          redirectTo: redirectUrl || "https://vybeapp.lovable.app/home",
+          redirectTo: redirectUrl || "https://vybehub.app/home",
         },
       });
 
