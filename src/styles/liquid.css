@@ -8,52 +8,36 @@
 /* Enhanced depth glass with VYBE theme tinting */
 .liquid-glass-depth {
   position: relative;
-  backdrop-filter: blur(20px) saturate(170%);
-  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
   background: linear-gradient(
     135deg,
-    hsl(var(--primary) / 0.08),
+    hsl(var(--primary) / 0.06),
     hsl(var(--glass) / 0.88),
-    hsl(var(--accent) / 0.06)
+    hsl(var(--accent) / 0.04)
   );
-  border: 1px solid hsl(var(--foreground) / 0.12);
+  border: 1px solid hsl(var(--foreground) / 0.1);
   border-radius: 20px;
-  box-shadow:
-    0 4px 16px hsl(var(--background) / 0.3),
-    inset 0 1px 0 hsl(var(--foreground) / 0.1);
-  transition: box-shadow 0.3s ease;
+  box-shadow: 0 4px 16px hsl(var(--background) / 0.3);
+  contain: layout style;
 }
 
 .liquid-glass-depth:hover {
-  box-shadow:
-    0 8px 24px hsl(var(--background) / 0.4),
-    inset 0 1px 0 hsl(var(--foreground) / 0.15);
+  box-shadow: 0 6px 20px hsl(var(--background) / 0.4);
 }
 
-/* Specular highlight for depth glass */
+/* Specular highlight removed for performance */
 .liquid-glass-depth::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 40%;
-  height: 45%;
-  background: linear-gradient(
-    135deg,
-    hsl(var(--foreground) / 0.06) 0%,
-    transparent 60%
-  );
-  pointer-events: none;
-  border-radius: inherit;
+  display: none;
 }
 
-/* Modal backdrop with Apple-level blur */
+/* Modal backdrop with optimized blur */
 .liquid-modal-backdrop {
   position: fixed;
   inset: 0;
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  background: hsl(var(--background) / 0.55);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  background: hsl(var(--background) / 0.6);
   display: flex;
   justify-content: center;
   align-items: center;

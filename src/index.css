@@ -345,35 +345,29 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
        No more chasing individual elements.
        ============================================= */
 
-    /* 1) UNIVERSAL: Force ALL elements to be fully opaque - but preserve colored text */
-    *:not(svg):not(svg *):not([class*="lucide"]):not([class*="text-primary"]):not([class*="text-destructive"]):not([class*="text-success"]):not([class*="text-warning"]):not([class*="text-accent"]):not([class*="text-red"]):not([class*="text-green"]):not([class*="text-blue"]):not([class*="text-orange"]):not([class*="text-yellow"]):not([class*="text-rose"]):not([class*="text-purple"]):not([class*="text-pink"]):not([class*="text-cyan"]) {
-      color: hsl(var(--foreground)) !important;
+    /* 1) Targeted text visibility - only apply to text-bearing elements, NOT every element */
+    p, span, div, li, td, th, label, a, h1, h2, h3, h4, h5, h6,
+    input, textarea, select, summary, figcaption, blockquote, pre, code {
       opacity: 1 !important;
       mix-blend-mode: normal !important;
     }
-    /* SVGs: Ensure visibility but preserve semantic colors (liked hearts, bookmarks etc.) */
-    svg:not([data-themed-svg]):not(.create-button-gradient *):not([class*="fill-"]):not([class*="text-red"]):not([class*="text-rose"]):not([class*="text-yellow"]):not([class*="text-green"]):not([class*="text-orange"]):not([class*="text-blue"]):not([class*="text-white"]):not([class*="text-destructive"]):not([class*="text-success"]):not([class*="text-warning"]), 
-    [class*="lucide"]:not(.create-button-gradient *):not([class*="fill-"]):not([class*="text-red"]):not([class*="text-rose"]):not([class*="text-yellow"]):not([class*="text-green"]):not([class*="text-orange"]):not([class*="text-blue"]):not([class*="text-white"]):not([class*="text-destructive"]):not([class*="text-success"]):not([class*="text-warning"]) {
+    /* SVGs: Ensure visibility but preserve semantic colors */
+    svg:not([data-themed-svg]):not(.create-button-gradient *):not([class*="fill-"]):not([class*="text-red"]):not([class*="text-rose"]):not([class*="text-yellow"]):not([class*="text-green"]):not([class*="text-orange"]):not([class*="text-blue"]):not([class*="text-white"]):not([class*="text-destructive"]):not([class*="text-success"]):not([class*="text-warning"]) {
       color: hsl(var(--primary)) !important;
       stroke: hsl(var(--primary)) !important;
       opacity: 1 !important;
       mix-blend-mode: normal !important;
-      paint-order: stroke fill;
     }
     /* Semantic-colored SVGs: preserve their color but ensure visibility */
     svg[class*="fill-"], svg[class*="text-red"], svg[class*="text-rose"],
     svg[class*="text-yellow"], svg[class*="text-green"], svg[class*="text-orange"],
-    svg[class*="text-blue"], svg[class*="text-white"],
-    [class*="lucide"][class*="fill-"], [class*="lucide"][class*="text-red"],
-    [class*="lucide"][class*="text-rose"], [class*="lucide"][class*="text-yellow"] {
+    svg[class*="text-blue"], svg[class*="text-white"] {
       opacity: 1 !important;
       mix-blend-mode: normal !important;
     }
-    svg:not([data-themed-svg]):not(.create-button-gradient *) *, 
-    [class*="lucide"]:not(.create-button-gradient *) * {
+    svg:not([data-themed-svg]):not(.create-button-gradient *) * {
       stroke: inherit !important;
       opacity: 1 !important;
-      mix-blend-mode: normal !important;
     }
     /* Themed SVGs (VybeMiniIcon, VYBELogo) — fully exempt from ALL mobile overrides.
        Their inline styles (gradient strokes, animations, fills) must be preserved exactly. */
@@ -1281,13 +1275,13 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     height: 100dvh !important;
     background: linear-gradient(
       135deg,
-      hsl(var(--glass) / 0.85),
-      hsl(var(--glass) / 0.6),
+      hsl(var(--glass) / 0.88),
       hsl(var(--glass) / 0.75)
     );
-    backdrop-filter: blur(20px) saturate(170%);
-    -webkit-backdrop-filter: blur(20px) saturate(170%);
-    box-shadow: 0 4px 16px hsl(var(--background) / 0.3);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    box-shadow: 0 2px 12px hsl(var(--background) / 0.25);
+    contain: layout style;
   }
 
   .sidebar-fixed-left {
@@ -1307,13 +1301,12 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       hsl(var(--glass) / 0.85),
       hsl(var(--glass) / 0.88)
     );
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid hsl(var(--foreground) / 0.15);
-    box-shadow: 
-      0 4px 16px hsl(var(--background) / 0.4),
-      inset 0 1px 0 hsl(var(--foreground) / 0.12);
-    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid hsl(var(--foreground) / 0.12);
+    box-shadow: 0 4px 16px hsl(var(--background) / 0.35);
+    transition: box-shadow 0.2s ease;
+    contain: layout style;
   }
 
   /* Noise texture removed for cleaner frosted glass look */
@@ -1321,27 +1314,13 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     display: none;
   }
 
-  /* Top-left specular highlight */
+  /* Specular highlight removed for GPU perf - the glass gradient provides depth */
   .liquid-glass::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 50%;
-    height: 50%;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--foreground) / 0.04) 0%,
-      transparent 50%
-    );
-    pointer-events: none;
-    border-radius: inherit;
+    display: none;
   }
 
   .liquid-glass:hover {
-    box-shadow: 
-      0 8px 24px hsl(var(--background) / 0.5),
-      inset 0 1px 0 hsl(var(--foreground) / 0.15);
+    box-shadow: 0 6px 20px hsl(var(--background) / 0.45);
   }
 
   .liquid-glass-subtle {
@@ -1351,10 +1330,10 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       hsl(var(--glass) / 0.7),
       hsl(var(--glass) / 0.4)
     );
-    backdrop-filter: blur(12px) saturate(160%);
-    -webkit-backdrop-filter: blur(12px) saturate(160%);
-    border: 1px solid hsl(var(--foreground) / 0.1);
-    transition: border-color 0.2s ease;
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    border: 1px solid hsl(var(--foreground) / 0.08);
+    contain: layout style;
   }
 
   /* Glass intensity variants */
@@ -1366,8 +1345,8 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
 
   .glass-max .liquid-glass,
   [data-glass-intensity="max"] .liquid-glass {
-    backdrop-filter: blur(30px) saturate(200%);
-    -webkit-backdrop-filter: blur(30px) saturate(200%);
+    backdrop-filter: blur(20px) saturate(170%);
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
   }
 
   /* High contrast mode for mobile readability */
@@ -1376,15 +1355,11 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
     background: linear-gradient(
       135deg,
       hsl(var(--glass) / 0.95),
-      hsl(var(--glass) / 0.85),
-      hsl(var(--glass) / 0.9)
+      hsl(var(--glass) / 0.88),
+      hsl(var(--glass) / 0.92)
     );
-    border: 1px solid hsl(var(--foreground) / 0.18);
-    box-shadow: 
-      0 8px 32px hsl(var(--background) / 0.5),
-      0 2px 8px hsl(var(--background) / 0.35),
-      inset 0 1px 0 hsl(var(--foreground) / 0.2),
-      inset 0 -1px 0 hsl(var(--background) / 0.4);
+    border: 1px solid hsl(var(--foreground) / 0.16);
+    box-shadow: 0 4px 16px hsl(var(--background) / 0.45);
   }
 
   [data-contrast="high"] .liquid-glass-subtle,
@@ -1394,7 +1369,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       hsl(var(--glass) / 0.9),
       hsl(var(--glass) / 0.7)
     );
-    border: 1px solid hsl(var(--foreground) / 0.15);
+    border: 1px solid hsl(var(--foreground) / 0.12);
   }
 
   /* Pause glass animations during scroll for performance */
@@ -1412,46 +1387,23 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       hsl(var(--neon-purple) / 0.15),
       hsl(var(--neon-cyan) / 0.2)
     );
-    backdrop-filter: blur(12px) saturate(160%);
-    -webkit-backdrop-filter: blur(12px) saturate(160%);
-    border: 1px solid hsl(var(--foreground) / 0.15);
-    box-shadow: 
-      0 2px 12px hsl(var(--neon-pink) / 0.12),
-      inset 0 1px 0 hsl(var(--foreground) / 0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    border: 1px solid hsl(var(--foreground) / 0.12);
+    box-shadow: 0 2px 8px hsl(var(--neon-pink) / 0.1);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
     overflow: hidden;
+    contain: layout style;
   }
 
+  /* Remove expensive hover pseudo-element overlay */
   .liquid-glass-button::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      135deg,
-      transparent 0%,
-      hsl(var(--foreground) / 0.08) 50%,
-      transparent 100%
-    );
-    opacity: 0;
-    transition: opacity 0.3s ease;
+    display: none;
   }
 
   .liquid-glass-button:hover {
-    transform: translateY(-2px) scale(1.02);
-    background: linear-gradient(
-      135deg,
-      hsl(var(--neon-pink) / 0.3),
-      hsl(var(--neon-purple) / 0.25),
-      hsl(var(--neon-cyan) / 0.3)
-    );
-    box-shadow: 
-      0 4px 16px hsl(var(--neon-pink) / 0.2),
-      inset 0 1px 0 hsl(var(--foreground) / 0.15);
-    border-color: hsl(var(--neon-pink) / 0.35);
-  }
-
-  .liquid-glass-button:hover::before {
-    opacity: 1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px hsl(var(--neon-pink) / 0.18);
   }
 
   .liquid-glass-button:active {
