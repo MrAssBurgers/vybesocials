@@ -102,6 +102,7 @@ const PERK_CATEGORIES = [
       { icon: Rocket, label: 'Priority in Explore', desc: 'Your content surfaces higher' },
       { icon: Flame, label: 'Longer Clips', desc: '3min vs 1min clip limit' },
       { icon: Zap, label: 'Early Access', desc: 'Try new features first' },
+      { icon: Shield, label: 'Ad-Free Experience', desc: 'No ads anywhere in the app' },
     ],
   },
   {
