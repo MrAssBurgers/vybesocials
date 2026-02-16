@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { PaywallSheet } from '@/components/premium/PaywallSheet';
 import { SubscriptionLocker } from '@/components/settings/SubscriptionLocker';
+import { PremiumPerkActions } from '@/components/settings/PremiumPerkActions';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { useRevenueCat } from '@/hooks/useRevenueCat';
 import { cn } from '@/lib/utils';
@@ -288,6 +289,9 @@ export function SubscriptionSection() {
           ))}
         </div>
       </motion.div>
+
+      {/* Premium Powers & Actions */}
+      <PremiumPerkActions />
 
       {/* Equippable Cosmetics */}
       <SubscriptionLocker />
