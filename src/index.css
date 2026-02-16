@@ -532,14 +532,6 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
       text-shadow: 0 1px 3px hsl(var(--background) / 0.15);
     }
 
-    /* 11b) Soften all hardcoded drop-shadow text filters to smooth blended shadows */
-    [class*="drop-shadow-[0_1px"] {
-      filter: drop-shadow(0 1px 3px hsl(var(--background) / 0.2)) !important;
-    }
-    [class*="drop-shadow-[0_2px"] {
-      filter: drop-shadow(0 1px 4px hsl(var(--background) / 0.25)) !important;
-    }
-
     /* 12) Avatar borders - use subtle separator instead of removing */
     .border-background {
       border-color: hsl(var(--background) / 0.6) !important;
