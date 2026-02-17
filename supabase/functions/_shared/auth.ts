@@ -33,16 +33,16 @@ export async function validateAuth(req: Request): Promise<AuthResult> {
   });
   
   const token = authHeader.replace('Bearer ', '');
-  const { data, error } = await supabase.auth.getClaims(token);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
   
-  if (error || !data?.claims) {
+  if (error || !user) {
     console.error('Auth validation error:', error);
     return { authenticated: false, error: 'Invalid token' };
   }
   
   return { 
     authenticated: true, 
-    userId: data.claims.sub as string 
+    userId: user.id 
   };
 }
 
