@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flame, X, Trophy } from 'lucide-react';
+import { Flame, X, Trophy, Crown, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface StreakPopupProps {
@@ -8,10 +8,14 @@ interface StreakPopupProps {
   longestStreak: number;
   isNewStreak?: boolean;
   onClose: () => void;
+  isPremium?: boolean;
+  onRestore?: () => void;
+  isRestoring?: boolean;
 }
 
-export function StreakPopup({ open, streak, longestStreak, isNewStreak, onClose }: StreakPopupProps) {
+export function StreakPopup({ open, streak, longestStreak, isNewStreak, onClose, isPremium, onRestore, isRestoring }: StreakPopupProps) {
   const isNewRecord = streak === longestStreak && streak > 1;
+  const streakBroken = isNewStreak && longestStreak > 1;
 
   return (
     <AnimatePresence>
@@ -98,6 +102,28 @@ export function StreakPopup({ open, streak, longestStreak, isNewStreak, onClose 
                     ? "You're on fire! Keep the momentum going!" 
                     : 'Welcome back! Start building your streak.'}
               </motion.p>
+
+              {/* Streak restore for premium users when streak broke */}
+              {streakBroken && isPremium && onRestore && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.35 }}
+                  className="mt-4 w-full"
+                >
+                  <Button
+                    onClick={onRestore}
+                    disabled={isRestoring}
+                    variant="outline"
+                    className="w-full gap-2 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500"
+                  >
+                    <Crown className="h-4 w-4" />
+                    {isRestoring ? 'Restoring...' : `Restore ${longestStreak}-Day Streak`}
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </Button>
+                  <p className="text-[10px] text-muted-foreground mt-1">VYBE Pro perk</p>
+                </motion.div>
+              )}
 
               {/* New record badge */}
               {isNewRecord && (
