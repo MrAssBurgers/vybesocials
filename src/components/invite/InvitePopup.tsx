@@ -37,17 +37,15 @@ const STEP_INFO: Record<ConfirmStep, StepInfo> = {
  * 
  * TRIGGER CONDITIONS (ALL must be true):
  * - User is authenticated (user.id exists)
- * - User has a profile (profile.id exists)
- * - Onboarding is complete (profile.onboarding_completed = true)
- * - Tutorial is complete OR skipped (check DB directly for reliability)
+ * - User has a profile with username set
  * - Pending referral exists in localStorage
  * - Referral not yet confirmed
  * 
  * FLOW:
- * 1. Listen for 'tutorial-completed' event OR poll profile status
+ * 1. Poll/check profile status after auth
  * 2. When conditions met, show modal
  * 3. On "Thank You" click: show event-driven progress bar
- * 4. Backend processes: redemption → reward → notification
+ * 4. Backend processes: redemption → XP reward → friendship → notification
  * 5. Cleanup and close
  */
 export function InvitePopup() {
@@ -109,11 +107,11 @@ export function InvitePopup() {
       return;
     }
     
-    // Check if onboarding AND tutorial are complete, AND user hasn't already accepted a referral
+    // Check if user has a profile with username (minimum requirement) and hasn't already accepted a referral
     try {
       const { data: profileData, error } = await supabase
         .from('profiles')
-        .select('onboarding_completed, tutorial_completed, tutorial_skipped, referral_inviter_id')
+        .select('username, referral_inviter_id')
         .eq('id', profile.id)
         .single();
       
@@ -123,7 +121,6 @@ export function InvitePopup() {
       }
       
       // CRITICAL: One-invite-per-user rule
-      // If user already has a referral_inviter_id, they've already accepted a referral
       if (profileData?.referral_inviter_id) {
         console.log('[InvitePopup] User already accepted a referral, cleaning up');
         cleanupReferralStorage();
@@ -136,14 +133,9 @@ export function InvitePopup() {
         return;
       }
       
-      const onboardingDone = profileData?.onboarding_completed ?? false;
-      const tutorialDone = (profileData?.tutorial_completed ?? false) || (profileData?.tutorial_skipped ?? false);
-      
-      console.log('[InvitePopup] Status check:', { onboardingDone, tutorialDone });
-      
-      // MUST have completed both onboarding AND tutorial
-      if (!onboardingDone || !tutorialDone) {
-        console.log('[InvitePopup] Waiting for onboarding/tutorial completion');
+      // Just need a username set (user completed at least basic signup)
+      if (!profileData?.username) {
+        console.log('[InvitePopup] Waiting for username to be set');
         return;
       }
     } catch (e) {
