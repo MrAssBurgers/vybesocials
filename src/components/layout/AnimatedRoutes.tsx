@@ -44,6 +44,7 @@ const AdminSettings = lazy(() => import("@/pages/AdminSettings"));
 const BadgeLibrary = lazy(() => import("@/pages/BadgeLibrary"));
 const ChallengesHub = lazy(() => import("@/pages/ChallengesHub"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 const HowUDoinHub = lazy(() => import("@/pages/HowUDoinHub"));
 const BusinessPortal = lazy(() => import("@/pages/BusinessPortal"));
 const OrderSuccess = lazy(() => import("@/pages/OrderSuccess"));
@@ -95,6 +96,7 @@ export function AnimatedRoutes() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/guidelines" element={<CommunityGuidelines />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/invite/:identifier" element={<InviteRedeem />} />
             
             {/* CRITICAL ROUTES - Eagerly loaded, instant navigation */}

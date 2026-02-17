@@ -55,41 +55,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showIntro, setShowIntro] = useState<boolean | null>(null); // null = still checking
-  const [isOAuthReturn, setIsOAuthReturn] = useState(() => {
-    // Check sessionStorage flag (set before redirect) — most reliable method
-    // Also check URL hash as fallback (tokens may be present before detectSessionInUrl clears them)
-    const hasOAuthFlag = sessionStorage.getItem('vybe-oauth-pending') === 'true';
+  // OAuth returns now go to /auth/callback, so we only need to handle
+  // the case where hash tokens are somehow present on the landing page
+  const [isOAuthReturn] = useState(() => {
     const hash = window.location.hash;
-    const hasHashTokens = hash.includes('access_token') || hash.includes('refresh_token') || hash.includes('type=recovery');
-    return hasOAuthFlag || hasHashTokens;
+    return hash.includes('access_token') || hash.includes('refresh_token');
   });
-
-  // Handle OAuth return: wait for session to establish or timeout
-  useEffect(() => {
-    if (!isOAuthReturn) return;
-
-    // User appeared from OAuth — clear flag AND state so we stop showing blank screen
-    if (user) {
-      sessionStorage.removeItem('vybe-oauth-pending');
-      setIsOAuthReturn(false);
-      return;
-    }
-
-    // If authReady is true but no user, the session failed to establish — show login immediately
-    if (authReady) {
-      sessionStorage.removeItem('vybe-oauth-pending');
-      setIsOAuthReturn(false);
-      return;
-    }
-
-    // Fallback: if session never establishes after 10s, show login
-    const timer = setTimeout(() => {
-      sessionStorage.removeItem('vybe-oauth-pending');
-      setIsOAuthReturn(false);
-    }, 10000);
-
-    return () => clearTimeout(timer);
-  }, [isOAuthReturn, user, authReady]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -523,7 +494,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   // Set flag BEFORE redirect so we know we're returning from OAuth
                   sessionStorage.setItem('vybe-oauth-pending', 'true');
                   const { error } = await lovable.auth.signInWithOAuth("google", {
-                    redirect_uri: window.location.origin,
+                    redirect_uri: `${window.location.origin}/auth/callback`,
                     extraParams: {
                       prompt: "select_account",
                     },
@@ -561,7 +532,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 try {
                   sessionStorage.setItem('vybe-oauth-pending', 'true');
                   const { error } = await lovable.auth.signInWithOAuth("apple", {
-                    redirect_uri: window.location.origin,
+                    redirect_uri: `${window.location.origin}/auth/callback`,
                   });
                   if (error) {
                     sessionStorage.removeItem('vybe-oauth-pending');
