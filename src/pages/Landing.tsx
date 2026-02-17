@@ -527,7 +527,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   // Set flag BEFORE redirect so we know we're returning from OAuth
                   sessionStorage.setItem('vybe-oauth-pending', 'true');
                   const { error } = await lovable.auth.signInWithOAuth("google", {
-                    redirect_uri: window.location.origin,
+                    redirect_uri: `${window.location.origin}/auth/callback`,
                     extraParams: {
                       prompt: "select_account",
                     },
@@ -565,7 +565,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 try {
                   sessionStorage.setItem('vybe-oauth-pending', 'true');
                   const { error } = await lovable.auth.signInWithOAuth("apple", {
-                    redirect_uri: window.location.origin,
+                    redirect_uri: `${window.location.origin}/auth/callback`,
                   });
                   if (error) {
                     sessionStorage.removeItem('vybe-oauth-pending');
