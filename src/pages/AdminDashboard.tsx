@@ -63,6 +63,7 @@ export default function AdminDashboard() {
   const { data: warnings = [] } = useAllWarnings();
   const { data: bans = [] } = useAllBans();
   
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('live');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -154,7 +155,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const navigate = useNavigate();
 
   return (
     <AppLayout hideNav noPadding>
