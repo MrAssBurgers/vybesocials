@@ -367,7 +367,7 @@ export function ProfileLocker() {
   const displayName = profile?.display_name || profile?.username || 'You';
 
   return (
-    <div className="flex flex-col min-h-[400px] pb-4">
+    <div className="flex flex-col min-h-[calc(100vh-200px)] pb-24">
       {/* ── Header ────────────────────────────────────────── */}
       <div className="text-center py-3">
         <div className="inline-flex items-center gap-2.5 px-5 py-2 rounded-2xl bg-gradient-to-r from-primary/15 via-accent/10 to-primary/15 border border-primary/20 shadow-sm">
