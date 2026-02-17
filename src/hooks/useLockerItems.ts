@@ -25,6 +25,7 @@ export interface LockerData {
   equippedFrame: string | null;
   equippedNameColor: string | null;
   equippedProfileTheme: string | null;
+  equippedBadgeId: string | null;
 }
 
 export function useLockerItems(userId?: string) {
@@ -38,7 +39,7 @@ export function useLockerItems(userId?: string) {
 
       const { data: prof } = await supabase
         .from('profiles')
-        .select('user_id, equipped_title, equipped_effect, equipped_frame, equipped_name_color, equipped_profile_theme')
+        .select('user_id, equipped_title, equipped_effect, equipped_frame, equipped_name_color, equipped_profile_theme, equipped_badge_id')
         .eq('id', targetId)
         .single();
 
@@ -75,6 +76,7 @@ export function useLockerItems(userId?: string) {
         equippedFrame: (prof as any)?.equipped_frame || null,
         equippedNameColor: (prof as any)?.equipped_name_color || null,
         equippedProfileTheme: (prof as any)?.equipped_profile_theme || null,
+        equippedBadgeId: (prof as any)?.equipped_badge_id || null,
       };
     },
     enabled: !!targetId,
@@ -88,7 +90,7 @@ export function useEquipItem() {
   const { profile } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ type, value }: { type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme'; value: string | null }) => {
+    mutationFn: async ({ type, value }: { type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme' | 'badge'; value: string | null }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
       const colMap: Record<string, string> = {
@@ -97,6 +99,7 @@ export function useEquipItem() {
         frame: 'equipped_frame',
         name_color: 'equipped_name_color',
         profile_theme: 'equipped_profile_theme',
+        badge: 'equipped_badge_id',
       };
 
       const { error } = await supabase
@@ -110,6 +113,7 @@ export function useEquipItem() {
       queryClient.invalidateQueries({ queryKey: ['locker-items'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['profile-by-username'] });
+      queryClient.invalidateQueries({ queryKey: ['display-style'] });
     },
   });
 }

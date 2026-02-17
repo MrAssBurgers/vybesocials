@@ -75,16 +75,21 @@ export default function ProfilePage() {
   const showOwnerWifeBadge = badgeSettings.show_owner_wife_badge !== false;
   const showModBadge = badgeSettings.show_mod_badge !== false;
   
-  const displayBadges = userBadges?.slice(0, 5).map(ub => ({
-    id: ub.badge.id,
-    icon: ub.badge.icon,
-    name: ub.badge.name,
-    description: ub.badge.description,
-    gradient_from: ub.badge.gradient_from,
-    gradient_to: ub.badge.gradient_to,
-    effect: ub.badge.effect,
-    is_animated: ub.badge.is_animated,
-  })) || [];
+  // Show only the single equipped badge on profile
+  const equippedBadge = lockerData?.equippedBadgeId
+    ? userBadges?.find(ub => ub.badge_id === lockerData.equippedBadgeId)
+    : null;
+  
+  const displayBadges = equippedBadge ? [{
+    id: equippedBadge.badge.id,
+    icon: equippedBadge.badge.icon,
+    name: equippedBadge.badge.name,
+    description: equippedBadge.badge.description,
+    gradient_from: equippedBadge.badge.gradient_from,
+    gradient_to: equippedBadge.badge.gradient_to,
+    effect: equippedBadge.badge.effect,
+    is_animated: equippedBadge.badge.is_animated,
+  }] : [];
 
   useEffect(() => {
     if (profile?.id && currentProfile?.id && profile.id !== currentProfile.id) {

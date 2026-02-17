@@ -5072,6 +5072,7 @@ export type Database = {
           date_of_birth: string | null
           display_name: string | null
           email: string | null
+          equipped_badge_id: string | null
           equipped_effect: string | null
           equipped_frame: string | null
           equipped_name_color: string | null
@@ -5108,6 +5109,7 @@ export type Database = {
           date_of_birth?: string | null
           display_name?: string | null
           email?: string | null
+          equipped_badge_id?: string | null
           equipped_effect?: string | null
           equipped_frame?: string | null
           equipped_name_color?: string | null
@@ -5144,6 +5146,7 @@ export type Database = {
           date_of_birth?: string | null
           display_name?: string | null
           email?: string | null
+          equipped_badge_id?: string | null
           equipped_effect?: string | null
           equipped_frame?: string | null
           equipped_name_color?: string | null
@@ -5171,6 +5174,13 @@ export type Database = {
           username?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_equipped_badge_id_fkey"
+            columns: ["equipped_badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_referral_inviter_id_fkey"
             columns: ["referral_inviter_id"]
