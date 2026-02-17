@@ -1,6 +1,6 @@
 import { useState, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Calendar, Clock, MapPin, Users, Video, 
   Plus, Filter, ChevronRight, Check, Star
@@ -166,6 +166,7 @@ const EventCard = memo(function EventCard({
 });
 
 export default function EventsPage() {
+  const navigate = useNavigate();
   const { profile } = useAuth();
   const [tab, setTab] = useState<'upcoming' | 'online' | 'local'>('upcoming');
   
@@ -246,7 +247,7 @@ export default function EventsPage() {
             title="No events found"
             description="Be the first to create an event for your community!"
             actionLabel="Create Event"
-            onAction={() => window.location.href = '/events/new'}
+            onAction={() => navigate('/events/new')}
           />
         )}
       </div>

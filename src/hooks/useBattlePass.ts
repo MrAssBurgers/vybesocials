@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import { navigationRef } from '@/lib/navigationRef';
 
 export interface UserLevel {
   id: string;
@@ -233,7 +234,7 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
                 action: {
                   label: 'Claim',
                   onClick: () => {
-                    window.location.href = '/challenges';
+                    navigationRef.current?.('/challenges');
                   },
                 },
               }

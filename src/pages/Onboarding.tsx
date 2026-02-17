@@ -195,7 +195,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     if (isInviteMode && onInviteNavigate) {
       onInviteNavigate('home');
     } else {
-      window.location.href = '/home';
+      navigate('/home');
     }
   };
 
@@ -234,11 +234,11 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         return;
       }
 
-      // Force full page reload to ensure auth context gets fresh profile data
+      // Navigate to home (client-side to preserve auth state)
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate('home');
       } else {
-        window.location.href = '/home';
+        navigate('/home');
       }
     } catch (err) {
       console.error('Skip error:', err);

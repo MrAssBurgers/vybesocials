@@ -6,7 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useInView } from 'react-intersection-observer';
 import { X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 const BOTTOM_NAV_HEIGHT = 80; // px (including safe area padding)
 
 export default function ClipsPage() {
+  const navigate = useNavigate();
   const { 
     data, 
     isLoading, 
@@ -153,7 +154,7 @@ export default function ClipsPage() {
             title="No clips yet"
             description="Be the first to upload a clip"
             actionLabel="Upload Clip"
-            onAction={() => window.location.href = '/upload'}
+            onAction={() => navigate('/upload')}
           />
         </div>
       </AppLayout>
