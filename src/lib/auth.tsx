@@ -318,11 +318,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     };
 
+    // Helper: check if there's a stored auth token (session might be refreshing)
+    const hasStoredToken = () => {
+      try {
+        const stored = localStorage.getItem('sb-agtcyxjxgkdyoxwxkjth-auth-token');
+        return !!stored;
+      } catch { return false; }
+    };
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         logEvent('auth', `onAuthStateChange: ${event}`, { hasSession: !!session });
-        if (!authInitializedRef.current && event === 'INITIAL_SESSION' && !session) {
+        
+        // ── KEY FIX: Never finalize "no session" from INITIAL_SESSION ──
+        // INITIAL_SESSION with null session happens when the stored token
+        // is expired and a background refresh is in progress. We MUST wait
+        // for getSession() or TOKEN_REFRESHED to resolve instead.
+        if (event === 'INITIAL_SESSION' && !session) {
+          logEvent('auth', 'INITIAL_SESSION with no session — deferring to getSession');
           return;
         }
         
@@ -341,8 +355,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }, 0);
 
           sessionStorage.removeItem('vybe-oauth-pending');
-        } else {
-          logEvent('auth', 'No session — signed out');
+        } else if (event === 'SIGNED_OUT') {
+          // Only clear state on explicit sign-out, not on ambiguous events
+          logEvent('auth', 'Explicit sign out — clearing state');
           setProfile(null);
           clearProfileCache();
           stopHeartbeat();
@@ -358,8 +373,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearBanExpiryTimer();
         }
         
-        setLoading(false);
-        setIsInitialized(true);
+        // Only mark initialized from onAuthStateChange for events that carry
+        // definitive session state (not INITIAL_SESSION which we skip above)
+        if (event !== 'INITIAL_SESSION') {
+          setLoading(false);
+          setIsInitialized(true);
+          authInitializedRef.current = true;
+        }
       }
     );
 
@@ -373,9 +393,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       logEvent('auth', 'Initializing: checking existing session');
-      supabase.auth.getSession().then(({ data: { session }, error }) => {
-        authInitializedRef.current = true;
-        
+      supabase.auth.getSession().then(async ({ data: { session }, error }) => {
         if (error) {
           logEvent('auth', 'getSession error (stale token?) — starting fresh', { error: error.message });
           setSession(null);
@@ -383,12 +401,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
           clearProfileCache();
           sessionStorage.removeItem('vybe-oauth-pending');
+          authInitializedRef.current = true;
           setLoading(false);
           setIsInitialized(true);
           return;
         }
 
+        // ── KEY FIX: If getSession returns null but we have a stored token,
+        // a background refresh is likely in progress. Wait for it. ──
+        if (!session && hasStoredToken()) {
+          logEvent('auth', 'getSession returned null but stored token exists — waiting for refresh');
+          
+          // Give the token refresh up to 5 seconds to complete
+          // onAuthStateChange will fire TOKEN_REFRESHED and set everything
+          const waitForRefresh = new Promise<void>((resolve) => {
+            const timeout = setTimeout(() => {
+              logEvent('auth', 'Token refresh wait timed out — no session');
+              resolve();
+            }, 5000);
+            
+            // If onAuthStateChange already set the user, we're done
+            const checkInterval = setInterval(() => {
+              if (authInitializedRef.current) {
+                clearTimeout(timeout);
+                clearInterval(checkInterval);
+                resolve();
+              }
+            }, 100);
+          });
+          
+          await waitForRefresh;
+          
+          // If still not initialized after waiting, finalize as no session
+          if (!authInitializedRef.current) {
+            logEvent('auth', 'No session after refresh wait — finalizing as signed out');
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+            clearProfileCache();
+            authInitializedRef.current = true;
+            setLoading(false);
+            setIsInitialized(true);
+          }
+          return;
+        }
+
         logEvent('auth', 'getSession resolved', { hasSession: !!session, userId: session?.user?.id });
+        authInitializedRef.current = true;
         setSession(session);
         setUser(session?.user ?? null);
         
