@@ -195,11 +195,14 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     if (isInviteMode && onInviteNavigate) {
       onInviteNavigate('home');
     } else {
-      navigate('/home');
+      navigate('/home', { replace: true });
     }
   };
 
   const handleSkip = async () => {
+    // Prevent double-clicks / spam
+    if (loading) return;
+    
     if (!user) {
       // Guest user - just go home
       if (isInviteMode && onInviteNavigate) {
@@ -238,7 +241,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate('home');
       } else {
-        navigate('/home');
+        navigate('/home', { replace: true });
       }
     } catch (err) {
       console.error('Skip error:', err);
