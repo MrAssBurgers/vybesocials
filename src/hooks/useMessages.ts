@@ -253,8 +253,9 @@ export function useMessages(conversationId: string | undefined) {
       if (error) throw error;
 
       // Filter out expired view_once messages that have been viewed
+      // But keep vybe messages — they show as "Opened" after viewing, not hidden
       const filtered = (data || []).filter((msg) => {
-        if (msg.view_mode === 'view_once' && msg.sender_id !== profile?.id) {
+        if (msg.view_mode === 'view_once' && msg.media_type !== 'vybe' && msg.sender_id !== profile?.id) {
           const hasViewed = msg.views?.some((v: any) => v.user_id === profile?.id);
           if (hasViewed) return false;
         }
