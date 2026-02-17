@@ -55,11 +55,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showIntro, setShowIntro] = useState<boolean | null>(null); // null = still checking
-  // OAuth returns now go to /auth/callback, so we only need to handle
-  // the case where hash tokens are somehow present on the landing page
-  const [isOAuthReturn] = useState(() => {
+  // Detect OAuth return: either hash tokens present OR we set a pending flag before redirect.
+  // On mobile Safari with Lovable Cloud OAuth, tokens arrive via setSession (not hash),
+  // so we must also check the sessionStorage flag.
+  const [isOAuthReturn, setIsOAuthReturn] = useState(() => {
     const hash = window.location.hash;
-    return hash.includes('access_token') || hash.includes('refresh_token');
+    const hasHashTokens = hash.includes('access_token') || hash.includes('refresh_token');
+    const isPending = sessionStorage.getItem('vybe-oauth-pending') === 'true';
+    return hasHashTokens || isPending;
   });
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -108,6 +111,27 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     
     checkStatus();
   }, [modeParam, user?.id, authProfile, authReady]);
+
+  // Safety timeout: if OAuth pending flag is set but session never establishes,
+  // clear the flag after 10s so the user can try again (prevents permanent loading screen)
+  useEffect(() => {
+    if (!isOAuthReturn) return;
+    
+    const timer = setTimeout(() => {
+      console.log('[Landing] OAuth pending timeout — clearing flag');
+      sessionStorage.removeItem('vybe-oauth-pending');
+      setIsOAuthReturn(false);
+    }, 10000);
+    
+    // If user arrives (session established), clear immediately
+    if (user) {
+      sessionStorage.removeItem('vybe-oauth-pending');
+      setIsOAuthReturn(false);
+      clearTimeout(timer);
+    }
+    
+    return () => clearTimeout(timer);
+  }, [isOAuthReturn, user]);
 
   // Redirect if already logged in AND has completed onboarding
   // First-time users (even if authenticated) should see intro if not completed
@@ -228,10 +252,19 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   };
 
   // Show intro flow for first-time visitors (null = still checking, true = show intro)
-  // If returning from OAuth redirect, hold on a loading screen while detectSessionInUrl
-  // processes the hash tokens. The useEffect above handles timeout fallback.
+  // If returning from OAuth redirect, hold on a loading screen while session is established.
+  // This prevents the login form from flashing on mobile Safari.
   if (isOAuthReturn || showIntro === null) {
-    return <div className="min-h-screen bg-background" />;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
+          {isOAuthReturn && (
+            <p className="text-sm text-muted-foreground">Signing you in…</p>
+          )}
+        </div>
+      </div>
+    );
   }
   
   if (showIntro) {
