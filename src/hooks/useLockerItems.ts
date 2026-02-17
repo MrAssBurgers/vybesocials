@@ -102,18 +102,28 @@ export function useEquipItem() {
         badge: 'equipped_badge_id',
       };
 
-      const { error } = await supabase
+      const updatePayload = { [colMap[type]]: value };
+      console.log('[useEquipItem] Updating profile', profile.id, 'with', updatePayload);
+      
+      const { error, data, count } = await supabase
         .from('profiles')
-        .update({ [colMap[type]]: value } as any)
-        .eq('id', profile.id);
+        .update(updatePayload as any)
+        .eq('id', profile.id)
+        .select('id, equipped_badge_id');
 
+      console.log('[useEquipItem] Result:', { error, data, count });
       if (error) throw error;
+      if (!data || data.length === 0) {
+        console.warn('[useEquipItem] No rows updated! Profile ID may not match or RLS blocked the update.');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['locker-items'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['profile-by-username'] });
       queryClient.invalidateQueries({ queryKey: ['display-style'] });
+      queryClient.invalidateQueries({ queryKey: ['user-badges'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
     },
   });
 }
