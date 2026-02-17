@@ -432,6 +432,24 @@ export function ProfileLocker() {
               handleToggle={handleToggle}
               handleSaveBadgeSettings={handleSaveBadgeSettings}
               savingBadges={savingBadges}
+              equippedBadgeId={lockerData?.equippedBadgeId || null}
+              onEquipBadge={(badgeId) => {
+                const newValue = lockerData?.equippedBadgeId === badgeId ? null : badgeId;
+                equipItem.mutate(
+                  { type: 'badge', value: newValue },
+                  {
+                    onSuccess: () => {
+                      haptics.success();
+                      toast.success(newValue ? '✨ Badge equipped!' : 'Badge unequipped', { duration: 2000 });
+                    },
+                    onError: () => {
+                      haptics.error();
+                      toast.error('Failed to update');
+                    },
+                  }
+                );
+              }}
+              isEquipping={equipItem.isPending}
             />
           )}
 
@@ -545,7 +563,7 @@ export function ProfileLocker() {
 }
 
 // ── Badge Tab Content ───────────────────────────────────────────
-function BadgesContent({ earnedBadges, lockedBadges, hasOwnerBadge, hasOwnerWifeBadge, hasModBadge, hasVerifiedBadge, settings, handleToggle, handleSaveBadgeSettings, savingBadges }: {
+function BadgesContent({ earnedBadges, lockedBadges, hasOwnerBadge, hasOwnerWifeBadge, hasModBadge, hasVerifiedBadge, settings, handleToggle, handleSaveBadgeSettings, savingBadges, equippedBadgeId, onEquipBadge, isEquipping }: {
   earnedBadges: any[];
   lockedBadges: any[];
   hasOwnerBadge: boolean;
@@ -556,33 +574,55 @@ function BadgesContent({ earnedBadges, lockedBadges, hasOwnerBadge, hasOwnerWife
   handleToggle: (key: keyof BadgeSettings) => void;
   handleSaveBadgeSettings: () => void;
   savingBadges: boolean;
+  equippedBadgeId: string | null;
+  onEquipBadge: (badgeId: string) => void;
+  isEquipping: boolean;
 }) {
   return (
     <div className="space-y-2.5">
       {earnedBadges.length > 0 && (
         <div className="rounded-2xl bg-card/40 p-3">
           <div className="flex items-center justify-between mb-2.5">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Earned</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              Earned — Tap to equip
+            </span>
             <Link to="/badges" className="text-[10px] text-primary font-semibold hover:underline">View All →</Link>
           </div>
+          <p className="text-[9px] text-muted-foreground mb-2">Only 1 badge can be displayed on your profile</p>
           <div className="grid grid-cols-5 sm:grid-cols-7 gap-2">
-            {earnedBadges.map((badge, i) => (
-              <div
-                key={badge.id}
-                className="flex flex-col items-center gap-1 group"
-                style={{ animationDelay: `${Math.min(i * 20, 150)}ms` }}
-              >
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/20 flex items-center justify-center text-lg group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/15 transition-all duration-200">
-                    {badge.icon}
+            {earnedBadges.map((badge, i) => {
+              const isEquipped = equippedBadgeId === badge.id;
+              return (
+                <button
+                  key={badge.id}
+                  onClick={() => !isEquipping && onEquipBadge(badge.id)}
+                  className={cn(
+                    "flex flex-col items-center gap-1 group transition-all duration-150 active:scale-95 rounded-xl p-1",
+                    isEquipped ? "bg-green-500/10 ring-1 ring-green-500/40" : "hover:bg-primary/5"
+                  )}
+                  style={{ animationDelay: `${Math.min(i * 20, 150)}ms` }}
+                  disabled={isEquipping}
+                >
+                  <div className="relative">
+                    <div className={cn(
+                      "w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 border flex items-center justify-center text-lg group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/15 transition-all duration-200",
+                      isEquipped ? "border-green-500/40" : "border-primary/20"
+                    )}>
+                      {badge.icon}
+                    </div>
+                    {isEquipped && (
+                      <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
+                        <Check className="w-2 h-2 text-white" strokeWidth={3} />
+                      </div>
+                    )}
                   </div>
-                  <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
-                    <Check className="w-1.5 h-1.5 text-white" strokeWidth={3} />
-                  </div>
-                </div>
-                <span className="text-[8px] text-muted-foreground text-center truncate w-full leading-tight">{badge.name}</span>
-              </div>
-            ))}
+                  <span className={cn(
+                    "text-[8px] text-center truncate w-full leading-tight",
+                    isEquipped ? "text-green-500 font-semibold" : "text-muted-foreground"
+                  )}>{badge.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
