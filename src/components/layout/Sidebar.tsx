@@ -1,4 +1,4 @@
-import { Home, Film, PlusCircle, Compass, Bell, Settings, LogOut, MessageCircle, Shield } from 'lucide-react';
+import { Home, Film, PlusCircle, Compass, Bell, Settings, LogOut, MessageCircle, Shield, Crown } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,7 @@ import { useUnreadCount } from '@/hooks/useNotifications';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { StyledUsername } from '@/components/ui/StyledUsername';
+import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 export function Sidebar() {
   const { t } = useTranslation();
   const location = useLocation();
@@ -22,6 +23,7 @@ export function Sidebar() {
   const { data: userRole } = useUserRole();
   const { data: unreadNotifications = 0 } = useUnreadCount();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
+  const { isPremium } = usePremiumStatus();
 
   // Check if user is admin or moderator
   const showAdminLink = userRole === 'admin' || userRole === 'moderator';
@@ -41,9 +43,20 @@ export function Sidebar() {
   return (
     <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-64 flex-col liquid-glass border-r border-white/10 p-4 z-40">
       {/* Logo */}
-      <Link to="/home" className="px-2 py-4 group">
-        <VYBELogo size="lg" />
-      </Link>
+      <div className="flex items-center gap-2 px-2 py-4">
+        <Link to="/home" className="group">
+          <VYBELogo size="lg" />
+        </Link>
+        {!isPremium && (
+          <Link
+            to="/settings?tab=subscription"
+            className="flex items-center gap-1 h-6 px-2 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-yellow-500/30 transition-all"
+          >
+            <Crown className="h-3 w-3 text-amber-500" />
+            <span className="text-[10px] font-bold text-amber-500">PRO</span>
+          </Link>
+        )}
+      </div>
 
       {/* Main Navigation */}
       <nav className="flex-1 space-y-1 mt-4">

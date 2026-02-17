@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   Home, Compass, MessageCircle, ShoppingBag, Calendar, Bell, Settings, 
-  PlusCircle, Shield, Users, LucideIcon, Gift, Trophy
+  PlusCircle, Shield, Users, LucideIcon, Gift, Trophy, Crown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -23,6 +23,7 @@ import { VYBEHub } from '@/components/hub/VYBEHub';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useMyServers } from '@/hooks/useServers';
 import { StyledUsername } from '@/components/ui/StyledUsername';
+import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 
 interface NavItemData {
   icon: LucideIcon;
@@ -103,6 +104,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
   // Check if user is admin or moderator
   const showAdminLink = userRole === 'admin' || userRole === 'moderator';
 
+  const { isPremium } = usePremiumStatus();
   const { data: myServers = [] } = useMyServers();
 
   const mainNavItems: NavItemData[] = [
@@ -179,9 +181,16 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           <Link to="/home" className="flex items-center gap-2 group" onClick={() => debugPanel?.handleLogoTap()}>
             <VYBELogo size={collapsed ? "sm" : "md"} showText={!collapsed} />
           </Link>
+          {!isPremium && !collapsed && (
+            <Link
+              to="/settings?tab=subscription"
+              className="flex items-center gap-1 h-6 px-2 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-yellow-500/30 transition-all"
+            >
+              <Crown className="h-3 w-3 text-amber-500" />
+              <span className="text-[10px] font-bold text-amber-500">PRO</span>
+            </Link>
+          )}
         </div>
-
-        {/* Profile Snapshot */}
         {!collapsed && profile && (
           <div className="mx-3 mb-3 space-y-2" data-tutorial="sidebar-profile">
             {/* Profile Link */}
