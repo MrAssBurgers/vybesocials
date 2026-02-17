@@ -35,3 +35,18 @@ verify_jwt = false
 
 [functions.process-creator-payout]
 verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.ai-adaptive-response]
+verify_jwt = false
+
+[functions.ai-chat-summary]
+verify_jwt = false
+
+[functions.ai-smart-replies]
+verify_jwt = false
+
+[functions.ai-message-assist]
+verify_jwt = false
