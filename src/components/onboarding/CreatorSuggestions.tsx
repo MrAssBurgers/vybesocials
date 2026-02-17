@@ -106,7 +106,8 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
 
   const percentClaimed = status ? (status.claimedSlots / status.maxSlots) * 100 : 0;
   const isClaimed = status?.userHasBadge || following.includes('founder-claimed');
-  const slotsGone = status ? (!status.isActive && !isClaimed) : false;
+  // Slots are only gone if we have confirmed data AND remaining is 0 AND user hasn't claimed
+  const slotsGone = status ? (status.remainingSlots <= 0 && !isClaimed) : false;
 
   // Determine user's tier based on position
   const userTier = status?.userPosition ? getFounderTier(status.userPosition) : 'founder';
