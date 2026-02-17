@@ -40,6 +40,7 @@ const WarningPopup = lazy(() => import("@/components/moderation/WarningPopup").t
 const InvitePopup = lazy(() => import("@/components/invite/InvitePopup").then(m => ({ default: m.InvitePopup })));
 const AppUpdateOverlay = lazy(() => import("@/components/app/AppUpdateOverlay").then(m => ({ default: m.AppUpdateOverlay })));
 const RewardNotificationProvider = lazy(() => import("@/components/vybepass/RewardNotificationProvider").then(m => ({ default: m.RewardNotificationProvider })));
+const FounderAppreciation = lazy(() => import("@/components/growth/FounderAppreciation").then(m => ({ default: m.FounderAppreciation })));
 const StreakProvider = lazy(() => import("@/components/streak/StreakProvider").then(m => ({ default: m.StreakProvider })));
 const PremiumGiftChecker = lazy(() => import("@/components/premium/PremiumGiftChecker").then(m => ({ default: m.PremiumGiftChecker })));
 const TrackingConsentDialog = lazy(() => import("@/components/app/TrackingConsentDialog").then(m => ({ default: m.TrackingConsentDialog })));
@@ -167,6 +168,7 @@ function AppWithPreloader() {
                                       <AppUpdateOverlay />
                                       <PremiumGiftChecker />
                                       <TrackingConsentDialog />
+                                      <FounderAppreciation />
                                     </Suspense>
                                   </TutorialProvider>
                                 </Suspense>
