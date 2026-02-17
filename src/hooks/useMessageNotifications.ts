@@ -126,7 +126,10 @@ export function useMessageNotifications() {
           
           const senderName = sender?.display_name || sender?.username || 'Someone';
           const messagePreview = newMessage.media_type 
-            ? (newMessage.media_type === 'image' ? '📷 Photo' : '🎤 Voice message')
+            ? (newMessage.media_type === 'image' ? '📷 Photo' : 
+               newMessage.media_type === 'vybe' ? '📸 Vybe' :
+               newMessage.media_type === 'voice' ? '🎤 Voice message' :
+               newMessage.media_type === 'video' ? '🎬 Video' : '📎 Media')
             : (newMessage.content?.slice(0, 50) || 'New message');
           
           // Check if currently viewing this conversation
