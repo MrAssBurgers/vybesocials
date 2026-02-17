@@ -20,13 +20,14 @@ export default function Messages() {
             ? 'h-[100dvh] fixed inset-0 z-50' 
             : 'min-h-[100dvh] md:min-h-screen h-[100dvh] md:h-screen'
           } 
-          flex max-w-full
+          flex max-w-full pb-0
         `}
         style={{ 
           overflow: 'hidden',
           background: 'hsl(var(--card) / 1)',
           backdropFilter: 'blur(40px) saturate(180%)',
           WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >
         {/* Conversation list - hidden on mobile when in chat */}
