@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { isOwner } from '@/components/ui/OwnerBadge';
 import { isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
+import { FounderBadge } from '@/components/badges/FounderBadge';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -604,12 +605,16 @@ function BadgesContent({ earnedBadges, lockedBadges, hasOwnerBadge, hasOwnerWife
                   disabled={isEquipping}
                 >
                   <div className="relative">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 border flex items-center justify-center text-lg group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/15 transition-all duration-200",
-                      isEquipped ? "border-green-500/40" : "border-primary/20"
-                    )}>
-                      {badge.icon}
-                    </div>
+                    {badge.name === 'Founder' ? (
+                      <FounderBadge size="md" locked={false} showTooltip={false} />
+                    ) : (
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 border flex items-center justify-center text-lg group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/15 transition-all duration-200",
+                        isEquipped ? "border-green-500/40" : "border-primary/20"
+                      )}>
+                        {badge.icon}
+                      </div>
+                    )}
                     {isEquipped && (
                       <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
                         <Check className="w-2 h-2 text-white" strokeWidth={3} />
