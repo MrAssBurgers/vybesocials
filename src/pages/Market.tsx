@@ -1,6 +1,6 @@
 import { useState, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Search, Filter, Grid, List, Heart, MapPin, 
   Plus, Tag, ChevronDown, Loader2, ShoppingBag, Store, Briefcase
@@ -272,6 +272,7 @@ const ListingCard = memo(function ListingCard({
 });
 
 export default function MarketPage() {
+  const navigate = useNavigate();
   const { profile } = useAuth();
   const { data: myBusiness } = useMyBusiness();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -573,7 +574,7 @@ export default function MarketPage() {
               title="No listings found"
               description={search || category ? "Try adjusting your filters" : "Be the first to list something!"}
               actionLabel="Create Listing"
-              onAction={() => window.location.href = '/market/new'}
+              onAction={() => navigate('/market/new')}
             />
           </motion.div>
         )}
