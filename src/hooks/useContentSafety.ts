@@ -7,7 +7,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
- import { isCurrentUserOwner } from '@/lib/ownerBypass';
+ import { shouldBypassSafety } from '@/lib/ownerBypass';
 
 export type SafetyResult = 'scanning' | 'allowed' | 'warned' | 'blocked' | 'error';
 
@@ -34,7 +34,7 @@ export function useContentSafety() {
 
   const scanImage = useCallback(async (file: File): Promise<SafetyCheckResult> => {
      // Check owner bypass
-     const isOwner = await isCurrentUserOwner();
+     const isOwner = await shouldBypassSafety();
      if (isOwner) {
        setBypassEnabled(true);
        setResult('allowed');
@@ -84,7 +84,7 @@ export function useContentSafety() {
 
   const scanVideo = useCallback(async (file: File): Promise<SafetyCheckResult> => {
      // Check owner bypass
-     const isOwner = await isCurrentUserOwner();
+     const isOwner = await shouldBypassSafety();
      if (isOwner) {
        setBypassEnabled(true);
        setResult('allowed');
@@ -150,7 +150,7 @@ export function useContentSafety() {
 
   const scanText = useCallback(async (text: string): Promise<SafetyCheckResult> => {
      // Check owner bypass
-     const isOwner = await isCurrentUserOwner();
+     const isOwner = await shouldBypassSafety();
      if (isOwner) {
        setBypassEnabled(true);
        setResult('allowed');
