@@ -26,7 +26,7 @@ function useFounderClaimStatus() {
         .from('growth_config')
         .select('value')
         .eq('key', 'founding_program')
-        .single();
+        .maybeSingle();
 
       const val = config?.value as Record<string, any> | null;
       const maxSlots = val?.max_slots ?? 1000;
@@ -106,7 +106,7 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
 
   const percentClaimed = status ? (status.claimedSlots / status.maxSlots) * 100 : 0;
   const isClaimed = status?.userHasBadge || following.includes('founder-claimed');
-  const slotsGone = !status?.isActive && !isClaimed;
+  const slotsGone = status ? (!status.isActive && !isClaimed) : false;
 
   // Determine user's tier based on position
   const userTier = status?.userPosition ? getFounderTier(status.userPosition) : 'founder';

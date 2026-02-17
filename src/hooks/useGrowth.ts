@@ -25,7 +25,7 @@ export function useFoundingStatus() {
         .from('growth_config')
         .select('value')
         .eq('key', 'founding_program')
-        .single();
+        .maybeSingle();
 
       const val = config?.value as Record<string, any> | null;
       const maxSlots = val?.max_slots ?? 500;
