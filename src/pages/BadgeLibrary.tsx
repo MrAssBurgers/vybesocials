@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { useAllBadges, useUserBadges } from '@/hooks/useBadges';
 import { useAuth } from '@/lib/auth';
 import { BadgeIcon } from '@/components/badges/BadgeIcon';
+import { FounderBadge } from '@/components/badges/FounderBadge';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -172,19 +173,27 @@ export default function BadgeLibraryPage() {
                         </div>
                       )}
                       
-                      <BadgeIcon
-                        icon={badge.icon}
-                        name={badge.name}
-                        description={badge.description}
-                        gradient_from={badge.gradient_from}
-                        gradient_to={badge.gradient_to}
-                        effect={badge.effect}
-                        is_animated={badge.is_animated}
-                        size="xl"
-                        locked={!isEarned}
-                        showTooltip={false}
-                      />
-                      
+                      {badge.name === 'Founder' ? (
+                        <FounderBadge
+                          size="xl"
+                          locked={!isEarned}
+                          showTooltip={false}
+                        />
+                      ) : (
+                        <BadgeIcon
+                          icon={badge.icon}
+                          name={badge.name}
+                          description={badge.description}
+                          gradient_from={badge.gradient_from}
+                          gradient_to={badge.gradient_to}
+                          effect={badge.effect}
+                          is_animated={badge.is_animated}
+                          size="xl"
+                          locked={!isEarned}
+                          showTooltip={false}
+                        />
+                      )}
+
                       <div className="text-center space-y-0.5 w-full">
                         <p className="font-bold text-sm truncate">
                           {badge.name}
