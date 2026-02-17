@@ -491,6 +491,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, username: string) => {
     try {
+      const cleanUsername = username.toLowerCase().replace(/\s+/g, '');
+
+      // 1. Validate username availability BEFORE creating auth user
+      const { data: isAvailable, error: checkError } = await supabase
+        .rpc('is_username_available', { p_username: cleanUsername });
+
+      if (checkError) throw new Error('Unable to verify username. Please try again.');
+      if (!isAvailable) throw new Error('This username is already taken. Please choose another.');
+
+      // 2. Now safe to create auth user
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -502,16 +512,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
 
       if (data.user) {
-        // Create profile
+        // 3. Create profile with validated username
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
             user_id: data.user.id,
-            username: username.toLowerCase().replace(/\s+/g, ''),
+            username: cleanUsername,
             bio: '',
           });
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          // Profile creation failed — clean up orphaned auth user by signing out
+          console.error('[SignUp] Profile creation failed, cleaning up:', profileError.message);
+          await supabase.auth.signOut();
+          
+          if (profileError.message?.includes('duplicate') || profileError.message?.includes('unique')) {
+            throw new Error('This username was just taken. Please choose another.');
+          }
+          throw profileError;
+        }
       }
 
       return { error: null };
