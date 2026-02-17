@@ -274,15 +274,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // ──────────────────────────────────────────────────────────────────────
+    // STEP 0: Explicitly extract OAuth tokens from URL hash.
+    // On mobile/tablet (redirect flow), the OAuth broker redirects back
+    // with #access_token=...&refresh_token=... in the URL. Supabase's
+    // detectSessionInUrl should handle this, but on many mobile browsers
+    // a race condition causes the tokens to be missed. We extract them
+    // manually and call setSession() BEFORE any other auth logic runs.
+    // ──────────────────────────────────────────────────────────────────────
+    const extractHashTokens = async () => {
+      const hash = window.location.hash;
+      if (!hash || !hash.includes('access_token')) return false;
+
+      try {
+        const params = new URLSearchParams(hash.substring(1));
+        const access_token = params.get('access_token');
+        const refresh_token = params.get('refresh_token');
+
+        if (access_token && refresh_token) {
+          logEvent('auth', 'Hash tokens detected — manually setting session');
+          
+          // Clean hash from URL immediately to prevent re-processing
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          
+          const { error } = await supabase.auth.setSession({
+            access_token,
+            refresh_token,
+          });
+
+          if (error) {
+            logEvent('auth', 'setSession from hash failed', { error: error.message });
+            console.error('[Auth] Failed to set session from hash tokens:', error);
+            return false;
+          }
+
+          logEvent('auth', 'Session set from hash tokens successfully');
+          sessionStorage.removeItem('vybe-oauth-pending');
+          return true;
+        }
+      } catch (err) {
+        console.error('[Auth] Hash token extraction error:', err);
+      }
+      return false;
+    };
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         logEvent('auth', `onAuthStateChange: ${event}`, { hasSession: !!session });
-        // Skip INITIAL_SESSION only if it has NO session (let getSession handle cold start).
-        // If INITIAL_SESSION has a session (e.g., OAuth redirect), process it immediately
-        // to avoid losing the session on iPad Safari where getSession() may not pick it up yet.
         if (!authInitializedRef.current && event === 'INITIAL_SESSION' && !session) {
-          return; // Let getSession handle the first initialization when there's no session
+          return;
         }
         
         setSession(session);
@@ -290,19 +331,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (session?.user) {
           logEvent('auth', 'Session active, fetching profile', { userId: session.user.id });
-          // Start heartbeat for live analytics
           startHeartbeat();
-          // Schedule token refresh for persistent sessions
           if (session.expires_at) {
             scheduleTokenRefresh(session.expires_at);
           }
           
-          // Use setTimeout to avoid Supabase auth deadlock
           setTimeout(() => {
             fetchProfile(session.user.id);
           }, 0);
 
-          // Clear OAuth pending flag now that we have a session
           sessionStorage.removeItem('vybe-oauth-pending');
         } else {
           logEvent('auth', 'No session — signed out');
@@ -310,17 +347,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearProfileCache();
           stopHeartbeat();
           setBanInfo(null);
-          // Clear refresh timer on logout
           if (refreshTimerRef.current) {
             clearTimeout(refreshTimerRef.current);
             refreshTimerRef.current = null;
           }
-          // Clean up ban subscription
           if (banSubscriptionRef.current) {
             supabase.removeChannel(banSubscriptionRef.current);
             banSubscriptionRef.current = null;
           }
-          // Clear ban expiry timer
           clearBanExpiryTimer();
         }
         
@@ -329,42 +363,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // THEN check for existing session - this restores session from localStorage
-    logEvent('auth', 'Initializing: checking existing session');
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      // Mark as initialized so onAuthStateChange skips duplicate handling
-      authInitializedRef.current = true;
-      
-      // Handle stale/invalid refresh tokens gracefully
-      if (error) {
-        logEvent('auth', 'getSession error (stale token?) — starting fresh', { error: error.message });
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        clearProfileCache();
-        sessionStorage.removeItem('vybe-oauth-pending');
-        setLoading(false);
-        setIsInitialized(true);
+    // Try to extract hash tokens first (redirect OAuth flow on mobile/tablet).
+    // If successful, onAuthStateChange will fire with the session.
+    // If not, fall through to normal getSession() flow.
+    extractHashTokens().then((extracted) => {
+      if (extracted) {
+        authInitializedRef.current = true;
         return;
       }
 
-      logEvent('auth', 'getSession resolved', { hasSession: !!session, userId: session?.user?.id });
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        // Schedule token refresh for persistent sessions
-        if (session.expires_at) {
-          scheduleTokenRefresh(session.expires_at);
+      logEvent('auth', 'Initializing: checking existing session');
+      supabase.auth.getSession().then(({ data: { session }, error }) => {
+        authInitializedRef.current = true;
+        
+        if (error) {
+          logEvent('auth', 'getSession error (stale token?) — starting fresh', { error: error.message });
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          clearProfileCache();
+          sessionStorage.removeItem('vybe-oauth-pending');
+          setLoading(false);
+          setIsInitialized(true);
+          return;
         }
-        fetchProfile(session.user.id);
-        sessionStorage.removeItem('vybe-oauth-pending');
-      }
-      
-      setLoading(false);
-      setIsInitialized(true);
-    });
 
+        logEvent('auth', 'getSession resolved', { hasSession: !!session, userId: session?.user?.id });
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          if (session.expires_at) {
+            scheduleTokenRefresh(session.expires_at);
+          }
+          fetchProfile(session.user.id);
+          sessionStorage.removeItem('vybe-oauth-pending');
+        }
+        
+        setLoading(false);
+        setIsInitialized(true);
+      });
+    });
     // Handle "session-only" mode (Remember Me unchecked)
     // Clear session when browser/tab is closed
     const handleBeforeUnload = () => {
