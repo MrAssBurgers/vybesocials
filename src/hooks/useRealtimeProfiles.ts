@@ -23,17 +23,36 @@ export function useRealtimeProfiles() {
         },
         (payload) => {
           const updatedProfile = payload.new as any;
+          const oldProfile = payload.old as any;
           const updatedProfileId = updatedProfile?.id;
           
           if (!updatedProfileId) return;
 
-          // Surgically update ONLY the specific profile caches
+          // Surgically update the specific profile caches
           queryClient.setQueryData(['profile', updatedProfileId], (old: any) => 
             old ? { ...old, ...updatedProfile } : old
           );
           queryClient.setQueryData(['user-profile', updatedProfileId], (old: any) => 
             old ? { ...old, ...updatedProfile } : old
           );
+
+          // If username, display_name, or avatar changed, invalidate all caches
+          // that embed profile data (posts, comments, conversations, friends, etc.)
+          const usernameChanged = oldProfile?.username !== updatedProfile?.username;
+          const displayNameChanged = oldProfile?.display_name !== updatedProfile?.display_name;
+          const avatarChanged = oldProfile?.avatar_url !== updatedProfile?.avatar_url;
+
+          if (usernameChanged || displayNameChanged || avatarChanged) {
+            queryClient.invalidateQueries({ queryKey: ['posts'] });
+            queryClient.invalidateQueries({ queryKey: ['comments'] });
+            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            queryClient.invalidateQueries({ queryKey: ['friends'] });
+            queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
+            queryClient.invalidateQueries({ queryKey: ['followers'] });
+            queryClient.invalidateQueries({ queryKey: ['following'] });
+            queryClient.invalidateQueries({ queryKey: ['invite-leaderboard'] });
+            queryClient.invalidateQueries({ queryKey: ['invite-stats'] });
+          }
         }
       )
       .subscribe();
