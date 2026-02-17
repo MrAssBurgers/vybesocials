@@ -107,6 +107,27 @@ export function useLoginStreak() {
     setTimeout(() => setStreakData(null), 300);
   }, []);
 
+  // Restore streak mutation (premium only)
+  const restoreStreakMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc('restore_login_streak', { p_timezone: clientTimezone });
+      if (error) throw error;
+      return data as unknown as { success: boolean; restored_streak?: number; error?: string };
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['login-streak'] });
+        toast.success(`🔥 Streak restored to ${data.restored_streak} days!`);
+        haptics.success();
+      } else {
+        toast.error(data.error || 'Could not restore streak');
+      }
+    },
+    onError: () => {
+      toast.error('Failed to restore streak');
+    },
+  });
+
   return {
     streak: streakStatus?.streak ?? 0,
     longestStreak: streakStatus?.longest_streak ?? 0,
@@ -116,6 +137,8 @@ export function useLoginStreak() {
     showStreakPopup,
     streakData,
     dismissStreakPopup,
+    restoreStreak: restoreStreakMutation.mutate,
+    isRestoring: restoreStreakMutation.isPending,
   };
 }
 

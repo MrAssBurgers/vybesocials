@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useLoginStreak } from '@/hooks/useLoginStreak';
 import { StreakPopup } from './StreakPopup';
 import { useAuth } from '@/lib/auth';
+import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 
 interface StreakProviderProps {
   children: ReactNode;
@@ -17,19 +18,21 @@ export function StreakProvider({ children }: StreakProviderProps) {
     longestStreak, 
     showStreakPopup, 
     streakData,
-    dismissStreakPopup 
+    dismissStreakPopup,
+    restoreStreak,
+    isRestoring,
   } = useLoginStreak();
   
   const { profile } = useAuth();
+  const { isPremium } = usePremiumStatus();
   const [canShowPopup, setCanShowPopup] = useState(false);
 
   // Delay popup display until onboarding is complete
   useEffect(() => {
     if (profile?.onboarding_completed) {
-      // Add delay after onboarding to avoid bombarding user
       const timer = setTimeout(() => {
         setCanShowPopup(true);
-      }, 4000); // 4 second delay after onboarding
+      }, 4000);
       return () => clearTimeout(timer);
     } else {
       setCanShowPopup(false);
@@ -45,6 +48,9 @@ export function StreakProvider({ children }: StreakProviderProps) {
         longestStreak={streakData?.longest_streak ?? longestStreak}
         isNewStreak={streakData?.streak === 1 && !streakData?.streak_extended}
         onClose={dismissStreakPopup}
+        isPremium={isPremium}
+        onRestore={() => restoreStreak()}
+        isRestoring={isRestoring}
       />
     </>
   );

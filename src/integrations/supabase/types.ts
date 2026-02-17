@@ -8478,6 +8478,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      restore_login_streak: { Args: { p_timezone?: string }; Returns: Json }
       rotate_challenges: { Args: never; Returns: undefined }
       set_active_background: {
         Args: { p_background_id: string }

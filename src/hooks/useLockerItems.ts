@@ -46,7 +46,7 @@ export function useLockerItems(userId?: string) {
 
       const [levelRes, tiersRes] = await Promise.all([
         supabase.from('user_levels').select('current_level').eq('user_id', authId).maybeSingle(),
-        supabase.from('battle_pass_tiers').select('*').eq('is_premium', false).order('level', { ascending: true }),
+        supabase.from('battle_pass_tiers').select('*').order('level', { ascending: true }),
       ]);
 
       const userLevel = levelRes.data?.current_level || 1;
