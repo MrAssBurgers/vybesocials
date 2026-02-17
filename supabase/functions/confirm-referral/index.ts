@@ -259,8 +259,30 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Grant XP to inviter (500 XP per successful referral)
+    try {
+      await supabaseAdmin.rpc("add_user_xp", { 
+        p_user_id: theInviterProfileId, 
+        p_xp_amount: 500 
+      });
+      console.log("[confirm-referral] Granted 500 XP to inviter");
+    } catch (xpErr) {
+      console.error("[confirm-referral] Failed to grant inviter XP:", xpErr);
+    }
+
+    // Grant XP to invitee (250 XP welcome bonus for joining via referral)
+    try {
+      await supabaseAdmin.rpc("add_user_xp", { 
+        p_user_id: redeemerProfileId, 
+        p_xp_amount: 250 
+      });
+      console.log("[confirm-referral] Granted 250 XP to invitee");
+    } catch (xpErr) {
+      console.error("[confirm-referral] Failed to grant invitee XP:", xpErr);
+    }
+
     steps.rewardGranted = true;
-    console.log("[confirm-referral] Step 2 complete: Reward granted");
+    console.log("[confirm-referral] Step 2 complete: Reward granted with XP");
 
     // ========== STEP 3: Create friendship & send notification ==========
     const { data: existingFriendship } = await supabaseAdmin
