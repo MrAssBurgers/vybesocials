@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { BadgeIcon } from './BadgeIcon';
+import { FounderBadge } from './FounderBadge';
 
 interface Badge {
   id: string;
@@ -40,17 +41,21 @@ export const BadgeRow = memo(function BadgeRow({
   return (
     <div className={cn('flex items-center gap-1', className)}>
       {visibleBadges.map((badge) => (
-        <BadgeIcon
-          key={badge.id}
-          icon={badge.icon}
-          name={badge.name}
-          description={badge.description}
-          gradient_from={badge.gradient_from}
-          gradient_to={badge.gradient_to}
-          effect={badge.effect}
-          is_animated={badge.is_animated}
-          size={size}
-        />
+        badge.name === 'Founder' ? (
+          <FounderBadge key={badge.id} size={size === 'xs' ? 'sm' : size} showTooltip />
+        ) : (
+          <BadgeIcon
+            key={badge.id}
+            icon={badge.icon}
+            name={badge.name}
+            description={badge.description}
+            gradient_from={badge.gradient_from}
+            gradient_to={badge.gradient_to}
+            effect={badge.effect}
+            is_animated={badge.is_animated}
+            size={size}
+          />
+        )
       ))}
       {overflowCount > 0 && (
         <span className="text-xs text-muted-foreground font-medium px-1">
