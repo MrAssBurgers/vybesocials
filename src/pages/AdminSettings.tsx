@@ -4,8 +4,9 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/lib/auth';
 import {
   Crown, Loader2, ShieldAlert, CreditCard, Key, Save, CheckCircle2, XCircle,
-  Eye, EyeOff, Info, AlertCircle, Zap, RefreshCw, Shield, Activity,
+  Eye, EyeOff, Info, AlertCircle, Zap, RefreshCw, Shield, Activity, Bot,
 } from 'lucide-react';
+import { clearBypassCache } from '@/lib/ownerBypass';
 import { GiftPremiumSection } from '@/components/admin/sections/GiftPremiumSection';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -68,6 +69,37 @@ function useSecretStatuses() {
       return data.secrets || {};
     },
   });
+}
+
+function useOwnerBypassSetting() {
+  const queryClient = useQueryClient();
+  
+  const query = useQuery({
+    queryKey: ['owner-ai-bypass-enabled'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('app_secrets')
+        .select('value')
+        .eq('key', 'OWNER_AI_BYPASS_ENABLED')
+        .maybeSingle();
+      return data?.value === 'true';
+    },
+  });
+
+  const toggle = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase
+        .from('app_secrets')
+        .upsert({ key: 'OWNER_AI_BYPASS_ENABLED', value: enabled ? 'true' : 'false', updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      if (error) throw error;
+      clearBypassCache();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['owner-ai-bypass-enabled'] });
+    },
+  });
+
+  return { isEnabled: query.data ?? true, isLoading: query.isLoading, toggle };
 }
 
 // ─── Status Badge Component ───
@@ -226,6 +258,7 @@ export default function AdminSettings() {
 
   const { data: stripeConfig, isLoading: configLoading } = useStripeConfigAdmin();
   const { data: secretStatuses = {}, isLoading: secretsLoading } = useSecretStatuses();
+  const { isEnabled: bypassEnabled, toggle: toggleBypass } = useOwnerBypassSetting();
 
   // Local form state
   const [enabled, setEnabled] = useState(false);
@@ -524,7 +557,47 @@ export default function AdminSettings() {
           />
         </motion.div>
 
-        {/* ─── Section 4: Gift Premium ─── */}
+        {/* ─── Section 4: AI Safety Bypass ─── */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+          className="liquid-glass-card p-4 sm:p-5 space-y-4"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Bot className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-sm">AI Content Safety</h2>
+              <p className="text-[11px] text-muted-foreground">Owner bypass for content scanners</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-border/50 p-3.5 bg-muted/20">
+            <div>
+              <Label htmlFor="ai-bypass" className="font-medium text-sm">Owner Safety Bypass</Label>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Skip AI content scanning for your posts, DMs, and chat media
+              </p>
+            </div>
+            <Switch
+              id="ai-bypass"
+              checked={bypassEnabled}
+              onCheckedChange={(v) => {
+                toggleBypass.mutate(v);
+                toast.success(v ? 'AI bypass enabled' : 'AI bypass disabled');
+              }}
+              disabled={toggleBypass.isPending}
+            />
+          </div>
+
+          <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/30 border border-border/30">
+            <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+            <p className="text-[11px] text-muted-foreground">
+              When enabled, your account bypasses all AI safety scans (uploads, DM images, vybes, camera). Other users are unaffected.
+            </p>
+          </div>
+        </motion.div>
+
+        {/* ─── Section 5: Gift Premium ─── */}
         <GiftPremiumSection />
 
         {/* Footer note */}

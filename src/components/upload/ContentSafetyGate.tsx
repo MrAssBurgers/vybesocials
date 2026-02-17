@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
- import { isCurrentUserOwner } from '@/lib/ownerBypass';
+ import { shouldBypassSafety } from '@/lib/ownerBypass';
 
 interface ContentSafetyGateProps {
   file: File | null;
@@ -40,7 +40,7 @@ export const ContentSafetyGate = memo(function ContentSafetyGate({
     if (!file) return;
 
      // Check owner bypass first
-     const isOwner = await isCurrentUserOwner();
+     const isOwner = await shouldBypassSafety();
      if (isOwner) {
        setOwnerBypass(true);
        setStatus('safe');

@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useContentSafety, SafetyResult } from '@/hooks/useContentSafety';
 import { triggerHaptic } from '@/lib/haptics';
- import { isCurrentUserOwner } from '@/lib/ownerBypass';
+ import { shouldBypassSafety } from '@/lib/ownerBypass';
 
 interface DMImageSafetyGateProps {
   file: File;
@@ -47,7 +47,7 @@ export function DMImageSafetyGate({
 
     const runScan = async () => {
        // Check owner bypass first
-       const isOwner = await isCurrentUserOwner();
+       const isOwner = await shouldBypassSafety();
        if (isOwner) {
          setOwnerBypass(true);
          triggerHaptic('success');

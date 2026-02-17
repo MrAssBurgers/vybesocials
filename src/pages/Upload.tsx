@@ -239,8 +239,15 @@ export default function UploadPage() {
     if (tags.length === 0) { toast.error('Add at least one tag so people can discover your post'); return; }
     if (contentType === 'video' && !videoTitle.trim()) { toast.error('Add a video title'); return; }
     setIsUploading(true); setUploadProgress(0);
+    
+    // Adaptive progress: slower for videos/large files, faster for images/text
+    const isLargeFile = file && file.size > 5 * 1024 * 1024; // > 5MB
+    const progressStep = isLargeFile ? 1 : 5;
+    const progressInterval = isLargeFile ? 500 : 300;
+    let pi: ReturnType<typeof setInterval> | null = null;
+    
     try {
-      const pi = setInterval(() => setUploadProgress(prev => Math.min(prev + 5, 90)), 300);
+      pi = setInterval(() => setUploadProgress(prev => Math.min(prev + progressStep, 85)), progressInterval);
       const fc = contentType === 'video' ? `${videoTitle}${videoDescription ? `\n\n${videoDescription}` : ''}${caption ? `\n\n${caption}` : ''}` : caption;
       await createPost.mutateAsync({
         mediaFile: files.length <= 1 ? file || undefined : undefined,
@@ -249,10 +256,16 @@ export default function UploadPage() {
         thumbnailFile: thumbnailFile || undefined,
         thumbnailDataUrl: selectedThumbnailIndex !== null ? generatedThumbnails[selectedThumbnailIndex] : undefined,
       });
-      clearInterval(pi); setUploadProgress(100); setPublishSuccess(true);
+      if (pi) clearInterval(pi);
+      setUploadProgress(100); setPublishSuccess(true);
       setTimeout(() => { toast.success('Posted!'); navigate('/home'); }, 800);
-    } catch { toast.error('Failed to upload'); }
-    finally { setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 1000); }
+    } catch (err) {
+      console.error('[Upload] Failed:', err);
+      toast.error('Failed to upload. Check your connection and try again.');
+    } finally {
+      if (pi) clearInterval(pi);
+      setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 1000);
+    }
   };
 
   const clearFile = () => {

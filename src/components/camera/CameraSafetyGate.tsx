@@ -10,7 +10,7 @@ import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useContentSafety, SafetyResult } from '@/hooks/useContentSafety';
 import { ContentSafetyScanner } from '@/components/safety/ContentSafetyScanner';
- import { isCurrentUserOwner } from '@/lib/ownerBypass';
+ import { shouldBypassSafety } from '@/lib/ownerBypass';
  import { Crown } from 'lucide-react';
 
 interface CameraSafetyGateProps {
@@ -28,7 +28,7 @@ export function CameraSafetyGate({ file, mediaType, onResult, onCancel }: Camera
     // Start scanning on mount
     const runScan = async () => {
        // Check owner bypass first
-       const isOwner = await isCurrentUserOwner();
+       const isOwner = await shouldBypassSafety();
        if (isOwner) {
          setOwnerBypass(true);
          // Auto-approve for owner
