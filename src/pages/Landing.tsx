@@ -272,9 +272,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   }
 
   return (
-    <div className="min-h-screen bg-background overflow-hidden relative flex items-center justify-center">
+    <div className="min-h-[100dvh] bg-background overflow-y-auto relative flex items-center justify-center px-4 py-8">
       {/* Smooth blended background — no hard edges */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div 
           className="absolute w-[140%] h-[140%] -top-[30%] -left-[30%]"
           style={{
@@ -303,9 +303,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="relative z-10 w-full max-w-md mx-4"
+        className="relative z-10 w-full max-w-[420px]"
       >
-        <div className="liquid-glass-card rounded-3xl p-8 border border-white/[0.08]">
+        <div className="liquid-glass-card rounded-3xl p-6 sm:p-8 border border-white/[0.08]">
           {/* Centered Logo with clean smooth glow */}
           <div className="flex flex-col items-center mb-8 relative">
             {/* Smooth gradient glow behind logo */}
