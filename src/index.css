@@ -131,17 +131,14 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     -webkit-tap-highlight-color: transparent !important;
   }
 
-  /* Post action buttons - prevent black box artifacts on mobile */
-  @media (max-width: 1024px) {
-    button svg,
-    button [class*="lucide"],
-    [role="button"] svg,
-    [role="button"] [class*="lucide"] {
-      filter: none !important;
-      box-shadow: none !important;
-      outline: none !important;
-      border: none !important;
-    }
+  /* Post action buttons - prevent black box artifacts (all devices) */
+  button svg,
+  button [class*="lucide"],
+  [role="button"] svg,
+  [role="button"] [class*="lucide"] {
+    box-shadow: none !important;
+    outline: none !important;
+    border: none !important;
   }
 
   /* iOS Safari: Disable scanline effects (purely decorative) */
@@ -271,295 +268,12 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
 
   /* =========================================
-     MOBILE/TABLET BRIGHTNESS & READABILITY
-     Lighter, brighter UI for mobile devices
+     UNIVERSAL VISUAL QUALITY
+     Same rendering on ALL devices — no downgrades
      ========================================= */
-  
-  /* Mobile/Tablet: Brighter, more readable UI */
+
+  /* Tap highlight suppression (mobile convenience, no visual impact) */
   @media (max-width: 1024px) {
-    /* Brighten the overall body background */
-    body {
-      background: linear-gradient(
-        160deg,
-        hsl(var(--background)) 0%,
-        hsl(240 10% 12%) 50%,
-        hsl(var(--background)) 100%
-      ) !important;
-    }
-
-    /* Brighten all glass elements on mobile */
-    .liquid-glass {
-      background: linear-gradient(
-        135deg,
-        hsl(var(--glass) / 0.85),
-        hsl(var(--glass) / 0.75),
-        hsl(var(--glass) / 0.8)
-      ) !important;
-      backdrop-filter: blur(14px) saturate(150%) !important;
-      -webkit-backdrop-filter: blur(14px) saturate(150%) !important;
-      box-shadow: 0 2px 8px hsl(var(--background) / 0.2) !important;
-    }
-
-    .liquid-glass-card {
-      background: linear-gradient(
-        160deg,
-        hsl(var(--card) / 0.9),
-        hsl(var(--card) / 0.8)
-      ) !important;
-      backdrop-filter: blur(14px) saturate(150%) !important;
-      -webkit-backdrop-filter: blur(14px) saturate(150%) !important;
-      box-shadow: 0 2px 10px hsl(var(--background) / 0.25) !important;
-    }
-
-    .liquid-glass-subtle {
-      background: linear-gradient(
-        160deg,
-        hsl(var(--glass) / 0.6),
-        hsl(var(--glass) / 0.4)
-      ) !important;
-      backdrop-filter: blur(8px) saturate(140%) !important;
-      -webkit-backdrop-filter: blur(8px) saturate(140%) !important;
-    }
-
-    /* Sidebar on mobile/tablet */
-    .sidebar-fixed-left,
-    .sidebar-fixed-right {
-      background: linear-gradient(
-        135deg,
-        hsl(var(--glass) / 0.8),
-        hsl(var(--glass) / 0.65)
-      ) !important;
-      backdrop-filter: blur(14px) saturate(150%) !important;
-      -webkit-backdrop-filter: blur(14px) saturate(150%) !important;
-    }
-
-    /* Reduce dark overlays on images */
-    .bg-black\/60,
-    [class*="bg-black/"] {
-      background-color: hsl(0 0% 0% / 0.35) !important;
-    }
-
-    /* Bottom navigation - transparent outer shell, bubble handles its own styling */
-    nav[aria-label="Bottom navigation"] {
-      background: transparent !important;
-      backdrop-filter: none !important;
-      -webkit-backdrop-filter: none !important;
-    }
-
-    /* Header */
-    header,
-    [class*="header"] {
-      backdrop-filter: blur(14px) saturate(150%) !important;
-      -webkit-backdrop-filter: blur(14px) saturate(150%) !important;
-    }
-
-    /* =============================================
-       UNIVERSAL MOBILE/TABLET VISIBILITY FIX
-       One rule to fix ALL transparency everywhere.
-       No more chasing individual elements.
-       ============================================= */
-
-    /* 1) Targeted text visibility - only apply to text-bearing elements, NOT every element */
-    p, span, div, li, td, th, label, a, h1, h2, h3, h4, h5, h6,
-    input, textarea, select, summary, figcaption, blockquote, pre, code {
-      opacity: 1 !important;
-      mix-blend-mode: normal !important;
-    }
-    /* SVGs: Ensure visibility but preserve semantic colors */
-    svg:not([data-themed-svg]):not(.create-button-gradient *):not([class*="fill-"]):not([class*="text-red"]):not([class*="text-rose"]):not([class*="text-yellow"]):not([class*="text-green"]):not([class*="text-orange"]):not([class*="text-blue"]):not([class*="text-white"]):not([class*="text-destructive"]):not([class*="text-success"]):not([class*="text-warning"]) {
-      color: hsl(var(--primary)) !important;
-      stroke: hsl(var(--primary)) !important;
-      opacity: 1 !important;
-      mix-blend-mode: normal !important;
-    }
-    /* Semantic-colored SVGs: preserve their color but ensure visibility */
-    svg[class*="fill-"], svg[class*="text-red"], svg[class*="text-rose"],
-    svg[class*="text-yellow"], svg[class*="text-green"], svg[class*="text-orange"],
-    svg[class*="text-blue"], svg[class*="text-white"] {
-      opacity: 1 !important;
-      mix-blend-mode: normal !important;
-    }
-    svg:not([data-themed-svg]):not(.create-button-gradient *) * {
-      stroke: inherit !important;
-      opacity: 1 !important;
-    }
-    /* Themed SVGs (VybeMiniIcon, VYBELogo) — fully exempt from ALL mobile overrides.
-       Their inline styles (gradient strokes, animations, fills) must be preserved exactly. */
-    svg[data-themed-svg],
-    svg[data-themed-svg] *,
-    svg[data-themed-svg] path,
-    svg[data-themed-svg] circle,
-    svg[data-themed-svg] g {
-      color: initial !important;
-      mix-blend-mode: normal !important;
-      /* DO NOT override stroke, fill, filter, opacity, or animation — 
-         these are set inline by the component and must remain untouched */
-    }
-
-    /* Create button — preserve animated gradient background, VYBE-themed icon */
-    .create-button-gradient {
-      background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary) / 0.9), hsl(var(--accent))) !important;
-      background-size: 400% 400% !important;
-      animation: gradient-shift 3s ease infinite !important;
-      box-shadow: 0 4px 24px hsl(var(--primary) / 0.5), 0 0 40px hsl(var(--accent) / 0.2) !important;
-      opacity: 1 !important;
-    }
-    .create-button-gradient *,
-    .create-button-gradient svg {
-      color: hsl(var(--primary-foreground)) !important;
-      stroke: hsl(var(--primary-foreground)) !important;
-      filter: drop-shadow(0 0 3px hsl(var(--accent) / 0.6)) !important;
-      opacity: 1 !important;
-    }
-
-    /* EXCEPTION: Switch / Toggle components — preserve native radix styling */
-    [role="switch"] {
-      color: inherit !important;
-      opacity: 1 !important;
-      mix-blend-mode: normal !important;
-      width: 50px !important;
-      min-width: 50px !important;
-      max-width: 50px !important;
-      height: 28px !important;
-      min-height: 28px !important;
-      max-height: 28px !important;
-      font-size: 0 !important;
-      overflow: hidden !important;
-      contain: layout style paint !important;
-    }
-    [role="switch"] * {
-      color: inherit !important;
-      opacity: unset !important;
-      mix-blend-mode: unset !important;
-      filter: none !important;
-      -webkit-text-stroke: unset !important;
-    }
-    [role="switch"][data-state="checked"] {
-      background-color: hsl(var(--primary)) !important;
-    }
-    [role="switch"][data-state="unchecked"] {
-      background-color: hsl(var(--muted) / 0.6) !important;
-    }
-    [role="switch"] span {
-      background-color: white !important;
-      width: 22px !important;
-      min-width: 22px !important;
-      max-width: 22px !important;
-      height: 22px !important;
-      min-height: 22px !important;
-      max-height: 22px !important;
-      border-radius: 9999px !important;
-      font-size: 0 !important;
-      overflow: hidden !important;
-    }
-
-    /* EXCEPTION: Checkbox components */
-    [role="checkbox"],
-    [role="checkbox"] * {
-      color: inherit !important;
-      opacity: unset !important;
-    }
-
-    /* 2) EXCEPTION: Elements inside colored containers must inherit parent color */
-    [class*="text-primary-foreground"] *,
-    [class*="text-white"] *,
-    .bg-primary *,
-    .bg-destructive *,
-    .bg-success *,
-    .bg-warning *,
-    [class*="bg-primary"] *,
-    [class*="bg-destructive"] *,
-    [class*="bg-accent"] *,
-    button[class*="bg-"] *,
-    .toast-pill *,
-    .toast-pill-title,
-    .toast-pill-description {
-      color: inherit !important;
-    }
-
-    /* 3) EXCEPTION: Muted text keeps its semantic token */
-    .text-muted-foreground,
-    [class*="text-muted-foreground"] {
-      color: hsl(var(--muted-foreground)) !important;
-      opacity: 1 !important;
-      text-shadow: 0 1px 2px hsl(var(--background) / 0.25);
-    }
-
-    /* 4) EXCEPTION: Primary-colored text */
-    .text-primary,
-    [class*="text-primary"]:not([class*="text-primary-foreground"]) {
-      color: hsl(var(--primary)) !important;
-    }
-
-    /* 5) EXCEPTION: Destructive text */
-    .text-destructive,
-    [class*="text-destructive"]:not([class*="text-destructive-foreground"]) {
-      color: hsl(var(--destructive)) !important;
-    }
-
-    /* 6) EXCEPTION: Success/warning colored text */
-    .text-success { color: hsl(var(--success)) !important; }
-    .text-warning { color: hsl(var(--warning)) !important; }
-    .text-accent { color: hsl(var(--accent)) !important; }
-
-    /* 7) EXCEPTION: Preserve inline gradient text (StyledUsername etc.) */
-    [style*="background-clip: text"],
-    [style*="backgroundClip"],
-    [style*="-webkit-background-clip: text"],
-    [style*="WebkitBackgroundClip"],
-    [style*="WebkitTextFillColor: transparent"],
-    [style*="-webkit-text-fill-color: transparent"] {
-      color: transparent !important;
-      -webkit-text-fill-color: transparent !important;
-      opacity: 1 !important;
-    }
-
-    /* 8) EXCEPTION: Tailwind gradient text classes → solid primary fallback */
-    .gradient-text,
-    .bg-clip-text.text-transparent,
-    [class*="bg-gradient-to-"][class*="bg-clip-text"],
-    [class*="bg-clip-text"][class*="text-transparent"] {
-      color: hsl(var(--primary)) !important;
-      -webkit-text-fill-color: hsl(var(--primary)) !important;
-      background-clip: unset !important;
-      -webkit-background-clip: unset !important;
-      background-image: none !important;
-      filter: drop-shadow(0 2px 4px hsl(var(--background) / 0.5));
-      opacity: 1 !important;
-    }
-
-    /* 9) SVGs — already handled above, no duplicate rules */
-
-    /* 10) Avatars and images: no filter artifacts */
-    [class*="avatar"],
-    [class*="Avatar"],
-    img {
-      filter: none !important;
-    }
-
-    /* 11) Headings get subtle text-shadow for depth */
-    h1, h2, h3, h4, h5, h6,
-    [role="heading"],
-    .font-bold,
-    strong,
-    [class*="font-semibold"] {
-      text-shadow: 0 1px 3px hsl(var(--background) / 0.15);
-    }
-
-    /* 11b) Soften all horizontal/vertical divider borders globally */
-    .border-t,
-    .border-b,
-    [class*="border-t "],
-    [class*="border-b "] {
-      border-color: hsl(var(--border) / 0.4) !important;
-    }
-
-    /* 12) Avatar borders - use subtle separator instead of removing */
-    .border-background {
-      border-color: hsl(var(--background) / 0.6) !important;
-    }
-
-    /* 13) Tap highlight suppression */
     a, button, [role="button"], [tabindex]:not([tabindex="-1"]) {
       -webkit-tap-highlight-color: transparent;
     }
@@ -568,51 +282,9 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     [role="button"]:focus:not(:focus-visible) {
       outline: none !important;
     }
-
-    /* 14) Cards - toned shadows */
-    .card, [class*="card"] {
-      box-shadow: 0 4px 12px hsl(var(--background) / 0.2) !important;
-    }
-
-    /* 15) Glass buttons only get backdrop brightness - NOT all buttons */
-    .liquid-glass-button,
-    .liquid-glass-subtle,
-    button.liquid-glass,
-    button.liquid-glass-subtle,
-    [role="button"].liquid-glass-button,
-    [role="button"].liquid-glass-subtle {
-      backdrop-filter: brightness(1.15) !important;
-      -webkit-backdrop-filter: brightness(1.15) !important;
-    }
-
-    /* 16) Prevent opacity on decorative pseudo-elements only */
-    .liquid-glass-card::after {
-      opacity: 0.012 !important; /* noise texture stays subtle */
-    }
-
-    /* 17) Overlays and backgrounds are allowed reduced opacity */
-    [class*="bg-black/"],
-    .bg-black\/60 {
-      background-color: hsl(0 0% 0% / 0.35) !important;
-    }
   }
 
-  /* Small phones - lighter glass for performance */
-  @media (max-width: 480px) {
-    .liquid-glass {
-      backdrop-filter: blur(12px) saturate(150%) !important;
-      -webkit-backdrop-filter: blur(12px) saturate(150%) !important;
-    }
-
-    .liquid-glass-card {
-      backdrop-filter: blur(12px) saturate(150%) !important;
-      -webkit-backdrop-filter: blur(12px) saturate(150%) !important;
-    }
-
-    .text-muted-foreground {
-      color: hsl(240 5% 70%) !important;
-    }
-  }
+  /* Small phones — same quality, no downgrades */
 
   :root {
     /* Base colors - Dark mode (default) */
@@ -2330,16 +2002,7 @@ html, body, #root {
   transform: translateZ(0);
 }
 
-/* Reduce motion for accessibility and performance */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
+/* (reduced-motion handled once globally above) */
 
 /* Responsive text scaling with clamp */
 .text-responsive-xs {
@@ -2492,17 +2155,7 @@ img, video {
   contain-intrinsic-size: 300px 300px;
 }
 
-/* Reduce motion for users who prefer it */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
+/* (reduced-motion handled once globally above) */
 
 /* Mobile/tablet: keep same visual quality as desktop */
 
