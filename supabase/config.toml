@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.ai-message-assist]
 verify_jwt = false
+
+[functions.confirm-referral]
+verify_jwt = false
