@@ -192,20 +192,20 @@ export function InvitePopup() {
         return { success: false, error: "You're not logged in. Please sign in and try again.", errorCode: "NO_SESSION" };
       }
       
-      if (import.meta.env.DEV) {
-        console.log('[InvitePopup] confirm-referral request', {
-          correlationId,
-          userId: user?.id,
-          profileId: profile?.id,
-          inviterProfileId,
-          inviterUserId,
-          url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-referral`,
-        });
-      }
+      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-referral`;
       
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-referral`,
-        {
+      console.log('[InvitePopup] confirm-referral request', {
+        correlationId,
+        userId: user?.id,
+        profileId: profile?.id,
+        inviterProfileId,
+        inviterUserId,
+        url: fnUrl,
+      });
+      
+      let response: Response;
+      try {
+        response = await fetch(fnUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -214,33 +214,54 @@ export function InvitePopup() {
             'x-correlation-id': correlationId,
           },
           body: JSON.stringify({ inviterUserId, inviterProfileId }),
-        }
-      );
-      
-      const result = await response.json();
-      
-      if (import.meta.env.DEV) {
-        console.log('[InvitePopup] confirm-referral response', { correlationId, status: response.status, result });
+        });
+      } catch (networkErr) {
+        const msg = networkErr instanceof Error ? networkErr.message : String(networkErr);
+        console.error('[InvitePopup] Fetch failed (network):', msg);
+        return { success: false, error: `Network error: ${msg}`, errorCode: 'NETWORK' };
       }
       
-      if (!response.ok || result.success === false) {
+      // Always try to read body — even on non-200
+      let result: Record<string, unknown>;
+      let rawBody: string;
+      try {
+        rawBody = await response.text();
+        result = JSON.parse(rawBody);
+      } catch {
+        console.error('[InvitePopup] Non-JSON response', { status: response.status, body: rawBody! });
         return {
           success: false,
-          error: result.errorMessage || result.error || 'Server error',
-          errorCode: result.errorCode || 'UNKNOWN',
-          stepFailed: result.stepFailed,
-          steps: result.steps,
+          error: `Server returned ${response.status} with non-JSON body: ${rawBody!.slice(0, 200)}`,
+          errorCode: 'BAD_RESPONSE',
+        };
+      }
+      
+      console.log('[InvitePopup] confirm-referral response', {
+        correlationId,
+        status: response.status,
+        result,
+      });
+      
+      if (!response.ok || result.success === false) {
+        const errorMsg = (result.error as string) || (result.errorMessage as string) || `Server error (${response.status})`;
+        const errorCode = (result.errorCode as string) || 'UNKNOWN';
+        const stepFailed = (result.step as string) || (result.stepFailed as string) || 'unknown';
+        console.error('[InvitePopup] Referral failed', { errorCode, stepFailed, errorMsg, correlationId });
+        return {
+          success: false,
+          error: errorMsg,
+          errorCode,
+          stepFailed,
+          steps: result.steps as { redemptionCreated: boolean; rewardGranted: boolean; notificationSent: boolean } | undefined,
         };
       }
       
       rewardGrantedRef.current = true;
-      return { success: true, steps: result.steps };
+      return { success: true, steps: result.steps as { redemptionCreated: boolean; rewardGranted: boolean; notificationSent: boolean } };
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
-      if (import.meta.env.DEV) {
-        console.error('[InvitePopup] Network error:', msg);
-      }
-      return { success: false, error: 'Network error. Check your connection and try again.', errorCode: 'NETWORK' };
+      console.error('[InvitePopup] Unexpected error in confirmReferral:', msg);
+      return { success: false, error: `Client error: ${msg}`, errorCode: 'CLIENT_ERROR' };
     }
   }, [user?.id, profile?.id]);
 
@@ -256,7 +277,8 @@ export function InvitePopup() {
       if (!result.success) {
         setStep('error');
         const userMsg = result.error || "Couldn't confirm the invite.";
-        setErrorDetail(`${result.errorCode || 'UNKNOWN'}: ${result.stepFailed || '?'} — ${userMsg}`);
+        setErrorDetail(`[${result.errorCode || 'UNKNOWN'}] step=${result.stepFailed || '?'} — ${userMsg}`);
+        console.error('[InvitePopup] handleThankYou failed', { errorCode: result.errorCode, stepFailed: result.stepFailed, error: userMsg });
         toast.error(userMsg);
         return;
       }
@@ -408,8 +430,8 @@ export function InvitePopup() {
                     <p className="text-sm text-destructive">
                       {currentStepInfo.label}
                     </p>
-                    {import.meta.env.DEV && errorDetail && (
-                      <p className="text-[10px] text-muted-foreground font-mono break-all max-h-16 overflow-auto">
+                    {errorDetail && (
+                      <p className="text-[10px] text-muted-foreground font-mono break-all max-h-20 overflow-auto px-2">
                         {errorDetail}
                       </p>
                     )}

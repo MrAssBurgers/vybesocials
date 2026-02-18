@@ -18,45 +18,58 @@ function log(correlationId: string, step: string, data: Record<string, unknown> 
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  // CORS preflight — always safe
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
 
   const correlationId = req.headers.get("x-correlation-id") || crypto.randomUUID();
 
   try {
-    // ===== STEP: auth =====
-    log(correlationId, "auth", { msg: "Validating token" });
+    // ── STEP 1: Auth ──
+    log(correlationId, "auth_start");
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       log(correlationId, "auth_fail", { reason: "missing_header" });
-      return json({ success: false, stepFailed: "auth", errorCode: "NO_AUTH", errorMessage: "Missing authorization header" }, 401);
+      return json({ success: false, step: "auth", errorCode: "NO_AUTH", error: "Missing authorization header" }, 401);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
 
-    // Verify user identity with anon client
+    if (!supabaseUrl || !serviceKey || !anonKey) {
+      log(correlationId, "env_fail", {
+        hasUrl: !!supabaseUrl,
+        hasServiceKey: !!serviceKey,
+        hasAnonKey: !!anonKey,
+      });
+      return json({ success: false, step: "env", errorCode: "MISSING_ENV", error: "Server misconfigured — missing environment variables" }, 500);
+    }
+
+    // Verify user identity
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    let userId: string;
     const token = authHeader.replace("Bearer ", "");
+    let userId: string;
 
     try {
       const { data: { user }, error } = await userClient.auth.getUser(token);
-      if (error || !user) throw error || new Error("No user");
+      if (error || !user) throw error || new Error("No user returned");
       userId = user.id;
     } catch (e) {
-      log(correlationId, "auth_fail", { reason: "invalid_token" });
-      return json({ success: false, stepFailed: "auth", errorCode: "AUTH_FAILED", errorMessage: "Authentication failed. Please sign in again." }, 401);
+      const msg = e instanceof Error ? e.message : String(e);
+      log(correlationId, "auth_fail", { reason: "invalid_token", detail: msg });
+      return json({ success: false, step: "auth", errorCode: "AUTH_FAILED", error: "Authentication failed. Please sign in again." }, 401);
     }
 
     log(correlationId, "auth_ok", { userId });
 
-    // ===== STEP: parse =====
-    log(correlationId, "parse", { msg: "Parsing request body" });
+    // ── STEP 2: Parse body ──
+    log(correlationId, "parse_start");
 
     let inviterUserId: string;
     let inviterProfileId: string;
@@ -65,77 +78,92 @@ Deno.serve(async (req) => {
       const body = await req.json();
       inviterUserId = body.inviterUserId;
       inviterProfileId = body.inviterProfileId;
-    } catch {
-      log(correlationId, "parse_fail");
-      return json({ success: false, stepFailed: "parse", errorCode: "BAD_BODY", errorMessage: "Invalid request body" }, 400);
+
+      log(correlationId, "parse_body", {
+        inviterUserId: inviterUserId || "(missing)",
+        inviterProfileId: inviterProfileId || "(missing)",
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log(correlationId, "parse_fail", { detail: msg });
+      return json({ success: false, step: "parse", errorCode: "BAD_BODY", error: "Invalid request body: " + msg }, 400);
     }
 
     if (!inviterUserId || !inviterProfileId) {
-      log(correlationId, "parse_fail", { inviterUserId: !!inviterUserId, inviterProfileId: !!inviterProfileId });
-      return json({ success: false, stepFailed: "parse", errorCode: "MISSING_PARAMS", errorMessage: "Missing inviter information" }, 400);
+      log(correlationId, "parse_missing", { hasUserId: !!inviterUserId, hasProfileId: !!inviterProfileId });
+      return json({ success: false, step: "parse", errorCode: "MISSING_PARAMS", error: "Missing inviterUserId or inviterProfileId" }, 400);
     }
 
     log(correlationId, "parse_ok", { inviterProfileId, inviterUserId, redeemerId: userId });
 
-    // ===== STEP: validate =====
-    // Quick self-referral check before DB call
-    log(correlationId, "validate");
-
-    // ===== STEP: db_confirm (atomic) =====
-    log(correlationId, "db_confirm", { msg: "Calling confirm_referral_atomic" });
+    // ── STEP 3: Call atomic DB function ──
+    log(correlationId, "db_call_start");
 
     const admin = createClient(supabaseUrl, serviceKey);
 
-    // Retry loop for profile race condition (profile may not exist yet after signup)
     let result: Record<string, unknown> | null = null;
     let lastError: string | null = null;
+    let lastCode: string | null = null;
 
     for (let attempt = 1; attempt <= 5; attempt++) {
-      const { data, error } = await admin.rpc("confirm_referral_atomic", {
-        p_inviter_profile_id: inviterProfileId,
-        p_inviter_user_id: inviterUserId,
-        p_redeemer_auth_id: userId,
-      });
+      log(correlationId, "db_attempt", { attempt });
 
-      if (error) {
-        lastError = error.message;
-        log(correlationId, "db_confirm_error", { attempt, error: error.message, code: error.code });
+      try {
+        const { data, error } = await admin.rpc("confirm_referral_atomic", {
+          p_inviter_profile_id: inviterProfileId,
+          p_inviter_user_id: inviterUserId,
+          p_redeemer_auth_id: userId,
+        });
 
-        // If profile not found, retry (race condition with profile creation trigger)
-        if (attempt < 5) {
-          log(correlationId, "db_confirm_retry", { attempt, nextIn: "600ms" });
-          await new Promise(r => setTimeout(r, 600));
-          continue;
+        if (error) {
+          lastError = error.message;
+          lastCode = error.code || "UNKNOWN";
+          log(correlationId, "db_rpc_error", { attempt, error: error.message, code: error.code, hint: error.hint || null });
+
+          // Retry on profile-not-found race condition
+          if (attempt < 5 && (error.message?.includes("PROFILE_NOT_FOUND") || error.code === "PGRST116")) {
+            log(correlationId, "db_retry_wait", { attempt, reason: "profile_race", nextMs: 600 });
+            await new Promise(r => setTimeout(r, 600));
+            continue;
+          }
+          // Don't retry other errors — break immediately
+          break;
         }
-        break;
-      }
 
-      result = data as Record<string, unknown>;
-      break;
+        result = data as Record<string, unknown>;
+        log(correlationId, "db_rpc_ok", { attempt, result });
+        break;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        lastError = msg;
+        lastCode = "EXCEPTION";
+        log(correlationId, "db_exception", { attempt, error: msg });
+        break; // Don't retry on unexpected exceptions
+      }
     }
 
     if (!result) {
-      log(correlationId, "db_confirm_fail", { lastError });
+      log(correlationId, "db_final_fail", { lastError, lastCode });
       return json({
         success: false,
-        stepFailed: "db_confirm",
-        errorCode: "DB_ERROR",
-        errorMessage: lastError || "Database operation failed. Please try again.",
+        step: "db_confirm",
+        errorCode: lastCode || "DB_ERROR",
+        error: lastError || "Database operation failed after retries",
       }, 500);
     }
 
-    // The atomic function returns { success, error_code, error_message, ... }
+    // DB function returns { success: false, error_code, error_message } on business logic rejection
     if (result.success === false) {
-      log(correlationId, "db_confirm_rejected", { errorCode: result.error_code });
+      log(correlationId, "db_rejected", { errorCode: result.error_code, errorMessage: result.error_message });
       return json({
         success: false,
-        stepFailed: "db_confirm",
-        errorCode: result.error_code as string,
-        errorMessage: result.error_message as string,
+        step: "db_confirm",
+        errorCode: (result.error_code as string) || "REJECTED",
+        error: (result.error_message as string) || "Referral rejected by database",
       }, 400);
     }
 
-    // ===== STEP: done =====
+    // ── STEP 4: Success ──
     log(correlationId, "done", {
       alreadyConfirmed: result.already_confirmed,
       rewardsGranted: result.rewards_granted,
@@ -149,7 +177,6 @@ Deno.serve(async (req) => {
       inviterProfileId: result.inviter_profile_id,
       redeemerProfileId: result.redeemer_profile_id,
       newUseCount: result.new_use_count,
-      // Legacy compat for client step display
       steps: {
         redemptionCreated: true,
         rewardGranted: result.rewards_granted || result.already_confirmed || false,
@@ -157,13 +184,15 @@ Deno.serve(async (req) => {
       },
     });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Internal server error";
-    log(correlationId, "unhandled_error", { error: msg });
+    // ── GLOBAL CATCH — NEVER THROW ──
+    const msg = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    log(correlationId, "unhandled_error", { error: msg, stack: stack?.slice(0, 500) });
     return json({
       success: false,
-      stepFailed: "unknown",
+      step: "unknown",
       errorCode: "INTERNAL",
-      errorMessage: "An unexpected error occurred. Please try again.",
+      error: "Unexpected server error: " + msg,
     }, 500);
   }
 });
