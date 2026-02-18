@@ -133,6 +133,19 @@ export const TutorialOverlay = memo(function TutorialOverlay({
         case 'closeMenus':
           closeAllMenus();
           break;
+        case 'navigateToSettings':
+          navigate('/settings');
+          await new Promise(resolve => setTimeout(resolve, 400));
+          break;
+        case 'navigateToThemes':
+          // Click on themes tab in settings
+          setTimeout(() => {
+            const themesBtn = document.querySelector('[data-tutorial="themes-section"]');
+            if (themesBtn) {
+              (themesBtn as HTMLElement).click();
+            }
+          }, 300);
+          break;
       }
     }
   }, [currentStepData, location.pathname, navigate, closeAllMenus, openCreateMenu, openVYBEHub]);
@@ -165,22 +178,12 @@ export const TutorialOverlay = memo(function TutorialOverlay({
         left: Math.max(16, (viewport.width - tooltipWidth) / 2),
       });
     } else {
-      // Desktop: dock on the right side, vertically centered
-      // If element is on the right half, dock on the left side instead
-      const elementCenterX = rect.left + rect.width / 2;
-      const isOnRight = elementCenterX > viewport.width / 2;
-      
-      if (isOnRight) {
-        setTooltipPos({
-          top: Math.max(80, (viewport.height - 280) / 2),
-          left: 24,
-        });
-      } else {
-        setTooltipPos({
-          top: Math.max(80, (viewport.height - 280) / 2),
-          right: 24,
-        });
-      }
+      // Desktop: center the tooltip in the middle of the screen
+      const tooltipHeight = 320;
+      setTooltipPos({
+        top: Math.max(80, (viewport.height - tooltipHeight) / 2),
+        left: Math.max(16, (viewport.width - tooltipWidth) / 2),
+      });
     }
   }, [layoutMode]);
 
@@ -245,9 +248,10 @@ export const TutorialOverlay = memo(function TutorialOverlay({
           left: Math.max(16, (window.innerWidth - tooltipWidth) / 2),
         });
       } else {
+        const tooltipWidth2 = Math.min(320, window.innerWidth - 32);
         setTooltipPos({
-          top: Math.max(80, (window.innerHeight - 280) / 2),
-          right: 24,
+          top: Math.max(80, (window.innerHeight - 320) / 2),
+          left: Math.max(16, (window.innerWidth - tooltipWidth2) / 2),
         });
       }
     }
