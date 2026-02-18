@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Trash2, BellOff, Bell, User, Pin, PinOff } from 'lucide-react';
+import { Trash2, BellOff, Bell, User, Pin, PinOff, MessageSquareX } from 'lucide-react';
 import { useTrashConversation } from '@/hooks/useTrashedConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -47,8 +47,10 @@ export function ConversationOptionsSheet({
   const trashConversation = useTrashConversation();
    const { profile } = useAuth();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isTogglingMute, setIsTogglingMute] = useState(false);
   const [isTogglingPin, setIsTogglingPin] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   const handleDeleteChat = async () => {
     await trashConversation.mutateAsync(conversationId);
@@ -56,6 +58,31 @@ export function ConversationOptionsSheet({
     onOpenChange(false);
     if (window.location.pathname.includes(conversationId)) {
       navigate('/messages');
+    }
+  };
+
+  const handleClearChat = async () => {
+    if (!profile?.id) return;
+    setIsClearing(true);
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('conversation_id', conversationId);
+      
+      if (error) throw error;
+      
+      queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+      toast.success('Chat cleared');
+      setShowClearConfirm(false);
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Failed to clear chat:', error);
+      toast.error('Failed to clear chat');
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -182,6 +209,15 @@ export function ConversationOptionsSheet({
             
             <Button
               variant="ghost"
+              className="w-full justify-start gap-3 h-12 text-orange-500 hover:text-orange-500 hover:bg-orange-500/10"
+              onClick={() => setShowClearConfirm(true)}
+            >
+              <MessageSquareX className="h-5 w-5" />
+              Clear Chat
+            </Button>
+
+            <Button
+              variant="ghost"
               className="w-full justify-start gap-3 h-12 text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={() => setShowDeleteConfirm(true)}
             >
@@ -207,6 +243,27 @@ export function ConversationOptionsSheet({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Move to Trash
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear all messages?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All messages in this chat will be permanently deleted. The conversation will remain but will be empty. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearChat}
+              disabled={isClearing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isClearing ? 'Clearing...' : 'Clear All Messages'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
