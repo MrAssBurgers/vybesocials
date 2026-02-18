@@ -56,7 +56,11 @@ const BackgroundLayer = memo(function BackgroundLayer({ background }: { backgrou
       aria-hidden="true"
       style={{
         position: 'fixed',
-        inset: 0,
+        // Extend beyond viewport to prevent blur edge artifacts
+        top: background.blur > 0 ? `-${background.blur * 2}px` : 0,
+        left: background.blur > 0 ? `-${background.blur * 2}px` : 0,
+        right: background.blur > 0 ? `-${background.blur * 2}px` : 0,
+        bottom: background.blur > 0 ? `-${background.blur * 2}px` : 0,
         zIndex: 0,
         backgroundImage: `url(${background.imageUrl})`,
         backgroundSize: 'cover',
@@ -65,7 +69,6 @@ const BackgroundLayer = memo(function BackgroundLayer({ background }: { backgrou
         opacity: background.opacity,
         filter: background.blur > 0 ? `blur(${background.blur}px)` : undefined,
         pointerEvents: 'none',
-        // Prevent any transforms or transitions from affecting this layer
         transform: 'translateZ(0)',
         willChange: 'auto',
       }}
