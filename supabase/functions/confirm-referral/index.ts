@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
       console.log("[confirm-referral] Created new invite record:", inviteId);
     }
 
-    // Create redemption record
+    // Create redemption record (unique constraint is on invite_id + redeemer_id)
     const { error: redemptionError } = await supabaseAdmin
       .from("invite_redemptions")
       .insert({
@@ -212,12 +212,17 @@ Deno.serve(async (req) => {
         redeemer_id: userId,
       });
 
-    if (redemptionError && redemptionError.code !== "23505") {
-      console.error("[confirm-referral] Redemption insert error:", JSON.stringify(redemptionError));
-      return new Response(
-        JSON.stringify({ error: "Failed to record redemption", steps }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (redemptionError) {
+      if (redemptionError.code === "23505") {
+        // Duplicate — already redeemed this invite, treat as success
+        console.log("[confirm-referral] Duplicate redemption (23505), continuing as success");
+      } else {
+        console.error("[confirm-referral] Redemption insert error:", JSON.stringify(redemptionError));
+        return new Response(
+          JSON.stringify({ error: "Failed to record redemption", steps }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Set referral_inviter_id on profile
