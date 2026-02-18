@@ -12,7 +12,6 @@ import {
   wasReferralConfirmed,
   markReferralConfirmed,
   cleanupReferralStorage,
-  isInviteEntryMode,
   type PendingReferral,
 } from '@/lib/referral';
 
@@ -32,21 +31,12 @@ const STEP_INFO: Record<ConfirmStep, StepInfo> = {
   error: { progress: 0, label: 'Something went wrong' },
 };
 
+function generateCorrelationId(): string {
+  return crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /**
  * Post-Tutorial/Onboarding Referral Confirmation Modal
- * 
- * TRIGGER CONDITIONS (ALL must be true):
- * - User is authenticated (user.id exists)
- * - User has a profile with username set
- * - Pending referral exists in localStorage
- * - Referral not yet confirmed
- * 
- * FLOW:
- * 1. Poll/check profile status after auth
- * 2. When conditions met, show modal
- * 3. On "Thank You" click: show event-driven progress bar
- * 4. Backend processes: redemption → XP reward → friendship → notification
- * 5. Cleanup and close
  */
 export function InvitePopup() {
   const { user, profile } = useAuth();
@@ -55,63 +45,45 @@ export function InvitePopup() {
   const [referral, setReferral] = useState<PendingReferral | null>(null);
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState<ConfirmStep>('idle');
+  const [errorDetail, setErrorDetail] = useState<string>('');
   const processedRef = useRef(false);
   const rewardGrantedRef = useRef(false);
-  const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastProfileIdRef = useRef<string | null>(null);
 
   // Check for pending referral when conditions are met
   const checkAndShowReferral = useCallback(async () => {
-    // Already processed or visible
     if (processedRef.current || visible) return;
     
-    // CRITICAL: Don't show during onboarding or landing pages
-    // But DO allow showing on /home OR /invite/* (when Home is rendered inside InviteRedeem)
     const currentPath = location.pathname;
     const windowPath = window.location.pathname;
     const isOnHome = currentPath === '/home' || windowPath === '/home';
     const isOnInviteFlow = currentPath.startsWith('/invite/') || windowPath.startsWith('/invite/');
     
-    // Block on specific non-home routes (onboarding, auth, landing, etc.)
-    if (!isOnHome && !isOnInviteFlow) {
-      console.log('[InvitePopup] Not on /home or invite flow, skipping popup');
-      return;
-    }
+    if (!isOnHome && !isOnInviteFlow) return;
     
-    // CRITICAL: Require FULL auth - user must be logged in with a profile
-    if (!user?.id || !profile?.id || !profile?.username) {
-      console.log('[InvitePopup] Not fully authenticated yet, skipping');
-      return;
-    }
+    // CRITICAL: Require FULL auth - user + profile + username
+    if (!user?.id || !profile?.id || !profile?.username) return;
 
-    // Reset if profile changed
     if (lastProfileIdRef.current !== profile.id) {
       lastProfileIdRef.current = profile.id;
       processedRef.current = false;
     }
     
-    // Already confirmed?
     if (wasReferralConfirmed()) {
-      console.log('[InvitePopup] Referral already confirmed');
       cleanupReferralStorage();
       return;
     }
     
-    // Check for pending referral
     const pending = getPendingReferral();
-    if (!pending) {
-      console.log('[InvitePopup] No pending referral');
-      return;
-    }
+    if (!pending) return;
     
-    // Prevent self-referral
+    // Self-referral guard
     if (pending.inviterId === profile.id) {
-      console.log('[InvitePopup] Self-referral detected, clearing');
       cleanupReferralStorage();
       return;
     }
     
-    // CRITICAL: Query DB to verify tutorial is ACTUALLY done - don't trust local state
+    // Verify onboarding + tutorial completion from DB
     try {
       const { data: profileData, error } = await supabase
         .from('profiles')
@@ -119,56 +91,33 @@ export function InvitePopup() {
         .eq('id', profile.id)
         .single();
       
-      if (error) {
-        console.error('[InvitePopup] Error checking profile:', error);
-        return;
-      }
+      if (error) return;
       
-      // CRITICAL: One-invite-per-user rule
       if (profileData?.referral_inviter_id) {
-        console.log('[InvitePopup] User already accepted a referral, cleaning up');
         cleanupReferralStorage();
         return;
       }
       
-      // CRITICAL: Must have completed onboarding AND tutorial
-      if (!profileData?.onboarding_completed) {
-        console.log('[InvitePopup] Onboarding not completed yet');
-        return;
-      }
-
+      if (!profileData?.onboarding_completed) return;
+      
       const tutorialDone = (profileData?.tutorial_completed ?? false) || (profileData?.tutorial_skipped ?? false);
-      if (!tutorialDone) {
-        console.log('[InvitePopup] Tutorial not completed/skipped yet');
-        return;
-      }
-    } catch (e) {
-      console.error('[InvitePopup] Error:', e);
+      if (!tutorialDone) return;
+    } catch {
       return;
     }
     
-    console.log('[InvitePopup] All conditions met, showing modal for:', pending.inviterUsername);
-    
-    // Stop polling since we're ready to show
-    if (checkIntervalRef.current) {
-      clearInterval(checkIntervalRef.current);
-      checkIntervalRef.current = null;
-    }
-    
     // Verify inviter still exists
-    const { data: inviterProfile, error: inviterError } = await supabase
+    const { data: inviterProfile } = await supabase
       .from('profiles')
       .select('id, user_id, username, avatar_url, display_name')
       .eq('id', pending.inviterId)
       .maybeSingle();
     
-    if (inviterError || !inviterProfile) {
-      console.log('[InvitePopup] Inviter no longer exists');
+    if (!inviterProfile) {
       cleanupReferralStorage();
       return;
     }
     
-    // Update with fresh data
     const freshReferral: PendingReferral = {
       inviterId: inviterProfile.id,
       inviterUserId: inviterProfile.user_id,
@@ -181,27 +130,16 @@ export function InvitePopup() {
     setReferral(freshReferral);
     setVisible(true);
     processedRef.current = true;
-    
-    console.log('[InvitePopup] Showing confirmation modal');
   }, [user?.id, profile?.id, profile?.username, location.pathname, visible]);
 
-  // Listen for tutorial-completed event - PRIMARY trigger
-  // After tutorial completes, user navigates to /home. We poll briefly until we're on /home.
+  // Listen for tutorial-completed event
   useEffect(() => {
     const handleTutorialComplete = () => {
-      console.log('[InvitePopup] Tutorial completed event received');
-      // Poll every 500ms for up to 10s waiting for /home navigation
       let attempts = 0;
       const interval = setInterval(() => {
         attempts++;
-        console.log('[InvitePopup] Post-tutorial check attempt', attempts, 'path:', window.location.pathname);
-        if (window.location.pathname === '/home' || window.location.hash === '#/home') {
+        if (window.location.pathname === '/home' || attempts >= 20) {
           clearInterval(interval);
-          checkAndShowReferral();
-        }
-        if (attempts >= 20) {
-          clearInterval(interval);
-          // Try anyway
           checkAndShowReferral();
         }
       }, 500);
@@ -211,7 +149,7 @@ export function InvitePopup() {
     return () => window.removeEventListener('tutorial-completed', handleTutorialComplete);
   }, [checkAndShowReferral]);
 
-  // Poll when on /home or on an invite route with Home rendered
+  // Poll when on /home or invite route
   useEffect(() => {
     const isOnHome = location.pathname === '/home';
     const isOnInviteFlow = location.pathname.startsWith('/invite/');
@@ -222,21 +160,22 @@ export function InvitePopup() {
     const pending = getPendingReferral();
     if (!pending) return;
     
-    // Delayed check when arriving at /home or invite flow reaches home stage
     const timer = setTimeout(() => checkAndShowReferral(), 1500);
     return () => clearTimeout(timer);
   }, [location.pathname, user?.id, profile?.id, profile?.username, checkAndShowReferral, visible]);
 
   /**
-   * Call backend function to grant reward with step-by-step progress
+   * Call backend to confirm referral — with correlationId + structured errors
    */
-  const confirmReferralWithProgress = useCallback(async (
+  const confirmReferral = useCallback(async (
     inviterUserId: string, 
     inviterProfileId: string
-  ): Promise<{ success: boolean; error?: string; steps?: { redemptionCreated: boolean; rewardGranted: boolean; notificationSent: boolean } }> => {
+  ): Promise<{ success: boolean; error?: string; errorCode?: string; stepFailed?: string; steps?: { redemptionCreated: boolean; rewardGranted: boolean; notificationSent: boolean } }> => {
     if (rewardGrantedRef.current) {
       return { success: true, steps: { redemptionCreated: true, rewardGranted: true, notificationSent: true } };
     }
+    
+    const correlationId = generateCorrelationId();
     
     try {
       // Get a fresh token
@@ -250,10 +189,19 @@ export function InvitePopup() {
       }
       
       if (!activeToken) {
-        return { success: false, error: "You're not logged in. Please sign in and try again." };
+        return { success: false, error: "You're not logged in. Please sign in and try again.", errorCode: "NO_SESSION" };
       }
       
-      console.log('[InvitePopup] Calling confirm-referral...');
+      if (import.meta.env.DEV) {
+        console.log('[InvitePopup] confirm-referral request', {
+          correlationId,
+          userId: user?.id,
+          profileId: profile?.id,
+          inviterProfileId,
+          inviterUserId,
+          url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-referral`,
+        });
+      }
       
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-referral`,
@@ -263,43 +211,53 @@ export function InvitePopup() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${activeToken}`,
             'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'x-correlation-id': correlationId,
           },
           body: JSON.stringify({ inviterUserId, inviterProfileId }),
         }
       );
       
       const result = await response.json();
-      console.log('[InvitePopup] Response:', response.status, JSON.stringify(result));
       
-      if (!response.ok) {
-        return { success: false, error: result.error || 'Server error', steps: result.steps };
+      if (import.meta.env.DEV) {
+        console.log('[InvitePopup] confirm-referral response', { correlationId, status: response.status, result });
+      }
+      
+      if (!response.ok || result.success === false) {
+        return {
+          success: false,
+          error: result.errorMessage || result.error || 'Server error',
+          errorCode: result.errorCode || 'UNKNOWN',
+          stepFailed: result.stepFailed,
+          steps: result.steps,
+        };
       }
       
       rewardGrantedRef.current = true;
       return { success: true, steps: result.steps };
     } catch (error) {
-      console.error('[InvitePopup] Network error:', error);
-      return { success: false, error: 'Network error. Check your connection and try again.' };
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      if (import.meta.env.DEV) {
+        console.error('[InvitePopup] Network error:', msg);
+      }
+      return { success: false, error: 'Network error. Check your connection and try again.', errorCode: 'NETWORK' };
     }
-  }, []);
+  }, [user?.id, profile?.id]);
 
   const handleThankYou = async () => {
     if (!profile?.id || !referral || step !== 'idle') return;
 
     setStep('confirming');
+    setErrorDetail('');
 
     try {
-      const result = await confirmReferralWithProgress(
-        referral.inviterUserId,
-        referral.inviterId
-      );
+      const result = await confirmReferral(referral.inviterUserId, referral.inviterId);
 
       if (!result.success) {
         setStep('error');
-        // Show specific error from backend instead of generic message
-        const errorMsg = result.error || "Couldn't confirm the invite.";
-        toast.error(errorMsg);
-        console.error('[InvitePopup] Failed:', errorMsg);
+        const userMsg = result.error || "Couldn't confirm the invite.";
+        setErrorDetail(`${result.errorCode || 'UNKNOWN'}: ${result.stepFailed || '?'} — ${userMsg}`);
+        toast.error(userMsg);
         return;
       }
 
@@ -315,9 +273,7 @@ export function InvitePopup() {
         await new Promise(r => setTimeout(r, 400));
       }
 
-      if (steps?.notificationSent) {
-        setStep('complete');
-      }
+      setStep('complete');
 
       markReferralConfirmed();
       toast.success(`You and @${referral.inviterUsername} are now friends!`);
@@ -330,14 +286,15 @@ export function InvitePopup() {
         }
       }, 1500);
     } catch (error) {
-      console.error('[InvitePopup] Error:', error);
       setStep('error');
-      toast.error("Network error. Please check your connection and try again.");
+      setErrorDetail('CATCH: ' + (error instanceof Error ? error.message : String(error)));
+      toast.error("Something went wrong. Please try again.");
     }
   };
 
   const handleRetry = () => {
     setStep('idle');
+    setErrorDetail('');
   };
 
   if (!visible || !referral) return null;
@@ -350,7 +307,7 @@ export function InvitePopup() {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-        {/* Backdrop - not dismissible by clicking */}
+        {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -367,7 +324,6 @@ export function InvitePopup() {
         >
           <div className="text-center space-y-6">
             {isComplete ? (
-              // Success animation
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
@@ -389,7 +345,7 @@ export function InvitePopup() {
               </motion.div>
             ) : (
               <>
-                {/* Inviter Avatar with glow */}
+                {/* Inviter Avatar */}
                 <div className="flex justify-center">
                   <div className="relative">
                     <motion.div
@@ -416,14 +372,13 @@ export function InvitePopup() {
                   </p>
                 </div>
 
-                {/* Progress bar (only show when processing) */}
+                {/* Progress bar */}
                 {isProcessing && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-3 pt-2"
                   >
-                    {/* Progress bar container */}
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <motion.div
                         className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full"
@@ -432,8 +387,6 @@ export function InvitePopup() {
                         transition={{ duration: 0.5, ease: 'easeOut' }}
                       />
                     </div>
-                    
-                    {/* Step label */}
                     <motion.p
                       key={step}
                       initial={{ opacity: 0 }}
@@ -455,6 +408,11 @@ export function InvitePopup() {
                     <p className="text-sm text-destructive">
                       {currentStepInfo.label}
                     </p>
+                    {import.meta.env.DEV && errorDetail && (
+                      <p className="text-[10px] text-muted-foreground font-mono break-all max-h-16 overflow-auto">
+                        {errorDetail}
+                      </p>
+                    )}
                     <Button
                       variant="outline"
                       onClick={handleRetry}
@@ -466,7 +424,7 @@ export function InvitePopup() {
                   </motion.div>
                 )}
                 
-                {/* Action Button (only show when idle) */}
+                {/* Action Button */}
                 {step === 'idle' && (
                   <div className="pt-2">
                     <Button
