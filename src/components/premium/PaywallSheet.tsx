@@ -223,9 +223,16 @@ const totalPerks = PERK_CATEGORIES.reduce((sum, c) => sum + c.perks.length, 0);
 
 // ── Main Component ──────────────────────────────────────────────
 export function PaywallSheet({ open, onOpenChange }: PaywallSheetProps) {
-  const { offerings, purchase, isEntitled, isLoading } = useRevenueCat();
+  const { offerings, purchase, isEntitled, isLoading, error, retryLoadOfferings } = useRevenueCat();
   const [selectedPkg, setSelectedPkg] = useState<RCPackage | null>(null);
   const [purchasing, setPurchasing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    await retryLoadOfferings();
+    setRetrying(false);
+  };
 
   const isPremium = isEntitled('premium');
 
@@ -357,13 +364,31 @@ export function PaywallSheet({ open, onOpenChange }: PaywallSheetProps) {
                 </Button>
               </>
             ) : (
-              <Button
-                size="lg"
-                className="w-full text-base font-bold h-12"
-                disabled
-              >
-                Coming Soon
-              </Button>
+              <div className="text-center space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {error === 'init_failed' 
+                    ? "Couldn't connect to the store. Check your connection and try again."
+                    : error === 'no_offerings'
+                    ? "No plans available right now. Please try again later."
+                    : "Couldn't load plans. Tap below to retry."}
+                </p>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full h-12 font-bold"
+                  onClick={handleRetry}
+                  disabled={retrying}
+                >
+                  {retrying ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Retrying...
+                    </>
+                  ) : (
+                    'Retry Loading Plans'
+                  )}
+                </Button>
+              </div>
             )}
 
             <p className="text-[10px] text-muted-foreground text-center mt-2">
