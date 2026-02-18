@@ -107,11 +107,11 @@ export function InvitePopup() {
       return;
     }
     
-    // Check if user has a profile with username (minimum requirement) and hasn't already accepted a referral
+    // Check if user has a profile with username, completed tutorial, and hasn't already accepted a referral
     try {
       const { data: profileData, error } = await supabase
         .from('profiles')
-        .select('username, referral_inviter_id')
+        .select('username, referral_inviter_id, tutorial_completed, tutorial_skipped')
         .eq('id', profile.id)
         .single();
       
@@ -136,6 +136,13 @@ export function InvitePopup() {
       // Just need a username set (user completed at least basic signup)
       if (!profileData?.username) {
         console.log('[InvitePopup] Waiting for username to be set');
+        return;
+      }
+
+      // CRITICAL: Wait for tutorial to be completed or skipped before showing popup
+      const tutorialDone = (profileData?.tutorial_completed ?? false) || (profileData?.tutorial_skipped ?? false);
+      if (!tutorialDone) {
+        console.log('[InvitePopup] Waiting for tutorial to be completed/skipped');
         return;
       }
     } catch (e) {

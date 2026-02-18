@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, memo } from 'react';
+import { useEffect, useState, useCallback, memo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
@@ -100,19 +100,27 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     }, 100);
   }, [closeAllMenus]);
 
+  // Track the last navigated route to prevent re-navigation loops
+  const lastNavigatedRouteRef = useRef<string | null>(null);
+
   // Handle step actions (navigation, menu opening)
   const executeStepAction = useCallback(async () => {
     if (!currentStepData) return;
 
-    // Handle route navigation - only if actually on different route
-    const needsNavigation = currentStepData.requiresRoute && location.pathname !== currentStepData.requiresRoute;
+    // Handle route navigation - only if actually on different route AND we haven't already navigated there for this step
+    const targetRoute = currentStepData.requiresRoute || 
+      (currentStepData.action === 'navigateToSettings' ? '/settings' : null);
+    const needsNavigation = targetRoute && 
+      location.pathname !== targetRoute && 
+      lastNavigatedRouteRef.current !== targetRoute;
     
     if (needsNavigation) {
       setIsNavigating(true);
       closeAllMenus();
-      navigate(currentStepData.requiresRoute!);
+      lastNavigatedRouteRef.current = targetRoute;
+      navigate(targetRoute, { replace: true });
       // Wait for navigation to complete
-      await new Promise(resolve => setTimeout(resolve, 400));
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
     
     // Always ensure navigating is false after route check
@@ -134,8 +142,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
           closeAllMenus();
           break;
         case 'navigateToSettings':
-          navigate('/settings');
-          await new Promise(resolve => setTimeout(resolve, 400));
+          // Already handled above via targetRoute
           break;
         case 'navigateToThemes':
           // Click on themes tab in settings
@@ -150,40 +157,77 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     }
   }, [currentStepData, location.pathname, navigate, closeAllMenus, openCreateMenu, openVYBEHub]);
 
-  // Stable tooltip positioning - always docks in a consistent area
-  // Mobile/tablet: always bottom-center above nav
-  // Desktop: always right side, vertically centered
+  // Smart tooltip positioning - docks in a consistent area but dodges the spotlight
+  // Mobile/tablet: bottom-center above nav, moves up if spotlight overlaps
+  // Desktop: centered, moves to avoid spotlight overlap
   const calculateTooltipPosition = useCallback((
     rect: DOMRect, 
     preferredPosition: TutorialStep['position'],
     element?: Element | null
   ) => {
     const tooltipWidth = Math.min(320, window.innerWidth - 32);
+    const tooltipHeight = 320;
     const viewport = {
       width: window.innerWidth,
       height: window.innerHeight,
     };
 
     const isMobileOrTablet = layoutMode === 'mobile' || layoutMode === 'tablet';
+    const centerX = Math.max(16, (viewport.width - tooltipWidth) / 2);
 
     if (isMobileOrTablet) {
-      // Always dock at bottom-center, above bottom nav
       const bottomNavHeight = 72;
       const safeAreaBottom = parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0'
       ) || 0;
       
-      setTooltipPos({
-        bottom: bottomNavHeight + safeAreaBottom + 16,
-        left: Math.max(16, (viewport.width - tooltipWidth) / 2),
-      });
+      const defaultBottom = bottomNavHeight + safeAreaBottom + 16;
+      const tooltipTop = viewport.height - defaultBottom - tooltipHeight;
+      
+      // Check if spotlight overlaps with default tooltip position
+      const spotlightOverlaps = rect.bottom > tooltipTop && rect.top < viewport.height - defaultBottom;
+      
+      if (spotlightOverlaps && rect.top > tooltipHeight + 80) {
+        // Move tooltip above the spotlight
+        setTooltipPos({
+          top: Math.max(60, rect.top - tooltipHeight - 20),
+          left: centerX,
+        });
+      } else {
+        setTooltipPos({
+          bottom: defaultBottom,
+          left: centerX,
+        });
+      }
     } else {
-      // Desktop: center the tooltip in the middle of the screen
-      const tooltipHeight = 320;
-      setTooltipPos({
-        top: Math.max(80, (viewport.height - tooltipHeight) / 2),
-        left: Math.max(16, (viewport.width - tooltipWidth) / 2),
-      });
+      const defaultTop = Math.max(80, (viewport.height - tooltipHeight) / 2);
+      const tooltipBottom = defaultTop + tooltipHeight;
+      
+      // Check if spotlight overlaps with centered tooltip
+      const spotlightOverlaps = rect.bottom > defaultTop && rect.top < tooltipBottom &&
+        rect.right > centerX && rect.left < centerX + tooltipWidth;
+      
+      if (spotlightOverlaps) {
+        // Move tooltip to the side opposite the spotlight
+        if (rect.left > viewport.width / 2) {
+          // Spotlight on right, move tooltip left
+          setTooltipPos({
+            top: defaultTop,
+            left: Math.max(16, rect.left - tooltipWidth - 30),
+          });
+        } else {
+          // Spotlight on left, move tooltip right
+          setTooltipPos({
+            top: defaultTop,
+            left: Math.min(viewport.width - tooltipWidth - 16, rect.right + 30),
+          });
+        }
+      } else {
+        setTooltipPos({
+          top: defaultTop,
+          left: centerX,
+        });
+      }
     }
   }, [layoutMode]);
 
@@ -272,6 +316,8 @@ export const TutorialOverlay = memo(function TutorialOverlay({
   useEffect(() => {
     if (!isOpen || !currentStepData) return;
     
+    // Reset navigation tracking for new step
+    lastNavigatedRouteRef.current = null;
     executeStepAction();
   }, [isOpen, currentStep, executeStepAction]);
 
@@ -361,7 +407,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
             y="0"
             width="100%"
             height="100%"
-            fill="rgba(0, 0, 0, 0.88)"
+            fill="rgba(0, 0, 0, 0.55)"
             mask="url(#tutorial-spotlight-mask)"
           />
         </svg>
