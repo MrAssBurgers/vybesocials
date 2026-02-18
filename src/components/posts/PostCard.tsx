@@ -641,7 +641,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         <div className="flex items-center justify-between h-8">
           {/* Left action buttons - perfectly aligned */}
           <div className="flex items-center gap-1">
-            {/* Like button - simplified for performance */}
+            {/* Like button - with glow feedback */}
             <button 
               onClick={handleLike} 
               className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform"
@@ -649,7 +649,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
               <Heart
                 className={cn(
                   "h-6 w-6 transition-all",
-                  isLiked ? "fill-red-500 text-red-500 scale-110" : "text-foreground hover:text-primary"
+                  isLiked ? "fill-red-500 text-red-500 scale-110 like-glow" : "text-foreground hover:text-primary"
                 )}
               />
             </button>
@@ -674,7 +674,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
             <Bookmark
               className={cn(
                 "h-6 w-6 transition-all",
-                isBookmarked ? "fill-yellow-400 text-yellow-400 scale-110" : "hover:text-primary"
+                isBookmarked ? "fill-yellow-400 text-yellow-400 scale-110 bookmark-glow" : "hover:text-primary"
               )}
             />
           </button>
