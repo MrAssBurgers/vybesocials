@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 // Konami Code: ↑ ↑ ↓ ↓ ← → ← → B A
 const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyB', 'KeyA'];
@@ -52,8 +53,43 @@ export function useEasterEggs() {
   const [rainbowMode, setRainbowMode] = useState(false);
   const [confetti, setConfetti] = useState(false);
 
+  // Sync from DB on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user?.id) return;
+      supabase
+        .from('user_preferences' as any)
+        .select('unlocked_easter_eggs')
+        .eq('user_id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          const dbEggs = (data as any)?.unlocked_easter_eggs;
+          if (dbEggs && Array.isArray(dbEggs) && dbEggs.length > 0) {
+            setUnlockedEggs(prev => {
+              const merged = new Set([...prev, ...dbEggs]);
+              localStorage.setItem('xd_easter_eggs', JSON.stringify([...merged]));
+              return merged;
+            });
+          }
+        });
+    });
+  }, []);
+
   const saveUnlocked = useCallback((eggs: Set<string>) => {
-    localStorage.setItem('xd_easter_eggs', JSON.stringify([...eggs]));
+    const arr = [...eggs];
+    localStorage.setItem('xd_easter_eggs', JSON.stringify(arr));
+    // Persist to DB (fire-and-forget)
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user?.id) return;
+      supabase
+        .from('user_preferences' as any)
+        .upsert({
+          user_id: user.id,
+          unlocked_easter_eggs: arr,
+          updated_at: new Date().toISOString(),
+        } as any, { onConflict: 'user_id' })
+        .then(() => {});
+    });
   }, []);
 
   const unlockEgg = useCallback((eggId: string) => {

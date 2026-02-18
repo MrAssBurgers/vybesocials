@@ -31,6 +31,7 @@ import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { supabase } from '@/integrations/supabase/client';
 
 const popularTags = ['meme', 'fails', 'pets', 'gaming', 'comedy', 'sports', 'music', 'food', 'tech', 'beauty'];
 
@@ -222,6 +223,7 @@ function FullscreenClipsViewer({
     setGlobalMuted(prev => {
       const next = !prev;
       localStorage.setItem('vybe-clips-muted', String(next));
+      localStorage.setItem('clips-muted', String(next));
       return next;
     });
   }, []);
@@ -514,7 +516,7 @@ export default function ExplorePage() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [activeCategory, setActiveCategory] = useState(searchParams.get('cat') || 'all');
   
-  // Persist view mode to localStorage so it remembers user selection
+  // Persist view mode to localStorage + DB so it remembers user selection
   const [viewMode, setViewMode] = useState<'clips' | 'videos'>(() => {
     // First check URL param, then localStorage, then default to clips
     const urlView = searchParams.get('view') as 'clips' | 'videos';
@@ -523,9 +525,21 @@ export default function ExplorePage() {
     return (saved === 'clips' || saved === 'videos') ? saved : 'clips';
   });
   
-  // Save to localStorage whenever viewMode changes
+  // Save to localStorage whenever viewMode changes + sync to DB
   useEffect(() => {
     localStorage.setItem('explore-view-mode', viewMode);
+    // Fire-and-forget DB sync
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user?.id) return;
+      supabase
+        .from('user_preferences' as any)
+        .upsert({
+          user_id: user.id,
+          explore_view_mode: viewMode,
+          updated_at: new Date().toISOString(),
+        } as any, { onConflict: 'user_id' })
+        .then(() => {});
+    });
   }, [viewMode]);
   
   const selectedTag = searchParams.get('tag');

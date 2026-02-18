@@ -367,6 +367,7 @@ export function OptimizedClipsPlayer({
 }: OptimizedClipsPlayerProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isMuted, setIsMuted] = useState(() => {
+    // Fast local cache read; DB-synced via useUserPreferences elsewhere
     const saved = localStorage.getItem('clips-muted');
     return saved ? saved === 'true' : true;
   });
@@ -375,11 +376,13 @@ export function OptimizedClipsPlayer({
   const y = useMotionValue(0);
   const dragStartY = useRef(0);
 
-  // Persist mute preference
+  // Persist mute preference (localStorage + DB via shared cache key)
   const handleToggleMute = useCallback(() => {
     setIsMuted(prev => {
       const newValue = !prev;
       localStorage.setItem('clips-muted', String(newValue));
+      // Also sync the shared clips-muted key for cross-component consistency
+      localStorage.setItem('vybe-clips-muted', String(newValue));
       return newValue;
     });
   }, []);
