@@ -303,24 +303,24 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="relative z-10 w-full max-w-[360px]"
+        className="relative z-10 w-full max-w-[400px]"
       >
         <div className="liquid-glass-card rounded-2xl p-5 sm:p-6 border border-white/[0.08]">
           {/* Centered Logo with clean smooth glow */}
-          <div className="flex flex-col items-center mb-5 relative">
+          <div className="flex flex-col items-center mb-3 relative">
             {/* Smooth gradient glow behind logo */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div 
-                className="w-28 h-28 rounded-full opacity-40"
+                className="w-24 h-24 rounded-full opacity-40"
                 style={{
                   background: 'radial-gradient(circle, hsl(var(--primary) / 0.6) 0%, hsl(var(--primary) / 0.2) 40%, transparent 70%)',
-                  filter: 'blur(16px)',
+                  filter: 'blur(14px)',
                 }}
               />
             </div>
             
-            <VYBELogo size="lg" showText={false} className="mb-2 relative z-10" />
-            <h1 className="text-xl font-display font-bold gradient-text relative z-10">
+            <VYBELogo size="md" showText={false} className="mb-1.5 relative z-10" />
+            <h1 className="text-lg font-display font-bold gradient-text relative z-10">
               Welcome to VYBE
             </h1>
             <p className="text-xs text-foreground/70 mt-0.5 text-center relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
@@ -329,7 +329,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           </div>
 
           {/* Auth Form */}
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-2.5">
             <AnimatePresence mode="wait">
               {!isLogin && (
                 <motion.div
@@ -337,7 +337,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="space-y-2"
+                   className="space-y-1.5"
                 >
                   <Label htmlFor="username">{t('auth.username')}</Label>
                   <Input
@@ -351,7 +351,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               )}
             </AnimatePresence>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="email">{t('auth.email')}</Label>
               <Input
                 id="email"
@@ -364,7 +364,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="password">{t('auth.password')}</Label>
               <div className="relative flex items-center">
                 <Input
@@ -507,7 +507,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             </Button>
           </form>
 
-          <div className="relative my-6">
+          <div className="relative my-3">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-border" />
             </div>
@@ -516,7 +516,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Alert variant="destructive" className="mb-2">
               <AlertDescription className="text-xs">
                 ⚠️ "Continue with Google" is currently experiencing issues. We're working on a fix. Please use email sign-up/login in the meantime.
@@ -525,7 +525,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             <Button
               type="button"
               variant="outline"
-              className="w-full bg-secondary/30 h-11 opacity-50"
+              className="w-full bg-secondary/30 h-10 opacity-50"
               onClick={async () => {
                 setLoading(true);
                 try {
@@ -563,7 +563,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             <Button
               type="button"
               variant="outline"
-              className="w-full bg-secondary/30 h-11"
+              className="w-full bg-secondary/30 h-10"
               onClick={async () => {
                 setLoading(true);
                 try {
@@ -604,11 +604,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           </div>
 
           {/* Founder scarcity counter */}
-          <div className="mt-3">
+          <div className="mt-2">
             <FounderCounter compact />
           </div>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
+          <p className="text-center text-sm text-muted-foreground mt-3">
             {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}{' '}
             <button
               type="button"
