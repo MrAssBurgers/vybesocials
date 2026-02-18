@@ -54,6 +54,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasCompleted, setHasCompleted] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const [onboardingJustCompleted, setOnboardingJustCompleted] = useState(false);
   const hasTriggeredRef = useRef(false);
   const lastProfileIdRef = useRef<string | null>(null);
   const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -161,16 +162,28 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     };
   }, [user?.id, profile?.id, hasCompleted, checkTutorialStatus]);
 
-  // Listen for onboarding-completed event to immediately trigger check
+  // Listen for onboarding-completed event
   useEffect(() => {
     const handleOnboardingComplete = () => {
       console.log('[Tutorial] Onboarding completed event received');
+      setOnboardingJustCompleted(true);
+      // Try immediately if profile is already available
       setTimeout(() => checkTutorialStatus(true), 500);
     };
 
     window.addEventListener('onboarding-completed', handleOnboardingComplete);
     return () => window.removeEventListener('onboarding-completed', handleOnboardingComplete);
   }, [checkTutorialStatus]);
+
+  // When profile becomes available after onboarding, trigger tutorial check
+  useEffect(() => {
+    if (!onboardingJustCompleted || !user?.id || !profile?.id) return;
+    if (hasTriggeredRef.current) return;
+    
+    console.log('[Tutorial] Profile now available after onboarding, triggering check');
+    setOnboardingJustCompleted(false);
+    checkTutorialStatus(true);
+  }, [onboardingJustCompleted, user?.id, profile?.id, checkTutorialStatus]);
 
   const nextStep = useCallback(() => {
     if (currentStep < steps.length - 1) {
