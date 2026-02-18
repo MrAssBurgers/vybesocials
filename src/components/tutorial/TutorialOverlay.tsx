@@ -137,164 +137,72 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     }
   }, [currentStepData, location.pathname, navigate, closeAllMenus, openCreateMenu, openVYBEHub]);
 
+  // Stable tooltip positioning - always docks in a consistent area
+  // Mobile/tablet: always bottom-center above nav
+  // Desktop: always right side, vertically centered
   const calculateTooltipPosition = useCallback((
     rect: DOMRect, 
     preferredPosition: TutorialStep['position'],
     element?: Element | null
   ) => {
     const tooltipWidth = Math.min(320, window.innerWidth - 32);
-    const tooltipHeight = 220;
-    const gap = 16;
     const viewport = {
       width: window.innerWidth,
       height: window.innerHeight,
     };
 
-    // Check if this is a bottom nav step on mobile/tablet
-    const isBottomNavStep = currentStepData?.highlightNav || 
-      element?.closest('[data-tutorial-bottomnav]') ||
-      element?.closest('nav[aria-label="Bottom navigation"]');
-    
     const isMobileOrTablet = layoutMode === 'mobile' || layoutMode === 'tablet';
 
-    // Special positioning for bottom nav items on mobile/tablet
-    // Position tooltip just above the bottom nav bar
-    if (isBottomNavStep && isMobileOrTablet) {
-      const bottomNavHeight = 72; // Height of bottom nav bar
-      // Get safe area inset if available
+    if (isMobileOrTablet) {
+      // Always dock at bottom-center, above bottom nav
+      const bottomNavHeight = 72;
       const safeAreaBottom = parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0'
       ) || 0;
       
-      const tooltipBottom = bottomNavHeight + safeAreaBottom + gap + 8;
-      
       setTooltipPos({
-        bottom: tooltipBottom,
+        bottom: bottomNavHeight + safeAreaBottom + 16,
         left: Math.max(16, (viewport.width - tooltipWidth) / 2),
       });
-      return;
-    }
-
-    let pos: TooltipPosition = {};
-
-    switch (preferredPosition) {
-      case 'bottom':
-        pos = {
-          top: rect.bottom + gap,
-          left: Math.max(16, Math.min(
-            rect.left + rect.width / 2 - tooltipWidth / 2, 
-            viewport.width - tooltipWidth - 16
-          )),
-        };
-        // Flip to top if not enough space below
-        if (pos.top! + tooltipHeight > viewport.height - 100) {
-          pos.top = rect.top - tooltipHeight - gap;
-        }
-        break;
+    } else {
+      // Desktop: dock on the right side, vertically centered
+      // If element is on the right half, dock on the left side instead
+      const elementCenterX = rect.left + rect.width / 2;
+      const isOnRight = elementCenterX > viewport.width / 2;
       
-      case 'top':
-        pos = {
-          top: rect.top - tooltipHeight - gap,
-          left: Math.max(16, Math.min(
-            rect.left + rect.width / 2 - tooltipWidth / 2, 
-            viewport.width - tooltipWidth - 16
-          )),
-        };
-        // Flip to bottom if not enough space above
-        if (pos.top! < 100) {
-          pos.top = rect.bottom + gap;
-        }
-        break;
-      
-      case 'left':
-        pos = {
-          top: Math.max(16, rect.top + rect.height / 2 - tooltipHeight / 2),
-          left: rect.left - tooltipWidth - gap,
-        };
-        // Flip to right if not enough space
-        if (pos.left! < 16) {
-          pos.left = rect.right + gap;
-        }
-        break;
-      
-      case 'right':
-        pos = {
-          top: Math.max(16, rect.top + rect.height / 2 - tooltipHeight / 2),
-          left: rect.right + gap,
-        };
-        // Flip to left if not enough space
-        if (pos.left! + tooltipWidth > viewport.width - 16) {
-          pos.left = rect.left - tooltipWidth - gap;
-        }
-        break;
-    }
-
-    // Ensure tooltip stays within viewport
-    if (pos.top && pos.top < 16) pos.top = 16;
-    if (pos.top && pos.top + tooltipHeight > viewport.height - 16) {
-      pos.top = viewport.height - tooltipHeight - 100;
-    }
-    if (pos.left && pos.left < 16) pos.left = 16;
-    if (pos.left && pos.left + tooltipWidth > viewport.width - 16) {
-      pos.left = viewport.width - tooltipWidth - 16;
-    }
-
-    setTooltipPos(pos);
-  }, [currentStepData?.highlightNav, layoutMode]);
-
-  const scrollElementIntoView = useCallback((element: Element): Promise<void> => {
-    return new Promise((resolve) => {
-      const htmlElement = element as HTMLElement;
-      const rect = element.getBoundingClientRect();
-      const viewport = {
-        width: window.innerWidth,
-        height: window.innerHeight,
-      };
-      
-      // Check if element is already fully visible
-      const isFullyVisible = 
-        rect.top >= 0 &&
-        rect.left >= 0 &&
-        rect.bottom <= viewport.height &&
-        rect.right <= viewport.width;
-      
-      if (isFullyVisible) {
-        resolve();
-        return;
-      }
-      
-      // For nav items in bottom nav or sidebar, we need special handling
-      const isInBottomNav = htmlElement.closest('[data-tutorial-bottomnav]') || 
-                            htmlElement.closest('nav[aria-label="Bottom navigation"]') ||
-                            rect.bottom > viewport.height - 100;
-      const isInSidebar = htmlElement.closest('[data-tutorial-sidebar]') ||
-                          htmlElement.closest('aside');
-      
-      // If it's a bottom nav item that's off screen, scroll page to bottom
-      if (isInBottomNav && rect.top > viewport.height) {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-      
-      // If it's in a scrollable container, scroll that container
-      const scrollableParent = htmlElement.closest('.overflow-auto, .overflow-y-auto, .overflow-x-auto, [data-radix-scroll-area-viewport]');
-      if (scrollableParent) {
-        const parentRect = scrollableParent.getBoundingClientRect();
-        const elementOffsetTop = rect.top - parentRect.top + scrollableParent.scrollTop;
-        scrollableParent.scrollTo({
-          top: elementOffsetTop - parentRect.height / 2 + rect.height / 2,
-          behavior: 'smooth',
+      if (isOnRight) {
+        setTooltipPos({
+          top: Math.max(80, (viewport.height - 280) / 2),
+          left: 24,
+        });
+      } else {
+        setTooltipPos({
+          top: Math.max(80, (viewport.height - 280) / 2),
+          right: 24,
         });
       }
+    }
+  }, [layoutMode]);
+
+  // Minimal scroll - only if element is completely off-screen, and do it gently once
+  const scrollElementIntoView = useCallback((element: Element): Promise<void> => {
+    return new Promise((resolve) => {
+      const rect = element.getBoundingClientRect();
+      const vh = window.innerHeight;
       
-      // Use scrollIntoView with appropriate settings
-      element.scrollIntoView({
-        behavior: 'smooth',
-        block: isInBottomNav ? 'end' : isInSidebar ? 'nearest' : 'center',
-        inline: 'nearest',
-      });
+      // Only scroll if the element is truly off-screen (not just partially)
+      const isOffScreen = rect.bottom < 0 || rect.top > vh;
       
-      // Wait for scroll animation to complete
-      setTimeout(resolve, 400);
+      if (isOffScreen) {
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest',
+        });
+        setTimeout(resolve, 300);
+      } else {
+        resolve();
+      }
     });
   }, []);
 
@@ -309,35 +217,10 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     const target = document.querySelector(currentStepData.targetSelector);
     
     if (target) {
-      // Force element into view before highlighting
+      // Only scroll if element is completely off-screen
       await scrollElementIntoView(target);
       
-      // Double-check visibility after scroll and adjust if needed
-      let rect = target.getBoundingClientRect();
-      const viewport = {
-        width: window.innerWidth,
-        height: window.innerHeight,
-      };
-      
-      // If still not visible, try more aggressive scrolling
-      const isVisible = 
-        rect.top >= -10 &&
-        rect.left >= -10 &&
-        rect.bottom <= viewport.height + 10 &&
-        rect.right <= viewport.width + 10;
-      
-      if (!isVisible) {
-        // For elements still not visible, scroll the main page to top
-        window.scrollTo({
-          top: 0,
-          behavior: 'smooth',
-        });
-        
-        // Wait and recalculate
-        await new Promise(resolve => setTimeout(resolve, 300));
-        rect = target.getBoundingClientRect();
-      }
-      
+      const rect = target.getBoundingClientRect();
       const padding = 8;
       
       setSpotlight({
@@ -349,16 +232,24 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       setElementFound(true);
       calculateTooltipPosition(rect, currentStepData.position, target);
     } else {
-      // Element not found - show CENTERED tooltip (for welcome step etc)
+      // Element not found - use same stable dock position
       setSpotlight(null);
       setElementFound(false);
-      // Center the tooltip in the screen, above the bottom nav
       const tooltipWidth = Math.min(320, window.innerWidth - 32);
-      const tooltipHeight = 280;
-      setTooltipPos({
-        top: (window.innerHeight - tooltipHeight) / 2 - 40, // Slightly above center to avoid bottom nav
-        left: Math.max(16, (window.innerWidth - tooltipWidth) / 2),
-      });
+      const isMobileOrTablet = layoutMode === 'mobile' || layoutMode === 'tablet';
+      
+      if (isMobileOrTablet) {
+        const bottomNavHeight = 72;
+        setTooltipPos({
+          bottom: bottomNavHeight + 16,
+          left: Math.max(16, (window.innerWidth - tooltipWidth) / 2),
+        });
+      } else {
+        setTooltipPos({
+          top: Math.max(80, (window.innerHeight - 280) / 2),
+          right: 24,
+        });
+      }
     }
     
     // Broadcast highlighted nav item for BottomNav to pick up
@@ -388,24 +279,15 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     const delay = currentStepData?.action ? 500 : 150;
     const initialTimeout = setTimeout(updateSpotlight, delay);
 
-    // Update on window changes
-    const handleChange = () => {
+    // Only update on resize, NOT on scroll (prevents constant repositioning)
+    const handleResize = () => {
       setTimeout(updateSpotlight, 50);
     };
-    window.addEventListener('resize', handleChange);
-    window.addEventListener('scroll', handleChange, true);
-
-    // Observe for DOM changes (elements appearing/disappearing)
-    const observer = new MutationObserver(() => {
-      setTimeout(updateSpotlight, 100);
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('resize', handleResize);
 
     return () => {
       clearTimeout(initialTimeout);
-      window.removeEventListener('resize', handleChange);
-      window.removeEventListener('scroll', handleChange, true);
-      observer.disconnect();
+      window.removeEventListener('resize', handleResize);
     };
   }, [isOpen, currentStep, updateSpotlight, currentStepData?.action]);
 
@@ -455,13 +337,15 @@ export const TutorialOverlay = memo(function TutorialOverlay({
               <rect x="0" y="0" width="100%" height="100%" fill="white" />
               {spotlight && (
                 <motion.rect
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, ease: 'easeOut' }}
-                  x={spotlight.left}
-                  y={spotlight.top}
-                  width={spotlight.width}
-                  height={spotlight.height}
+                  animate={{ 
+                    x: spotlight.left, 
+                    y: spotlight.top, 
+                    width: spotlight.width, 
+                    height: spotlight.height,
+                    opacity: 1,
+                  }}
+                  initial={{ opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 200, damping: 28 }}
                   rx="16"
                   fill="black"
                 />
@@ -481,15 +365,17 @@ export const TutorialOverlay = memo(function TutorialOverlay({
         {/* Spotlight glow effect */}
         {spotlight && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
-            className="absolute rounded-2xl pointer-events-none"
-            style={{
+            animate={{ 
+              opacity: 1, 
               top: spotlight.top - 6,
               left: spotlight.left - 6,
               width: spotlight.width + 12,
               height: spotlight.height + 12,
+            }}
+            initial={{ opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 28 }}
+            className="absolute rounded-2xl pointer-events-none"
+            style={{
               boxShadow: '0 0 0 4px hsl(var(--primary) / 0.7), 0 0 80px hsl(var(--primary) / 0.5), 0 0 120px hsl(var(--primary) / 0.3)',
             }}
           />
@@ -528,18 +414,23 @@ export const TutorialOverlay = memo(function TutorialOverlay({
         {/* Tooltip */}
         {!isNavigating && (
           <motion.div
-            key={currentStep}
-            initial={{ opacity: 0, y: 15, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -15, scale: 0.95 }}
-            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
-            className="absolute z-[100000] w-[calc(100%-32px)] max-w-[360px] pointer-events-auto"
-            style={{
+            key="tutorial-tooltip"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ 
+              opacity: 1, 
+              scale: 1,
               top: tooltipPos.top,
+              bottom: tooltipPos.bottom,
               left: tooltipPos.left,
               right: tooltipPos.right,
-              bottom: tooltipPos.bottom,
             }}
+            transition={{ 
+              type: 'spring', 
+              stiffness: 200, 
+              damping: 28,
+              opacity: { duration: 0.2 },
+            }}
+            className="absolute z-[100000] w-[calc(100%-32px)] max-w-[360px] pointer-events-auto"
           >
             <div className="relative p-6 rounded-3xl shadow-2xl border border-primary/30 bg-card/98 backdrop-blur-2xl overflow-hidden">
               {/* Gradient glow background */}
@@ -578,13 +469,23 @@ export const TutorialOverlay = memo(function TutorialOverlay({
                 </div>
               </div>
 
-              {/* Content */}
-              <h3 className="text-lg font-bold mb-2 text-foreground">
-                {currentStepData?.title}
-              </h3>
-              <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-                {currentStepData?.description}
-              </p>
+              {/* Content - crossfade on step change */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentStep}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <h3 className="text-lg font-bold mb-2 text-foreground">
+                    {currentStepData?.title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                    {currentStepData?.description}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
 
               {/* Element not found warning - only show if NOT welcome step */}
               {!elementFound && currentStepData?.id !== 'welcome' && (
