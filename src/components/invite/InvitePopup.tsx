@@ -65,19 +65,16 @@ export function InvitePopup() {
     // Already processed or visible
     if (processedRef.current || visible) return;
     
-    // CRITICAL: Never show popup while on an invite route - user must complete the full flow first
-    if (location.pathname.startsWith('/invite/')) {
-      console.log('[InvitePopup] On invite route, not showing popup yet');
-      return;
-    }
-    
-    // CRITICAL: Only show on /home - not during onboarding, landing, etc.
-    // Check both React router state and window.location (for stale closures)
+    // CRITICAL: Don't show during onboarding or landing pages
+    // But DO allow showing on /home OR /invite/* (when Home is rendered inside InviteRedeem)
     const currentPath = location.pathname;
     const windowPath = window.location.pathname;
     const isOnHome = currentPath === '/home' || windowPath === '/home';
-    if (!isOnHome) {
-      console.log('[InvitePopup] Not on /home, skipping popup. React path:', currentPath, 'Window path:', windowPath);
+    const isOnInviteFlow = currentPath.startsWith('/invite/') || windowPath.startsWith('/invite/');
+    
+    // Block on specific non-home routes (onboarding, auth, landing, etc.)
+    if (!isOnHome && !isOnInviteFlow) {
+      console.log('[InvitePopup] Not on /home or invite flow, skipping popup');
       return;
     }
     
@@ -214,16 +211,18 @@ export function InvitePopup() {
     return () => window.removeEventListener('tutorial-completed', handleTutorialComplete);
   }, [checkAndShowReferral]);
 
-  // Check when route changes to /home (covers both returning users and post-tutorial navigation)
+  // Poll when on /home or on an invite route with Home rendered
   useEffect(() => {
-    if (location.pathname !== '/home') return;
+    const isOnHome = location.pathname === '/home';
+    const isOnInviteFlow = location.pathname.startsWith('/invite/');
+    if (!isOnHome && !isOnInviteFlow) return;
     if (!user?.id || !profile?.id || !profile?.username) return;
     if (processedRef.current || visible) return;
     
     const pending = getPendingReferral();
     if (!pending) return;
     
-    // Delayed check when arriving at /home
+    // Delayed check when arriving at /home or invite flow reaches home stage
     const timer = setTimeout(() => checkAndShowReferral(), 1500);
     return () => clearTimeout(timer);
   }, [location.pathname, user?.id, profile?.id, profile?.username, checkAndShowReferral, visible]);
