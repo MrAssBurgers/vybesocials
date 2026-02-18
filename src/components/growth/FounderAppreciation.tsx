@@ -9,15 +9,29 @@ import { Button } from '@/components/ui/button';
 const STORAGE_KEY = 'vybe_founder_appreciation_seen';
 
 export function FounderAppreciation() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !profile?.id) return;
+    // Quick local check first
     if (localStorage.getItem(STORAGE_KEY)) return;
 
-    // Check if user has the founder badge
     const check = async () => {
+      // Check DB flag first
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('founder_badge_seen')
+        .eq('id', profile.id)
+        .single();
+
+      if ((profileData as any)?.founder_badge_seen) {
+        // Already seen on another device — sync locally
+        localStorage.setItem(STORAGE_KEY, 'true');
+        return;
+      }
+
+      // Check if user has the founder badge
       const { data } = await supabase
         .from('user_badges')
         .select('id')
@@ -30,14 +44,21 @@ export function FounderAppreciation() {
       }
     };
 
-    // Small delay so it doesn't clash with other popups
     const t = setTimeout(check, 3000);
     return () => clearTimeout(t);
-  }, [user?.id]);
+  }, [user?.id, profile?.id]);
 
-  const dismiss = () => {
+  const dismiss = async () => {
     setShow(false);
     localStorage.setItem(STORAGE_KEY, 'true');
+
+    // Persist to DB so it never shows again on any device
+    if (profile?.id) {
+      await supabase
+        .from('profiles')
+        .update({ founder_badge_seen: true } as any)
+        .eq('id', profile.id);
+    }
   };
 
   return (
