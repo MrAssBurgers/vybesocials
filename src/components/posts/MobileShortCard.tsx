@@ -216,41 +216,48 @@ export const MobileShortCard = memo(function MobileShortCard({
     }
   }, [isHolding]);
 
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleTap = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
     // CRITICAL: If we just released from a hold, ignore this click entirely
-    // This prevents hold-release from triggering mute toggle
     if (wasHoldingRef.current || isHolding || holdStartedRef.current) {
       return;
     }
     
-    // CRITICAL: Only allow mute toggle when video is actively playing
-    // Do NOT toggle mute while paused
+    // CRITICAL: Only allow interactions when video is actively playing
     if (!isPlaying) return;
     
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
+    lastTapTime.current = now;
 
     if (timeSinceLastTap < 300) {
-      // Double tap - like with heart animation
+      // Double tap detected — cancel pending single tap mute and trigger like
+      if (singleTapTimer.current) {
+        clearTimeout(singleTapTimer.current);
+        singleTapTimer.current = null;
+      }
       if (!isLiked) {
         handleLike();
         setShowHeart(true);
         setTimeout(() => setShowHeart(false), 800);
       }
     } else {
-      // Single tap - toggle mute ONLY
-      if (onToggleMute) {
-        onToggleMute();
-      } else if (videoRef.current) {
-        const newMuted = !isMuted;
-        videoRef.current.muted = newMuted;
-        setIsMuted(newMuted);
-      }
+      // Delay single tap to check if a double tap follows
+      singleTapTimer.current = setTimeout(() => {
+        if (onToggleMute) {
+          onToggleMute();
+        } else if (videoRef.current) {
+          const newMuted = !isMuted;
+          videoRef.current.muted = newMuted;
+          setIsMuted(newMuted);
+        }
+        singleTapTimer.current = null;
+      }, 300);
     }
-    lastTapTime.current = now;
   }, [isMuted, onToggleMute, isLiked, isHolding, isPlaying]);
 
   const handleLike = async () => {
