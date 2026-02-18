@@ -13,6 +13,20 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   pointer-events: none !important;
 }
 
+/* When DMs are active on mobile/tablet, hide global background and force solid nav */
+html[data-dm-active="true"] #app-background-layer {
+  display: none !important;
+}
+html[data-dm-active="true"] body {
+  background-image: none !important;
+  background-color: hsl(var(--card)) !important;
+}
+html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-depth {
+  background: hsl(var(--card)) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 /* ========================================
    VYBE DESIGN SYSTEM
    Unified design tokens for consistent UI
