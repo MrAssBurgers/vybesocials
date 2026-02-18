@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Lock, Eye, EyeOff, Shield, Users } from 'lucide-react';
+import { Lock, Eye, EyeOff, Shield, Users, KeyRound } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +17,12 @@ export function PrivacySection() {
   const { profile } = useAuth();
   const [isPrivate, setIsPrivate] = useState(false);
   const [privacyLoading, setPrivacyLoading] = useState(false);
+
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   useEffect(() => {
     if (profile?.id) {
@@ -49,6 +58,38 @@ export function PrivacySection() {
       toast.error(getUserFriendlyError(error));
     } finally {
       setPrivacyLoading(false);
+    }
+  };
+
+  const handlePasswordChange = async () => {
+    if (!newPassword || !confirmPassword) {
+      toast.error('Please fill in all password fields');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+
+      haptics.success();
+      toast.success('Password updated successfully!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: any) {
+      haptics.error();
+      toast.error(getUserFriendlyError(error));
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -97,6 +138,60 @@ export function PrivacySection() {
               className="mt-1"
             />
           </div>
+        </div>
+      </motion.div>
+
+      {/* Change Password Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="liquid-glass-card p-4 sm:p-6"
+      >
+        <div className="flex items-start gap-4 mb-6">
+          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <KeyRound className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-base mb-1 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Change Password</h3>
+            <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+              Update your account password
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="new-password">New Password</Label>
+            <Input
+              id="new-password"
+              type="password"
+              placeholder="Enter new password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="bg-muted/30 border-border/50"
+              minLength={6}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password">Confirm New Password</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="bg-muted/30 border-border/50"
+              minLength={6}
+            />
+          </div>
+          <Button
+            onClick={handlePasswordChange}
+            disabled={passwordLoading || !newPassword || !confirmPassword}
+            className="w-full"
+          >
+            {passwordLoading ? 'Updating...' : 'Update Password'}
+          </Button>
         </div>
       </motion.div>
 

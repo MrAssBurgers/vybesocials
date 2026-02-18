@@ -330,7 +330,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         <div 
           className="mx-3 mb-2 rounded-[20px] overflow-hidden border border-white/10 liquid-glass-depth"
           style={{
-            background: 'linear-gradient(135deg, hsl(var(--primary) / 0.35), hsl(var(--accent) / 0.28), hsl(var(--primary) / 0.2))',
+            background: 'linear-gradient(135deg, hsl(var(--primary) / 0.35), hsl(var(--accent) / 0.28), hsl(var(--primary) / 0.2)), hsl(var(--card))',
             backdropFilter: 'blur(24px) saturate(180%)',
             WebkitBackdropFilter: 'blur(24px) saturate(180%)',
             boxShadow: '0 8px 32px hsl(var(--primary) / 0.3), inset 0 1px 0 hsl(var(--primary) / 0.15)',

@@ -2,6 +2,8 @@ import { useState, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/auth';
+import { supabase } from '@/integrations/supabase/client';
 
 const TRACKING_CONSENT_KEY = 'vybe_tracking_consent';
 
@@ -17,19 +19,48 @@ export function isTrackingAllowed(): boolean {
 
 export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
   const [visible, setVisible] = useState(false);
+  const { profile } = useAuth();
 
   useEffect(() => {
-    // Only show if user hasn't responded yet
-    if (!getTrackingConsent()) {
-      // Small delay so it doesn't compete with splash screen
-      const timer = setTimeout(() => setVisible(true), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, []);
+    // If already answered locally, skip
+    if (getTrackingConsent()) return;
 
-  const handleResponse = (consent: 'allowed' | 'denied') => {
+    // If logged in, check DB first
+    if (profile?.id) {
+      supabase
+        .from('profiles')
+        .select('tracking_consent')
+        .eq('id', profile.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.tracking_consent) {
+            // Already answered on another device — sync to localStorage
+            localStorage.setItem(TRACKING_CONSENT_KEY, data.tracking_consent);
+          } else {
+            // Never answered — show dialog
+            const timer = setTimeout(() => setVisible(true), 2000);
+            return () => clearTimeout(timer);
+          }
+        });
+      return;
+    }
+
+    // Not logged in — show dialog after delay
+    const timer = setTimeout(() => setVisible(true), 2000);
+    return () => clearTimeout(timer);
+  }, [profile?.id]);
+
+  const handleResponse = async (consent: 'allowed' | 'denied') => {
     localStorage.setItem(TRACKING_CONSENT_KEY, consent);
     setVisible(false);
+
+    // Persist to DB so it never asks again on any device
+    if (profile?.id) {
+      await supabase
+        .from('profiles')
+        .update({ tracking_consent: consent } as any)
+        .eq('id', profile.id);
+    }
   };
 
   return (

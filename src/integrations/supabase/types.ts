@@ -5079,6 +5079,7 @@ export type Database = {
           equipped_profile_theme: string | null
           equipped_title: string | null
           first_name: string | null
+          founder_badge_seen: boolean | null
           id: string
           interests: string[] | null
           intro_completed: boolean | null
@@ -5094,6 +5095,7 @@ export type Database = {
           referral_inviter_id: string | null
           sensitivity_preference: string | null
           timezone: string | null
+          tracking_consent: string | null
           tutorial_completed: boolean | null
           tutorial_skipped: boolean | null
           user_id: string | null
@@ -5116,6 +5118,7 @@ export type Database = {
           equipped_profile_theme?: string | null
           equipped_title?: string | null
           first_name?: string | null
+          founder_badge_seen?: boolean | null
           id?: string
           interests?: string[] | null
           intro_completed?: boolean | null
@@ -5131,6 +5134,7 @@ export type Database = {
           referral_inviter_id?: string | null
           sensitivity_preference?: string | null
           timezone?: string | null
+          tracking_consent?: string | null
           tutorial_completed?: boolean | null
           tutorial_skipped?: boolean | null
           user_id?: string | null
@@ -5153,6 +5157,7 @@ export type Database = {
           equipped_profile_theme?: string | null
           equipped_title?: string | null
           first_name?: string | null
+          founder_badge_seen?: boolean | null
           id?: string
           interests?: string[] | null
           intro_completed?: boolean | null
@@ -5168,6 +5173,7 @@ export type Database = {
           referral_inviter_id?: string | null
           sensitivity_preference?: string | null
           timezone?: string | null
+          tracking_consent?: string | null
           tutorial_completed?: boolean | null
           tutorial_skipped?: boolean | null
           user_id?: string | null
