@@ -9,6 +9,7 @@ import { haptics } from '@/lib/haptics';
 import { AIBriefSheet } from './AIBriefSheet';
 import { useStreakCount } from '@/hooks/useLoginStreak';
 import { useNextLevelProgress } from '@/hooks/useVybePass';
+import { LiveActivityTicker } from './LiveActivityTicker';
 import { useNavigate } from 'react-router-dom';
 
 
@@ -29,12 +30,6 @@ export function WelcomeHeader() {
     return 'Good night';
   }, []);
 
-  // Get day context
-  const dayContext = useMemo(() => {
-    const day = new Date().getDay();
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return dayNames[day];
-  }, []);
 
   const handleOpenBrief = () => {
     haptics.tap();
@@ -55,9 +50,7 @@ export function WelcomeHeader() {
           <h1 className="text-xl font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
             {greeting}, <span className="text-primary drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]">@{profile.username}</span>
           </h1>
-          <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
-            Happy {dayContext}! Here's what's happening.
-          </p>
+          <LiveActivityTicker />
         </motion.div>
 
         {/* Streak + XP Strip — compact retention display */}

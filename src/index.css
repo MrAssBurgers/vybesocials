@@ -3190,3 +3190,93 @@ img, video {
   75% { background-position: 50% 50%; }
   100% { background-position: 0% 50%; }
 }
+
+/* ========================================
+   VYBE ALIVE SYSTEM
+   Micro-feedback, ambient motion, presence
+   ======================================== */
+
+/* --- Like button glow pulse --- */
+.like-glow {
+  animation: like-glow-pulse 0.35s ease-out;
+}
+@keyframes like-glow-pulse {
+  0% { filter: drop-shadow(0 0 0 transparent); transform: scale(1); }
+  40% { filter: drop-shadow(0 0 12px hsl(0 84% 60% / 0.6)); transform: scale(1.25); }
+  100% { filter: drop-shadow(0 0 0 transparent); transform: scale(1.1); }
+}
+
+/* --- Bookmark glow --- */
+.bookmark-glow {
+  animation: bookmark-glow-pulse 0.3s ease-out;
+}
+@keyframes bookmark-glow-pulse {
+  0% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 10px hsl(50 100% 50% / 0.5)); }
+  100% { filter: drop-shadow(0 0 0 transparent); }
+}
+
+/* --- Badge shimmer unlock --- */
+.badge-shimmer {
+  animation: badge-shimmer-sweep 0.6s ease-out;
+}
+@keyframes badge-shimmer-sweep {
+  0% { filter: brightness(1); }
+  30% { filter: brightness(1.6) drop-shadow(0 0 8px hsl(var(--primary) / 0.5)); }
+  100% { filter: brightness(1); }
+}
+
+/* --- Level up glow --- */
+.level-up-glow {
+  animation: level-up-burst 0.5s ease-out;
+}
+@keyframes level-up-burst {
+  0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); }
+  50% { box-shadow: 0 0 20px 4px hsl(var(--primary) / 0.3); }
+  100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+}
+
+/* --- XP count-up bar animation --- */
+.xp-bar-fill {
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* --- Online presence pulse --- */
+.presence-pulse {
+  animation: presence-dot-pulse 2s ease-in-out infinite;
+}
+@keyframes presence-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--success) / 0.4); }
+  50% { box-shadow: 0 0 0 4px hsl(var(--success) / 0); }
+}
+
+/* --- Active tab glow --- */
+.tab-glow[data-state="active"] {
+  box-shadow: 0 1px 8px -2px hsl(var(--primary) / 0.25);
+  transition: box-shadow 0.3s ease;
+}
+
+/* --- Ambient gradient shift (60s cycle) --- */
+.ambient-gradient {
+  animation: ambient-shift 60s ease-in-out infinite;
+  background-size: 200% 200%;
+}
+@keyframes ambient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* --- Respect reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  .like-glow,
+  .bookmark-glow,
+  .badge-shimmer,
+  .level-up-glow,
+  .presence-pulse,
+  .ambient-gradient {
+    animation: none !important;
+  }
+  .xp-bar-fill {
+    transition: none !important;
+  }
+}

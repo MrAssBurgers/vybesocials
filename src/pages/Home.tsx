@@ -23,6 +23,7 @@ import { WelcomeHeader } from '@/components/home/WelcomeHeader';
 import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageTransition } from '@/components/ui/PageTransition';
+import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
@@ -318,17 +319,20 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         {/* Welcome Header with AI Catch-up */}
         <WelcomeHeader />
 
+        {/* Weekly Rhythm Banner */}
+        <WeeklyRhythmBanner />
+
         {/* Stories Bar */}
         <StoriesBar />
         
         <div className="px-3 pb-6" data-tutorial="feed-area">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
-              <TabsTrigger value="foryou" className="flex-1 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 <Sparkles className="h-4 w-4 mr-1.5" />
                 For You
               </TabsTrigger>
-              <TabsTrigger value="global" className="flex-1 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <TabsTrigger value="global" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 <Globe className="h-4 w-4 mr-1.5" />
                 Global
               </TabsTrigger>
