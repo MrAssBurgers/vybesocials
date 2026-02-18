@@ -67,7 +67,7 @@ export function ConversationOptionsSheet({
     try {
       const { error } = await supabase
         .from('messages')
-        .delete()
+        .update({ is_deleted: true })
         .eq('conversation_id', conversationId);
       
       if (error) throw error;
