@@ -204,24 +204,37 @@ Deno.serve(async (req) => {
       console.log("[confirm-referral] Created new invite record:", inviteId);
     }
 
-    // Create redemption record (unique constraint is on invite_id + redeemer_id)
-    const { error: redemptionError } = await supabaseAdmin
+    // Create redemption record - use simple insert, NO upsert/onConflict
+    // v2: Fixed to avoid ON CONFLICT entirely
+    console.log("[confirm-referral] v2: Inserting redemption with plain insert (no ON CONFLICT)");
+    
+    // First check if redemption already exists
+    const { data: existingRedemptionCheck } = await supabaseAdmin
       .from("invite_redemptions")
-      .insert({
-        invite_id: inviteId,
-        redeemer_id: userId,
-      });
+      .select("id")
+      .eq("redeemer_id", userId)
+      .maybeSingle();
 
-    if (redemptionError) {
-      if (redemptionError.code === "23505") {
-        // Duplicate — already redeemed this invite, treat as success
-        console.log("[confirm-referral] Duplicate redemption (23505), continuing as success");
-      } else {
-        console.error("[confirm-referral] Redemption insert error:", JSON.stringify(redemptionError));
-        return new Response(
-          JSON.stringify({ error: "Failed to record redemption", steps }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    if (existingRedemptionCheck) {
+      console.log("[confirm-referral] v2: Redemption already exists, skipping insert");
+    } else {
+      const { error: redemptionError } = await supabaseAdmin
+        .from("invite_redemptions")
+        .insert({
+          invite_id: inviteId,
+          redeemer_id: userId,
+        });
+
+      if (redemptionError) {
+        if (redemptionError.code === "23505") {
+          console.log("[confirm-referral] v2: Duplicate redemption (23505), continuing as success");
+        } else {
+          console.error("[confirm-referral] v2: Redemption insert error:", JSON.stringify(redemptionError));
+          return new Response(
+            JSON.stringify({ error: "Failed to record redemption", steps }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
     }
 
