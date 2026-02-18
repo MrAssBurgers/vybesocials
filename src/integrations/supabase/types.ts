@@ -7032,6 +7032,51 @@ export type Database = {
         }
         Relationships: []
       }
+      user_preferences: {
+        Row: {
+          button_sound: string | null
+          clips_muted: boolean | null
+          created_at: string
+          dismissed_quick_add_ids: string[] | null
+          explore_view_mode: string | null
+          extra: Json | null
+          id: string
+          intro_completed: boolean | null
+          referral_confirmed: boolean | null
+          unlocked_easter_eggs: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          button_sound?: string | null
+          clips_muted?: boolean | null
+          created_at?: string
+          dismissed_quick_add_ids?: string[] | null
+          explore_view_mode?: string | null
+          extra?: Json | null
+          id?: string
+          intro_completed?: boolean | null
+          referral_confirmed?: boolean | null
+          unlocked_easter_eggs?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          button_sound?: string | null
+          clips_muted?: boolean | null
+          created_at?: string
+          dismissed_quick_add_ids?: string[] | null
+          explore_view_mode?: string | null
+          extra?: Json | null
+          id?: string
+          intro_completed?: boolean | null
+          referral_confirmed?: boolean | null
+          unlocked_easter_eggs?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_presence: {
         Row: {
           id: string

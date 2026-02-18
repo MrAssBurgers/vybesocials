@@ -1,28 +1,42 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/integrations/supabase/client';
 
 const STORAGE_KEY_PREFIX = 'vybe_dismissed_quick_add_';
 
 export function useDismissedQuickAdd() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   const storageKey = profile?.id ? `${STORAGE_KEY_PREFIX}${profile.id}` : null;
 
-  // Load from localStorage on mount
+  // Load from DB first, fallback to localStorage
   useEffect(() => {
-    if (!storageKey) return;
+    if (!storageKey || !user?.id) return;
     
+    // Fast local read
     try {
       const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setDismissedIds(new Set(parsed));
-      }
-    } catch (error) {
-      console.error('[DismissedQuickAdd] Failed to load:', error);
-    }
-  }, [storageKey]);
+      if (stored) setDismissedIds(new Set(JSON.parse(stored)));
+    } catch { /* noop */ }
+
+    // Sync from DB
+    supabase
+      .from('user_preferences' as any)
+      .select('dismissed_quick_add_ids')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const dbIds = (data as any)?.dismissed_quick_add_ids;
+        if (dbIds && Array.isArray(dbIds) && dbIds.length > 0) {
+          setDismissedIds(prev => {
+            const merged = new Set([...prev, ...dbIds]);
+            localStorage.setItem(storageKey!, JSON.stringify([...merged]));
+            return merged;
+          });
+        }
+      });
+  }, [storageKey, user?.id]);
 
   // Dismiss a user permanently
   const dismissUser = useCallback((userId: string) => {
@@ -30,22 +44,47 @@ export function useDismissedQuickAdd() {
     
     setDismissedIds(prev => {
       const next = new Set([...prev, userId]);
-      localStorage.setItem(storageKey, JSON.stringify([...next]));
+      const arr = [...next];
+      localStorage.setItem(storageKey, JSON.stringify(arr));
+
+      // Persist to DB (fire-and-forget)
+      if (user?.id) {
+        supabase
+          .from('user_preferences' as any)
+          .upsert({
+            user_id: user.id,
+            dismissed_quick_add_ids: arr,
+            updated_at: new Date().toISOString(),
+          } as any, { onConflict: 'user_id' })
+          .then(() => {});
+      }
+
       return next;
     });
-  }, [storageKey]);
+  }, [storageKey, user?.id]);
 
   // Check if user is dismissed
   const isDismissed = useCallback((userId: string) => {
     return dismissedIds.has(userId);
   }, [dismissedIds]);
 
-  // Clear all dismissed (for debugging)
+  // Clear all dismissed
   const clearDismissed = useCallback(() => {
     if (!storageKey) return;
     setDismissedIds(new Set());
     localStorage.removeItem(storageKey);
-  }, [storageKey]);
+
+    if (user?.id) {
+      supabase
+        .from('user_preferences' as any)
+        .upsert({
+          user_id: user.id,
+          dismissed_quick_add_ids: [],
+          updated_at: new Date().toISOString(),
+        } as any, { onConflict: 'user_id' })
+        .then(() => {});
+    }
+  }, [storageKey, user?.id]);
 
   return {
     dismissedIds,
