@@ -27,15 +27,6 @@ export function OwnerBadge({ className }: OwnerBadgeProps) {
       <Tooltip>
         <TooltipTrigger asChild>
           <>
-            {/* Mobile fallback styles - enhanced visibility */}
-            <style>{`
-              @media (max-width: 1024px) {
-                #${elementId} {
-                  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-                  opacity: 1 !important;
-                }
-              }
-            `}</style>
             <span id={elementId} className={cn("inline-flex items-center", className)}>
               <Crown className="h-4 w-4 text-primary fill-primary/30" />
             </span>

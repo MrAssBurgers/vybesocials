@@ -169,32 +169,13 @@ export const StyledUsername = memo(function StyledUsername({
     gradientStyle.textShadow = '0 1px 1px rgba(255,255,255,0.2)';
   }
 
-  // Extract start color for mobile fallback
-  const startColor = normalizeCssColor(badge!.gradient_from!);
-
   return (
-    <>
-      <style>{`
-        @media (max-width: 1024px) {
-          #${elementId} {
-            color: ${startColor} !important;
-            -webkit-text-fill-color: ${startColor} !important;
-            background-clip: unset !important;
-            -webkit-background-clip: unset !important;
-            background-image: none !important;
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-            opacity: 1 !important;
-          }
-        }
-      `}</style>
-      <span
-        id={elementId}
-        style={gradientStyle}
-        className={cn(className)}
-      >
-        {nameToShow}
-      </span>
-    </>
+    <span
+      style={gradientStyle}
+      className={cn(className)}
+    >
+      {nameToShow}
+    </span>
   );
 });
 

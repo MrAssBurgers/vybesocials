@@ -69,26 +69,11 @@ export const StyledDisplayName = memo(function StyledDisplayName({
   }
 
   return (
-    <>
-      <style>{`
-        @media (max-width: 1024px) {
-          #${elementId} {
-            color: ${from} !important;
-            -webkit-text-fill-color: ${from} !important;
-            background-clip: unset !important;
-            -webkit-background-clip: unset !important;
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-            opacity: 1 !important;
-          }
-        }
-      `}</style>
-      <Component 
-        id={elementId}
-        style={gradientStyle} 
-        className={cn('font-bold inline', className)}
-      >
-        {name}
-      </Component>
-    </>
+    <Component 
+      style={gradientStyle} 
+      className={cn('font-bold inline', className)}
+    >
+      {name}
+    </Component>
   );
 });

@@ -23,15 +23,6 @@ export const ModBadge = memo(forwardRef<HTMLSpanElement, ModBadgeProps>(
 
     return (
       <>
-        {/* Mobile fallback styles - enhanced visibility */}
-        <style>{`
-          @media (max-width: 1024px) {
-            #${elementId} {
-              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-              opacity: 1 !important;
-            }
-          }
-        `}</style>
         <span
           ref={ref}
           id={elementId}

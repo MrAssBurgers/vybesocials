@@ -137,19 +137,6 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
 
       {showText && (
         <>
-          <style>{`
-            @media (max-width: 1024px) {
-              #${styleId} {
-                color: hsl(var(--primary)) !important;
-                -webkit-text-fill-color: hsl(var(--primary)) !important;
-                background-clip: unset !important;
-                -webkit-background-clip: unset !important;
-                background-image: none !important;
-                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-                opacity: 1 !important;
-              }
-            }
-          `}</style>
           <motion.span 
             id={styleId}
             className={cn(
