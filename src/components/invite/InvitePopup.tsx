@@ -65,9 +65,9 @@ export function InvitePopup() {
     // Already processed or visible
     if (processedRef.current || visible) return;
     
-    // Require auth
-    if (!user?.id || !profile?.id) {
-      console.log('[InvitePopup] Waiting for auth');
+    // CRITICAL: Require FULL auth - user must be logged in with a profile
+    if (!user?.id || !profile?.id || !profile?.username) {
+      console.log('[InvitePopup] Not fully authenticated yet, skipping');
       return;
     }
 
@@ -84,19 +84,10 @@ export function InvitePopup() {
       return;
     }
     
-    // Check for pending referral OR entry mode
+    // Check for pending referral
     const pending = getPendingReferral();
-    const entryMode = isInviteEntryMode();
-    
-    if (!pending && !entryMode) {
-      console.log('[InvitePopup] No pending referral and not invite entry mode');
-      return;
-    }
-    
-    // If no pending referral but entry mode, something went wrong - cleanup
     if (!pending) {
-      console.log('[InvitePopup] Entry mode but no pending referral, cleaning up');
-      cleanupReferralStorage();
+      console.log('[InvitePopup] No pending referral');
       return;
     }
     
@@ -107,11 +98,11 @@ export function InvitePopup() {
       return;
     }
     
-    // Check if user has a profile with username, completed tutorial, and hasn't already accepted a referral
+    // CRITICAL: Query DB to verify tutorial is ACTUALLY done - don't trust local state
     try {
       const { data: profileData, error } = await supabase
         .from('profiles')
-        .select('username, referral_inviter_id, tutorial_completed, tutorial_skipped')
+        .select('referral_inviter_id, tutorial_completed, tutorial_skipped, onboarding_completed')
         .eq('id', profile.id)
         .single();
       
@@ -124,25 +115,18 @@ export function InvitePopup() {
       if (profileData?.referral_inviter_id) {
         console.log('[InvitePopup] User already accepted a referral, cleaning up');
         cleanupReferralStorage();
-        
-        // Stop polling
-        if (checkIntervalRef.current) {
-          clearInterval(checkIntervalRef.current);
-          checkIntervalRef.current = null;
-        }
         return;
       }
       
-      // Just need a username set (user completed at least basic signup)
-      if (!profileData?.username) {
-        console.log('[InvitePopup] Waiting for username to be set');
+      // CRITICAL: Must have completed onboarding AND tutorial
+      if (!profileData?.onboarding_completed) {
+        console.log('[InvitePopup] Onboarding not completed yet');
         return;
       }
 
-      // CRITICAL: Wait for tutorial to be completed or skipped before showing popup
       const tutorialDone = (profileData?.tutorial_completed ?? false) || (profileData?.tutorial_skipped ?? false);
       if (!tutorialDone) {
-        console.log('[InvitePopup] Waiting for tutorial to be completed/skipped');
+        console.log('[InvitePopup] Tutorial not completed/skipped yet');
         return;
       }
     } catch (e) {
@@ -200,71 +184,20 @@ export function InvitePopup() {
     return () => window.removeEventListener('tutorial-completed', handleTutorialComplete);
   }, [checkAndShowReferral]);
 
-  // Also check on mount and when auth changes (for users who already completed tutorial)
+  // Only check on mount for users who ALREADY completed tutorial (returning users)
+  // Don't use aggressive polling - wait for the tutorial-completed event instead
   useEffect(() => {
-    if (!user?.id || !profile?.id) return;
-    
-    // Initial check
-    const timer = setTimeout(() => checkAndShowReferral(), 1500);
-    return () => clearTimeout(timer);
-  }, [user?.id, profile?.id, checkAndShowReferral]);
-
-  // CRITICAL: Set up polling to recheck for modal conditions
-  // Checks getPendingReferral() INSIDE the interval so it catches referrals
-  // stored after this effect first runs (InviteRedeem stores async)
-  useEffect(() => {
-    if (processedRef.current || visible) return;
-
-    console.log('[InvitePopup] Starting referral poll');
-
-    // Poll every 2 seconds for up to 5 minutes (covers full signup+onboarding flow)
-    let attempts = 0;
-    const maxAttempts = 150;
-
-    checkIntervalRef.current = setInterval(() => {
-      // Check for pending referral INSIDE the interval (not outside)
-      // This is critical because InviteRedeem stores referral asynchronously
-      const pending = getPendingReferral();
-      if (!pending) return; // No referral yet, keep polling
-      
-      // Need auth to proceed
-      if (!user?.id || !profile?.id) return;
-
-      attempts++;
-      if (attempts <= 3 || attempts % 10 === 0) {
-        console.log('[InvitePopup] Poll attempt', attempts);
-      }
-      
-      checkAndShowReferral();
-      
-      if (attempts >= maxAttempts || processedRef.current || visible) {
-        if (checkIntervalRef.current) {
-          clearInterval(checkIntervalRef.current);
-          checkIntervalRef.current = null;
-        }
-      }
-    }, 2000);
-
-    return () => {
-      if (checkIntervalRef.current) {
-        clearInterval(checkIntervalRef.current);
-        checkIntervalRef.current = null;
-      }
-    };
-  }, [user?.id, profile?.id, visible, checkAndShowReferral]);
-
-  // Also trigger check when route changes (e.g., navigating to /home after onboarding)
-  useEffect(() => {
-    if (!user?.id || !profile?.id) return;
+    if (!user?.id || !profile?.id || !profile?.username) return;
     if (processedRef.current || visible) return;
     
+    // Only check if there's a pending referral in storage
     const pending = getPendingReferral();
     if (!pending) return;
     
-    console.log('[InvitePopup] Route changed, checking referral');
-    const timer = setTimeout(() => checkAndShowReferral(), 500);
+    // Single delayed check for returning users who already completed tutorial
+    const timer = setTimeout(() => checkAndShowReferral(), 2000);
     return () => clearTimeout(timer);
-  }, [location.pathname, user?.id, profile?.id, checkAndShowReferral, visible]);
+  }, [user?.id, profile?.id, profile?.username, checkAndShowReferral, visible]);
 
   /**
    * Call backend function to grant reward with step-by-step progress
