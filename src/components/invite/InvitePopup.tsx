@@ -241,12 +241,27 @@ export function InvitePopup() {
     
     try {
       console.log('[InvitePopup] Calling confirm-referral backend...');
+      console.log('[InvitePopup] inviterUserId:', inviterUserId, 'inviterProfileId:', inviterProfileId);
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        console.error('[InvitePopup] No session');
+        console.error('[InvitePopup] No active session found');
+        // Try refreshing the session
+        const { data: refreshData } = await supabase.auth.refreshSession();
+        if (!refreshData.session?.access_token) {
+          console.error('[InvitePopup] Session refresh also failed');
+          return { success: false };
+        }
+        console.log('[InvitePopup] Session refreshed successfully');
+      }
+      
+      const activeToken = session?.access_token || (await supabase.auth.getSession()).data.session?.access_token;
+      if (!activeToken) {
+        console.error('[InvitePopup] No token available after refresh');
         return { success: false };
       }
+      
+      console.log('[InvitePopup] Token obtained, calling edge function...');
       
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-referral`,
@@ -254,7 +269,7 @@ export function InvitePopup() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
+            'Authorization': `Bearer ${activeToken}`,
             'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
           body: JSON.stringify({
@@ -264,7 +279,9 @@ export function InvitePopup() {
         }
       );
       
+      console.log('[InvitePopup] Response status:', response.status);
       const result = await response.json();
+      console.log('[InvitePopup] Response body:', JSON.stringify(result));
       
       if (!response.ok) {
         console.error('[InvitePopup] Backend error:', result.error);
