@@ -117,7 +117,7 @@ serve(async (req) => {
       );
     }
 
-    // Get user's profile with interests (query by user_id, not id)
+    // Get user's profile with interests
     const { data: userProfile } = await supabase
       .from('profiles')
       .select('id, interests, display_name, username')
@@ -140,86 +140,123 @@ serve(async (req) => {
     const allInterests = [...new Set([...onboardingInterests, ...customTopics])]
       .filter(i => !excludedTopics.includes(i));
 
-    // ── REAL-TIME DATA: Fetch actual counts from DB ──
-
+    // ── REAL-TIME DATA: Fetch actual counts from DB (all in parallel) ──
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    // 1) Actual unread notifications count
-    const { count: notificationCount } = await supabase
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', profileId)
-      .eq('read', false);
+    // Fire all queries in parallel
+    const [
+      notifResult,
+      followsResult,
+      convResult,
+      newFollowerResult,
+      friendReqResult,
+      streakResult,
+      challengeResult,
+      levelResult,
+    ] = await Promise.all([
+      // 1) Unread notifications
+      supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', profileId)
+        .eq('read', false),
+      // 2) Who user follows
+      supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', profileId),
+      // 3) Conversations
+      supabase
+        .from('conversation_members')
+        .select(`conversation_id, last_read_at, conversations!inner(id, updated_at)`)
+        .eq('user_id', profileId),
+      // 4) New followers in 24h
+      supabase
+        .from('follows')
+        .select('id', { count: 'exact', head: true })
+        .eq('following_id', profileId)
+        .gte('created_at', oneDayAgo),
+      // 5) Pending friend requests
+      supabase
+        .from('friend_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('receiver_id', profileId)
+        .eq('status', 'pending'),
+      // 6) Login streak
+      supabase
+        .from('login_streaks')
+        .select('current_streak, longest_streak')
+        .eq('user_id', user.id)
+        .single(),
+      // 7) Active challenges with progress
+      supabase
+        .from('challenges')
+        .select(`
+          id, title, requirement_count, reward_xp, type,
+          challenge_progress!inner(current_count, is_completed)
+        `)
+        .eq('is_active', true)
+        .eq('challenge_progress.user_id', profileId)
+        .eq('challenge_progress.is_completed', false)
+        .limit(5),
+      // 8) User level
+      supabase
+        .from('user_levels')
+        .select('current_level, total_xp')
+        .eq('user_id', user.id)
+        .single(),
+    ]);
 
-    // 2) Get followed users
-    const { data: follows } = await supabase
-      .from('follows')
-      .select('following_id')
-      .eq('follower_id', profileId);
-    
-    const followingIds = follows?.map(f => f.following_id) || [];
-    
+    const realNotifCount = notifResult.count || 0;
+    const newFollowerCount = newFollowerResult.count || 0;
+    const pendingFriendRequests = friendReqResult.count || 0;
+    const streak = streakResult.data?.current_streak || 0;
+    const userLevel = levelResult.data?.current_level || 1;
+    const userXp = levelResult.data?.total_xp || 0;
+
+    // Process active challenges
+    const activeChallenges = (challengeResult.data || []).map((c: any) => ({
+      title: c.title,
+      type: c.type,
+      current: c.challenge_progress?.[0]?.current_count || 0,
+      target: c.requirement_count,
+      xp: c.reward_xp || 0,
+    }));
+
+    // Process follows for posts
+    const followingIds = followsResult.data?.map((f: any) => f.following_id) || [];
     let postsContent = "";
     let recentPostCount = 0;
     
     if (followingIds.length > 0) {
       const { data: posts, count: postCount } = await supabase
         .from('posts')
-        .select(`
-          id, caption, created_at,
-          profiles:author_id(username, display_name)
-        `, { count: 'exact' })
+        .select(`id, caption, created_at, profiles:author_id(username, display_name)`, { count: 'exact' })
         .in('author_id', followingIds)
         .gte('created_at', oneDayAgo)
         .order('created_at', { ascending: false })
         .limit(20);
 
       recentPostCount = postCount || 0;
-
       if (posts?.length) {
-        postsContent = posts.map(p => {
-          const author = (p.profiles as any)?.display_name || (p.profiles as any)?.username || 'Someone';
+        postsContent = posts.slice(0, 5).map((p: any) => {
+          const author = p.profiles?.display_name || p.profiles?.username || 'Someone';
           return `- ${author}: "${p.caption || 'shared a photo/video'}"`;
         }).join('\n');
       }
     }
 
-    // 3) Unread conversations count
-    const { data: conversations } = await supabase
-      .from('conversation_members')
-      .select(`
-        conversation_id,
-        last_read_at,
-        conversations!inner(
-          id, name, is_group, updated_at
-        )
-      `)
-      .eq('user_id', profileId);
-
+    // Process unread conversations
     let unreadConvos = 0;
-    if (conversations) {
-      for (const conv of conversations) {
+    if (convResult.data) {
+      for (const conv of convResult.data) {
         const lastRead = conv.last_read_at ? new Date(conv.last_read_at) : new Date(0);
         const updated = new Date((conv.conversations as any).updated_at);
-        if (updated > lastRead) {
-          unreadConvos++;
-        }
+        if (updated > lastRead) unreadConvos++;
       }
     }
 
-    let messagesContent = "";
-    if (unreadConvos > 0) {
-      messagesContent = `You have ${unreadConvos} conversation${unreadConvos > 1 ? 's' : ''} with new messages.`;
-    }
-
-    // 4) New followers in last 24h
-    const { count: newFollowerCount } = await supabase
-      .from('follows')
-      .select('id', { count: 'exact', head: true })
-      .eq('following_id', profileId)
-      .gte('created_at', oneDayAgo);
-
-    // Fetch real-time data from Perplexity based on interests
+    // Fetch Perplexity live updates
     interface LiveUpdate {
       interest: string;
       content: string;
@@ -235,16 +272,10 @@ serve(async (req) => {
       const fetchPromises = selectedInterests.map(async (interest: string): Promise<LiveUpdate | null> => {
         const result = await fetchPerplexityData(interest, PERPLEXITY_API_KEY);
         if (result && result.content) {
-          return {
-            interest,
-            content: result.content,
-            sources: result.citations || [],
-            imageUrl: undefined
-          };
+          return { interest, content: result.content, sources: result.citations || [] };
         }
         return null;
       });
-      
       const results = await Promise.all(fetchPromises);
       liveUpdates = results.filter((r): r is LiveUpdate => r !== null);
     }
@@ -254,33 +285,30 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Build context with REAL counts
+    // Build context with ALL real data
     const contextParts = [];
     
-    // Real notification count
-    const realNotifCount = notificationCount || 0;
-    if (realNotifCount > 0) {
-      contextParts.push(`You have ${realNotifCount} unread notification${realNotifCount > 1 ? 's' : ''}.`);
-    }
+    if (realNotifCount > 0) contextParts.push(`You have ${realNotifCount} unread notification${realNotifCount > 1 ? 's' : ''}.`);
+    if (newFollowerCount > 0) contextParts.push(`${newFollowerCount} new follower${newFollowerCount > 1 ? 's' : ''} in the last 24 hours.`);
+    if (pendingFriendRequests > 0) contextParts.push(`${pendingFriendRequests} pending friend request${pendingFriendRequests > 1 ? 's' : ''}.`);
+    if (unreadConvos > 0) contextParts.push(`${unreadConvos} conversation${unreadConvos > 1 ? 's' : ''} with new messages.`);
+    if (recentPostCount > 0) contextParts.push(`${recentPostCount} new post${recentPostCount > 1 ? 's' : ''} from people you follow:\n${postsContent}`);
+    if (streak > 0) contextParts.push(`Current login streak: ${streak} day${streak > 1 ? 's' : ''}.`);
+    contextParts.push(`Level ${userLevel} (${userXp.toLocaleString()} XP).`);
     
-    // Real new followers
-    const realNewFollowers = newFollowerCount || 0;
-    if (realNewFollowers > 0) {
-      contextParts.push(`${realNewFollowers} new follower${realNewFollowers > 1 ? 's' : ''} in the last 24 hours.`);
+    if (activeChallenges.length > 0) {
+      const challengeText = activeChallenges.map((c: any) => 
+        `  - ${c.title}: ${c.current}/${c.target} (${c.type}, +${c.xp} XP)`
+      ).join('\n');
+      contextParts.push(`Active challenges:\n${challengeText}`);
     }
-    
-    if (postsContent) {
-      contextParts.push(`${recentPostCount} new post${recentPostCount > 1 ? 's' : ''} from people you follow:\n${postsContent}`);
-    }
-    if (messagesContent) {
-      contextParts.push(messagesContent);
-    }
+
     if (liveUpdates.length > 0) {
       const liveContent = liveUpdates.map(u => `${u.interest}: ${u.content}`).join('\n\n');
       contextParts.push(`Live updates based on your interests:\n${liveContent}`);
     }
 
-    const hasUpdates = postsContent || messagesContent || realNotifCount > 0 || realNewFollowers > 0;
+    const hasUpdates = recentPostCount > 0 || unreadConvos > 0 || realNotifCount > 0 || newFollowerCount > 0 || pendingFriendRequests > 0;
     const hasLiveData = liveUpdates.length > 0;
     const hasInterests = allInterests.length > 0;
 
@@ -288,13 +316,10 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           summary: "All caught up! 🎉 No new posts, messages, or notifications. Add some interests in settings to get personalized updates from the web!",
-          hasPosts: false,
-          hasMessages: false,
-          unreadCount: 0,
-          notificationCount: 0,
-          newFollowerCount: 0,
-          liveUpdates: [],
-          hasLiveData: false
+          hasPosts: false, hasMessages: false, unreadCount: 0,
+          notificationCount: 0, newFollowerCount: 0, pendingFriendRequests: 0,
+          streak: 0, userLevel: 1, userXp: 0, activeChallenges: [],
+          liveUpdates: [], hasLiveData: false,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -305,23 +330,21 @@ serve(async (req) => {
 
 CRITICAL RULES:
 - ONLY mention specific counts that are provided in the data below. 
-- If the data says 0 notifications, do NOT say "you have notifications"
-- If the data says 0 new messages, do NOT mention messages
+- If the data says 0, do NOT mention that category
 - Be ACCURATE with numbers — never invent or guess counts
 - If there's nothing new, say so cheerfully
 
 Your response should be a quick 2-3 sentence summary that:
-1. Accurately reports real notification/message/follower counts if > 0
-2. Highlights the most interesting live update if available
-3. Feels like a friend catching you up
+1. Accurately reports real notification/message/follower/friend request counts if > 0
+2. Mentions streak or challenge progress if notable
+3. Highlights the most interesting live update if available
+4. Feels like a friend catching you up
 
 Style: ${briefStyle === 'concise' ? 'Be very brief, just the essentials.' : 'Be engaging and add a bit of personality.'}
 
 Keep it under 60 words total. Use 1-2 emojis naturally.`;
 
-    const userPrompt = contextParts.length > 0
-      ? `Here is the EXACT current data (use these numbers precisely, do not make up different numbers):\n\n${contextParts.join('\n\n')}`
-      : `I'm interested in: ${allInterests.join(', ')}. Give me a friendly greeting and mention I should check back later for updates.`;
+    const userPrompt = `Here is the EXACT current data (use these numbers precisely):\n\n${contextParts.join('\n\n')}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -336,7 +359,7 @@ Keep it under 60 words total. Use 1-2 emojis naturally.`;
           { role: "user", content: userPrompt },
         ],
         max_tokens: 200,
-        temperature: 0.5, // Lower temperature for more factual responses
+        temperature: 0.5,
       }),
     });
 
@@ -366,11 +389,16 @@ Keep it under 60 words total. Use 1-2 emojis naturally.`;
         hasMessages: unreadConvos > 0,
         unreadCount: unreadConvos,
         notificationCount: realNotifCount,
-        newFollowerCount: realNewFollowers,
+        newFollowerCount,
         recentPostCount,
+        pendingFriendRequests,
+        streak,
+        userLevel,
+        userXp,
+        activeChallenges,
         interests: allInterests,
-        liveUpdates: liveUpdates,
-        hasLiveData: hasLiveData
+        liveUpdates,
+        hasLiveData,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
