@@ -166,6 +166,7 @@ export function SettingsNavVertical({ activeCategory, onCategoryChange }: Settin
       {categories.map((cat) => (
         <button
           key={cat.id}
+          data-tutorial={cat.id === 'themes' ? 'themes-section' : undefined}
           onClick={() => {
             haptics.tap();
             onCategoryChange(cat.id);

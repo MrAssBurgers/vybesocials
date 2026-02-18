@@ -9,7 +9,7 @@ export interface TutorialStep {
   // Navigation requirements
   requiresRoute?: string;
   // Action to perform before showing step
-  action?: 'openCreateMenu' | 'openVYBEHub' | 'closeMenus';
+  action?: 'openCreateMenu' | 'openVYBEHub' | 'closeMenus' | 'navigateToSettings' | 'navigateToThemes';
   // Skip if element not found (optional steps)
   optional?: boolean;
   // Highlight a bottom nav item during this step
@@ -105,8 +105,8 @@ const mobileTabletSteps: TutorialStep[] = [
   {
     id: 'notifications',
     targetSelector: '[data-tutorial="notifications-badge"]',
-    title: '🔔 Notifications',
-    description: 'All your activity in one place: likes, comments, follows, friend requests, mentions, and announcements. The red badge shows your unread count. Customize what you get in Settings.',
+    title: '🔔 Notifications & Referrals',
+    description: 'All your activity in one place: likes, comments, follows, and more. Tap here to also find your referral link — invite friends and earn rewards together!',
     position: 'bottom',
     requiresRoute: '/home',
     optional: true,
@@ -223,8 +223,8 @@ const desktopSteps: TutorialStep[] = [
   {
     id: 'notifications',
     targetSelector: '[data-tutorial="sidebar-notifications"]',
-    title: '🔔 Notifications',
-    description: 'All activity at a glance: likes, comments, follows, friend requests, mentions, and announcements. Customize notification preferences in Settings.',
+    title: '🔔 Notifications & Referrals',
+    description: 'All your activity in one place: likes, comments, follows, and more. Tap the notifications bell to also find your referral link — invite friends and earn rewards together!',
     position: 'right',
     requiresRoute: '/home',
     optional: true,
@@ -240,13 +240,23 @@ const desktopSteps: TutorialStep[] = [
     category: 'social',
   },
   {
-    id: 'themes',
+    id: 'settings-highlight',
     targetSelector: '[data-tutorial="sidebar-settings"]',
-    title: '🎨 Settings & Themes',
-    description: 'Customize everything: themes, colors, sounds, haptics, privacy, and notifications. Design your own theme or browse the Theme Marketplace. Dark mode, custom fonts, and more!',
+    title: '⚙️ Settings',
+    description: 'This is your Settings button. Let\'s open it and show you the Theme Editor where you can fully customize VYBE\'s look and feel!',
     position: 'right',
     requiresRoute: '/home',
-    optional: true,
+    action: 'navigateToSettings',
+    category: 'customization',
+  },
+  {
+    id: 'themes',
+    targetSelector: '[data-tutorial="themes-section"]',
+    title: '🎨 Theme Editor',
+    description: 'Design your own theme or browse the Theme Marketplace! Change colors, fonts, dark/light mode, and more. Make VYBE truly yours.',
+    position: 'right',
+    requiresRoute: '/settings',
+    action: 'navigateToThemes',
     category: 'customization',
   },
   {
