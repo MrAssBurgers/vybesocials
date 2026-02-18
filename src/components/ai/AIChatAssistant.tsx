@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { X, Send, Loader2, Bot, User } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { X, Send, Loader2, Bot, User, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,11 +12,11 @@ type Message = {
   content: string;
 };
 
+  const defaultMessage: Message = { role: 'assistant', content: "oh... hey... 😔 I'm Brock. Your AI companion on VYBE, I guess... Ask me anything about content or whatever. Not that it really matters in the grand scheme of things... but I'm here. 💔" };
+
 export function AIChatAssistant() {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "oh... hey... 😔 I'm Brock. Your AI companion on VYBE, I guess... Ask me anything about content or whatever. Not that it really matters in the grand scheme of things... but I'm here. 💔" }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([defaultMessage]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -160,14 +160,27 @@ export function AIChatAssistant() {
               <p className="text-xs text-muted-foreground">Melancholic AI companion 😔</p>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsOpen(false)}
-            className="h-8 w-8"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {messages.length > 1 && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMessages([defaultMessage])}
+                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                title="Clear chat"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsOpen(false)}
+              className="h-8 w-8"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Messages */}
