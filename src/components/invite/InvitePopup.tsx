@@ -203,24 +203,30 @@ export function InvitePopup() {
   }, [user?.id, profile?.id, checkAndShowReferral]);
 
   // CRITICAL: Set up polling to recheck for modal conditions
-  // This catches edge cases where the event wasn't received
+  // Checks getPendingReferral() INSIDE the interval so it catches referrals
+  // stored after this effect first runs (InviteRedeem stores async)
   useEffect(() => {
-    if (!user?.id || !profile?.id) return;
     if (processedRef.current || visible) return;
-    
-    // Don't poll if no pending referral
-    const pending = getPendingReferral();
-    if (!pending) return;
 
-    console.log('[InvitePopup] Starting poll for tutorial completion');
+    console.log('[InvitePopup] Starting referral poll');
 
-    // Poll every 2 seconds for up to 60 seconds
+    // Poll every 2 seconds for up to 5 minutes (covers full signup+onboarding flow)
     let attempts = 0;
-    const maxAttempts = 30;
+    const maxAttempts = 150;
 
     checkIntervalRef.current = setInterval(() => {
+      // Check for pending referral INSIDE the interval (not outside)
+      // This is critical because InviteRedeem stores referral asynchronously
+      const pending = getPendingReferral();
+      if (!pending) return; // No referral yet, keep polling
+      
+      // Need auth to proceed
+      if (!user?.id || !profile?.id) return;
+
       attempts++;
-      console.log('[InvitePopup] Poll attempt', attempts);
+      if (attempts <= 3 || attempts % 10 === 0) {
+        console.log('[InvitePopup] Poll attempt', attempts);
+      }
       
       checkAndShowReferral();
       
@@ -239,6 +245,19 @@ export function InvitePopup() {
       }
     };
   }, [user?.id, profile?.id, visible, checkAndShowReferral]);
+
+  // Also trigger check when route changes (e.g., navigating to /home after onboarding)
+  useEffect(() => {
+    if (!user?.id || !profile?.id) return;
+    if (processedRef.current || visible) return;
+    
+    const pending = getPendingReferral();
+    if (!pending) return;
+    
+    console.log('[InvitePopup] Route changed, checking referral');
+    const timer = setTimeout(() => checkAndShowReferral(), 500);
+    return () => clearTimeout(timer);
+  }, [location.pathname, user?.id, profile?.id, checkAndShowReferral, visible]);
 
   /**
    * Call backend function to grant reward with step-by-step progress
