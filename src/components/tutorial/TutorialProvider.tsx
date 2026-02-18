@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useTutorialLayout, TutorialLayoutMode } from '@/hooks/useTutorialLayout';
@@ -47,6 +48,7 @@ export function useTutorial() {
  */
 export function TutorialProvider({ children }: { children: ReactNode }) {
   const { profile, user } = useAuth();
+  const location = useLocation();
   const { layoutMode } = useTutorialLayout();
   
   const [isOpen, setIsOpen] = useState(false);
@@ -66,6 +68,14 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const checkTutorialStatus = useCallback(async (force = false) => {
     // Wait for authenticated user with profile
     if (!user?.id || !profile?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    // CRITICAL: Only auto-trigger tutorial on /home - prevents flashing on auth/login pages
+    const currentPath = location.pathname;
+    if (currentPath !== '/home' && !force) {
+      console.log('[Tutorial] Not on /home, deferring tutorial check. Path:', currentPath);
       setIsLoading(false);
       return;
     }
@@ -123,7 +133,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, profile?.id, isManualOpen]);
+  }, [user?.id, profile?.id, isManualOpen, location.pathname]);
 
   // Initial check and re-check when profile changes
   useEffect(() => {
