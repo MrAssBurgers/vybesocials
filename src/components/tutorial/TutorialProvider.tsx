@@ -72,10 +72,12 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // CRITICAL: Only auto-trigger tutorial on /home - prevents flashing on auth/login pages
+    // CRITICAL: Only auto-trigger tutorial on /home or /invite/* (where Home renders inside InviteRedeem)
+    // Prevents flashing on auth/login pages
     const currentPath = location.pathname;
-    if (currentPath !== '/home' && !force) {
-      console.log('[Tutorial] Not on /home, deferring tutorial check. Path:', currentPath);
+    const isOnHomeOrInvite = currentPath === '/home' || currentPath.startsWith('/invite/');
+    if (!isOnHomeOrInvite && !force) {
+      console.log('[Tutorial] Not on /home or invite flow, deferring tutorial check. Path:', currentPath);
       setIsLoading(false);
       return;
     }

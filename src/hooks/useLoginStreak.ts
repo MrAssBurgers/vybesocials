@@ -54,17 +54,14 @@ export function useLoginStreak() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['login-streak'] });
       
-      if (data.is_new_day && data.streak_extended) {
+      // Only show popup when streak is >= 1 (2nd consecutive day or more)
+      if (data.is_new_day && data.streak_extended && data.streak >= 1) {
         // Show streak popup for extending streak
         setStreakData(data);
         setShowStreakPopup(true);
         haptics.success();
-      } else if (data.is_new_day && data.streak === 1) {
-        // New streak started (previous broke)
-        setStreakData(data);
-        setShowStreakPopup(true);
-        haptics.tap();
       }
+      // Don't show popup for streak 0 (first day or broken streak)
     },
   });
 
