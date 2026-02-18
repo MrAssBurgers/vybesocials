@@ -8217,6 +8217,14 @@ export type Database = {
       cleanup_expired_reset_tokens: { Args: never; Returns: undefined }
       cleanup_old_friend_drops: { Args: never; Returns: undefined }
       cleanup_stale_challenges: { Args: never; Returns: undefined }
+      confirm_referral_atomic: {
+        Args: {
+          p_inviter_profile_id: string
+          p_inviter_user_id: string
+          p_redeemer_auth_id: string
+        }
+        Returns: Json
+      }
       create_default_rooms: {
         Args: { p_server_id: string }
         Returns: undefined
