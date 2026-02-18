@@ -94,25 +94,21 @@ function detectDevice(): DeviceType {
 function detectPerformanceTier(): PerformanceTier {
   if (typeof navigator === 'undefined') return 'medium';
   
-  // iOS Safari gets 'low' tier due to poor backdrop-filter performance
-  if (detectIOSSafari()) return 'low';
-  
   // Check hardware concurrency (CPU cores)
   const cores = navigator.hardwareConcurrency || 4;
   
   // Check device memory (if available)
   const memory = (navigator as any).deviceMemory || 4;
   
-  // Check for low-end indicators
+  // Check for truly old devices only
   const ua = navigator.userAgent.toLowerCase();
-  const isOldDevice = /android [1-6]\./.test(ua) || /iphone os [1-9]_/.test(ua);
+  const isOldDevice = /android [1-5]\./.test(ua) || /iphone os [1-9]_/.test(ua);
   
-  // Check connection for network-bound performance
+  // Only very slow connections count
   const connection = (navigator as any).connection;
-  const isSlowConnection = connection && 
-    (connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g');
+  const isSlowConnection = connection && connection.effectiveType === 'slow-2g';
   
-  if (isOldDevice || cores <= 2 || memory <= 2 || isSlowConnection) {
+  if (isOldDevice || (cores <= 1 && memory <= 1) || isSlowConnection) {
     return 'low';
   }
   if (cores >= 8 && memory >= 8) {

@@ -69,9 +69,9 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     -webkit-backdrop-filter: blur(var(--ios-blur-heavy, 12px)) saturate(130%) !important;
   }
 
-  /* iOS Safari: Faster TRANSITION durations for non-essential elements only */
+  /* iOS Safari: Slightly faster transitions for snappier feel, but preserve full visual quality */
   .platform-ios *:not([data-allow-animation="true"]):not([data-allow-animation="true"] *) {
-    transition-duration: 0.15s;
+    transition-duration: 0.2s;
   }
 
   /* iOS Safari: Explicitly protect intentional animations */
@@ -84,13 +84,6 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     animation-duration: unset !important;
     transition-duration: unset !important;
     animation-play-state: running !important;
-  }
-
-  /* iOS Safari: Disable only heavy infinite animations (not spinners) */
-  .platform-ios .animate-spin,
-  .platform-ios .animate-bounce,
-  .platform-ios .gradient-animated {
-    animation: none !important;
   }
 
   /* Exempt cosmetic effect animations from iOS kill-switch */
@@ -162,49 +155,13 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     contain: layout style;
   }
 
-  /* Low performance tier devices - even more aggressive */
+  /* Low performance tier — reduce blur only, NEVER kill animations or textures */
   .perf-low .liquid-glass,
   .perf-low .liquid-glass-card,
   .perf-low .liquid-glass-button,
   .perf-low .glass-card {
     backdrop-filter: blur(4px) !important;
     -webkit-backdrop-filter: blur(4px) !important;
-  }
-
-  .perf-low *:not([data-allow-animation="true"]):not([data-allow-animation="true"] *),
-  .perf-low *:not([data-allow-animation="true"]):not([data-allow-animation="true"] *)::before,
-  .perf-low *:not([data-allow-animation="true"]):not([data-allow-animation="true"] *)::after {
-    animation: none !important;
-    transition-duration: 0.08s !important;
-  }
-
-  /* Exempt cosmetic effect animations from perf-low kill-switch */
-  .perf-low .sparkle-name { animation: sparkle-name 2s ease-in-out infinite !important; }
-  .perf-low .rainbow-name { animation: rainbow-shift 3s linear infinite !important; }
-  .perf-low .fire-glow { animation: fire-glow 1.5s ease-in-out infinite !important; }
-  .perf-low .cosmic-name { animation: cosmic-glow 3s ease-in-out infinite !important; }
-  .perf-low .glitch-name { animation: glitch-text 0.8s steps(4) infinite !important; }
-  .perf-low .neon-pulse-name { animation: neon-pulse 2s ease-in-out infinite !important; }
-  .perf-low .shadow-flicker-name { animation: shadow-flicker 2s ease-in-out infinite !important; }
-  .perf-low .aurora-wave-name { animation: aurora-wave 4s ease-in-out infinite !important; }
-  .perf-low .electric-surge-name { animation: electric-surge 2s ease-in-out infinite !important; }
-  .perf-low .plasma-storm-name { animation: plasma-storm 3s ease-in-out infinite !important; }
-  .perf-low .crown-glow-name { animation: crown-glow 2s ease-in-out infinite !important; }
-  .perf-low [class*="animate-[sparkle"] { animation: sparkle-name 2s ease-in-out infinite !important; }
-  .perf-low [class*="animate-[fire"] { animation: fire-glow 1.5s ease-in-out infinite !important; }
-  .perf-low [class*="animate-[cosmic"] { animation: cosmic-glow 3s ease-in-out infinite !important; }
-  .perf-low [class*="animate-[neon"] { animation: neon-pulse 2s ease-in-out infinite !important; }
-  .perf-low [class*="animate-[shadow-flicker"] { animation: shadow-flicker 2s ease-in-out infinite !important; }
-  .perf-low [class*="animate-[aurora"] { animation: aurora-wave 4s ease-in-out infinite !important; }
-  .perf-low [class*="animate-[electric"] { animation: electric-surge 2s ease-in-out infinite !important; }
-  .perf-low [class*="animate-[plasma"] { animation: plasma-storm 3s ease-in-out infinite !important; }
-  .perf-low [class*="animate-[rainbow"] { animation: rainbow-shift 3s linear infinite !important; }
-  .perf-low [class*="animate-[glitch"] { animation: glitch-text 0.8s steps(4) infinite !important; }
-
-  /* Mobile devices: General optimizations */
-  .device-mobile .liquid-glass::after,
-  .device-mobile .liquid-glass-card::after {
-    display: none; /* Hide noise textures on mobile */
   }
 
   /* Icon opacity & color enforcement - keeps UI icons from ever rendering translucent or losing color */
