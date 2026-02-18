@@ -233,35 +233,27 @@ export function InvitePopup() {
   const confirmReferralWithProgress = useCallback(async (
     inviterUserId: string, 
     inviterProfileId: string
-  ): Promise<{ success: boolean; steps?: { redemptionCreated: boolean; rewardGranted: boolean; notificationSent: boolean } }> => {
+  ): Promise<{ success: boolean; error?: string; steps?: { redemptionCreated: boolean; rewardGranted: boolean; notificationSent: boolean } }> => {
     if (rewardGrantedRef.current) {
-      console.log('[InvitePopup] Reward already granted');
       return { success: true, steps: { redemptionCreated: true, rewardGranted: true, notificationSent: true } };
     }
     
     try {
-      console.log('[InvitePopup] Calling confirm-referral backend...');
-      console.log('[InvitePopup] inviterUserId:', inviterUserId, 'inviterProfileId:', inviterProfileId);
-      
+      // Get a fresh token
+      let activeToken: string | undefined;
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        console.error('[InvitePopup] No active session found');
-        // Try refreshing the session
-        const { data: refreshData } = await supabase.auth.refreshSession();
-        if (!refreshData.session?.access_token) {
-          console.error('[InvitePopup] Session refresh also failed');
-          return { success: false };
-        }
-        console.log('[InvitePopup] Session refreshed successfully');
-      }
+      activeToken = session?.access_token;
       
-      const activeToken = session?.access_token || (await supabase.auth.getSession()).data.session?.access_token;
       if (!activeToken) {
-        console.error('[InvitePopup] No token available after refresh');
-        return { success: false };
+        const { data: refreshData } = await supabase.auth.refreshSession();
+        activeToken = refreshData.session?.access_token;
       }
       
-      console.log('[InvitePopup] Token obtained, calling edge function...');
+      if (!activeToken) {
+        return { success: false, error: "You're not logged in. Please sign in and try again." };
+      }
+      
+      console.log('[InvitePopup] Calling confirm-referral...');
       
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-referral`,
@@ -272,82 +264,67 @@ export function InvitePopup() {
             'Authorization': `Bearer ${activeToken}`,
             'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
-          body: JSON.stringify({
-            inviterUserId,
-            inviterProfileId,
-          }),
+          body: JSON.stringify({ inviterUserId, inviterProfileId }),
         }
       );
       
-      console.log('[InvitePopup] Response status:', response.status);
       const result = await response.json();
-      console.log('[InvitePopup] Response body:', JSON.stringify(result));
+      console.log('[InvitePopup] Response:', response.status, JSON.stringify(result));
       
       if (!response.ok) {
-        console.error('[InvitePopup] Backend error:', result.error);
-        return { success: false, steps: result.steps };
+        return { success: false, error: result.error || 'Server error', steps: result.steps };
       }
       
-      console.log('[InvitePopup] Backend success:', result);
       rewardGrantedRef.current = true;
       return { success: true, steps: result.steps };
     } catch (error) {
-      console.error('[InvitePopup] Error calling backend:', error);
-      return { success: false };
+      console.error('[InvitePopup] Network error:', error);
+      return { success: false, error: 'Network error. Check your connection and try again.' };
     }
   }, []);
 
   const handleThankYou = async () => {
     if (!profile?.id || !referral || step !== 'idle') return;
 
-    // Step 1: User clicked - start confirming
     setStep('confirming');
 
     try {
-      // Call backend and get step-by-step results
       const result = await confirmReferralWithProgress(
         referral.inviterUserId,
         referral.inviterId
       );
 
-      // Animate through steps based on actual backend response
       if (!result.success) {
         setStep('error');
-        toast.error("Couldn't confirm the invite. Please try again.");
+        // Show specific error from backend instead of generic message
+        const errorMsg = result.error || "Couldn't confirm the invite.";
+        toast.error(errorMsg);
+        console.error('[InvitePopup] Failed:', errorMsg);
         return;
       }
 
       const steps = result.steps;
       
-      // Step 2: Redemption created → rewarding
       if (steps?.redemptionCreated) {
         setStep('rewarding');
-        await new Promise(r => setTimeout(r, 400)); // Brief pause for smooth animation
+        await new Promise(r => setTimeout(r, 400));
       }
 
-      // Step 3: Reward granted → notifying
       if (steps?.rewardGranted) {
         setStep('notifying');
         await new Promise(r => setTimeout(r, 400));
       }
 
-      // Step 4: Notification sent → complete
       if (steps?.notificationSent) {
         setStep('complete');
       }
 
-      // Mark as confirmed
       markReferralConfirmed();
-
-      // Show success toast
       toast.success(`You and @${referral.inviterUsername} are now friends!`);
 
-      // Close after showing complete state, then navigate to /home if on invite route
       setTimeout(() => {
         setVisible(false);
         cleanupReferralStorage();
-        
-        // If we're on an invite route, navigate to /home
         if (location.pathname.startsWith('/invite/')) {
           navigate('/home');
         }
@@ -355,7 +332,7 @@ export function InvitePopup() {
     } catch (error) {
       console.error('[InvitePopup] Error:', error);
       setStep('error');
-      toast.error("Couldn't confirm the invite. Please try again.");
+      toast.error("Network error. Please check your connection and try again.");
     }
   };
 
