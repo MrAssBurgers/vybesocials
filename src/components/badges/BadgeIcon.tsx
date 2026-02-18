@@ -85,18 +85,6 @@ export const BadgeIcon = memo(function BadgeIcon({
 
   const badgeContent = (
     <>
-      {/* Mobile fallback styles - solid color + drop-shadow */}
-      {primaryColor && (
-        <style>{`
-          @media (max-width: 1024px) {
-            #${elementId} {
-              background: ${primaryColor} !important;
-              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
-              opacity: 1 !important;
-            }
-          }
-        `}</style>
-      )}
       <motion.div
         id={elementId}
         className={cn(
