@@ -3,6 +3,7 @@ import { ConversationList } from '@/components/chat/ConversationList';
 import { ChatView } from '@/components/chat/ChatView';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useBreakpoint } from '@/hooks/usePlatform';
+import { useEffect } from 'react';
 
 export default function Messages() {
   const location = useLocation();
@@ -12,21 +13,33 @@ export default function Messages() {
   // On mobile, when in a chat, hide nav for immersive full-screen experience (Instagram-style)
   const hideNavOnMobile = isInChat && !isDesktop;
 
+  // Hide the global background image while on the DM page (mobile/tablet)
+  useEffect(() => {
+    if (!isDesktop) {
+      document.documentElement.setAttribute('data-dm-active', 'true');
+      return () => {
+        document.documentElement.removeAttribute('data-dm-active');
+      };
+    }
+  }, [isDesktop]);
+
   return (
     <AppLayout hideRightSidebar fullWidth hideNav={hideNavOnMobile} noPadding>
       <div 
         className={`
           ${hideNavOnMobile 
             ? 'h-[100dvh] fixed inset-0 z-50' 
-            : 'min-h-[100dvh] md:min-h-screen h-[100dvh] md:h-screen'
+            : 'min-h-[100dvh] md:min-h-screen h-[100dvh] md:h-screen w-full'
           } 
           flex max-w-full pb-0
         `}
         style={{ 
+          position: isDesktop ? undefined : 'fixed',
+          inset: isDesktop ? undefined : 0,
+          zIndex: isDesktop ? undefined : 50,
           overflow: 'hidden',
-          background: 'hsl(var(--card) / 1)',
-          backdropFilter: 'blur(40px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+          backgroundColor: 'hsl(var(--card))',
+          backgroundImage: 'none',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >
