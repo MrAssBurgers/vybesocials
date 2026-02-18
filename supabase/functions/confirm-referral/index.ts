@@ -1,422 +1,228 @@
-import { createClient } from "npm:@supabase/supabase-js@2.90.1";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-/**
- * Confirm Referral Edge Function
- * 
- * Called when new user clicks "Thank You" on referral popup.
- * Returns step-by-step progress for event-driven UI.
- * 
- * Steps:
- * 1. Validate & create redemption record (25% → 50%)
- * 2. Grant reward / increment use_count (50% → 75%)
- * 3. Create friendship & send notification (75% → 100%)
- */
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+function json(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
-  const steps = {
-    redemptionCreated: false,
-    rewardGranted: false,
-    notificationSent: false,
-  };
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const steps = { redemptionCreated: false, rewardGranted: false, notificationSent: false };
 
   try {
-    // ========== AUTH: Use getClaims() for signing-keys compatibility ==========
+    // --- Auth ---
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      console.error("[confirm-referral] Missing or malformed Authorization header");
-      return new Response(
-        JSON.stringify({ error: "Missing authorization header", steps }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return json({ error: "Missing authorization header", steps }, 401);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Create user-scoped client for auth verification
-    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+    // Verify user identity
+    const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Use getClaims() - compatible with signing-keys system
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
-    
     let userId: string;
-    
-    if (claimsError || !claimsData?.claims?.sub) {
-      // Fallback to getUser() in case getClaims isn't available
-      console.log("[confirm-referral] getClaims failed, trying getUser fallback:", claimsError?.message);
-      const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-      if (authError || !user) {
-        console.error("[confirm-referral] Both auth methods failed. getClaims:", claimsError?.message, "getUser:", authError?.message);
-        return new Response(
-          JSON.stringify({ error: "User not authenticated", steps }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      userId = user.id;
-      console.log("[confirm-referral] Authenticated via getUser fallback:", userId);
-    } else {
+    const token = authHeader.replace("Bearer ", "");
+
+    try {
+      const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+      if (claimsErr || !claimsData?.claims?.sub) throw claimsErr;
       userId = claimsData.claims.sub as string;
-      console.log("[confirm-referral] Authenticated via getClaims:", userId);
+    } catch {
+      const { data: { user }, error: authErr } = await userClient.auth.getUser();
+      if (authErr || !user) return json({ error: "User not authenticated", steps }, 401);
+      userId = user.id;
     }
 
-    // Parse request
-    const body = await req.json();
-    const theInviterUserId = body.inviterUserId;
-    const theInviterProfileId = body.inviterProfileId;
-    
-    console.log("[confirm-referral] Request body:", JSON.stringify(body));
-    
-    if (!theInviterUserId || !theInviterProfileId) {
-      console.error("[confirm-referral] Missing inviter data in request body");
-      return new Response(
-        JSON.stringify({ error: "Missing inviter data", steps }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    console.log("[confirm-referral] authed:", userId);
+
+    // --- Parse body ---
+    const { inviterUserId, inviterProfileId } = await req.json();
+    if (!inviterUserId || !inviterProfileId) {
+      return json({ error: "Missing inviterUserId or inviterProfileId", steps }, 400);
     }
 
-    console.log("[confirm-referral] Processing:", { 
-      redeemerAuthId: userId, 
-      theInviterUserId, 
-      theInviterProfileId 
-    });
+    // --- Admin client (service role, bypasses RLS) ---
+    const admin = createClient(supabaseUrl, serviceKey);
 
-    // Use service role for all DB operations (bypasses RLS)
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    // --- Get redeemer profile (with retry for race condition) ---
+    let redeemerProfile: { id: string; username: string; referral_inviter_id: string | null } | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { data, error } = await admin
+        .from("profiles")
+        .select("id, username, referral_inviter_id")
+        .eq("user_id", userId)
+        .maybeSingle();
 
-    // Get redeemer's profile
-    const { data: redeemerProfile, error: redeemerError } = await supabaseAdmin
-      .from("profiles")
-      .select("id, username, referral_inviter_id")
-      .eq("user_id", userId)
-      .single();
+      if (data) { redeemerProfile = data; break; }
+      if (attempt < 4) {
+        console.log(`[confirm-referral] Profile not found, retry ${attempt + 1}/5`);
+        await new Promise(r => setTimeout(r, 600));
+      } else {
+        console.error("[confirm-referral] Profile never appeared for", userId, error);
+      }
+    }
 
-    if (redeemerError || !redeemerProfile) {
-      console.error("[confirm-referral] Redeemer profile not found for auth id:", userId, "error:", redeemerError);
-      return new Response(
-        JSON.stringify({ error: "Could not find your profile", steps }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!redeemerProfile) {
+      return json({ error: "Your profile hasn't been created yet. Please try again in a moment.", steps }, 400);
     }
 
     const redeemerProfileId = redeemerProfile.id;
-    console.log("[confirm-referral] Redeemer profile found:", redeemerProfileId, redeemerProfile.username);
+    console.log("[confirm-referral] redeemer:", redeemerProfileId, redeemerProfile.username);
 
-    // One-invite-per-user rule
+    // --- Idempotency: already accepted a referral ---
     if (redeemerProfile.referral_inviter_id) {
-      console.log("[confirm-referral] Already accepted a referral:", redeemerProfile.referral_inviter_id);
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: "Already accepted a referral",
-          alreadyReferred: true,
-          steps: { redemptionCreated: true, rewardGranted: true, notificationSent: true }
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.log("[confirm-referral] Already referred by:", redeemerProfile.referral_inviter_id);
+      return json({
+        success: true,
+        message: "Already confirmed",
+        alreadyReferred: true,
+        steps: { redemptionCreated: true, rewardGranted: true, notificationSent: true },
+      });
     }
 
-    // Prevent self-referral
-    if (redeemerProfileId === theInviterProfileId) {
-      console.log("[confirm-referral] Self-referral blocked");
-      return new Response(
-        JSON.stringify({ error: "Cannot refer yourself", steps }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // --- Self-referral guard ---
+    if (redeemerProfileId === inviterProfileId) {
+      return json({ error: "Cannot refer yourself", steps }, 400);
     }
 
-    // Check existing redemption
-    const { data: existingRedemption } = await supabaseAdmin
+    // --- Idempotency: existing redemption ---
+    const { data: existingRedemption } = await admin
       .from("invite_redemptions")
       .select("id")
       .eq("redeemer_id", userId)
       .maybeSingle();
 
     if (existingRedemption) {
-      console.log("[confirm-referral] Already redeemed, backfilling referral_inviter_id");
-      await supabaseAdmin
-        .from("profiles")
-        .update({ referral_inviter_id: theInviterProfileId })
-        .eq("id", redeemerProfileId)
-        .is("referral_inviter_id", null);
-      
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: "Already confirmed",
-          steps: { redemptionCreated: true, rewardGranted: true, notificationSent: true }
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      // Backfill referral_inviter_id if missing
+      await admin.from("profiles").update({ referral_inviter_id: inviterProfileId })
+        .eq("id", redeemerProfileId).is("referral_inviter_id", null);
+      return json({
+        success: true,
+        message: "Already confirmed",
+        steps: { redemptionCreated: true, rewardGranted: true, notificationSent: true },
+      });
     }
 
-    // ========== STEP 1: Create redemption record ==========
+    // ========== STEP 1: Find/create invite, create redemption ==========
     let inviteId: string;
     let currentUseCount = 0;
 
-    const { data: existingInvite, error: inviteQueryError } = await supabaseAdmin
+    const { data: existingInvite } = await admin
       .from("invites")
       .select("id, use_count")
-      .eq("inviter_id", theInviterUserId)
+      .eq("inviter_id", inviterUserId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (inviteQueryError) {
-      console.error("[confirm-referral] Error querying invites:", inviteQueryError);
-    }
-
     if (existingInvite) {
       inviteId = existingInvite.id;
       currentUseCount = existingInvite.use_count || 0;
-      console.log("[confirm-referral] Found existing invite:", inviteId, "use_count:", currentUseCount);
     } else {
-      const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-      const { data: newInvite, error: createError } = await supabaseAdmin
+      const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const { data: newInvite, error: createErr } = await admin
         .from("invites")
-        .insert({
-          inviter_id: theInviterUserId,
-          invite_code: inviteCode,
-          use_count: 0,
-        })
-        .select("id, use_count")
+        .insert({ inviter_id: inviterUserId, invite_code: code, use_count: 0 })
+        .select("id")
         .single();
-
-      if (createError || !newInvite) {
-        console.error("[confirm-referral] Failed to create invite record:", createError);
-        return new Response(
-          JSON.stringify({ error: "Failed to process referral", steps }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (createErr || !newInvite) {
+        return json({ error: "Failed to create invite record", steps }, 500);
       }
       inviteId = newInvite.id;
-      console.log("[confirm-referral] Created new invite record:", inviteId);
     }
 
-    // Create redemption record - use simple insert, NO upsert/onConflict
-    // v2: Fixed to avoid ON CONFLICT entirely
-    console.log("[confirm-referral] v2: Inserting redemption with plain insert (no ON CONFLICT)");
-    
-    // First check if redemption already exists
-    const { data: existingRedemptionCheck } = await supabaseAdmin
+    // Insert redemption (plain insert, handle duplicate gracefully)
+    const { error: redemptionErr } = await admin
       .from("invite_redemptions")
-      .select("id")
-      .eq("redeemer_id", userId)
-      .maybeSingle();
+      .insert({ invite_id: inviteId, redeemer_id: userId });
 
-    if (existingRedemptionCheck) {
-      console.log("[confirm-referral] v2: Redemption already exists, skipping insert");
-    } else {
-      const { error: redemptionError } = await supabaseAdmin
-        .from("invite_redemptions")
-        .insert({
-          invite_id: inviteId,
-          redeemer_id: userId,
-        });
-
-      if (redemptionError) {
-        if (redemptionError.code === "23505") {
-          console.log("[confirm-referral] v2: Duplicate redemption (23505), continuing as success");
-        } else {
-          console.error("[confirm-referral] v2: Redemption insert error:", JSON.stringify(redemptionError));
-          return new Response(
-            JSON.stringify({ error: "Failed to record redemption", steps }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-      }
+    if (redemptionErr && redemptionErr.code !== "23505") {
+      console.error("[confirm-referral] Redemption error:", redemptionErr);
+      return json({ error: "Failed to record redemption", steps }, 500);
     }
 
-    // Set referral_inviter_id on profile
-    const { error: setInviterError } = await supabaseAdmin
-      .from("profiles")
-      .update({ referral_inviter_id: theInviterProfileId })
-      .eq("id", redeemerProfileId)
-      .is("referral_inviter_id", null);
-
-    if (setInviterError) {
-      console.error("[confirm-referral] Failed to set referral_inviter_id:", JSON.stringify(setInviterError));
-    } else {
-      console.log("[confirm-referral] Set referral_inviter_id:", theInviterProfileId);
-    }
+    // Set referral_inviter_id
+    await admin.from("profiles").update({ referral_inviter_id: inviterProfileId })
+      .eq("id", redeemerProfileId).is("referral_inviter_id", null);
 
     steps.redemptionCreated = true;
-    console.log("[confirm-referral] Step 1 complete: Redemption created");
 
-    // ========== STEP 2: Grant reward ==========
+    // ========== STEP 2: Rewards ==========
     const newUseCount = currentUseCount + 1;
-    const { error: updateError } = await supabaseAdmin
-      .from("invites")
-      .update({ use_count: newUseCount })
-      .eq("id", inviteId);
+    await admin.from("invites").update({ use_count: newUseCount }).eq("id", inviteId);
 
-    if (updateError) {
-      console.error("[confirm-referral] Failed to update use_count:", JSON.stringify(updateError));
-    } else {
-      console.log("[confirm-referral] Updated use_count to:", newUseCount);
-    }
-
-    // Award badges (best-effort)
+    // Badges (best-effort)
     const milestones = [
       { count: 1, type: "invite_1", name: "First Invite" },
       { count: 3, type: "invite_3", name: "Rising Star" },
       { count: 10, type: "invite_10", name: "Early Builder" },
     ];
-
-    for (const milestone of milestones) {
-      if (newUseCount >= milestone.count) {
+    for (const m of milestones) {
+      if (newUseCount >= m.count) {
         try {
-          const { data: badge } = await supabaseAdmin
-            .from("badges")
-            .select("id")
-            .eq("name", milestone.name)
-            .maybeSingle();
-
+          const { data: badge } = await admin.from("badges").select("id").eq("name", m.name).maybeSingle();
           if (badge) {
-            const { error: badgeError } = await supabaseAdmin
-              .from("user_badges")
-              .upsert({
-                user_id: theInviterUserId,
-                badge_id: badge.id,
-                badge_type: milestone.type,
-                badge_name: milestone.name,
-                metadata: { milestone: milestone.count },
-              }, {
-                onConflict: "user_id,badge_id",
-                ignoreDuplicates: true,
-              });
-
-            if (badgeError) {
-              console.log("[confirm-referral] Badge upsert note:", badgeError.message);
-            } else {
-              console.log("[confirm-referral] Awarded badge:", milestone.name);
-            }
+            await admin.from("user_badges").upsert(
+              { user_id: inviterUserId, badge_id: badge.id, badge_type: m.type, badge_name: m.name, metadata: { milestone: m.count } },
+              { onConflict: "user_id,badge_id", ignoreDuplicates: true }
+            );
           }
-        } catch (badgeErr) {
-          console.log("[confirm-referral] Badge error (non-fatal):", badgeErr);
-        }
+        } catch { /* non-fatal */ }
       }
     }
 
-    // Grant XP to inviter (500 XP)
-    try {
-      const { data: xpResult, error: xpError } = await supabaseAdmin.rpc("add_user_xp", { 
-        p_user_id: theInviterProfileId, 
-        p_xp_amount: 500 
-      });
-      if (xpError) {
-        console.error("[confirm-referral] Inviter XP error:", JSON.stringify(xpError));
-      } else {
-        console.log("[confirm-referral] Granted 500 XP to inviter, result:", JSON.stringify(xpResult));
-      }
-    } catch (xpErr) {
-      console.error("[confirm-referral] Inviter XP exception:", xpErr);
-    }
-
-    // Grant XP to invitee (250 XP)
-    try {
-      const { data: xpResult, error: xpError } = await supabaseAdmin.rpc("add_user_xp", { 
-        p_user_id: redeemerProfileId, 
-        p_xp_amount: 250 
-      });
-      if (xpError) {
-        console.error("[confirm-referral] Invitee XP error:", JSON.stringify(xpError));
-      } else {
-        console.log("[confirm-referral] Granted 250 XP to invitee, result:", JSON.stringify(xpResult));
-      }
-    } catch (xpErr) {
-      console.error("[confirm-referral] Invitee XP exception:", xpErr);
-    }
+    // XP (best-effort)
+    try { await admin.rpc("add_user_xp", { p_user_id: inviterProfileId, p_xp_amount: 500 }); } catch {}
+    try { await admin.rpc("add_user_xp", { p_user_id: redeemerProfileId, p_xp_amount: 250 }); } catch {}
 
     steps.rewardGranted = true;
-    console.log("[confirm-referral] Step 2 complete: Rewards granted");
 
-    // ========== STEP 3: Create friendship & send notification ==========
+    // ========== STEP 3: Friendship & notification ==========
     try {
-      const { data: existingFriendship } = await supabaseAdmin
+      const { data: existingFriendship } = await admin
         .from("friend_requests")
         .select("id, status")
-        .or(`and(sender_id.eq.${redeemerProfileId},receiver_id.eq.${theInviterProfileId}),and(sender_id.eq.${theInviterProfileId},receiver_id.eq.${redeemerProfileId})`)
+        .or(`and(sender_id.eq.${redeemerProfileId},receiver_id.eq.${inviterProfileId}),and(sender_id.eq.${inviterProfileId},receiver_id.eq.${redeemerProfileId})`)
         .maybeSingle();
 
       if (existingFriendship) {
         if (existingFriendship.status === "pending") {
-          await supabaseAdmin
-            .from("friend_requests")
-            .update({ status: "accepted" })
-            .eq("id", existingFriendship.id);
-          console.log("[confirm-referral] Accepted existing friend request");
-        } else {
-          console.log("[confirm-referral] Friendship already exists with status:", existingFriendship.status);
+          await admin.from("friend_requests").update({ status: "accepted" }).eq("id", existingFriendship.id);
         }
       } else {
-        const { error: friendError } = await supabaseAdmin
-          .from("friend_requests")
-          .insert({
-            sender_id: redeemerProfileId,
-            receiver_id: theInviterProfileId,
-            status: "accepted",
-          });
-        if (friendError) {
-          console.error("[confirm-referral] Friend request error:", JSON.stringify(friendError));
-        } else {
-          console.log("[confirm-referral] Created instant friendship");
-        }
-      }
-    } catch (friendErr) {
-      console.error("[confirm-referral] Friendship exception:", friendErr);
-    }
-
-    // Send notification to inviter
-    try {
-      const { error: notifError } = await supabaseAdmin
-        .from("notifications")
-        .insert({
-          user_id: theInviterProfileId,
-          actor_id: redeemerProfileId,
-          type: "invite_accepted",
+        await admin.from("friend_requests").insert({
+          sender_id: redeemerProfileId, receiver_id: inviterProfileId, status: "accepted",
         });
-
-      if (notifError) {
-        console.error("[confirm-referral] Notification error:", JSON.stringify(notifError));
-      } else {
-        console.log("[confirm-referral] Notification sent to inviter");
       }
-    } catch (notifErr) {
-      console.error("[confirm-referral] Notification exception:", notifErr);
-    }
+    } catch (e) { console.error("[confirm-referral] Friendship error:", e); }
+
+    try {
+      await admin.from("notifications").insert({
+        user_id: inviterProfileId, actor_id: redeemerProfileId, type: "invite_accepted",
+      });
+    } catch (e) { console.error("[confirm-referral] Notification error:", e); }
 
     steps.notificationSent = true;
-    console.log("[confirm-referral] Step 3 complete");
-    console.log("[confirm-referral] ✅ All steps complete!");
+    console.log("[confirm-referral] ✅ Complete");
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        newUseCount,
-        message: "Referral confirmed successfully",
-        steps,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-
+    return json({ success: true, newUseCount, message: "Referral confirmed successfully", steps });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Internal server error";
-    console.error("[confirm-referral] ❌ Unexpected error:", error);
-    return new Response(
-      JSON.stringify({ error: message, steps }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    const msg = error instanceof Error ? error.message : "Internal server error";
+    console.error("[confirm-referral] ❌", error);
+    return json({ error: msg, steps }, 500);
   }
 });
