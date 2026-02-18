@@ -303,33 +303,33 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="relative z-10 w-full max-w-[420px]"
+        className="relative z-10 w-full max-w-[360px]"
       >
-        <div className="liquid-glass-card rounded-3xl p-6 sm:p-8 border border-white/[0.08]">
+        <div className="liquid-glass-card rounded-2xl p-5 sm:p-6 border border-white/[0.08]">
           {/* Centered Logo with clean smooth glow */}
-          <div className="flex flex-col items-center mb-8 relative">
+          <div className="flex flex-col items-center mb-5 relative">
             {/* Smooth gradient glow behind logo */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div 
-                className="w-40 h-40 rounded-full opacity-40"
+                className="w-28 h-28 rounded-full opacity-40"
                 style={{
                   background: 'radial-gradient(circle, hsl(var(--primary) / 0.6) 0%, hsl(var(--primary) / 0.2) 40%, transparent 70%)',
-                  filter: 'blur(20px)',
+                  filter: 'blur(16px)',
                 }}
               />
             </div>
             
-            <VYBELogo size="xl" showText={false} className="mb-4 relative z-10" />
-            <h1 className="text-2xl font-display font-bold gradient-text relative z-10">
+            <VYBELogo size="lg" showText={false} className="mb-2 relative z-10" />
+            <h1 className="text-xl font-display font-bold gradient-text relative z-10">
               Welcome to VYBE
             </h1>
-            <p className="text-sm text-foreground/70 mt-1 text-center relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
+            <p className="text-xs text-foreground/70 mt-0.5 text-center relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
               Connect. Be present. Build community.
             </p>
           </div>
 
           {/* Auth Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <AnimatePresence mode="wait">
               {!isLogin && (
                 <motion.div
