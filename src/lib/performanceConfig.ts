@@ -17,22 +17,16 @@ export const isIOSSafari = (): boolean => {
 export const isLowEndDevice = (): boolean => {
   if (typeof window === 'undefined') return false;
   
-  // iOS Safari is treated as a performance concern due to poor backdrop-filter performance
-  if (isIOSSafari()) return true;
-  
-  // Check for limited memory
+  // Check for extremely limited memory only (< 2GB)
   const memory = (navigator as any).deviceMemory;
-  if (memory && memory < 4) return true;
+  if (memory && memory < 2) return true;
   
-  // Check for slow network
+  // Check for very slow network
   const connection = (navigator as any).connection;
-  if (connection?.effectiveType === '2g' || connection?.effectiveType === 'slow-2g') return true;
+  if (connection?.effectiveType === 'slow-2g') return true;
   
-  // Check for reduced motion preference (often indicates older/slower devices)
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
-  
-  // Check for low core count
-  if (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2) return true;
+  // Only truly low-end: single-core devices
+  if (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 1) return true;
   
   return false;
 };
@@ -40,30 +34,24 @@ export const isLowEndDevice = (): boolean => {
 // Animation settings based on device capability
 export const getAnimationConfig = () => {
   const lowEnd = isLowEndDevice();
-  const iosSafari = isIOSSafari();
   
   return {
-    // Disable complex animations on low-end devices
-    enablePageTransitions: !lowEnd && !iosSafari,
-    enableParallax: !lowEnd && !iosSafari,
-    enableBackgroundAnimations: !lowEnd && !iosSafari,
+    // Only disable on truly low-end devices — iOS Safari gets full quality
+    enablePageTransitions: !lowEnd,
+    enableParallax: !lowEnd,
+    enableBackgroundAnimations: !lowEnd,
     enableHoverAnimations: !lowEnd,
     
-    // Reduced motion variants
+    // Animation config — same for all capable devices
     pageTransition: lowEnd 
       ? { duration: 0.1 } 
-      : iosSafari
-        ? { duration: 0.15, ease: 'easeOut' }
-        : { type: 'spring', stiffness: 400, damping: 35 },
+      : { type: 'spring', stiffness: 400, damping: 35 },
     
-    // Shorter animation durations
-    animationDuration: lowEnd ? 0.05 : iosSafari ? 0.15 : 0.3,
+    animationDuration: lowEnd ? 0.05 : 0.3,
     
-    // Reduced blur effects
-    blurAmount: lowEnd ? '0px' : iosSafari ? '8px' : '10px',
+    blurAmount: lowEnd ? '0px' : '10px',
     
-    // iOS-specific flags
-    isIOSSafari: iosSafari,
+    isIOSSafari: isIOSSafari(),
     reduceMotion: lowEnd,
   };
 };
