@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
 
     console.log("[confirm-referral] Updated use_count to:", newUseCount);
 
-    // Award badges based on milestones
+    // Award badges based on milestones (best-effort, don't block flow)
     const milestones = [
       { count: 1, type: "invite_1", name: "First Invite" },
       { count: 3, type: "invite_3", name: "Rising Star" },
@@ -239,22 +239,39 @@ Deno.serve(async (req) => {
 
     for (const milestone of milestones) {
       if (newUseCount >= milestone.count) {
-        const { error: badgeError } = await supabaseAdmin
-          .from("user_badges")
-          .upsert({
-            user_id: theInviterUserId,
-            badge_type: milestone.type,
-            badge_name: milestone.name,
-            metadata: { milestone: milestone.count },
-          }, {
-            onConflict: "user_id,badge_type",
-            ignoreDuplicates: true,
-          });
+        try {
+          // Find badge by name or type in the badges table
+          const { data: badge } = await supabaseAdmin
+            .from("badges")
+            .select("id")
+            .eq("name", milestone.name)
+            .maybeSingle();
 
-        if (badgeError) {
-          console.log("[confirm-referral] Badge upsert note:", badgeError.message);
-        } else {
-          console.log("[confirm-referral] Awarded badge:", milestone.name);
+          if (badge) {
+            // user_badges unique constraint is (user_id, badge_id)
+            const { error: badgeError } = await supabaseAdmin
+              .from("user_badges")
+              .upsert({
+                user_id: theInviterUserId,
+                badge_id: badge.id,
+                badge_type: milestone.type,
+                badge_name: milestone.name,
+                metadata: { milestone: milestone.count },
+              }, {
+                onConflict: "user_id,badge_id",
+                ignoreDuplicates: true,
+              });
+
+            if (badgeError) {
+              console.log("[confirm-referral] Badge upsert note:", badgeError.message);
+            } else {
+              console.log("[confirm-referral] Awarded badge:", milestone.name);
+            }
+          } else {
+            console.log("[confirm-referral] Badge not found in badges table:", milestone.name);
+          }
+        } catch (badgeErr) {
+          console.log("[confirm-referral] Badge error (non-fatal):", badgeErr);
         }
       }
     }
