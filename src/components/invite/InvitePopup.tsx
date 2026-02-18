@@ -65,6 +65,18 @@ export function InvitePopup() {
     // Already processed or visible
     if (processedRef.current || visible) return;
     
+    // CRITICAL: Never show popup while on an invite route - user must complete the full flow first
+    if (location.pathname.startsWith('/invite/')) {
+      console.log('[InvitePopup] On invite route, not showing popup yet');
+      return;
+    }
+    
+    // CRITICAL: Only show on /home - not during onboarding, landing, etc.
+    if (location.pathname !== '/home') {
+      console.log('[InvitePopup] Not on /home, skipping popup');
+      return;
+    }
+    
     // CRITICAL: Require FULL auth - user must be logged in with a profile
     if (!user?.id || !profile?.id || !profile?.username) {
       console.log('[InvitePopup] Not fully authenticated yet, skipping');
@@ -170,34 +182,33 @@ export function InvitePopup() {
     processedRef.current = true;
     
     console.log('[InvitePopup] Showing confirmation modal');
-  }, [user?.id, profile?.id, visible]);
+  }, [user?.id, profile?.id, location.pathname, visible]);
 
   // Listen for tutorial-completed event - PRIMARY trigger
   useEffect(() => {
     const handleTutorialComplete = () => {
       console.log('[InvitePopup] Tutorial completed event received');
-      // Delay slightly to let DB persist
-      setTimeout(() => checkAndShowReferral(), 800);
+      // Delay to let DB persist and navigation to /home complete
+      setTimeout(() => checkAndShowReferral(), 1500);
     };
     
     window.addEventListener('tutorial-completed', handleTutorialComplete);
     return () => window.removeEventListener('tutorial-completed', handleTutorialComplete);
   }, [checkAndShowReferral]);
 
-  // Only check on mount for users who ALREADY completed tutorial (returning users)
-  // Don't use aggressive polling - wait for the tutorial-completed event instead
+  // Check when route changes to /home (covers both returning users and post-tutorial navigation)
   useEffect(() => {
+    if (location.pathname !== '/home') return;
     if (!user?.id || !profile?.id || !profile?.username) return;
     if (processedRef.current || visible) return;
     
-    // Only check if there's a pending referral in storage
     const pending = getPendingReferral();
     if (!pending) return;
     
-    // Single delayed check for returning users who already completed tutorial
+    // Delayed check when arriving at /home
     const timer = setTimeout(() => checkAndShowReferral(), 2000);
     return () => clearTimeout(timer);
-  }, [user?.id, profile?.id, profile?.username, checkAndShowReferral, visible]);
+  }, [location.pathname, user?.id, profile?.id, profile?.username, checkAndShowReferral, visible]);
 
   /**
    * Call backend function to grant reward with step-by-step progress
