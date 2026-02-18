@@ -72,8 +72,12 @@ export function InvitePopup() {
     }
     
     // CRITICAL: Only show on /home - not during onboarding, landing, etc.
-    if (location.pathname !== '/home') {
-      console.log('[InvitePopup] Not on /home, skipping popup');
+    // Check both React router state and window.location (for stale closures)
+    const currentPath = location.pathname;
+    const windowPath = window.location.pathname;
+    const isOnHome = currentPath === '/home' || windowPath === '/home';
+    if (!isOnHome) {
+      console.log('[InvitePopup] Not on /home, skipping popup. React path:', currentPath, 'Window path:', windowPath);
       return;
     }
     
@@ -182,14 +186,28 @@ export function InvitePopup() {
     processedRef.current = true;
     
     console.log('[InvitePopup] Showing confirmation modal');
-  }, [user?.id, profile?.id, location.pathname, visible]);
+  }, [user?.id, profile?.id, profile?.username, location.pathname, visible]);
 
   // Listen for tutorial-completed event - PRIMARY trigger
+  // After tutorial completes, user navigates to /home. We poll briefly until we're on /home.
   useEffect(() => {
     const handleTutorialComplete = () => {
       console.log('[InvitePopup] Tutorial completed event received');
-      // Delay to let DB persist and navigation to /home complete
-      setTimeout(() => checkAndShowReferral(), 1500);
+      // Poll every 500ms for up to 10s waiting for /home navigation
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        console.log('[InvitePopup] Post-tutorial check attempt', attempts, 'path:', window.location.pathname);
+        if (window.location.pathname === '/home' || window.location.hash === '#/home') {
+          clearInterval(interval);
+          checkAndShowReferral();
+        }
+        if (attempts >= 20) {
+          clearInterval(interval);
+          // Try anyway
+          checkAndShowReferral();
+        }
+      }, 500);
     };
     
     window.addEventListener('tutorial-completed', handleTutorialComplete);
@@ -206,7 +224,7 @@ export function InvitePopup() {
     if (!pending) return;
     
     // Delayed check when arriving at /home
-    const timer = setTimeout(() => checkAndShowReferral(), 2000);
+    const timer = setTimeout(() => checkAndShowReferral(), 1500);
     return () => clearTimeout(timer);
   }, [location.pathname, user?.id, profile?.id, profile?.username, checkAndShowReferral, visible]);
 
