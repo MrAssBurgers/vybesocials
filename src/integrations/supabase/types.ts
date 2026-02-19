@@ -8422,6 +8422,26 @@ export type Database = {
         }[]
       }
       get_profile_id_for_auth: { Args: { _auth_id: string }; Returns: string }
+      get_profile_posts_rpc: {
+        Args: { profile_id_input: string; viewer_id_input?: string }
+        Returns: {
+          comments_count: number
+          content: string
+          created_at: string
+          has_poll: boolean
+          id: string
+          is_bookmarked: boolean
+          is_liked: boolean
+          is_pinned: boolean
+          likes_count: number
+          media_type: string
+          media_url: string
+          poll_ends_at: string
+          poll_options: Json
+          poll_question: string
+          user_id: string
+        }[]
+      }
       get_public_profile_by_id: {
         Args: { target_id: string }
         Returns: {
