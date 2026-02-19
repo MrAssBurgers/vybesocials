@@ -65,12 +65,13 @@ export function ConversationOptionsSheet({
     if (!profile?.id) return;
     setIsClearing(true);
     try {
-      const { error } = await supabase
-        .from('messages')
-        .update({ is_deleted: true })
-        .eq('conversation_id', conversationId);
+      const { data, error } = await supabase.rpc('clear_conversation_messages', {
+        p_conversation_id: conversationId,
+        p_user_id: profile.id,
+      });
       
       if (error) throw error;
+      if (data && !(data as any).success) throw new Error((data as any).error);
       
       queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
