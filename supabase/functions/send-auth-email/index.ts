@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.90.1";
+import { Resend } from "npm:resend@4.1.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,36 +17,36 @@ function generateToken(): string {
 const FALLBACK_SENDER = "VYBE <onboarding@resend.dev>";
 
 async function sendEmailWithFallback(
-  resendKey: string,
+  resend: Resend,
   fromEmail: string,
   to: string[],
   subject: string,
   html: string
 ): Promise<void> {
-  const send = async (sender: string) => {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ from: sender, to, subject, html }),
+  const { data, error } = await resend.emails.send({
+    from: fromEmail,
+    to,
+    subject,
+    html,
+  });
+
+  if (error && fromEmail !== FALLBACK_SENDER) {
+    console.warn("Primary sender failed, trying fallback:", JSON.stringify(error));
+    const fallbackResult = await resend.emails.send({
+      from: FALLBACK_SENDER,
+      to,
+      subject,
+      html,
     });
-    return res;
-  };
-
-  let res = await send(fromEmail);
-
-  // If domain not verified, fall back to Resend's default sender
-  if (!res.ok && fromEmail !== FALLBACK_SENDER) {
-    const errBody = await res.text();
-    console.warn("Primary sender failed, trying fallback:", errBody);
-    res = await send(FALLBACK_SENDER);
+    if (fallbackResult.error) {
+      console.error("Resend fallback error:", JSON.stringify(fallbackResult.error));
+      throw new Error("Failed to send email");
+    }
+    return;
   }
 
-  if (!res.ok) {
-    const errBody = await res.text();
-    console.error("Resend error:", errBody);
+  if (error) {
+    console.error("Resend error:", JSON.stringify(error));
     throw new Error("Failed to send email");
   }
 }
@@ -63,6 +64,8 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const resend = new Resend(resendKey);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -113,7 +116,7 @@ Deno.serve(async (req) => {
       const baseUrl = redirectUrl || "https://vybehub.app";
       const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
-      await sendEmailWithFallback(resendKey, fromEmail, [email], "Reset Your VYBE Password", `
+      await sendEmailWithFallback(resend, fromEmail, [email], "Reset Your VYBE Password", `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -222,7 +225,7 @@ Deno.serve(async (req) => {
       const verifyUrl = linkData?.properties?.action_link;
       if (!verifyUrl) throw new Error("Failed to generate verification link");
 
-      await sendEmailWithFallback(resendKey, fromEmail, [email], "Verify Your VYBE Account", `
+      await sendEmailWithFallback(resend, fromEmail, [email], "Verify Your VYBE Account", `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
