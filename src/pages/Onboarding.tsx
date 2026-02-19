@@ -101,7 +101,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       case 9: return legalAccepted; // Must accept Terms & Privacy
       default: return true;
     }
-  }, [needsUsername, step, usernameValid, dateOfBirth, userAge, interests.length, profileData.firstName.length, profileData.lastName.length]);
+  }, [needsUsername, step, usernameValid, dateOfBirth, userAge, interests.length, profileData.firstName.length, profileData.lastName.length, legalAccepted]);
 
   const handleNext = () => {
     if (step < TOTAL_STEPS) {
