@@ -23,6 +23,8 @@ async function sendEmailWithFallback(
   subject: string,
   html: string
 ): Promise<void> {
+  console.log("Attempting to send email from:", fromEmail, "to:", to.join(", "));
+  
   const { data, error } = await resend.emails.send({
     from: fromEmail,
     to,
@@ -30,25 +32,28 @@ async function sendEmailWithFallback(
     html,
   });
 
+  console.log("Resend primary result - data:", JSON.stringify(data), "error:", JSON.stringify(error));
+
   if (error && fromEmail !== FALLBACK_SENDER) {
-    console.warn("Primary sender failed, trying fallback:", JSON.stringify(error));
+    console.warn("Primary sender failed, trying fallback sender:", FALLBACK_SENDER);
     const fallbackResult = await resend.emails.send({
       from: FALLBACK_SENDER,
       to,
       subject,
       html,
     });
+    console.log("Resend fallback result - data:", JSON.stringify(fallbackResult.data), "error:", JSON.stringify(fallbackResult.error));
     if (fallbackResult.error) {
-      console.error("Resend fallback error:", JSON.stringify(fallbackResult.error));
-      throw new Error("Failed to send email");
+      throw new Error("Failed to send email: " + JSON.stringify(fallbackResult.error));
     }
     return;
   }
 
   if (error) {
-    console.error("Resend error:", JSON.stringify(error));
-    throw new Error("Failed to send email");
+    throw new Error("Failed to send email: " + JSON.stringify(error));
   }
+  
+  console.log("Email sent successfully!");
 }
 
 Deno.serve(async (req) => {
