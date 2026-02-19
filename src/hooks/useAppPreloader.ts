@@ -58,11 +58,11 @@ export function useAppPreloader() {
       return;
     }
 
-    // Safety timeout - 4 seconds max (allows real data to load before forcing)
+    // Safety timeout - 2.5 seconds max
     const safetyTimeout = setTimeout(() => {
       console.warn('[Preloader] Safety timeout reached, forcing complete');
       setStatus({ step: 'Ready!', progress: 100, isComplete: true });
-    }, 4000);
+    }, 2500);
 
     const preload = async () => {
       const startTime = performance.now();
@@ -190,7 +190,7 @@ export function useAppPreloader() {
                 .in('conversation_id', convIds)
                 .eq('is_deleted', false)
                 .order('created_at', { ascending: false })
-                .limit(500),
+                .limit(100),
             ]);
 
             const hiddenIds = new Set((hiddenRes.data || []).map(h => h.conversation_id));
@@ -329,27 +329,29 @@ export function useAppPreloader() {
         // Step 6: Final optimizations
         updateStatus('final');
 
-        // Pre-fetch user's own posts for profile view (non-blocking)
-        supabase.rpc('get_posts_with_counts', {
-          p_type: null,
-          p_author_id: profileId,
-          p_user_id: profileId,
-          p_offset: 0,
-          p_limit: 20,
-        }).then(({ data }) => {
-          if (data) {
-            const posts = data as any[];
-            queryClient.setQueryData(['user-posts', profileId], posts);
-            cacheFeedData(queryClient, posts, profileId, null);
-          }
-        });
-
         // Log performance
         console.log(`[Preloader] Complete - ${(performance.now() - startTime).toFixed(0)}ms`);
-        
-        // Preload all route components for instant navigation
-        preloadCriticalRoutes();
-        setTimeout(() => preloadSecondaryRoutes(), 2000);
+
+        // Preload route components after splash is gone (non-blocking)
+        requestAnimationFrame(() => {
+          preloadCriticalRoutes();
+          setTimeout(() => preloadSecondaryRoutes(), 3000);
+          
+          // Defer user's own posts fetch
+          supabase.rpc('get_posts_with_counts', {
+            p_type: null,
+            p_author_id: profileId,
+            p_user_id: profileId,
+            p_offset: 0,
+            p_limit: 20,
+          }).then(({ data }) => {
+            if (data) {
+              const posts = data as any[];
+              queryClient.setQueryData(['user-posts', profileId], posts);
+              cacheFeedData(queryClient, posts, profileId, null);
+            }
+          });
+        });
         
         updateStatus('ready');
 
