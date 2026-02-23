@@ -42,21 +42,30 @@ serve(async (req) => {
       .eq("is_active", true);
     const existingTitles = (existingChallenges || []).map(t => t.title);
 
-    const prompt = `Generate 16 unique social media app challenges for a platform called VYBE. Today is ${dayOfWeek}, ${month} ${dayOfMonth}.
+    const prompt = `Generate 12 unique social media app challenges for a platform called VYBE. Today is ${dayOfWeek}, ${month} ${dayOfMonth}.
 
-Generate EXACTLY 6 DAILY challenges and EXACTLY 10 WEEKLY challenges. This is critical — do not generate fewer.
+Generate EXACTLY 6 DAILY challenges and EXACTLY 6 WEEKLY challenges. This is critical — do not generate fewer.
+
+TODAY IS ${dayOfWeek.toUpperCase()}. The daily challenges MUST reflect the energy and theme of ${dayOfWeek}:
+- Monday: fresh starts, motivation, setting intentions, "new week new me" energy
+- Tuesday: grind mode, productivity, consistency, "locked in" vibes  
+- Wednesday: midweek check-in, hump day energy, social catch-ups
+- Thursday: almost there, throwback vibes, sharing memories
+- Friday: celebration, weekend prep, party energy, going out vibes
+- Saturday: weekend mode, creativity, exploring, self-care, chill content
+- Sunday: rest & reset, reflection, cozy vibes, planning ahead
 
 Rules:
 - Each challenge MUST use one of these requirement_types: ${VALID_REQUIREMENT_TYPES.join(", ")}
 - Daily challenges should have requirement_count between 1-5
-- Weekly challenges should have requirement_count between 3-25
+- Weekly challenges should have requirement_count between 5-25
 - Daily XP rewards: 10-40
 - Weekly XP rewards: 40-100
 - Titles should be catchy, Gen-Z friendly, max 25 chars
-- Descriptions should be action-oriented, max 50 chars
+- Descriptions should be action-oriented and reference the day's theme, max 50 chars
 - Don't reuse these existing titles: ${existingTitles.slice(0, 20).join(", ")}
-- Mix up the requirement_types — use at least 5 different types across the 6 dailies and at least 6 different types across the 10 weeklies
-- Consider the day of the week for thematic challenges (e.g. "Monday Motivation", "Friday Vibes")
+- Mix up the requirement_types — use at least 5 different types across the 6 dailies and at least 5 different types across the 6 weeklies
+- At least 2 daily challenges should directly reference ${dayOfWeek} in the title or description
 - Be creative with titles — use emojis sparingly, slang, pop culture references, puns`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -164,7 +173,7 @@ Rules:
     }
 
     const dailyChallenges = validChallenges.filter(c => c.type === "daily").slice(0, 6);
-    const weeklyChallenges = validChallenges.filter(c => c.type === "weekly").slice(0, 10);
+    const weeklyChallenges = validChallenges.filter(c => c.type === "weekly").slice(0, 6);
 
     // === DIRECTLY INSERT AS ACTIVE CHALLENGES (not templates) ===
     
