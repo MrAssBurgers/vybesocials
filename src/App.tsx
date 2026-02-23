@@ -1,5 +1,6 @@
-import { useState, useEffect, memo, lazy, Suspense } from 'react';
+import { useState, useEffect, memo, lazy, Suspense, useRef } from 'react';
 import './lib/i18n';
+import { supabase } from '@/integrations/supabase/client';
 import './styles/liquid.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -63,7 +64,7 @@ const queryClient = new QueryClient({
       staleTime: 1000 * 60 * 30, // 30 minutes - maximize cache hits
       gcTime: 1000 * 60 * 180, // 3 hour cache for even better persistence
       refetchOnWindowFocus: false,
-      refetchOnMount: false,
+      refetchOnMount: 'always',
       refetchOnReconnect: false,
       retry: 1,
       retryDelay: 200,
@@ -106,6 +107,7 @@ function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
   // Only show splash on truly initial load, not on navigation
   const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
+  const prevAuthReadyRef = useRef<boolean | null>(null);
   
   // Auto-update checker
   useAutoUpdate();
@@ -114,12 +116,23 @@ function AppWithPreloader() {
   useRealtimeProfiles();
   usePostsRealtime();
 
-   useEffect(() => {
+  useEffect(() => {
     if (preloadStatus.isComplete && showSplash) {
       setShowSplash(false);
       hasInitialLoadCompleted = true;
     }
   }, [preloadStatus.isComplete, showSplash]);
+
+  // When auth resolves after preloader cached guest data, invalidate stale caches
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // Auth just resolved — invalidate all queries so they refetch with auth context
+        queryClient.invalidateQueries();
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   return (
     <>
