@@ -5,13 +5,13 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const IS_DEVELOPMENT = true;
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.762a689eac3b48a59a179f1c2b5b3a2b',
+  appId: 'app.lovable.416714c8d0134aff984d522418a9bbc7',
   appName: 'VYBE',
   webDir: 'dist',
   // Only use server URL in development mode
   ...(IS_DEVELOPMENT && {
     server: {
-      url: 'https://762a689e-ac3b-48a5-9a17-9f1c2b5b3a2b.lovableproject.com?forceHideBadge=true',
+      url: 'https://416714c8-d013-4aff-984d-522418a9bbc7.lovableproject.com?forceHideBadge=true',
       cleartext: true
     }
   }),
