@@ -58,11 +58,11 @@ export function useAppPreloader() {
       return;
     }
 
-    // Safety timeout - 2.5 seconds max
+    // Safety timeout - 5 seconds max (must exceed auth token refresh wait)
     const safetyTimeout = setTimeout(() => {
       console.warn('[Preloader] Safety timeout reached, forcing complete');
       setStatus({ step: 'Ready!', progress: 100, isComplete: true });
-    }, 2500);
+    }, 5000);
 
     const preload = async () => {
       const startTime = performance.now();
@@ -78,7 +78,7 @@ export function useAppPreloader() {
         try {
           const authResult = await Promise.race([
             supabase.auth.getSession(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 1000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000))
           ]) as { data: { session: any } };
           session = authResult.data.session;
         } catch {
