@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, memo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, TrendingUp, ExternalLink, AlertCircle, Sun, Moon, Sunset, MessageCircle, Globe, ChevronDown, Settings, Users, Bell, Flame, Zap, Target, UserPlus } from 'lucide-react';
+import { RefreshCw, TrendingUp, ExternalLink, AlertCircle, Sun, Moon, Sunset, MessageCircle, Globe, ChevronDown, Settings, Users, Bell, Flame, Zap, Target, UserPlus, Sparkles } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -31,6 +32,21 @@ interface ActiveChallenge {
   xp: number;
 }
 
+interface UnreadMessagePreview {
+  conversationId: string;
+  senderName: string;
+  preview: string;
+  isGroup: boolean;
+  groupName?: string;
+  time: string;
+}
+
+interface NotificationDetail {
+  type: string;
+  message: string;
+  time: string;
+}
+
 interface BriefData {
   summary: string;
   hasPosts: boolean;
@@ -46,6 +62,8 @@ interface BriefData {
   activeChallenges?: ActiveChallenge[];
   liveUpdates: BriefUpdate[];
   hasLiveData: boolean;
+  unreadMessagePreviews?: UnreadMessagePreview[];
+  notificationDetails?: NotificationDetail[];
 }
 
 // Get time of day for greeting
@@ -226,6 +244,7 @@ function setCachedBrief(data: BriefData) {
 
 export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [briefData, setBriefData] = useState<BriefData | null>(() => getCachedBrief());
@@ -395,6 +414,79 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                   </motion.div>
                 )}
 
+                {/* Unread Messages */}
+                {briefData.unreadMessagePreviews && briefData.unreadMessagePreviews.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.12 }}
+                    className="space-y-1.5"
+                  >
+                    <div className="flex items-center gap-1.5 px-0.5 mb-1">
+                      <MessageCircle className="h-3 w-3 text-muted-foreground/60" />
+                      <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">
+                        Unread messages
+                      </span>
+                    </div>
+                    {briefData.unreadMessagePreviews.slice(0, 5).map((msg, i) => (
+                      <motion.button
+                        key={msg.conversationId}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        onClick={() => { onOpenChange(false); navigate(`/messages/${msg.conversationId}`); }}
+                        className="w-full text-left flex items-center gap-3 p-2.5 rounded-xl bg-primary/5 border border-primary/10 hover:border-primary/25 transition-all"
+                      >
+                        <div className="p-1.5 rounded-lg bg-primary/10">
+                          <MessageCircle className="h-3.5 w-3.5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-semibold text-foreground block truncate">
+                            {msg.isGroup ? (msg.groupName || 'Group') : msg.senderName}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground block truncate">
+                            {msg.isGroup ? `${msg.senderName}: ` : ''}{msg.preview}
+                          </span>
+                        </div>
+                        <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+                      </motion.button>
+                    ))}
+                  </motion.div>
+                )}
+
+                {/* Unread Notifications */}
+                {briefData.notificationDetails && briefData.notificationDetails.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.14 }}
+                    className="space-y-1.5"
+                  >
+                    <div className="flex items-center gap-1.5 px-0.5 mb-1">
+                      <Bell className="h-3 w-3 text-muted-foreground/60" />
+                      <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">
+                        Unread notifications
+                      </span>
+                    </div>
+                    {briefData.notificationDetails.slice(0, 5).map((notif, i) => (
+                      <motion.button
+                        key={`notif-${i}`}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        onClick={() => { onOpenChange(false); navigate('/notifications'); }}
+                        className="w-full text-left flex items-center gap-3 p-2.5 rounded-xl bg-muted/30 border border-border/20 hover:border-border/40 transition-all"
+                      >
+                        <div className="p-1.5 rounded-lg bg-accent/10">
+                          <Bell className="h-3.5 w-3.5 text-accent" />
+                        </div>
+                        <span className="text-[11px] text-foreground/80 flex-1 truncate">{notif.message}</span>
+                        <div className="h-2 w-2 rounded-full bg-accent flex-shrink-0" />
+                      </motion.button>
+                    ))}
+                  </motion.div>
+                )}
+
                 {/* Active Challenges */}
                 {briefData.activeChallenges && briefData.activeChallenges.length > 0 && (
                   <motion.div
@@ -432,9 +524,29 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                   </div>
                 )}
 
+                {/* Get New Info button */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <Button
+                    onClick={handleRefresh}
+                    disabled={isLoading || isRefreshing}
+                    variant="outline"
+                    className="w-full gap-2 border-primary/20 hover:bg-primary/5"
+                  >
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>Get New Info</span>
+                    {(isLoading || isRefreshing) && <RefreshCw className="h-3 w-3 animate-spin" />}
+                  </Button>
+                </motion.div>
+
                 {/* Empty state */}
                 {(!briefData.liveUpdates || briefData.liveUpdates.length === 0) && 
-                 !briefData.hasPosts && !briefData.hasMessages && stats.length === 0 && (
+                 !briefData.hasPosts && !briefData.hasMessages && stats.length === 0 &&
+                 (!briefData.unreadMessagePreviews || briefData.unreadMessagePreviews.length === 0) &&
+                 (!briefData.notificationDetails || briefData.notificationDetails.length === 0) && (
                   <div className="text-center py-8">
                     <Globe className="h-8 w-8 text-muted-foreground/20 mx-auto mb-3" />
                     <p className="text-sm text-muted-foreground mb-4">Add interests to personalize your brief</p>
