@@ -620,17 +620,44 @@ export default function UploadPage() {
                     )} style={{ backgroundColor: 'hsl(var(--muted))' }}>
                       {previews.slice(0, 9).map((p, i) => (
                         <motion.div
-                          key={i}
+                          key={`${i}-${p}`}
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ delay: i * 0.05 }}
+                          draggable
+                          onDragStart={(e) => {
+                            (e as any).dataTransfer?.setData('text/plain', String(i));
+                          }}
+                          onDragOver={(e) => { (e as any).preventDefault?.(); }}
+                          onDrop={(e) => {
+                            (e as any).preventDefault?.();
+                            const fromIdx = parseInt((e as any).dataTransfer?.getData('text/plain') || '0');
+                            if (fromIdx === i || isNaN(fromIdx)) return;
+                            const newFiles = [...files];
+                            const newPreviews = [...previews];
+                            const [movedFile] = newFiles.splice(fromIdx, 1);
+                            const [movedPreview] = newPreviews.splice(fromIdx, 1);
+                            newFiles.splice(i, 0, movedFile);
+                            newPreviews.splice(i, 0, movedPreview);
+                            setFiles(newFiles);
+                            setPreviews(newPreviews);
+                            setFile(newFiles[0]);
+                            setPreview(newPreviews[0]);
+                          }}
                           className={cn(
-                            "relative group aspect-square overflow-hidden",
+                            "relative group aspect-square overflow-hidden cursor-grab active:cursor-grabbing",
                             previews.length === 3 && i === 0 && "row-span-2 col-span-2"
                           )}
                         >
                           <img src={p} alt="" className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                          {/* Numbered badge */}
+                          <div
+                            className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shadow-lg backdrop-blur-sm border border-border/20"
+                            style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+                          >
+                            {i + 1}
+                          </div>
                           <motion.button
                             whileTap={{ scale: 0.85 }}
                             onClick={() => removeFileAtIndex(i)}
@@ -657,7 +684,7 @@ export default function UploadPage() {
                         </button>
                       )}
                     </div>
-                    <p className="text-[11px] text-muted-foreground text-center">{previews.length}/10 photos</p>
+                    <p className="text-[11px] text-muted-foreground text-center">{previews.length}/10 · Drag to reorder</p>
                   </div>
                 ) : preview && (
                   <div className="relative rounded-2xl overflow-hidden border border-border" style={{ backgroundColor: 'hsl(var(--muted))' }}>
