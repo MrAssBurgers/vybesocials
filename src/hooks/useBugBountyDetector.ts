@@ -104,18 +104,38 @@ function classifyHttpError(status: number, url: string, body?: string): Detected
   };
 }
 
+// Cache of globally claimed bug keys (checked against DB)
+const globallyClaimedKeys = new Set<string>();
+
 export function useBugBountyDetector() {
   const [pendingBug, setPendingBug] = useState<DetectedBug | null>(null);
   const [isReporting, setIsReporting] = useState(false);
   const installedRef = useRef(false);
 
-  const onBugDetected = useCallback((bug: DetectedBug) => {
+  const onBugDetected = useCallback(async (bug: DetectedBug) => {
     const key = bugKey(bug.message);
-    if (reportedKeys.has(key)) return;
+    if (reportedKeys.has(key) || globallyClaimedKeys.has(key)) return;
     reportedKeys.add(key);
 
     // Also feed into the self-healing monitor
     trackError(bug.message);
+
+    // Check if this bug was already reported by anyone globally
+    try {
+      const searchKey = key.substring(0, 60).replace(/[%_]/g, '');
+      const { count } = await supabase
+        .from('bug_reports')
+        .select('id', { count: 'exact', head: true })
+        .ilike('error_message', `%${searchKey}%`)
+        .limit(1);
+
+      if (count && count > 0) {
+        globallyClaimedKeys.add(key);
+        return; // Already claimed by someone else
+      }
+    } catch {
+      // If check fails, still show the popup (fail open)
+    }
 
     // Set pending bug for UI
     setPendingBug(bug);
