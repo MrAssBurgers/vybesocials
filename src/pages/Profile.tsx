@@ -351,7 +351,7 @@ export default function ProfilePage() {
                   </motion.div>
                 </div>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap justify-center md:justify-start">
                   <FriendButton userId={profile.id} size="sm" />
                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     <Button

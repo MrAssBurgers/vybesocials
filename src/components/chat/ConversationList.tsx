@@ -696,10 +696,15 @@ const ConversationItem = memo(function ConversationItem({
   const handleDragEnd = useCallback((event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     isDraggingRef.current = false;
     if (info.offset.x < SWIPE_THRESHOLD && onTrash) {
+      // Haptic feedback on delete
+      if (navigator.vibrate) {
+        navigator.vibrate([15, 30, 15]);
+      }
       setIsDeleting(true);
+      // Wait for the exit animation to complete before calling onTrash
       setTimeout(() => {
         onTrash();
-      }, 200);
+      }, 400);
     }
   }, [onTrash]);
 
@@ -871,8 +876,8 @@ const ConversationItem = memo(function ConversationItem({
             dragMomentum={false}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            animate={isDeleting ? { x: -400, opacity: 0 } : { x: 0 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+            animate={isDeleting ? { x: -400, opacity: 0, height: 0, marginBottom: 0 } : { x: 0 }}
+            transition={isDeleting ? { duration: 0.35, ease: [0.4, 0, 0.2, 1] } : { type: 'spring', stiffness: 400, damping: 35 }}
           >
             <div 
               className="group w-full flex items-center gap-3 p-3 rounded-2xl text-left liquid-glass hover:bg-white/10 dark:hover:bg-white/5 active:scale-[0.98] transition-all border border-white/10 hover:border-white/20 cursor-pointer box-border shadow-sm"

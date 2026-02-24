@@ -480,7 +480,17 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         <div className="flex items-center gap-1">
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm">
+              <Button 
+                variant="ghost" 
+                size="icon-sm"
+                onPointerDown={(e) => {
+                  // Prevent accidental activation during scroll
+                  e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              >
                 <MoreHorizontal className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
