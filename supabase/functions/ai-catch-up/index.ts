@@ -351,88 +351,60 @@ serve(async (req) => {
       liveUpdates = results.filter((r): r is LiveUpdate => r !== null);
     }
 
+    // Try xAI first, fallback to Lovable AI gateway
     const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
-    if (!XAI_API_KEY) {
-      throw new Error("XAI_API_KEY is not configured");
-    }
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-    // Build context with ALL real data
-    const contextParts = [];
-    
-    if (realNotifCount > 0) contextParts.push(`You have ${realNotifCount} unread notification${realNotifCount > 1 ? 's' : ''}.`);
-    if (newFollowerCount > 0) contextParts.push(`${newFollowerCount} new follower${newFollowerCount > 1 ? 's' : ''} in the last 24 hours.`);
-    if (pendingFriendRequests > 0) contextParts.push(`${pendingFriendRequests} pending friend request${pendingFriendRequests > 1 ? 's' : ''}.`);
-    if (unreadConvos > 0) contextParts.push(`${unreadConvos} conversation${unreadConvos > 1 ? 's' : ''} with new messages.`);
-    if (recentPostCount > 0) contextParts.push(`${recentPostCount} new post${recentPostCount > 1 ? 's' : ''} from people you follow:\n${postsContent}`);
-    if (streak > 0) contextParts.push(`Current login streak: ${streak} day${streak > 1 ? 's' : ''}.`);
-    contextParts.push(`Level ${userLevel} (${userXp.toLocaleString()} XP).`);
-    
-    if (activeChallenges.length > 0) {
-      const challengeText = activeChallenges.map((c: any) => 
-        `  - ${c.title}: ${c.current}/${c.target} (${c.type}, +${c.xp} XP)`
-      ).join('\n');
-      contextParts.push(`Active challenges:\n${challengeText}`);
-    }
+    let response: Response | null = null;
 
-    if (liveUpdates.length > 0) {
-      const liveContent = liveUpdates.map(u => `${u.interest}: ${u.content}`).join('\n\n');
-      contextParts.push(`Live updates based on your interests:\n${liveContent}`);
-    }
-
-    const hasUpdates = recentPostCount > 0 || unreadConvos > 0 || realNotifCount > 0 || newFollowerCount > 0 || pendingFriendRequests > 0;
-    const hasLiveData = liveUpdates.length > 0;
-    const hasInterests = allInterests.length > 0;
-
-    if (!hasUpdates && !hasLiveData && !hasInterests) {
-      return new Response(
-        JSON.stringify({ 
-          summary: "All caught up! 🎉 No new posts, messages, or notifications. Add some interests in settings to get personalized updates from the web!",
-          hasPosts: false, hasMessages: false, unreadCount: 0,
-          notificationCount: 0, newFollowerCount: 0, pendingFriendRequests: 0,
-          streak: 0, userLevel: 1, userXp: 0, activeChallenges: [],
-          liveUpdates: [], hasLiveData: false,
+    if (XAI_API_KEY) {
+      response = await fetch("https://api.x.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${XAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "grok-3-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          max_tokens: 200,
+          temperature: 0.5,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      });
+
+      // If xAI fails with auth/billing issues, fall through to Lovable AI
+      if (!response.ok && (response.status === 403 || response.status === 401 || response.status === 402)) {
+        console.warn(`xAI returned ${response.status}, falling back to Lovable AI`);
+        response = null;
+      }
     }
 
-    const briefStyle = briefPrefs?.brief_style || 'detailed';
-    const systemPrompt = `You are VYBE's friendly AI assistant creating a personalized daily brief. Be conversational, warm, and engaging.
+    // Fallback to Lovable AI gateway
+    if (!response && LOVABLE_API_KEY) {
+      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          max_tokens: 200,
+          temperature: 0.5,
+        }),
+      });
+    }
 
-CRITICAL RULES:
-- ONLY mention specific counts that are provided in the data below. 
-- If the data says 0, do NOT mention that category
-- Be ACCURATE with numbers — never invent or guess counts
-- If there's nothing new, say so cheerfully
-
-Your response should be a quick 2-3 sentence summary that:
-1. Accurately reports real notification/message/follower/friend request counts if > 0
-2. Mentions streak or challenge progress if notable
-3. Highlights the most interesting live update if available
-4. Feels like a friend catching you up
-
-Style: ${briefStyle === 'concise' ? 'Be very brief, just the essentials.' : 'Be engaging and add a bit of personality.'}
-
-Keep it under 60 words total. Use 1-2 emojis naturally.`;
-
-    const userPrompt = `Here is the EXACT current data (use these numbers precisely):\n\n${contextParts.join('\n\n')}`;
-
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${XAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "grok-3-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: 200,
-        temperature: 0.5,
-      }),
-    });
+    if (!response) {
+      throw new Error("No AI provider available. Configure XAI_API_KEY or LOVABLE_API_KEY.");
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
