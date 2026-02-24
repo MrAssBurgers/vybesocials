@@ -4,7 +4,7 @@ import {
   TrendingUp, DollarSign, Eye, Users, BarChart3, Wallet,
   Loader2, Sparkles, ArrowUpRight, ArrowDownRight, Clock,
   Shield, Star, Zap, ChevronRight, BadgeCheck, CreditCard,
-  CheckCircle2, AlertCircle, ExternalLink
+  CheckCircle2, AlertCircle, ExternalLink, Heart, MessageCircle, Activity
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ import {
   useProcessCreatorPayout,
 } from '@/hooks/useCreatorConnect';
 import { useQueryClient } from '@tanstack/react-query';
+import { useCreatorContentStats, useFollowerGrowth } from '@/hooks/useCreatorAnalytics';
 
 const TIER_CONFIG = {
   none: { label: 'Not Enrolled', color: 'text-muted-foreground', bg: 'bg-muted', icon: Star },
@@ -332,12 +333,17 @@ function CreatorDashboardContent({ creatorProfile }: { creatorProfile: any }) {
         </Card>
 
         {/* Tabs */}
-        <Tabs defaultValue="earnings">
+        <Tabs defaultValue="analytics">
           <TabsList className="w-full">
+            <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
             <TabsTrigger value="earnings" className="flex-1">Earnings</TabsTrigger>
             <TabsTrigger value="payouts" className="flex-1">Payouts</TabsTrigger>
-            <TabsTrigger value="splits" className="flex-1">Revenue Split</TabsTrigger>
+            <TabsTrigger value="splits" className="flex-1">Splits</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="analytics" className="mt-3 space-y-4">
+            <CreatorAnalyticsTab />
+          </TabsContent>
 
           <TabsContent value="earnings" className="mt-3 space-y-2">
             {earnings.length === 0 ? (
@@ -446,6 +452,154 @@ function MetricCard({ label, value, icon: Icon, trend }: {
         <p className="text-xs text-muted-foreground">{label}</p>
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Analytics Tab ───
+function CreatorAnalyticsTab() {
+  const { data: contentStats, isLoading: statsLoading } = useCreatorContentStats();
+  const { data: followerData, isLoading: followersLoading } = useFollowerGrowth();
+
+  if (statsLoading || followersLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Engagement overview */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="border-border/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Heart className="h-4 w-4 text-rose-400" />
+              <ArrowUpRight className="h-3 w-3 text-emerald-400" />
+            </div>
+            <p className="text-lg font-bold">{(contentStats?.totalLikes || 0).toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">Total Likes</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <MessageCircle className="h-4 w-4 text-blue-400" />
+              <ArrowUpRight className="h-3 w-3 text-emerald-400" />
+            </div>
+            <p className="text-lg font-bold">{(contentStats?.totalComments || 0).toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">Total Comments</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Users className="h-4 w-4 text-primary" />
+              <ArrowUpRight className="h-3 w-3 text-emerald-400" />
+            </div>
+            <p className="text-lg font-bold">{(followerData?.total || 0).toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">Followers</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Activity className="h-4 w-4 text-amber-400" />
+            </div>
+            <p className="text-lg font-bold">{(contentStats?.engagementRate || 0).toFixed(1)}%</p>
+            <p className="text-xs text-muted-foreground">Engagement Rate</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Follower growth spark line */}
+      {followerData && followerData.recentFollowers.length > 0 && (
+        <Card className="border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              30-Day Follower Growth
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-primary">+{followerData.recentFollowers.length}</p>
+            <p className="text-xs text-muted-foreground">new followers this month</p>
+            <div className="mt-3 flex gap-0.5 items-end h-12">
+              {Array.from({ length: 30 }, (_, i) => {
+                const date = new Date();
+                date.setDate(date.getDate() - 29 + i);
+                const dateStr = date.toISOString().split('T')[0];
+                const count = followerData.recentFollowers.filter(
+                  (f: any) => f.created_at.startsWith(dateStr)
+                ).length;
+                const maxCount = Math.max(
+                  ...Array.from({ length: 30 }, (_, j) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - 29 + j);
+                    return followerData.recentFollowers.filter(
+                      (f: any) => f.created_at.startsWith(d.toISOString().split('T')[0])
+                    ).length;
+                  }),
+                  1
+                );
+                const height = Math.max((count / maxCount) * 100, 4);
+                return (
+                  <div
+                    key={i}
+                    className="flex-1 bg-primary/60 rounded-t-sm min-w-[3px]"
+                    style={{ height: `${height}%` }}
+                    title={`${dateStr}: +${count}`}
+                  />
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Top performing posts */}
+      <Card className="border-border/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            Top Performing Content
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {(!contentStats?.topPosts || contentStats.topPosts.length === 0) ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              Post content to see performance metrics here.
+            </p>
+          ) : (
+            contentStats.topPosts.map((post: any, i: number) => (
+              <div key={post.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                <span className="text-xs font-bold text-muted-foreground w-5">#{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {post.caption || 'Untitled post'}
+                  </p>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                    <span className="flex items-center gap-1">
+                      <Heart className="h-3 w-3" /> {post.likes}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <MessageCircle className="h-3 w-3" /> {post.comments}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Eye className="h-3 w-3" /> {(post.view_count || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-[10px] border-0 bg-muted">
+                  {post.type}
+                </Badge>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
