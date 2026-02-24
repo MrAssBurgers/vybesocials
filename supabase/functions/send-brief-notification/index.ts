@@ -7,31 +7,33 @@ const corsHeaders = {
 };
 
 // Determine time of day based on hour
-function getTimeOfDay(hour: number): 'morning' | 'evening' | 'night' {
-  if (hour >= 6 && hour < 12) return 'morning';
-  if (hour >= 17 && hour < 21) return 'evening';
-  return 'night';
+type BriefTime = 'morning' | 'lunch' | 'dinner';
+
+function getTimeOfDay(hour: number): BriefTime {
+  if (hour >= 6 && hour < 11) return 'morning';
+  if (hour >= 11 && hour < 15) return 'lunch';
+  return 'dinner';
 }
 
-function getGreeting(timeOfDay: 'morning' | 'evening' | 'night'): string {
+function getGreeting(timeOfDay: BriefTime): string {
   switch (timeOfDay) {
     case 'morning':
       return "☀️ Hey, your morning brief is ready!";
-    case 'evening':
-      return "🌅 Hey, your evening brief is ready!";
-    case 'night':
-      return "🌙 Hey, your night brief is ready!";
+    case 'lunch':
+      return "🍽️ Lunchtime — here's your midday brief!";
+    case 'dinner':
+      return "🌙 Evening brief is ready!";
   }
 }
 
-function getBody(timeOfDay: 'morning' | 'evening' | 'night'): string {
+function getBody(timeOfDay: BriefTime): string {
   switch (timeOfDay) {
     case 'morning':
       return "Start your day with personalized updates";
-    case 'evening':
-      return "Catch up on what happened today";
-    case 'night':
-      return "Wind down with your daily summary";
+    case 'lunch':
+      return "Here's what's happening this afternoon";
+    case 'dinner':
+      return "Wind down with your evening summary";
   }
 }
 
