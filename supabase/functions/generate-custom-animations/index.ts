@@ -35,10 +35,10 @@ serve(async (req) => {
 
   try {
     const { prompt, mood = "balanced" } = await req.json();
-    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
-    if (!XAI_API_KEY) {
-      throw new Error("XAI_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     if (!prompt || prompt.trim().length === 0) {
@@ -79,14 +79,14 @@ Generate 3-5 custom keyframe animations with:
 3. Appropriate timing functions
 4. CSS variables for easy customization`;
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${XAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-3-mini",
+        model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
           { 

@@ -44,9 +44,9 @@ serve(async (req) => {
       );
     }
 
-    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
-    if (!XAI_API_KEY) {
-      throw new Error("XAI_API_KEY is not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     const sanitizedType = typeValidation.sanitizedType!;
@@ -63,14 +63,14 @@ serve(async (req) => {
       `Generate 3 creative, engaging captions for a ${typeLabel} post on a social media app. Each caption should be catchy, fun, and under 150 characters. Include relevant emojis. Make them shareable and engagement-worthy. Vary the tone: one witty, one relatable, one trendy. Return ONLY a JSON array with exactly 3 strings.`
     );
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${XAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-3-mini-fast",
+        model: "google/gemini-3-flash-preview",
         messages: [
           { 
             role: "system", 
