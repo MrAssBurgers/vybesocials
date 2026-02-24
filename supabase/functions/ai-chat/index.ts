@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { validateAuth } from "../_shared/auth.ts";
 import { validateMessages, validateAndSanitizeInput, MAX_LENGTHS } from "../_shared/validation.ts";
+import { rateLimitOrNull } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +22,10 @@ serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Rate limit: 10 AI chat requests per minute per user
+    const rateLimited = await rateLimitOrNull(`ai-chat:${auth.userId}`, 10, 60, corsHeaders);
+    if (rateLimited) return rateLimited;
 
     const { messages, aiName, aiPersonality } = await req.json();
     
