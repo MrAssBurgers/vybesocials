@@ -224,7 +224,7 @@ export function usePrefetchPosts() {
   }, [profile, queryClient]);
 }
 
-// Personalized "For You" feed - shows posts matching user's onboarding interests
+// Personalized "For You" feed - server-side ranked discovery algorithm
 export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
   const { profile } = useAuth();
 
@@ -233,38 +233,31 @@ export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       const isFirstPage = pageParam === 0;
       const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
-      const offset = isFirstPage ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
 
-      // Get user's interests from profile
-      const userInterests = (profile as any)?.interests || [];
-
-      if (userInterests.length === 0 || !profile?.id) {
-        // No interests = fall back to regular posts (trending)
-        const { data, error } = await supabase.rpc('get_posts_with_counts', {
-          p_type: type || null,
-          p_author_id: null,
-          p_user_id: profile?.id || null,
-          p_offset: offset,
-          p_limit: limit,
+      if (!profile?.id) {
+        // Cold start: use trending feed RPC
+        const { data, error } = await supabase.rpc('get_trending_feed', {
+          p_content_type: type || 'post',
+          p_page: pageParam,
+          p_page_size: limit,
         });
         if (error) throw error;
-        const posts = (data || []).map(transformPost);
+        const posts = (data || []).map(transformRankedPost);
         presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
         return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
       }
 
-      // Use personalized feed RPC
-      const { data, error } = await supabase.rpc('get_personalized_feed', {
+      // Use advanced ranked feed RPC
+      const { data, error } = await supabase.rpc('get_ranked_feed', {
         p_user_id: profile.id,
-        p_interests: userInterests,
-        p_type: type || null,
-        p_offset: offset,
-        p_limit: limit,
+        p_content_type: type || 'post',
+        p_page: pageParam,
+        p_page_size: limit,
       });
 
       if (error) throw error;
 
-      const posts = (data || []).map(transformPost);
+      const posts = (data || []).map(transformRankedPost);
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
       return {
@@ -282,4 +275,28 @@ export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
   });
 
   return query;
+}
+
+// Transform ranked feed RPC result (different column names from standard RPC)
+function transformRankedPost(row: any): Post & { view_count?: number } {
+  return {
+    id: row.post_id,
+    type: row.post_type,
+    media_url: row.media_url,
+    thumbnail_url: row.thumbnail_url,
+    caption: row.caption || '',
+    tags: row.tags || [],
+    created_at: row.created_at,
+    is_pinned: row.is_pinned,
+    view_count: row.view_count || 0,
+    author: {
+      id: row.author_id,
+      username: row.author_username,
+      avatar_url: row.author_avatar || row.author_avatar_url,
+    },
+    like_count: Number(row.like_count) || 0,
+    comment_count: Number(row.comment_count) || 0,
+    is_liked: row.is_liked || false,
+    is_bookmarked: row.is_bookmarked || false,
+  };
 }
