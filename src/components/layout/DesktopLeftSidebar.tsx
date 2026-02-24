@@ -15,6 +15,7 @@ import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { useUserRole } from '@/hooks/useModeration';
+import { usePendingModerationCount } from '@/hooks/usePendingModerationCount';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
 import { VYBELogo } from '@/components/ui/VYBELogo';
@@ -103,6 +104,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
 
   // Check if user is admin or moderator
   const showAdminLink = userRole === 'admin' || userRole === 'moderator';
+  const { data: pendingModCount = 0 } = usePendingModerationCount();
 
   const { isPremium } = usePremiumStatus();
   const { data: myServers = [] } = useMyServers();
@@ -363,7 +365,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                   {t('sidebar.moderation')}
                 </p>
               )}
-              {renderNavItem({ icon: Shield, labelKey: 'sidebar.adminPanel', path: '/admin', badge: 0 })}
+              {renderNavItem({ icon: Shield, labelKey: 'sidebar.adminPanel', path: '/admin', badge: showAdminLink ? pendingModCount : 0 })}
             </>
           )}
         </nav>

@@ -95,6 +95,20 @@ export default function AdminDashboard() {
     },
   });
 
+  // Bug reports count for badge
+  const { data: pendingBugs = 0 } = useQuery({
+    queryKey: ['admin-pending-bugs-count'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('bug_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      if (error) return 0;
+      return count || 0;
+    },
+    staleTime: 30_000,
+  });
+
   const isAdmin = userRole === 'admin';
   const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
 
@@ -122,6 +136,7 @@ export default function AdminDashboard() {
       case 'reports': return pendingReports || undefined;
       case 'flags': return pendingFlags || undefined;
       case 'appeals': return pendingAppeals || undefined;
+      case 'errors': return pendingBugs || undefined;
       default: return undefined;
     }
   };
