@@ -62,21 +62,21 @@ serve(async (req) => {
     const sanitizedContent = contentValidation.sanitized!;
     const sanitizedType = typeValidation.sanitizedType!;
 
-    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
-    if (!XAI_API_KEY) {
-      throw new Error("XAI_API_KEY is not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     // Use AI to analyze content for toxicity
     // Note: The moderation prompt is fixed and cannot be injected
-    const aiResponse = await fetch("https://api.x.ai/v1/chat/completions", {
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${XAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-3-mini",
+        model: "google/gemini-3-flash-preview",
         messages: [
           {
             role: "system",
@@ -111,7 +111,7 @@ Respond ONLY with valid JSON in this exact format:
       }
       if (aiResponse.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Payment required" }),
+          JSON.stringify({ error: "AI credits exhausted, please add funds" }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

@@ -34,9 +34,9 @@ serve(async (req) => {
   }
 
   try {
-    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
-    if (!XAI_API_KEY) {
-      console.log("XAI_API_KEY not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      console.log("LOVABLE_API_KEY not configured");
       return new Response(
         JSON.stringify({ result: 'allowed', message: 'Safety check not configured' }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -170,14 +170,14 @@ Respond with ONLY valid JSON:
       ];
     }
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${XAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-3-mini",
+        model: "google/gemini-3-flash-preview",
         messages,
         max_tokens: 300,
       }),
@@ -187,6 +187,12 @@ Respond with ONLY valid JSON:
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ result: 'allowed', message: 'Rate limited, allowing content' }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ result: 'allowed', message: 'AI credits exhausted' }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
