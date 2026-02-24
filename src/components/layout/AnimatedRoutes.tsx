@@ -38,6 +38,7 @@ const Watch = lazy(() => import("@/pages/Watch"));
 const VideoBrowse = lazy(() => import("@/pages/VideoBrowse"));
 const Privacy = lazy(() => import("@/pages/Privacy"));
 const Terms = lazy(() => import("@/pages/Terms"));
+const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
 const InviteFriends = lazy(() => import("@/pages/InviteFriends"));
 const InviteRedeem = lazy(() => import("@/pages/InviteRedeem"));
 const AddFriend = lazy(() => import("@/pages/AddFriend"));
@@ -91,13 +92,14 @@ export function AnimatedRoutes() {
   }, []);
   
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" id="main-content">
       <Suspense fallback={<PageFallback />}>
         <Routes location={location}>
             {/* Public routes - no authentication required */}
             <Route path="/" element={<Landing />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/cookies" element={<CookiePolicy />} />
             <Route path="/guidelines" element={<CommunityGuidelines />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
