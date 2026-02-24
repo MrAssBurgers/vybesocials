@@ -28,11 +28,12 @@ export function ForgotPasswordDialog({ open, onClose }: ForgotPasswordDialogProp
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: "https://vybehub.app/reset-password",
+      const { data, error } = await supabase.functions.invoke('send-reset-email', {
+        body: { email: email.trim() },
       });
 
       if (error) throw error;
+      if (data?.success === false && data?.error) throw new Error(data.error);
 
       setSent(true);
       toast.success('If that email exists, we sent a reset link.');
