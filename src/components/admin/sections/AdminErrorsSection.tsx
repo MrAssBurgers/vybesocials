@@ -93,9 +93,11 @@ export function AdminErrorsSection() {
         </div>
       <div className="ml-auto flex gap-2">
           <Button variant="outline" size="sm" onClick={() => {
-            const text = bugs.map((b: any) => `[${b.status}] ${b.error_message}${b.page_url ? ` (${b.page_url})` : ''}`).join('\n\n');
+            const unfixed = bugs.filter((b: any) => b.status !== 'fixed');
+            if (unfixed.length === 0) { toast.info('No unfixed bugs to copy'); return; }
+            const text = unfixed.map((b: any) => `[${b.status}] ${b.error_message}${b.page_url ? ` (${b.page_url})` : ''}`).join('\n\n');
             navigator.clipboard.writeText(text);
-            toast.success(`Copied ${bugs.length} errors to clipboard`);
+            toast.success(`Copied ${unfixed.length} unfixed errors to clipboard`);
           }}>
             Copy All
           </Button>
