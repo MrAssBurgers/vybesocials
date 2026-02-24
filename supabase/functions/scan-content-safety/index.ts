@@ -34,9 +34,9 @@ serve(async (req) => {
   }
 
   try {
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-    if (!GROQ_API_KEY) {
-      console.log("GROQ_API_KEY not configured");
+    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+    if (!XAI_API_KEY) {
+      console.log("XAI_API_KEY not configured");
       return new Response(
         JSON.stringify({ result: 'allowed', message: 'Safety check not configured' }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -170,14 +170,14 @@ Respond with ONLY valid JSON:
       ];
     }
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
+        Authorization: `Bearer ${XAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "grok-3-mini",
         messages,
         max_tokens: 300,
       }),

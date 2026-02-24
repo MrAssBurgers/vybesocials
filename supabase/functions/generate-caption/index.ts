@@ -44,9 +44,9 @@ serve(async (req) => {
       );
     }
 
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-    if (!GROQ_API_KEY) {
-      throw new Error("GROQ_API_KEY is not configured");
+    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+    if (!XAI_API_KEY) {
+      throw new Error("XAI_API_KEY is not configured");
     }
 
     const sanitizedType = typeValidation.sanitizedType!;
@@ -63,14 +63,14 @@ serve(async (req) => {
       `Generate 3 creative, engaging captions for a ${typeLabel} post on a social media app. Each caption should be catchy, fun, and under 150 characters. Include relevant emojis. Make them shareable and engagement-worthy. Vary the tone: one witty, one relatable, one trendy. Return ONLY a JSON array with exactly 3 strings.`
     );
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
+        Authorization: `Bearer ${XAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: "grok-3-mini-fast",
         messages: [
           { 
             role: "system", 

@@ -58,9 +58,9 @@ serve(async (req) => {
       );
     }
 
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-    if (!GROQ_API_KEY) {
-      throw new Error("GROQ_API_KEY is not configured");
+    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+    if (!XAI_API_KEY) {
+      throw new Error("XAI_API_KEY is not configured");
     }
 
     // Format messages for context
@@ -74,14 +74,14 @@ serve(async (req) => {
       "Create a brief, casual summary of this conversation in 2-3 sentences. Focus on the main topics discussed and any decisions made. Keep it friendly and easy to read. Do not include any sensitive or private details."
     );
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
+        Authorization: `Bearer ${XAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: "grok-3-mini-fast",
         messages: [
           {
             role: "system",

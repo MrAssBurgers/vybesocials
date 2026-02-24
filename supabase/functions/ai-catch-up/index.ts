@@ -280,9 +280,9 @@ serve(async (req) => {
       liveUpdates = results.filter((r): r is LiveUpdate => r !== null);
     }
 
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-    if (!GROQ_API_KEY) {
-      throw new Error("GROQ_API_KEY is not configured");
+    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+    if (!XAI_API_KEY) {
+      throw new Error("XAI_API_KEY is not configured");
     }
 
     // Build context with ALL real data
@@ -346,14 +346,14 @@ Keep it under 60 words total. Use 1-2 emojis naturally.`;
 
     const userPrompt = `Here is the EXACT current data (use these numbers precisely):\n\n${contextParts.join('\n\n')}`;
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
+        Authorization: `Bearer ${XAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "grok-3-mini",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

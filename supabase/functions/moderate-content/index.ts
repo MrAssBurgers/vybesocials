@@ -62,21 +62,21 @@ serve(async (req) => {
     const sanitizedContent = contentValidation.sanitized!;
     const sanitizedType = typeValidation.sanitizedType!;
 
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-    if (!GROQ_API_KEY) {
-      throw new Error("GROQ_API_KEY is not configured");
+    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+    if (!XAI_API_KEY) {
+      throw new Error("XAI_API_KEY is not configured");
     }
 
     // Use AI to analyze content for toxicity
     // Note: The moderation prompt is fixed and cannot be injected
-    const aiResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const aiResponse = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
+        Authorization: `Bearer ${XAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "grok-3-mini",
         messages: [
           {
             role: "system",
