@@ -66,8 +66,13 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       refetchOnMount: 'always',
       refetchOnReconnect: false,
-      retry: 1,
-      retryDelay: 200,
+      retry: (failureCount, error: any) => {
+        // Don't retry auth errors or client errors
+        const status = error?.status || error?.statusCode;
+        if (status === 401 || status === 403 || status === 404) return false;
+        return failureCount < 2;
+      },
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
       networkMode: 'offlineFirst',
       structuralSharing: true,
       refetchInterval: false,
