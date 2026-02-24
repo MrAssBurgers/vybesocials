@@ -8359,6 +8359,17 @@ export type Database = {
       ensure_profile: { Args: never; Returns: string }
       execute_admin_sql: { Args: { sql_query: string }; Returns: Json }
       filter_profanity: { Args: { input_text: string }; Returns: string }
+      fire_push_notification: {
+        Args: {
+          p_body: string
+          p_tag?: string
+          p_title: string
+          p_type?: string
+          p_url?: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       force_sync_my_challenges: { Args: never; Returns: undefined }
       generate_invite_code: { Args: never; Returns: string }
       generate_order_number: { Args: never; Returns: string }
