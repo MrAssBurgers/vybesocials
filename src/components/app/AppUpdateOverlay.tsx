@@ -1,34 +1,19 @@
 import { useState, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Sparkles, Zap } from 'lucide-react';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { Sparkles } from 'lucide-react';
 
-/**
- * Detects Vite HMR / service worker updates and shows a premium loading overlay.
- * Also exposed as a manual trigger via window.dispatchEvent(new Event('vybe-app-update')).
- */
 export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('Checking for updates...');
 
   useEffect(() => {
-    // Listen for service-worker update events
     const handleSWUpdate = () => triggerUpdate();
-
-    // Listen for custom vybe update event
     const handleVybeUpdate = () => triggerUpdate();
-
-    // Listen for Vite HMR connection events (reconnection = new build)
-    const handleViteReconnect = () => {
-      // Small delay so the new modules can load
-      setTimeout(() => triggerUpdate(), 200);
-    };
 
     navigator.serviceWorker?.addEventListener('controllerchange', handleSWUpdate);
     window.addEventListener('vybe-app-update', handleVybeUpdate);
 
-    // Check for updates via Vite's import.meta.hot
     if (import.meta.hot) {
       import.meta.hot.on('vite:beforeFullReload', () => {
         triggerUpdate();
@@ -51,7 +36,7 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
       { at: 40, text: 'Applying changes...' },
       { at: 65, text: 'Optimizing experience...' },
       { at: 85, text: 'Almost there...' },
-      { at: 100, text: 'Done! ✨' },
+      { at: 100, text: 'Ready!' },
     ];
 
     let stepIndex = 0;
@@ -70,6 +55,8 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
     }, 400);
   };
 
+  const isComplete = progress >= 100;
+
   return (
     <AnimatePresence>
       {isUpdating && (
@@ -78,101 +65,72 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="fixed inset-0 z-[9999] flex items-center justify-center"
-          style={{ backgroundColor: 'hsl(var(--background))' }}
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-background"
         >
-          {/* Animated background particles */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {[...Array(6)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute w-1 h-1 rounded-full bg-primary/30"
-                initial={{
-                  x: `${20 + Math.random() * 60}%`,
-                  y: '110%',
-                  scale: 0.5 + Math.random(),
-                }}
-                animate={{
-                  y: '-10%',
-                  opacity: [0, 0.8, 0],
-                }}
-                transition={{
-                  duration: 2 + Math.random() * 2,
-                  repeat: Infinity,
-                  delay: i * 0.4,
-                  ease: 'linear',
-                }}
-              />
-            ))}
+          {/* Subtle radial glow — single, centered, low opacity */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full opacity-20"
+              style={{
+                background: 'radial-gradient(circle, hsl(var(--primary) / 0.5) 0%, transparent 70%)',
+                filter: 'blur(80px)',
+              }}
+            />
           </div>
 
-          <div className="flex flex-col items-center gap-6 px-8">
-            {/* Animated logo */}
+          <div className="relative flex flex-col items-center gap-8 px-8">
+            {/* Logo mark */}
             <motion.div
-              animate={{
-                scale: [1, 1.1, 1],
-                rotate: [0, 5, -5, 0],
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-              className="relative"
+              animate={isComplete ? { scale: [1, 1.1, 1] } : { scale: [1, 1.04, 1] }}
+              transition={{ duration: isComplete ? 0.4 : 2.5, repeat: isComplete ? 0 : Infinity, ease: 'easeInOut' }}
             >
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-2xl shadow-primary/30">
-                <VybeMiniIcon size={36} showSparkles animated />
+              <div className="w-20 h-20 rounded-[22px] bg-primary flex items-center justify-center shadow-lg">
+                <span className="text-3xl font-black text-primary-foreground tracking-tighter select-none">V</span>
               </div>
-              
-              {/* Orbiting sparkle */}
-              <motion.div
-                className="absolute -top-1 -right-1"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                style={{ transformOrigin: '50% 150%' }}
-              >
-                <Sparkles className="w-4 h-4 text-accent" />
-              </motion.div>
             </motion.div>
 
-            {/* Status text */}
-            <div className="text-center space-y-2">
-              <motion.h2
-                key={statusText}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-lg font-bold text-foreground"
-              >
+            {/* Text */}
+            <div className="text-center space-y-1.5">
+              <h2 className="text-xl font-bold text-foreground tracking-tight">
                 Updating VYBE
-              </motion.h2>
-              <motion.p
-                key={statusText + '-sub'}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-sm text-muted-foreground"
-              >
-                {statusText}
-              </motion.p>
+              </h2>
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={statusText}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-sm text-muted-foreground"
+                >
+                  {statusText}
+                </motion.p>
+              </AnimatePresence>
             </div>
 
             {/* Progress bar */}
-            <div className="w-56 h-1.5 rounded-full bg-muted overflow-hidden">
-              <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
-                initial={{ width: '0%' }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
-              />
+            <div className="w-52 space-y-2">
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full bg-primary"
+                  initial={{ width: '0%' }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
+                />
+              </div>
+              <p className="text-xs text-center tabular-nums text-muted-foreground">
+                {progress}%
+              </p>
             </div>
 
-            {/* Subtle hint */}
+            {/* Bottom hint */}
             <motion.div
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              transition={{ delay: 1 }}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground"
+              animate={{ opacity: 0.4 }}
+              transition={{ delay: 1.2 }}
+              className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
             >
-              <Zap className="w-3 h-3" />
+              <Sparkles className="w-3 h-3" />
               <span>This won't take long</span>
             </motion.div>
           </div>
