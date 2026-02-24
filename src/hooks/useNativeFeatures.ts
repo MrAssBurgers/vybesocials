@@ -148,39 +148,94 @@ export function useNativeNotifications() {
   return { hasPermission, requestPermission, scheduleNotification };
 }
 
-export function usePushNotifications() {
+export function useNativePushNotifications() {
   const [token, setToken] = useState<string | null>(null);
+  const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
 
   useEffect(() => {
     if (!isNativePlatform) return;
 
     const setupPush = async () => {
       try {
+        // Check current permission status
+        const permResult = await PushNotifications.checkPermissions();
+        setPermissionStatus(permResult.receive as 'prompt' | 'granted' | 'denied');
+
         // Request permission
         const result = await PushNotifications.requestPermissions();
+        setPermissionStatus(result.receive as 'prompt' | 'granted' | 'denied');
         if (result.receive !== 'granted') return;
 
-        // Register
+        // Register for push
         await PushNotifications.register();
 
-        // Listen for registration
-        PushNotifications.addListener('registration', (token) => {
-          setToken(token.value);
-          console.log('[Push] Token:', token.value);
+        // Listen for registration token
+        PushNotifications.addListener('registration', (regToken) => {
+          setToken(regToken.value);
+          console.log('[Push Native] Token registered:', regToken.value.substring(0, 20) + '...');
         });
 
-        // Handle push received
+        // Handle registration error
+        PushNotifications.addListener('registrationError', (error) => {
+          console.error('[Push Native] Registration error:', error);
+        });
+
+        // Handle push received while app is in foreground
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          console.log('[Push] Received:', notification);
-          hapticNotification('success');
+          console.log('[Push Native] Foreground notification:', notification);
+          
+          // Haptic feedback based on notification type
+          const notifType = notification.data?.type || 'general';
+          if (notifType === 'call') {
+            hapticNotification('warning');
+          } else if (notifType === 'dm' || notifType === 'message') {
+            hapticNotification('success');
+          } else {
+            hapticImpact('medium');
+          }
         });
 
-        // Handle push action
+        // Handle notification tap - deep link to correct screen
         PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-          console.log('[Push] Action:', action);
+          console.log('[Push Native] Action performed:', action);
+          const data = action.notification.data || {};
+          
+          let targetUrl = data.url || '/';
+          
+          // Deep link based on notification type
+          switch (data.type) {
+            case 'dm':
+            case 'message':
+            case 'group_message':
+              targetUrl = data.conversationId ? `/messages/${data.conversationId}` : '/messages';
+              break;
+            case 'call':
+              targetUrl = data.conversationId ? `/messages/${data.conversationId}?acceptCall=true` : '/messages';
+              break;
+            case 'friend_request':
+            case 'friend_accepted':
+              targetUrl = '/notifications';
+              break;
+            case 'like':
+            case 'comment':
+              targetUrl = data.postId ? `/p/${data.postId}` : '/notifications';
+              break;
+          }
+          
+          // Navigate using the window location (works in Capacitor WebView)
+          if (targetUrl && targetUrl !== '/') {
+            window.location.href = targetUrl;
+          }
         });
+
+        // Reset badge count when app is opened
+        try {
+          await PushNotifications.removeAllDeliveredNotifications();
+        } catch {
+          // Not supported on all platforms
+        }
       } catch (error) {
-        console.error('[Push] Setup failed:', error);
+        console.error('[Push Native] Setup failed:', error);
       }
     };
 
@@ -191,7 +246,21 @@ export function usePushNotifications() {
     };
   }, []);
 
-  return { token, isNative: isNativePlatform };
+  // Clear badge count when app becomes visible
+  useEffect(() => {
+    if (!isNativePlatform) return;
+
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        PushNotifications.removeAllDeliveredNotifications().catch(() => {});
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
+
+  return { token, isNative: isNativePlatform, permissionStatus };
 }
 
 export function useNativeFileSystem() {

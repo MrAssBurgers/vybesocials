@@ -33,6 +33,7 @@ const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 const Community = lazy(() => import("@/pages/Community"));
 const Spaces = lazy(() => import("@/pages/Spaces"));
 const Watch = lazy(() => import("@/pages/Watch"));
+const VideoBrowse = lazy(() => import("@/pages/VideoBrowse"));
 const Privacy = lazy(() => import("@/pages/Privacy"));
 const Terms = lazy(() => import("@/pages/Terms"));
 const InviteFriends = lazy(() => import("@/pages/InviteFriends"));
@@ -127,6 +128,7 @@ export function AnimatedRoutes() {
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
             <Route path="/spaces" element={<ProtectedRoute><Spaces /></ProtectedRoute>} />
+            <Route path="/watch" element={<ProtectedRoute><VideoBrowse /></ProtectedRoute>} />
             <Route path="/watch/:id" element={<ProtectedRoute><Watch /></ProtectedRoute>} />
             <Route path="/invite-friends" element={<ProtectedRoute><InviteFriends /></ProtectedRoute>} />
             <Route path="/add-friend/:userId" element={<ProtectedRoute><AddFriend /></ProtectedRoute>} />
