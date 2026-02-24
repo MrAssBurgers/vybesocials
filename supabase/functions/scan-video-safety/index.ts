@@ -38,9 +38,9 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.log("LOVABLE_API_KEY not configured");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    if (!GROQ_API_KEY) {
+      console.log("GROQ_API_KEY not configured");
       return new Response(
         JSON.stringify({ result: 'allowed', message: 'Safety check not configured' }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -166,14 +166,14 @@ Respond with ONLY the JSON object.`
 
     console.log("Sending video to AI for context-aware safety analysis...");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${GROQ_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro", // Using Pro for better understanding
+        model: "llama-3.3-70b-versatile",
         messages,
         max_tokens: 2000,
       }),
