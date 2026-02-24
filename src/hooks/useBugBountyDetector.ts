@@ -45,11 +45,45 @@ const IGNORED_PATTERNS = [
   'AbortError',
   'cancelled',
   'user aborted',
+  'Rate limit',
+  'rate limited',
+  'CORS',
+  'Load failed',
+  'TypeError: Failed to fetch',
 ];
+
+// HTTP status codes that indicate real bugs (not auth or rate-limit)
+const BUG_STATUS_CODES = [500, 502, 503, 504, 422];
 
 function shouldIgnore(msg: string): boolean {
   const lower = msg.toLowerCase();
   return IGNORED_PATTERNS.some(p => lower.includes(p.toLowerCase()));
+}
+
+/**
+ * Classify an HTTP error from fetch/API calls as a reportable bug
+ */
+function classifyHttpError(status: number, url: string, body?: string): DetectedBug | null {
+  if (!BUG_STATUS_CODES.includes(status)) return null;
+  
+  // Ignore non-app URLs
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  const isAppRequest = url.includes(supabaseUrl) || url.startsWith(window.location.origin);
+  if (!isAppRequest) return null;
+
+  const shortUrl = url.replace(supabaseUrl, '').split('?')[0];
+  const errorSnippet = body?.substring(0, 200) || '';
+  const message = `HTTP ${status} from ${shortUrl}${errorSnippet ? ': ' + errorSnippet : ''}`;
+
+  if (shouldIgnore(message)) return null;
+
+  return {
+    message,
+    stack: `Endpoint: ${shortUrl}\nStatus: ${status}\nResponse: ${errorSnippet}`,
+    url: window.location.href,
+    userAgent: navigator.userAgent,
+    timestamp: Date.now(),
+  };
 }
 
 export function useBugBountyDetector() {
@@ -100,12 +134,39 @@ export function useBugBountyDetector() {
       });
     };
 
+    // Intercept fetch to catch HTTP 5xx errors as bugs
+    const originalFetch = window.fetch;
+    window.fetch = async function (...args: Parameters<typeof fetch>) {
+      try {
+        const response = await originalFetch.apply(this, args);
+        
+        if (BUG_STATUS_CODES.includes(response.status)) {
+          const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
+          // Clone response so the original consumer can still read it
+          const cloned = response.clone();
+          try {
+            const body = await cloned.text();
+            const bug = classifyHttpError(response.status, url, body);
+            if (bug) onBugDetected(bug);
+          } catch {
+            const bug = classifyHttpError(response.status, url);
+            if (bug) onBugDetected(bug);
+          }
+        }
+        
+        return response;
+      } catch (err) {
+        throw err;
+      }
+    };
+
     window.addEventListener('error', onError);
     window.addEventListener('unhandledrejection', onRejection);
 
     return () => {
       window.removeEventListener('error', onError);
       window.removeEventListener('unhandledrejection', onRejection);
+      window.fetch = originalFetch;
       installedRef.current = false;
     };
   }, [onBugDetected]);
