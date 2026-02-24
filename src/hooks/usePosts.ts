@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { containsBlockedContent, filterBlockedContent } from '@/lib/contentModeration';
+import { optimizeForUpload, isVideoFile, generateVideoThumbnail, getCompressedExtension } from '@/lib/mediaOptimizer';
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 import { setCachedProfiles } from '@/lib/profileCache';
@@ -280,14 +281,31 @@ export function useCreatePost() {
 
       let publicUrl: string | null = null;
       let mediaUrls: string[] | null = null;
+      let thumbnailUrl: string | null = null;
 
-      // Handle multi-file upload (carousel)
+      // Handle multi-file upload (carousel) with compression
       if (data.mediaFiles && data.mediaFiles.length > 0) {
         const uploadedUrls: string[] = [];
         for (const file of data.mediaFiles) {
-          const fileExt = file.name.split('.').pop();
+          let uploadBlob: Blob = file;
+          let fileExt = file.name.split('.').pop() || 'jpg';
+
+          // Compress images, skip videos
+          if (!isVideoFile(file)) {
+            try {
+              const optimized = await optimizeForUpload(file, 'post');
+              uploadBlob = optimized.file;
+              fileExt = optimized.extension;
+              if (optimized.savings > 0) {
+                console.log(`[Media] Compressed ${file.name}: ${optimized.savings}% smaller`);
+              }
+            } catch (e) {
+              console.warn('[Media] Compression failed, using original:', e);
+            }
+          }
+
           const fileName = `${profile.user_id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage.from('media').upload(fileName, file);
+          const { error: uploadError } = await supabase.storage.from('media').upload(fileName, uploadBlob);
           if (uploadError) throw uploadError;
           const { data: { publicUrl: url } } = supabase.storage.from('media').getPublicUrl(fileName);
           uploadedUrls.push(url);
@@ -295,17 +313,47 @@ export function useCreatePost() {
         publicUrl = uploadedUrls[0];
         mediaUrls = uploadedUrls;
       } else if (data.mediaFile) {
-        // Single file upload
-        const fileExt = data.mediaFile.name.split('.').pop();
+        // Single file upload with compression
+        let uploadBlob: Blob = data.mediaFile;
+        let fileExt = data.mediaFile.name.split('.').pop() || 'jpg';
+
+        if (!isVideoFile(data.mediaFile)) {
+          try {
+            const optimized = await optimizeForUpload(data.mediaFile, 'post');
+            uploadBlob = optimized.file;
+            fileExt = optimized.extension;
+            if (optimized.savings > 0) {
+              console.log(`[Media] Compressed ${data.mediaFile.name}: ${optimized.savings}% smaller`);
+            }
+          } catch (e) {
+            console.warn('[Media] Compression failed, using original:', e);
+          }
+        }
+
         const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, data.mediaFile);
+        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, uploadBlob);
         if (uploadError) throw uploadError;
         const { data: { publicUrl: url } } = supabase.storage.from('media').getPublicUrl(fileName);
         publicUrl = url;
+
+        // Auto-generate video thumbnail if none provided
+        if (isVideoFile(data.mediaFile) && !data.thumbnailFile && !data.thumbnailDataUrl) {
+          try {
+            const thumbBlob = await generateVideoThumbnail(data.mediaFile);
+            const thumbExt = getCompressedExtension();
+            const thumbFileName = `${profile.user_id}/thumb_${Date.now()}.${thumbExt}`;
+            const { error: thumbErr } = await supabase.storage.from('media').upload(thumbFileName, thumbBlob, { contentType: `image/${thumbExt}` });
+            if (!thumbErr) {
+              const { data: { publicUrl: thumbUrl } } = supabase.storage.from('media').getPublicUrl(thumbFileName);
+              thumbnailUrl = thumbUrl;
+            }
+          } catch (e) {
+            console.warn('[Media] Auto-thumbnail failed:', e);
+          }
+        }
       }
 
-      // Handle thumbnail upload for videos
-      let thumbnailUrl: string | null = null;
+      // Handle thumbnail upload for videos (if not auto-generated above)
       
       if (data.thumbnailFile) {
         const thumbExt = data.thumbnailFile.name.split('.').pop();

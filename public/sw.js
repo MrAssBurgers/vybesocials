@@ -1,62 +1,185 @@
-// VYBE Service Worker for Push Notifications
-// Version 3.0 - Enhanced cross-device support with improved iOS/Android handling
+// VYBE Service Worker
+// Version 5.0 - Push Notifications + Offline-First Caching
 
-const CACHE_NAME = 'vybe-v4';
+const CACHE_NAME = 'vybe-v5';
+const STATIC_CACHE = 'vybe-static-v5';
+const MEDIA_CACHE = 'vybe-media-v1';
 const APP_ICON = '/icons/icon-192x192.png';
 const BADGE_ICON = '/icons/icon-96x96.png';
 
-// Always bypass cache for PWA icons so updated PNGs are fetched immediately
+// Assets to precache on install
+const PRECACHE_ASSETS = [
+  '/offline.html',
+  '/favicon.ico',
+  '/favicon.png',
+  APP_ICON,
+  BADGE_ICON,
+];
+
+// Always bypass cache for these paths
 const FORCE_REFRESH_PATHS = new Set([
   '/icons/vybe-192.png',
   '/icons/vybe-512.png',
 ]);
 
-// Detect platform for customization
-const isIOS = () => {
-  return /iPad|iPhone|iPod/.test(self.navigator?.userAgent || '');
-};
+// API/dynamic paths that should use network-first
+const NETWORK_FIRST_PATTERNS = [
+  '/rest/v1/',
+  '/auth/v1/',
+  '/functions/v1/',
+  '/realtime/',
+  '/storage/v1/',
+];
 
-const isAndroid = () => {
-  return /Android/.test(self.navigator?.userAgent || '');
-};
+// Media paths that should use cache-first (long-lived)
+const CACHE_FIRST_PATTERNS = [
+  '/storage/v1/object/public/',
+  'fonts.googleapis.com',
+  'fonts.gstatic.com',
+];
 
-// Install event - take control immediately
+// Detect platform
+const isIOS = () => /iPad|iPhone|iPod/.test(self.navigator?.userAgent || '');
+const isAndroid = () => /Android/.test(self.navigator?.userAgent || '');
+
+// Install event - precache critical assets
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing VYBE Service Worker v4');
+  console.log('[SW] Installing VYBE Service Worker v5');
+  event.waitUntil(
+    caches.open(STATIC_CACHE).then((cache) => {
+      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
+        console.warn('[SW] Precache partial failure:', err);
+      });
+    })
+  );
   self.skipWaiting();
 });
 
-// Activate event - claim all clients
+// Activate event - clean old caches, claim clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating VYBE Service Worker v4');
+  console.log('[SW] Activating VYBE Service Worker v5');
+  const VALID_CACHES = new Set([CACHE_NAME, STATIC_CACHE, MEDIA_CACHE]);
   event.waitUntil(
     Promise.all([
       clients.claim(),
-      // Clean up old caches
-      caches.keys().then((names) => {
-        return Promise.all(
-          names
-            .filter((name) => name !== CACHE_NAME)
-            .map((name) => caches.delete(name))
-        );
-      }),
+      caches.keys().then((names) =>
+        Promise.all(
+          names.filter((n) => !VALID_CACHES.has(n)).map((n) => caches.delete(n))
+        )
+      ),
     ])
   );
 });
 
-// Force-refresh updated PWA icons (prevents stale cached JPEG responses)
+// Fetch handler - routing strategy
 self.addEventListener('fetch', (event) => {
   try {
     const url = new URL(event.request.url);
+
+    // Force-refresh updated PWA icons
     if (FORCE_REFRESH_PATHS.has(url.pathname)) {
       event.respondWith(
         fetch(event.request, { cache: 'no-store' }).catch(() => fetch(event.request))
       );
+      return;
+    }
+
+    // Skip non-GET requests
+    if (event.request.method !== 'GET') return;
+
+    // Skip chrome-extension, devtools, etc.
+    if (!url.protocol.startsWith('http')) return;
+
+    // Network-first for API calls
+    if (NETWORK_FIRST_PATTERNS.some((p) => url.pathname.includes(p) || url.href.includes(p))) {
+      event.respondWith(networkFirst(event.request));
+      return;
+    }
+
+    // Cache-first for media/fonts (immutable assets)
+    if (CACHE_FIRST_PATTERNS.some((p) => url.href.includes(p))) {
+      event.respondWith(cacheFirst(event.request, MEDIA_CACHE));
+      return;
+    }
+
+    // Stale-while-revalidate for app shell (JS, CSS, HTML)
+    if (
+      url.origin === self.location.origin &&
+      (url.pathname.endsWith('.js') ||
+        url.pathname.endsWith('.css') ||
+        url.pathname.endsWith('.html') ||
+        url.pathname === '/')
+    ) {
+      event.respondWith(staleWhileRevalidate(event.request, STATIC_CACHE));
+      return;
     }
   } catch {
     // Ignore URL parsing errors
   }
 });
+
+// Strategy: Network first, fallback to cache, then offline page
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    return cached || new Response(JSON.stringify({ error: 'Offline' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Strategy: Cache first, fallback to network (for immutable assets)
+async function cacheFirst(request, cacheName) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(cacheName);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    return new Response('', { status: 408 });
+  }
+}
+
+// Strategy: Serve from cache immediately, update in background
+async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+
+  const fetchPromise = fetch(request)
+    .then((response) => {
+      if (response.ok) {
+        cache.put(request, response.clone());
+      }
+      return response;
+    })
+    .catch(() => null);
+
+  // Return cached immediately, or wait for network
+  if (cached) {
+    // Update in background
+    fetchPromise;
+    return cached;
+  }
+
+  const networkResponse = await fetchPromise;
+  if (networkResponse) return networkResponse;
+
+  // Last resort: offline page for navigation requests
+  if (request.mode === 'navigate') {
+    return caches.match('/offline.html') || new Response('Offline', { status: 503 });
+  }
+
+  return new Response('', { status: 408 });
+}
 
 // Push notification event - handle incoming push messages
 self.addEventListener('push', (event) => {
