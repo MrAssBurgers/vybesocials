@@ -262,6 +262,19 @@ export function useBugBountyDetector() {
         return;
       }
 
+      // Resolve reporter_id from profiles to support schemas where profiles.id != auth.uid()
+      let reporterId = user.id;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .or(`id.eq.${user.id},user_id.eq.${user.id}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (profile?.id) {
+        reporterId = profile.id;
+      }
+
       // Get AI analysis
       let aiAnalysis = '';
       let aiSeverity = 'medium';
@@ -281,7 +294,7 @@ export function useBugBountyDetector() {
 
       // Insert bug report
       const { error: insertError } = await supabase.from('bug_reports').insert({
-        reporter_id: user.id,
+        reporter_id: reporterId,
         error_message: pendingBug.message,
         error_stack: pendingBug.stack?.substring(0, 2000),
         component_stack: pendingBug.componentStack?.substring(0, 1000),
@@ -307,7 +320,10 @@ export function useBugBountyDetector() {
       setPendingBug(null);
     } catch (err) {
       console.error('Bug report failed:', err);
-      toast.error('Failed to submit report. Try again!');
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error('Failed to submit report. Try again!', {
+        description: message.substring(0, 120),
+      });
     } finally {
       setIsReporting(false);
     }
