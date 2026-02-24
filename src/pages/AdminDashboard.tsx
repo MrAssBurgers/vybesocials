@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Shield, Flag, AlertTriangle, Users, Ban, Crown, Megaphone, 
   Award, Activity, Calendar, Handshake, ImageIcon, ChevronRight,
-  BarChart3, MessageSquareWarning, Settings, Menu, X, ArrowLeft
+  BarChart3, MessageSquareWarning, Settings, Menu, X, ArrowLeft, Bug
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useUserRole, useReports, useContentFlags, useAllUserRoles } from '@/hooks/useModeration';
@@ -29,6 +29,7 @@ import { AdminWarningsSection } from '@/components/admin/sections/AdminWarningsS
 import { AdminBansSection } from '@/components/admin/sections/AdminBansSection';
 import { AdminAnnouncementsSection } from '@/components/admin/sections/AdminAnnouncementsSection';
 import { AdminRolesSection } from '@/components/admin/sections/AdminRolesSection';
+import { AdminErrorsSection } from '@/components/admin/sections/AdminErrorsSection';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -53,6 +54,7 @@ const navItems: NavItem[] = [
   { id: 'badges', label: 'Badges', icon: Award },
   { id: 'meme-bans', label: 'Meme Bans', icon: ImageIcon },
   { id: 'roles', label: 'User Roles', icon: Users, adminOnly: true },
+  { id: 'errors', label: 'Error Monitor', icon: Bug, adminOnly: true },
 ];
 
 export default function AdminDashboard() {
@@ -150,6 +152,8 @@ export default function AdminDashboard() {
         return <MemeBanManager />;
       case 'roles':
         return isAdmin ? <AdminRolesSection /> : null;
+      case 'errors':
+        return isAdmin ? <AdminErrorsSection /> : null;
       default:
         return <AdminLiveAnalytics />;
     }
