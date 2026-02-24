@@ -87,7 +87,26 @@ export function AdminErrorsSection() {
           <Bug className="w-4 h-4" />
           {bugs.length} total
         </div>
-        <div className="ml-auto">
+      <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            const text = bugs.map((b: any) => `[${b.status}] ${b.error_message}${b.page_url ? ` (${b.page_url})` : ''}`).join('\n\n');
+            navigator.clipboard.writeText(text);
+            toast.success(`Copied ${bugs.length} errors to clipboard`);
+          }}>
+            Copy All
+          </Button>
+          <Button variant="outline" size="sm" onClick={async () => {
+            if (!confirm(`Mark all ${bugs.length} visible bugs as fixed?`)) return;
+            const ids = bugs.filter((b: any) => b.status !== 'fixed').map((b: any) => b.id);
+            if (ids.length === 0) { toast.info('All already fixed'); return; }
+            const { data: { user } } = await supabase.auth.getUser();
+            const { error } = await supabase.from('bug_reports').update({ status: 'fixed', resolved_at: new Date().toISOString(), resolved_by: user?.id }).in('id', ids);
+            if (error) { toast.error('Failed to update'); return; }
+            queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
+            toast.success(`Marked ${ids.length} bugs as fixed`);
+          }}>
+            <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Fix All
+          </Button>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh
           </Button>
