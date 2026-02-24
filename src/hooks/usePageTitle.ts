@@ -26,6 +26,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/privacy': 'Privacy Policy · VYBE',
   '/terms': 'Terms of Service · VYBE',
   '/guidelines': 'Community Guidelines · VYBE',
+  '/cookies': 'Cookie Policy · VYBE',
   '/onboarding': 'Welcome · VYBE',
   '/reset-password': 'Reset Password · VYBE',
 };

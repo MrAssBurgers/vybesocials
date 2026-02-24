@@ -25,6 +25,7 @@ import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
+import { SkipToMain, LiveRegion } from "@/components/a11y/Accessibility";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { NavigationRefSetter } from "@/components/layout/NavigationRefSetter";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
@@ -45,6 +46,7 @@ const FounderAppreciation = lazy(() => import("@/components/growth/FounderApprec
 const StreakProvider = lazy(() => import("@/components/streak/StreakProvider").then(m => ({ default: m.StreakProvider })));
 const PremiumGiftChecker = lazy(() => import("@/components/premium/PremiumGiftChecker").then(m => ({ default: m.PremiumGiftChecker })));
 const TrackingConsentDialog = lazy(() => import("@/components/app/TrackingConsentDialog").then(m => ({ default: m.TrackingConsentDialog })));
+const CookieConsentBanner = lazy(() => import("@/components/legal/CookieConsentBanner").then(m => ({ default: m.CookieConsentBanner })));
 
 // Lazy-load deferred hooks via a wrapper component
 const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
@@ -182,6 +184,7 @@ function AppWithPreloader() {
                                       <PremiumGiftChecker />
                                       <TrackingConsentDialog />
                                       <FounderAppreciation />
+                                      <CookieConsentBanner />
                                     </Suspense>
                                   </TutorialProvider>
                                 </Suspense>
@@ -205,6 +208,8 @@ function AppWithPreloader() {
 const App = memo(() => {
   return (
     <SmartErrorBoundary>
+      <SkipToMain />
+      <LiveRegion />
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <GlassIntensityProvider>
