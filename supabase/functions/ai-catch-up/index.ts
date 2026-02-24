@@ -356,6 +356,26 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    const hasLiveData = liveUpdates.length > 0;
+    const userName = userProfile?.display_name || userProfile?.username || 'there';
+
+    // Build the system prompt
+    const systemPrompt = `You are VYBE's friendly AI assistant creating a personalized daily brief. Keep it warm, concise, and actionable. Use emojis sparingly. Never exceed 3 sentences. Address the user by name if available.`;
+
+    // Build the user prompt with all gathered data
+    let userPrompt = `Create a brief daily catch-up for ${userName}.\n`;
+    userPrompt += `Stats: ${realNotifCount} notifications, ${unreadConvos} unread messages, ${newFollowerCount} new followers, ${pendingFriendRequests} friend requests.\n`;
+    userPrompt += `Streak: ${streak} days. Level: ${userLevel} (${userXp} XP).\n`;
+    if (recentPostCount > 0) userPrompt += `${recentPostCount} new posts from people they follow.\n`;
+    if (postsContent) userPrompt += `Recent posts:\n${postsContent}\n`;
+    if (activeChallenges.length > 0) {
+      userPrompt += `Active challenges: ${activeChallenges.map((c: any) => `${c.title} (${c.current}/${c.target})`).join(', ')}.\n`;
+    }
+    if (hasLiveData) {
+      userPrompt += `Trending topics: ${liveUpdates.map((u: any) => `${u.interest}: ${u.content.slice(0, 100)}`).join('; ')}.\n`;
+    }
+    userPrompt += `Give a quick, personalized summary highlighting what matters most.`;
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {

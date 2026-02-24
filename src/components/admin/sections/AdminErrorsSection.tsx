@@ -47,7 +47,11 @@ export function AdminErrorsSection() {
       const update: Record<string, unknown> = { status };
       if (status === 'fixed' || status === 'wont_fix') {
         update.resolved_at = new Date().toISOString();
-        update.resolved_by = user?.id;
+        // Use profile id (not auth user id) to satisfy FK constraint
+        if (user?.id) {
+          const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
+          update.resolved_by = profile?.id || null;
+        }
       }
       const { error } = await supabase.from('bug_reports').update(update).eq('id', id);
       if (error) throw error;
@@ -100,8 +104,14 @@ export function AdminErrorsSection() {
             const ids = bugs.filter((b: any) => b.status !== 'fixed').map((b: any) => b.id);
             if (ids.length === 0) { toast.info('All already fixed'); return; }
             const { data: { user } } = await supabase.auth.getUser();
-            const { error } = await supabase.from('bug_reports').update({ status: 'fixed', resolved_at: new Date().toISOString(), resolved_by: user?.id }).in('id', ids);
-            if (error) { toast.error('Failed to update'); return; }
+            // Use profile id lookup to avoid FK constraint violation
+            let resolvedBy: string | null = null;
+            if (user?.id) {
+              const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
+              resolvedBy = profile?.id || null;
+            }
+            const { error } = await supabase.from('bug_reports').update({ status: 'fixed', resolved_at: new Date().toISOString(), resolved_by: resolvedBy }).in('id', ids);
+            if (error) { toast.error('Failed to update: ' + error.message); return; }
             queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
             toast.success(`Marked ${ids.length} bugs as fixed`);
           }}>
