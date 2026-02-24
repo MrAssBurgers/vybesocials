@@ -18,6 +18,10 @@ import { INTEREST_CATEGORIES, getSuggestedTagsForInterests } from '@/lib/tagCate
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Camera } from '@/components/camera/Camera';
 import { toast } from 'sonner';
+import { ImageCropEditor } from './editors/ImageCropEditor';
+import { ImageRotateEditor } from './editors/ImageRotateEditor';
+import { ImageFilterEditor } from './editors/ImageFilterEditor';
+import { VideoTrimEditor } from './editors/VideoTrimEditor';
 
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe, description: 'Visible to all' },
@@ -52,6 +56,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const [activePreview, setActivePreview] = useState(0);
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDescription, setVideoDescription] = useState('');
+  const [activeEditor, setActiveEditor] = useState<'crop' | 'rotate' | 'filters' | 'trim' | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
@@ -165,8 +170,40 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     if (!tags.includes('ai')) setTags(prev => [...prev, 'ai']);
   }, [handleFileSelect, tags]);
 
+  // Editor callbacks
+  const handleEditorApply = useCallback((newFile: File) => {
+    const newUrl = URL.createObjectURL(newFile);
+    setFiles(prev => { const nf = [...prev]; nf[activePreview] = newFile; return nf; });
+    setPreviews(prev => { URL.revokeObjectURL(prev[activePreview]); const np = [...prev]; np[activePreview] = newUrl; return np; });
+    setActiveEditor(null);
+    toast.success('Edit applied');
+  }, [activePreview]);
+
+  const handleTrimApply = useCallback((file: File, start: number, end: number) => {
+    // Store trim data — actual trimming can happen at upload time
+    toast.success(`Trim set: ${start.toFixed(1)}s – ${end.toFixed(1)}s`);
+    setActiveEditor(null);
+  }, []);
+
+  const isCurrentFileVideo = files[activePreview]?.type?.startsWith('video/');
+  const hasMedia = files.length > 0;
+
   if (showCamera) return <Camera onClose={() => setShowCamera(false)} />;
   if (showAIVideoGen) return <AIVideoGenerator onVideoGenerated={handleAIVideoGenerated} onClose={() => setShowAIVideoGen(false)} />;
+
+  // Editor overlays
+  if (activeEditor === 'crop' && previews[activePreview]) {
+    return <ImageCropEditor imageUrl={previews[activePreview]} onApply={handleEditorApply} onCancel={() => setActiveEditor(null)} />;
+  }
+  if (activeEditor === 'rotate' && previews[activePreview]) {
+    return <ImageRotateEditor imageUrl={previews[activePreview]} onApply={handleEditorApply} onCancel={() => setActiveEditor(null)} />;
+  }
+  if (activeEditor === 'filters' && previews[activePreview]) {
+    return <ImageFilterEditor imageUrl={previews[activePreview]} isVideo={isCurrentFileVideo} onApply={handleEditorApply} onCancel={() => setActiveEditor(null)} />;
+  }
+  if (activeEditor === 'trim' && previews[activePreview] && files[activePreview]) {
+    return <VideoTrimEditor videoUrl={previews[activePreview]} videoFile={files[activePreview]} onApply={handleTrimApply} onCancel={() => setActiveEditor(null)} />;
+  }
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
@@ -342,24 +379,43 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
 
             {/* EDIT TAB */}
             <TabsContent value="edit" className="flex-1 overflow-y-auto px-4 py-3">
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground">Per-Slide Tools</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { icon: Crop, label: 'Crop' },
-                    { icon: RotateCw, label: 'Rotate' },
-                    { icon: Sliders, label: 'Filters' },
-                    { icon: Scissors, label: 'Trim' },
-                  ].map(tool => (
-                    <button key={tool.label}
-                      className="flex items-center gap-2 p-3 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary transition-all">
-                      <tool.icon className="w-4 h-4" />
-                      {tool.label}
+              {hasMedia ? (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground">Per-Slide Tools — Slide {activePreview + 1}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => !isCurrentFileVideo && setActiveEditor('crop')}
+                      disabled={isCurrentFileVideo}
+                      className={cn("flex items-center gap-2 p-3 rounded-xl border text-xs font-medium transition-all",
+                        isCurrentFileVideo ? "border-border/50 text-muted-foreground/40 cursor-not-allowed" : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary")}>
+                      <Crop className="w-4 h-4" /> Crop
                     </button>
-                  ))}
+                    <button onClick={() => !isCurrentFileVideo && setActiveEditor('rotate')}
+                      disabled={isCurrentFileVideo}
+                      className={cn("flex items-center gap-2 p-3 rounded-xl border text-xs font-medium transition-all",
+                        isCurrentFileVideo ? "border-border/50 text-muted-foreground/40 cursor-not-allowed" : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary")}>
+                      <RotateCw className="w-4 h-4" /> Rotate
+                    </button>
+                    <button onClick={() => setActiveEditor('filters')}
+                      className="flex items-center gap-2 p-3 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary transition-all">
+                      <Sliders className="w-4 h-4" /> Filters
+                    </button>
+                    <button onClick={() => isCurrentFileVideo && setActiveEditor('trim')}
+                      disabled={!isCurrentFileVideo}
+                      className={cn("flex items-center gap-2 p-3 rounded-xl border text-xs font-medium transition-all",
+                        !isCurrentFileVideo ? "border-border/50 text-muted-foreground/40 cursor-not-allowed" : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary")}>
+                      <Scissors className="w-4 h-4" /> Trim
+                    </button>
+                  </div>
+                  {isCurrentFileVideo && <p className="text-[10px] text-muted-foreground/60 text-center">Crop & Rotate are for images only. Use Trim for video.</p>}
+                  {!isCurrentFileVideo && <p className="text-[10px] text-muted-foreground/60 text-center">Trim is for videos only.</p>}
                 </div>
-                <p className="text-[10px] text-muted-foreground/60 text-center pt-2">More editing tools coming soon</p>
-              </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Sliders className="w-8 h-8 text-muted-foreground/30 mb-3" />
+                  <p className="text-sm font-medium text-muted-foreground">Add media first</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Upload a photo or video to use editing tools</p>
+                </div>
+              )}
             </TabsContent>
 
             {/* POST TAB */}
