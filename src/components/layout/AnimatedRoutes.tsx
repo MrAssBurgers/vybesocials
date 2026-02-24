@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
+import { BugBountyOverlay } from '@/components/error/BugBountyOverlay';
 
 // CRITICAL PAGE - Load eagerly for instant first navigation
 import Home from "@/pages/Home";
@@ -42,6 +43,7 @@ const AddFriend = lazy(() => import("@/pages/AddFriend"));
 const CommunityGuidelines = lazy(() => import("@/pages/CommunityGuidelines"));
 const AdminMetrics = lazy(() => import("@/pages/AdminMetrics"));
 const AdminSettings = lazy(() => import("@/pages/AdminSettings"));
+const AdminBugReports = lazy(() => import("@/pages/AdminBugReports"));
 const BadgeLibrary = lazy(() => import("@/pages/BadgeLibrary"));
 const ChallengesHub = lazy(() => import("@/pages/ChallengesHub"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
@@ -134,6 +136,7 @@ export function AnimatedRoutes() {
             <Route path="/add-friend/:userId" element={<ProtectedRoute><AddFriend /></ProtectedRoute>} />
             <Route path="/admin/metrics" element={<ProtectedRoute><AdminMetrics /></ProtectedRoute>} />
             <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
+            <Route path="/admin/bugs" element={<ProtectedRoute><AdminBugReports /></ProtectedRoute>} />
             <Route path="/badges" element={<ProtectedRoute><BadgeLibrary /></ProtectedRoute>} />
             <Route path="/challenges" element={<ProtectedRoute><ChallengesHub /></ProtectedRoute>} />
             <Route path="/howudoin" element={<ProtectedRoute><HowUDoinHub /></ProtectedRoute>} />
@@ -151,6 +154,10 @@ export function AnimatedRoutes() {
             <Route path="/~oauth" element={null} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          {/* Bug Bounty Overlay — gamified bug detection */}
+          <Suspense fallback={null}>
+            <BugBountyOverlay />
+          </Suspense>
           {/* Dev-only debug panel */}
           {import.meta.env.DEV && (
             <Suspense fallback={null}>
