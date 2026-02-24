@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.send-reset-email]
 verify_jwt = false
+
+[functions.manage-account]
+verify_jwt = false

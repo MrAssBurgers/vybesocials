@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { BugBountyOverlay } from '@/components/error/BugBountyOverlay';
 
 // CRITICAL PAGE - Load eagerly for instant first navigation
@@ -78,7 +79,7 @@ export function AnimatedRoutes() {
   
   // Always capture errors/network — independent of panel visibility
   useDebugCapture();
-  
+  usePageTitle();
   // Preload all routes after initial render
   useEffect(() => {
     // Preload secondary routes after a short delay

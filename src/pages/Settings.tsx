@@ -22,6 +22,7 @@ import { HelpSection } from '@/components/settings/HelpSection';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AccountDangerZone } from '@/components/settings/AccountDangerZone';
 
 // Lazy load developer section (only used in dev)
 const DeveloperSection = lazy(() => import('@/components/settings/DeveloperSection').then(m => ({ default: m.DeveloperSection })));
@@ -145,6 +146,12 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
 
             <div key={activeCategory} className="min-h-[400px]">
               {renderContent()}
+            </div>
+
+            {/* Account Management */}
+            <div className="mt-6 space-y-4">
+              <Separator />
+              <AccountDangerZone />
             </div>
 
             {/* Sign Out & App Info */}
