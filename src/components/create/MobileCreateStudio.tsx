@@ -193,13 +193,34 @@ export function MobileCreateStudio({ onClose }: MobileCreateStudioProps) {
   const handleGalleryPick = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
     if (selected.length === 0) return;
-    const maxItems = mode === 'multi' ? 10 : 1;
-    const items = selected.slice(0, maxItems);
-    const urls = items.map(f => URL.createObjectURL(f));
-    setCapturedFiles(items);
-    setCapturedPreviews(urls);
-    setPhase('compose');
-  }, [mode]);
+
+    if (mode === 'multi') {
+      // In multi mode, ADD to existing items
+      const remaining = 10 - capturedFiles.length;
+      const items = selected.slice(0, remaining);
+      const urls = items.map(f => URL.createObjectURL(f));
+      setCapturedFiles(prev => [...prev, ...items]);
+      setCapturedPreviews(prev => [...prev, ...urls]);
+      // Stay in camera mode so user can add more
+    } else {
+      const items = selected.slice(0, 1);
+      const urls = items.map(f => URL.createObjectURL(f));
+      setCapturedFiles(items);
+      setCapturedPreviews(urls);
+      setPhase('compose');
+    }
+    // Reset input so the same file(s) can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [mode, capturedFiles.length]);
+
+  // Remove a captured item in multi mode
+  const removeMultiItem = useCallback((index: number) => {
+    setCapturedPreviews(prev => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
+    setCapturedFiles(prev => prev.filter((_, i) => i !== index));
+  }, []);
 
   // Mode change
   const handleModeChange = (newMode: CreateMode) => {
@@ -296,6 +317,12 @@ export function MobileCreateStudio({ onClose }: MobileCreateStudioProps) {
                   <div className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
                     {i + 1}
                   </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeMultiItem(i); }}
+                    className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 text-white flex items-center justify-center"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
                 </div>
               ))}
               <span className="text-white/60 text-xs self-center ml-1">{capturedPreviews.length}/10</span>
