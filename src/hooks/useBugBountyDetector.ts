@@ -27,7 +27,7 @@ function bugKey(msg: string): string {
     .substring(0, 100);
 }
 
-// Errors to ignore (not real bugs)
+// Errors to ignore (not real bugs, just noise)
 const IGNORED_PATTERNS = [
   'ResizeObserver loop',
   'Loading chunk',
@@ -40,24 +40,41 @@ const IGNORED_PATTERNS = [
   'isAuthGuard',
   'Sign in was cancelled',
   'Popup was blocked',
-  'network',
-  'offline',
   'AbortError',
   'cancelled',
   'user aborted',
-  'Rate limit',
-  'rate limited',
-  'CORS',
-  'Load failed',
-  'TypeError: Failed to fetch',
+  'favicon',
+  'chrome-extension',
+  'moz-extension',
+  'webkit-masked',
+  'lovable.app/assets', // Build asset 404s during HMR
 ];
 
-// HTTP status codes that indicate real bugs (not auth or rate-limit)
-const BUG_STATUS_CODES = [500, 502, 503, 504, 422];
+// HTTP status codes that indicate real bugs
+const BUG_STATUS_CODES = [400, 403, 404, 409, 422, 500, 502, 503, 504];
+
+// URLs to ignore for HTTP errors (auth endpoints, analytics, etc.)
+const IGNORED_URL_PATTERNS = [
+  '/auth/',
+  '/token',
+  'analytics',
+  'beacon',
+  'sentry',
+  'hotjar',
+  '.png',
+  '.jpg',
+  '.svg',
+  '.woff',
+];
 
 function shouldIgnore(msg: string): boolean {
   const lower = msg.toLowerCase();
   return IGNORED_PATTERNS.some(p => lower.includes(p.toLowerCase()));
+}
+
+function shouldIgnoreUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  return IGNORED_URL_PATTERNS.some(p => lower.includes(p));
 }
 
 /**
@@ -70,6 +87,7 @@ function classifyHttpError(status: number, url: string, body?: string): Detected
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
   const isAppRequest = url.includes(supabaseUrl) || url.startsWith(window.location.origin);
   if (!isAppRequest) return null;
+  if (shouldIgnoreUrl(url)) return null;
 
   const shortUrl = url.replace(supabaseUrl, '').split('?')[0];
   const errorSnippet = body?.substring(0, 200) || '';
@@ -107,6 +125,7 @@ export function useBugBountyDetector() {
     if (installedRef.current) return;
     installedRef.current = true;
 
+    // 1) Runtime JS errors
     const onError = (e: ErrorEvent) => {
       const msg = e.message || '';
       if (shouldIgnore(msg)) return;
@@ -120,6 +139,7 @@ export function useBugBountyDetector() {
       });
     };
 
+    // 2) Unhandled promise rejections
     const onRejection = (e: PromiseRejectionEvent) => {
       if (e.reason?.isAuthGuard) return;
       const msg = e.reason?.message || String(e.reason);
@@ -134,7 +154,64 @@ export function useBugBountyDetector() {
       });
     };
 
-    // Intercept fetch to catch HTTP 5xx errors as bugs
+    // 3) Broken images / resources (img, script, link load failures)
+    const onResourceError = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (!target || target === window as any) return;
+      
+      const tagName = target.tagName?.toLowerCase();
+      if (!['img', 'script', 'link', 'video', 'audio'].includes(tagName)) return;
+      
+      const src = (target as HTMLImageElement).src || (target as HTMLLinkElement).href || '';
+      if (!src || shouldIgnore(src)) return;
+      
+      // Only flag app resources, not external CDN images that users uploaded
+      const isAppResource = src.startsWith(window.location.origin) || src.includes('supabase');
+      if (!isAppResource) return;
+
+      const message = `Broken ${tagName}: ${src.split('/').pop()?.split('?')[0] || src}`;
+      onBugDetected({
+        message,
+        stack: `Resource failed to load:\nTag: <${tagName}>\nURL: ${src}\nPage: ${window.location.href}`,
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: Date.now(),
+      });
+    };
+
+    // 4) Console.error interception — catches React errors, library errors, etc.
+    const originalConsoleError = console.error;
+    console.error = function (...args: any[]) {
+      originalConsoleError.apply(console, args);
+      
+      try {
+        const msg = args.map(a => {
+          if (a instanceof Error) return a.message;
+          if (typeof a === 'string') return a;
+          try { return JSON.stringify(a)?.substring(0, 200); } catch { return String(a); }
+        }).join(' ').substring(0, 300);
+        
+        if (!msg || shouldIgnore(msg)) return;
+        // Skip React internal dev warnings (not bugs)
+        if (msg.includes('Warning:') || msg.includes('Deprecation')) return;
+        // Skip our own bug reporting logs
+        if (msg.includes('Bug report')) return;
+        
+        const stack = args.find(a => a instanceof Error)?.stack;
+        
+        onBugDetected({
+          message: `Console error: ${msg}`,
+          stack: stack || `Console.error called at ${window.location.href}`,
+          url: window.location.href,
+          userAgent: navigator.userAgent,
+          timestamp: Date.now(),
+        });
+      } catch {
+        // Never let the interceptor itself throw
+      }
+    };
+
+    // 5) Intercept fetch to catch HTTP errors as bugs
     const originalFetch = window.fetch;
     window.fetch = async function (...args: Parameters<typeof fetch>) {
       try {
@@ -142,7 +219,6 @@ export function useBugBountyDetector() {
         
         if (BUG_STATUS_CODES.includes(response.status)) {
           const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
-          // Clone response so the original consumer can still read it
           const cloned = response.clone();
           try {
             const body = await cloned.text();
@@ -162,11 +238,14 @@ export function useBugBountyDetector() {
 
     window.addEventListener('error', onError);
     window.addEventListener('unhandledrejection', onRejection);
+    window.addEventListener('error', onResourceError, true); // capture phase for resource errors
 
     return () => {
       window.removeEventListener('error', onError);
       window.removeEventListener('unhandledrejection', onRejection);
+      window.removeEventListener('error', onResourceError, true);
       window.fetch = originalFetch;
+      console.error = originalConsoleError;
       installedRef.current = false;
     };
   }, [onBugDetected]);
