@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.confirm-referral]
 verify_jwt = false
+
+[functions.forgot-password]
+verify_jwt = false

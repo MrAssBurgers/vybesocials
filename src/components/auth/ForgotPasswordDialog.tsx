@@ -28,22 +28,17 @@ export function ForgotPasswordDialog({ open, onClose }: ForgotPasswordDialogProp
     setLoading(true);
 
     try {
-      // Call our standalone edge function instead of Supabase's built-in recovery
-      const { data, error } = await supabase.functions.invoke('send-auth-email', {
-        body: {
-          action: 'request_reset',
-          email: email.trim(),
-          redirectUrl: window.location.origin,
-        },
+      const { data, error } = await supabase.functions.invoke('forgot-password', {
+        body: { email: email.trim() },
       });
 
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (data?.success === false && data?.error) throw new Error(data.error);
 
       setSent(true);
-      toast.success('Password reset email sent!');
+      toast.success('If that email exists, we sent a reset link.');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to send reset email');
+      toast.error(err.message || 'Failed to send reset email. Please try again.');
     } finally {
       setLoading(false);
     }
