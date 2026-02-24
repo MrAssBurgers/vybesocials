@@ -351,60 +351,27 @@ serve(async (req) => {
       liveUpdates = results.filter((r): r is LiveUpdate => r !== null);
     }
 
-    // Try xAI first, fallback to Lovable AI gateway
-    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-
-    let response: Response | null = null;
-
-    if (XAI_API_KEY) {
-      response = await fetch("https://api.x.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${XAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "grok-3-mini",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          max_tokens: 200,
-          temperature: 0.5,
-        }),
-      });
-
-      // If xAI fails with auth/billing issues, fall through to Lovable AI
-      if (!response.ok && (response.status === 403 || response.status === 401 || response.status === 402)) {
-        console.warn(`xAI returned ${response.status}, falling back to Lovable AI`);
-        response = null;
-      }
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Fallback to Lovable AI gateway
-    if (!response && LOVABLE_API_KEY) {
-      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          max_tokens: 200,
-          temperature: 0.5,
-        }),
-      });
-    }
-
-    if (!response) {
-      throw new Error("No AI provider available. Configure XAI_API_KEY or LOVABLE_API_KEY.");
-    }
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 200,
+        temperature: 0.5,
+      }),
+    });
 
     if (!response.ok) {
       if (response.status === 429) {

@@ -35,9 +35,9 @@ serve(async (req) => {
 
     const sanitizedMessage = validation.sanitized!;
 
-    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
-    if (!XAI_API_KEY) {
-      throw new Error("XAI_API_KEY is not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     // Wrap with safety context
@@ -46,14 +46,14 @@ serve(async (req) => {
       "Suggest exactly 3 short, natural, casual replies that a friend might send. Each reply should be under 10 words and feel human (not formal or robotic). Return as JSON array: [\"reply1\", \"reply2\", \"reply3\"]"
     );
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${XAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-3-mini-fast",
+        model: "google/gemini-3-flash-preview",
         messages: [
           {
             role: "system",
