@@ -35,6 +35,14 @@ Deno.serve(async (req) => {
       return successResponse();
     }
 
+    // Rate limit: 3 password reset requests per email per hour
+    const { checkRateLimit } = await import("../_shared/rateLimit.ts");
+    const { allowed } = await checkRateLimit(`reset:${email}`, 3, 3600);
+    if (!allowed) {
+      log("Rate limited", { email: email.slice(0, 3) + "***" });
+      return successResponse(); // Don't reveal rate limiting to prevent enumeration
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const resendKey = Deno.env.get("RESEND_API_KEY");

@@ -5359,6 +5359,27 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          id: string
+          key: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          request_count?: number
+          window_start?: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          request_count?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
       reports: {
         Row: {
           admin_notes: string | null
@@ -8310,6 +8331,14 @@ export type Database = {
       check_and_grant_owner_badges: { Args: never; Returns: undefined }
       check_channel_permission: {
         Args: { p_channel_id: string; p_permission: string }
+        Returns: boolean
+      }
+      check_rate_limit: {
+        Args: {
+          p_key: string
+          p_max_requests: number
+          p_window_seconds?: number
+        }
         Returns: boolean
       }
       claim_challenge_reward: {

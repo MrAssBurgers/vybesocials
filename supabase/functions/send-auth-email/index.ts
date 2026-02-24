@@ -79,6 +79,18 @@ Deno.serve(async (req) => {
     const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || FALLBACK_SENDER;
     const { action, email, token, newPassword, redirectUrl } = await req.json();
 
+    // Rate limit all auth email actions: 5 per email per hour
+    if (email) {
+      const { checkRateLimit } = await import("../_shared/rateLimit.ts");
+      const { allowed } = await checkRateLimit(`auth-email:${email.toLowerCase()}`, 5, 3600);
+      if (!allowed) {
+        return new Response(
+          JSON.stringify({ error: "Too many requests. Please try again later." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // ── REQUEST RESET ───────────────────────────────────────────
     if (action === "request_reset") {
       if (!email) {

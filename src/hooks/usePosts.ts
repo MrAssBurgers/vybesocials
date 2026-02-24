@@ -270,6 +270,13 @@ export function useCreatePost() {
     }) => {
       if (!profile) throw new Error('Not authenticated');
 
+      // Client-side rate limit: 5 posts per minute
+      const { RATE_LIMITS } = await import('@/lib/rateLimit');
+      if (!RATE_LIMITS.createPost()) {
+        toast.error('Slow down! You can create up to 5 posts per minute.');
+        throw new Error('Rate limited');
+      }
+
       // Check for blocked content locally first
       const localCheck = containsBlockedContent(data.caption);
       if (localCheck.blocked) {
