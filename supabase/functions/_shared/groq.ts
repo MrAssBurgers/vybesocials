@@ -1,20 +1,19 @@
-// Shared Groq API helper for all AI edge functions
-// Replaces Lovable AI Gateway with Groq
+// Shared xAI Grok API helper for all AI edge functions
 
-const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const XAI_API_URL = "https://api.x.ai/v1/chat/completions";
 
 // Model mapping
 export const GROQ_MODELS = {
   // Primary models
-  fast: "llama-3.1-8b-instant",        // For simple tasks (smart replies, error analysis)
-  balanced: "llama-3.3-70b-versatile",  // For most tasks (chat, captions, moderation)
-  reasoning: "llama-3.3-70b-versatile", // For complex tasks (themes, recommendations)
+  fast: "grok-3-mini-fast",           // For simple tasks (smart replies, error analysis)
+  balanced: "grok-3-mini",            // For most tasks (chat, captions, moderation)
+  reasoning: "grok-3",                // For complex tasks (themes, recommendations)
 } as const;
 
 export function getGroqApiKey(): string {
-  const key = Deno.env.get("GROQ_API_KEY");
+  const key = Deno.env.get("XAI_API_KEY");
   if (!key) {
-    throw new Error("GROQ_API_KEY is not configured");
+    throw new Error("XAI_API_KEY is not configured");
   }
   return key;
 }
@@ -30,11 +29,11 @@ export async function callGroq(
   apiKey: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  return fetch(GROQ_API_URL, {
+  return fetch(XAI_API_URL, {
     method: "POST",
     headers: getGroqHeaders(apiKey),
     body: JSON.stringify(body),
   });
 }
 
-export { GROQ_API_URL };
+export { XAI_API_URL, XAI_API_URL as GROQ_API_URL };
