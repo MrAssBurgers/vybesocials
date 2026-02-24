@@ -90,6 +90,10 @@ self.addEventListener('fetch', (event) => {
     // Skip chrome-extension, devtools, etc.
     if (!url.protocol.startsWith('http')) return;
 
+    // CRITICAL: Never intercept navigation requests on Safari/iPad
+    // Safari can show "can't open page" if SW returns a stale/bad response
+    if (event.request.mode === 'navigate') return;
+
     // Network-first for API calls
     if (NETWORK_FIRST_PATTERNS.some((p) => url.pathname.includes(p) || url.href.includes(p))) {
       event.respondWith(networkFirst(event.request));
@@ -102,13 +106,10 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    // Stale-while-revalidate for app shell (JS, CSS, HTML)
+    // Stale-while-revalidate for app shell (JS, CSS only - not HTML/navigation)
     if (
       url.origin === self.location.origin &&
-      (url.pathname.endsWith('.js') ||
-        url.pathname.endsWith('.css') ||
-        url.pathname.endsWith('.html') ||
-        url.pathname === '/')
+      (url.pathname.endsWith('.js') || url.pathname.endsWith('.css'))
     ) {
       event.respondWith(staleWhileRevalidate(event.request, STATIC_CACHE));
       return;
