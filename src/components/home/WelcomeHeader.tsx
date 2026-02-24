@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Globe, Flame, Zap, ChevronRight } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
@@ -10,15 +10,25 @@ import { AIBriefSheet } from './AIBriefSheet';
 import { useStreakCount } from '@/hooks/useLoginStreak';
 import { useNextLevelProgress } from '@/hooks/useVybePass';
 import { LiveActivityTicker } from './LiveActivityTicker';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 
 export function WelcomeHeader() {
   const { profile } = useAuth();
   const [showBrief, setShowBrief] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const streakCount = useStreakCount();
   const { currentLevel, progressPercent, xpToNextLevel, currentXP } = useNextLevelProgress();
   const navigate = useNavigate();
+
+  // Auto-open brief from push notification link (?openBrief=true)
+  useEffect(() => {
+    if (searchParams.get('openBrief') === 'true') {
+      setShowBrief(true);
+      searchParams.delete('openBrief');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Get time-aware greeting
   const greeting = useMemo(() => {

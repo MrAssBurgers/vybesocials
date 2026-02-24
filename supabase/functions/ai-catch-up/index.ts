@@ -153,8 +153,12 @@ serve(async (req) => {
       streakResult,
       challengeResult,
       levelResult,
+      // NEW: actual unread notifications with details
+      unreadNotifsResult,
+      // NEW: unread message previews
+      unreadMsgsResult,
     ] = await Promise.all([
-      // 1) Unread notifications
+      // 1) Unread notifications count
       supabase
         .from('notifications')
         .select('id', { count: 'exact', head: true })
@@ -205,6 +209,26 @@ serve(async (req) => {
         .select('current_level, total_xp')
         .eq('user_id', user.id)
         .single(),
+      // 9) Actual unread notification details (up to 10)
+      supabase
+        .from('notifications')
+        .select('id, type, message, created_at, sender_id, post_id, read')
+        .eq('user_id', profileId)
+        .eq('read', false)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      // 10) Recent messages in unread convos
+      supabase
+        .from('conversation_members')
+        .select(`
+          conversation_id, last_read_at,
+          conversations!inner(id, updated_at, name, is_group,
+            messages(id, content, created_at, media_type, sender_id, profiles:sender_id(username, display_name))
+          )
+        `)
+        .eq('user_id', profileId)
+        .order('conversations(updated_at)', { ascending: false })
+        .limit(10),
     ]);
 
     const realNotifCount = notifResult.count || 0;
@@ -246,13 +270,60 @@ serve(async (req) => {
       }
     }
 
-    // Process unread conversations
+    // Process unread conversations with message previews
     let unreadConvos = 0;
-    if (convResult.data) {
+    const unreadMessagePreviews: Array<{ conversationId: string; senderName: string; preview: string; isGroup: boolean; groupName?: string; time: string }> = [];
+    
+    if (unreadMsgsResult.data) {
+      for (const conv of unreadMsgsResult.data) {
+        const lastRead = conv.last_read_at ? new Date(conv.last_read_at) : new Date(0);
+        const convoData = conv.conversations as any;
+        const updated = new Date(convoData.updated_at);
+        if (updated > lastRead) {
+          unreadConvos++;
+          // Get the most recent unread message
+          const messages = convoData.messages || [];
+          const unreadMsgs = messages
+            .filter((m: any) => new Date(m.created_at) > lastRead && m.sender_id !== profileId)
+            .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          
+          if (unreadMsgs.length > 0) {
+            const latestMsg = unreadMsgs[0];
+            const sender = latestMsg.profiles;
+            let preview = latestMsg.content || '';
+            if (!preview && latestMsg.media_type) {
+              const mediaLabels: Record<string, string> = { image: '📷 Photo', video: '🎬 Video', audio: '🎤 Voice message', vybe: '📸 Vybe' };
+              preview = mediaLabels[latestMsg.media_type] || '📎 Media';
+            }
+            unreadMessagePreviews.push({
+              conversationId: conv.conversation_id,
+              senderName: sender?.display_name || sender?.username || 'Someone',
+              preview: preview.slice(0, 80),
+              isGroup: convoData.is_group || false,
+              groupName: convoData.name || undefined,
+              time: latestMsg.created_at,
+            });
+          }
+        }
+      }
+    } else if (convResult.data) {
+      // Fallback to count-only from original query
       for (const conv of convResult.data) {
         const lastRead = conv.last_read_at ? new Date(conv.last_read_at) : new Date(0);
         const updated = new Date((conv.conversations as any).updated_at);
         if (updated > lastRead) unreadConvos++;
+      }
+    }
+
+    // Process actual unread notification details
+    const notificationDetails: Array<{ type: string; message: string; time: string }> = [];
+    if (unreadNotifsResult.data) {
+      for (const notif of unreadNotifsResult.data) {
+        notificationDetails.push({
+          type: notif.type || 'general',
+          message: notif.message || '',
+          time: notif.created_at,
+        });
       }
     }
 
@@ -399,6 +470,8 @@ Keep it under 60 words total. Use 1-2 emojis naturally.`;
         interests: allInterests,
         liveUpdates,
         hasLiveData,
+        unreadMessagePreviews,
+        notificationDetails,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
