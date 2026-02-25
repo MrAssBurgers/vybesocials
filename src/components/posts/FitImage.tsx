@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
 interface FitImageProps {
   src: string;
@@ -122,6 +123,7 @@ export const FitImage = memo(function FitImage({
       {/* Lightbox */}
       <Dialog open={isLightboxOpen} onOpenChange={setIsLightboxOpen}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-0">
+          <VisuallyHidden><DialogTitle>Image Preview</DialogTitle></VisuallyHidden>
           <div className="relative w-full h-full min-h-[50vh] flex items-center justify-center">
             {/* Close button */}
             <Button
