@@ -40,7 +40,7 @@ const TabNotificationBadge = lazy(() => import("@/components/notifications/TabNo
 const TutorialProvider = lazy(() => import("@/components/tutorial/TutorialProvider").then(m => ({ default: m.TutorialProvider })));
 const WarningPopup = lazy(() => import("@/components/moderation/WarningPopup").then(m => ({ default: m.WarningPopup })));
 const InvitePopup = lazy(() => import("@/components/invite/InvitePopup").then(m => ({ default: m.InvitePopup })));
-const AppUpdateOverlay = lazy(() => import("@/components/app/AppUpdateOverlay").then(m => ({ default: m.AppUpdateOverlay })));
+
 const RewardNotificationProvider = lazy(() => import("@/components/vybepass/RewardNotificationProvider").then(m => ({ default: m.RewardNotificationProvider })));
 const FounderAppreciation = lazy(() => import("@/components/growth/FounderAppreciation").then(m => ({ default: m.FounderAppreciation })));
 const StreakProvider = lazy(() => import("@/components/streak/StreakProvider").then(m => ({ default: m.StreakProvider })));
@@ -180,7 +180,6 @@ function AppWithPreloader() {
                                       <WarningPopup />
                                       <InvitePopup />
                                       <BanCheck />
-                                      <AppUpdateOverlay />
                                       <PremiumGiftChecker />
                                       <TrackingConsentDialog />
                                       <FounderAppreciation />

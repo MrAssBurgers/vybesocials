@@ -4,6 +4,7 @@ import { Loader2, Globe, Sparkles } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import type { Post } from '@/hooks/useInfinitePosts';
+import { useNewPostsBanner } from '@/hooks/usePostsRealtime';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
 import { useShowAds } from '@/hooks/useShowAds';
@@ -112,6 +113,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const { user, profile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('foryou');
   const { showAds } = useShowAds();
+  const { hasNewPosts, clearNewPosts } = useNewPostsBanner();
   
   // Personalized feed (interest-matched posts)
   const {
@@ -179,6 +181,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
   // Pull to refresh
   const handleRefresh = useCallback(async () => {
+    clearNewPosts();
     if (activeTab === 'global') {
       queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
       await refetchGlobal();
@@ -187,7 +190,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
       await Promise.all([refetchForYou(), refetchFollowing()]);
     }
-  }, [activeTab, queryClient, refetchForYou, refetchGlobal, refetchFollowing]);
+  }, [activeTab, queryClient, refetchForYou, refetchGlobal, refetchFollowing, clearNewPosts]);
 
   const { pullDistance, isRefreshing, threshold } = usePullToRefresh({
     onRefresh: handleRefresh,
@@ -337,6 +340,21 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
                 Global
               </TabsTrigger>
             </TabsList>
+
+            {/* X-style "New posts" banner */}
+            {hasNewPosts && (
+              <button
+                onClick={() => {
+                  clearNewPosts();
+                  handleRefresh();
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="w-full mb-4 py-2.5 px-4 rounded-full bg-primary text-primary-foreground text-sm font-semibold shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
+              >
+                <Sparkles className="h-4 w-4" />
+                New posts available — tap to see
+              </button>
+            )}
 
             <TabsContent value="foryou" className="space-y-4" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
               <PostList

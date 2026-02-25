@@ -240,17 +240,22 @@ export function useGlobalRealtimeMessages() {
           if (isMessageProcessed(updateKey)) return;
           markMessageProcessed(updateKey);
 
-          // Update message in cache if user is viewing this conversation
-          if (currentConversationId === conversationId) {
-            queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
-              if (!old) return old;
-              
-              if (updatedMessage.is_deleted) {
-                return old.filter(m => m.id !== updatedMessage.id);
-              }
-              
-              return old.map(m => m.id === updatedMessage.id ? { ...m, ...updatedMessage } : m);
-            });
+          // Update message in cache for ALL conversations (not just the one being viewed)
+          // This ensures unsend/edit reflects instantly for all participants
+          queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
+            if (!old) return old;
+            
+            if (updatedMessage.is_deleted) {
+              return old.filter(m => m.id !== updatedMessage.id);
+            }
+            
+            return old.map(m => m.id === updatedMessage.id ? { ...m, ...updatedMessage } : m);
+          });
+
+          // Also update conversation list to reflect unsent last message
+          if (updatedMessage.is_deleted) {
+            queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
+            queryClient.invalidateQueries({ queryKey: ['conversations'] });
           }
         }
       )
