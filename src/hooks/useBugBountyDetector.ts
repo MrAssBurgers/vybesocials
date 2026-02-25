@@ -48,10 +48,19 @@ const IGNORED_PATTERNS = [
   'moz-extension',
   'webkit-masked',
   'lovable.app/assets', // Build asset 404s during HMR
+  // Transient infrastructure / not real bugs
+  '"error":"Offline"',       // Supabase 503 offline blips
+  'Channel error',           // Realtime channel reconnects
+  'Max retries reached',     // Realtime giving up (reconnects on next nav)
+  'GlobalRT',                // All realtime log noise
+  'CHANNEL_ERROR',
+  'net::ERR_',               // Chrome network errors (transient)
+  'NetworkError',
+  'Failed to send a request to the Edge Function', // Edge cold-start transient
 ];
 
 // HTTP status codes that indicate real bugs
-const BUG_STATUS_CODES = [400, 403, 404, 409, 422, 500, 502, 503, 504];
+const BUG_STATUS_CODES = [400, 403, 404, 409, 422, 500, 502, 504]; // 503 excluded — transient "Offline" blips
 
 // URLs to ignore for HTTP errors (auth endpoints, analytics, etc.)
 const IGNORED_URL_PATTERNS = [
@@ -63,8 +72,16 @@ const IGNORED_URL_PATTERNS = [
   'hotjar',
   '.png',
   '.jpg',
+  '.jpeg',
+  '.webp',
+  '.gif',
   '.svg',
   '.woff',
+  '.webm',
+  '.mp4',
+  '.mp3',
+  '.ogg',
+  '/storage/v1/', // All storage asset 404s — missing uploads, not code bugs
 ];
 
 function shouldIgnore(msg: string): boolean {
