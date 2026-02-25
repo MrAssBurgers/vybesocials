@@ -294,7 +294,7 @@ export function useGlobalRealtimeMessages() {
               setupChannel();
             }, delay);
           } else {
-            console.error('[GlobalRT] Max retries reached, giving up');
+            if (import.meta.env.DEV) console.warn('[GlobalRT] Max retries reached, giving up');
           }
         }
         if (status === 'CLOSED') {

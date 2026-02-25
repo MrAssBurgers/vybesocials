@@ -8,9 +8,15 @@ import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
 interface AICaptionGeneratorProps {
   tags: string[];
-  contentType: 'post' | 'short' | 'video';
+  contentType: 'post' | 'short' | 'video' | 'text';
   onSelectCaption: (caption: string) => void;
 }
+
+// Map client content types to API-accepted types
+const mapContentType = (type: string): string => {
+  if (type === 'post' || type === 'text') return 'photo';
+  return type;
+};
 
 export function AICaptionGenerator({ tags, contentType, onSelectCaption }: AICaptionGeneratorProps) {
   const [captions, setCaptions] = useState<string[]>([]);
@@ -29,7 +35,7 @@ export function AICaptionGenerator({ tags, contentType, onSelectCaption }: AICap
         {
           method: 'POST',
           headers,
-          body: JSON.stringify({ tags, contentType }),
+          body: JSON.stringify({ tags, contentType: mapContentType(contentType) }),
         }
       );
 
