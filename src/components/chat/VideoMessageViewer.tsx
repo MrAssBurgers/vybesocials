@@ -14,6 +14,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { formatDuration } from '@/hooks/useVideoProcessor';
 import { cn } from '@/lib/utils';
+import { useCaptureDetection } from '@/hooks/useCaptureDetection';
+import { CaptureShield } from '@/components/chat/CaptureShield';
+import { toast } from 'sonner';
 
 interface VideoMessageViewerProps {
   open: boolean;
@@ -21,6 +24,8 @@ interface VideoMessageViewerProps {
   src: string;
   senderName?: string;
   senderAvatar?: string;
+  senderId?: string;
+  mediaId?: string;
   duration?: number;
   timestamp?: string;
   onReply?: () => void;
@@ -33,6 +38,8 @@ export function VideoMessageViewer({
   src,
   senderName,
   senderAvatar,
+  senderId,
+  mediaId,
   duration,
   timestamp,
   onReply,
@@ -45,6 +52,16 @@ export function VideoMessageViewer({
   const [showControls, setShowControls] = useState(true);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const [dragY, setDragY] = useState(0);
+
+  // Capture detection
+  const { captured } = useCaptureDetection({
+    enabled: open,
+    senderId,
+    mediaId,
+    onCaptureDetected: (type) => {
+      toast.error('Capture detected', { duration: 2000 });
+    },
+  });
 
   // Auto-play when opened
   useEffect(() => {
@@ -146,6 +163,7 @@ export function VideoMessageViewer({
           style={{ opacity }}
           onClick={handleInteraction}
         >
+          <CaptureShield captured={captured} />
           {/* Video container - draggable for swipe dismiss */}
           <motion.div
             drag="y"
