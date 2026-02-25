@@ -1608,6 +1608,42 @@ export type Database = {
           },
         ]
       }
+      capture_events: {
+        Row: {
+          client_timestamp: string | null
+          conversation_id: string | null
+          created_at: string
+          id: string
+          media_id: string | null
+          sender_id: string
+          signals: string[] | null
+          type: string
+          viewer_id: string
+        }
+        Insert: {
+          client_timestamp?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          media_id?: string | null
+          sender_id: string
+          signals?: string[] | null
+          type: string
+          viewer_id: string
+        }
+        Update: {
+          client_timestamp?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          media_id?: string | null
+          sender_id?: string
+          signals?: string[] | null
+          type?: string
+          viewer_id?: string
+        }
+        Relationships: []
+      }
       challenge_progress: {
         Row: {
           challenge_id: string

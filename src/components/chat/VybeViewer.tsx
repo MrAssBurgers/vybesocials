@@ -4,10 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Reply, Camera, Eye, Download } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { haptics } from '@/lib/haptics';
+import { useCaptureDetection } from '@/hooks/useCaptureDetection';
+import { CaptureShield } from '@/components/chat/CaptureShield';
+import { toast } from 'sonner';
 
 interface VybeViewerProps {
   mediaUrl: string;
   messageId?: string;
+  senderId?: string;
   senderName?: string;
   senderAvatar?: string;
   isOpen: boolean;
@@ -22,6 +26,7 @@ interface VybeViewerProps {
 export function VybeViewer({ 
   mediaUrl, 
   messageId,
+  senderId,
   senderName,
   senderAvatar,
   isOpen, 
@@ -41,6 +46,16 @@ export function VybeViewer({
   const startTime = useRef<number>(0);
 
   const VYBE_DURATION = 5000; // 5 seconds display time
+
+  // Capture detection
+  const { captured } = useCaptureDetection({
+    enabled: isOpen && !isOwn,
+    senderId,
+    mediaId: messageId,
+    onCaptureDetected: (type) => {
+      toast.error('Capture detected', { duration: 2000 });
+    },
+  });
   
   // CRITICAL: Check server truth - if already viewed and not owner, close immediately
   useEffect(() => {
@@ -240,6 +255,7 @@ export function VybeViewer({
           </div>
 
           {/* VYBE Image - fullscreen with reveal animation */}
+          <CaptureShield captured={captured} showBadge={!isOwn} />
           <motion.img
             initial={{ scale: 1.2, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
