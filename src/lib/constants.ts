@@ -1,5 +1,5 @@
 // App version
-export const APP_VERSION = '0.9';
+export const APP_VERSION = '0.9.5';
 
 // Feature flags
 export const FEATURES = {
