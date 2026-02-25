@@ -18,6 +18,9 @@ import { useEvents, useEventRSVP, VybeEvent } from '@/hooks/useEvents';
 import { useAuth } from '@/lib/auth';
 import { triggerHaptic } from '@/lib/haptics';
 import { toast } from 'sonner';
+import { EventFilters } from '@/components/events/EventFilters';
+import { SuggestedFriends } from '@/components/friends/SuggestedFriends';
+import { useFriendsAtEvent } from '@/hooks/useFriendsOfFriends';
 
 function formatEventDate(date: string) {
   const d = new Date(date);
@@ -25,6 +28,23 @@ function formatEventDate(date: string) {
   if (isTomorrow(d)) return 'Tomorrow';
   if (isThisWeek(d)) return format(d, 'EEEE');
   return format(d, 'MMM d');
+}
+
+function FriendsGoingBadge({ eventId }: { eventId: string }) {
+  const { data } = useFriendsAtEvent(eventId);
+  if (!data || (data.friends.length === 0 && data.fof.length === 0)) return null;
+
+  const friendCount = data.friends.length;
+  const fofCount = data.fof.length;
+
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+      <Users className="h-3 w-3 text-primary" />
+      {friendCount > 0 && <span>{friendCount} friend{friendCount !== 1 ? 's' : ''} going</span>}
+      {friendCount > 0 && fofCount > 0 && <span>·</span>}
+      {fofCount > 0 && <span>{fofCount} friend{fofCount !== 1 ? 's' : ''} of friends</span>}
+    </div>
+  );
 }
 
 const EventCard = memo(function EventCard({ 
@@ -114,7 +134,7 @@ const EventCard = memo(function EventCard({
         {/* Host */}
         <Link 
           to={`/u/${event.host?.username}`}
-          className="flex items-center gap-2 mb-4"
+          className="flex items-center gap-2 mb-2"
         >
           <Avatar className="h-6 w-6">
             <AvatarImage src={event.host?.avatar_url || undefined} />
@@ -124,9 +144,12 @@ const EventCard = memo(function EventCard({
           </Avatar>
           <span className="text-sm">Hosted by <strong>{event.host?.username}</strong></span>
         </Link>
+
+        {/* Friends going */}
+        <FriendsGoingBadge eventId={event.id} />
         
         {/* RSVP & Attendees */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mt-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Users className="h-4 w-4" />
             <span>{event.rsvp_count} going</span>
@@ -169,11 +192,18 @@ export default function EventsPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [tab, setTab] = useState<'upcoming' | 'online' | 'local'>('upcoming');
+  const [activeFilters, setActiveFilters] = useState<{
+    category?: string;
+    location?: string;
+    dateRange?: 'today' | 'this-week' | 'this-weekend' | 'this-month';
+    search?: string;
+  }>({});
   
   const filters = useMemo(() => ({
     upcoming: tab === 'upcoming' || tab === 'local',
-    type: tab === 'online' ? 'online' as const : undefined,
-  }), [tab]);
+    type: tab === 'online' ? 'online' as const : tab === 'local' ? 'in-person' as const : undefined,
+    ...activeFilters,
+  }), [tab, activeFilters]);
   
   const { data: events, isLoading } = useEvents(filters);
   const rsvpMutation = useEventRSVP();
@@ -192,9 +222,9 @@ export default function EventsPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Calendar className="h-6 w-6 text-primary" />
@@ -213,8 +243,17 @@ export default function EventsPage() {
           </Link>
         </div>
 
+        {/* Suggested Friends */}
+        <SuggestedFriends />
+
+        {/* Filters */}
+        <EventFilters 
+          activeFilters={activeFilters}
+          onFiltersChange={setActiveFilters}
+        />
+
         {/* Tabs */}
-        <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="mb-6">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
             <TabsTrigger value="online">Online</TabsTrigger>
@@ -245,7 +284,9 @@ export default function EventsPage() {
           <EmptyState
             emoji="📅"
             title="No events found"
-            description="Be the first to create an event for your community!"
+            description={Object.keys(activeFilters).length > 0 
+              ? "Try adjusting your filters to find more events" 
+              : "Be the first to create an event for your community!"}
             actionLabel="Create Event"
             onAction={() => navigate('/events/new')}
           />

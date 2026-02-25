@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { startOfDay, endOfDay, endOfWeek, startOfWeek, endOfMonth, nextFriday, nextSunday, isAfter } from 'date-fns';
 
 export interface VybeEvent {
   id: string;
@@ -44,7 +45,28 @@ interface EventsFilters {
   type?: 'in-person' | 'online';
   upcoming?: boolean;
   hostId?: string;
+  category?: string;
+  location?: string;
+  dateRange?: 'today' | 'this-week' | 'this-weekend' | 'this-month' | 'custom';
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
 }
+
+export const EVENT_CATEGORIES = [
+  { value: 'music', label: 'Music', emoji: '🎵' },
+  { value: 'sports', label: 'Sports', emoji: '⚽' },
+  { value: 'gaming', label: 'Gaming', emoji: '🎮' },
+  { value: 'meetup', label: 'Meetup', emoji: '🤝' },
+  { value: 'party', label: 'Party', emoji: '🎉' },
+  { value: 'food', label: 'Food & Drink', emoji: '🍕' },
+  { value: 'art', label: 'Art & Design', emoji: '🎨' },
+  { value: 'tech', label: 'Tech', emoji: '💻' },
+  { value: 'fitness', label: 'Fitness', emoji: '💪' },
+  { value: 'education', label: 'Education', emoji: '📚' },
+  { value: 'howudoin', label: 'How U Doin', emoji: '💬' },
+  { value: 'other', label: 'Other', emoji: '✨' },
+] as const;
 
 export function useEvents(filters?: EventsFilters) {
   const { profile } = useAuth();
@@ -74,6 +96,46 @@ export function useEvents(filters?: EventsFilters) {
       }
       if (filters?.hostId) {
         query = query.eq('host_id', filters.hostId);
+      }
+
+      if (filters?.category) {
+        query = query.eq('category', filters.category);
+      }
+      if (filters?.location) {
+        query = query.ilike('location', `%${filters.location}%`);
+      }
+      if (filters?.search) {
+        query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      }
+
+      // Date range filtering
+      if (filters?.dateRange) {
+        const now = new Date();
+        switch (filters.dateRange) {
+          case 'today':
+            query = query.gte('start_time', startOfDay(now).toISOString())
+              .lte('start_time', endOfDay(now).toISOString());
+            break;
+          case 'this-week':
+            query = query.gte('start_time', now.toISOString())
+              .lte('start_time', endOfWeek(now).toISOString());
+            break;
+          case 'this-weekend': {
+            const fri = nextFriday(startOfDay(now));
+            const sun = nextSunday(startOfDay(now));
+            query = query.gte('start_time', (isAfter(now, fri) ? now : fri).toISOString())
+              .lte('start_time', endOfDay(sun).toISOString());
+            break;
+          }
+          case 'this-month':
+            query = query.gte('start_time', now.toISOString())
+              .lte('start_time', endOfMonth(now).toISOString());
+            break;
+          case 'custom':
+            if (filters.dateFrom) query = query.gte('start_time', filters.dateFrom);
+            if (filters.dateTo) query = query.lte('start_time', filters.dateTo);
+            break;
+        }
       }
 
       const { data, error } = await query;
