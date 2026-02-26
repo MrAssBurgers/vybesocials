@@ -6,6 +6,7 @@ import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { haptics } from '@/lib/haptics';
 import { useCaptureDetection } from '@/hooks/useCaptureDetection';
 import { CaptureShield } from '@/components/chat/CaptureShield';
+import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { toast } from 'sonner';
 
 interface VybeViewerProps {
@@ -55,6 +56,8 @@ export function VybeViewer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mediaDuration, setMediaDuration] = useState<number>(IMAGE_DURATION);
   const isVideo = isVideoUrl(mediaUrl);
+  const signedUrl = useSignedUrl(mediaUrl);
+  const resolvedUrl = signedUrl || mediaUrl;
 
   // Capture detection
   const { captured } = useCaptureDetection({
@@ -307,7 +310,7 @@ export function VybeViewer({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
-              src={mediaUrl}
+              src={resolvedUrl}
               className="max-w-full max-h-full object-contain select-none"
               autoPlay
               playsInline
@@ -321,7 +324,7 @@ export function VybeViewer({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
-              src={mediaUrl}
+              src={resolvedUrl}
               alt="VYBE"
               className="max-w-full max-h-full object-contain select-none"
               draggable={false}
