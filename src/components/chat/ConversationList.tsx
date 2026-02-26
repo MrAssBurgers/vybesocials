@@ -331,6 +331,13 @@ export function ConversationList() {
           <AutisyAIChatRow />
         </div>
 
+        {/* Friend Recommendations - Snapchat Quick Add style */}
+        {!searchQuery && (
+          <div className="px-3 pt-2 pb-1">
+            <MutualFriendsQuickAdd onSelect={handleQuickAddSelect} />
+          </div>
+        )}
+
         <div className="p-3 pb-24 space-y-1 w-full box-border">
           {/* Accepted Friend Requests as Chat Notifications */}
           {acceptedRequests && acceptedRequests.length > 0 && (
