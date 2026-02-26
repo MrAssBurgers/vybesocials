@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 
 export interface LeaderboardEntry {
   user_id: string;
+  profile_id: string;
   username: string;
   display_name: string | null;
   avatar_url: string | null;
@@ -58,24 +59,34 @@ export function useFriendsXpLeaderboard() {
     queryFn: async () => {
       if (!user?.id) return [];
 
-      // Get friend IDs
+      // Get current user's profile ID
+      const { data: myProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const myProfileId = myProfile?.id;
+      if (!myProfileId) return [];
+
+      // Get friend IDs (these are profile IDs)
       const { data: friendships } = await supabase
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+        .or(`sender_id.eq.${myProfileId},receiver_id.eq.${myProfileId}`);
 
-      const friendIds = (friendships || []).map(f => 
-        f.sender_id === user.id ? f.receiver_id : f.sender_id
+      const friendProfileIds = (friendships || []).map(f => 
+        f.sender_id === myProfileId ? f.receiver_id : f.sender_id
       );
-      friendIds.push(user.id); // Include self
+      friendProfileIds.push(myProfileId); // Include self
 
-      if (friendIds.length === 0) return [];
+      if (friendProfileIds.length === 0) return [];
 
       const { data, error } = await supabase
         .from('xp_leaderboard' as any)
         .select('*')
-        .in('user_id', friendIds)
+        .in('profile_id', friendProfileIds)
         .limit(50);
 
       if (error) throw error;
