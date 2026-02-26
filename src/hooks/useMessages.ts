@@ -445,7 +445,7 @@ export function useMarkMessageViewed() {
         .upsert({
           message_id: messageId,
           user_id: profile.id,
-        });
+        }, { onConflict: 'message_id,user_id', ignoreDuplicates: true });
 
       if (error) throw error;
     },
