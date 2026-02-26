@@ -20,6 +20,21 @@ interface CaptureSignal {
   timestamp: number;
 }
 
+// Detect platform once
+const detectPlatform = (): 'ios' | 'android' | 'macos' | 'windows' | 'linux' | 'unknown' => {
+  const ua = navigator.userAgent.toLowerCase();
+  const platform = navigator.platform?.toLowerCase() || '';
+  if (/iphone|ipad|ipod/.test(ua) || (/mac/.test(platform) && navigator.maxTouchPoints > 1)) return 'ios';
+  if (/android/.test(ua)) return 'android';
+  if (/mac/.test(platform)) return 'macos';
+  if (/win/.test(platform)) return 'windows';
+  if (/linux/.test(platform)) return 'linux';
+  return 'unknown';
+};
+
+const PLATFORM = detectPlatform();
+const IS_MOBILE = PLATFORM === 'ios' || PLATFORM === 'android';
+
 export function useCaptureDetection({
   enabled,
   senderId,
@@ -33,29 +48,32 @@ export function useCaptureDetection({
   const signals = useRef<CaptureSignal[]>([]);
   const viewStartTime = useRef<number>(0);
   const lastFrameTime = useRef<number>(0);
-  const frameDropCount = useRef(0);
   const rafId = useRef<number>(0);
   const blurCount = useRef(0);
-  const blurTimer = useRef<NodeJS.Timeout>();
+  const cooldownRef = useRef(false);
 
   const addSignal = useCallback((type: string) => {
     const now = Date.now();
+    // Deduplicate same signal within 500ms
+    const recent = signals.current.filter(s => s.type === type && now - s.timestamp < 500);
+    if (recent.length > 0) return;
+    
     signals.current.push({ type, timestamp: now });
-
-    // Keep only last 10 signals
     if (signals.current.length > 10) {
       signals.current = signals.current.slice(-10);
     }
   }, []);
 
   const reportCapture = useCallback(async (type: CaptureType, detectedSignals: string[]) => {
-    if (!user?.id || !senderId || captured) return;
-    if (user.id === senderId) return; // Don't report on own media
+    if (!user?.id || !senderId || captured || cooldownRef.current) return;
+    if (user.id === senderId) return;
+
+    cooldownRef.current = true;
+    setTimeout(() => { cooldownRef.current = false; }, 5000); // 5s cooldown
 
     setCaptured(true);
     setState('confirmed_capture');
     haptics.warning();
-
     onCaptureDetected?.(type);
 
     try {
@@ -78,13 +96,19 @@ export function useCaptureDetection({
     const recentSignals = signals.current.filter(s => now - s.timestamp < 5000);
     const signalTypes = [...new Set(recentSignals.map(s => s.type))];
 
-    // Screenshot: keyboard shortcut detected
+    // Keyboard screenshot = high confidence
     if (signalTypes.includes('key_capture')) {
       reportCapture('screenshot', signalTypes);
       return;
     }
 
-    // Confirmed capture: 2+ different signal types within 5s
+    // Mobile visibility pattern (iOS/Android screenshot flash)
+    if (IS_MOBILE && signalTypes.includes('mobile_screenshot')) {
+      reportCapture('screenshot', signalTypes);
+      return;
+    }
+
+    // 2+ correlated signals = recording or capture
     if (signalTypes.length >= 2) {
       const hasBlur = signalTypes.includes('blur') || signalTypes.includes('visibility');
       const hasFrameDrop = signalTypes.includes('frame_drop');
@@ -94,14 +118,13 @@ export function useCaptureDetection({
         reportCapture('screen_record', signalTypes);
         return;
       }
-
-      if (signalTypes.length >= 2) {
+      if (signalTypes.length >= 3) {
         reportCapture('possible_capture', signalTypes);
         return;
       }
     }
 
-    // Single blur/visibility signal = suspected
+    // Single blur/visibility = suspected only (no report)
     if (signalTypes.length === 1 && (signalTypes[0] === 'blur' || signalTypes[0] === 'visibility')) {
       setState('suspected_capture');
     }
@@ -118,7 +141,7 @@ export function useCaptureDetection({
     signals.current = [];
     setCaptured(false);
     blurCount.current = 0;
-    frameDropCount.current = 0;
+    cooldownRef.current = false;
 
     // 1. Keyboard shortcut detection
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -132,26 +155,35 @@ export function useCaptureDetection({
       }
     };
 
-    // 2. Visibility change detection
+    // 2. Visibility change - with mobile-specific screenshot pattern
+    let lastHiddenTime = 0;
     const handleVisibilityChange = () => {
       if (document.hidden) {
+        lastHiddenTime = Date.now();
         const elapsed = Date.now() - viewStartTime.current;
-        // Only flag if within reasonable capture window (0.3s - 10s after opening)
-        if (elapsed > 300 && elapsed < 10000) {
+        if (elapsed > 300 && elapsed < 30000) {
           addSignal('visibility');
+        }
+      } else {
+        // Mobile screenshot causes very brief visibility change (50-800ms)
+        const hiddenDuration = Date.now() - lastHiddenTime;
+        if (IS_MOBILE && lastHiddenTime > 0 && hiddenDuration > 50 && hiddenDuration < 800) {
+          addSignal('mobile_screenshot');
+          evaluateSignals();
+        } else {
           evaluateSignals();
         }
       }
     };
 
-    // 3. Window blur/focus tracking
+    // 3. Blur/focus tracking
+    let lastBlurTime = 0;
     const handleBlur = () => {
       const elapsed = Date.now() - viewStartTime.current;
       if (elapsed > 300) {
+        lastBlurTime = Date.now();
         blurCount.current += 1;
         addSignal('blur');
-
-        // Multiple blur/focus cycles = suspicious
         if (blurCount.current >= 3) {
           addSignal('repeated_blur');
         }
@@ -160,29 +192,26 @@ export function useCaptureDetection({
     };
 
     const handleFocus = () => {
-      // Focus returning quickly after blur = capture pattern
-      const lastBlur = signals.current.filter(s => s.type === 'blur').pop();
-      if (lastBlur && Date.now() - lastBlur.timestamp < 1500) {
+      if (lastBlurTime > 0 && Date.now() - lastBlurTime < 1500) {
         addSignal('quick_refocus');
         evaluateSignals();
       }
     };
 
-    // 4. Frame timing drop detection (screen recording inference)
+    // 4. Frame timing detection (recording inference) - desktop only
     let consecutiveDrops = 0;
     const checkFrameTiming = (timestamp: number) => {
-      if (lastFrameTime.current > 0) {
+      if (!IS_MOBILE && lastFrameTime.current > 0) {
         const delta = timestamp - lastFrameTime.current;
-        // Normal is ~16ms (60fps). >50ms suggests frame drops
         if (delta > 50) {
           consecutiveDrops++;
-          if (consecutiveDrops >= 3) {
+          if (consecutiveDrops >= 5) { // Raised threshold to reduce false positives
             addSignal('frame_drop');
             evaluateSignals();
             consecutiveDrops = 0;
           }
         } else {
-          consecutiveDrops = 0;
+          consecutiveDrops = Math.max(0, consecutiveDrops - 1); // Gradual decay
         }
       }
       lastFrameTime.current = timestamp;
@@ -190,27 +219,37 @@ export function useCaptureDetection({
     };
     rafId.current = requestAnimationFrame(checkFrameTiming);
 
-    // 5. Media device change (recording software often triggers this)
+    // 5. Media device change
     const handleDeviceChange = () => {
       addSignal('device_change');
       evaluateSignals();
     };
     navigator.mediaDevices?.addEventListener?.('devicechange', handleDeviceChange);
 
-    // Attach listeners
-    document.addEventListener('keydown', handleKeyDown);
+    // 6. Clipboard image detection (desktop screenshot to clipboard)
+    const handleCopy = (e: ClipboardEvent) => {
+      if (e.clipboardData?.types.includes('image/png') || e.clipboardData?.types.includes('image/jpeg')) {
+        addSignal('key_capture');
+        evaluateSignals();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('keyup', handleKeyDown, true); // PrintScreen fires on keyup sometimes
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleBlur);
     window.addEventListener('focus', handleFocus);
+    document.addEventListener('copy', handleCopy);
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('keyup', handleKeyDown, true);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
       navigator.mediaDevices?.removeEventListener?.('devicechange', handleDeviceChange);
+      document.removeEventListener('copy', handleCopy);
       cancelAnimationFrame(rafId.current);
-      if (blurTimer.current) clearTimeout(blurTimer.current);
     };
   }, [enabled, addSignal, evaluateSignals]);
 
@@ -239,7 +278,6 @@ export function useCaptureNotifications() {
         async (payload) => {
           const event = payload.new as any;
           
-          // Fetch viewer profile for name
           const { data: viewer } = await supabase
             .from('profiles')
             .select('username, display_name')
@@ -254,9 +292,7 @@ export function useCaptureNotifications() {
               ? 'started screen recording' 
               : 'may have captured your media';
 
-          toast(`${icon} ${name} ${action}`, {
-            duration: 5000,
-          });
+          toast(`${icon} ${name} ${action}`, { duration: 5000 });
           haptics.warning();
         }
       )

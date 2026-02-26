@@ -3146,6 +3146,41 @@ export type Database = {
           },
         ]
       }
+      event_reminders: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          remind_at: string
+          reminded: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          remind_at: string
+          reminded?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          remind_at?: string
+          reminded?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_reminders_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_rsvps: {
         Row: {
           created_at: string
@@ -8401,6 +8436,19 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      xp_leaderboard: {
+        Row: {
+          avatar_url: string | null
+          current_level: number | null
+          display_name: string | null
+          is_verified: boolean | null
+          rank: number | null
+          total_xp: number | null
+          user_id: string | null
+          username: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {
