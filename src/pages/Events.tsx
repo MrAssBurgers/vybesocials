@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Calendar, Clock, MapPin, Users, Video, 
-  Plus, Filter, ChevronRight, Check, Star
+  Plus, Filter, ChevronRight, Check, Star, Bell
 } from 'lucide-react';
 import { format, isToday, isTomorrow, isThisWeek, isPast } from 'date-fns';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { EventFilters } from '@/components/events/EventFilters';
 import { SuggestedFriends } from '@/components/friends/SuggestedFriends';
 import { useFriendsAtEvent } from '@/hooks/useFriendsOfFriends';
+import { EventReminderButton } from '@/components/events/EventReminderButton';
 
 function formatEventDate(date: string) {
   const d = new Date(date);
@@ -156,7 +157,8 @@ const EventCard = memo(function EventCard({
           </div>
           
           {!isPastEvent && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <EventReminderButton eventId={event.id} eventStartTime={event.start_time} />
               <Button
                 variant={event.user_rsvp === 'interested' ? 'default' : 'outline'}
                 size="sm"
