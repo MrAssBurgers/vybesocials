@@ -66,7 +66,7 @@ const queryClient = new QueryClient({
       staleTime: 1000 * 60 * 30, // 30 minutes - maximize cache hits
       gcTime: 1000 * 60 * 180, // 3 hour cache for even better persistence
       refetchOnWindowFocus: false,
-      refetchOnMount: 'always',
+      refetchOnMount: false,
       refetchOnReconnect: false,
       retry: (failureCount, error: any) => {
         // Don't retry auth errors or client errors
