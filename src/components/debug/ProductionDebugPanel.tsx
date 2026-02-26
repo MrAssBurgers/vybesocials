@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useSyncExternalStore, useRef } from 'react';
+import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Shield, Globe, CreditCard, UserCheck, Wifi, AlertTriangle,
@@ -922,7 +923,16 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
                 <Section title="Error Console" icon={AlertTriangle}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-foreground/70">{errorLogs.length} errors</span>
-                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-foreground/70" onClick={clearLogs}>Clear</Button>
+                    <div className="flex gap-1">
+                      {errorLogs.length > 0 && (
+                        <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-foreground/70" onClick={() => {
+                          const allErrors = errorLogs.map(log => `[${log.type}] ${new Date(log.timestamp).toLocaleTimeString()} — ${log.message}`).join('\n');
+                          navigator.clipboard.writeText(allErrors);
+                          toast.success('Copied all errors');
+                        }}>Copy All</Button>
+                      )}
+                      <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-foreground/70" onClick={clearLogs}>Clear</Button>
+                    </div>
                   </div>
                   <div className="max-h-48 overflow-y-auto space-y-1">
                     {errorLogs.length === 0 ? (
