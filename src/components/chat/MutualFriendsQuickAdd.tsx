@@ -5,7 +5,7 @@ import { useMutualFriends, UserWithMutualFriends } from '@/hooks/useMutualFriend
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { UserPlus, X, Check, MessageCircle, ChevronRight } from 'lucide-react';
+import { UserPlus, X, Check, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useFriendshipStatus, useSendFriendRequest, useFriends } from '@/hooks/useFriends';
@@ -97,13 +97,13 @@ export function MutualFriendsQuickAdd({
 
   if (isLoading) {
     return (
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between px-1">
+      <div className="space-y-1.5">
+        <div className="px-1">
           <span className="text-xs font-semibold text-foreground tracking-wide uppercase">Quick Add</span>
         </div>
-        <div className="flex gap-2.5 overflow-hidden">
+        <div className="flex gap-1.5 overflow-hidden">
           {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-[160px] w-[120px] rounded-2xl shrink-0" />
+            <Skeleton key={i} className="h-[140px] w-[100px] rounded-xl shrink-0" />
           ))}
         </div>
       </div>
@@ -113,17 +113,14 @@ export function MutualFriendsQuickAdd({
   if (!displayUsers || displayUsers.length === 0) return null;
 
   return (
-    <div className="space-y-2.5">
-      <div className="flex items-center justify-between px-1">
+    <div className="space-y-1.5">
+      <div className="px-1">
         <span className="text-xs font-semibold text-foreground tracking-wide uppercase">Quick Add</span>
-        <button className="text-xs text-primary font-medium flex items-center gap-0.5 hover:opacity-80 transition-opacity">
-          More <ChevronRight className="h-3 w-3" />
-        </button>
       </div>
       
       <div 
         ref={scrollRef}
-        className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide snap-x snap-mandatory"
+        className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide snap-x snap-mandatory"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         <AnimatePresence mode="popLayout">
@@ -196,10 +193,10 @@ function QuickAddCard({
         scale: justAdded ? 0.95 : 1,
       }}
       exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
-      className="relative w-[110px] shrink-0 snap-start"
+      className="relative w-[100px] shrink-0 snap-start"
     >
       <div className={cn(
-        "relative flex flex-col items-center rounded-2xl p-3 pt-2.5 bg-card border border-border/60 transition-all",
+        "relative flex flex-col items-center rounded-xl p-2 pt-2 bg-card border border-border/60 transition-all",
         justAdded && "border-primary/40 bg-primary/5"
       )}>
         {/* Dismiss */}
@@ -216,7 +213,7 @@ function QuickAddCard({
           className="focus:outline-none mb-2"
           type="button"
         >
-          <Avatar className="h-14 w-14 ring-2 ring-border/40 hover:ring-primary/50 transition-all">
+          <Avatar className="h-12 w-12 ring-2 ring-border/40 hover:ring-primary/50 transition-all">
             <AvatarImage src={user.avatar_url || undefined} />
             <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">
               {(user.first_name?.[0] || user.username[0]).toUpperCase()}
@@ -233,30 +230,24 @@ function QuickAddCard({
           {fullName}
         </button>
         
-        {/* Mutual friends or username */}
-        {user.mutual_friends_count > 0 ? (
-          <div className="flex items-center gap-1 mt-0.5 mb-2">
-            {user.mutual_friends.length > 0 && (
-              <div className="flex -space-x-1.5">
-                {user.mutual_friends.slice(0, 2).map((friend) => (
-                  <Avatar key={friend.id} className="h-3.5 w-3.5 border border-card">
-                    <AvatarImage src={friend.avatar_url || undefined} />
-                    <AvatarFallback className="text-[5px] bg-primary/20">
-                      {friend.username?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-              </div>
-            )}
-            <span className="text-[10px] text-muted-foreground leading-none">
-              {user.mutual_friends_count} mutual
-            </span>
-          </div>
-        ) : (
-          <p className="text-[10px] text-muted-foreground mt-0.5 mb-2 truncate w-full text-center leading-none">
-            @{user.username}
-          </p>
-        )}
+        {/* Mutual friends count */}
+        <div className="flex items-center gap-1 mt-0.5 mb-1.5">
+          {user.mutual_friends.length > 0 && (
+            <div className="flex -space-x-1.5">
+              {user.mutual_friends.slice(0, 2).map((friend) => (
+                <Avatar key={friend.id} className="h-3.5 w-3.5 border border-card">
+                  <AvatarImage src={friend.avatar_url || undefined} />
+                  <AvatarFallback className="text-[5px] bg-primary/20">
+                    {friend.username?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              ))}
+            </div>
+          )}
+          <span className="text-[10px] text-muted-foreground leading-none">
+            {user.mutual_friends_count} mutual{user.mutual_friends_count !== 1 ? 's' : ''}
+          </span>
+        </div>
 
         {/* Action */}
         {isLoadingStatus ? (
