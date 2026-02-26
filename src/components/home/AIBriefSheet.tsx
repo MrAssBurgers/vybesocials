@@ -273,6 +273,18 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
 
       if (!isBackground) { setLoadingProgress(35); setLoadingStage('data'); }
 
+      // Simulate gradual progress during the network request (the longest step)
+      let progressInterval: ReturnType<typeof setInterval> | null = null;
+      if (!isBackground) {
+        let current = 35;
+        progressInterval = setInterval(() => {
+          current = Math.min(current + 2, 82);
+          setLoadingProgress(current);
+          if (current >= 50 && current < 70) setLoadingStage('interests');
+          else if (current >= 70) setLoadingStage('ai');
+        }, 400);
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-catch-up`,
         {
@@ -283,6 +295,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
         }
       );
 
+      if (progressInterval) clearInterval(progressInterval);
       if (!isBackground) { setLoadingProgress(85); setLoadingStage('ai'); }
 
       if (!response.ok) {
