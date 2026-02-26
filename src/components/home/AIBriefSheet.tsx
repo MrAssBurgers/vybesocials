@@ -250,6 +250,8 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   const [briefData, setBriefData] = useState<BriefData | null>(() => getCachedBrief());
   const [showCustomize, setShowCustomize] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingStage, setLoadingStage] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasFetchedRef = useRef(false);
 
@@ -261,12 +263,15 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
     if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
     
-    if (!isBackground) { setIsLoading(true); setError(null); } else { setIsRefreshing(true); }
+    if (!isBackground) { setIsLoading(true); setError(null); setLoadingProgress(10); setLoadingStage('auth'); } else { setIsRefreshing(true); }
     if (!isBackground) haptics.tap();
 
     try {
+      if (!isBackground) { setLoadingProgress(20); setLoadingStage('auth'); }
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { setError('Please sign in to see your brief'); return; }
+
+      if (!isBackground) { setLoadingProgress(35); setLoadingStage('data'); }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-catch-up`,
@@ -278,23 +283,29 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
         }
       );
 
+      if (!isBackground) { setLoadingProgress(85); setLoadingStage('ai'); }
+
       if (!response.ok) {
         if (response.status === 429) { setError('Rate limited. Try again in a moment.'); return; }
         if (response.status === 402) { setError('AI credits exhausted.'); return; }
         throw new Error('Failed to get brief');
       }
 
+      if (!isBackground) { setLoadingProgress(95); setLoadingStage('done'); }
+
       const data = await response.json();
       setBriefData(data);
       setCachedBrief(data);
       setError(null);
-      if (!isBackground) haptics.success();
+      if (!isBackground) { setLoadingProgress(100); haptics.success(); }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       setError('Could not load brief. Tap refresh to try again.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setLoadingProgress(0);
+      setLoadingStage('');
     }
   }, [user]);
 
@@ -370,7 +381,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
             style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}
           >
             {isLoading ? (
-              <GeneratingScreen />
+              <GeneratingScreen progress={loadingProgress} stage={loadingStage} />
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <div className="p-3 rounded-full bg-destructive/10 mb-4">
@@ -558,7 +569,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                 )}
               </div>
             ) : (
-              <GeneratingScreen />
+              <GeneratingScreen progress={loadingProgress} stage={loadingStage} />
             )}
           </div>
         </SheetContent>
