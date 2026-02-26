@@ -189,7 +189,7 @@ export function useChatPresence(conversationId: string | undefined) {
       )
       .subscribe();
 
-    // Subscribe to typing changes
+    // Subscribe to typing changes - handle directly from realtime payload
     const typingChannel = supabase
       .channel(`typing-presence:${conversationId}`)
       .on(
@@ -200,8 +200,35 @@ export function useChatPresence(conversationId: string | undefined) {
           table: 'typing_indicators',
           filter: `conversation_id=eq.${conversationId}`,
         },
-        () => {
-          if (isMounted) fetchPresence();
+        (payload) => {
+          if (!isMounted) return;
+          
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const data = payload.new as any;
+            if (data.user_id === profileId) return; // Skip own typing
+            
+            // Check if recent
+            const startedAt = new Date(data.started_at || data.updated_at).getTime();
+            const isRecent = Date.now() - startedAt < PRESENCE.TYPING_TIMEOUT_MS;
+            
+            if (isRecent) {
+              setTypingUsers(prev => {
+                if (prev.includes(data.user_id)) return prev;
+                return [...prev, data.user_id];
+              });
+              
+              // Auto-clear after timeout
+              setTimeout(() => {
+                if (!isMounted) return;
+                setTypingUsers(prev => prev.filter(id => id !== data.user_id));
+              }, PRESENCE.TYPING_TIMEOUT_MS);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const oldData = payload.old as any;
+            if (oldData?.user_id && oldData.user_id !== profileId) {
+              setTypingUsers(prev => prev.filter(id => id !== oldData.user_id));
+            }
+          }
         }
       )
       .subscribe();
