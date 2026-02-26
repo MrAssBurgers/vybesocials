@@ -214,7 +214,7 @@ export default function PostDetailPage() {
     setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
 
     if (newIsLiked) {
-      await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
+      await supabase.from('likes').upsert({ user_id: profile.id, post_id: post.id }, { onConflict: 'user_id,post_id', ignoreDuplicates: true });
       if (post.author.id !== profile.id) {
         await supabase.from('notifications').insert({
           user_id: post.author.id, type: 'like', actor_id: profile.id, post_id: post.id,
