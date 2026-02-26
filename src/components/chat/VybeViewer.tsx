@@ -23,6 +23,14 @@ interface VybeViewerProps {
   onSave?: () => void;
 }
 
+const IMAGE_DURATION = 5000; // 5 seconds for photos
+
+function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return lower.includes('.mp4') || lower.includes('.mov') || lower.includes('.webm') || lower.includes('.avi') || lower.includes('video');
+}
+
 export function VybeViewer({ 
   mediaUrl, 
   messageId,
@@ -44,8 +52,9 @@ export function VybeViewer({
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
   const startTime = useRef<number>(0);
-
-  const VYBE_DURATION = 5000; // 5 seconds display time
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [mediaDuration, setMediaDuration] = useState<number>(IMAGE_DURATION);
+  const isVideo = isVideoUrl(mediaUrl);
 
   // Capture detection
   const { captured } = useCaptureDetection({
@@ -66,21 +75,58 @@ export function VybeViewer({
     }
   }, [isOpen, isViewed, isOwn, onClose]);
   
-  // Mark vybe as viewed IMMEDIATELY when opened - triggers callback for parent to handle
-  // This ensures "Opened" status shows to sender right away
+  // Mark vybe as viewed IMMEDIATELY when opened
   useEffect(() => {
     if (isOpen && messageId && !isViewed && !hasMarkedViewed && !isOwn) {
       console.log('[VybeViewer] Marking as viewed immediately');
       setHasMarkedViewed(true);
-      // Call onViewed immediately - don't wait
       onViewed?.();
     }
   }, [isOpen, messageId, isViewed, hasMarkedViewed, isOwn, onViewed]);
 
-  // Progress timer - auto close after duration
+  // Handle video metadata loaded — get real duration
+  const handleVideoLoaded = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    if (video.duration && isFinite(video.duration)) {
+      setMediaDuration(video.duration * 1000); // convert to ms
+    }
+  }, []);
+
+  // Handle video ended — close viewer
+  const handleVideoEnded = useCallback(() => {
+    haptics.impact();
+    onClose();
+  }, [onClose]);
+
+  // Pause/resume video when isPaused changes
+  useEffect(() => {
+    if (!isVideo || !videoRef.current) return;
+    if (isPaused) {
+      videoRef.current.pause();
+    } else {
+      videoRef.current.play().catch(() => {});
+    }
+  }, [isPaused, isVideo]);
+
+  // Progress timer for images; for videos, sync progress from video timeupdate
   useEffect(() => {
     if (!isOpen || isPaused) return;
 
+    // For videos, use timeupdate instead
+    if (isVideo) {
+      const video = videoRef.current;
+      if (!video) return;
+      
+      const updateProgress = () => {
+        if (video.duration && isFinite(video.duration)) {
+          setProgress((video.currentTime / video.duration) * 100);
+        }
+      };
+      video.addEventListener('timeupdate', updateProgress);
+      return () => video.removeEventListener('timeupdate', updateProgress);
+    }
+
+    // For images, use interval
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -88,12 +134,12 @@ export function VybeViewer({
           onClose();
           return 0;
         }
-        return prev + (100 / (VYBE_DURATION / 50));
+        return prev + (100 / (mediaDuration / 50));
       });
     }, 50);
 
     return () => clearInterval(interval);
-  }, [isOpen, isPaused, onClose]);
+  }, [isOpen, isPaused, onClose, isVideo, mediaDuration]);
 
   // Reset progress when opening
   useEffect(() => {
@@ -101,6 +147,7 @@ export function VybeViewer({
       setProgress(0);
       setIsPaused(false);
       setShowReplyHint(false);
+      setMediaDuration(IMAGE_DURATION);
       haptics.impact();
     }
   }, [isOpen]);
@@ -126,12 +173,10 @@ export function VybeViewer({
     const holdDuration = Date.now() - startTime.current;
     
     if (isLongPress.current && holdDuration > 500 && onReply) {
-      // User held long enough to reply
       haptics.success();
       onReply();
       onClose();
     } else if (!isLongPress.current) {
-      // Quick tap - close the viewer
       haptics.impact();
       onClose();
     }
@@ -222,7 +267,6 @@ export function VybeViewer({
             </div>
             
             <div className="flex items-center gap-2">
-              {/* Save to chat button */}
               {onSave && (
                 <motion.button
                   whileHover={{ scale: 1.1 }}
@@ -254,20 +298,37 @@ export function VybeViewer({
             </div>
           </div>
 
-          {/* VYBE Image - fullscreen with reveal animation */}
+          {/* Media content */}
           <CaptureShield captured={captured} showBadge={!isOwn} />
-          <motion.img
-            initial={{ scale: 1.2, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-            src={mediaUrl}
-            alt="VYBE"
-            className="max-w-full max-h-full object-contain select-none"
-            draggable={false}
-          />
+          {isVideo ? (
+            <motion.video
+              ref={videoRef}
+              initial={{ scale: 1.2, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              src={mediaUrl}
+              className="max-w-full max-h-full object-contain select-none"
+              autoPlay
+              playsInline
+              onLoadedMetadata={handleVideoLoaded}
+              onEnded={handleVideoEnded}
+              draggable={false}
+            />
+          ) : (
+            <motion.img
+              initial={{ scale: 1.2, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              src={mediaUrl}
+              alt="VYBE"
+              className="max-w-full max-h-full object-contain select-none"
+              draggable={false}
+            />
+          )}
 
-          {/* Hold to reply indicator - shows when paused */}
+          {/* Hold to reply indicator */}
           <AnimatePresence>
             {showReplyHint && (
               <motion.div
@@ -314,6 +375,5 @@ export function VybeViewer({
     </AnimatePresence>
   );
 
-  // Render via portal to escape any parent overflow/z-index issues
   return createPortal(viewerContent, document.body);
 }
