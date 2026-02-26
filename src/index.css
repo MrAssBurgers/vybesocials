@@ -181,9 +181,10 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 
   /* Force icons to maintain their color class after framer-motion animations */
   /* This uses attribute selectors to be more specific than inline styles */
-  svg.lucide[class*="text-primary"],
-  .lucide[class*="text-primary"],
-  svg[class*="text-primary"] {
+  /* IMPORTANT: Use :not() to avoid matching text-primary-foreground */
+  svg.lucide[class*="text-primary"]:not([class*="text-primary-foreground"]),
+  .lucide[class*="text-primary"]:not([class*="text-primary-foreground"]),
+  svg[class*="text-primary"]:not([class*="text-primary-foreground"]) {
     color: hsl(var(--primary)) !important;
     opacity: 1 !important;
   }
