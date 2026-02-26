@@ -200,7 +200,7 @@ export function useBugBountyDetector() {
       if (!['img', 'script', 'link', 'video', 'audio'].includes(tagName)) return;
       
       const src = (target as HTMLImageElement).src || (target as HTMLLinkElement).href || '';
-      if (!src || shouldIgnore(src)) return;
+      if (!src || shouldIgnore(src) || shouldIgnoreUrl(src)) return;
       
       // Only flag app resources, not external CDN images that users uploaded
       const isAppResource = src.startsWith(window.location.origin) || src.includes('supabase');
