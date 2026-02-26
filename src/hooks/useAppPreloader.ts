@@ -58,11 +58,11 @@ export function useAppPreloader() {
       return;
     }
 
-    // Safety timeout - 5 seconds max (must exceed auth token refresh wait)
+    // Safety timeout - 3 seconds max
     const safetyTimeout = setTimeout(() => {
       console.warn('[Preloader] Safety timeout reached, forcing complete');
       setStatus({ step: 'Ready!', progress: 100, isComplete: true });
-    }, 5000);
+    }, 3000);
 
     const preload = async () => {
       const startTime = performance.now();
@@ -145,10 +145,10 @@ export function useAppPreloader() {
           queryClient.setQueryData(['profile', profileId], profileData);
         }
 
-        // Step 4: Load feed posts, clips, AND social data ALL in parallel for speed
+        // Step 4: Load ONLY feed + clips (critical for first paint)
         updateStatus('feed');
 
-        const [feedResult, clipsResult, conversationsResult, notificationsResult, friendRequestsResult, storiesResult, ownProfileResult] = await Promise.allSettled([
+        const [feedResult, clipsResult] = await Promise.allSettled([
           supabase.rpc('get_posts_with_counts', {
             p_type: null,
             p_author_id: null,
@@ -163,118 +163,12 @@ export function useAppPreloader() {
             p_offset: 0,
             p_limit: 15,
           }),
-          // Full DM conversations with members + last messages
-          (async () => {
-            const { data: membershipData } = await supabase
-              .from('conversation_members')
-              .select('conversation_id, last_read_at, is_pinned, is_muted')
-              .eq('user_id', profileId);
-
-            if (!membershipData?.length) return [];
-
-            const convIds = membershipData.map(m => m.conversation_id);
-            const membershipMap = new Map(membershipData.map(m => [m.conversation_id, m]));
-
-            // Fetch hidden + trashed in parallel
-            const [hiddenRes, trashedRes, convsRes, msgsRes] = await Promise.all([
-              supabase.from('hidden_conversations').select('conversation_id').eq('user_id', profileId),
-              supabase.from('trashed_conversations').select('conversation_id').eq('user_id', profileId),
-              supabase.from('conversations').select(`
-                *,
-                members:conversation_members(
-                  user_id, role, is_muted, is_pinned, last_read_at,
-                  profile:profiles(id, username, avatar_url, display_name)
-                )
-              `).in('id', convIds).order('updated_at', { ascending: false }),
-              supabase.from('messages').select('*')
-                .in('conversation_id', convIds)
-                .eq('is_deleted', false)
-                .order('created_at', { ascending: false })
-                .limit(100),
-            ]);
-
-            const hiddenIds = new Set((hiddenRes.data || []).map(h => h.conversation_id));
-            const trashedIds = new Set((trashedRes.data || []).map(t => t.conversation_id));
-
-            const lastMessageMap = new Map<string, any>();
-            const unreadCountMap = new Map<string, number>();
-
-            (msgsRes.data || []).forEach(msg => {
-              if (!lastMessageMap.has(msg.conversation_id)) {
-                lastMessageMap.set(msg.conversation_id, msg);
-              }
-              const membership = membershipMap.get(msg.conversation_id);
-              const lastReadAt = membership?.last_read_at || '1970-01-01';
-              if (msg.sender_id !== profileId && msg.created_at > lastReadAt) {
-                unreadCountMap.set(msg.conversation_id, (unreadCountMap.get(msg.conversation_id) || 0) + 1);
-              }
-            });
-
-            return (convsRes.data || [])
-              .filter(conv => !hiddenIds.has(conv.id) && !trashedIds.has(conv.id))
-              .map(conv => ({
-                ...conv,
-                last_message: lastMessageMap.get(conv.id) || null,
-                unread_count: unreadCountMap.get(conv.id) || 0,
-                _sortTime: lastMessageMap.get(conv.id)?.created_at || conv.updated_at,
-                _hasUnread: (unreadCountMap.get(conv.id) || 0) > 0,
-              }))
-              .sort((a: any, b: any) => {
-                const aPin = a.members?.find((m: any) => m.user_id === profileId)?.is_pinned;
-                const bPin = b.members?.find((m: any) => m.user_id === profileId)?.is_pinned;
-                if (aPin && !bPin) return -1;
-                if (!aPin && bPin) return 1;
-                if (aPin && bPin) return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-                if (a._hasUnread && !b._hasUnread) return -1;
-                if (!a._hasUnread && b._hasUnread) return 1;
-                return new Date(b._sortTime).getTime() - new Date(a._sortTime).getTime();
-              });
-          })(),
-          // Notifications
-          supabase
-            .from('notifications')
-            .select(`*, actor:profiles!notifications_actor_id_fkey(id, username, avatar_url)`)
-            .eq('user_id', profileId)
-            .order('created_at', { ascending: false })
-            .limit(15),
-          // Friend requests
-          supabase
-            .from('friend_requests')
-            .select(`*, sender:profiles!friend_requests_sender_id_fkey(id, username, display_name, avatar_url)`)
-            .eq('receiver_id', profileId)
-            .eq('status', 'pending')
-            .order('created_at', { ascending: false })
-            .limit(10),
-          // Stories
-          supabase
-            .from('stories')
-            .select(`*, author:profiles!stories_author_id_fkey(id, username, avatar_url)`)
-            .gt('expires_at', new Date().toISOString())
-            .order('created_at', { ascending: false })
-            .limit(30),
-          // Own profile stats for profile page
-          (async () => {
-            const [followerCount, followingCount, postCount] = await Promise.all([
-              supabase.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', profileId),
-              supabase.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', profileId),
-              supabase.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', profileId),
-            ]);
-            return {
-              ...profileData,
-              follower_count: followerCount.count || 0,
-              following_count: followingCount.count || 0,
-              post_count: postCount.count || 0,
-              is_following: false,
-            };
-          })(),
         ]);
 
         // Cache feed
         if (feedResult.status === 'fulfilled' && feedResult.value.data) {
           const posts = feedResult.value.data as any[];
-          cacheFeedData(queryClient, posts, profileId, null); // Cache as general feed
-          
-          // Non-blocking URL signing
+          cacheFeedData(queryClient, posts, profileId, null);
           const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
           batchSignUrls(urlsToSign).catch(() => {});
         }
@@ -285,75 +179,162 @@ export function useAppPreloader() {
         if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
           const clips = clipsResult.value.data as any[];
           cacheFeedData(queryClient, clips, profileId, 'short');
-          
           const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
           batchSignUrls(urlsToSign).catch(() => {});
         }
 
-        updateStatus('social');
-
-        // Cache conversations - now a full array, not {data} wrapper
-        if (conversationsResult.status === 'fulfilled') {
-          const convData = conversationsResult.value;
-          // Cache under BOTH keys so useDMConversations picks it up instantly
-          queryClient.setQueryData(['dm-conversations', profileId], convData);
-          queryClient.setQueryData(['conversations', profileId], convData);
-        }
-
-        // Cache notifications
-        if (notificationsResult.status === 'fulfilled' && notificationsResult.value.data) {
-          queryClient.setQueryData(['notifications', profileId], notificationsResult.value.data);
-        }
-
-        // Cache friend requests
-        if (friendRequestsResult.status === 'fulfilled' && friendRequestsResult.value.data) {
-          queryClient.setQueryData(['friend-requests', profileId], friendRequestsResult.value.data);
-        }
-
-        // Cache stories and pre-sign URLs (must include profileId in key)
-        if (storiesResult.status === 'fulfilled' && storiesResult.value.data) {
-          const stories = storiesResult.value.data;
-          // Process stories into grouped format matching useStories output
-          const storyGroups = processStoriesIntoGroups(stories, profileId);
-          queryClient.setQueryData(['stories', profileId], storyGroups);
-          
-          const storyUrls = stories.flatMap((s: any) => [s.media_url, s.author?.avatar_url]).filter(Boolean);
-          batchSignUrls(storyUrls).catch(() => {});
-        }
-
-        // Cache own profile with stats for instant profile page
-        if (ownProfileResult.status === 'fulfilled') {
-          queryClient.setQueryData(['profile-by-id', profileId, profileId], ownProfileResult.value);
-        }
-
-        // Step 6: Final optimizations
-        updateStatus('final');
+        // Mark ready IMMEDIATELY - social data loads in background
+        updateStatus('ready');
 
         // Log performance
-        console.log(`[Preloader] Complete - ${(performance.now() - startTime).toFixed(0)}ms`);
+        console.log(`[Preloader] Critical load complete - ${(performance.now() - startTime).toFixed(0)}ms`);
 
-        // Preload route components after splash is gone (non-blocking)
+        // DEFERRED: Load social data in background (non-blocking)
         requestAnimationFrame(() => {
           preloadCriticalRoutes();
-          setTimeout(() => preloadSecondaryRoutes(), 3000);
           
-          // Defer user's own posts fetch
-          supabase.rpc('get_posts_with_counts', {
-            p_type: null,
-            p_author_id: profileId,
-            p_user_id: profileId,
-            p_offset: 0,
-            p_limit: 20,
-          }).then(({ data }) => {
-            if (data) {
-              const posts = data as any[];
-              queryClient.setQueryData(['user-posts', profileId], posts);
-              cacheFeedData(queryClient, posts, profileId, null);
-            }
+          // Background social data fetch
+          Promise.allSettled([
+            // Conversations
+            (async () => {
+              const { data: membershipData } = await supabase
+                .from('conversation_members')
+                .select('conversation_id, last_read_at, is_pinned, is_muted')
+                .eq('user_id', profileId);
+
+              if (!membershipData?.length) return [];
+
+              const convIds = membershipData.map(m => m.conversation_id);
+              const membershipMap = new Map(membershipData.map(m => [m.conversation_id, m]));
+
+              const [hiddenRes, trashedRes, convsRes, msgsRes] = await Promise.all([
+                supabase.from('hidden_conversations').select('conversation_id').eq('user_id', profileId),
+                supabase.from('trashed_conversations').select('conversation_id').eq('user_id', profileId),
+                supabase.from('conversations').select(`
+                  *,
+                  members:conversation_members(
+                    user_id, role, is_muted, is_pinned, last_read_at,
+                    profile:profiles(id, username, avatar_url, display_name)
+                  )
+                `).in('id', convIds).order('updated_at', { ascending: false }),
+                supabase.from('messages').select('*')
+                  .in('conversation_id', convIds)
+                  .eq('is_deleted', false)
+                  .order('created_at', { ascending: false })
+                  .limit(100),
+              ]);
+
+              const hiddenIds = new Set((hiddenRes.data || []).map(h => h.conversation_id));
+              const trashedIds = new Set((trashedRes.data || []).map(t => t.conversation_id));
+
+              const lastMessageMap = new Map<string, any>();
+              const unreadCountMap = new Map<string, number>();
+
+              (msgsRes.data || []).forEach(msg => {
+                if (!lastMessageMap.has(msg.conversation_id)) {
+                  lastMessageMap.set(msg.conversation_id, msg);
+                }
+                const membership = membershipMap.get(msg.conversation_id);
+                const lastReadAt = membership?.last_read_at || '1970-01-01';
+                if (msg.sender_id !== profileId && msg.created_at > lastReadAt) {
+                  unreadCountMap.set(msg.conversation_id, (unreadCountMap.get(msg.conversation_id) || 0) + 1);
+                }
+              });
+
+              const result = (convsRes.data || [])
+                .filter(conv => !hiddenIds.has(conv.id) && !trashedIds.has(conv.id))
+                .map(conv => ({
+                  ...conv,
+                  last_message: lastMessageMap.get(conv.id) || null,
+                  unread_count: unreadCountMap.get(conv.id) || 0,
+                  _sortTime: lastMessageMap.get(conv.id)?.created_at || conv.updated_at,
+                  _hasUnread: (unreadCountMap.get(conv.id) || 0) > 0,
+                }))
+                .sort((a: any, b: any) => {
+                  const aPin = a.members?.find((m: any) => m.user_id === profileId)?.is_pinned;
+                  const bPin = b.members?.find((m: any) => m.user_id === profileId)?.is_pinned;
+                  if (aPin && !bPin) return -1;
+                  if (!aPin && bPin) return 1;
+                  if (aPin && bPin) return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+                  if (a._hasUnread && !b._hasUnread) return -1;
+                  if (!a._hasUnread && b._hasUnread) return 1;
+                  return new Date(b._sortTime).getTime() - new Date(a._sortTime).getTime();
+                });
+              
+              queryClient.setQueryData(['dm-conversations', profileId], result);
+              queryClient.setQueryData(['conversations', profileId], result);
+            })(),
+            // Notifications
+            supabase
+              .from('notifications')
+              .select(`*, actor:profiles!notifications_actor_id_fkey(id, username, avatar_url)`)
+              .eq('user_id', profileId)
+              .order('created_at', { ascending: false })
+              .limit(15)
+              .then(({ data }) => {
+                if (data) queryClient.setQueryData(['notifications', profileId], data);
+              }),
+            // Friend requests
+            supabase
+              .from('friend_requests')
+              .select(`*, sender:profiles!friend_requests_sender_id_fkey(id, username, display_name, avatar_url)`)
+              .eq('receiver_id', profileId)
+              .eq('status', 'pending')
+              .order('created_at', { ascending: false })
+              .limit(10)
+              .then(({ data }) => {
+                if (data) queryClient.setQueryData(['friend-requests', profileId], data);
+              }),
+            // Stories
+            supabase
+              .from('stories')
+              .select(`*, author:profiles!stories_author_id_fkey(id, username, avatar_url)`)
+              .gt('expires_at', new Date().toISOString())
+              .order('created_at', { ascending: false })
+              .limit(30)
+              .then(({ data }) => {
+                if (data) {
+                  const storyGroups = processStoriesIntoGroups(data, profileId);
+                  queryClient.setQueryData(['stories', profileId], storyGroups);
+                  const storyUrls = data.flatMap((s: any) => [s.media_url, s.author?.avatar_url]).filter(Boolean);
+                  batchSignUrls(storyUrls).catch(() => {});
+                }
+              }),
+            // Own profile stats
+            (async () => {
+              const [followerCount, followingCount, postCount] = await Promise.all([
+                supabase.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', profileId),
+                supabase.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', profileId),
+                supabase.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', profileId),
+              ]);
+              queryClient.setQueryData(['profile-by-id', profileId, profileId], {
+                ...profileData,
+                follower_count: followerCount.count || 0,
+                following_count: followingCount.count || 0,
+                post_count: postCount.count || 0,
+                is_following: false,
+              });
+            })(),
+            // User's own posts
+            supabase.rpc('get_posts_with_counts', {
+              p_type: null,
+              p_author_id: profileId,
+              p_user_id: profileId,
+              p_offset: 0,
+              p_limit: 20,
+            }).then(({ data }) => {
+              if (data) {
+                const posts = data as any[];
+                queryClient.setQueryData(['user-posts', profileId], posts);
+                cacheFeedData(queryClient, posts, profileId, null);
+              }
+            }),
+          ]).then(() => {
+            console.log(`[Preloader] Background social data loaded - ${(performance.now() - startTime).toFixed(0)}ms total`);
           });
+
+          setTimeout(() => preloadSecondaryRoutes(), 3000);
         });
-        
-        updateStatus('ready');
 
       } catch (error) {
         console.error('[Preloader] Error:', error);
