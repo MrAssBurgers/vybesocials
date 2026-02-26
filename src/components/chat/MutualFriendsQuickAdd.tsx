@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useMutualFriends, UserWithMutualFriends } from '@/hooks/useMutualFriends';
@@ -74,7 +74,8 @@ export function MutualFriendsQuickAdd({
   onSelect: (userId: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const { data: mutualSuggestions, isLoading } = useMutualFriends();
+  const { data: mutualSuggestions, isLoading: isLoadingMutual } = useMutualFriends();
+  const { data: suggestedUsers, isLoading: isLoadingSuggested } = useSuggestedUsers();
   const { data: hiddenIds } = useHiddenFromDiscovery();
   const dismissProfile = useDismissProfile();
   const [localDismissed, setLocalDismissed] = useState<Set<string>>(new Set());
@@ -85,6 +86,7 @@ export function MutualFriendsQuickAdd({
     dismissProfile.mutate(userId, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['suggested-with-mutuals'] });
+        queryClient.invalidateQueries({ queryKey: ['suggested-users'] });
         queryClient.invalidateQueries({ queryKey: ['hidden-from-discovery'] });
       }
     });
@@ -92,8 +94,12 @@ export function MutualFriendsQuickAdd({
 
   const isUserHidden = (userId: string) => localDismissed.has(userId) || hiddenIds?.has(userId);
 
-  // Only show users with mutual friends
-  const displayUsers = mutualSuggestions?.filter(u => !isUserHidden(u.id) && u.mutual_friends_count > 0);
+  // Show mutual friends first, then fallback to general suggestions
+  const mutualUsers = mutualSuggestions?.filter(u => !isUserHidden(u.id) && u.mutual_friends_count > 0) || [];
+  const generalUsers = suggestedUsers?.filter(u => !isUserHidden(u.id) && !mutualUsers.some(m => m.id === u.id)) || [];
+  const displayUsers = [...mutualUsers, ...generalUsers];
+
+  const isLoading = isLoadingMutual && isLoadingSuggested;
 
   if (isLoading) {
     return (
@@ -110,7 +116,7 @@ export function MutualFriendsQuickAdd({
     );
   }
 
-  if (!displayUsers || displayUsers.length === 0) return null;
+  if (displayUsers.length === 0) return null;
 
   return (
     <div className="space-y-1.5">
@@ -164,7 +170,6 @@ function QuickAddCard({
     sendRequest.mutate(user.id, {
       onSuccess: () => {
         toast.success(`Friend request sent to ${fullName}`);
-        // Delay dismiss for visual feedback
         setTimeout(() => {
           onDismiss(user.id);
           queryClient.invalidateQueries({ queryKey: ['hidden-from-discovery'] });
@@ -230,24 +235,30 @@ function QuickAddCard({
           {fullName}
         </button>
         
-        {/* Mutual friends count */}
-        <div className="flex items-center gap-1 mt-0.5 mb-1.5">
-          {user.mutual_friends.length > 0 && (
-            <div className="flex -space-x-1.5">
-              {user.mutual_friends.slice(0, 2).map((friend) => (
-                <Avatar key={friend.id} className="h-3.5 w-3.5 border border-card">
-                  <AvatarImage src={friend.avatar_url || undefined} />
-                  <AvatarFallback className="text-[5px] bg-primary/20">
-                    {friend.username?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
-            </div>
-          )}
-          <span className="text-[10px] text-muted-foreground leading-none">
-            {user.mutual_friends_count} mutual{user.mutual_friends_count !== 1 ? 's' : ''}
-          </span>
-        </div>
+        {/* Mutual friends or username */}
+        {user.mutual_friends_count > 0 ? (
+          <div className="flex items-center gap-1 mt-0.5 mb-1.5">
+            {user.mutual_friends.length > 0 && (
+              <div className="flex -space-x-1.5">
+                {user.mutual_friends.slice(0, 2).map((friend) => (
+                  <Avatar key={friend.id} className="h-3.5 w-3.5 border border-card">
+                    <AvatarImage src={friend.avatar_url || undefined} />
+                    <AvatarFallback className="text-[5px] bg-primary/20">
+                      {friend.username?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                ))}
+              </div>
+            )}
+            <span className="text-[10px] text-muted-foreground leading-none">
+              {user.mutual_friends_count} mutual{user.mutual_friends_count !== 1 ? 's' : ''}
+            </span>
+          </div>
+        ) : (
+          <p className="text-[10px] text-muted-foreground mt-0.5 mb-1.5 truncate w-full text-center leading-none">
+            @{user.username}
+          </p>
+        )}
 
         {/* Action */}
         {isLoadingStatus ? (
