@@ -14,7 +14,7 @@ export const GeneratingScreen = memo(function GeneratingScreen({ progress = 0, s
   // If no external progress provided, simulate it
   const [simulatedProgress, setSimulatedProgress] = useState(0);
   const useExternal = progress > 0;
-  const displayProgress = useExternal ? progress : simulatedProgress;
+  const displayProgress = useExternal ? Math.min(progress, 100) : simulatedProgress;
 
   useEffect(() => {
     if (useExternal) return;
