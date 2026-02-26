@@ -269,6 +269,7 @@ export function useUnbanUser() {
       queryClient.invalidateQueries({ queryKey: ['user-bans'] });
       queryClient.invalidateQueries({ queryKey: ['all-bans'] });
       queryClient.invalidateQueries({ queryKey: ['is-banned'] });
+      queryClient.invalidateQueries({ queryKey: ['ban-status'] });
       toast.success('User unbanned successfully');
     },
     onError: () => {
