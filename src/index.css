@@ -1243,6 +1243,16 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     );
   }
 
+  /* Story ring gradient - stable CSS class instead of Tailwind arbitrary values */
+  .story-ring-gradient {
+    background: linear-gradient(
+      to top right,
+      hsl(var(--neon-pink)),
+      hsl(var(--neon-purple)),
+      hsl(var(--neon-cyan))
+    );
+  }
+
   /* Gradient text - desktop uses gradient, mobile falls back to solid + shadow */
   .gradient-text {
     background: linear-gradient(
