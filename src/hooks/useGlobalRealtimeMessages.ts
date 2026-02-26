@@ -266,13 +266,17 @@ export function useGlobalRealtimeMessages() {
           const deletedMessage = payload.old as any;
           const conversationId = deletedMessage.conversation_id;
 
-          // Remove from cache
-          if (currentConversationId === conversationId) {
-            queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
-              if (!old) return old;
-              return old.filter(m => m.id !== deletedMessage.id);
-            });
-          }
+          if (!conversationId) return;
+
+          // Remove from cache regardless of which conversation is being viewed
+          queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
+            if (!old) return old;
+            return old.filter(m => m.id !== deletedMessage.id);
+          });
+
+          // Update conversation list
+          queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
         }
       )
       .subscribe((status) => {
