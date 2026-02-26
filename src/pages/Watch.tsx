@@ -162,7 +162,7 @@ export default function WatchPage() {
     setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
 
     if (newIsLiked) {
-      await supabase.from('likes').insert({ user_id: profile.id, post_id: id });
+      await supabase.from('likes').upsert({ user_id: profile.id, post_id: id }, { onConflict: 'user_id,post_id', ignoreDuplicates: true });
     } else {
       await supabase.from('likes').delete().match({ user_id: profile.id, post_id: id });
     }

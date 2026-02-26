@@ -367,7 +367,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     }
 
     if (newIsLiked) {
-      await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
+      await supabase.from('likes').upsert({ user_id: profile.id, post_id: post.id }, { onConflict: 'user_id,post_id', ignoreDuplicates: true });
       if (post.author.id !== profile.id) {
         await supabase.from('notifications').insert({
           user_id: post.author.id,

@@ -6,7 +6,7 @@ import {
   Zap, Shield, Radio
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useAuth } from '@/lib/auth';
@@ -1082,7 +1082,8 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       {renderTrigger()}
 
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-[380px] p-0 border-0 bg-transparent shadow-none rounded-lg overflow-visible [&>button]:hidden">
+        <DialogContent className="sm:max-w-[380px] p-0 border-0 bg-transparent shadow-none rounded-lg overflow-visible [&>button]:hidden" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">Friend Drop</DialogTitle>
           {/* Cyber container */}
           <motion.div
             className="relative w-full"
