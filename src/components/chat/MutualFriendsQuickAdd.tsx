@@ -74,22 +74,17 @@ export function MutualFriendsQuickAdd({
   onSelect: (userId: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const { data: mutualSuggestions, isLoading: isLoadingMutual } = useMutualFriends();
-  const { data: suggestedUsers, isLoading: isLoadingSuggested } = useSuggestedUsers();
+  const { data: mutualSuggestions, isLoading } = useMutualFriends();
   const { data: hiddenIds } = useHiddenFromDiscovery();
   const dismissProfile = useDismissProfile();
   const [localDismissed, setLocalDismissed] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const suggestions = (mutualSuggestions?.length ?? 0) > 0 ? mutualSuggestions : suggestedUsers;
-  const isLoading = isLoadingMutual || isLoadingSuggested;
 
   const handleDismiss = useCallback((userId: string) => {
     setLocalDismissed(prev => new Set([...prev, userId]));
     dismissProfile.mutate(userId, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['suggested-with-mutuals'] });
-        queryClient.invalidateQueries({ queryKey: ['suggested-users'] });
         queryClient.invalidateQueries({ queryKey: ['hidden-from-discovery'] });
       }
     });
@@ -97,7 +92,8 @@ export function MutualFriendsQuickAdd({
 
   const isUserHidden = (userId: string) => localDismissed.has(userId) || hiddenIds?.has(userId);
 
-  const displayUsers = suggestions?.filter(u => !isUserHidden(u.id));
+  // Only show users with mutual friends
+  const displayUsers = mutualSuggestions?.filter(u => !isUserHidden(u.id) && u.mutual_friends_count > 0);
 
   if (isLoading) {
     return (
