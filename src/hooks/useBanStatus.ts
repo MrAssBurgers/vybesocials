@@ -21,9 +21,22 @@ export const useBanStatus = () => {
           table: 'user_bans',
           filter: `user_id=eq.${profile.id}`,
         },
-        () => {
-          // Instantly invalidate ban status on any change
-          queryClient.invalidateQueries({ queryKey: ['ban-status', profile.id] });
+        (payload) => {
+          // For INSERT events, immediately set the ban data without waiting for refetch
+          if (payload.eventType === 'INSERT') {
+            const ban = payload.new as any;
+            // Only set if ban is still active
+            const isActive = ban.is_permanent || !ban.expires_at || new Date(ban.expires_at) > new Date();
+            if (isActive) {
+              queryClient.setQueryData(['ban-status', profile.id], ban);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            // Instantly clear ban on delete
+            queryClient.setQueryData(['ban-status', profile.id], null);
+          } else {
+            // For updates, refetch to get fresh data
+            queryClient.refetchQueries({ queryKey: ['ban-status', profile.id] });
+          }
         }
       )
       .subscribe();
@@ -56,6 +69,7 @@ export const useBanStatus = () => {
     },
     enabled: !!profile?.id,
     staleTime: 0,
+    gcTime: 0,
     refetchInterval: false,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
