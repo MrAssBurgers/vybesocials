@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Bot, UsersRound, Trash2, Nfc, X, UserCheck, Flame } from 'lucide-react';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Bot, UsersRound, Trash2, Nfc, X, UserCheck, Flame, Camera } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -75,7 +75,7 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   return (
     <button
       onClick={() => navigate('/messages/ai-autisy')}
-      className="w-full flex items-center gap-3 p-3 rounded-2xl text-left liquid-glass hover:bg-white/10 dark:hover:bg-white/5 active:scale-[0.98] transition-all border border-white/10 hover:border-white/20 mb-2 box-border shadow-sm"
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all mb-0.5 box-border"
     >
       <div className="relative flex-shrink-0">
         <div className="h-12 w-12 rounded-full gradient-animated flex items-center justify-center shadow-md">
@@ -103,6 +103,7 @@ export function ConversationList() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [chatFilter, setChatFilter] = useState<'all' | 'unread' | 'groups' | 'streaks'>('all');
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
   
   // Use the new optimized DM conversations hook with auto-creation
@@ -215,7 +216,32 @@ export function ConversationList() {
     }
   }, [profile?.id, createConversation, navigate]);
 
-  // pinnedConversations and unpinnedConversations already provided by useDMConversations hook
+  // Filter conversations based on selected tab
+  const filteredPinned = useMemo(() => {
+    if (!pinnedConversations) return [];
+    return pinnedConversations.filter(conv => {
+      if (chatFilter === 'unread') return (conv.unread_count || 0) > 0;
+      if (chatFilter === 'groups') return conv.is_group;
+      if (chatFilter === 'streaks') {
+        const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
+        return otherMemberId ? (streakMap.get(otherMemberId)?.streak_count || 0) > 0 : false;
+      }
+      return true;
+    });
+  }, [pinnedConversations, chatFilter, profile?.id, streakMap]);
+
+  const filteredUnpinned = useMemo(() => {
+    if (!unpinnedConversations) return [];
+    return unpinnedConversations.filter(conv => {
+      if (chatFilter === 'unread') return (conv.unread_count || 0) > 0;
+      if (chatFilter === 'groups') return conv.is_group;
+      if (chatFilter === 'streaks') {
+        const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
+        return otherMemberId ? (streakMap.get(otherMemberId)?.streak_count || 0) > 0 : false;
+      }
+      return true;
+    });
+  }, [unpinnedConversations, chatFilter, profile?.id, streakMap]);
 
   const handleConversationClick = useCallback((convId: string) => {
     navigate(`/messages/${convId}`);
@@ -242,37 +268,47 @@ export function ConversationList() {
     );
   }
 
+  const filterTabs = [
+    { key: 'all' as const, label: 'All' },
+    { key: 'unread' as const, label: 'Unread' },
+    { key: 'groups' as const, label: 'Groups' },
+    { key: 'streaks' as const, label: '🔥 Streaks' },
+  ];
+
   return (
     <div className="flex flex-col h-full w-full min-w-0 overflow-hidden">
-      {/* Header */}
-      <div className="p-4 border-b border-border flex-shrink-0">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{t('messages.title')}</h1>
-          <div className="flex items-center gap-1">
-            {/* Trash Bin Button */}
+      {/* Snapchat-style Header */}
+      <div className="flex-shrink-0">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          {/* Left: User Avatar */}
+          {profile && (
+            <button onClick={() => navigate(`/u/${profile.username}`)} className="flex-shrink-0">
+              <Avatar className="h-9 w-9 ring-2 ring-primary/20">
+                <AvatarImage src={profile.avatar_url || undefined} />
+                <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-primary/60 to-accent/60 text-primary-foreground">
+                  {profile.username?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </button>
+          )}
+
+          {/* Center: Title */}
+          <h1 className="text-lg font-bold text-foreground tracking-tight">Chat</h1>
+
+          {/* Right: Actions */}
+          <div className="flex items-center gap-0.5">
             <TrashBin 
               open={isTrashOpen} 
               onOpenChange={setIsTrashOpen}
               trigger={
-                <Button 
-                  size="icon" 
-                  variant="ghost"
-                  className="h-9 w-9"
-                >
-                  <Trash2 className="h-5 w-5" />
+                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full">
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               }
             />
-            {/* Create Group Button */}
-            <Button 
-              size="icon" 
-              variant="ghost"
-              onClick={() => setIsGroupDialogOpen(true)}
-              className="h-9 w-9"
-            >
-              <UsersRound className="h-5 w-5" />
+            <Button size="icon" variant="ghost" onClick={() => setIsGroupDialogOpen(true)} className="h-8 w-8 rounded-full">
+              <UsersRound className="h-4 w-4" />
             </Button>
-            {/* New 1:1 Chat */}
             <NewChatDialog 
               open={isNewChatOpen} 
               onOpenChange={setIsNewChatOpen}
@@ -280,14 +316,37 @@ export function ConversationList() {
             />
           </div>
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder={t('messages.search')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+
+        {/* Search Bar */}
+        <div className="px-4 pb-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-9 rounded-full bg-muted/40 border-0 text-sm placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-primary/30"
+            />
+          </div>
+        </div>
+
+        {/* Filter Tabs - Snapchat style horizontal pills */}
+        <div className="px-4 pb-2">
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+            {filterTabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setChatFilter(tab.key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                  chatFilter === tab.key
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       
@@ -300,89 +359,65 @@ export function ConversationList() {
         }}
       />
 
-      {/* Quick Add Section - Online Friends */}
-      {!searchQuery && (recentUsers.length > 0 || onlineFriendsForQuickAdd.length > 0) && (
-        <div className="px-4 pt-2 space-y-3 flex-shrink-0 overflow-hidden">
-          {recentUsers.length > 0 && (
-            <QuickAddRow
-              title="Recent"
-              users={recentUsers.slice(0, 8)}
-              onSelect={handleQuickAddSelect}
-            />
-          )}
-          {onlineFriendsForQuickAdd.length > 0 && (
-            <QuickAddRow
-              title={`Online Friends (${onlineCount})`}
-              users={onlineFriendsForQuickAdd.slice(0, 8)}
-              onSelect={handleQuickAddSelect}
-              showOnlineIndicator
-            />
-          )}
+      {/* Quick Add Row - Online Friends (horizontal scroll like Snapchat stories row) */}
+      {!searchQuery && chatFilter === 'all' && onlineFriendsForQuickAdd.length > 0 && (
+        <div className="px-4 pb-2 flex-shrink-0 overflow-hidden">
+          <QuickAddRow
+            title={`Online · ${onlineCount}`}
+            users={onlineFriendsForQuickAdd.slice(0, 10)}
+            onSelect={handleQuickAddSelect}
+            showOnlineIndicator
+          />
         </div>
       )}
 
       {/* Conversation List */}
       <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
-        <div className="p-3 pb-2 space-y-1 w-full box-border">
-          <p className="text-xs font-medium text-foreground/80 px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
-            <Users className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Friends & AI</span>
-          </p>
+        {/* AI Chat Row */}
+        <div className="px-3 pt-1 pb-1">
           <AutisyAIChatRow />
         </div>
 
-        {/* Friend Recommendations - Snapchat Quick Add style */}
-        {!searchQuery && (
-          <div className="px-3 pt-2 pb-1">
-            <MutualFriendsQuickAdd onSelect={handleQuickAddSelect} />
+        {/* Accepted Friend Requests */}
+        {acceptedRequests && acceptedRequests.length > 0 && (
+          <div className="px-3 space-y-1">
+            {acceptedRequests.map((request) => (
+              <AcceptedFriendChatRow 
+                key={request.id}
+                request={request}
+                onDismiss={() => dismissAccepted.mutate(request.id)}
+                onMessage={handleQuickAddSelect}
+              />
+            ))}
           </div>
         )}
 
-        <div className="p-3 pb-24 space-y-1 w-full box-border">
-          {/* Accepted Friend Requests as Chat Notifications */}
-          {acceptedRequests && acceptedRequests.length > 0 && (
+        {/* Conversations */}
+        <div className="px-3 pb-4 space-y-0.5">
+          {(filteredPinned.length > 0 || filteredUnpinned.length > 0) ? (
             <>
-              {acceptedRequests.map((request) => (
-                <AcceptedFriendChatRow 
-                  key={request.id}
-                  request={request}
-                  onDismiss={() => dismissAccepted.mutate(request.id)}
-                  onMessage={handleQuickAddSelect}
-                />
-              ))}
-            </>
-          )}
-          
-         {(pinnedConversations.length > 0 || unpinnedConversations.length > 0) ? (
-            <>
-              <p className="text-xs font-medium text-foreground/80 px-3 py-2 flex items-center gap-1.5 uppercase tracking-wide">
-                <MessageCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                <span className="truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">All Messages</span>
-              </p>
-             {/* Pinned conversations at the top */}
-             {pinnedConversations.map((conv) => {
-               const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
-               const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
-               const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
-               const streak = otherMemberId ? streakMap.get(otherMemberId) : undefined;
-               return (
-                 <ConversationItem
-                   key={conv.id}
-                   conversation={conv}
-                   onClick={() => handleConversationClick(conv.id)}
-                   isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
-                   isTyping={checkTyping(conv.id)}
-                   currentUserId={profile?.id}
-                   userRole={otherMemberId ? usersRoles[otherMemberId] : null}
-                   onTrash={() => handleTrashConversation(conv.id)}
-                   hasStory={hasStory}
-                   storyGroup={storyGroup}
-                   streak={streak}
-                 />
-               );
-             })}
-             {/* Unpinned conversations below */}
-              {unpinnedConversations.map((conv) => {
+              {filteredPinned.map((conv) => {
+                const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
+                const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
+                const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
+                const streak = otherMemberId ? streakMap.get(otherMemberId) : undefined;
+                return (
+                  <ConversationItem
+                    key={conv.id}
+                    conversation={conv}
+                    onClick={() => handleConversationClick(conv.id)}
+                    isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
+                    isTyping={checkTyping(conv.id)}
+                    currentUserId={profile?.id}
+                    userRole={otherMemberId ? usersRoles[otherMemberId] : null}
+                    onTrash={() => handleTrashConversation(conv.id)}
+                    hasStory={hasStory}
+                    storyGroup={storyGroup}
+                    streak={streak}
+                  />
+                );
+              })}
+              {filteredUnpinned.map((conv) => {
                 const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
                 const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
                 const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
@@ -406,36 +441,36 @@ export function ConversationList() {
             </>
           ) : searchQuery ? (
             <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-              <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-                <Search className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-base font-semibold mb-1">No conversations found</h3>
-              <p className="text-muted-foreground text-sm">
-                No results for "{searchQuery}"
-              </p>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="mt-4"
-                onClick={() => setSearchQuery('')}
-              >
-                Clear search
+              <Search className="h-8 w-8 text-muted-foreground/40 mb-3" />
+              <p className="text-sm font-medium text-foreground">No results</p>
+              <p className="text-xs text-muted-foreground mt-1">No conversations matching "{searchQuery}"</p>
+              <Button variant="ghost" size="sm" className="mt-3 rounded-full" onClick={() => setSearchQuery('')}>
+                Clear
               </Button>
+            </div>
+          ) : chatFilter !== 'all' ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+              <p className="text-sm text-muted-foreground">No {chatFilter} conversations</p>
             </div>
           ) : !acceptedRequests?.length ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-              <div className="w-20 h-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
-                <MessageCircle className="h-10 w-10 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">{t('messages.noConversations')}</h3>
-              <p className="text-muted-foreground mb-6 text-sm">{t('messages.startChatting')}</p>
-              <Button onClick={() => setIsNewChatOpen(true)} size="lg" className="rounded-full px-6">
-                <Plus className="h-4 w-4 mr-2" />
+              <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-4" />
+              <h3 className="text-base font-semibold mb-1">{t('messages.noConversations')}</h3>
+              <p className="text-xs text-muted-foreground mb-4">{t('messages.startChatting')}</p>
+              <Button onClick={() => setIsNewChatOpen(true)} className="rounded-full px-5 h-9 text-sm">
+                <Plus className="h-4 w-4 mr-1.5" />
                 {t('messages.newChat')}
               </Button>
             </div>
           ) : null}
         </div>
+
+        {/* Quick Add Section - Snapchat style at bottom */}
+        {!searchQuery && chatFilter === 'all' && (
+          <div className="px-3 pt-2 pb-24 border-t border-border/30">
+            <MutualFriendsQuickAdd onSelect={handleQuickAddSelect} />
+          </div>
+        )}
       </ScrollArea>
     </div>
   );
@@ -463,7 +498,7 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
   
   return (
     <div 
-      className="group relative w-full flex items-center gap-3 p-3 rounded-2xl text-left liquid-glass hover:bg-white/10 dark:hover:bg-white/5 active:scale-[0.98] transition-all border border-green-500/30 mb-2 cursor-pointer box-border shadow-sm"
+      className="group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all mb-0.5 cursor-pointer box-border border border-green-500/20"
       onClick={handleRowClick}
     >
       <button
@@ -887,7 +922,7 @@ const ConversationItem = memo(function ConversationItem({
             transition={isDeleting ? { duration: 0.35, ease: [0.4, 0, 0.2, 1] } : { type: 'spring', stiffness: 400, damping: 35 }}
           >
             <div 
-              className="group w-full flex items-center gap-3 p-3 rounded-2xl text-left liquid-glass hover:bg-white/10 dark:hover:bg-white/5 active:scale-[0.98] transition-all border border-white/10 hover:border-white/20 cursor-pointer box-border shadow-sm"
+              className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all cursor-pointer box-border"
               onClick={handleClick}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
@@ -922,7 +957,7 @@ const ConversationItem = memo(function ConversationItem({
   return (
     <>
       <div 
-        className="group relative w-full flex items-center gap-3 p-3 rounded-2xl text-left liquid-glass hover:bg-white/10 dark:hover:bg-white/5 active:scale-[0.98] transition-all border border-white/10 hover:border-white/20 mb-2 cursor-pointer box-border shadow-sm"
+        className="group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all mb-0.5 cursor-pointer box-border"
         onClick={handleClick}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
