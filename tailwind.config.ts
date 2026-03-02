@@ -146,6 +146,14 @@ export default {
             transform: "scale(0.5)"
           },
         },
+        "opacity-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        "opacity-out": {
+          from: { opacity: "1" },
+          to: { opacity: "0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
