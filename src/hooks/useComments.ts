@@ -193,3 +193,38 @@ export function useDeleteComment() {
     },
   });
 }
+
+export function useEditComment() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ commentId, postId, text }: { commentId: string; postId: string; text: string }) => {
+      if (!profile) throw new Error('Not authenticated');
+
+      const check = containsBlockedContent(text);
+      if (check.blocked) {
+        toast.error('Your comment contains inappropriate content. Please revise.');
+        throw new Error('Comment contains blocked content');
+      }
+
+      const filteredText = filterBlockedContent(text);
+
+      const { error } = await supabase
+        .from('comments')
+        .update({ text: filteredText })
+        .eq('id', commentId)
+        .eq('user_id', profile.id);
+
+      if (error) throw error;
+      return { postId };
+    },
+    onSuccess: ({ postId }) => {
+      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
+      toast.success('Comment updated');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update comment');
+    },
+  });
+}

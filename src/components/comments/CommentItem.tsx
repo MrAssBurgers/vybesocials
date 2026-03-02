@@ -1,7 +1,7 @@
-import { memo, useState } from 'react';
+import { memo, useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, Flag, MoreHorizontal, EyeOff, Eye } from 'lucide-react';
+import { Trash2, Flag, MoreHorizontal, EyeOff, Eye, Pencil, Check, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/lib/auth';
-import { useDeleteComment } from '@/hooks/useComments';
+import { useDeleteComment, useEditComment } from '@/hooks/useComments';
 import { useSafetySettings } from '@/hooks/useSafetySettings';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -45,9 +45,10 @@ interface CommentItemProps {
   postId: string;
 }
 
-function CommentDropdownMenu({ isOwn, onDelete, onReport, isDeleting }: {
+function CommentDropdownMenu({ isOwn, onDelete, onEdit, onReport, isDeleting }: {
   isOwn: boolean;
   onDelete: () => void;
+  onEdit: () => void;
   onReport: () => void;
   isDeleting: boolean;
 }) {
@@ -77,17 +78,28 @@ function CommentDropdownMenu({ isOwn, onDelete, onReport, isDeleting }: {
           className="will-change-transform origin-[var(--radix-dropdown-menu-content-transform-origin)] border border-solid border-border animate-none data-[state=open]:animate-[opacity-in_0.15s_ease-out] data-[state=closed]:animate-[opacity-out_0.1s_ease-in]"
         >
           {isOwn ? (
-            <DropdownMenuItem 
-              onClick={() => {
-                setOpen(false);
-                setShowDeleteConfirm(true);
-              }}
-              className="text-destructive focus:text-destructive"
-              disabled={isDeleting}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuItem
+                onClick={() => {
+                  setOpen(false);
+                  onEdit();
+                }}
+              >
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => {
+                  setOpen(false);
+                  setShowDeleteConfirm(true);
+                }}
+                className="text-destructive focus:text-destructive"
+                disabled={isDeleting}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </>
           ) : (
             <DropdownMenuItem onClick={onReport}>
               <Flag className="h-4 w-4 mr-2" />
@@ -123,10 +135,14 @@ function CommentDropdownMenu({ isOwn, onDelete, onReport, isDeleting }: {
 export const CommentItem = memo(function CommentItem({ comment, postId }: CommentItemProps) {
   const { profile } = useAuth();
   const deleteComment = useDeleteComment();
+  const editComment = useEditComment();
   const { data: safetySettings } = useSafetySettings();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.text);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   const isOwn = profile?.id === comment.user.id;
   const isGif = comment.image_url?.includes('giphy.com') || comment.image_url?.includes('tenor.com');
@@ -144,6 +160,29 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
 
   const handleDelete = () => {
     deleteComment.mutate({ commentId: comment.id, postId });
+  };
+
+  const handleEdit = () => {
+    setEditText(comment.text);
+    setIsEditing(true);
+    setTimeout(() => editInputRef.current?.focus(), 50);
+  };
+
+  const handleEditSave = () => {
+    const trimmed = editText.trim();
+    if (!trimmed || trimmed === comment.text) {
+      setIsEditing(false);
+      return;
+    }
+    editComment.mutate(
+      { commentId: comment.id, postId, text: trimmed },
+      { onSuccess: () => setIsEditing(false) }
+    );
+  };
+
+  const handleEditCancel = () => {
+    setIsEditing(false);
+    setEditText(comment.text);
   };
 
   const handleReport = async () => {
@@ -187,9 +226,41 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
                     preferDisplayName={false}
                   />
                 </Link>
-                {hasText && (
+                {isEditing ? (
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    <input
+                      ref={editInputRef}
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleEditSave();
+                        if (e.key === 'Escape') handleEditCancel();
+                      }}
+                      className="flex-1 min-w-0 text-sm bg-white/10 border border-border rounded-lg px-2 py-1 text-foreground outline-none focus:ring-1 focus:ring-primary"
+                      disabled={editComment.isPending}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-primary"
+                      onClick={handleEditSave}
+                      disabled={editComment.isPending}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground"
+                      onClick={handleEditCancel}
+                      disabled={editComment.isPending}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : hasText ? (
                   <span className="text-sm break-words text-foreground">{comment.text}</span>
-                )}
+                ) : null}
               </div>
 
               {/* Media content */}
@@ -260,10 +331,11 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
             )}
           </div>
 
-          {!isBlurred && (
+          {!isBlurred && !isEditing && (
             <CommentDropdownMenu
               isOwn={isOwn}
               onDelete={handleDelete}
+              onEdit={handleEdit}
               onReport={handleReport}
               isDeleting={deleteComment.isPending}
             />
