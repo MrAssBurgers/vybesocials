@@ -60,10 +60,8 @@ function CommentDropdownMenu({ isOwn, onDelete, onReport, isDeleting }: {
         align="end" 
         side="bottom"
         sideOffset={4}
-        collisionPadding={8}
         avoidCollisions={false}
-        className="will-change-transform origin-top-right border border-solid border-border"
-        style={{ position: 'absolute' as const }}
+        className="will-change-transform origin-[var(--radix-dropdown-menu-content-transform-origin)] border border-solid border-border"
       >
         {isOwn ? (
           <DropdownMenuItem 
