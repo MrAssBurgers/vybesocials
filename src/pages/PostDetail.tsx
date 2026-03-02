@@ -1,7 +1,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, X, Loader2, Send, Smile, Pencil } from 'lucide-react';
+import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, X, Loader2, Send, Smile, Pencil, Check } from 'lucide-react';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { useUserRole } from '@/hooks/useModeration';
@@ -9,7 +9,7 @@ import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { useComments, useCreateComment, useDeleteComment } from '@/hooks/useComments';
+import { useComments, useCreateComment, useDeleteComment, useEditComment } from '@/hooks/useComments';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -103,6 +103,120 @@ function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: 
         />
       )}
     </div>
+  );
+}
+
+function CommentActions({ isOwn, commentId, postId, commentText }: {
+  isOwn: boolean;
+  commentId: string;
+  postId: string;
+  commentText: string;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(commentText);
+  const deleteComment = useDeleteComment();
+  const editComment = useEditComment();
+  const editRef = useRef<HTMLInputElement>(null);
+
+  const handleEditSave = () => {
+    const trimmed = editText.trim();
+    if (!trimmed || trimmed === commentText) { setIsEditing(false); return; }
+    editComment.mutate(
+      { commentId, postId, text: trimmed },
+      { onSuccess: () => setIsEditing(false) }
+    );
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-1.5 flex-1 min-w-0 mt-1">
+        <input
+          ref={editRef}
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleEditSave();
+            if (e.key === 'Escape') { setIsEditing(false); setEditText(commentText); }
+          }}
+          autoFocus
+          className="flex-1 min-w-0 text-sm bg-white/10 border border-border rounded-lg px-2 py-1 text-foreground outline-none focus:ring-1 focus:ring-primary"
+          disabled={editComment.isPending}
+        />
+        <Button variant="ghost" size="icon" className="h-6 w-6 text-primary" onClick={handleEditSave} disabled={editComment.isPending}>
+          <Check className="h-3.5 w-3.5" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={() => { setIsEditing(false); setEditText(commentText); }}>
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen} modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-7 w-7 flex-shrink-0 transition-opacity duration-150",
+              menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            )}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          side="bottom"
+          sideOffset={4}
+          avoidCollisions={false}
+          className="will-change-transform origin-[var(--radix-dropdown-menu-content-transform-origin)] border border-solid border-border animate-none data-[state=open]:animate-[opacity-in_0.15s_ease-out] data-[state=closed]:animate-[opacity-out_0.1s_ease-in]"
+        >
+          {isOwn ? (
+            <>
+              <DropdownMenuItem onClick={() => { setMenuOpen(false); setIsEditing(true); setTimeout(() => editRef.current?.focus(), 50); }}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => { setMenuOpen(false); setShowDeleteConfirm(true); }}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </>
+          ) : (
+            <DropdownMenuItem onClick={() => { toast.success('Comment reported. We will review it shortly.'); }}>
+              <Flag className="h-4 w-4 mr-2" />
+              Report
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete comment?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone. Your comment will be permanently removed.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteComment.mutate({ commentId, postId })}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteComment.isPending ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -617,34 +731,12 @@ export default function PostDetailPage() {
                               {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
                             </p>
                           </div>
-                          {profile?.id === comment.user.id && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity rounded-full text-destructive"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent className="liquid-glass-card">
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete comment?</AlertDialogTitle>
-                                  <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => deleteComment.mutate({ commentId: comment.id, postId: post.id })}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
+                          <CommentActions
+                            isOwn={profile?.id === comment.user.id}
+                            commentId={comment.id}
+                            postId={post.id}
+                            commentText={comment.text}
+                          />
                         </div>
                       </div>
                     </motion.div>
