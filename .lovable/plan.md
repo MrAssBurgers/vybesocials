@@ -1,23 +1,23 @@
 
 
-## Fix: Comment Dropdown Shifting on Hover
+## Fix: Comment Dropdown Popup Movement on Hover
 
 ### Root Cause
-The dropdown menu shifts the three-dot icon when opened because of two conflicting styles:
+The current `animate-[fade-in_0.15s_ease-out]` class references the global `fade-in` keyframes, which include `transform: translateY(10px)` -- this physically shifts the popup 10px downward as it fades in. When hovering triggers re-renders or re-animations, the popup visibly jumps.
 
-1. **`style={{ position: 'absolute' }}`** on the `DropdownMenuContent` -- This fights with Radix's Portal positioning system. Radix Portals render content at the document root and use their own internal positioning (CSS transforms + fixed positioning). Overriding with `position: absolute` causes it to position relative to the wrong ancestor, shifting the layout.
+### Solution
+Replace the `fade-in`/`fade-out` animation (which uses translateY) with a pure opacity-only animation that keeps the popup completely still.
 
-2. **Bubble-pop animation** starts at `scale(0.8)` and grows to `scale(1)`. Combined with the broken positioning, this makes the dropdown visually "push" elements around as it animates in.
+### Changes
 
-### Fix (single file change)
+**File: `src/components/comments/CommentItem.tsx`**
 
-**`src/components/comments/CommentItem.tsx`** -- Update the `DropdownMenuContent` props:
+Update the `DropdownMenuContent` className to use inline keyframes that only animate opacity (no transform/translate):
 
-- **Remove** `style={{ position: 'absolute' as const }}` -- let Radix handle positioning via its Portal
-- **Remove** `collisionPadding={8}` -- unnecessary with `avoidCollisions={false}` and can cause micro-adjustments
-- **Keep** `avoidCollisions={false}`, `align="end"`, `side="bottom"`, `sideOffset={4}`
-- **Keep** `will-change-transform` and `border border-solid border-border`
-- **Replace** `origin-top-right` with the Radix CSS variable `origin-[var(--radix-dropdown-menu-content-transform-origin)]` so the animation scales from the correct anchor point (matching the base component)
+- **Remove**: `animate-none data-[state=open]:animate-[fade-in_0.15s_ease-out] data-[state=closed]:animate-[fade-out_0.1s_ease-in]`
+- **Add**: `data-[state=open]:animate-[opacity-in_0.15s_ease-out] data-[state=closed]:animate-[opacity-out_0.1s_ease-in]`
 
-This ensures the dropdown renders in a fixed position via Radix's built-in Popper, does not interfere with the trigger button's layout, and animates smoothly from the correct origin.
+Where `opacity-in` is defined as `{ from { opacity: 0 } to { opacity: 1 } }` and `opacity-out` as `{ from { opacity: 1 } to { opacity: 0 } }` -- pure opacity, zero movement.
+
+This is a single-line className change in one file. No business logic or database changes.
 
