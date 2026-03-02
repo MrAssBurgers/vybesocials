@@ -105,21 +105,33 @@ export function useDMConversations(searchQuery: string = '') {
         }
       });
 
-      // Build final result
-      const result: DMConversation[] = conversationsData
+      // Build final result - deduplicate by other member for 1:1 DMs
+      const seenOtherUserIds = new Set<string>();
+      const result: DMConversation[] = [];
+
+      conversationsData
         .filter(conv => !hiddenIds.has(conv.id) && !trashedIds.has(conv.id))
-        .map(conv => {
+        .forEach(conv => {
+          // For 1:1 DMs, deduplicate by other user
+          if (!conv.is_group) {
+            const otherMember = conv.members?.find((m: any) => m.user_id !== profile.id);
+            const otherUserId = otherMember?.user_id;
+            if (otherUserId) {
+              if (seenOtherUserIds.has(otherUserId)) return; // skip duplicate
+              seenOtherUserIds.add(otherUserId);
+            }
+          }
+
           const lastMessage = lastMessageMap.get(conv.id) || null;
           const unreadCount = unreadCountMap.get(conv.id) || 0;
-          const membership = membershipMap.get(conv.id);
 
-          return {
+          result.push({
             ...conv,
             last_message: lastMessage,
             unread_count: unreadCount,
             _sortTime: lastMessage?.created_at || conv.updated_at,
             _hasUnread: unreadCount > 0,
-          };
+          });
         });
 
       // Instagram-style sorting: unread first, then by last activity
@@ -181,7 +193,10 @@ export function useDMConversations(searchQuery: string = '') {
       return;
     }
 
+    ensuredRef.current = true; // Set before async work to prevent re-entry
+
     // Create conversations for friends without one (batch)
+    let created = false;
     for (const friend of friendsWithoutConvos) {
       if (!friend?.id) continue;
       
@@ -189,13 +204,15 @@ export function useDMConversations(searchQuery: string = '') {
         await supabase.rpc('create_dm_conversation', { 
           other_profile_id: friend.id 
         });
+        created = true;
       } catch (error) {
         console.error('Failed to create conversation for friend:', friend.id, error);
       }
     }
 
-    ensuredRef.current = true;
-    queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
+    if (created) {
+      queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
+    }
   }, [profile?.id, friends, conversationsQuery.data, queryClient]);
 
   // Run auto-creation once when data is available

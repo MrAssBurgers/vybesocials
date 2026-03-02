@@ -98,9 +98,11 @@ export function useTrashConversation() {
     onMutate: async (conversationId: string) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['trashed-conversation-ids'] });
+      await queryClient.cancelQueries({ queryKey: ['dm-conversations'] });
       
-      // Snapshot previous value
+      // Snapshot previous values
       const previousIds = queryClient.getQueryData<Set<string>>(['trashed-conversation-ids', profile?.id]);
+      const previousDMs = queryClient.getQueryData(['dm-conversations', profile?.id]);
       
       // Optimistically add to trashed IDs
       queryClient.setQueryData<Set<string>>(['trashed-conversation-ids', profile?.id], (old) => {
@@ -108,19 +110,29 @@ export function useTrashConversation() {
         newSet.add(conversationId);
         return newSet;
       });
+
+      // Optimistically remove from DM conversations list for instant UI update
+      queryClient.setQueryData<any[]>(['dm-conversations', profile?.id], (old) => {
+        if (!old) return old;
+        return old.filter((conv: any) => conv.id !== conversationId);
+      });
       
-      return { previousIds };
+      return { previousIds, previousDMs };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       queryClient.invalidateQueries({ queryKey: ['trashed-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['trashed-conversation-ids'] });
+      queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
       toast.success('Chat moved to trash');
     },
     onError: (error: any, conversationId, context) => {
       // Rollback on error
       if (context?.previousIds) {
         queryClient.setQueryData(['trashed-conversation-ids', profile?.id], context.previousIds);
+      }
+      if (context?.previousDMs) {
+        queryClient.setQueryData(['dm-conversations', profile?.id], context.previousDMs);
       }
       console.error('Failed to trash conversation:', error);
       toast.error('Failed to delete chat');
