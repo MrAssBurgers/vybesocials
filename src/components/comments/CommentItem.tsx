@@ -61,7 +61,7 @@ function CommentDropdownMenu({ isOwn, onDelete, onReport, isDeleting }: {
         side="bottom"
         sideOffset={4}
         avoidCollisions={false}
-        className="will-change-transform origin-[var(--radix-dropdown-menu-content-transform-origin)] border border-solid border-border"
+        className="will-change-transform origin-[var(--radix-dropdown-menu-content-transform-origin)] border border-solid border-border animate-none data-[state=open]:animate-[fade-in_0.15s_ease-out] data-[state=closed]:animate-[fade-out_0.1s_ease-in]"
       >
         {isOwn ? (
           <DropdownMenuItem 
