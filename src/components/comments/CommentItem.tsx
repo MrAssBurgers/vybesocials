@@ -43,20 +43,26 @@ function CommentDropdownMenu({ isOwn, onDelete, onReport, isDeleting }: {
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
       <DropdownMenuTrigger asChild>
         <Button 
           variant="ghost" 
           size="icon"
           className={cn(
-            "h-7 w-7 transition-opacity flex-shrink-0",
+            "h-7 w-7 flex-shrink-0",
             open ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           )}
         >
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent 
+        align="end" 
+        side="bottom"
+        sideOffset={4}
+        collisionPadding={8}
+        avoidCollisions={false}
+      >
         {isOwn ? (
           <DropdownMenuItem 
             onClick={onDelete}
