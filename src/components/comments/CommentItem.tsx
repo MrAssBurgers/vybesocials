@@ -35,6 +35,48 @@ interface CommentItemProps {
   postId: string;
 }
 
+function CommentDropdownMenu({ isOwn, onDelete, onReport, isDeleting }: {
+  isOwn: boolean;
+  onDelete: () => void;
+  onReport: () => void;
+  isDeleting: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button 
+          variant="ghost" 
+          size="icon"
+          className={cn(
+            "h-7 w-7 transition-opacity flex-shrink-0",
+            open ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          )}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {isOwn ? (
+          <DropdownMenuItem 
+            onClick={onDelete}
+            className="text-destructive"
+            disabled={isDeleting}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onClick={onReport}>
+            <Flag className="h-4 w-4 mr-2" />
+            Report
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export const CommentItem = memo(function CommentItem({ comment, postId }: CommentItemProps) {
   const { profile } = useAuth();
   const deleteComment = useDeleteComment();
@@ -176,34 +218,12 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
           </div>
 
           {!isBlurred && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {isOwn ? (
-                  <DropdownMenuItem 
-                    onClick={handleDelete}
-                    className="text-destructive"
-                    disabled={deleteComment.isPending}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onClick={handleReport}>
-                    <Flag className="h-4 w-4 mr-2" />
-                    Report
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <CommentDropdownMenu
+              isOwn={isOwn}
+              onDelete={handleDelete}
+              onReport={handleReport}
+              isDeleting={deleteComment.isPending}
+            />
           )}
         </div>
       </div>
