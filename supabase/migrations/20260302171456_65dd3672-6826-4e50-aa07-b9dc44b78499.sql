@@ -1,0 +1,1 @@
+ALTER TABLE public.error_logs DROP CONSTRAINT IF EXISTS error_logs_user_id_fkey;
