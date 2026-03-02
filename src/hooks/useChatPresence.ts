@@ -174,7 +174,7 @@ export function useChatPresence(conversationId: string | undefined) {
 
     // Subscribe to presence changes
     const presenceChannel = supabase
-      .channel(`presence:${conversationId}`)
+      .channel(`chat-presence:${conversationId}`)
       .on(
         'postgres_changes',
         {
