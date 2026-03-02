@@ -174,21 +174,13 @@ export function useMessagePins(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId || !profile?.id) return [];
 
-      // Get messages in conversation first
-      const { data: messages } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('conversation_id', conversationId);
-
-      if (!messages?.length) return [];
-
-      const messageIds = messages.map(m => m.id);
-
+      // Use a join-based approach via RPC or filter by user only,
+      // then filter client-side, to avoid massive .in() queries
       const { data, error } = await supabase
         .from('message_pins')
-        .select('*')
+        .select('*, message:messages!inner(conversation_id)')
         .eq('user_id', profile.id)
-        .in('message_id', messageIds);
+        .eq('message.conversation_id', conversationId);
 
       if (error) throw error;
       return data || [];
