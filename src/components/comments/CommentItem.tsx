@@ -11,6 +11,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useAuth } from '@/lib/auth';
 import { useDeleteComment } from '@/hooks/useComments';
 import { useSafetySettings } from '@/hooks/useSafetySettings';
@@ -42,44 +52,71 @@ function CommentDropdownMenu({ isOwn, onDelete, onReport, isDeleting }: {
   isDeleting: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon"
-          className={cn(
-            "h-7 w-7 flex-shrink-0",
-            open ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          )}
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent 
-        align="end" 
-        side="bottom"
-        sideOffset={4}
-        avoidCollisions={false}
-        className="will-change-transform origin-[var(--radix-dropdown-menu-content-transform-origin)] border border-solid border-border animate-none data-[state=open]:animate-[opacity-in_0.15s_ease-out] data-[state=closed]:animate-[opacity-out_0.1s_ease-in]"
-      >
-        {isOwn ? (
-          <DropdownMenuItem 
-            onClick={onDelete}
-            className="text-destructive"
-            disabled={isDeleting}
+    <>
+      <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button 
+            variant="ghost" 
+            size="icon"
+            className={cn(
+              "h-7 w-7 flex-shrink-0 transition-opacity duration-150",
+              open ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            )}
           >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem onClick={onReport}>
-            <Flag className="h-4 w-4 mr-2" />
-            Report
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent 
+          align="end" 
+          side="bottom"
+          sideOffset={4}
+          avoidCollisions={false}
+          className="will-change-transform origin-[var(--radix-dropdown-menu-content-transform-origin)] border border-solid border-border animate-none data-[state=open]:animate-[opacity-in_0.15s_ease-out] data-[state=closed]:animate-[opacity-out_0.1s_ease-in]"
+        >
+          {isOwn ? (
+            <DropdownMenuItem 
+              onClick={() => {
+                setOpen(false);
+                setShowDeleteConfirm(true);
+              }}
+              className="text-destructive focus:text-destructive"
+              disabled={isDeleting}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onClick={onReport}>
+              <Flag className="h-4 w-4 mr-2" />
+              Report
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete comment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. Your comment will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
