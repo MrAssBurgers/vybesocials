@@ -158,13 +158,13 @@ function AppWithPreloader() {
               <Suspense fallback={null}>
                 <EasterEggProvider>
                   <CallStoreProvider>
-                    <Suspense fallback={null}>
-                      <RewardNotificationProvider>
-                        <StreakProvider>
-                          <TooltipProvider>
-                            <Toaster />
-                            <Sonner />
-                            <BrowserRouter>
+                    <StreakProvider>
+                      <TooltipProvider>
+                        <Toaster />
+                        <Sonner />
+                        <BrowserRouter>
+                          <Suspense fallback={null}>
+                            <RewardNotificationProvider>
                               <DebugPanelProvider>
                                 <Suspense fallback={null}>
                                   <TutorialProvider>
@@ -188,11 +188,11 @@ function AppWithPreloader() {
                                   </TutorialProvider>
                                 </Suspense>
                               </DebugPanelProvider>
-                            </BrowserRouter>
-                          </TooltipProvider>
-                        </StreakProvider>
-                      </RewardNotificationProvider>
-                    </Suspense>
+                            </RewardNotificationProvider>
+                          </Suspense>
+                        </BrowserRouter>
+                      </TooltipProvider>
+                    </StreakProvider>
                   </CallStoreProvider>
                 </EasterEggProvider>
               </Suspense>
