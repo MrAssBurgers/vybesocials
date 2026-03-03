@@ -1,8 +1,11 @@
 import { useState, createContext, useContext, useCallback, ReactNode, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useRealtimeChallengeRewards, ChallengeReward, useRealtimeLevelUpdates, useRealtimeChallengeProgress, useVybePassTiers } from '@/hooks/useVybePass';
 import { RewardClaimModal } from './RewardClaimModal';
 import { LevelUpModal, LevelUpReward } from './LevelUpModal';
+import { useEquipItem } from '@/hooks/useLockerItems';
 import { useAuth } from '@/lib/auth';
+import { toast } from 'sonner';
 
 interface LevelUpData {
   oldLevel: number;
@@ -39,6 +42,8 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
   const { profile } = useAuth();
   const { data: tiers } = useVybePassTiers();
+  const navigate = useNavigate();
+  const equipItem = useEquipItem();
 
   // Check if onboarding is complete - delay popups until it is
   useEffect(() => {
@@ -111,6 +116,20 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
       <LevelUpModal
         open={levelUpOpen}
         onClose={() => setLevelUpOpen(false)}
+        onGoToLocker={() => navigate('/profile?tab=locker')}
+        onEquipReward={async (reward) => {
+          if (!reward.reward_id) {
+            toast.info('Head to your Locker to equip this!');
+            navigate('/profile?tab=locker');
+            return;
+          }
+          try {
+            await equipItem.mutateAsync({ type: reward.reward_type as any, value: reward.reward_id });
+            toast.success(`Equipped ${reward.reward_name}!`);
+          } catch {
+            toast.error('Could not equip — try from your Locker');
+          }
+        }}
         oldLevel={levelUpData?.oldLevel || 1}
         newLevel={levelUpData?.newLevel || 1}
         rewards={levelUpData?.rewards || []}

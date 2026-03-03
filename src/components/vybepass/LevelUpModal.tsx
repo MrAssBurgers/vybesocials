@@ -1,12 +1,8 @@
-import { useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ArrowUp, Crown, Sparkles, Star, Palette, Type, Gem, Image, Backpack, Check } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useEquipItem } from '@/hooks/useLockerItems';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 export interface LevelUpReward {
@@ -21,6 +17,8 @@ export interface LevelUpReward {
 interface LevelUpModalProps {
   open: boolean;
   onClose: () => void;
+  onGoToLocker?: () => void;
+  onEquipReward?: (reward: LevelUpReward) => void;
   oldLevel: number;
   newLevel: number;
   rewards: LevelUpReward[];
@@ -34,34 +32,9 @@ const REWARD_TYPE_META: Record<string, { label: string; icon: typeof Star; color
   profile_theme: { label: 'Profile Theme', icon: Image, color: 'text-emerald-400' },
 };
 
-export function LevelUpModal({ open, onClose, oldLevel, newLevel, rewards }: LevelUpModalProps) {
-  const navigate = useNavigate();
-  const equipItem = useEquipItem();
-
-  // Filter out any premium items that slipped through
+export function LevelUpModal({ open, onClose, onGoToLocker, onEquipReward, oldLevel, newLevel, rewards }: LevelUpModalProps) {
+  // Filter out premium items
   const freeRewards = rewards.filter(r => !r.is_premium);
-
-  const handleGoToLocker = useCallback(() => {
-    onClose();
-    navigate('/profile?tab=locker');
-  }, [onClose, navigate]);
-
-  const handleEquipFirst = useCallback(async () => {
-    if (freeRewards.length === 0) return;
-    const first = freeRewards[0];
-    if (!first.reward_id) {
-      toast.info('Head to your Locker to equip this!');
-      handleGoToLocker();
-      return;
-    }
-    try {
-      await equipItem.mutateAsync({ type: first.reward_type as any, value: first.reward_id });
-      toast.success(`Equipped ${first.reward_name}!`);
-      onClose();
-    } catch {
-      toast.error('Could not equip — try from your Locker');
-    }
-  }, [freeRewards, equipItem, onClose, handleGoToLocker]);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -72,7 +45,6 @@ export function LevelUpModal({ open, onClose, oldLevel, newLevel, rewards }: Lev
           animate={{ opacity: 1 }}
           className="relative bg-gradient-to-b from-primary/20 via-primary/10 to-transparent pt-8 pb-6 px-6 text-center"
         >
-          {/* Floating particles */}
           {[...Array(6)].map((_, i) => (
             <motion.div
               key={i}
@@ -179,12 +151,14 @@ export function LevelUpModal({ open, onClose, oldLevel, newLevel, rewards }: Lev
             transition={{ delay: 0.7 + freeRewards.length * 0.1 }}
             className="space-y-2 pt-1"
           >
-            {freeRewards.length > 0 && (
+            {freeRewards.length > 0 && onEquipReward && (
               <Button
-                onClick={handleEquipFirst}
+                onClick={() => {
+                  onEquipReward(freeRewards[0]);
+                  onClose();
+                }}
                 className="w-full"
                 size="lg"
-                disabled={equipItem.isPending}
               >
                 <Check className="h-4 w-4 mr-2" />
                 Equip {freeRewards[0].reward_name}
@@ -192,19 +166,24 @@ export function LevelUpModal({ open, onClose, oldLevel, newLevel, rewards }: Lev
             )}
 
             <div className="flex gap-2">
-              <Button
-                onClick={handleGoToLocker}
-                variant="secondary"
-                className="flex-1"
-                size="lg"
-              >
-                <Backpack className="h-4 w-4 mr-2" />
-                Locker
-              </Button>
+              {onGoToLocker && (
+                <Button
+                  onClick={() => {
+                    onClose();
+                    onGoToLocker();
+                  }}
+                  variant="secondary"
+                  className="flex-1"
+                  size="lg"
+                >
+                  <Backpack className="h-4 w-4 mr-2" />
+                  Locker
+                </Button>
+              )}
               <Button
                 onClick={onClose}
                 variant="outline"
-                className="flex-1"
+                className={cn("flex-1", !onGoToLocker && "w-full")}
                 size="lg"
               >
                 Close
