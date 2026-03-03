@@ -1,7 +1,12 @@
+import { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp, Crown, Sparkles, Star, Palette, Type, Gem, Image } from 'lucide-react';
+import { ArrowUp, Crown, Sparkles, Star, Palette, Type, Gem, Image, Backpack, Check } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useEquipItem } from '@/hooks/useLockerItems';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 export interface LevelUpReward {
@@ -10,6 +15,7 @@ export interface LevelUpReward {
   reward_id: string | null;
   reward_name: string;
   reward_icon: string;
+  is_premium?: boolean;
 }
 
 interface LevelUpModalProps {
@@ -29,6 +35,34 @@ const REWARD_TYPE_META: Record<string, { label: string; icon: typeof Star; color
 };
 
 export function LevelUpModal({ open, onClose, oldLevel, newLevel, rewards }: LevelUpModalProps) {
+  const navigate = useNavigate();
+  const equipItem = useEquipItem();
+
+  // Filter out any premium items that slipped through
+  const freeRewards = rewards.filter(r => !r.is_premium);
+
+  const handleGoToLocker = useCallback(() => {
+    onClose();
+    navigate('/profile?tab=locker');
+  }, [onClose, navigate]);
+
+  const handleEquipFirst = useCallback(async () => {
+    if (freeRewards.length === 0) return;
+    const first = freeRewards[0];
+    if (!first.reward_id) {
+      toast.info('Head to your Locker to equip this!');
+      handleGoToLocker();
+      return;
+    }
+    try {
+      await equipItem.mutateAsync({ type: first.reward_type as any, value: first.reward_id });
+      toast.success(`Equipped ${first.reward_name}!`);
+      onClose();
+    } catch {
+      toast.error('Could not equip — try from your Locker');
+    }
+  }, [freeRewards, equipItem, onClose, handleGoToLocker]);
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-md overflow-hidden p-0 border-primary/30">
@@ -85,7 +119,7 @@ export function LevelUpModal({ open, onClose, oldLevel, newLevel, rewards }: Lev
 
         {/* Unlocked rewards */}
         <div className="px-6 pb-6 space-y-3">
-          {rewards.length > 0 && (
+          {freeRewards.length > 0 && (
             <>
               <motion.p
                 initial={{ opacity: 0 }}
@@ -93,69 +127,89 @@ export function LevelUpModal({ open, onClose, oldLevel, newLevel, rewards }: Lev
                 transition={{ delay: 0.4 }}
                 className="text-sm font-medium text-muted-foreground text-center"
               >
-                You unlocked {rewards.length} new {rewards.length === 1 ? 'reward' : 'rewards'}!
+                You unlocked {freeRewards.length} new {freeRewards.length === 1 ? 'reward' : 'rewards'}!
               </motion.p>
 
-              <div className="space-y-2 max-h-[240px] overflow-y-auto">
-                {rewards.map((reward, i) => {
-                  const meta = REWARD_TYPE_META[reward.reward_type] || { label: reward.reward_type, icon: Star, color: 'text-primary' };
-                  const Icon = meta.icon;
-                  
-                  return (
-                    <motion.div
-                      key={`${reward.level}-${reward.reward_name}`}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.5 + i * 0.1 }}
-                      className={cn(
-                        "flex items-center gap-3 p-3 rounded-xl",
-                        "bg-gradient-to-r from-secondary/80 to-secondary/40",
-                        "border border-border/50"
-                      )}
-                    >
-                      <div className="text-2xl flex-shrink-0">{reward.reward_icon}</div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate">{reward.reward_name}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <Icon className={cn("h-3 w-3", meta.color)} />
-                          <span className="text-xs text-muted-foreground">{meta.label} • Level {reward.level}</span>
-                        </div>
-                      </div>
+              <ScrollArea className="max-h-[200px]">
+                <div className="space-y-2 pr-2">
+                  {freeRewards.map((reward, i) => {
+                    const meta = REWARD_TYPE_META[reward.reward_type] || { label: reward.reward_type, icon: Star, color: 'text-primary' };
+                    const Icon = meta.icon;
+                    
+                    return (
                       <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ delay: 0.7 + i * 0.1, type: 'spring' }}
-                        className="px-2 py-0.5 rounded-full bg-primary/15 border border-primary/30"
+                        key={`${reward.level}-${reward.reward_name}`}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.5 + i * 0.1 }}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-xl",
+                          "bg-gradient-to-r from-secondary/80 to-secondary/40",
+                          "border border-border/50"
+                        )}
                       >
-                        <span className="text-[10px] font-bold text-primary uppercase">New</span>
+                        <div className="text-2xl flex-shrink-0">{reward.reward_icon}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm truncate">{reward.reward_name}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Icon className={cn("h-3 w-3", meta.color)} />
+                            <span className="text-xs text-muted-foreground">{meta.label} • Level {reward.level}</span>
+                          </div>
+                        </div>
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: 0.7 + i * 0.1, type: 'spring' }}
+                          className="px-2 py-0.5 rounded-full bg-primary/15 border border-primary/30"
+                        >
+                          <span className="text-[10px] font-bold text-primary uppercase">New</span>
+                        </motion.div>
                       </motion.div>
-                    </motion.div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
             </>
           )}
 
-          {rewards.length > 0 && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 + rewards.length * 0.1 }}
-              className="text-xs text-muted-foreground text-center"
-            >
-              Equip them in your Profile → Locker
-            </motion.p>
-          )}
-
+          {/* 3 Action Buttons */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 + rewards.length * 0.1 }}
+            transition={{ delay: 0.7 + freeRewards.length * 0.1 }}
+            className="space-y-2 pt-1"
           >
-            <Button onClick={onClose} className="w-full" size="lg">
-              <Sparkles className="h-4 w-4 mr-2" />
-              Awesome!
-            </Button>
+            {freeRewards.length > 0 && (
+              <Button
+                onClick={handleEquipFirst}
+                className="w-full"
+                size="lg"
+                disabled={equipItem.isPending}
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Equip {freeRewards[0].reward_name}
+              </Button>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleGoToLocker}
+                variant="secondary"
+                className="flex-1"
+                size="lg"
+              >
+                <Backpack className="h-4 w-4 mr-2" />
+                Locker
+              </Button>
+              <Button
+                onClick={onClose}
+                variant="outline"
+                className="flex-1"
+                size="lg"
+              >
+                Close
+              </Button>
+            </div>
           </motion.div>
         </div>
       </DialogContent>
