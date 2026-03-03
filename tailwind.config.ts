@@ -71,6 +71,9 @@ export default {
           cyan: "hsl(var(--neon-cyan))",
           yellow: "hsl(var(--neon-yellow))",
         },
+        brand: {
+          gold: "hsl(var(--brand-gold))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -245,6 +245,12 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   /* Small phones — same quality, no downgrades */
 
   :root {
+    /* Force explicit color scheme — no browser auto-inversion */
+    color-scheme: dark;
+
+    /* Brand gold — identical in both modes */
+    --brand-gold: 43 76% 52%;
+
     /* Base colors - Dark mode (default) */
     --background: 240 10% 4%;
     --foreground: 0 0% 98%;
@@ -327,8 +333,10 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     --shadow-glow: 0 0 20px hsl(var(--primary) / 0.3);
   }
 
-  /* Light mode */
+  /* Light mode — all values explicit, no system color keywords */
   .light {
+    color-scheme: light;
+    --brand-gold: 43 76% 52%;
     --background: 0 0% 98%;
     --foreground: 240 10% 4%;
 
@@ -395,8 +403,11 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   html {
     overflow-x: hidden;
     scroll-behavior: smooth;
-    /* Ensure touch scrolling works on iOS/iPad */
+    -webkit-text-size-adjust: 100%;
     -webkit-overflow-scrolling: touch;
+    /* Prevent forced-colors / contrast overrides from altering brand palette */
+    forced-color-adjust: none;
+    -ms-high-contrast-adjust: none;
   }
 
   body {
