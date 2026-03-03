@@ -58,6 +58,7 @@ const DialogContent = React.forwardRef<
       )}
       {...props}
     >
+      <DialogPrimitive.Title className="sr-only">Dialog</DialogPrimitive.Title>
       <div className="p-6 overflow-y-auto max-h-[85vh]">
         {children}
       </div>
