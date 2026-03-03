@@ -67,8 +67,8 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
     if (!isOnboardingComplete) return;
     
     // If we have tiers data, compute rewards from tiers for the levels gained
-    let rewards = data.rewards;
-    if ((!rewards || rewards.length === 0) && tiers) {
+    let rewards = (data.rewards || []).filter((r: any) => !r.is_premium);
+    if (rewards.length === 0 && tiers) {
       rewards = tiers
         .filter(t => t.level > data.oldLevel && t.level <= data.newLevel && !t.is_premium)
         .map(t => ({
