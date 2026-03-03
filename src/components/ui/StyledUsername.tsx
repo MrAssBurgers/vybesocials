@@ -125,7 +125,6 @@ export const StyledUsername = memo(function StyledUsername({
             color: 'transparent',
             display: 'inline-block',
             animation: 'premium-gold-shimmer 2.5s ease-in-out infinite',
-            filter: 'drop-shadow(0 0 8px rgba(245,158,11,0.5)) drop-shadow(0 0 20px rgba(245,158,11,0.2))',
             textShadow: 'none',
           }}
         >
