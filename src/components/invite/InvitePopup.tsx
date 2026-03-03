@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   getPendingReferral,
@@ -42,6 +43,7 @@ export function InvitePopup() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [referral, setReferral] = useState<PendingReferral | null>(null);
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState<ConfirmStep>('idle');
@@ -299,6 +301,9 @@ export function InvitePopup() {
 
       markReferralConfirmed();
       toast.success(`You and @${referral.inviterUsername} are now friends!`);
+
+      // Instantly refresh leaderboard data
+      queryClient.invalidateQueries({ queryKey: ['invite-leaderboard'] });
 
       setTimeout(() => {
         setVisible(false);
