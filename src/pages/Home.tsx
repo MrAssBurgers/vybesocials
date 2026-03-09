@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Globe, Sparkles } from 'lucide-react';
+import { Loader2, Globe, Sparkles, LayoutGrid } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import type { Post } from '@/hooks/useInfinitePosts';
@@ -25,6 +25,9 @@ import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
+import { HomeWidgetCustomizer } from '@/components/home/HomeWidgetCustomizer';
+import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
+import { useHomeLayout } from '@/hooks/useHomeLayout';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);

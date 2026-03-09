@@ -83,7 +83,7 @@ export function VYBECommandBar() {
           if (action.prompt) {
             toast.loading('Generating your custom theme...');
             try {
-              await generateTheme.mutateAsync({ prompt: action.prompt, mood: 'balanced' });
+              await generateTheme.mutateAsync({ prompt: action.prompt });
               toast.dismiss();
               toast.success('Custom theme generated! 🎨');
             } catch (e) {
