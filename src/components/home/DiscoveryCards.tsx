@@ -27,7 +27,7 @@ export const DiscoveryCards = memo(function DiscoveryCards() {
         {items.map(item => (
           <button
             key={item.path}
-            onClick={() => navigate(item.path)}
+            onClick={() => { triggerHaptic('light'); navigate(item.path); }}
             className={cn(
               "flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all",
               "bg-gradient-to-br border border-white/10 hover:scale-[1.04] active:scale-95",
