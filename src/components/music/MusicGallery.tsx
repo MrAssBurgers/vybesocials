@@ -236,12 +236,14 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
       });
 
       // Simple way to award XP directly (like 50 XP for sharing a track)
-      await supabase.from('xp_logs').insert({
-        user_id: profile.id,
-        amount: 50,
-        source: 'share_music',
-        description: 'Shared a music track'
-      });
+      try {
+        await supabase.rpc('add_user_xp', {
+          p_user_id: user.id,
+          p_xp_amount: 50
+        });
+      } catch (e) {
+        console.warn('Failed to add XP for sharing track', e);
+      }
 
       toast.success('Track shared to your feed! +50 XP 🎵');
     } catch (error) {
