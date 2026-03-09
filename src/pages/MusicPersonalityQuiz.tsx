@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Music, ArrowRight, Share2, Sparkles, RefreshCcw, ChevronRight } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
