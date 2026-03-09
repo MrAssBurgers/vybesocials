@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Dna, Sparkles, RefreshCw, Share2, Check, ArrowLeft } from 'lucide-react';
+import { Sparkles, Share2, Check, ArrowLeft, RefreshCw, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useVybeDNA, useGenerateVybeDNA } from '@/hooks/useVybeDNA';
+import { useVybeDNA } from '@/hooks/useVybeDNA';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import { DNAOrb } from '@/components/dna/DNAOrb';
 import { PersonalityArchetype } from '@/components/dna/PersonalityArchetype';
 import { DNATraitBars } from '@/components/dna/DNATraitBars';
@@ -16,15 +15,7 @@ import { DNAInsights } from '@/components/dna/DNAInsights';
 export default function VybeDNAPage() {
   const navigate = useNavigate();
   const { data: dna, isLoading } = useVybeDNA();
-  const generateDNA = useGenerateVybeDNA();
   const [copied, setCopied] = useState(false);
-
-  const handleGenerate = () => {
-    generateDNA.mutate(undefined, {
-      onSuccess: () => toast.success('Your VYBE DNA has been generated!'),
-      onError: () => toast.error('Failed to generate DNA'),
-    });
-  };
 
   const handleShare = async () => {
     if (!dna) return;
@@ -54,6 +45,7 @@ export default function VybeDNAPage() {
               <Sparkles className="w-5 h-5 text-primary" />
               VYBE DNA
             </h1>
+            <p className="text-xs text-muted-foreground">Evolves with your activity</p>
           </div>
           {dna && (
             <Button variant="ghost" size="icon" onClick={handleShare}>
@@ -83,6 +75,24 @@ export default function VybeDNAPage() {
             {/* Archetype */}
             <PersonalityArchetype dna={dna} />
 
+            {/* How it works banner */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="py-3 px-4 flex items-start gap-3">
+                  <Activity className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Your DNA evolves automatically based on how you use VYBE — posts you create, 
+                    messages you send, people you interact with, and your login streaks all shape 
+                    your unique identity. Keep using the app to watch it grow.
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+
             {/* Insights grid */}
             <DNAInsights dna={dna} />
 
@@ -92,30 +102,21 @@ export default function VybeDNAPage() {
             {/* Color palette */}
             <DNAColorPalette dna={dna} />
 
-            {/* Actions */}
+            {/* Share action */}
             <motion.div
-              className="flex gap-3 pt-2"
+              className="pt-2"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
             >
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={handleGenerate}
-                disabled={generateDNA.isPending}
-              >
-                <RefreshCw className={cn("w-4 h-4 mr-2", generateDNA.isPending && "animate-spin")} />
-                Regenerate
-              </Button>
-              <Button className="flex-1" onClick={handleShare}>
+              <Button className="w-full" onClick={handleShare}>
                 {copied ? <Check className="w-4 h-4 mr-2" /> : <Share2 className="w-4 h-4 mr-2" />}
-                Share DNA
+                Share My DNA
               </Button>
             </motion.div>
           </>
         ) : (
-          /* Empty state - no DNA yet */
+          /* Empty state — DNA hasn't computed yet (new user with no activity) */
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -126,21 +127,17 @@ export default function VybeDNAPage() {
                   animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
                   transition={{ duration: 3, repeat: Infinity }}
                 >
-                  <Dna className="w-20 h-20 mx-auto text-primary/40" />
+                  <Sparkles className="w-20 h-20 mx-auto text-primary/40" />
                 </motion.div>
                 <div className="space-y-2">
-                  <h2 className="text-xl font-bold text-foreground">Discover Your VYBE DNA</h2>
+                  <h2 className="text-xl font-bold text-foreground">Your DNA Is Forming</h2>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                    Your DNA is a unique visual identity generated from your activity, social connections, and creative output. No two are alike.
+                    Start posting, messaging, and interacting on VYBE. Your DNA will 
+                    automatically generate once we have enough data about your unique style.
                   </p>
                 </div>
-                <Button size="lg" onClick={handleGenerate} disabled={generateDNA.isPending} className="px-8">
-                  {generateDNA.isPending ? (
-                    <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  )}
-                  Generate My DNA
+                <Button variant="outline" onClick={() => navigate('/')}>
+                  Go Explore VYBE
                 </Button>
               </CardContent>
             </Card>
