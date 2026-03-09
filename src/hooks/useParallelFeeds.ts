@@ -85,7 +85,7 @@ export function useCreateFeed() {
         .single();
 
       if (error) throw error;
-      return data as ParallelFeed;
+      return data as unknown as ParallelFeed;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['parallel-feeds', user?.id] });
