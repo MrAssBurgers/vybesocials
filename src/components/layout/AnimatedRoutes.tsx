@@ -67,6 +67,8 @@ const ReactionStreaks = lazy(() => import("@/pages/ReactionStreaks"));
 const VYBERoulette = lazy(() => import("@/pages/VYBERoulette"));
 const VYBESpaces = lazy(() => import("@/pages/VYBESpaces"));
 const SpaceRoom = lazy(() => import("@/pages/SpaceRoom"));
+const VybeDNA = lazy(() => import("@/pages/VybeDNA"));
+const TokenWallet = lazy(() => import("@/pages/TokenWallet"));
 
 // Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -170,6 +172,8 @@ export function AnimatedRoutes() {
             <Route path="/roulette" element={<ProtectedRoute><VYBERoulette /></ProtectedRoute>} />
             <Route path="/spaces" element={<ProtectedRoute><VYBESpaces /></ProtectedRoute>} />
             <Route path="/space/:spaceId" element={<ProtectedRoute><SpaceRoom /></ProtectedRoute>} />
+            <Route path="/vybe-dna" element={<ProtectedRoute><VybeDNA /></ProtectedRoute>} />
+            <Route path="/wallet" element={<ProtectedRoute><TokenWallet /></ProtectedRoute>} />
             
             {/* Let /~oauth pass through to the cloud auth handler */}
             <Route path="/~oauth" element={null} />

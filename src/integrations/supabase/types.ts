@@ -4770,6 +4770,42 @@ export type Database = {
           },
         ]
       }
+      live_widgets: {
+        Row: {
+          config: Json | null
+          created_at: string | null
+          id: string
+          is_visible: boolean | null
+          position: Json | null
+          size: string | null
+          updated_at: string | null
+          user_id: string
+          widget_type: string
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          is_visible?: boolean | null
+          position?: Json | null
+          size?: string | null
+          updated_at?: string | null
+          user_id: string
+          widget_type: string
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          is_visible?: boolean | null
+          position?: Json | null
+          size?: string | null
+          updated_at?: string | null
+          user_id?: string
+          widget_type?: string
+        }
+        Relationships: []
+      }
       login_streaks: {
         Row: {
           created_at: string
@@ -5303,6 +5339,33 @@ export type Database = {
           },
         ]
       }
+      mood_states: {
+        Row: {
+          detected_at: string | null
+          id: string
+          intensity: number | null
+          mood: string
+          source: string | null
+          user_id: string
+        }
+        Insert: {
+          detected_at?: string | null
+          id?: string
+          intensity?: number | null
+          mood: string
+          source?: string | null
+          user_id: string
+        }
+        Update: {
+          detected_at?: string | null
+          id?: string
+          intensity?: number | null
+          mood?: string
+          source?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       music_providers: {
         Row: {
           api_base_url: string
@@ -5678,6 +5741,39 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
         ]
+      }
+      parallel_feeds: {
+        Row: {
+          created_at: string | null
+          feed_type: string
+          filters: Json | null
+          id: string
+          is_active: boolean | null
+          name: string
+          sort_order: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          feed_type?: string
+          filters?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          sort_order?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          feed_type?: string
+          filters?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          sort_order?: number | null
+          user_id?: string
+        }
+        Relationships: []
       }
       password_reset_tokens: {
         Row: {
@@ -7990,6 +8086,36 @@ export type Database = {
           },
         ]
       }
+      token_transactions: {
+        Row: {
+          amount: number
+          created_at: string | null
+          description: string | null
+          id: string
+          reference_id: string | null
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       track_usage: {
         Row: {
           id: string
@@ -9242,6 +9368,66 @@ export type Database = {
           },
         ]
       }
+      vybe_dna: {
+        Row: {
+          aura_intensity: number | null
+          generated_at: string | null
+          glyph_pattern: string | null
+          id: string
+          personality_vector: Json | null
+          signature_colors: string[] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          aura_intensity?: number | null
+          generated_at?: string | null
+          glyph_pattern?: string | null
+          id?: string
+          personality_vector?: Json | null
+          signature_colors?: string[] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          aura_intensity?: number | null
+          generated_at?: string | null
+          glyph_pattern?: string | null
+          id?: string
+          personality_vector?: Json | null
+          signature_colors?: string[] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vybe_tokens: {
+        Row: {
+          balance: number | null
+          id: string
+          lifetime_earned: number | null
+          lifetime_spent: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          balance?: number | null
+          id?: string
+          lifetime_earned?: number | null
+          lifetime_spent?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          balance?: number | null
+          id?: string
+          lifetime_earned?: number | null
+          lifetime_spent?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       word_reactions: {
         Row: {
           created_at: string
@@ -9994,6 +10180,16 @@ export type Database = {
       current_user_has_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
+      }
+      earn_vybe_tokens: {
+        Args: {
+          p_amount: number
+          p_description?: string
+          p_reference_id?: string
+          p_type: string
+          p_user_id: string
+        }
+        Returns: number
       }
       ensure_profile: { Args: never; Returns: string }
       execute_admin_sql: { Args: { sql_query: string }; Returns: Json }
