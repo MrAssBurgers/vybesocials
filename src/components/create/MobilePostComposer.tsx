@@ -10,6 +10,7 @@ import { ContentSafetyScanner } from '@/components/safety/ContentSafetyScanner';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { INTEREST_CATEGORIES, getSuggestedTagsForInterests, getTagCategories } from '@/lib/tagCategories';
+import { Sound } from '@/hooks/useSounds';
 import { toast } from 'sonner';
 
 const visibilityOptions = [
