@@ -32,6 +32,8 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [showFlash, setShowFlash] = useState(false);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const [selectedSound, setSelectedSound] = useState<Sound | null>(initialSound || null);
+  const [selectedTrack, setSelectedTrack] = useState<any>(null); // For licensed music tracks
+  const [showMusicGallery, setShowMusicGallery] = useState(false);
   const [soundStartTime, setSoundStartTime] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
