@@ -10,6 +10,7 @@ import { ContentSafetyScanner } from '@/components/safety/ContentSafetyScanner';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { INTEREST_CATEGORIES, getSuggestedTagsForInterests, getTagCategories } from '@/lib/tagCategories';
+import { Sound } from '@/hooks/useSounds';
 import { toast } from 'sonner';
 
 const visibilityOptions = [
@@ -22,11 +23,13 @@ interface MobilePostComposerProps {
   files: File[];
   previews: string[];
   contentType: 'text' | 'post' | 'short' | 'video';
+  selectedSound?: Sound | null;
+  soundStartTime?: number;
   onBack: () => void;
   onClose: () => void;
 }
 
-export function MobilePostComposer({ files, previews, contentType, onBack, onClose }: MobilePostComposerProps) {
+export function MobilePostComposer({ files, previews, contentType, selectedSound, soundStartTime, onBack, onClose }: MobilePostComposerProps) {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const createPost = useCreatePost();

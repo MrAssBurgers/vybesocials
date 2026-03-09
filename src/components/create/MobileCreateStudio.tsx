@@ -1,21 +1,25 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Zap, ZapOff, SwitchCamera, Image as ImageIcon, Settings } from 'lucide-react';
+import { X, Zap, ZapOff, SwitchCamera, Image as ImageIcon, Music2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VybeRecordButton } from '@/components/camera/VybeRecordButton';
 import { CreateModeSelector, type CreateMode } from './CreateModeSelector';
 import { MobilePostComposer } from './MobilePostComposer';
+import { SoundPicker } from '@/components/sounds/SoundPicker';
+import { SoundControls } from '@/components/sounds/SoundControls';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
+import { Sound } from '@/hooks/useSounds';
 
 interface MobileCreateStudioProps {
   onClose: () => void;
+  initialSound?: Sound | null;
 }
 
 const MAX_RECORDING_DURATION = 60;
 
-export function MobileCreateStudio({ onClose }: MobileCreateStudioProps) {
+export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudioProps) {
   const [mode, setMode] = useState<CreateMode>('photo');
   const [phase, setPhase] = useState<'camera' | 'compose'>('camera');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
@@ -25,6 +29,9 @@ export function MobileCreateStudio({ onClose }: MobileCreateStudioProps) {
   const [capturedFiles, setCapturedFiles] = useState<File[]>([]);
   const [capturedPreviews, setCapturedPreviews] = useState<string[]>([]);
   const [showFlash, setShowFlash] = useState(false);
+  const [showSoundPicker, setShowSoundPicker] = useState(false);
+  const [selectedSound, setSelectedSound] = useState<Sound | null>(initialSound || null);
+  const [soundStartTime, setSoundStartTime] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -247,6 +254,8 @@ export function MobileCreateStudio({ onClose }: MobileCreateStudioProps) {
         files={capturedFiles}
         previews={capturedPreviews}
         contentType={mode === 'text' ? 'text' : mode === 'video' ? (capturedFiles[0]?.type.startsWith('video/') ? 'short' : 'post') : 'post'}
+        selectedSound={selectedSound}
+        soundStartTime={soundStartTime}
         onBack={() => {
           if (mode !== 'text') {
             capturedPreviews.forEach(p => URL.revokeObjectURL(p));
@@ -307,6 +316,26 @@ export function MobileCreateStudio({ onClose }: MobileCreateStudioProps) {
           )}
         </AnimatePresence>
 
+        {/* Sound Controls */}
+        <AnimatePresence>
+          {selectedSound && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="absolute top-20 left-4 right-4 z-20"
+            >
+              <SoundControls
+                sound={selectedSound}
+                startTime={soundStartTime}
+                onStartTimeChange={setSoundStartTime}
+                onRemoveSound={() => setSelectedSound(null)}
+                compact
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Multi mode thumbnail strip */}
         {mode === 'multi' && capturedPreviews.length > 0 && (
           <div className="absolute top-16 left-0 right-0 z-20 px-4">
@@ -354,7 +383,20 @@ export function MobileCreateStudio({ onClose }: MobileCreateStudioProps) {
         </div>
 
         {/* Capture area */}
-        <div className="flex items-center justify-center gap-8 pb-4">
+        <div className="flex items-center justify-center gap-6 pb-4">
+          {/* Sound picker */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setShowSoundPicker(true)}
+            className={cn(
+              "text-white w-12 h-12 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-xl",
+              selectedSound && "text-primary border-2 border-primary/50"
+            )}
+          >
+            <Music2 className="h-5 w-5" />
+          </Button>
+
           {/* Gallery */}
           <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 rounded-xl overflow-hidden border-2 border-white/40">
             {capturedPreviews.length > 0 ? (
@@ -397,10 +439,19 @@ export function MobileCreateStudio({ onClose }: MobileCreateStudioProps) {
               className="text-center text-white/50 text-xs pb-4"
             >
               {mode === 'multi' ? 'Tap to capture · Add up to 10' : 'Tap for photo · Hold for video'}
+              {selectedSound && ' · Sound will sync with video'}
             </motion.p>
           )}
         </AnimatePresence>
       </div>
+
+      {/* Sound Picker */}
+      <SoundPicker
+        open={showSoundPicker}
+        onClose={() => setShowSoundPicker(false)}
+        onSelectSound={setSelectedSound}
+        selectedSoundId={selectedSound?.sound_id}
+      />
     </div>
   );
 }

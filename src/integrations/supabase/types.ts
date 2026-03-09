@@ -5685,6 +5685,8 @@ export type Database = {
           is_sensitive: boolean | null
           media_url: string | null
           media_urls: string[] | null
+          sound_id: string | null
+          sound_start_time: number | null
           tags: string[] | null
           thumbnail_url: string | null
           trending_score: number | null
@@ -5701,6 +5703,8 @@ export type Database = {
           is_sensitive?: boolean | null
           media_url?: string | null
           media_urls?: string[] | null
+          sound_id?: string | null
+          sound_start_time?: number | null
           tags?: string[] | null
           thumbnail_url?: string | null
           trending_score?: number | null
@@ -5717,6 +5721,8 @@ export type Database = {
           is_sensitive?: boolean | null
           media_url?: string | null
           media_urls?: string[] | null
+          sound_id?: string | null
+          sound_start_time?: number | null
           tags?: string[] | null
           thumbnail_url?: string | null
           trending_score?: number | null
@@ -5751,6 +5757,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "xp_leaderboard"
             referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "posts_sound_id_fkey"
+            columns: ["sound_id"]
+            isOneToOne: false
+            referencedRelation: "sounds"
+            referencedColumns: ["sound_id"]
           },
         ]
       }
