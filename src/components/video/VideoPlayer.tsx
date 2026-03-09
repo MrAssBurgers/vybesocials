@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, Volume2, VolumeX, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
 interface VideoPlayerProps {
