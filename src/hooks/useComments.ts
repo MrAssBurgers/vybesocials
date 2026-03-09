@@ -61,8 +61,9 @@ export function useComments(postId: string) {
 }
 
 export function useCreateComment() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
+  const bumpStreak = useBumpReactionStreak();
 
   return useMutation({
     mutationFn: async ({ postId, text, authorId, imageUrl }: { postId: string; text: string; authorId: string; imageUrl?: string }) => {
