@@ -10152,6 +10152,7 @@ export type Database = {
         Args: { p_conversation_id: string; p_user_id: string }
         Returns: Json
       }
+      compute_vybe_dna: { Args: never; Returns: Json }
       confirm_referral_atomic: {
         Args: {
           p_inviter_profile_id: string
