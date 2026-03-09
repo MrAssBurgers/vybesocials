@@ -19,7 +19,7 @@ interface MobileCreateStudioProps {
 
 const MAX_RECORDING_DURATION = 60;
 
-export function MobileCreateStudio({ onClose }: MobileCreateStudioProps) {
+export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudioProps) {
   const [mode, setMode] = useState<CreateMode>('photo');
   const [phase, setPhase] = useState<'camera' | 'compose'>('camera');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
