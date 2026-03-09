@@ -391,10 +391,10 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={() => setShowSoundPicker(true)}
+            onClick={() => setShowMusicGallery(true)}
             className={cn(
               "text-white w-12 h-12 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-xl",
-              selectedSound && "text-primary border-2 border-primary/50"
+              (selectedSound || selectedTrack) && "text-primary border-2 border-primary/50"
             )}
           >
             <Music2 className="h-5 w-5" />
