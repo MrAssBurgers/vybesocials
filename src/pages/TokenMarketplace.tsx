@@ -116,6 +116,7 @@ export default function TokenMarketplace() {
                     item={item}
                     canAfford={canAfford(item.cost)}
                     isPremium={isPremium}
+                    onBuy={handleBuy}
                   />
                 ))}
               </div>
