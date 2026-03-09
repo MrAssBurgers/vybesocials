@@ -5,6 +5,7 @@ import { filterBlockedContent, containsBlockedContent } from '@/lib/contentModer
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 import { useBumpReactionStreak } from './useReactionStreaks';
+import { useTokenReward } from './useVybeTokens';
 
 interface Comment {
   id: string;
