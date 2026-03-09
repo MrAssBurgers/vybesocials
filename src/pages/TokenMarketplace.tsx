@@ -64,6 +64,11 @@ export default function TokenMarketplace() {
   const [tab, setTab] = useState<string>('all');
   const filterCat = tab === 'all' ? undefined : tab as MarketplaceItem['category'];
   const { items, balance, canAfford, isPremium } = useTokenMarketplace(filterCat);
+  const purchase = useMarketplacePurchase();
+
+  const handleBuy = (item: MarketplaceItem) => {
+    purchase.mutate({ itemId: item.id, cost: item.cost, name: item.name });
+  };
 
   return (
     <AppLayout>
