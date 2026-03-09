@@ -77,6 +77,7 @@ function PersonalityBar({ label, value, color }: { label: string; value: number;
 }
 
 export default function VybeDNAPage() {
+  const navigate = useNavigate();
   const { data: dna, isLoading } = useVybeDNA();
   const generateDNA = useGenerateVybeDNA();
   const [copied, setCopied] = useState(false);
