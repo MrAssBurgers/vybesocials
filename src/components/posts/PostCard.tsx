@@ -295,6 +295,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const { isGuest } = useIsGuest();
   const queryClient = useQueryClient();
   const togglePin = useTogglePin();
+  const bumpStreak = useInteractionStreakBump();
   const { data: userRole } = useUserRole();
   // Defer fetching author role until menu is opened to reduce initial load
   const [menuOpen, setMenuOpen] = useState(false);
