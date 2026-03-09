@@ -363,8 +363,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     setIsLiked(newIsLiked);
     setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
 
-    // Trigger particle burst on like
+    // Trigger particle burst and haptic on like
     if (newIsLiked) {
+      triggerHaptic('light');
       setShowLikeParticles(true);
       setTimeout(() => setShowLikeParticles(false), 700);
     }

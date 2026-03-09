@@ -30,6 +30,13 @@ const routeImports: Record<string, () => Promise<any>> = {
   '/admin': () => import('@/pages/AdminDashboard'),
   '/admin/settings': () => import('@/pages/AdminSettings'),
   '/admin/metrics': () => import('@/pages/AdminMetrics'),
+  '/marketplace': () => import('@/pages/TokenMarketplace'),
+  '/wallet': () => import('@/pages/TokenWallet'),
+  '/vybe-dna': () => import('@/pages/VybeDNA'),
+  '/leaderboard': () => import('@/pages/Leaderboard'),
+  '/streaks': () => import('@/pages/ReactionStreaks'),
+  '/roulette': () => import('@/pages/VYBERoulette'),
+  '/sounds': () => import('@/pages/Sounds'),
 };
 
 // Track which routes have been preloaded
