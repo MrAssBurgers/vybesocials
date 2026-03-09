@@ -76,7 +76,7 @@ export function useCurrentMood() {
         .maybeSingle();
 
       if (error) throw error;
-      return data as MoodState | null;
+      return data as unknown as MoodState | null;
     },
     enabled: !!user?.id,
     staleTime: 60_000,
