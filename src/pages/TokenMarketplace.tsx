@@ -63,13 +63,19 @@ const ItemCard = memo(({ item, canAfford, isPremium, onBuy }: { item: Marketplac
 
 export default function TokenMarketplace() {
   const [tab, setTab] = useState<string>('all');
+  const [showConfetti, setShowConfetti] = useState(false);
   const filterCat = tab === 'all' ? undefined : tab as MarketplaceItem['category'];
   const { items, balance, canAfford, isPremium } = useTokenMarketplace(filterCat);
   const purchase = useMarketplacePurchase();
 
-  const handleBuy = (item: MarketplaceItem) => {
-    purchase.mutate({ itemId: item.id, cost: item.cost, name: item.name });
-  };
+  const handleBuy = useCallback((item: MarketplaceItem) => {
+    purchase.mutate({ itemId: item.id, cost: item.cost, name: item.name }, {
+      onSuccess: () => {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 2000);
+      },
+    });
+  }, [purchase]);
 
   return (
     <AppLayout>

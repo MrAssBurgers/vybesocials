@@ -220,6 +220,19 @@ export function useNativePushNotifications() {
             case 'comment':
               targetUrl = data.postId ? `/p/${data.postId}` : '/notifications';
               break;
+            case 'marketplace':
+              targetUrl = '/marketplace';
+              break;
+            case 'wallet':
+            case 'tokens':
+              targetUrl = '/wallet';
+              break;
+            case 'dna':
+              targetUrl = '/vybe-dna';
+              break;
+            case 'space':
+              targetUrl = data.spaceId ? `/space/${data.spaceId}` : '/spaces';
+              break;
           }
           
           // Navigate using the window location (works in Capacitor WebView)
