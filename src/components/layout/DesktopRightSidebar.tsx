@@ -59,7 +59,7 @@ const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend
       <div className="relative">
         <Avatar className="h-10 w-10 ring-2 ring-background group-hover:ring-primary/50 transition-all">
           <AvatarImage src={friend?.avatar_url || undefined} />
-          <AvatarFallback className="text-xs bg-gradient-to-br from-pink-500 to-purple-500">
+          <AvatarFallback className="text-xs bg-gradient-to-br from-primary/50 to-accent/50">
             {friend?.username?.[0]?.toUpperCase() || '?'}
           </AvatarFallback>
         </Avatar>
