@@ -523,7 +523,12 @@ export function ChatView() {
     // Use instant send for immediate optimistic UI
     sendText(text, viewMode, replyingTo?.id);
     setReplyingTo(null);
-  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText, editingMessageId, editMessage]);
+    
+    // Bump reaction streak with recipient (for DMs only)
+    if (!isGroupChat && otherMember?.id) {
+      bumpStreak(otherMember.id);
+    }
+  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText, editingMessageId, editMessage, isGroupChat, otherMember?.id, bumpStreak]);
 
   // sendWithReply is now handled by useInstantSend's sendText
 
