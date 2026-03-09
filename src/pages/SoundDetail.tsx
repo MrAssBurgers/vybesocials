@@ -243,7 +243,7 @@ export default function SoundDetailPage() {
                 Use Sound
               </Button>
               <Button onClick={handleRemix} variant="secondary" className="flex-1 sm:flex-none">
-                <Remix className="h-4 w-4 mr-2" />
+                <RotateCcw className="h-4 w-4 mr-2" />
                 Remix
               </Button>
               <Button 
