@@ -122,6 +122,7 @@ export function ChatView() {
   const { t } = useTranslation();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const bumpStreak = useInteractionStreakBump();
   
   const { data: conversations } = useConversations();
   const { data: messages, isLoading } = useMessages(conversationId);
