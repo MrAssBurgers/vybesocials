@@ -439,10 +439,19 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
               className="text-center text-white/50 text-xs pb-4"
             >
               {mode === 'multi' ? 'Tap to capture · Add up to 10' : 'Tap for photo · Hold for video'}
+              {selectedSound && ' · Sound will sync with video'}
             </motion.p>
           )}
         </AnimatePresence>
       </div>
+
+      {/* Sound Picker */}
+      <SoundPicker
+        open={showSoundPicker}
+        onClose={() => setShowSoundPicker(false)}
+        onSelectSound={setSelectedSound}
+        selectedSoundId={selectedSound?.sound_id}
+      />
     </div>
   );
 }
