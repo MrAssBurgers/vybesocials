@@ -7,6 +7,7 @@ import { CreateModeSelector, type CreateMode } from './CreateModeSelector';
 import { MobilePostComposer } from './MobilePostComposer';
 import { SoundPicker } from '@/components/sounds/SoundPicker';
 import { SoundControls } from '@/components/sounds/SoundControls';
+import { MusicGallery } from '@/components/music/MusicGallery';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
