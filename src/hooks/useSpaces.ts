@@ -89,15 +89,20 @@ export function useSpace(spaceId: string | undefined) {
 
       const { data, error } = await supabase
         .from('spaces' as any)
-        .select(`
-          *,
-          host:profiles!host_id(id, username, avatar_url, display_name)
-        `)
+        .select('*')
         .eq('id', spaceId)
         .single();
 
       if (error) throw error;
-      return data as Space;
+      
+      // Fetch host profile
+      const { data: host } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url, display_name')
+        .eq('id', (data as any).host_id)
+        .single();
+
+      return { ...(data as any), host } as Space;
     },
     enabled: !!spaceId,
   });
