@@ -116,16 +116,26 @@ export function useSpaceParticipants(spaceId: string | undefined) {
 
       const { data, error } = await supabase
         .from('space_participants' as any)
-        .select(`
-          *,
-          profile:profiles!user_id(id, username, avatar_url, display_name)
-        `)
+        .select('*')
         .eq('space_id', spaceId)
         .is('left_at', null)
         .order('joined_at', { ascending: true });
 
       if (error) throw error;
-      return (data || []) as SpaceParticipant[];
+      
+      // Fetch participant profiles
+      const userIds = [...new Set((data || []).map((p: any) => p.user_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url, display_name')
+        .in('id', userIds);
+      
+      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+      
+      return (data || []).map((p: any) => ({
+        ...p,
+        profile: profileMap.get(p.user_id) || null,
+      })) as SpaceParticipant[];
     },
     enabled: !!spaceId,
     refetchInterval: 5000,
