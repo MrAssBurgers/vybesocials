@@ -377,6 +377,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           actor_id: profile.id,
           post_id: post.id,
         });
+        // Bump reaction streak with post author
+        bumpStreak(post.author.id);
       }
     } else {
       await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
