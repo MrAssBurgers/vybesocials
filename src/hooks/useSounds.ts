@@ -169,7 +169,8 @@ export function usePostsWithSound(soundId: string) {
           caption,
           tags,
           created_at,
-          profiles!inner(id, username, display_name, avatar_url)
+          author_id,
+          profiles!author_id(id, username, display_name, avatar_url)
         `)
         .limit(12);
       
@@ -181,20 +182,20 @@ export function usePostsWithSound(soundId: string) {
         type: post.type,
         media_url: post.media_url,
         media_urls: post.media_urls,
-        caption: post.caption,
-        tags: post.tags,
+        caption: post.caption || '',
+        tags: post.tags || [],
         created_at: post.created_at,
         author: {
-          id: post.profiles.id,
-          username: post.profiles.username,
-          display_name: post.profiles.display_name,
-          avatar_url: post.profiles.avatar_url
+          id: post.profiles?.id || post.author_id,
+          username: post.profiles?.username || 'unknown',
+          display_name: post.profiles?.display_name,
+          avatar_url: post.profiles?.avatar_url
         },
         like_count: 0, // TODO: Calculate from likes table
         comment_count: 0, // TODO: Calculate from comments table
         is_liked: false, // TODO: Check if user liked
         is_bookmarked: false, // TODO: Check if user bookmarked
-        is_pinned: false
+        is_pinned: post.is_pinned || false
       })) || [];
     },
     enabled: !!soundId,
