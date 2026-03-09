@@ -26,6 +26,8 @@ interface CameraEditorProps {
   mediaUrl: string;
   mediaType: 'photo' | 'video';
   filter: string;
+  soundId?: string;
+  soundStartTime?: number;
   onSave: (editedMedia: { url: string; overlays: TextOverlay[]; drawings: DrawPath[] }) => void;
   onCancel: () => void;
 }
