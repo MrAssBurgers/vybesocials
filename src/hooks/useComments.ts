@@ -161,6 +161,8 @@ export function useCreateComment() {
     onSuccess: (_, { postId }) => {
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      // Reward tokens for commenting
+      rewardComment();
     },
   });
 }

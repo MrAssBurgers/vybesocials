@@ -48,6 +48,9 @@ export function useDailyLoginChallenge() {
           const streak = result.streak || 1;
           const multiplier = result.multiplier || 1;
           
+          // Also reward VYBE tokens for daily login
+          rewardDailyLogin();
+          
           if (streak > 1) {
             toast.success(`+${result.xp_granted} XP (${multiplier}x streak bonus) 🔥 Day ${streak}!`, { duration: 4000 });
           } else {

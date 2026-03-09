@@ -1,5 +1,6 @@
-import { useState, memo } from 'react';
-import { Coins, Crown, Lock } from 'lucide-react';
+import { useState, memo, useCallback } from 'react';
+import { Coins, Crown, Lock, PartyPopper } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { Button } from '@/components/ui/button';
