@@ -21,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { useSounds, useTrendingSounds, useNewSounds, useSavedSounds } from '@/hooks/useSounds';
+import { useTrendingSounds, useNewSounds, useSavedSounds } from '@/hooks/useSounds';
 import { SoundCard } from '@/components/sounds/SoundCard';
 import { SoundPlayer } from '@/components/sounds/SoundPlayer';
 
