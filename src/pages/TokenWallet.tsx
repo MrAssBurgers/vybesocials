@@ -157,6 +157,29 @@ export default function TokenWallet() {
             )}
           </CardContent>
         </Card>
+
+        {/* Purchase History */}
+        {purchases.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5" />
+                Purchase History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {purchases.map((tx) => (
+                <TransactionItem
+                  key={tx.id}
+                  amount={tx.amount}
+                  type={tx.transaction_type}
+                  description={tx.description}
+                  created_at={tx.created_at}
+                />
+              ))}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
