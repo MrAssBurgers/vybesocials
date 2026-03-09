@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Dna, Sparkles, RefreshCw, Share2, Copy, Check } from 'lucide-react';
+import { Dna, Sparkles, RefreshCw, Share2, Copy, Check, ArrowLeft, Info } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useVybeDNA, useGenerateVybeDNA, VybeDNA } from '@/hooks/useVybeDNA';
