@@ -9,6 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 interface CameraShareSheetProps {
   mediaUrl: string;
   mediaType: 'photo' | 'video';
+  soundId?: string;
+  soundStartTime?: number;
   onClose: () => void;
   onComplete: () => void;
 }
