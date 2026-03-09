@@ -300,12 +300,12 @@ export function DesktopRightSidebar() {
           <div className="h-px" />
 
           {/* Music Vibe Quiz Banner */}
-          <Link to="/music-quiz" className="block relative overflow-hidden rounded-xl bg-gradient-to-br from-fuchsia-500/20 to-cyan-500/20 border border-fuchsia-500/30 p-4 hover:scale-[1.02] transition-transform group cursor-pointer">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-fuchsia-500/20 rounded-full blur-2xl -mr-8 -mt-8 group-hover:bg-fuchsia-500/30 transition-colors" />
-            <div className="absolute bottom-0 left-0 w-20 h-20 bg-cyan-500/20 rounded-full blur-2xl -ml-8 -mb-8 group-hover:bg-cyan-500/30 transition-colors" />
+          <Link to="/music-quiz" className="block relative overflow-hidden rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 p-4 hover:scale-[1.02] transition-transform group cursor-pointer">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-primary/20 rounded-full blur-2xl -mr-8 -mt-8 group-hover:bg-primary/30 transition-colors" />
+            <div className="absolute bottom-0 left-0 w-20 h-20 bg-accent/20 rounded-full blur-2xl -ml-8 -mb-8 group-hover:bg-accent/30 transition-colors" />
             <div className="relative z-10 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-fuchsia-500 to-cyan-500 flex items-center justify-center shadow-lg">
-                <Sparkles className="h-5 w-5 text-white" />
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
+                <Sparkles className="h-5 w-5 text-primary-foreground" />
               </div>
               <div>
                 <h4 className="font-bold text-sm bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/80">
