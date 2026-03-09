@@ -25,6 +25,36 @@ interface Provider {
   is_active: boolean;
 }
 
+interface PixabayTrack {
+  id: number;
+  tags: string;
+  user: string;
+  user_id: number;
+  duration: number;
+  audio: string;
+  audio_url?: string;
+  title?: string;
+}
+
+// Adapter to normalize Pixabay response to our standard Track format
+function normalizePixabayTracks(pixabayHits: PixabayTrack[]): Track[] {
+  return pixabayHits.map((hit, index) => ({
+    id: `pixabay_${hit.id}`,
+    title: hit.title || hit.tags?.split(',')[0]?.trim() || `Track ${hit.id}`,
+    artist: hit.user || 'Unknown Artist',
+    genre: hit.tags?.split(',')[0]?.trim() || 'Music',
+    duration: hit.duration || 0,
+    preview_url: hit.audio || hit.audio_url || '',
+    audio_url: hit.audio || hit.audio_url || '',
+    artwork_url: undefined, // Pixabay music doesn't include artwork
+  }));
+}
+
+// Detect if this is a Pixabay provider
+function isPixabayProvider(apiBaseUrl: string): boolean {
+  return apiBaseUrl.includes('pixabay.com');
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -93,28 +123,75 @@ serve(async (req) => {
     const cacheKey = `music_sync_${provider_id}_${Math.floor(Date.now() / (1000 * 60 * 60))}`;
     
     try {
-      // Fetch tracks from provider API
-      const response = await fetch(`${provider.api_base_url}/tracks`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${provider.api_key}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      let tracks: Track[] = [];
+      
+      // Check if this is a Pixabay provider
+      if (isPixabayProvider(provider.api_base_url)) {
+        // Use stored API key or fall back to env secret
+        const apiKey = provider.api_key || Deno.env.get('PIXABAY_API_KEY');
+        
+        if (!apiKey) {
+          return new Response(JSON.stringify({ 
+            error: 'Pixabay API key not configured',
+            details: 'Please add your Pixabay API key'
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
 
-      if (!response.ok) {
-        console.error(`Provider API error: ${response.status} ${response.statusText}`);
-        return new Response(JSON.stringify({ 
-          error: `Provider API error: ${response.status}`,
-          details: await response.text()
-        }), {
-          status: 502,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        // Pixabay uses query parameter authentication
+        const pixabayUrl = `${provider.api_base_url}?key=${apiKey}&per_page=200`;
+        console.log(`Fetching from Pixabay: ${provider.api_base_url}`);
+        
+        const response = await fetch(pixabayUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         });
-      }
 
-      const apiData = await response.json();
-      const tracks: Track[] = apiData.tracks || apiData.data || apiData;
+        if (!response.ok) {
+          console.error(`Pixabay API error: ${response.status} ${response.statusText}`);
+          return new Response(JSON.stringify({ 
+            error: `Pixabay API error: ${response.status}`,
+            details: await response.text()
+          }), {
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const apiData = await response.json();
+        const pixabayHits = apiData.hits || [];
+        
+        console.log(`Pixabay returned ${pixabayHits.length} tracks`);
+        tracks = normalizePixabayTracks(pixabayHits);
+        
+      } else {
+        // Standard provider API (Bearer token auth)
+        const response = await fetch(`${provider.api_base_url}/tracks`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${provider.api_key}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          console.error(`Provider API error: ${response.status} ${response.statusText}`);
+          return new Response(JSON.stringify({ 
+            error: `Provider API error: ${response.status}`,
+            details: await response.text()
+          }), {
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const apiData = await response.json();
+        tracks = apiData.tracks || apiData.data || apiData;
+      }
 
       console.log(`Fetched ${tracks.length} tracks from provider API`);
 
