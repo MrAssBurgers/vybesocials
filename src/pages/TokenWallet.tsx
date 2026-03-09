@@ -103,6 +103,15 @@ export default function TokenWallet() {
           </div>
         </Card>
 
+        {/* Quick Actions */}
+        <Button
+          onClick={() => navigate('/marketplace')}
+          className="w-full gradient-animated text-primary-foreground font-semibold h-12 rounded-xl"
+        >
+          <ShoppingBag className="h-5 w-5 mr-2" />
+          Visit Token Shop
+        </Button>
+
         {/* How to Earn */}
         <Card>
           <CardHeader>
