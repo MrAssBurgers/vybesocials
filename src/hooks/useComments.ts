@@ -129,7 +129,7 @@ export function useCreateComment() {
 
       if (error) throw error;
 
-      // Create notification
+      // Create notification + bump reaction streak
       if (authorId !== profile.id) {
         await supabase.from('notifications').insert({
           user_id: authorId,
@@ -137,6 +137,11 @@ export function useCreateComment() {
           actor_id: profile.id,
           post_id: postId,
         });
+        
+        // Bump reaction streak with post author (fire and forget)
+        if (user?.id && authorId !== user.id) {
+          bumpStreak.mutate(authorId);
+        }
       }
 
       // Run additional AI moderation in background (non-blocking)
