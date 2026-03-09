@@ -63,7 +63,7 @@ export function useLiveWidgets() {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      return (data || []) as LiveWidget[];
+      return (data || []) as unknown as LiveWidget[];
     },
     enabled: !!user?.id,
     staleTime: 60_000,
