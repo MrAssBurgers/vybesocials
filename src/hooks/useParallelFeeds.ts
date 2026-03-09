@@ -60,7 +60,7 @@ export function useParallelFeeds() {
         }));
       }
 
-      return data as ParallelFeed[];
+      return typedData;
     },
     enabled: true,
     staleTime: 60_000,
