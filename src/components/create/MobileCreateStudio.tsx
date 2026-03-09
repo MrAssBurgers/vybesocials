@@ -448,11 +448,26 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         </AnimatePresence>
       </div>
 
-      {/* Sound Picker */}
+      {/* Sound Options */}
+      <AnimatePresence>
+        {showMusicGallery && (
+          <MusicGallery
+            onSelectTrack={(track) => {
+              setSelectedTrack(track);
+              setSelectedSound(null); // Clear normal sound
+              setShowMusicGallery(false);
+            }}
+            onClose={() => setShowMusicGallery(false)}
+          />
+        )}
+      </AnimatePresence>
       <SoundPicker
         open={showSoundPicker}
         onClose={() => setShowSoundPicker(false)}
-        onSelectSound={setSelectedSound}
+        onSelectSound={(sound) => {
+          setSelectedSound(sound);
+          setSelectedTrack(null); // Clear licensed track
+        }}
         selectedSoundId={selectedSound?.sound_id}
       />
     </div>
