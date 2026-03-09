@@ -1,13 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Zap, ZapOff, SwitchCamera, Image as ImageIcon, Settings } from 'lucide-react';
+import { X, Zap, ZapOff, SwitchCamera, Image as ImageIcon, Music2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VybeRecordButton } from '@/components/camera/VybeRecordButton';
 import { CreateModeSelector, type CreateMode } from './CreateModeSelector';
 import { MobilePostComposer } from './MobilePostComposer';
+import { SoundPicker } from '@/components/sounds/SoundPicker';
+import { SoundControls } from '@/components/sounds/SoundControls';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
+import { Sound } from '@/hooks/useSounds';
 
 interface MobileCreateStudioProps {
   onClose: () => void;
