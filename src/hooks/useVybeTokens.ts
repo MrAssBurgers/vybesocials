@@ -58,11 +58,11 @@ export function useTokenBalance() {
           balance: 0,
           lifetime_earned: 0,
           lifetime_spent: 0,
-          updated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         };
       }
       
-      return data as TokenBalance;
+      return typedData;
     },
     enabled: !!user?.id,
     staleTime: 30_000,
