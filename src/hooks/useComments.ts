@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { filterBlockedContent, containsBlockedContent } from '@/lib/contentModeration';
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
+import { useBumpReactionStreak } from './useReactionStreaks';
 
 interface Comment {
   id: string;
