@@ -1,6 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useEffect } from 'react';
 
 export interface VybeDNA {
   id: string;
@@ -16,37 +17,55 @@ export interface VybeDNA {
 const GLYPH_PATTERNS = ['wave', 'spiral', 'burst', 'pulse', 'orbit', 'fractal', 'mesh', 'aurora'];
 
 /**
- * Generate a unique visual DNA based on user activity and preferences
+ * Derive visual properties (colors, glyph) from personality scores.
+ * Called client-side after the RPC returns the updated personality_vector.
  */
-function generateDNA(activityScore: number, socialScore: number, creativeScore: number): Partial<VybeDNA> {
-  // Generate signature colors based on personality scores
-  const hue1 = Math.floor((activityScore * 360) % 360);
-  const hue2 = (hue1 + 60 + Math.floor(socialScore * 60)) % 360;
-  const hue3 = (hue2 + 60 + Math.floor(creativeScore * 60)) % 360;
-  
+function deriveVisuals(pv: Record<string, number>): { signature_colors: string[]; glyph_pattern: string } {
+  const a = pv.activity ?? 0;
+  const s = pv.social ?? 0;
+  const c = pv.creative ?? 0;
+
+  const hue1 = Math.floor((a * 360) % 360);
+  const hue2 = (hue1 + 60 + Math.floor(s * 60)) % 360;
+  const hue3 = (hue2 + 60 + Math.floor(c * 60)) % 360;
+
   const signature_colors = [
     `hsl(${hue1}, 70%, 60%)`,
     `hsl(${hue2}, 80%, 55%)`,
-    `hsl(${hue3}, 75%, 50%)`
+    `hsl(${hue3}, 75%, 50%)`,
   ];
-  
-  // Select glyph pattern based on dominant trait
-  const dominant = Math.max(activityScore, socialScore, creativeScore);
+
+  const dominant = Math.max(a, s, c);
   const patternIndex = Math.floor((dominant * GLYPH_PATTERNS.length) % GLYPH_PATTERNS.length);
-  
-  return {
-    signature_colors,
-    glyph_pattern: GLYPH_PATTERNS[patternIndex],
-    aura_intensity: (activityScore + socialScore + creativeScore) / 3,
-    personality_vector: { activity: activityScore, social: socialScore, creative: creativeScore }
-  };
+
+  return { signature_colors, glyph_pattern: GLYPH_PATTERNS[patternIndex] };
 }
 
+/**
+ * Auto-compute DNA from real user activity via server RPC,
+ * then fetch the full row with derived visuals.
+ */
 export function useVybeDNA(userId?: string) {
   const { user } = useAuth();
   const targetId = userId || user?.id;
+  const qc = useQueryClient();
+  const isOwnProfile = targetId === user?.id;
 
-  return useQuery({
+  // Auto-recompute own DNA on mount (every page visit, max once per query lifecycle)
+  const computeQuery = useQuery({
+    queryKey: ['vybe-dna-compute', targetId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('compute_vybe_dna');
+      if (error) throw error;
+      return data as Record<string, number>;
+    },
+    enabled: !!targetId && isOwnProfile,
+    staleTime: 5 * 60_000, // recompute at most every 5 min
+    refetchOnWindowFocus: false,
+  });
+
+  // Fetch the stored DNA row (works for own + other users)
+  const dnaQuery = useQuery({
     queryKey: ['vybe-dna', targetId],
     queryFn: async (): Promise<VybeDNA | null> => {
       if (!targetId) return null;
@@ -58,68 +77,31 @@ export function useVybeDNA(userId?: string) {
         .maybeSingle();
 
       if (error) throw error;
-      return data as unknown as VybeDNA | null;
+      if (!data) return null;
+
+      const row = data as unknown as VybeDNA;
+      const pv = row.personality_vector || {};
+      const visuals = deriveVisuals(pv);
+
+      return { ...row, ...visuals };
     },
-    enabled: !!targetId,
+    enabled: !!targetId && (isOwnProfile ? computeQuery.isSuccess : true),
     staleTime: 60_000,
   });
+
+  return dnaQuery;
 }
 
+// Keep for backwards compat but make it a no-op that just triggers recompute
 export function useGenerateVybeDNA() {
   const { user } = useAuth();
   const qc = useQueryClient();
 
-  return useMutation({
-    mutationFn: async (scores?: { activity: number; social: number; creative: number }) => {
-      if (!user?.id) throw new Error('Not authenticated');
-
-      // Use provided scores or generate random ones for demo
-      const activityScore = scores?.activity ?? Math.random();
-      const socialScore = scores?.social ?? Math.random();
-      const creativeScore = scores?.creative ?? Math.random();
-
-      const dna = generateDNA(activityScore, socialScore, creativeScore);
-
-      const { data, error } = await supabase
-        .from('vybe_dna' as any)
-        .upsert({
-          user_id: user.id,
-          ...dna,
-          generated_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        } as any, { onConflict: 'user_id' })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as unknown as VybeDNA;
+  return {
+    mutate: () => {
+      qc.invalidateQueries({ queryKey: ['vybe-dna-compute', user?.id] });
+      qc.invalidateQueries({ queryKey: ['vybe-dna', user?.id] });
     },
-    onSuccess: (data) => {
-      qc.setQueryData(['vybe-dna', user?.id], data);
-    },
-  });
-}
-
-export function useUpdateVybeDNA() {
-  const { user } = useAuth();
-  const qc = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (updates: Partial<VybeDNA>) => {
-      if (!user?.id) throw new Error('Not authenticated');
-
-      const { data, error } = await supabase
-        .from('vybe_dna' as any)
-        .update({ ...updates, updated_at: new Date().toISOString() } as any)
-        .eq('user_id', user.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as unknown as VybeDNA;
-    },
-    onSuccess: (data) => {
-      qc.setQueryData(['vybe-dna', user?.id], data);
-    },
-  });
+    isPending: false,
+  };
 }
