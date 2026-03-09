@@ -14,6 +14,7 @@ import { Sound } from '@/hooks/useSounds';
 
 interface MobileCreateStudioProps {
   onClose: () => void;
+  initialSound?: Sound | null;
 }
 
 const MAX_RECORDING_DURATION = 60;
