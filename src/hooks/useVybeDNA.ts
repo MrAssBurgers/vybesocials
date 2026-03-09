@@ -58,7 +58,7 @@ export function useVybeDNA(userId?: string) {
         .maybeSingle();
 
       if (error) throw error;
-      return data as VybeDNA | null;
+      return data as unknown as VybeDNA | null;
     },
     enabled: !!targetId,
     staleTime: 60_000,
