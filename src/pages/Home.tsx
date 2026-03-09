@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Globe, Sparkles } from 'lucide-react';
+import { Loader2, Globe, Sparkles, LayoutGrid } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import type { Post } from '@/hooks/useInfinitePosts';
@@ -25,6 +25,9 @@ import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
+import { HomeWidgetCustomizer } from '@/components/home/HomeWidgetCustomizer';
+import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
+import { useHomeLayout } from '@/hooks/useHomeLayout';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
@@ -114,6 +117,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const [activeTab, setActiveTab] = useState('foryou');
   const { showAds } = useShowAds();
   const { hasNewPosts, clearNewPosts } = useNewPostsBanner();
+  const [customizerOpen, setCustomizerOpen] = useState(false);
+  const [commandBarOpen, setCommandBarOpen] = useState(false);
+  const { isVisible } = useHomeLayout();
   
   // Personalized feed (interest-matched posts)
   const {
@@ -322,11 +328,24 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         {/* Welcome Header with AI Catch-up */}
         <WelcomeHeader />
 
-        {/* Weekly Rhythm Banner */}
-        <WeeklyRhythmBanner />
+        {/* Customize Button */}
+        <div className="px-4 pb-2 flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCustomizerOpen(true)}
+            className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Customize
+          </Button>
+        </div>
 
-        {/* Stories Bar */}
-        <StoriesBar />
+        {/* Weekly Rhythm Banner - widget controlled */}
+        {isVisible('weekly_rhythm') && <WeeklyRhythmBanner />}
+
+        {/* Stories Bar - widget controlled */}
+        {isVisible('stories') && <StoriesBar />}
         
         <div className="px-3 pb-6" data-tutorial="feed-area">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -386,6 +405,16 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
           </Tabs>
         </div>
       </div>
+
+      {/* Widget Customizer */}
+      <HomeWidgetCustomizer 
+        open={customizerOpen} 
+        onOpenChange={setCustomizerOpen}
+        onOpenCommandBar={() => setCommandBarOpen(true)}
+      />
+
+      {/* AI Command Bar */}
+      <VYBECommandBar />
     </AppLayout>
   );
 }
