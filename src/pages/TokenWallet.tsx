@@ -1,9 +1,11 @@
 import { motion } from 'framer-motion';
-import { Coins, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles } from 'lucide-react';
+import { Coins, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles, ShoppingBag } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useTokenBalance, useTokenTransactions, TOKEN_RATES } from '@/hooks/useVybeTokens';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 function TransactionItem({ amount, type, description, created_at }: {
   amount: number;
