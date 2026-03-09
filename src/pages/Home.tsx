@@ -405,6 +405,16 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
           </Tabs>
         </div>
       </div>
+
+      {/* Widget Customizer */}
+      <HomeWidgetCustomizer 
+        open={customizerOpen} 
+        onOpenChange={setCustomizerOpen}
+        onOpenCommandBar={() => setCommandBarOpen(true)}
+      />
+
+      {/* AI Command Bar */}
+      <VYBECommandBar />
     </AppLayout>
   );
 }
