@@ -172,6 +172,8 @@ export function AnimatedRoutes() {
             <Route path="/roulette" element={<ProtectedRoute><VYBERoulette /></ProtectedRoute>} />
             <Route path="/spaces" element={<ProtectedRoute><VYBESpaces /></ProtectedRoute>} />
             <Route path="/space/:spaceId" element={<ProtectedRoute><SpaceRoom /></ProtectedRoute>} />
+            <Route path="/vybe-dna" element={<ProtectedRoute><VybeDNA /></ProtectedRoute>} />
+            <Route path="/wallet" element={<ProtectedRoute><TokenWallet /></ProtectedRoute>} />
             
             {/* Let /~oauth pass through to the cloud auth handler */}
             <Route path="/~oauth" element={null} />
