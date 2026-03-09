@@ -6774,6 +6774,217 @@ export type Database = {
           },
         ]
       }
+      sound_analytics: {
+        Row: {
+          avg_watch_time: number
+          growth_rate: number
+          id: string
+          plays: number
+          plays_last_24h: number
+          plays_last_7d: number
+          recorded_at: string
+          shares: number
+          sound_id: string
+          videos_created: number
+        }
+        Insert: {
+          avg_watch_time?: number
+          growth_rate?: number
+          id?: string
+          plays?: number
+          plays_last_24h?: number
+          plays_last_7d?: number
+          recorded_at?: string
+          shares?: number
+          sound_id: string
+          videos_created?: number
+        }
+        Update: {
+          avg_watch_time?: number
+          growth_rate?: number
+          id?: string
+          plays?: number
+          plays_last_24h?: number
+          plays_last_7d?: number
+          recorded_at?: string
+          shares?: number
+          sound_id?: string
+          videos_created?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sound_analytics_sound_id_fkey"
+            columns: ["sound_id"]
+            isOneToOne: false
+            referencedRelation: "sounds"
+            referencedColumns: ["sound_id"]
+          },
+        ]
+      }
+      sound_play_events: {
+        Row: {
+          context: string | null
+          created_at: string
+          id: string
+          sound_id: string
+          user_id: string | null
+          watch_duration: number | null
+        }
+        Insert: {
+          context?: string | null
+          created_at?: string
+          id?: string
+          sound_id: string
+          user_id?: string | null
+          watch_duration?: number | null
+        }
+        Update: {
+          context?: string | null
+          created_at?: string
+          id?: string
+          sound_id?: string
+          user_id?: string | null
+          watch_duration?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sound_play_events_sound_id_fkey"
+            columns: ["sound_id"]
+            isOneToOne: false
+            referencedRelation: "sounds"
+            referencedColumns: ["sound_id"]
+          },
+        ]
+      }
+      sounds: {
+        Row: {
+          artist: string
+          audio_url: string
+          cover_url: string | null
+          created_at: string
+          duration: number
+          is_approved: boolean
+          is_explicit: boolean
+          is_extracted: boolean
+          is_original: boolean
+          moderation_status: string
+          original_creator_id: string | null
+          original_video_id: string | null
+          preview_url: string | null
+          sound_id: string
+          tags: string[] | null
+          title: string
+          trend_score: number
+          updated_at: string
+          uploader_id: string | null
+          usage_count: number
+          waveform_data: Json | null
+        }
+        Insert: {
+          artist?: string
+          audio_url: string
+          cover_url?: string | null
+          created_at?: string
+          duration?: number
+          is_approved?: boolean
+          is_explicit?: boolean
+          is_extracted?: boolean
+          is_original?: boolean
+          moderation_status?: string
+          original_creator_id?: string | null
+          original_video_id?: string | null
+          preview_url?: string | null
+          sound_id?: string
+          tags?: string[] | null
+          title: string
+          trend_score?: number
+          updated_at?: string
+          uploader_id?: string | null
+          usage_count?: number
+          waveform_data?: Json | null
+        }
+        Update: {
+          artist?: string
+          audio_url?: string
+          cover_url?: string | null
+          created_at?: string
+          duration?: number
+          is_approved?: boolean
+          is_explicit?: boolean
+          is_extracted?: boolean
+          is_original?: boolean
+          moderation_status?: string
+          original_creator_id?: string | null
+          original_video_id?: string | null
+          preview_url?: string | null
+          sound_id?: string
+          tags?: string[] | null
+          title?: string
+          trend_score?: number
+          updated_at?: string
+          uploader_id?: string | null
+          usage_count?: number
+          waveform_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sounds_original_creator_id_fkey"
+            columns: ["original_creator_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "sounds_original_creator_id_fkey"
+            columns: ["original_creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sounds_original_creator_id_fkey"
+            columns: ["original_creator_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sounds_original_creator_id_fkey"
+            columns: ["original_creator_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "sounds_uploader_id_fkey"
+            columns: ["uploader_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "sounds_uploader_id_fkey"
+            columns: ["uploader_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sounds_uploader_id_fkey"
+            columns: ["uploader_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sounds_uploader_id_fkey"
+            columns: ["uploader_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       sponsor_analytics: {
         Row: {
           content_id: string
@@ -8219,6 +8430,35 @@ export type Database = {
           },
         ]
       }
+      user_saved_sounds: {
+        Row: {
+          created_at: string
+          id: string
+          sound_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          sound_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          sound_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_saved_sounds_sound_id_fkey"
+            columns: ["sound_id"]
+            isOneToOne: false
+            referencedRelation: "sounds"
+            referencedColumns: ["sound_id"]
+          },
+        ]
+      }
       user_settings: {
         Row: {
           content_language: string[] | null
@@ -9648,6 +9888,10 @@ export type Database = {
         Args: { p_requirement_type: string; p_user_id: string }
         Returns: undefined
       }
+      increment_sound_usage: {
+        Args: { p_sound_id: string }
+        Returns: undefined
+      }
       increment_theme_downloads: {
         Args: { theme_id: string }
         Returns: undefined
@@ -9713,6 +9957,7 @@ export type Database = {
         Args: { p_post_id: string }
         Returns: undefined
       }
+      update_sound_trend_scores: { Args: never; Returns: undefined }
       use_theme_code: { Args: { p_code: string }; Returns: string }
       validate_invite_code: {
         Args: { _code: string }
