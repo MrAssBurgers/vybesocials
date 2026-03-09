@@ -29,6 +29,9 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [capturedFiles, setCapturedFiles] = useState<File[]>([]);
   const [capturedPreviews, setCapturedPreviews] = useState<string[]>([]);
   const [showFlash, setShowFlash] = useState(false);
+  const [showSoundPicker, setShowSoundPicker] = useState(false);
+  const [selectedSound, setSelectedSound] = useState<Sound | null>(initialSound || null);
+  const [soundStartTime, setSoundStartTime] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
