@@ -40,7 +40,8 @@ export const CATEGORY_LABELS: Record<MarketplaceItem['category'], { label: strin
 
 export function useTokenMarketplace(filterCategory?: MarketplaceItem['category']) {
   const { isPremium } = usePremiumStatus();
-  const { data: balance = 0 } = useTokenBalance();
+  const { data: tokenData } = useTokenBalance();
+  const balance = tokenData?.balance ?? 0;
 
   const items = useMemo(() => {
     let filtered = MARKETPLACE_ITEMS.filter(item => !item.premiumOnly || isPremium);
