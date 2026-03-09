@@ -34,6 +34,7 @@ import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { PostCarousel } from './PostCarousel';
 import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
+import { triggerHaptic } from '@/lib/haptics';
 
 // Video player component - maintains the video's native aspect ratio (no cropping)
 // NEVER shows broken placeholder - graceful degradation
@@ -362,8 +363,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     setIsLiked(newIsLiked);
     setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
 
-    // Trigger particle burst on like
+    // Trigger particle burst and haptic on like
     if (newIsLiked) {
+      triggerHaptic('light');
       setShowLikeParticles(true);
       setTimeout(() => setShowLikeParticles(false), 700);
     }
@@ -395,6 +397,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
 
     const newIsBookmarked = !isBookmarked;
     setIsBookmarked(newIsBookmarked);
+    if (newIsBookmarked) triggerHaptic('light');
 
     if (newIsBookmarked) {
       await supabase.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });

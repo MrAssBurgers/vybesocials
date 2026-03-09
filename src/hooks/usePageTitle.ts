@@ -29,6 +29,16 @@ const PAGE_TITLES: Record<string, string> = {
   '/cookies': 'Cookie Policy · VYBE',
   '/onboarding': 'Welcome · VYBE',
   '/reset-password': 'Reset Password · VYBE',
+  '/marketplace': 'Token Shop · VYBE',
+  '/wallet': 'Wallet · VYBE',
+  '/vybe-dna': 'VYBE DNA · VYBE',
+  '/leaderboard': 'Leaderboard · VYBE',
+  '/streaks': 'Streaks · VYBE',
+  '/roulette': 'VYBE Roulette · VYBE',
+  '/sounds': 'Sounds · VYBE',
+  '/creator': 'Creator Dashboard · VYBE',
+  '/ads': 'Advertiser Dashboard · VYBE',
+  '/roadmap': 'Feature Voting · VYBE',
 };
 
 /**
