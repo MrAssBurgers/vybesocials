@@ -7,9 +7,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useTokenMarketplace, CATEGORY_LABELS, type MarketplaceItem } from '@/hooks/useTokenMarketplace';
+import { useMarketplacePurchase } from '@/hooks/useMarketplacePurchase';
 import { toast } from 'sonner';
 
-const ItemCard = memo(({ item, canAfford, isPremium }: { item: MarketplaceItem; canAfford: boolean; isPremium: boolean }) => {
+const ItemCard = memo(({ item, canAfford, isPremium, onBuy }: { item: MarketplaceItem; canAfford: boolean; isPremium: boolean; onBuy: (item: MarketplaceItem) => void }) => {
   const locked = item.premiumOnly && !isPremium;
 
   const handleBuy = () => {
@@ -21,7 +22,7 @@ const ItemCard = memo(({ item, canAfford, isPremium }: { item: MarketplaceItem; 
       toast.error('Not enough tokens');
       return;
     }
-    toast.success(`Purchased ${item.name}!`);
+    onBuy(item);
   };
 
   return (
