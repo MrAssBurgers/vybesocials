@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Play, Pause, Heart, X, Clock, Disc, TrendingUp, Star } from 'lucide-react';
+import { Search, Play, Pause, Heart, X, Clock, Disc, TrendingUp, Star, Share } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
