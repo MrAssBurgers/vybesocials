@@ -383,7 +383,20 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         </div>
 
         {/* Capture area */}
-        <div className="flex items-center justify-center gap-8 pb-4">
+        <div className="flex items-center justify-center gap-6 pb-4">
+          {/* Sound picker */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setShowSoundPicker(true)}
+            className={cn(
+              "text-white w-12 h-12 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-xl",
+              selectedSound && "text-primary border-2 border-primary"
+            )}
+          >
+            <Music2 className="h-5 w-5" />
+          </Button>
+
           {/* Gallery */}
           <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 rounded-xl overflow-hidden border-2 border-white/40">
             {capturedPreviews.length > 0 ? (
