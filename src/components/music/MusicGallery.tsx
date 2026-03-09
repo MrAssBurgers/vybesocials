@@ -195,6 +195,61 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
     onSelectTrack(track);
   };
 
+  const handleShareTrack = async (track: Track) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('You must be logged in to share music');
+        return;
+      }
+
+      // Check profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (!profile) throw new Error('Profile not found');
+
+      // Stop audio if playing
+      if (audioElement) {
+        audioElement.pause();
+        setAudioElement(null);
+        setCurrentlyPlaying(null);
+      }
+
+      // Create a feed post sharing the track
+      const { error } = await supabase.from('posts').insert({
+        author_id: profile.id,
+        type: 'text',
+        caption: `Vibing to "${track.title}" by ${track.artist} 🎵\n#music #discovery #${track.genre.replace(/\s+/g, '').toLowerCase()}`,
+        media_url: track.artwork_url || 'https://images.unsplash.com/photo-1614149162883-504ce4d13909?q=80&w=800&auto=format&fit=crop',
+      });
+
+      if (error) throw error;
+
+      // Update track usage stats (shares)
+      await supabase.rpc('update_track_usage', {
+        p_track_id: track.track_id,
+        p_shares: 1
+      });
+
+      // Simple way to award XP directly (like 50 XP for sharing a track)
+      await supabase.from('xp_logs').insert({
+        user_id: profile.id,
+        amount: 50,
+        source: 'share_music',
+        description: 'Shared a music track'
+      });
+
+      toast.success('Track shared to your feed! +50 XP 🎵');
+    } catch (error) {
+      console.error('Error sharing track:', error);
+      toast.error('Failed to share track');
+    }
+  };
+
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
