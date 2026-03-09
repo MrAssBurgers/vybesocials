@@ -49,8 +49,9 @@ export function useParallelFeeds() {
 
       if (error) throw error;
       
+      const typedData = data as unknown as ParallelFeed[];
       // Return defaults if user has no custom feeds
-      if (!data || data.length === 0) {
+      if (!typedData || typedData.length === 0) {
         return DEFAULT_FEEDS.map((f, i) => ({
           ...f,
           id: `default-${i}`,
