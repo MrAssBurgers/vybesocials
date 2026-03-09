@@ -51,6 +51,7 @@ import { AIAssistButton } from './AIAssistButton';
 import { SmartRepliesBar } from './SmartRepliesBar';
 import { ChatSummarySheet } from './ChatSummarySheet';
 import { AdminPanelSheet } from './AdminPanelSheet';
+import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
