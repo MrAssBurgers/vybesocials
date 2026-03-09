@@ -1,9 +1,9 @@
-import { Home, Compass, Plus, MessageCircle, User } from 'lucide-react';
+import { Home, Compass, Plus, MessageCircle, User, GripVertical, Check } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
-import { useState, useCallback, useRef, memo, useEffect, forwardRef } from 'react';
+import { useState, useCallback, useRef, memo, useEffect, forwardRef, useMemo } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { CreateMenuLayer } from '@/components/hub/CreateMenuLayer';
@@ -11,8 +11,9 @@ import { VYBEHub } from '@/components/hub/VYBEHub';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
 import { navVisibility } from '@/lib/navVisibility';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { useUserPreferences, useUpdatePreferences } from '@/hooks/useUserPreferences';
 
 // Singleton scroll direction detection to prevent duplicate listeners
 let scrollDirectionCleanup: (() => void) | null = null;
@@ -29,7 +30,6 @@ function setupScrollDirectionListener() {
     if (ticking) return;
     ticking = true;
     window.requestAnimationFrame(() => {
-      // Check both window scroll and the app scroll container
       const scrollContainer = document.querySelector('[data-app-scroll-container="true"]');
       const currentScrollY = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
       const scrollDiff = currentScrollY - lastScrollY;
@@ -49,10 +49,8 @@ function setupScrollDirectionListener() {
     });
   };
 
-  // Listen on both window AND the app scroll container
   window.addEventListener('scroll', handleScroll, { passive: true });
   
-  // Also attach to the main scroll container when it appears
   const observer = new MutationObserver(() => {
     const container = document.querySelector('[data-app-scroll-container="true"]');
     if (container && !(container as any).__scrollBound) {
@@ -62,7 +60,6 @@ function setupScrollDirectionListener() {
   });
   observer.observe(document.body, { childList: true, subtree: true });
   
-  // Initial check
   const container = document.querySelector('[data-app-scroll-container="true"]');
   if (container) {
     container.addEventListener('scroll', handleScroll, { passive: true });
@@ -78,7 +75,6 @@ function setupScrollDirectionListener() {
   };
 }
 
-// Hook to detect scroll direction - uses singleton listener
 function useScrollDirection() {
   const [isVisible, setIsVisible] = useState(true);
 
@@ -99,7 +95,6 @@ function useScrollDirection() {
   return isVisible;
 }
 
-// Hook to listen to navVisibility centralized state
 function useNavVisibility() {
   const [isVisible, setIsVisible] = useState(true);
 
@@ -110,27 +105,49 @@ function useNavVisibility() {
   return isVisible;
 }
 
-// Memoized nav item for better performance
-const NavItem = memo(({ 
-  path, 
-  icon: Icon, 
-  label,
-  badge, 
+// Default nav order
+const DEFAULT_NAV_ORDER = ['home', 'explore', 'create', 'messages', 'profile'];
+
+// Nav item type
+interface NavItemConfig {
+  id: string;
+  icon: typeof Home;
+  label: string;
+  getPath: (profile?: any) => string;
+  badge?: number;
+  tutorialId?: string;
+  requiresAuth?: boolean;
+  authAction?: string;
+  isCreate?: boolean;
+  isProfile?: boolean;
+}
+
+// Draggable nav item component
+const DraggableNavItem = memo(({ 
+  item,
   isActive,
-  tutorialId,
+  isEditMode,
+  badge,
+  profile,
   isHighlighted,
   onClick,
 }: { 
-  path: string; 
-  icon: typeof Home; 
-  label: string;
-  badge: number; 
+  item: NavItemConfig;
   isActive: boolean;
-  tutorialId?: string;
+  isEditMode: boolean;
+  badge: number;
+  profile: any;
   isHighlighted?: boolean;
   onClick?: (e: React.MouseEvent) => void;
 }) => {
+  const Icon = item.icon;
+  const path = item.getPath(profile);
+
   const handleClick = (e: React.MouseEvent) => {
+    if (isEditMode) {
+      e.preventDefault();
+      return;
+    }
     if (onClick) {
       onClick(e);
     } else {
@@ -138,50 +155,112 @@ const NavItem = memo(({
     }
   };
 
-  return (
-    <Link
-      to={path}
-      className="relative flex items-center justify-center min-h-[48px] group"
-      onClick={handleClick}
-      data-tutorial={tutorialId}
-    >
-      <motion.div 
-        className="relative"
-        whileTap={{ scale: 0.9 }}
-        transition={{ duration: 0.1 }}
+  // Profile item with avatar
+  if (item.isProfile) {
+    return (
+      <Reorder.Item
+        value={item.id}
+        dragListener={isEditMode}
+        className="relative flex items-center justify-center min-h-[48px]"
       >
-        {/* Active indicator dot */}
-        {isActive && (
-          <motion.div
-            layoutId="nav-indicator"
-            className="absolute -inset-1.5 rounded-xl bg-primary/15"
-            transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-          />
-        )}
-        
-        {/* Tutorial highlight ring */}
-        {isHighlighted && (
-          <div className="absolute -inset-2 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse" />
-        )}
-        
-        <Icon
-          className={cn(
-            "h-6 w-6 relative z-10 transition-colors duration-150",
-            isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
-          )}
-        />
-        
-        {badge > 0 && (
-          <motion.span 
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1.5 h-4 min-w-4 px-1 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold shadow-md z-20"
+        <Link
+          to={path}
+          className="relative flex items-center justify-center min-h-[48px] group w-full"
+          onClick={handleClick}
+          data-tutorial={item.tutorialId}
+        >
+          <motion.div 
+            className="relative"
+            whileTap={isEditMode ? {} : { scale: 0.9 }}
+            transition={{ duration: 0.1 }}
           >
-            {badge > 9 ? '9+' : badge}
-          </motion.span>
-        )}
-      </motion.div>
-    </Link>
+            {isEditMode && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute -top-2 -left-2 z-20"
+              >
+                <GripVertical className="h-3 w-3 text-primary" />
+              </motion.div>
+            )}
+            {isActive && !isEditMode && (
+              <motion.div
+                layoutId="nav-indicator"
+                className="absolute -inset-1.5 rounded-xl bg-primary/15"
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+              />
+            )}
+            <Avatar className={cn(
+              "h-7 w-7 relative z-10 transition-all",
+              isActive && "ring-2 ring-primary",
+              isEditMode && "animate-pulse"
+            )}>
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback className="text-[10px] bg-muted">
+                <User className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+          </motion.div>
+        </Link>
+      </Reorder.Item>
+    );
+  }
+
+  return (
+    <Reorder.Item
+      value={item.id}
+      dragListener={isEditMode}
+      className="relative flex items-center justify-center min-h-[48px]"
+    >
+      <Link
+        to={path}
+        className="relative flex items-center justify-center min-h-[48px] group w-full"
+        onClick={handleClick}
+        data-tutorial={item.tutorialId}
+      >
+        <motion.div 
+          className="relative"
+          whileTap={isEditMode ? {} : { scale: 0.9 }}
+          transition={{ duration: 0.1 }}
+        >
+          {isEditMode && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="absolute -top-2 -left-2 z-20"
+            >
+              <GripVertical className="h-3 w-3 text-primary" />
+            </motion.div>
+          )}
+          {isActive && !isEditMode && (
+            <motion.div
+              layoutId="nav-indicator"
+              className="absolute -inset-1.5 rounded-xl bg-primary/15"
+              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+            />
+          )}
+          {isHighlighted && (
+            <div className="absolute -inset-2 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse" />
+          )}
+          <Icon
+            className={cn(
+              "h-6 w-6 relative z-10 transition-colors duration-150",
+              isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
+              isEditMode && "animate-pulse"
+            )}
+          />
+          {badge > 0 && !isEditMode && (
+            <motion.span 
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="absolute -top-1 -right-1.5 h-4 min-w-4 px-1 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold shadow-md z-20"
+            >
+              {badge > 9 ? '9+' : badge}
+            </motion.span>
+          )}
+        </motion.div>
+      </Link>
+    </Reorder.Item>
   );
 });
 
@@ -191,13 +270,12 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
   const { profile } = useAuth();
   const { isGuest } = useIsGuest();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
+  const { data: prefs } = useUserPreferences();
+  const { mutate: updatePrefs } = useUpdatePreferences();
   const scrollVisible = useScrollDirection();
   const navCentralVisible = useNavVisibility();
   
-  // Combine both visibility states
   const isVisible = scrollVisible && navCentralVisible;
-
-  // Hide bottom nav until user has completed onboarding
   const onboardingComplete = profile?.onboarding_completed === true;
 
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
@@ -205,10 +283,33 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
   const [highlightedNav, setHighlightedNav] = useState<string | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authPromptAction, setAuthPromptAction] = useState('');
+  const [isEditMode, setIsEditMode] = useState(false);
   
   const lastTapTime = useRef(0);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const longPressTriggered = useRef(false);
 
-  // Tutorial event listeners for controlling menus and highlighting
+  // Get nav order from preferences
+  const navOrder = useMemo(() => {
+    const savedOrder = (prefs?.extra as any)?.nav_order as string[] | undefined;
+    return savedOrder && savedOrder.length === 5 ? savedOrder : DEFAULT_NAV_ORDER;
+  }, [prefs?.extra]);
+
+  // Nav items configuration
+  const navItemsConfig: NavItemConfig[] = useMemo(() => [
+    { id: 'home', icon: Home, label: 'Home', getPath: () => '/home', tutorialId: 'home-nav', requiresAuth: false },
+    { id: 'explore', icon: Compass, label: 'Explore', getPath: () => '/explore', tutorialId: 'explore-nav', requiresAuth: false },
+    { id: 'create', icon: Plus, label: 'Create', getPath: () => '/upload', isCreate: true, tutorialId: 'create-nav', requiresAuth: true },
+    { id: 'messages', icon: MessageCircle, label: 'Messages', getPath: () => '/messages', tutorialId: 'messages-nav', requiresAuth: true, authAction: 'send messages' },
+    { id: 'profile', icon: User, label: 'Profile', getPath: (p) => p ? `/u/${p.username}` : '/settings', tutorialId: 'profile-nav', requiresAuth: false, isProfile: true },
+  ], []);
+
+  // Ordered nav items based on saved preference
+  const orderedNavItems = useMemo(() => {
+    return navOrder.map(id => navItemsConfig.find(item => item.id === id)!).filter(Boolean);
+  }, [navOrder, navItemsConfig]);
+
+  // Tutorial event listeners
   useEffect(() => {
     const handleOpenCreateMenu = () => setIsCreateMenuOpen(true);
     const handleOpenVYBEHub = () => {
@@ -236,10 +337,41 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
     };
   }, []);
 
+  // Long press handlers for edit mode
+  const handleCreateTouchStart = useCallback(() => {
+    longPressTriggered.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      triggerHaptic('heavy');
+      playSound('pop');
+      setIsEditMode(true);
+    }, 600);
+  }, []);
+
+  const handleCreateTouchEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
   const handleCreateClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     
-    // Guest users need to sign up to create content
+    // If long press was triggered, don't do normal click
+    if (longPressTriggered.current) {
+      longPressTriggered.current = false;
+      return;
+    }
+
+    // If in edit mode, confirm and exit
+    if (isEditMode) {
+      triggerHaptic('medium');
+      playSound('pop');
+      setIsEditMode(false);
+      return;
+    }
+    
     if (isGuest) {
       setAuthPromptAction('create posts');
       setShowAuthPrompt(true);
@@ -252,22 +384,18 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
     triggerHaptic('medium');
     playSound('pop');
     
-    // Fast double tap opens the hub
     if (timeSinceLastTap < 300) {
       setIsCreateMenuOpen(false);
       setIsHubOpen(true);
     } else if (isCreateMenuOpen) {
-      // Single tap when menu is open closes it
       setIsCreateMenuOpen(false);
     } else {
-      // Single tap when menu is closed opens it
       setIsCreateMenuOpen(true);
     }
     
     lastTapTime.current = now;
-  }, [isCreateMenuOpen, isGuest]);
+  }, [isCreateMenuOpen, isGuest, isEditMode]);
 
-  // Handle protected nav clicks for guests
   const handleProtectedNavClick = useCallback((action: string) => (e: React.MouseEvent) => {
     if (isGuest) {
       e.preventDefault();
@@ -278,16 +406,37 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
     }
   }, [isGuest]);
 
-  // Nav order: Home | Explore | Upload | Messages | Profile (cleaner than Settings)
-  const navItems = [
-    { icon: Home, label: 'Home', path: '/home', badge: 0, tutorialId: 'home-nav', requiresAuth: false },
-    { icon: Compass, label: 'Explore', path: '/explore', badge: 0, tutorialId: 'explore-nav', requiresAuth: false },
-    { icon: Plus, label: 'Create', path: '/upload', isCreate: true, badge: 0, tutorialId: 'create-nav', requiresAuth: true },
-    { icon: MessageCircle, label: 'Messages', path: '/messages', badge: unreadMessages, tutorialId: 'messages-nav', requiresAuth: true, authAction: 'send messages' },
-    { icon: User, label: 'Profile', path: profile ? `/u/${profile.username}` : '/settings', badge: 0, tutorialId: 'profile-nav', requiresAuth: false, isProfile: true },
-  ];
+  // Handle reorder
+  const handleReorder = useCallback((newOrder: string[]) => {
+    triggerHaptic('light');
+    updatePrefs({
+      extra: {
+        ...(prefs?.extra || {}),
+        nav_order: newOrder,
+      },
+    });
+  }, [updatePrefs, prefs?.extra]);
 
-  // Don't render bottom nav if onboarding not complete (unless guest browsing)
+  // Exit edit mode on outside tap
+  useEffect(() => {
+    if (!isEditMode) return;
+    
+    const handleOutsideClick = (e: TouchEvent | MouseEvent) => {
+      const nav = document.querySelector('[data-tutorial-bottomnav]');
+      if (nav && !nav.contains(e.target as Node)) {
+        setIsEditMode(false);
+      }
+    };
+
+    document.addEventListener('touchstart', handleOutsideClick);
+    document.addEventListener('mousedown', handleOutsideClick);
+    
+    return () => {
+      document.removeEventListener('touchstart', handleOutsideClick);
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isEditMode]);
+
   if (!onboardingComplete && !isGuest) {
     return null;
   }
@@ -303,9 +452,41 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         onClose={() => setShowAuthPrompt(false)}
       />
 
-       <motion.nav 
-         ref={ref}
-         className="fixed bottom-0 left-0 right-0 w-full pointer-events-auto"
+      {/* Edit mode aura overlay */}
+      <AnimatePresence>
+        {isEditMode && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 pointer-events-none z-[5001]"
+            style={{
+              background: 'radial-gradient(circle at 50% 100%, hsl(var(--primary) / 0.3) 0%, hsl(var(--accent) / 0.15) 30%, transparent 70%)',
+            }}
+          >
+            {/* Animated border pulse */}
+            <motion.div
+              className="absolute inset-0 border-4 border-primary/50 rounded-none"
+              animate={{
+                borderColor: ['hsl(var(--primary) / 0.5)', 'hsl(var(--accent) / 0.5)', 'hsl(var(--primary) / 0.5)'],
+              }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+            {/* Edit mode label */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="absolute top-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-medium shadow-lg"
+            >
+              ✨ Drag to reorder • Tap + to save
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.nav 
+        ref={ref}
+        className="fixed bottom-0 left-0 right-0 w-full pointer-events-auto"
         initial={false}
         animate={{
           y: isVisible ? 0 : 120,
@@ -326,31 +507,66 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         aria-label="Bottom navigation"
         data-tutorial-bottomnav
       >
-        {/* Vybe-themed bubble nav */}
         <div 
-          className="mx-3 mb-2 rounded-[20px] overflow-hidden border border-white/10 liquid-glass-depth"
+          className={cn(
+            "mx-3 mb-2 rounded-[20px] overflow-hidden border transition-all duration-300",
+            isEditMode 
+              ? "border-primary/60 shadow-[0_0_30px_hsl(var(--primary)/0.5)]" 
+              : "border-white/10"
+          )}
           style={{
-            background: 'linear-gradient(135deg, hsl(var(--primary) / 0.35), hsl(var(--accent) / 0.28), hsl(var(--primary) / 0.2)), hsl(var(--card))',
+            background: isEditMode 
+              ? 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(var(--accent) / 0.4), hsl(var(--primary) / 0.3)), hsl(var(--card))'
+              : 'linear-gradient(135deg, hsl(var(--primary) / 0.35), hsl(var(--accent) / 0.28), hsl(var(--primary) / 0.2)), hsl(var(--card))',
             backdropFilter: 'blur(24px) saturate(180%)',
             WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-            boxShadow: '0 8px 32px hsl(var(--primary) / 0.3), inset 0 1px 0 hsl(var(--primary) / 0.15)',
+            boxShadow: isEditMode 
+              ? '0 8px 32px hsl(var(--primary) / 0.5), inset 0 1px 0 hsl(var(--primary) / 0.3)'
+              : '0 8px 32px hsl(var(--primary) / 0.3), inset 0 1px 0 hsl(var(--primary) / 0.15)',
           }}
         >
-          <div className="grid grid-cols-5 h-14 px-1 relative z-10">
-          {navItems.map((item) => {
-              const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+          <Reorder.Group
+            axis="x"
+            values={navOrder}
+            onReorder={handleReorder}
+            className="grid grid-cols-5 h-14 px-1 relative z-10"
+          >
+            {orderedNavItems.map((item) => {
+              const path = item.getPath(profile);
+              const isActive = location.pathname === path || location.pathname.startsWith(path + '/');
               const isHighlighted = highlightedNav === item.tutorialId;
+              const badge = item.id === 'messages' ? unreadMessages : 0;
 
               if (item.isCreate) {
                 return (
-                  <div key={item.path} className="relative flex items-center justify-center" data-tutorial="create-nav">
+                  <Reorder.Item
+                    key={item.id}
+                    value={item.id}
+                    dragListener={isEditMode}
+                    className="relative flex items-center justify-center"
+                    data-tutorial="create-nav"
+                  >
                     <motion.button
                       className="relative flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation"
                       onClick={handleCreateClick}
+                      onTouchStart={handleCreateTouchStart}
+                      onTouchEnd={handleCreateTouchEnd}
+                      onTouchCancel={handleCreateTouchEnd}
+                      onMouseDown={handleCreateTouchStart}
+                      onMouseUp={handleCreateTouchEnd}
+                      onMouseLeave={handleCreateTouchEnd}
                       whileTap={{ scale: 0.8 }}
                       whileHover={{ scale: 1.08 }}
                     >
-                      {/* Outer pulsing glow */}
+                      {isEditMode && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="absolute -top-1 -left-1 z-30"
+                        >
+                          <GripVertical className="h-3 w-3 text-white" />
+                        </motion.div>
+                      )}
                       <motion.div
                         className="absolute rounded-full pointer-events-none"
                         style={{
@@ -360,10 +576,8 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                           filter: 'blur(14px)',
                         }}
                       />
-                      
-                      {/* Animated glow ring when menu is open */}
                       <AnimatePresence>
-                        {isCreateMenuOpen && (
+                        {isCreateMenuOpen && !isEditMode && (
                           <motion.div
                             initial={{ scale: 0.8, opacity: 0 }}
                             animate={{ scale: 1.5, opacity: 0.7 }}
@@ -377,8 +591,6 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                           />
                         )}
                       </AnimatePresence>
-                      
-                      {/* Tutorial highlight ring */}
                       {isHighlighted && (
                         <motion.div
                           animate={{ scale: [1, 1.1, 1] }}
@@ -386,20 +598,18 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                           className="absolute -inset-1 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background"
                         />
                       )}
-                      
-                      {/* Main button with gradient */}
                       <motion.div 
                         animate={{ 
-                          rotate: isCreateMenuOpen ? 45 : 0,
+                          rotate: isEditMode ? 0 : (isCreateMenuOpen ? 45 : 0),
                           scale: isCreateMenuOpen ? 1.15 : 1,
                         }}
                         transition={{ type: 'spring', damping: 12, stiffness: 200 }}
-                        className="rounded-2xl p-2.5 create-button-gradient relative overflow-hidden"
+                        className={cn(
+                          "rounded-2xl p-2.5 relative overflow-hidden",
+                          isEditMode ? "bg-primary" : "create-button-gradient"
+                        )}
                       >
-                        {/* Continuous shimmer sweep */}
-                        <div
-                          className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl"
-                        >
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
                           <div
                             className="absolute inset-0"
                             style={{
@@ -408,64 +618,31 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                             }}
                           />
                         </div>
-                        <Plus className="h-6 w-6 text-white relative z-10" strokeWidth={2.5} />
+                        {isEditMode ? (
+                          <Check className="h-6 w-6 text-white relative z-10" strokeWidth={2.5} />
+                        ) : (
+                          <Plus className="h-6 w-6 text-white relative z-10" strokeWidth={2.5} />
+                        )}
                       </motion.div>
                     </motion.button>
-                  </div>
-                );
-              }
-
-              // For profile nav item, render avatar instead of icon
-              if (item.isProfile) {
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className="relative flex items-center justify-center min-h-[48px] group"
-                    onClick={() => triggerNavFeedback()}
-                    data-tutorial={item.tutorialId}
-                  >
-                    <motion.div 
-                      className="relative"
-                      whileTap={{ scale: 0.9 }}
-                      transition={{ duration: 0.1 }}
-                    >
-                      {isActive && (
-                        <motion.div
-                          layoutId="nav-indicator"
-                          className="absolute -inset-1.5 rounded-xl bg-primary/15"
-                          transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                        />
-                      )}
-                      <Avatar className={cn(
-                        "h-7 w-7 relative z-10 transition-all",
-                        isActive && "ring-2 ring-primary"
-                      )}>
-                        <AvatarImage src={profile?.avatar_url || undefined} />
-                        <AvatarFallback className="text-[10px] bg-muted">
-                          <User className="h-4 w-4" />
-                        </AvatarFallback>
-                      </Avatar>
-                    </motion.div>
-                  </Link>
+                  </Reorder.Item>
                 );
               }
 
               return (
-                <NavItem
-                  key={item.path}
-                  path={item.path}
-                  icon={item.icon}
-                  label={item.label}
-                  badge={item.badge}
+                <DraggableNavItem
+                  key={item.id}
+                  item={item}
                   isActive={isActive}
-                  tutorialId={item.tutorialId}
+                  isEditMode={isEditMode}
+                  badge={badge}
+                  profile={profile}
                   isHighlighted={isHighlighted}
                   onClick={item.requiresAuth ? handleProtectedNavClick(item.authAction || 'use this feature') : undefined}
                 />
               );
             })}
-          </div>
+          </Reorder.Group>
         </div>
       </motion.nav>
     </>
