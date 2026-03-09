@@ -69,6 +69,7 @@ const VYBESpaces = lazy(() => import("@/pages/VYBESpaces"));
 const SpaceRoom = lazy(() => import("@/pages/SpaceRoom"));
 const VybeDNA = lazy(() => import("@/pages/VybeDNA"));
 const TokenWallet = lazy(() => import("@/pages/TokenWallet"));
+const TokenMarketplace = lazy(() => import("@/pages/TokenMarketplace"));
 
 // Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
