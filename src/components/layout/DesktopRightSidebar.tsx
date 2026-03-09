@@ -364,7 +364,7 @@ export function DesktopRightSidebar() {
                     to={`/market/${item.id}`}
                     className="flex items-center gap-3 p-2 rounded-xl hover:bg-sidebar-accent/30 transition-all"
                   >
-                    <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex-shrink-0 overflow-hidden">
+                    <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex-shrink-0 overflow-hidden">
                       {item.images?.[0] ? (
                         <img src={item.images[0]} alt={item.title} className="w-full h-full object-cover" />
                       ) : (
