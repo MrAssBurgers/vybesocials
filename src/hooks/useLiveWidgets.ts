@@ -94,7 +94,7 @@ export function useAddWidget() {
         .single();
 
       if (error) throw error;
-      return data as LiveWidget;
+      return data as unknown as LiveWidget;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['live-widgets', user?.id] });
