@@ -92,7 +92,7 @@ export function useGenerateVybeDNA() {
         .single();
 
       if (error) throw error;
-      return data as VybeDNA;
+      return data as unknown as VybeDNA;
     },
     onSuccess: (data) => {
       qc.setQueryData(['vybe-dna', user?.id], data);
