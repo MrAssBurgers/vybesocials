@@ -180,11 +180,9 @@ export const VideoPlayer = memo(function VideoPlayer({
       {/* Sound Badge */}
       {soundId && postId && showSoundBadge && (
         <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
-          <SoundBadge 
-            soundId={soundId} 
-            postId={postId} 
-            showExtractOption={true} 
-          />
+          <div className="bg-background/10 backdrop-blur-sm rounded-lg p-2 text-xs text-foreground">
+            Sound: {soundId}
+          </div>
         </div>
       )}
 
