@@ -9,13 +9,15 @@ import { useToast } from '@/hooks/use-toast';
 interface CameraShareSheetProps {
   mediaUrl: string;
   mediaType: 'photo' | 'video';
+  soundId?: string;
+  soundStartTime?: number;
   onClose: () => void;
   onComplete: () => void;
 }
 
 type ShareDestination = 'clip' | 'story' | 'dm' | 'save';
 
-export function CameraShareSheet({ mediaUrl, mediaType, onClose, onComplete }: CameraShareSheetProps) {
+export function CameraShareSheet({ mediaUrl, mediaType, soundId, soundStartTime, onClose, onComplete }: CameraShareSheetProps) {
   const [selectedDestinations, setSelectedDestinations] = useState<ShareDestination[]>([]);
   const [caption, setCaption] = useState('');
   const [isSharing, setIsSharing] = useState(false);
