@@ -162,13 +162,34 @@ export function usePostsWithSound(soundId: string) {
       const { data, error } = await supabase
         .from('posts')
         .select(`
-          *,
-          profile:profiles!inner(*)
+          id,
+          type,
+          media_url,
+          media_urls,
+          caption,
+          tags,
+          created_at,
+          like_count,
+          comment_count,
+          profile:profiles!inner(id, username, display_name, avatar_url)
         `)
         .limit(12);
       
       if (error) throw error;
-      return data;
+      
+      // Transform data to match PostCard interface
+      return data.map(post => ({
+        ...post,
+        author: {
+          id: post.profile.id,
+          username: post.profile.username,
+          display_name: post.profile.display_name,
+          avatar_url: post.profile.avatar_url
+        },
+        is_liked: false, // TODO: Check if user liked
+        is_bookmarked: false, // TODO: Check if user bookmarked
+        is_pinned: false
+      }));
     },
     enabled: !!soundId,
   });

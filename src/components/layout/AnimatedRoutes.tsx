@@ -59,6 +59,8 @@ const AdvertiserDashboard = lazy(() => import("@/pages/AdvertiserDashboard"));
 const BusinessSubscriptions = lazy(() => import("@/pages/BusinessSubscriptions"));
 const FeatureVoting = lazy(() => import("@/pages/FeatureVoting"));
 const Leaderboard = lazy(() => import("@/pages/Leaderboard"));
+const Sounds = lazy(() => import("@/pages/Sounds"));
+const SoundDetail = lazy(() => import("@/pages/SoundDetail"));
 
 // Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
