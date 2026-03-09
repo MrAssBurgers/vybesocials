@@ -16,6 +16,7 @@ export function useDailyLoginChallenge() {
   const { profile } = useAuth();
   const triggeredRef = useRef(false);
   const queryClient = useQueryClient();
+  const { rewardDailyLogin } = useTokenReward();
 
   useEffect(() => {
     // Guard: skip if already triggered this mount OR this session
