@@ -125,6 +125,7 @@ export function AnimatedRoutes() {
             
             {/* Secondary routes - lazy loaded but prefetched */}
             <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
+            <Route path="/music-quiz" element={<ProtectedRoute><MusicPersonalityQuiz /></ProtectedRoute>} />
             <Route path="/p/:id" element={<ProtectedRoute><PostDetail /></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route path="/complete-profile" element={<Navigate to="/onboarding" replace />} />
