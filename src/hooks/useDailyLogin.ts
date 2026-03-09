@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useTokenReward } from '@/hooks/useVybeTokens';
 
 /**
  * Tracks daily login for challenges and grants streak-multiplied XP.
@@ -15,6 +16,7 @@ export function useDailyLoginChallenge() {
   const { profile } = useAuth();
   const triggeredRef = useRef(false);
   const queryClient = useQueryClient();
+  const { rewardDailyLogin } = useTokenReward();
 
   useEffect(() => {
     // Guard: skip if already triggered this mount OR this session
@@ -45,6 +47,9 @@ export function useDailyLoginChallenge() {
         if (result?.success && !result?.already_logged && result?.xp_granted) {
           const streak = result.streak || 1;
           const multiplier = result.multiplier || 1;
+          
+          // Also reward VYBE tokens for daily login
+          rewardDailyLogin();
           
           if (streak > 1) {
             toast.success(`+${result.xp_granted} XP (${multiplier}x streak bonus) 🔥 Day ${streak}!`, { duration: 4000 });

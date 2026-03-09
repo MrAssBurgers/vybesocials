@@ -5,6 +5,7 @@ import { filterBlockedContent, containsBlockedContent } from '@/lib/contentModer
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 import { useBumpReactionStreak } from './useReactionStreaks';
+import { useTokenReward } from './useVybeTokens';
 
 interface Comment {
   id: string;
@@ -64,6 +65,7 @@ export function useCreateComment() {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   const bumpStreak = useBumpReactionStreak();
+  const { rewardComment } = useTokenReward();
 
   return useMutation({
     mutationFn: async ({ postId, text, authorId, imageUrl }: { postId: string; text: string; authorId: string; imageUrl?: string }) => {
@@ -159,6 +161,8 @@ export function useCreateComment() {
     onSuccess: (_, { postId }) => {
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      // Reward tokens for commenting
+      rewardComment();
     },
   });
 }

@@ -1,9 +1,11 @@
 import { motion } from 'framer-motion';
-import { Coins, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles } from 'lucide-react';
+import { Coins, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles, ShoppingBag } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useTokenBalance, useTokenTransactions, TOKEN_RATES } from '@/hooks/useVybeTokens';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 function TransactionItem({ amount, type, description, created_at }: {
   amount: number;
@@ -59,6 +61,9 @@ function EarnRate({ action, rate }: { action: string; rate: number }) {
 export default function TokenWallet() {
   const { data: balance, isLoading: balanceLoading } = useTokenBalance();
   const { data: transactions = [], isLoading: txLoading } = useTokenTransactions();
+  const navigate = useNavigate();
+
+  const purchases = transactions.filter(tx => tx.transaction_type === 'purchase');
 
   return (
     <div className="min-h-screen bg-background p-4 pb-24">
@@ -97,6 +102,15 @@ export default function TokenWallet() {
             </div>
           </div>
         </Card>
+
+        {/* Quick Actions */}
+        <Button
+          onClick={() => navigate('/marketplace')}
+          className="w-full gradient-animated text-primary-foreground font-semibold h-12 rounded-xl"
+        >
+          <ShoppingBag className="h-5 w-5 mr-2" />
+          Visit Token Shop
+        </Button>
 
         {/* How to Earn */}
         <Card>
@@ -143,6 +157,29 @@ export default function TokenWallet() {
             )}
           </CardContent>
         </Card>
+
+        {/* Purchase History */}
+        {purchases.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5" />
+                Purchase History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {purchases.map((tx) => (
+                <TransactionItem
+                  key={tx.id}
+                  amount={tx.amount}
+                  type={tx.transaction_type}
+                  description={tx.description}
+                  created_at={tx.created_at}
+                />
+              ))}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

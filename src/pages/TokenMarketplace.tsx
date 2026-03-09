@@ -1,5 +1,6 @@
-import { useState, memo } from 'react';
-import { Coins, Crown, Lock } from 'lucide-react';
+import { useState, memo, useCallback } from 'react';
+import { Coins, Crown, Lock, PartyPopper } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { Button } from '@/components/ui/button';
@@ -62,17 +63,61 @@ const ItemCard = memo(({ item, canAfford, isPremium, onBuy }: { item: Marketplac
 
 export default function TokenMarketplace() {
   const [tab, setTab] = useState<string>('all');
+  const [showConfetti, setShowConfetti] = useState(false);
   const filterCat = tab === 'all' ? undefined : tab as MarketplaceItem['category'];
   const { items, balance, canAfford, isPremium } = useTokenMarketplace(filterCat);
   const purchase = useMarketplacePurchase();
 
-  const handleBuy = (item: MarketplaceItem) => {
-    purchase.mutate({ itemId: item.id, cost: item.cost, name: item.name });
-  };
+  const handleBuy = useCallback((item: MarketplaceItem) => {
+    purchase.mutate({ itemId: item.id, cost: item.cost, name: item.name }, {
+      onSuccess: () => {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 2000);
+      },
+    });
+  }, [purchase]);
 
   return (
     <AppLayout>
       <PageTransition>
+        {/* Confetti overlay on successful purchase */}
+        <AnimatePresence>
+          {showConfetti && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: [0, 1.3, 1] }}
+                transition={{ duration: 0.5 }}
+                className="text-6xl"
+              >
+                🎉
+              </motion.div>
+              {/* Particle burst */}
+              {Array.from({ length: 12 }).map((_, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+                  animate={{
+                    opacity: 0,
+                    scale: 0.5,
+                    x: Math.cos((i * Math.PI * 2) / 12) * 120,
+                    y: Math.sin((i * Math.PI * 2) / 12) * 120,
+                  }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                  className="absolute text-2xl"
+                >
+                  {['✨', '🪙', '💫', '⭐'][i % 4]}
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
