@@ -33,6 +33,7 @@ import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { PostCarousel } from './PostCarousel';
+import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 
 // Video player component - maintains the video's native aspect ratio (no cropping)
 // NEVER shows broken placeholder - graceful degradation
@@ -294,6 +295,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const { isGuest } = useIsGuest();
   const queryClient = useQueryClient();
   const togglePin = useTogglePin();
+  const bumpStreak = useInteractionStreakBump();
   const { data: userRole } = useUserRole();
   // Defer fetching author role until menu is opened to reduce initial load
   const [menuOpen, setMenuOpen] = useState(false);
@@ -375,6 +377,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           actor_id: profile.id,
           post_id: post.id,
         });
+        // Bump reaction streak with post author
+        bumpStreak(post.author.id);
       }
     } else {
       await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });

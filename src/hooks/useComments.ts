@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { filterBlockedContent, containsBlockedContent } from '@/lib/contentModeration';
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
+import { useBumpReactionStreak } from './useReactionStreaks';
 
 interface Comment {
   id: string;
@@ -60,8 +61,9 @@ export function useComments(postId: string) {
 }
 
 export function useCreateComment() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
+  const bumpStreak = useBumpReactionStreak();
 
   return useMutation({
     mutationFn: async ({ postId, text, authorId, imageUrl }: { postId: string; text: string; authorId: string; imageUrl?: string }) => {
@@ -127,7 +129,7 @@ export function useCreateComment() {
 
       if (error) throw error;
 
-      // Create notification
+      // Create notification + bump reaction streak
       if (authorId !== profile.id) {
         await supabase.from('notifications').insert({
           user_id: authorId,
@@ -135,6 +137,11 @@ export function useCreateComment() {
           actor_id: profile.id,
           post_id: postId,
         });
+        
+        // Bump reaction streak with post author (fire and forget)
+        if (user?.id && authorId !== user.id) {
+          bumpStreak.mutate(authorId);
+        }
       }
 
       // Run additional AI moderation in background (non-blocking)

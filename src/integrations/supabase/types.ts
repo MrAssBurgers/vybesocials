@@ -2385,6 +2385,44 @@ export type Database = {
           },
         ]
       }
+      collab_post_invites: {
+        Row: {
+          created_at: string
+          id: string
+          invitee_id: string
+          inviter_id: string
+          post_id: string | null
+          responded_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invitee_id: string
+          inviter_id: string
+          post_id?: string | null
+          responded_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invitee_id?: string
+          inviter_id?: string
+          post_id?: string | null
+          responded_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collab_post_invites_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       collab_posts: {
         Row: {
           accepted_at: string | null
@@ -5751,6 +5789,38 @@ export type Database = {
         }
         Relationships: []
       }
+      post_collaborators: {
+        Row: {
+          added_at: string
+          id: string
+          post_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          id?: string
+          post_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          id?: string
+          post_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_collaborators_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       posts: {
         Row: {
           author_id: string
@@ -7187,6 +7257,116 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
         ]
+      }
+      space_participants: {
+        Row: {
+          id: string
+          is_muted: boolean | null
+          joined_at: string
+          left_at: string | null
+          raised_hand: boolean | null
+          role: string
+          space_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          is_muted?: boolean | null
+          joined_at?: string
+          left_at?: string | null
+          raised_hand?: boolean | null
+          role?: string
+          space_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          is_muted?: boolean | null
+          joined_at?: string
+          left_at?: string | null
+          raised_hand?: boolean | null
+          role?: string
+          space_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "space_participants_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spaces: {
+        Row: {
+          allow_requests: boolean | null
+          cover_image_url: string | null
+          created_at: string
+          daily_room_name: string | null
+          daily_room_url: string | null
+          description: string | null
+          ended_at: string | null
+          host_id: string
+          id: string
+          is_recording: boolean | null
+          listener_count: number | null
+          max_speakers: number | null
+          peak_listeners: number | null
+          recording_url: string | null
+          scheduled_at: string | null
+          started_at: string | null
+          status: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          allow_requests?: boolean | null
+          cover_image_url?: string | null
+          created_at?: string
+          daily_room_name?: string | null
+          daily_room_url?: string | null
+          description?: string | null
+          ended_at?: string | null
+          host_id: string
+          id?: string
+          is_recording?: boolean | null
+          listener_count?: number | null
+          max_speakers?: number | null
+          peak_listeners?: number | null
+          recording_url?: string | null
+          scheduled_at?: string | null
+          started_at?: string | null
+          status?: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          allow_requests?: boolean | null
+          cover_image_url?: string | null
+          created_at?: string
+          daily_room_name?: string | null
+          daily_room_url?: string | null
+          description?: string | null
+          ended_at?: string | null
+          host_id?: string
+          id?: string
+          is_recording?: boolean | null
+          listener_count?: number | null
+          max_speakers?: number | null
+          peak_listeners?: number | null
+          recording_url?: string | null
+          scheduled_at?: string | null
+          started_at?: string | null
+          status?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       sponsor_analytics: {
         Row: {

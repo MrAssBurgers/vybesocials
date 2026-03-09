@@ -51,6 +51,7 @@ import { AIAssistButton } from './AIAssistButton';
 import { SmartRepliesBar } from './SmartRepliesBar';
 import { ChatSummarySheet } from './ChatSummarySheet';
 import { AdminPanelSheet } from './AdminPanelSheet';
+import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
@@ -121,6 +122,7 @@ export function ChatView() {
   const { t } = useTranslation();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const bumpStreak = useInteractionStreakBump();
   
   const { data: conversations } = useConversations();
   const { data: messages, isLoading } = useMessages(conversationId);
@@ -521,7 +523,12 @@ export function ChatView() {
     // Use instant send for immediate optimistic UI
     sendText(text, viewMode, replyingTo?.id);
     setReplyingTo(null);
-  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText, editingMessageId, editMessage]);
+    
+    // Bump reaction streak with recipient (for DMs only)
+    if (!isGroupChat && otherMember?.id) {
+      bumpStreak(otherMember.id);
+    }
+  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText, editingMessageId, editMessage, isGroupChat, otherMember?.id, bumpStreak]);
 
   // sendWithReply is now handled by useInstantSend's sendText
 

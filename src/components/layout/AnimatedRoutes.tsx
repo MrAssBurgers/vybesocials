@@ -65,6 +65,8 @@ const SoundDetail = lazy(() => import("@/pages/SoundDetail"));
 const MusicPersonalityQuiz = lazy(() => import("@/pages/MusicPersonalityQuiz"));
 const ReactionStreaks = lazy(() => import("@/pages/ReactionStreaks"));
 const VYBERoulette = lazy(() => import("@/pages/VYBERoulette"));
+const VYBESpaces = lazy(() => import("@/pages/VYBESpaces"));
+const SpaceRoom = lazy(() => import("@/pages/SpaceRoom"));
 
 // Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -166,6 +168,8 @@ export function AnimatedRoutes() {
             <Route path="/sounds/:soundId" element={<ProtectedRoute><SoundDetail /></ProtectedRoute>} />
             <Route path="/streaks" element={<ProtectedRoute><ReactionStreaks /></ProtectedRoute>} />
             <Route path="/roulette" element={<ProtectedRoute><VYBERoulette /></ProtectedRoute>} />
+            <Route path="/spaces" element={<ProtectedRoute><VYBESpaces /></ProtectedRoute>} />
+            <Route path="/space/:spaceId" element={<ProtectedRoute><SpaceRoom /></ProtectedRoute>} />
             
             {/* Let /~oauth pass through to the cloud auth handler */}
             <Route path="/~oauth" element={null} />
