@@ -13,7 +13,7 @@ import {
   Clock,
   Music2,
   Camera,
-  Remix,
+  RotateCcw,
   BookmarkPlus,
   MoreVertical,
   User
