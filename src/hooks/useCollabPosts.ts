@@ -48,16 +48,25 @@ export function useCollabInvites() {
 
       const { data, error } = await supabase
         .from('collab_post_invites' as any)
-        .select(`
-          *,
-          inviter:profiles!inviter_id(id, username, avatar_url, display_name)
-        `)
+        .select('*')
         .eq('invitee_id', user.id)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return (data || []) as CollabInvite[];
+      
+      const inviterIds = [...new Set((data || []).map((i: any) => i.inviter_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url, display_name')
+        .in('id', inviterIds);
+      
+      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+      
+      return (data || []).map((i: any) => ({
+        ...i,
+        inviter: profileMap.get(i.inviter_id) || null,
+      })) as CollabInvite[];
     },
     enabled: !!user?.id,
   });
@@ -71,15 +80,24 @@ export function usePostCollaborators(postId: string | undefined) {
 
       const { data, error } = await supabase
         .from('post_collaborators' as any)
-        .select(`
-          *,
-          profile:profiles!user_id(id, username, avatar_url, display_name)
-        `)
+        .select('*')
         .eq('post_id', postId)
         .order('added_at', { ascending: true });
 
       if (error) throw error;
-      return (data || []) as PostCollaborator[];
+      
+      const userIds = [...new Set((data || []).map((c: any) => c.user_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url, display_name')
+        .in('id', userIds);
+      
+      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+      
+      return (data || []).map((c: any) => ({
+        ...c,
+        profile: profileMap.get(c.user_id) || null,
+      })) as PostCollaborator[];
     },
     enabled: !!postId,
   });

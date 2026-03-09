@@ -161,20 +161,20 @@ export function useCreateSpace() {
           scheduled_at: input.scheduledAt,
           started_at: input.scheduledAt ? null : new Date().toISOString(),
         } as any)
-        .select()
+        .select('*')
         .single();
 
       if (error) throw error;
 
       // Auto-join as host
       await supabase.from('space_participants' as any).insert({
-        space_id: data.id,
+        space_id: (data as any).id,
         user_id: user.id,
         role: 'host',
         is_muted: false,
       } as any);
 
-      return data as Space;
+      return data as unknown as Space;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['spaces'] });
