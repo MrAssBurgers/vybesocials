@@ -117,6 +117,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const [activeTab, setActiveTab] = useState('foryou');
   const { showAds } = useShowAds();
   const { hasNewPosts, clearNewPosts } = useNewPostsBanner();
+  const [customizerOpen, setCustomizerOpen] = useState(false);
+  const [commandBarOpen, setCommandBarOpen] = useState(false);
+  const { isVisible } = useHomeLayout();
   
   // Personalized feed (interest-matched posts)
   const {
