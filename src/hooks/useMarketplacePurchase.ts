@@ -19,7 +19,7 @@ export function useMarketplacePurchase() {
       // Rate-limit: max 10 purchases per minute
       const { data: rlData } = await supabase.rpc('check_rate_limit', {
         p_key: `marketplace_purchase:${user.id}`,
-        p_max_count: 10,
+        p_max_requests: 10,
         p_window_seconds: 60,
       });
       if (rlData === false) throw new Error('Too many purchases — try again in a minute');
