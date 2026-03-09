@@ -10120,28 +10120,7 @@ export type Database = {
         }
         Returns: string
       }
-      bump_reaction_streak: {
-        Args: { p_other_user: string }
-        Returns: {
-          created_at: string
-          current_streak: number
-          id: string
-          last_interaction_at: string
-          last_user_a_at: string | null
-          last_user_b_at: string | null
-          longest_streak: number
-          streak_started_at: string | null
-          updated_at: string
-          user_a: string
-          user_b: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "reaction_streaks"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      bump_reaction_streak: { Args: { p_other_user: string }; Returns: Json }
       calculate_level_from_xp: { Args: { p_xp: number }; Returns: number }
       can_send_dm: {
         Args: { receiver_id: string; sender_id: string }
@@ -10220,24 +10199,7 @@ export type Database = {
       filter_profanity: { Args: { input_text: string }; Returns: string }
       find_roulette_match: {
         Args: { p_interests?: string[]; p_mode?: string }
-        Returns: {
-          conversation_id: string | null
-          created_at: string
-          ended_at: string | null
-          id: string
-          mode: string
-          shared_interests: string[] | null
-          started_at: string
-          status: string
-          user_a: string
-          user_b: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "roulette_matches"
-          isOneToOne: true
-          isSetofReturn: false
-        }
+        Returns: Json
       }
       fire_push_notification: {
         Args: {
