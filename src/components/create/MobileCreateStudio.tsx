@@ -316,6 +316,26 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           )}
         </AnimatePresence>
 
+        {/* Sound Controls */}
+        <AnimatePresence>
+          {selectedSound && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="absolute top-20 left-4 right-4 z-20"
+            >
+              <SoundControls
+                sound={selectedSound}
+                startTime={soundStartTime}
+                onStartTimeChange={setSoundStartTime}
+                onRemoveSound={() => setSelectedSound(null)}
+                compact
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Multi mode thumbnail strip */}
         {mode === 'multi' && capturedPreviews.length > 0 && (
           <div className="absolute top-16 left-0 right-0 z-20 px-4">
