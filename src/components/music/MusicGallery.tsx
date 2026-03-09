@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Play, Pause, Heart, X, Clock, Disc, TrendingUp, Star } from 'lucide-react';
+import { Search, Play, Pause, Heart, X, Clock, Disc, TrendingUp, Star, Share } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -193,6 +193,63 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
     }
     setCurrentlyPlaying(null);
     onSelectTrack(track);
+  };
+
+  const handleShareTrack = async (track: Track) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('You must be logged in to share music');
+        return;
+      }
+
+      // Check profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (!profile) throw new Error('Profile not found');
+
+      // Stop audio if playing
+      if (audioElement) {
+        audioElement.pause();
+        setAudioElement(null);
+        setCurrentlyPlaying(null);
+      }
+
+      // Create a feed post sharing the track
+      const { error } = await supabase.from('posts').insert({
+        author_id: profile.id,
+        type: 'text',
+        caption: `Vibing to "${track.title}" by ${track.artist} 🎵\n#music #discovery #${track.genre.replace(/\s+/g, '').toLowerCase()}`,
+        media_url: track.artwork_url || 'https://images.unsplash.com/photo-1614149162883-504ce4d13909?q=80&w=800&auto=format&fit=crop',
+      });
+
+      if (error) throw error;
+
+      // Update track usage stats (shares)
+      await supabase.rpc('update_track_usage', {
+        p_track_id: track.track_id,
+        p_shares: 1
+      });
+
+      // Simple way to award XP directly (like 50 XP for sharing a track)
+      try {
+        await supabase.rpc('add_user_xp', {
+          p_user_id: user.id,
+          p_xp_amount: 50
+        });
+      } catch (e) {
+        console.warn('Failed to add XP for sharing track', e);
+      }
+
+      toast.success('Track shared to your feed! +50 XP 🎵');
+    } catch (error) {
+      console.error('Error sharing track:', error);
+      toast.error('Failed to share track');
+    }
   };
 
   const formatDuration = (seconds: number) => {
@@ -392,6 +449,15 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
                             ) : (
                               <Play className="h-4 w-4" />
                             )}
+                          </Button>
+                          
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleShareTrack(track)}
+                            title="Share to feed"
+                          >
+                            <Share className="h-4 w-4" />
                           </Button>
                           
                           <Button 
