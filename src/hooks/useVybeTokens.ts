@@ -85,7 +85,7 @@ export function useTokenTransactions(limit = 20) {
         .limit(limit);
 
       if (error) throw error;
-      return (data || []) as TokenTransaction[];
+      return (data || []) as unknown as TokenTransaction[];
     },
     enabled: !!user?.id,
   });

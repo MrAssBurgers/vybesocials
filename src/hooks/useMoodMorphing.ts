@@ -108,7 +108,7 @@ export function useSetMood() {
         .single();
 
       if (error) throw error;
-      return data as MoodState;
+      return data as unknown as MoodState;
     },
     onSuccess: (data) => {
       qc.setQueryData(['current-mood', user?.id], data);

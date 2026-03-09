@@ -131,7 +131,13 @@ export default function TokenWallet() {
             ) : (
               <div>
                 {transactions.map((tx) => (
-                  <TransactionItem key={tx.id} {...tx} />
+                  <TransactionItem 
+                    key={tx.id} 
+                    amount={tx.amount}
+                    type={tx.transaction_type}
+                    description={tx.description}
+                    created_at={tx.created_at}
+                  />
                 ))}
               </div>
             )}
