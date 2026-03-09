@@ -17,7 +17,7 @@ interface CameraShareSheetProps {
 
 type ShareDestination = 'clip' | 'story' | 'dm' | 'save';
 
-export function CameraShareSheet({ mediaUrl, mediaType, onClose, onComplete }: CameraShareSheetProps) {
+export function CameraShareSheet({ mediaUrl, mediaType, soundId, soundStartTime, onClose, onComplete }: CameraShareSheetProps) {
   const [selectedDestinations, setSelectedDestinations] = useState<ShareDestination[]>([]);
   const [caption, setCaption] = useState('');
   const [isSharing, setIsSharing] = useState(false);

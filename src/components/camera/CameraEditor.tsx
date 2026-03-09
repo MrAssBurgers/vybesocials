@@ -36,7 +36,7 @@ const COLORS = ['#ffffff', '#000000', '#ff3b30', '#ff9500', '#ffcc00', '#34c759'
 
 const STICKERS = ['😀', '😍', '🔥', '💯', '✨', '🎉', '❤️', '👍', '🙌', '💪', '🎵', '🌟'];
 
-export function CameraEditor({ mediaUrl, mediaType, filter, onSave, onCancel }: CameraEditorProps) {
+export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartTime, onSave, onCancel }: CameraEditorProps) {
   const [mode, setMode] = useState<'none' | 'text' | 'sticker' | 'draw'>('none');
   const [textOverlays, setTextOverlays] = useState<TextOverlay[]>([]);
   const [drawings, setDrawings] = useState<DrawPath[]>([]);
