@@ -394,6 +394,15 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
                             )}
                           </Button>
                           
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleShareTrack(track)}
+                            title="Share to feed"
+                          >
+                            <Share className="h-4 w-4" />
+                          </Button>
+                          
                           <Button 
                             size="sm"
                             onClick={() => handleUseSound(track)}
