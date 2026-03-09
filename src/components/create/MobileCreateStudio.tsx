@@ -254,6 +254,8 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         files={capturedFiles}
         previews={capturedPreviews}
         contentType={mode === 'text' ? 'text' : mode === 'video' ? (capturedFiles[0]?.type.startsWith('video/') ? 'short' : 'post') : 'post'}
+        selectedSound={selectedSound}
+        soundStartTime={soundStartTime}
         onBack={() => {
           if (mode !== 'text') {
             capturedPreviews.forEach(p => URL.revokeObjectURL(p));
