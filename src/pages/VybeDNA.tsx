@@ -113,15 +113,37 @@ export default function VybeDNAPage() {
     <div className="min-h-screen bg-background p-4 pb-24">
       <div className="max-w-lg mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold flex items-center justify-center gap-2">
-            <Sparkles className="w-6 h-6 text-primary" />
-            VYBE DNA
-          </h1>
-          <p className="text-muted-foreground">
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Sparkles className="w-6 h-6 text-primary" />
+              VYBE DNA
+            </h1>
+          </div>
+          <p className="text-foreground/80 text-sm">
             Your unique visual signature based on your activity and personality
           </p>
         </div>
+
+        {/* What is VYBE DNA */}
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex gap-3 items-start">
+              <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                <Info className="h-4 w-4 text-primary" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-foreground">What is VYBE DNA?</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  VYBE DNA generates a unique visual identity based on how you use the app. Your activity, social interactions, and creative output combine to create a one-of-a-kind color palette, glyph pattern, and aura that evolves over time. Share it with friends or use it to stand out on your profile.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* DNA Visualization */}
         <Card>

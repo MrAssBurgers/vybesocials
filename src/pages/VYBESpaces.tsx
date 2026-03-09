@@ -181,7 +181,7 @@ export default function VYBESpaces() {
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <Radio className="h-6 w-6 text-primary" />
-                VYBE Spaces
+                VYBE Hubs
               </h1>
               <p className="text-sm text-muted-foreground">
                 Live audio rooms with your people
