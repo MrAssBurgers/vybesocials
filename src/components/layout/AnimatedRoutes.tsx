@@ -63,6 +63,8 @@ const Leaderboard = lazy(() => import("@/pages/Leaderboard"));
 const Sounds = lazy(() => import("@/pages/Sounds"));
 const SoundDetail = lazy(() => import("@/pages/SoundDetail"));
 const MusicPersonalityQuiz = lazy(() => import("@/pages/MusicPersonalityQuiz"));
+const ReactionStreaks = lazy(() => import("@/pages/ReactionStreaks"));
+const VYBERoulette = lazy(() => import("@/pages/VYBERoulette"));
 
 // Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
