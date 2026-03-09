@@ -61,6 +61,9 @@ function EarnRate({ action, rate }: { action: string; rate: number }) {
 export default function TokenWallet() {
   const { data: balance, isLoading: balanceLoading } = useTokenBalance();
   const { data: transactions = [], isLoading: txLoading } = useTokenTransactions();
+  const navigate = useNavigate();
+
+  const purchases = transactions.filter(tx => tx.transaction_type === 'purchase');
 
   return (
     <div className="min-h-screen bg-background p-4 pb-24">
