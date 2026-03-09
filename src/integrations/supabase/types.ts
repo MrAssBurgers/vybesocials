@@ -6074,6 +6074,48 @@ export type Database = {
         }
         Relationships: []
       }
+      reaction_streaks: {
+        Row: {
+          created_at: string
+          current_streak: number
+          id: string
+          last_interaction_at: string
+          last_user_a_at: string | null
+          last_user_b_at: string | null
+          longest_streak: number
+          streak_started_at: string | null
+          updated_at: string
+          user_a: string
+          user_b: string
+        }
+        Insert: {
+          created_at?: string
+          current_streak?: number
+          id?: string
+          last_interaction_at?: string
+          last_user_a_at?: string | null
+          last_user_b_at?: string | null
+          longest_streak?: number
+          streak_started_at?: string | null
+          updated_at?: string
+          user_a: string
+          user_b: string
+        }
+        Update: {
+          created_at?: string
+          current_streak?: number
+          id?: string
+          last_interaction_at?: string
+          last_user_a_at?: string | null
+          last_user_b_at?: string | null
+          longest_streak?: number
+          streak_started_at?: string | null
+          updated_at?: string
+          user_a?: string
+          user_b?: string
+        }
+        Relationships: []
+      }
       reports: {
         Row: {
           admin_notes: string | null
@@ -6173,6 +6215,77 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
         ]
+      }
+      roulette_matches: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          ended_at: string | null
+          id: string
+          mode: string
+          shared_interests: string[] | null
+          started_at: string
+          status: string
+          user_a: string
+          user_b: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          mode?: string
+          shared_interests?: string[] | null
+          started_at?: string
+          status?: string
+          user_a: string
+          user_b: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          mode?: string
+          shared_interests?: string[] | null
+          started_at?: string
+          status?: string
+          user_a?: string
+          user_b?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roulette_matches_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roulette_queue: {
+        Row: {
+          id: string
+          interests: string[] | null
+          joined_at: string
+          mode: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          interests?: string[] | null
+          joined_at?: string
+          mode?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          interests?: string[] | null
+          joined_at?: string
+          mode?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       saved_themes: {
         Row: {
@@ -9617,6 +9730,28 @@ export type Database = {
         }
         Returns: string
       }
+      bump_reaction_streak: {
+        Args: { p_other_user: string }
+        Returns: {
+          created_at: string
+          current_streak: number
+          id: string
+          last_interaction_at: string
+          last_user_a_at: string | null
+          last_user_b_at: string | null
+          longest_streak: number
+          streak_started_at: string | null
+          updated_at: string
+          user_a: string
+          user_b: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "reaction_streaks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       calculate_level_from_xp: { Args: { p_xp: number }; Returns: number }
       can_send_dm: {
         Args: { receiver_id: string; sender_id: string }
@@ -9683,6 +9818,27 @@ export type Database = {
       ensure_profile: { Args: never; Returns: string }
       execute_admin_sql: { Args: { sql_query: string }; Returns: Json }
       filter_profanity: { Args: { input_text: string }; Returns: string }
+      find_roulette_match: {
+        Args: { p_interests?: string[]; p_mode?: string }
+        Returns: {
+          conversation_id: string | null
+          created_at: string
+          ended_at: string | null
+          id: string
+          mode: string
+          shared_interests: string[] | null
+          started_at: string
+          status: string
+          user_a: string
+          user_b: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "roulette_matches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       fire_push_notification: {
         Args: {
           p_body: string
