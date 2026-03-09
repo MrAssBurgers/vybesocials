@@ -116,6 +116,35 @@ export function Sidebar() {
           );
         })}
 
+        {/* Discovery Section */}
+        <div className="mt-4 pt-3" style={{ borderTop: '1px solid transparent', borderImage: 'linear-gradient(90deg, transparent 5%, hsl(var(--border) / 0.15) 50%, transparent 95%) 1' }}>
+          <span className="px-4 text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold">Discover</span>
+          {[
+            { icon: Wallet, label: 'Wallet', path: '/wallet' },
+            { icon: ShoppingBag, label: 'Shop', path: '/marketplace' },
+            { icon: Dna, label: 'VYBE DNA', path: '/vybe-dna' },
+            { icon: Radio, label: 'Spaces', path: '/spaces' },
+          ].map(item => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={triggerNavFeedback}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm",
+                  isActive
+                    ? "text-sidebar-foreground bg-sidebar-accent/30"
+                    : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                <span className="font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+
         {/* Create Button */}
         <Link to="/upload" className="block mt-4" onClick={triggerNavFeedback}>
           <Button className="w-full gradient-animated text-primary-foreground font-semibold h-12 rounded-xl liquid-glass-button hover:scale-[1.02] transition-transform">

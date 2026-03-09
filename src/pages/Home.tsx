@@ -347,7 +347,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
         {/* Stories Bar - widget controlled */}
         {isVisible('stories') && <StoriesBar />}
-        
+
+        {/* Discovery Cards — quick access to Wallet, Shop, DNA, Spaces */}
+        <DiscoveryCards />
         <div className="px-3 pb-6" data-tutorial="feed-area">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
