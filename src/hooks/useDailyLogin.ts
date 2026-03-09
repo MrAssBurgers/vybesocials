@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useTokenReward } from '@/hooks/useVybeTokens';
 
 /**
  * Tracks daily login for challenges and grants streak-multiplied XP.
