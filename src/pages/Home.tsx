@@ -28,6 +28,7 @@ import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
 import { HomeWidgetCustomizer } from '@/components/home/HomeWidgetCustomizer';
 import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
 import { useHomeLayout } from '@/hooks/useHomeLayout';
+import { DiscoveryCards } from '@/components/home/DiscoveryCards';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
