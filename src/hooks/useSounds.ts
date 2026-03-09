@@ -169,27 +169,33 @@ export function usePostsWithSound(soundId: string) {
           caption,
           tags,
           created_at,
-          like_count,
-          comment_count,
-          profile:profiles!inner(id, username, display_name, avatar_url)
+          profiles!inner(id, username, display_name, avatar_url)
         `)
         .limit(12);
       
       if (error) throw error;
       
       // Transform data to match PostCard interface
-      return data.map(post => ({
-        ...post,
+      return data?.map((post: any) => ({
+        id: post.id,
+        type: post.type,
+        media_url: post.media_url,
+        media_urls: post.media_urls,
+        caption: post.caption,
+        tags: post.tags,
+        created_at: post.created_at,
         author: {
-          id: post.profile.id,
-          username: post.profile.username,
-          display_name: post.profile.display_name,
-          avatar_url: post.profile.avatar_url
+          id: post.profiles.id,
+          username: post.profiles.username,
+          display_name: post.profiles.display_name,
+          avatar_url: post.profiles.avatar_url
         },
+        like_count: 0, // TODO: Calculate from likes table
+        comment_count: 0, // TODO: Calculate from comments table
         is_liked: false, // TODO: Check if user liked
         is_bookmarked: false, // TODO: Check if user bookmarked
         is_pinned: false
-      }));
+      })) || [];
     },
     enabled: !!soundId,
   });
