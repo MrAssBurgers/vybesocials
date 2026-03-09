@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
-import { useTokenBalance } from '@/hooks/useTokenWallet';
+import { useTokenBalance } from '@/hooks/useVybeTokens';
 
 export interface MarketplaceItem {
   id: string;

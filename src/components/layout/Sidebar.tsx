@@ -1,4 +1,4 @@
-import { Home, Film, PlusCircle, Compass, Bell, Settings, LogOut, MessageCircle, Shield, Crown } from 'lucide-react';
+import { Home, Film, PlusCircle, Compass, Bell, Settings, LogOut, MessageCircle, Shield, Crown, Wallet, ShoppingBag, Dna, Radio } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
