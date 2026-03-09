@@ -4839,6 +4839,30 @@ export type Database = {
         }
         Relationships: []
       }
+      marketplace_purchases: {
+        Row: {
+          cost: number
+          id: string
+          item_id: string
+          purchased_at: string
+          user_id: string
+        }
+        Insert: {
+          cost: number
+          id?: string
+          item_id: string
+          purchased_at?: string
+          user_id: string
+        }
+        Update: {
+          cost?: number
+          id?: string
+          item_id?: string
+          purchased_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       meme_ban_backgrounds: {
         Row: {
           created_at: string
@@ -10585,6 +10609,10 @@ export type Database = {
       process_due_scheduled_messages: {
         Args: { limit_count?: number }
         Returns: number
+      }
+      purchase_marketplace_item: {
+        Args: { p_cost: number; p_description?: string; p_item_id: string }
+        Returns: Json
       }
       record_ad_impression: {
         Args: {
