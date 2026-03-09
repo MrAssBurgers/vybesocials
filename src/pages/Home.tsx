@@ -328,11 +328,24 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         {/* Welcome Header with AI Catch-up */}
         <WelcomeHeader />
 
-        {/* Weekly Rhythm Banner */}
-        <WeeklyRhythmBanner />
+        {/* Customize Button */}
+        <div className="px-4 pb-2 flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCustomizerOpen(true)}
+            className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Customize
+          </Button>
+        </div>
 
-        {/* Stories Bar */}
-        <StoriesBar />
+        {/* Weekly Rhythm Banner - widget controlled */}
+        {isVisible('weekly_rhythm') && <WeeklyRhythmBanner />}
+
+        {/* Stories Bar - widget controlled */}
+        {isVisible('stories') && <StoriesBar />}
         
         <div className="px-3 pb-6" data-tutorial="feed-area">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
