@@ -397,6 +397,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
 
     const newIsBookmarked = !isBookmarked;
     setIsBookmarked(newIsBookmarked);
+    if (newIsBookmarked) triggerHaptic('light');
 
     if (newIsBookmarked) {
       await supabase.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });

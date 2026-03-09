@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dna, Wallet, ShoppingBag, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { triggerHaptic } from '@/lib/haptics';
 
 interface DiscoveryItem {
   icon: React.ReactNode;
