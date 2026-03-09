@@ -32,6 +32,7 @@ const ListingDetail = lazy(() => import("@/pages/ListingDetail"));
 const Events = lazy(() => import("@/pages/Events"));
 const CreateEvent = lazy(() => import("@/pages/CreateEvent"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
+const AdminMusicSettings = lazy(() => import("@/pages/AdminMusicSettings"));
 const Community = lazy(() => import("@/pages/Community"));
 const Spaces = lazy(() => import("@/pages/Spaces"));
 const Watch = lazy(() => import("@/pages/Watch"));
