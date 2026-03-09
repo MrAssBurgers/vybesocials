@@ -50,7 +50,8 @@ export function useTokenBalance() {
       if (error && error.code !== 'PGRST116') throw error;
       
       // Return default if no record exists
-      if (!data) {
+      const typedData = data as unknown as TokenBalance | null;
+      if (!typedData) {
         return {
           id: '',
           user_id: user.id,
