@@ -65,6 +65,7 @@ export function useCreateComment() {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   const bumpStreak = useBumpReactionStreak();
+  const { rewardComment } = useTokenReward();
 
   return useMutation({
     mutationFn: async ({ postId, text, authorId, imageUrl }: { postId: string; text: string; authorId: string; imageUrl?: string }) => {
