@@ -51,10 +51,7 @@ export function useSpaces(status?: 'live' | 'scheduled') {
     queryFn: async () => {
       let query = supabase
         .from('spaces' as any)
-        .select(`
-          *,
-          host:profiles!host_id(id, username, avatar_url, display_name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (status) {
@@ -65,7 +62,20 @@ export function useSpaces(status?: 'live' | 'scheduled') {
 
       const { data, error } = await query.limit(50);
       if (error) throw error;
-      return (data || []) as Space[];
+      
+      // Fetch host profiles separately
+      const hostIds = [...new Set((data || []).map((s: any) => s.host_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url, display_name')
+        .in('id', hostIds);
+      
+      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+      
+      return (data || []).map((s: any) => ({
+        ...s,
+        host: profileMap.get(s.host_id) || null,
+      })) as Space[];
     },
     staleTime: 10_000,
   });
