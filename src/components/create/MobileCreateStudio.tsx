@@ -7,6 +7,7 @@ import { CreateModeSelector, type CreateMode } from './CreateModeSelector';
 import { MobilePostComposer } from './MobilePostComposer';
 import { SoundPicker } from '@/components/sounds/SoundPicker';
 import { SoundControls } from '@/components/sounds/SoundControls';
+import { MusicGallery } from '@/components/music/MusicGallery';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
@@ -31,6 +32,8 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [showFlash, setShowFlash] = useState(false);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const [selectedSound, setSelectedSound] = useState<Sound | null>(initialSound || null);
+  const [selectedTrack, setSelectedTrack] = useState<any>(null); // For licensed music tracks
+  const [showMusicGallery, setShowMusicGallery] = useState(false);
   const [soundStartTime, setSoundStartTime] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -388,10 +391,10 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={() => setShowSoundPicker(true)}
+            onClick={() => setShowMusicGallery(true)}
             className={cn(
               "text-white w-12 h-12 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-xl",
-              selectedSound && "text-primary border-2 border-primary/50"
+              (selectedSound || selectedTrack) && "text-primary border-2 border-primary/50"
             )}
           >
             <Music2 className="h-5 w-5" />
@@ -445,11 +448,26 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         </AnimatePresence>
       </div>
 
-      {/* Sound Picker */}
+      {/* Sound Options */}
+      <AnimatePresence>
+        {showMusicGallery && (
+          <MusicGallery
+            onSelectTrack={(track) => {
+              setSelectedTrack(track);
+              setSelectedSound(null); // Clear normal sound
+              setShowMusicGallery(false);
+            }}
+            onClose={() => setShowMusicGallery(false)}
+          />
+        )}
+      </AnimatePresence>
       <SoundPicker
         open={showSoundPicker}
         onClose={() => setShowSoundPicker(false)}
-        onSelectSound={setSelectedSound}
+        onSelectSound={(sound) => {
+          setSelectedSound(sound);
+          setSelectedTrack(null); // Clear licensed track
+        }}
         selectedSoundId={selectedSound?.sound_id}
       />
     </div>

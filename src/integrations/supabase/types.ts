@@ -4425,6 +4425,56 @@ export type Database = {
         }
         Relationships: []
       }
+      licensed_tracks: {
+        Row: {
+          artist: string
+          artwork_url: string | null
+          audio_url: string
+          created_at: string
+          duration: number
+          genre: string | null
+          preview_url: string
+          provider_id: string
+          title: string
+          track_id: string
+          updated_at: string
+        }
+        Insert: {
+          artist: string
+          artwork_url?: string | null
+          audio_url: string
+          created_at?: string
+          duration: number
+          genre?: string | null
+          preview_url: string
+          provider_id: string
+          title: string
+          track_id: string
+          updated_at?: string
+        }
+        Update: {
+          artist?: string
+          artwork_url?: string | null
+          audio_url?: string
+          created_at?: string
+          duration?: number
+          genre?: string | null
+          preview_url?: string
+          provider_id?: string
+          title?: string
+          track_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "licensed_tracks_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "music_providers"
+            referencedColumns: ["provider_id"]
+          },
+        ]
+      }
       likes: {
         Row: {
           created_at: string
@@ -5214,6 +5264,33 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
         ]
+      }
+      music_providers: {
+        Row: {
+          api_base_url: string
+          api_key: string
+          created_at: string
+          is_active: boolean
+          provider_id: string
+          provider_name: string
+        }
+        Insert: {
+          api_base_url: string
+          api_key: string
+          created_at?: string
+          is_active?: boolean
+          provider_id?: string
+          provider_name: string
+        }
+        Update: {
+          api_base_url?: string
+          api_key?: string
+          created_at?: string
+          is_active?: boolean
+          provider_id?: string
+          provider_name?: string
+        }
+        Relationships: []
       }
       notification_preferences: {
         Row: {
@@ -7620,6 +7697,44 @@ export type Database = {
           },
         ]
       }
+      track_usage: {
+        Row: {
+          id: string
+          last_updated: string
+          plays: number
+          shares: number
+          track_id: string
+          trend_score: number
+          videos_created: number
+        }
+        Insert: {
+          id?: string
+          last_updated?: string
+          plays?: number
+          shares?: number
+          track_id: string
+          trend_score?: number
+          videos_created?: number
+        }
+        Update: {
+          id?: string
+          last_updated?: string
+          plays?: number
+          shares?: number
+          track_id?: string
+          trend_score?: number
+          videos_created?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "track_usage_track_id_fkey"
+            columns: ["track_id"]
+            isOneToOne: true
+            referencedRelation: "licensed_tracks"
+            referencedColumns: ["track_id"]
+          },
+        ]
+      }
       trashed_conversations: {
         Row: {
           auto_delete_at: string | null
@@ -9971,6 +10086,15 @@ export type Database = {
         Returns: undefined
       }
       update_sound_trend_scores: { Args: never; Returns: undefined }
+      update_track_usage: {
+        Args: {
+          p_plays?: number
+          p_shares?: number
+          p_track_id: string
+          p_videos_created?: number
+        }
+        Returns: undefined
+      }
       use_theme_code: { Args: { p_code: string }; Returns: string }
       validate_invite_code: {
         Args: { _code: string }
