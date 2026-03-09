@@ -164,6 +164,8 @@ export function AnimatedRoutes() {
             <Route path="/roadmap" element={<ProtectedRoute><FeatureVoting /></ProtectedRoute>} />
             <Route path="/sounds" element={<ProtectedRoute><Sounds /></ProtectedRoute>} />
             <Route path="/sounds/:soundId" element={<ProtectedRoute><SoundDetail /></ProtectedRoute>} />
+            <Route path="/streaks" element={<ProtectedRoute><ReactionStreaks /></ProtectedRoute>} />
+            <Route path="/roulette" element={<ProtectedRoute><VYBERoulette /></ProtectedRoute>} />
             
             {/* Let /~oauth pass through to the cloud auth handler */}
             <Route path="/~oauth" element={null} />
