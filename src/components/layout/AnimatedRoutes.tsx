@@ -62,6 +62,7 @@ const FeatureVoting = lazy(() => import("@/pages/FeatureVoting"));
 const Leaderboard = lazy(() => import("@/pages/Leaderboard"));
 const Sounds = lazy(() => import("@/pages/Sounds"));
 const SoundDetail = lazy(() => import("@/pages/SoundDetail"));
+const MusicPersonalityQuiz = lazy(() => import("@/pages/MusicPersonalityQuiz"));
 
 // Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -124,6 +125,7 @@ export function AnimatedRoutes() {
             
             {/* Secondary routes - lazy loaded but prefetched */}
             <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
+            <Route path="/music-quiz" element={<ProtectedRoute><MusicPersonalityQuiz /></ProtectedRoute>} />
             <Route path="/p/:id" element={<ProtectedRoute><PostDetail /></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route path="/complete-profile" element={<Navigate to="/onboarding" replace />} />

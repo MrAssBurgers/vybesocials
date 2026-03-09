@@ -59,7 +59,7 @@ const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend
       <div className="relative">
         <Avatar className="h-10 w-10 ring-2 ring-background group-hover:ring-primary/50 transition-all">
           <AvatarImage src={friend?.avatar_url || undefined} />
-          <AvatarFallback className="text-xs bg-gradient-to-br from-pink-500 to-purple-500">
+          <AvatarFallback className="text-xs bg-gradient-to-br from-primary/50 to-accent/50">
             {friend?.username?.[0]?.toUpperCase() || '?'}
           </AvatarFallback>
         </Avatar>
@@ -299,6 +299,27 @@ export function DesktopRightSidebar() {
 
           <div className="h-px" />
 
+          {/* Music Vibe Quiz Banner */}
+          <Link to="/music-quiz" className="block relative overflow-hidden rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 p-4 hover:scale-[1.02] transition-transform group cursor-pointer">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-primary/20 rounded-full blur-2xl -mr-8 -mt-8 group-hover:bg-primary/30 transition-colors" />
+            <div className="absolute bottom-0 left-0 w-20 h-20 bg-accent/20 rounded-full blur-2xl -ml-8 -mb-8 group-hover:bg-accent/30 transition-colors" />
+            <div className="relative z-10 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
+                <Sparkles className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/80">
+                  Find Your Vibe
+                </h4>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Take the music personality quiz
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <div className="h-px" />
+
           {/* Trending Now */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -343,7 +364,7 @@ export function DesktopRightSidebar() {
                     to={`/market/${item.id}`}
                     className="flex items-center gap-3 p-2 rounded-xl hover:bg-sidebar-accent/30 transition-all"
                   >
-                    <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex-shrink-0 overflow-hidden">
+                    <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex-shrink-0 overflow-hidden">
                       {item.images?.[0] ? (
                         <img src={item.images[0]} alt={item.title} className="w-full h-full object-cover" />
                       ) : (
