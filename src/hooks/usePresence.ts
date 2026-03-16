@@ -12,10 +12,14 @@ function logPresence(...args: any[]) {
   }
 }
 
+function isTransientPresenceError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /failed to fetch|networkerror|load failed|abort/i.test(message);
+}
+
 export function usePresence() {
   const { profile } = useAuth();
-  const queryClient = useQueryClient();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Update presence on mount and periodically
   const updatePresence = useCallback(async () => {
