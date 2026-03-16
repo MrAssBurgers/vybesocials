@@ -141,7 +141,7 @@ export function useCreateComment() {
         });
         
         // Bump reaction streak with post author (fire and forget)
-        if (user?.id && authorId !== user.id) {
+        if (profile?.id && authorId !== profile.id) {
           bumpStreak.mutate(authorId);
         }
       }

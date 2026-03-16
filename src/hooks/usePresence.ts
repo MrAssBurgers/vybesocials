@@ -12,15 +12,24 @@ function logPresence(...args: any[]) {
   }
 }
 
+function isTransientPresenceError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /failed to fetch|networkerror|load failed|abort/i.test(message);
+}
+
 export function usePresence() {
   const { profile } = useAuth();
-  const queryClient = useQueryClient();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Update presence on mount and periodically
   const updatePresence = useCallback(async () => {
     if (!profile?.id) {
       logPresence('No profile id, skipping presence update');
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      logPresence('Browser is offline, skipping presence update');
       return;
     }
 
@@ -33,14 +42,23 @@ export function usePresence() {
           is_online: true,
           last_seen_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
-      
+
       if (error) {
+        if (isTransientPresenceError(error)) {
+          logPresence('Transient presence update failure:', error.message);
+          return;
+        }
+
         console.error('[Presence] Failed to update presence:', error.message, error.details);
       } else {
         logPresence('Presence updated successfully');
-        // Don't invalidate here - too frequent. Let other hooks refresh on their own schedule
       }
     } catch (error: any) {
+      if (isTransientPresenceError(error)) {
+        logPresence('Transient presence update failure:', error?.message || error);
+        return;
+      }
+
       console.error('[Presence] Failed to update presence:', error?.message || error);
     }
   }, [profile?.id]);
@@ -48,6 +66,11 @@ export function usePresence() {
   // Set offline on unmount
   const setOffline = useCallback(async () => {
     if (!profile?.id) return;
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      logPresence('Browser is offline, skipping setOffline');
+      return;
+    }
 
     try {
       logPresence('Setting offline for user:', profile.id);
@@ -58,11 +81,21 @@ export function usePresence() {
           last_seen_at: new Date().toISOString(),
         })
         .eq('user_id', profile.id);
-      
+
       if (error) {
+        if (isTransientPresenceError(error)) {
+          logPresence('Transient presence offline failure:', error.message);
+          return;
+        }
+
         console.error('[Presence] Failed to set offline:', error.message);
       }
     } catch (error: any) {
+      if (isTransientPresenceError(error)) {
+        logPresence('Transient presence offline failure:', error?.message || error);
+        return;
+      }
+
       console.error('[Presence] Failed to set offline:', error?.message || error);
     }
   }, [profile?.id]);
@@ -79,7 +112,7 @@ export function usePresence() {
     intervalRef.current = setInterval(updatePresence, 20000);
 
     // Debounced visibility change handler
-    let visibilityTimeout: NodeJS.Timeout | null = null;
+    let visibilityTimeout: ReturnType<typeof setTimeout> | null = null;
     const handleVisibilityChange = () => {
       if (visibilityTimeout) clearTimeout(visibilityTimeout);
       visibilityTimeout = setTimeout(() => {
