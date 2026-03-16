@@ -28,6 +28,11 @@ export function usePresence() {
       return;
     }
 
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      logPresence('Browser is offline, skipping presence update');
+      return;
+    }
+
     try {
       logPresence('Updating presence for user:', profile.id);
       const { error } = await supabase
@@ -37,14 +42,23 @@ export function usePresence() {
           is_online: true,
           last_seen_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
-      
+
       if (error) {
+        if (isTransientPresenceError(error)) {
+          logPresence('Transient presence update failure:', error.message);
+          return;
+        }
+
         console.error('[Presence] Failed to update presence:', error.message, error.details);
       } else {
         logPresence('Presence updated successfully');
-        // Don't invalidate here - too frequent. Let other hooks refresh on their own schedule
       }
     } catch (error: any) {
+      if (isTransientPresenceError(error)) {
+        logPresence('Transient presence update failure:', error?.message || error);
+        return;
+      }
+
       console.error('[Presence] Failed to update presence:', error?.message || error);
     }
   }, [profile?.id]);
