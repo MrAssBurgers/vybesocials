@@ -19,26 +19,25 @@ export interface ReactionStreak {
 }
 
 export function useReactionStreaks() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
 
   return useQuery({
-    queryKey: ['reaction-streaks', user?.id],
+    queryKey: ['reaction-streaks', profile?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!profile?.id) return [];
 
       const { data, error } = await supabase
         .from('reaction_streaks' as any)
         .select('*')
-        .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
+        .or(`user_a.eq.${profile.id},user_b.eq.${profile.id}`)
         .gt('current_streak', 0)
         .order('current_streak', { ascending: false });
 
       if (error) throw error;
 
-      // Fetch partner profiles
       const rows = (data || []) as any[];
-      const partnerIds = rows.map(r => r.user_a === user.id ? r.user_b : r.user_a);
-      
+      const partnerIds = rows.map((row) => row.user_a === profile.id ? row.user_b : row.user_a);
+
       if (partnerIds.length === 0) return [];
 
       const { data: profiles } = await supabase
@@ -46,32 +45,33 @@ export function useReactionStreaks() {
         .select('id, username, avatar_url, display_name')
         .in('id', partnerIds);
 
-      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+      const profileMap = new Map((profiles || []).map((item) => [item.id, item]));
 
-      return rows.map(r => ({
-        ...r,
-        partner: profileMap.get(r.user_a === user.id ? r.user_b : r.user_a) || null,
+      return rows.map((row) => ({
+        ...row,
+        partner: profileMap.get(row.user_a === profile.id ? row.user_b : row.user_a) || null,
       })) as ReactionStreak[];
     },
-    enabled: !!user?.id,
+    enabled: !!profile?.id,
     staleTime: 30_000,
   });
 }
 
 export function useBumpReactionStreak() {
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { profile } = useAuth();
 
   return useMutation({
     mutationFn: async (otherUserId: string) => {
       const { data, error } = await supabase.rpc('bump_reaction_streak', {
         p_other_user: otherUserId,
       });
+
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['reaction-streaks', user?.id] });
+      qc.invalidateQueries({ queryKey: ['reaction-streaks', profile?.id] });
     },
   });
 }

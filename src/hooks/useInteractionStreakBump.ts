@@ -7,16 +7,14 @@ import { useAuth } from '@/lib/auth';
  * Call this when liking, commenting, messaging, etc.
  */
 export function useInteractionStreakBump() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const bumpStreak = useBumpReactionStreak();
 
   const bump = useCallback((otherUserId: string) => {
-    // Don't bump if same user or not authenticated
-    if (!user?.id || otherUserId === user.id) return;
-    
-    // Fire and forget — don't block the UI
+    if (!profile?.id || otherUserId === profile.id) return;
+
     bumpStreak.mutate(otherUserId);
-  }, [user?.id, bumpStreak]);
+  }, [profile?.id, bumpStreak]);
 
   return bump;
 }

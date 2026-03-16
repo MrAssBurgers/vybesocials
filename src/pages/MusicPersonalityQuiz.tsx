@@ -138,7 +138,7 @@ export default function MusicPersonalityQuiz() {
       
       const { error } = await supabase.from('posts').insert({
         author_id: profile.id,
-        type: 'text',
+        type: 'post',
         caption: `I just took the Music Personality Quiz and I'm a **${personality.title}**! 🎵\n\n"${personality.description}"\n\nTake the quiz to find your vibe! #MusicVibe #VybeQuiz`,
       });
 

@@ -222,7 +222,7 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
       // Create a feed post sharing the track
       const { error } = await supabase.from('posts').insert({
         author_id: profile.id,
-        type: 'text',
+        type: 'post',
         caption: `Vibing to "${track.title}" by ${track.artist} 🎵\n#music #discovery #${track.genre.replace(/\s+/g, '').toLowerCase()}`,
         media_url: track.artwork_url || 'https://images.unsplash.com/photo-1614149162883-504ce4d13909?q=80&w=800&auto=format&fit=crop',
       });
