@@ -6304,7 +6304,64 @@ export type Database = {
           user_a?: string
           user_b?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "reaction_streaks_user_a_fkey"
+            columns: ["user_a"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "reaction_streaks_user_a_fkey"
+            columns: ["user_a"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reaction_streaks_user_a_fkey"
+            columns: ["user_a"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reaction_streaks_user_a_fkey"
+            columns: ["user_a"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "reaction_streaks_user_b_fkey"
+            columns: ["user_b"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "reaction_streaks_user_b_fkey"
+            columns: ["user_b"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reaction_streaks_user_b_fkey"
+            columns: ["user_b"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reaction_streaks_user_b_fkey"
+            columns: ["user_b"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
       }
       reports: {
         Row: {
