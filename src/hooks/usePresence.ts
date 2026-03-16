@@ -67,6 +67,11 @@ export function usePresence() {
   const setOffline = useCallback(async () => {
     if (!profile?.id) return;
 
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      logPresence('Browser is offline, skipping setOffline');
+      return;
+    }
+
     try {
       logPresence('Setting offline for user:', profile.id);
       const { error } = await supabase
@@ -76,11 +81,21 @@ export function usePresence() {
           last_seen_at: new Date().toISOString(),
         })
         .eq('user_id', profile.id);
-      
+
       if (error) {
+        if (isTransientPresenceError(error)) {
+          logPresence('Transient presence offline failure:', error.message);
+          return;
+        }
+
         console.error('[Presence] Failed to set offline:', error.message);
       }
     } catch (error: any) {
+      if (isTransientPresenceError(error)) {
+        logPresence('Transient presence offline failure:', error?.message || error);
+        return;
+      }
+
       console.error('[Presence] Failed to set offline:', error?.message || error);
     }
   }, [profile?.id]);
