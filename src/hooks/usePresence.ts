@@ -112,7 +112,7 @@ export function usePresence() {
     intervalRef.current = setInterval(updatePresence, 20000);
 
     // Debounced visibility change handler
-    let visibilityTimeout: NodeJS.Timeout | null = null;
+    let visibilityTimeout: ReturnType<typeof setTimeout> | null = null;
     const handleVisibilityChange = () => {
       if (visibilityTimeout) clearTimeout(visibilityTimeout);
       visibilityTimeout = setTimeout(() => {
