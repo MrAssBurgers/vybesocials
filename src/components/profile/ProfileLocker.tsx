@@ -30,6 +30,7 @@ const TABS = [
   { id: 'effects', label: 'Effects', icon: Wand2 },
   { id: 'frames', label: 'Frames', icon: Diamond },
   { id: 'themes', label: 'Themes', icon: Layers },
+  { id: 'purchased', label: 'Purchased', icon: Package },
   { id: 'shop', label: 'Shop', icon: ShoppingBag },
 ] as const;
 
