@@ -272,7 +272,7 @@ export function DesignYourVybe() {
     setAnimationSpeed(speed);
     setAnimationStyle(style);
     
-    const currentTheme = previewTheme || THEME_PRESETS[selectedPreset];
+    const currentTheme = getCurrentThemeBase();
     if (currentTheme) {
       const updatedTheme = {
         ...currentTheme,
@@ -291,7 +291,7 @@ export function DesignYourVybe() {
 
   const handleBackgroundEffectChange = (effect: ThemeTokens['backgroundEffect']) => {
     setBackgroundEffect(effect);
-    const currentTheme = previewTheme || THEME_PRESETS[selectedPreset];
+    const currentTheme = getCurrentThemeBase();
     if (currentTheme) {
       const updatedTheme = {
         ...currentTheme,
