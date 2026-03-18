@@ -238,6 +238,7 @@ export function VybePassSheet({ open, onOpenChange }: VybePassSheetProps) {
           </div>
         </div>
         </div>
+      </SheetContent>
     </Sheet>
   );
 }
