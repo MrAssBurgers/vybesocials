@@ -705,6 +705,82 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
           />
         )}
 
+        {/* CONFIRM STEP */}
+        {step === 'confirm' && (
+          <motion.div
+            key="confirm"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative z-10 h-full flex flex-col items-center justify-center p-6 text-center"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', delay: 0.1 }}
+              className="mb-6"
+            >
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 flex items-center justify-center mx-auto">
+                <Check className="w-10 h-10 text-primary" />
+              </div>
+            </motion.div>
+
+            <motion.h2
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-2xl font-bold text-foreground mb-2"
+            >
+              Theme Generated!
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-foreground/70 mb-2 max-w-sm"
+            >
+              "{generatedTheme?.themeName || 'Custom VYBE'}" is ready. Apply it to preview how your app will look?
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="text-xs text-muted-foreground mb-8"
+            >
+              You can always revert to your previous theme
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="flex flex-col gap-3 w-full max-w-xs"
+            >
+              <Button
+                size="lg"
+                onClick={handleConfirmApply}
+                className="w-full gradient-animated text-primary-foreground font-semibold"
+              >
+                <Check className="mr-2 h-5 w-5" />
+                Apply & Preview
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleTryAgain}
+                className="w-full text-foreground"
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Try Different Style
+              </Button>
+              {onSkip && (
+                <Button variant="ghost" onClick={onSkip} className="text-foreground/60">
+                  Cancel
+                </Button>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+
         {/* PREVIEW STEP */}
         {step === 'preview' && (
           <motion.div
