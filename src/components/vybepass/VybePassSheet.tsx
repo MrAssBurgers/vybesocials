@@ -115,7 +115,7 @@ export function VybePassSheet({ open, onOpenChange }: VybePassSheetProps) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
+      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl overflow-hidden">
         <SheetHeader className="pb-4">
           <SheetTitle className="flex items-center gap-2">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-yellow-500/20 to-orange-500/20 flex items-center justify-center">
@@ -130,7 +130,7 @@ export function VybePassSheet({ open, onOpenChange }: VybePassSheetProps) {
           </SheetTitle>
         </SheetHeader>
 
-        <ScrollArea className="h-[calc(100%-80px)]">
+        <div className="h-[calc(100%-80px)] overflow-y-auto overscroll-contain touch-pan-y -mx-1 px-1">
           <div className="space-y-2 pb-6">
             {tiers?.map((tier, idx) => {
               const isUnlocked = currentLevel >= tier.level;
@@ -236,7 +236,7 @@ export function VybePassSheet({ open, onOpenChange }: VybePassSheetProps) {
               );
             })}
           </div>
-        </ScrollArea>
+        </div>
       </SheetContent>
     </Sheet>
   );

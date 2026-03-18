@@ -431,8 +431,9 @@ export function GlobalCallOverlay() {
           remoteVideoRef.current.srcObject = null;
         }
         
-        // Don't end call immediately — keep alive for 1 hour
-        const LINGER_SECONDS = 60 * 60; // 1 hour
+        // Auto-end for 1:1 calls after 30 seconds (not 1 hour)
+        const isGroupCall = stateRef.current.call?.isGroupCall;
+        const LINGER_SECONDS = isGroupCall ? 60 * 60 : 30; // 30s for 1:1, 1hr for group
         setRemoteUserLeft(true);
         setAutoEndCountdown(LINGER_SECONDS);
         
@@ -448,10 +449,10 @@ export function GlobalCallOverlay() {
           });
         }, 1000);
         
-        // Auto-hangup after 8 minutes
+        // Auto-hangup after linger period
         if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
         autoEndTimerRef.current = setTimeout(() => {
-          if (import.meta.env.DEV) console.log('[CallOverlay] Auto-ending call after 1 hour linger');
+          if (import.meta.env.DEV) console.log(`[CallOverlay] Auto-ending call after ${LINGER_SECONDS}s linger`);
           endCall();
         }, LINGER_SECONDS * 1000);
       }

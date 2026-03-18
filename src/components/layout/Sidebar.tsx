@@ -123,7 +123,7 @@ export function Sidebar() {
             { icon: Wallet, label: 'Wallet', path: '/wallet' },
             { icon: ShoppingBag, label: 'Shop', path: '/marketplace' },
             { icon: Dna, label: 'VYBE DNA', path: '/vybe-dna' },
-            { icon: Radio, label: 'Spaces', path: '/spaces' },
+            { icon: Radio, label: 'Hubs', path: '/spaces' },
           ].map(item => {
             const isActive = location.pathname === item.path;
             return (
