@@ -228,6 +228,7 @@ export function PaywallSheet({ open, onOpenChange }: PaywallSheetProps) {
   const [selectedPkg, setSelectedPkg] = useState<RCPackage | null>(null);
   const [purchasing, setPurchasing] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [stripeLoading, setStripeLoading] = useState(false);
 
   const handleRetry = async () => {
     setRetrying(true);
