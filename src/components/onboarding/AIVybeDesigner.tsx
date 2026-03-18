@@ -111,7 +111,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const { user } = useAuth();
   const saveTheme = useSaveTheme();
   
-  const [step, setStep] = useState<'intro' | 'vibe-select' | 'font-select' | 'animation-select' | 'prompt' | 'building' | 'preview'>('intro');
+  const [step, setStep] = useState<'intro' | 'vibe-select' | 'font-select' | 'animation-select' | 'prompt' | 'building' | 'confirm' | 'preview'>('intro');
   const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
   const [selectedFont, setSelectedFont] = useState<FontPairingKey | null>(null);
   const [selectedAnimation, setSelectedAnimation] = useState<AnimationPresetKey | null>(null);
@@ -120,6 +120,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const [buildPhase, setBuildPhase] = useState(0);
   const [generatedTheme, setGeneratedTheme] = useState<GeneratedTheme | null>(null);
   const [showPreviewElements, setShowPreviewElements] = useState(false);
+  const [previousThemeSnapshot, setPreviousThemeSnapshot] = useState<string | null>(null);
   
   const abortControllerRef = useRef<AbortController | null>(null);
 
