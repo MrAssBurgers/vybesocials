@@ -256,9 +256,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         
         if (data?.theme) {
           setGeneratedTheme({ ...data.theme, themeName: 'Custom VYBE' });
-          applyThemeTokens(data.theme);
-          setStep('preview');
-          setShowPreviewElements(true);
+          setStep('confirm');
         } else {
           throw new Error('No theme generated');
         }
