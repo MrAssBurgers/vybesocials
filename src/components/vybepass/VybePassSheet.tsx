@@ -236,8 +236,8 @@ export function VybePassSheet({ open, onOpenChange }: VybePassSheetProps) {
               );
             })}
           </div>
-        </ScrollArea>
-      </SheetContent>
+        </div>
+        </div>
     </Sheet>
   );
 }
