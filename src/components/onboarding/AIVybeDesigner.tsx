@@ -292,8 +292,38 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     }
   };
 
+  // Apply theme after confirmation
+  const handleConfirmApply = () => {
+    if (generatedTheme) {
+      applyThemeTokens(generatedTheme);
+    }
+    setStep('preview');
+    setShowPreviewElements(true);
+  };
+
+  // Revert to previous theme
+  const handleRevert = () => {
+    if (previousThemeSnapshot) {
+      const snapshot = JSON.parse(previousThemeSnapshot) as Record<string, string>;
+      const root = document.documentElement;
+      Object.entries(snapshot).forEach(([prop, value]) => {
+        root.style.setProperty(prop, value);
+      });
+      toast.success('Reverted to previous theme');
+    }
+    onComplete();
+  };
+
   // Try different theme
   const handleTryAgain = () => {
+    // Revert any applied theme before trying again
+    if (previousThemeSnapshot) {
+      const snapshot = JSON.parse(previousThemeSnapshot) as Record<string, string>;
+      const root = document.documentElement;
+      Object.entries(snapshot).forEach(([prop, value]) => {
+        root.style.setProperty(prop, value);
+      });
+    }
     setStep('vibe-select');
     setSelectedVibe(null);
     setSelectedFont(null);
