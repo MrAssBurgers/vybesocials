@@ -238,9 +238,20 @@ export function DesignYourVybe() {
     }
   };
 
+  // Helper: get the current theme, never falling back to a preset that would reset colors
+  const getCurrentThemeBase = useCallback((): ThemeTokens | null => {
+    if (previewTheme) return previewTheme;
+    // If user theme is loaded and active, use that
+    if (userTheme?.theme_tokens && userTheme.is_active) {
+      return userTheme.theme_tokens as unknown as ThemeTokens;
+    }
+    // Only fall back to preset if user has no active theme
+    return THEME_PRESETS[selectedPreset] || null;
+  }, [previewTheme, userTheme, selectedPreset]);
+
   // Apply setting changes live
   const applyCurrentSettings = useCallback(() => {
-    const currentTheme = previewTheme || THEME_PRESETS[selectedPreset];
+    const currentTheme = getCurrentThemeBase();
     if (currentTheme) {
       const updatedTheme = {
         ...currentTheme,
@@ -255,13 +266,13 @@ export function DesignYourVybe() {
       applyThemeTokens(updatedTheme);
       setShowConfirmation(true);
     }
-  }, [previewTheme, selectedPreset, animationSpeed, animationStyle, backgroundEffect, backgroundOpacity, backgroundBlur, borderRadius]);
+  }, [getCurrentThemeBase, animationSpeed, animationStyle, backgroundEffect, backgroundOpacity, backgroundBlur, borderRadius]);
 
   const handleAnimationChange = (speed: typeof animationSpeed, style: typeof animationStyle) => {
     setAnimationSpeed(speed);
     setAnimationStyle(style);
     
-    const currentTheme = previewTheme || THEME_PRESETS[selectedPreset];
+    const currentTheme = getCurrentThemeBase();
     if (currentTheme) {
       const updatedTheme = {
         ...currentTheme,
@@ -280,7 +291,7 @@ export function DesignYourVybe() {
 
   const handleBackgroundEffectChange = (effect: ThemeTokens['backgroundEffect']) => {
     setBackgroundEffect(effect);
-    const currentTheme = previewTheme || THEME_PRESETS[selectedPreset];
+    const currentTheme = getCurrentThemeBase();
     if (currentTheme) {
       const updatedTheme = {
         ...currentTheme,
@@ -299,7 +310,7 @@ export function DesignYourVybe() {
 
   const handleBorderRadiusChange = (radius: 'small' | 'medium' | 'large') => {
     setBorderRadius(radius);
-    const currentTheme = previewTheme || THEME_PRESETS[selectedPreset];
+    const currentTheme = getCurrentThemeBase();
     if (currentTheme) {
       const updatedTheme = {
         ...currentTheme,

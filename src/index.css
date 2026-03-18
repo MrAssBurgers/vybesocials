@@ -550,10 +550,15 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     transition-duration: 0.01ms !important;
   }
 
-  /* Calm motion mode - slower, subtler animations */
+  /* Calm motion mode - gentle, pulse-like heartbeat animations */
   .calm-motion * {
-    animation-duration: 0.5s !important;
-    transition-duration: 0.3s !important;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1) !important;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.6, 1) !important;
+  }
+  
+  .calm-motion *:not([class*="animate-spin"]):not([class*="animate-pulse"]) {
+    animation-duration: 1.2s !important;
+    transition-duration: 0.4s !important;
   }
 
   @media (prefers-reduced-motion: reduce) {
