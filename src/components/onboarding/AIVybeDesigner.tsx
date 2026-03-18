@@ -111,7 +111,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const { user } = useAuth();
   const saveTheme = useSaveTheme();
   
-  const [step, setStep] = useState<'intro' | 'vibe-select' | 'font-select' | 'animation-select' | 'prompt' | 'building' | 'preview'>('intro');
+  const [step, setStep] = useState<'intro' | 'vibe-select' | 'font-select' | 'animation-select' | 'prompt' | 'building' | 'confirm' | 'preview'>('intro');
   const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
   const [selectedFont, setSelectedFont] = useState<FontPairingKey | null>(null);
   const [selectedAnimation, setSelectedAnimation] = useState<AnimationPresetKey | null>(null);
@@ -120,12 +120,21 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const [buildPhase, setBuildPhase] = useState(0);
   const [generatedTheme, setGeneratedTheme] = useState<GeneratedTheme | null>(null);
   const [showPreviewElements, setShowPreviewElements] = useState(false);
+  const [previousThemeSnapshot, setPreviousThemeSnapshot] = useState<string | null>(null);
   
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Hide nav when designer opens, show when it closes
+  // Save current theme snapshot for revert
   useEffect(() => {
     navVisibility.setInDesigner(true);
+    // Capture current CSS custom properties as snapshot
+    const root = document.documentElement;
+    const styles = getComputedStyle(root);
+    const snapshot: Record<string, string> = {};
+    const props = ['--background', '--foreground', '--primary', '--secondary', '--accent', '--muted', '--card', '--border', '--input', '--ring', '--primary-foreground', '--secondary-foreground', '--accent-foreground', '--muted-foreground', '--card-foreground'];
+    props.forEach(p => { snapshot[p] = styles.getPropertyValue(p).trim(); });
+    setPreviousThemeSnapshot(JSON.stringify(snapshot));
     return () => navVisibility.setInDesigner(false);
   }, []);
 
@@ -229,10 +238,9 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
       // Apply the theme with a dramatic reveal
       applyThemeTokens(theme);
       
-      // Transition to preview
+      // Transition to confirmation before applying
       setTimeout(() => {
-        setStep('preview');
-        setShowPreviewElements(true);
+        setStep('confirm');
       }, 500);
       
     } catch (error: any) {
@@ -248,9 +256,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         
         if (data?.theme) {
           setGeneratedTheme({ ...data.theme, themeName: 'Custom VYBE' });
-          applyThemeTokens(data.theme);
-          setStep('preview');
-          setShowPreviewElements(true);
+          setStep('confirm');
         } else {
           throw new Error('No theme generated');
         }
@@ -286,8 +292,38 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     }
   };
 
+  // Apply theme after confirmation
+  const handleConfirmApply = () => {
+    if (generatedTheme) {
+      applyThemeTokens(generatedTheme);
+    }
+    setStep('preview');
+    setShowPreviewElements(true);
+  };
+
+  // Revert to previous theme
+  const handleRevert = () => {
+    if (previousThemeSnapshot) {
+      const snapshot = JSON.parse(previousThemeSnapshot) as Record<string, string>;
+      const root = document.documentElement;
+      Object.entries(snapshot).forEach(([prop, value]) => {
+        root.style.setProperty(prop, value);
+      });
+      toast.success('Reverted to previous theme');
+    }
+    onComplete();
+  };
+
   // Try different theme
   const handleTryAgain = () => {
+    // Revert any applied theme before trying again
+    if (previousThemeSnapshot) {
+      const snapshot = JSON.parse(previousThemeSnapshot) as Record<string, string>;
+      const root = document.documentElement;
+      Object.entries(snapshot).forEach(([prop, value]) => {
+        root.style.setProperty(prop, value);
+      });
+    }
     setStep('vibe-select');
     setSelectedVibe(null);
     setSelectedFont(null);
@@ -669,6 +705,82 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
           />
         )}
 
+        {/* CONFIRM STEP */}
+        {step === 'confirm' && (
+          <motion.div
+            key="confirm"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative z-10 h-full flex flex-col items-center justify-center p-6 text-center"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', delay: 0.1 }}
+              className="mb-6"
+            >
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 flex items-center justify-center mx-auto">
+                <Check className="w-10 h-10 text-primary" />
+              </div>
+            </motion.div>
+
+            <motion.h2
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-2xl font-bold text-foreground mb-2"
+            >
+              Theme Generated!
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-foreground/70 mb-2 max-w-sm"
+            >
+              "{generatedTheme?.themeName || 'Custom VYBE'}" is ready. Apply it to preview how your app will look?
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="text-xs text-muted-foreground mb-8"
+            >
+              You can always revert to your previous theme
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="flex flex-col gap-3 w-full max-w-xs"
+            >
+              <Button
+                size="lg"
+                onClick={handleConfirmApply}
+                className="w-full gradient-animated text-primary-foreground font-semibold"
+              >
+                <Check className="mr-2 h-5 w-5" />
+                Apply & Preview
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleTryAgain}
+                className="w-full text-foreground"
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Try Different Style
+              </Button>
+              {onSkip && (
+                <Button variant="ghost" onClick={onSkip} className="text-foreground/60">
+                  Cancel
+                </Button>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+
         {/* PREVIEW STEP */}
         {step === 'preview' && (
           <motion.div
@@ -775,22 +887,35 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               transition={{ delay: 0.7 }}
               className="p-4 border-t border-border bg-background/80 backdrop-blur-sm"
             >
-              <div className="max-w-md mx-auto flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handleTryAgain}
-                  className="flex-1 text-foreground font-semibold"
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Try Different
-                </Button>
-                <Button
-                  onClick={handleKeepTheme}
-                  className="flex-[2] gradient-animated text-primary-foreground font-semibold"
-                >
-                  <Check className="mr-2 h-4 w-4" />
-                  Keep This VYBE
-                </Button>
+              <div className="max-w-md mx-auto space-y-2">
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={handleTryAgain}
+                    className="flex-1 text-foreground font-semibold"
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Try Different
+                  </Button>
+                  <Button
+                    onClick={handleKeepTheme}
+                    className="flex-[2] gradient-animated text-primary-foreground font-semibold"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Keep This VYBE
+                  </Button>
+                </div>
+                {previousThemeSnapshot && (
+                  <Button
+                    variant="ghost"
+                    onClick={handleRevert}
+                    className="w-full text-muted-foreground hover:text-foreground"
+                    size="sm"
+                  >
+                    <ArrowLeft className="mr-2 h-3 w-3" />
+                    Revert to Previous Theme
+                  </Button>
+                )}
               </div>
             </motion.div>
           </motion.div>

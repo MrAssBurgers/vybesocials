@@ -17,6 +17,7 @@ import { FounderBadge } from '@/components/badges/FounderBadge';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+import { PurchasedItems } from './PurchasedItems';
 import {
   NAME_COLOR_MAP, RESTRICTED_COLORS, THEME_PREVIEW, THEME_IMAGES,
   EFFECT_CLASS_MAP, FRAME_STYLE_MAP, FRAME_COLORS,
@@ -30,6 +31,7 @@ const TABS = [
   { id: 'effects', label: 'Effects', icon: Wand2 },
   { id: 'frames', label: 'Frames', icon: Diamond },
   { id: 'themes', label: 'Themes', icon: Layers },
+  { id: 'purchased', label: 'Purchased', icon: Package },
   { id: 'shop', label: 'Shop', icon: ShoppingBag },
 ] as const;
 
@@ -363,7 +365,7 @@ export function ProfileLocker() {
     lockerData?.equippedProfileTheme,
   ].filter(Boolean).length;
 
-  const hasCosmeticTab = activeTab !== 'badges' && activeTab !== 'shop';
+  const hasCosmeticTab = activeTab !== 'badges' && activeTab !== 'shop' && activeTab !== 'purchased';
   const displayName = profile?.display_name || profile?.username || 'You';
 
   return (
@@ -454,6 +456,7 @@ export function ProfileLocker() {
             />
           )}
 
+          {activeTab === 'purchased' && <PurchasedItems />}
           {activeTab === 'shop' && <ShopContent />}
 
           {hasCosmeticTab && tabItems.length > 0 && (
