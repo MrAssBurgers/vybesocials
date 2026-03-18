@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Crown, Check, Sparkles, Zap, Shield, Star, Loader2,
@@ -20,6 +20,7 @@ import {
 import { useRevenueCat } from '@/hooks/useRevenueCat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import type { Package as RCPackage } from '@revenuecat/purchases-js';
 
 interface PaywallSheetProps {
@@ -227,6 +228,7 @@ export function PaywallSheet({ open, onOpenChange }: PaywallSheetProps) {
   const [selectedPkg, setSelectedPkg] = useState<RCPackage | null>(null);
   const [purchasing, setPurchasing] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [stripeLoading, setStripeLoading] = useState(false);
 
   const handleRetry = async () => {
     setRetrying(true);
@@ -367,15 +369,51 @@ export function PaywallSheet({ open, onOpenChange }: PaywallSheetProps) {
               <div className="text-center space-y-3">
                 <p className="text-sm text-muted-foreground">
                   {error === 'init_failed' 
-                    ? "Couldn't connect to the store. Check your connection and try again."
+                    ? "Couldn't connect to the store. Try Stripe checkout instead."
                     : error === 'no_offerings'
-                    ? "No plans available right now. Please try again later."
-                    : "Couldn't load plans. Tap below to retry."}
+                    ? "No in-app plans available. Use Stripe checkout below."
+                    : "Couldn't load plans. Try Stripe checkout or retry."}
                 </p>
+                
+                {/* Stripe Fallback Button */}
                 <Button
                   size="lg"
-                  variant="outline"
                   className="w-full h-12 font-bold"
+                  onClick={async () => {
+                    setStripeLoading(true);
+                    try {
+                      const { data, error: fnError } = await supabase.functions.invoke('create-premium-checkout');
+                      if (fnError) throw fnError;
+                      if (data?.error) throw new Error(data.error);
+                      if (data?.url) {
+                        window.open(data.url, '_blank');
+                        toast.success('Opening Stripe checkout...');
+                      }
+                    } catch (err: any) {
+                      toast.error(err?.message || 'Could not start checkout');
+                    } finally {
+                      setStripeLoading(false);
+                    }
+                  }}
+                  disabled={stripeLoading}
+                >
+                  {stripeLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Opening checkout...
+                    </>
+                  ) : (
+                    <>
+                      <Crown className="h-4 w-4 mr-2" />
+                      Subscribe via Stripe — $9.99/mo
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
                   onClick={handleRetry}
                   disabled={retrying}
                 >
@@ -385,7 +423,7 @@ export function PaywallSheet({ open, onOpenChange }: PaywallSheetProps) {
                       Retrying...
                     </>
                   ) : (
-                    'Retry Loading Plans'
+                    'Retry Loading In-App Plans'
                   )}
                 </Button>
               </div>
