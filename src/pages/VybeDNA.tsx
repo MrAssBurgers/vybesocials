@@ -103,6 +103,9 @@ export default function VybeDNAPage() {
             {/* Color palette */}
             <DNAColorPalette dna={dna} />
 
+            {/* Similar DNA users */}
+            <DNASimilarUsers />
+
             {/* Share action */}
             <motion.div
               className="pt-2"
