@@ -238,10 +238,9 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
       // Apply the theme with a dramatic reveal
       applyThemeTokens(theme);
       
-      // Transition to preview
+      // Transition to confirmation before applying
       setTimeout(() => {
-        setStep('preview');
-        setShowPreviewElements(true);
+        setStep('confirm');
       }, 500);
       
     } catch (error: any) {
