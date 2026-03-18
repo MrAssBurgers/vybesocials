@@ -68,17 +68,35 @@ export default function ProfilePage() {
   const { data: primaryBadge } = useUserPrimaryBadge(profile?.id);
   const { data: lockerData } = useLockerItems(profile?.id);
 
-  // Preload profile theme image to prevent flash
+  // Apply profile theme as app background (uses the same fixed layer as custom backgrounds)
   const equippedTheme = lockerData?.equippedProfileTheme;
+  const { setBackgroundImage } = useAppBackground();
+  const previousBgRef = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
-    if (equippedTheme) {
-      const themeImage = THEME_IMAGES[equippedTheme];
-      if (themeImage) {
-        const img = new Image();
-        img.src = themeImage;
+    const themeImg = equippedTheme ? THEME_IMAGES[equippedTheme] : null;
+    if (!themeImg) return;
+
+    // Preload then apply
+    const img = new Image();
+    img.onload = () => {
+      // Save current background to restore on unmount
+      const bgLayer = document.getElementById('app-background-layer');
+      if (previousBgRef.current === undefined) {
+        previousBgRef.current = bgLayer?.style.backgroundImage
+          ? bgLayer.style.backgroundImage.replace(/^url\(["']?/, '').replace(/["']?\)$/, '')
+          : null;
       }
-    }
-  }, [equippedTheme]);
+      setBackgroundImage(themeImg);
+    };
+    img.src = themeImg;
+
+    return () => {
+      // Restore previous background on unmount
+      setBackgroundImage(previousBgRef.current ?? null);
+      previousBgRef.current = undefined;
+    };
+  }, [equippedTheme, setBackgroundImage]);
 
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
 
