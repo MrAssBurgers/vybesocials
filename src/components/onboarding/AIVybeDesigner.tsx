@@ -887,22 +887,35 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               transition={{ delay: 0.7 }}
               className="p-4 border-t border-border bg-background/80 backdrop-blur-sm"
             >
-              <div className="max-w-md mx-auto flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handleTryAgain}
-                  className="flex-1 text-foreground font-semibold"
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Try Different
-                </Button>
-                <Button
-                  onClick={handleKeepTheme}
-                  className="flex-[2] gradient-animated text-primary-foreground font-semibold"
-                >
-                  <Check className="mr-2 h-4 w-4" />
-                  Keep This VYBE
-                </Button>
+              <div className="max-w-md mx-auto space-y-2">
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={handleTryAgain}
+                    className="flex-1 text-foreground font-semibold"
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Try Different
+                  </Button>
+                  <Button
+                    onClick={handleKeepTheme}
+                    className="flex-[2] gradient-animated text-primary-foreground font-semibold"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Keep This VYBE
+                  </Button>
+                </div>
+                {previousThemeSnapshot && (
+                  <Button
+                    variant="ghost"
+                    onClick={handleRevert}
+                    className="w-full text-muted-foreground hover:text-foreground"
+                    size="sm"
+                  >
+                    <ArrowLeft className="mr-2 h-3 w-3" />
+                    Revert to Previous Theme
+                  </Button>
+                )}
               </div>
             </motion.div>
           </motion.div>
