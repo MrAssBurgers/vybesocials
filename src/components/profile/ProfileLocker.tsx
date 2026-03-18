@@ -365,7 +365,7 @@ export function ProfileLocker() {
     lockerData?.equippedProfileTheme,
   ].filter(Boolean).length;
 
-  const hasCosmeticTab = activeTab !== 'badges' && activeTab !== 'shop';
+  const hasCosmeticTab = activeTab !== 'badges' && activeTab !== 'shop' && activeTab !== 'purchased';
   const displayName = profile?.display_name || profile?.username || 'You';
 
   return (

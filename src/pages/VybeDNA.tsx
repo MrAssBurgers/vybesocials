@@ -95,6 +95,9 @@ export default function VybeDNAPage() {
               </Card>
             </motion.div>
 
+            {/* DNA Perks */}
+            <DNAPerks dna={dna} />
+
             {/* Insights grid */}
             <DNAInsights dna={dna} />
 
