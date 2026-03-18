@@ -70,6 +70,7 @@ const SpaceRoom = lazy(() => import("@/pages/SpaceRoom"));
 const VybeDNA = lazy(() => import("@/pages/VybeDNA"));
 const TokenWallet = lazy(() => import("@/pages/TokenWallet"));
 const TokenMarketplace = lazy(() => import("@/pages/TokenMarketplace"));
+const PremiumSuccess = lazy(() => import("@/pages/PremiumSuccess"));
 
 // Debug panels
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
