@@ -343,14 +343,14 @@ export function useBugBountyDetector() {
 
       if (insertError) throw insertError;
 
-      // Award 500 XP
+      // Award 150 XP
       try {
-        await supabase.rpc('add_user_xp', { p_user_id: user.id, p_xp_amount: 500 });
+        await supabase.rpc('add_user_xp', { p_user_id: user.id, p_xp_amount: 150 });
       } catch {
         // XP award failed silently — don't block the report
       }
 
-      toast.success('Bug reported! +500 XP 🎉', {
+      toast.success('Bug reported! +150 XP 🎉', {
         description: 'Thanks for helping make VYBE better!',
       });
 

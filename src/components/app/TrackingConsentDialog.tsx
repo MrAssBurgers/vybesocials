@@ -45,9 +45,8 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
       return;
     }
 
-    // Not logged in — show dialog after delay
-    const timer = setTimeout(() => setVisible(true), 2000);
-    return () => clearTimeout(timer);
+    // Not logged in — don't show tracking dialog until they have an account
+    return;
   }, [profile?.id]);
 
   const handleResponse = async (consent: 'allowed' | 'denied') => {
