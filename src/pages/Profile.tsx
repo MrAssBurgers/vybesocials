@@ -68,6 +68,18 @@ export default function ProfilePage() {
   const { data: primaryBadge } = useUserPrimaryBadge(profile?.id);
   const { data: lockerData } = useLockerItems(profile?.id);
 
+  // Preload profile theme image to prevent flash
+  const equippedTheme = lockerData?.equippedProfileTheme;
+  useEffect(() => {
+    if (equippedTheme) {
+      const themeImage = THEME_IMAGES[equippedTheme];
+      if (themeImage) {
+        const img = new Image();
+        img.src = themeImage;
+      }
+    }
+  }, [equippedTheme]);
+
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
 
   const badgeSettings = (profile as any)?.badge_settings || {};
