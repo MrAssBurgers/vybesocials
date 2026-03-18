@@ -1,6 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { createPortal } from 'react-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, MoreHorizontal, Award, Package, Crown } from 'lucide-react';
 import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
