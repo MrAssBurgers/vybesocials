@@ -17,6 +17,7 @@ import { FounderBadge } from '@/components/badges/FounderBadge';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+import { PurchasedItems } from './PurchasedItems';
 import {
   NAME_COLOR_MAP, RESTRICTED_COLORS, THEME_PREVIEW, THEME_IMAGES,
   EFFECT_CLASS_MAP, FRAME_STYLE_MAP, FRAME_COLORS,
