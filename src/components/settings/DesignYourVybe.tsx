@@ -310,7 +310,7 @@ export function DesignYourVybe() {
 
   const handleBorderRadiusChange = (radius: 'small' | 'medium' | 'large') => {
     setBorderRadius(radius);
-    const currentTheme = previewTheme || THEME_PRESETS[selectedPreset];
+    const currentTheme = getCurrentThemeBase();
     if (currentTheme) {
       const updatedTheme = {
         ...currentTheme,
