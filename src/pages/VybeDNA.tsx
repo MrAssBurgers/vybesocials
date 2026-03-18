@@ -11,6 +11,7 @@ import { PersonalityArchetype } from '@/components/dna/PersonalityArchetype';
 import { DNATraitBars } from '@/components/dna/DNATraitBars';
 import { DNAColorPalette } from '@/components/dna/DNAColorPalette';
 import { DNAInsights } from '@/components/dna/DNAInsights';
+import { DNAPerks } from '@/components/dna/DNAPerks';
 import { DNASimilarUsers } from '@/components/dna/DNASimilarUsers';
 
 export default function VybeDNAPage() {
