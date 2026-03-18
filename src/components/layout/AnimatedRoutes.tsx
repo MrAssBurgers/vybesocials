@@ -177,6 +177,7 @@ export function AnimatedRoutes() {
             <Route path="/vybe-dna" element={<ProtectedRoute><VybeDNA /></ProtectedRoute>} />
             <Route path="/wallet" element={<ProtectedRoute><TokenWallet /></ProtectedRoute>} />
             <Route path="/marketplace" element={<ProtectedRoute><TokenMarketplace /></ProtectedRoute>} />
+            <Route path="/premium-success" element={<ProtectedRoute><PremiumSuccess /></ProtectedRoute>} />
             
             {/* Let /~oauth pass through to the cloud auth handler */}
             <Route path="/~oauth" element={null} />
