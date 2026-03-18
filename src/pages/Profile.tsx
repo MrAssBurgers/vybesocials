@@ -220,8 +220,8 @@ export default function ProfilePage() {
 
   return (
     <AppLayout>
-      {/* Profile Theme - Full Page Takeover */}
-      {(themeImage || themeGradient) && (
+      {/* Profile Theme - Full Page Takeover (portaled to body to escape overflow containers) */}
+      {(themeImage || themeGradient) && createPortal(
         <div className="fixed inset-0 z-[3] overflow-hidden pointer-events-none">
           {themeImage ? (
             <img
@@ -236,7 +236,8 @@ export default function ProfilePage() {
             <div className="absolute inset-0" style={{ background: themeGradient }} />
           )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70" />
-        </div>
+        </div>,
+        document.body
       )}
       <div className="max-w-4xl mx-auto px-4 py-6 relative z-[4] min-h-screen">
 
