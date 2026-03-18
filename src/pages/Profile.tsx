@@ -1,6 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { createPortal } from 'react-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, MoreHorizontal, Award, Package, Crown } from 'lucide-react';
 import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
@@ -11,6 +10,7 @@ import { usePosts } from '@/hooks/usePosts';
 import { useSavedPosts } from '@/hooks/useSavedPosts';
 import { useAuth } from '@/lib/auth';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useAppBackground } from '@/components/layout/AppBackground';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -69,17 +69,35 @@ export default function ProfilePage() {
   const { data: primaryBadge } = useUserPrimaryBadge(profile?.id);
   const { data: lockerData } = useLockerItems(profile?.id);
 
-  // Preload profile theme image to prevent flash
+  // Apply profile theme as app background (uses the same fixed layer as custom backgrounds)
   const equippedTheme = lockerData?.equippedProfileTheme;
+  const { setBackgroundImage } = useAppBackground();
+  const previousBgRef = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
-    if (equippedTheme) {
-      const themeImage = THEME_IMAGES[equippedTheme];
-      if (themeImage) {
-        const img = new Image();
-        img.src = themeImage;
+    const themeImg = equippedTheme ? THEME_IMAGES[equippedTheme] : null;
+    if (!themeImg) return;
+
+    // Preload then apply
+    const img = new Image();
+    img.onload = () => {
+      // Save current background to restore on unmount
+      const bgLayer = document.getElementById('app-background-layer');
+      if (previousBgRef.current === undefined) {
+        previousBgRef.current = bgLayer?.style.backgroundImage
+          ? bgLayer.style.backgroundImage.replace(/^url\(["']?/, '').replace(/["']?\)$/, '')
+          : null;
       }
-    }
-  }, [equippedTheme]);
+      setBackgroundImage(themeImg);
+    };
+    img.src = themeImg;
+
+    return () => {
+      // Restore previous background on unmount
+      setBackgroundImage(previousBgRef.current ?? null);
+      previousBgRef.current = undefined;
+    };
+  }, [equippedTheme, setBackgroundImage]);
 
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
 
@@ -220,26 +238,16 @@ export default function ProfilePage() {
 
   return (
     <AppLayout>
-      {/* Profile Theme - Full Page Takeover (portaled to body to escape overflow containers) */}
-      {(themeImage || themeGradient) && createPortal(
-        <div className="fixed inset-0 z-[1] overflow-hidden pointer-events-none">
-          {themeImage ? (
-            <img
-              src={themeImage}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ imageRendering: 'auto', WebkitBackfaceVisibility: 'hidden', backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
-              loading="eager"
-              decoding="async"
-            />
-          ) : (
+      {/* Dark overlay for themed profiles - rendered inline, scrolls are fine for overlays */}
+      {(themeImage || themeGradient) && (
+        <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+          {!themeImage && themeGradient && (
             <div className="absolute inset-0" style={{ background: themeGradient }} />
           )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70" />
-        </div>,
-        document.body
+        </div>
       )}
-      <div className="max-w-4xl mx-auto px-4 py-6 relative z-[4] min-h-screen">
+      <div className="max-w-4xl mx-auto px-4 py-6 relative min-h-screen" style={{ zIndex: 1 }}>
 
         {/* Profile Header */}
         <motion.div
