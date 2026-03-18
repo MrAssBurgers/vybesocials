@@ -125,8 +125,16 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Hide nav when designer opens, show when it closes
+  // Save current theme snapshot for revert
   useEffect(() => {
     navVisibility.setInDesigner(true);
+    // Capture current CSS custom properties as snapshot
+    const root = document.documentElement;
+    const styles = getComputedStyle(root);
+    const snapshot: Record<string, string> = {};
+    const props = ['--background', '--foreground', '--primary', '--secondary', '--accent', '--muted', '--card', '--border', '--input', '--ring', '--primary-foreground', '--secondary-foreground', '--accent-foreground', '--muted-foreground', '--card-foreground'];
+    props.forEach(p => { snapshot[p] = styles.getPropertyValue(p).trim(); });
+    setPreviousThemeSnapshot(JSON.stringify(snapshot));
     return () => navVisibility.setInDesigner(false);
   }, []);
 
