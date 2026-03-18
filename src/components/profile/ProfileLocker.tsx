@@ -455,6 +455,7 @@ export function ProfileLocker() {
             />
           )}
 
+          {activeTab === 'purchased' && <PurchasedItemsContent />}
           {activeTab === 'shop' && <ShopContent />}
 
           {hasCosmeticTab && tabItems.length > 0 && (
