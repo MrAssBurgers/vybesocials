@@ -222,7 +222,7 @@ export default function ProfilePage() {
     <AppLayout>
       {/* Profile Theme - Full Page Takeover (portaled to body to escape overflow containers) */}
       {(themeImage || themeGradient) && createPortal(
-        <div className="fixed inset-0 z-[3] overflow-hidden pointer-events-none">
+        <div className="fixed inset-0 z-[1] overflow-hidden pointer-events-none">
           {themeImage ? (
             <img
               src={themeImage}
