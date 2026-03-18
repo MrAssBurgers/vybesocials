@@ -5,7 +5,7 @@ import { Users, Sparkles } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSimilarDNAUsers } from '@/hooks/useSimilarDNAUsers';
 
 export const DNASimilarUsers = memo(function DNASimilarUsers() {
@@ -32,7 +32,7 @@ export const DNASimilarUsers = memo(function DNASimilarUsers() {
             People who share your vibe and personality traits
           </p>
 
-          <ScrollArea className="w-full">
+          <ScrollArea className="w-full" horizontal>
             <div className="flex gap-3 pb-1">
               {users.map((person, i) => (
                 <motion.div
@@ -68,7 +68,6 @@ export const DNASimilarUsers = memo(function DNASimilarUsers() {
                 </motion.div>
               ))}
             </div>
-            <ScrollBar orientation="horizontal" />
           </ScrollArea>
         </CardContent>
       </Card>
