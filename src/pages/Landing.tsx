@@ -73,7 +73,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     username: '',
   });
 
-  // Check intro status on mount - use auth context profile to avoid race conditions
+  // Check intro status on mount - resolve as fast as possible
+  // For guests: localStorage check is synchronous → no flicker
+  // For logged-in users: wait for authProfile to avoid race conditions
   useEffect(() => {
     // If mode=login, skip intro completely
     if (modeParam === 'login') {
@@ -82,9 +84,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       return;
     }
     
-    // CRITICAL: Don't make any decisions until auth is fully initialized
-    // This prevents the race condition on iPad Safari where OAuth callback
-    // hasn't been processed yet and we'd incorrectly show intro/login
+    // Fast path: if localStorage says intro is done, skip immediately (no waiting for auth)
+    if (hasSeenIntro()) {
+      setShowIntro(false);
+      return;
+    }
+    
+    // CRITICAL: Don't make auth-dependent decisions until auth is fully initialized
     if (!authReady) {
       return; // Keep showIntro as null (loading state)
     }
@@ -92,7 +98,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     // If user is logged in, use authProfile from context (avoids iPad Safari race condition)
     if (user) {
       if (authProfile) {
-        // Profile loaded — check if they've completed onboarding/intro
         if ((authProfile as any).onboarding_completed === true || (authProfile as any).intro_completed === true) {
           setShowIntro(false);
           return;
@@ -103,13 +108,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       }
     }
     
-    // Not logged in or profile says intro not completed — check localStorage
-    const checkStatus = async () => {
-      const hasCompleted = await checkIntroStatus(user?.id);
-      setShowIntro(!hasCompleted);
-    };
-    
-    checkStatus();
+    // Not logged in and localStorage says intro not completed — show intro
+    setShowIntro(true);
   }, [modeParam, user?.id, authProfile, authReady]);
 
   // Safety timeout: if OAuth pending flag is set but session never establishes,
