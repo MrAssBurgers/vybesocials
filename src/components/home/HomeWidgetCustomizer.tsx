@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { Reorder, motion, AnimatePresence } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, LayoutGrid, X, Check, Sparkles } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, LayoutGrid, X, Check, Sparkles, Share2, Save } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useHomeLayout, WidgetState } from '@/hooks/useHomeLayout';
+import { useShareTheme, type LayoutSettings } from '@/hooks/useSharedThemes';
+import { useCustomTheme } from '@/hooks/useCustomTheme';
+import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
 interface Props {
@@ -55,13 +59,23 @@ function DraggableWidgetRow({
 }
 
 export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: Props) {
-  const { widgets, reorderWidgets, toggleWidget } = useHomeLayout();
+  const { widgets, layout, reorderWidgets, toggleWidget } = useHomeLayout();
   const [localOrder, setLocalOrder] = useState<string[]>(widgets.map(w => w.id));
+  const [showShareFlow, setShowShareFlow] = useState(false);
+  const [themeName, setThemeName] = useState('');
+  const [themeDesc, setThemeDesc] = useState('');
+  const { user } = useAuth();
+  const shareTheme = useShareTheme();
+  const { userTheme } = useCustomTheme();
 
   // Sync when sheet opens
   const handleOpenChange = (v: boolean) => {
-    if (v) setLocalOrder(widgets.map(w => w.id));
-    else handleSave();
+    if (v) {
+      setLocalOrder(widgets.map(w => w.id));
+      setShowShareFlow(false);
+    } else {
+      handleSave();
+    }
     onOpenChange(v);
   };
 
@@ -76,6 +90,38 @@ export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: P
   const handleSave = () => {
     reorderWidgets(localOrder);
     toast.success('Your VYBE layout saved! 🔥');
+  };
+
+  const handleShareWithCommunity = () => {
+    if (!themeName.trim()) {
+      toast.error('Give your theme a name!');
+      return;
+    }
+    if (!userTheme?.theme_tokens) {
+      toast.error('Apply a theme first before sharing!');
+      return;
+    }
+
+    const layoutSettings: LayoutSettings = {
+      widget_order: localOrder,
+      widget_hidden: layout.hidden,
+    };
+
+    shareTheme.mutate({
+      themeName: themeName.trim(),
+      themeTokens: userTheme.theme_tokens as any,
+      description: themeDesc.trim() || undefined,
+      layoutSettings,
+      tags: ['community'],
+      category: 'user-created',
+    }, {
+      onSuccess: () => {
+        setShowShareFlow(false);
+        setThemeName('');
+        setThemeDesc('');
+        onOpenChange(false);
+      },
+    });
   };
 
   return (
@@ -134,7 +180,54 @@ export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: P
           </Reorder.Group>
         </div>
 
-        <div className="shrink-0 pt-2 border-t border-border/50">
+        {/* Share Flow */}
+        <AnimatePresence>
+          {showShareFlow && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="shrink-0 overflow-hidden"
+            >
+              <div className="space-y-2 pb-3 border-t border-border/50 pt-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Share as Theme</p>
+                <Input
+                  placeholder="Theme name (e.g. 'Midnight Vibes')"
+                  value={themeName}
+                  onChange={e => setThemeName(e.target.value)}
+                  className="text-sm"
+                />
+                <Input
+                  placeholder="Description (optional)"
+                  value={themeDesc}
+                  onChange={e => setThemeDesc(e.target.value)}
+                  className="text-sm"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowShareFlow(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleShareWithCommunity}
+                    disabled={shareTheme.isPending}
+                    className="flex-1 gradient-animated text-white"
+                  >
+                    <Share2 className="h-3.5 w-3.5 mr-1.5" />
+                    {shareTheme.isPending ? 'Sharing...' : 'Share'}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="shrink-0 pt-2 border-t border-border/50 space-y-2">
           <Button
             onClick={() => { handleSave(); onOpenChange(false); }}
             className="w-full gradient-animated text-white font-semibold"
@@ -142,8 +235,19 @@ export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: P
             <Check className="h-4 w-4 mr-2" />
             Save My VYBE Layout
           </Button>
+          {user && (
+            <Button
+              variant="outline"
+              onClick={() => setShowShareFlow(!showShareFlow)}
+              className="w-full"
+            >
+              <Share2 className="h-4 w-4 mr-2" />
+              Share with Community
+            </Button>
+          )}
         </div>
       </SheetContent>
     </Sheet>
   );
 }
+
