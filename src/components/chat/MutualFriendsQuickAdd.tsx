@@ -33,13 +33,23 @@ function useSuggestedUsers() {
       
       const friendIds = friends?.map(f => f.id) || [];
       const allHiddenIds = hiddenIds || new Set<string>();
-      
+
+      // Get my interests for matching
+      const { data: myProfile } = await supabase
+        .from('profiles')
+        .select('interests')
+        .eq('id', profile.id)
+        .maybeSingle();
+      const myInterests = new Set<string>(
+        (myProfile?.interests || []).map((i: string) => i.toLowerCase())
+      );
+
       let query = supabase
-        .from('public_profiles')
-        .select('id, username, display_name, first_name, last_name, avatar_url')
+        .from('profiles')
+        .select('id, username, display_name, first_name, last_name, avatar_url, interests, last_seen')
         .neq('id', profile.id)
-        .order('created_at', { ascending: false })
-        .limit(40);
+        .order('last_seen', { ascending: false, nullsFirst: false })
+        .limit(60);
       
       if (friendIds.length > 0) {
         query = query.not('id', 'in', `(${friendIds.join(',')})`);
@@ -47,20 +57,36 @@ function useSuggestedUsers() {
       
       const { data: users } = await query;
       if (!users || users.length === 0) return [];
+
+      const now = Date.now();
       
       return users
         .filter(u => !allHiddenIds.has(u.id))
-        .slice(0, 12)
-        .map(user => ({
-          id: user.id,
-          username: user.username,
-          display_name: user.display_name,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          avatar_url: user.avatar_url,
-          mutual_friends_count: 0,
-          mutual_friends: [],
-        }));
+        .map(user => {
+          const theirInterests = (user.interests || []).map((i: string) => i.toLowerCase());
+          const shared = theirInterests.filter((i: string) => myInterests.has(i));
+          const lastSeen = user.last_seen ? new Date(user.last_seen).getTime() : 0;
+          const daysSince = (now - lastSeen) / 86400000;
+          const activityScore = daysSince < 1 ? 3 : daysSince < 3 ? 2 : daysSince < 7 ? 1 : 0;
+          const interestScore = shared.length * 4;
+          const completeness = (user.avatar_url ? 1 : 0) + (user.display_name ? 0.5 : 0);
+
+          return {
+            id: user.id,
+            username: user.username,
+            display_name: user.display_name,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            avatar_url: user.avatar_url,
+            mutual_friends_count: 0,
+            mutual_friends: [],
+            affinity_score: interestScore + activityScore + completeness,
+            shared_interests: shared,
+            is_recently_active: daysSince < 7,
+          };
+        })
+        .sort((a, b) => b.affinity_score - a.affinity_score)
+        .slice(0, 12);
     },
     enabled: !!profile?.id,
     staleTime: 60000,
