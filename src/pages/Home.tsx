@@ -4,6 +4,7 @@ import { Loader2, Globe, Sparkles, LayoutGrid } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import type { Post } from '@/hooks/useInfinitePosts';
+import { useDNAPreferences } from '@/hooks/useDNAPreferences';
 import { useNewPostsBanner } from '@/hooks/usePostsRealtime';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
