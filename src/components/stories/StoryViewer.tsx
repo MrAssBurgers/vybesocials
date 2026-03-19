@@ -69,6 +69,10 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
     }
   }, [currentStory?.id, currentStory?.has_viewed, isOwnStory, viewStory]);
 
+  // Use ref for goNext to avoid stale closure in timer
+  const goNextRef = useRef(goNext);
+  useEffect(() => { goNextRef.current = goNext; }, [goNext]);
+
   // Progress timer
   useEffect(() => {
     if (isPaused || !currentStory) return;
@@ -76,7 +80,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
-          goNext();
+          goNextRef.current();
           return 0;
         }
         return prev + (100 / (STORY_DURATION / 50));
