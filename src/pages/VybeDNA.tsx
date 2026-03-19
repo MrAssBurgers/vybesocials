@@ -13,6 +13,7 @@ import { DNAColorPalette } from '@/components/dna/DNAColorPalette';
 import { DNAInsights } from '@/components/dna/DNAInsights';
 import { DNAPerks } from '@/components/dna/DNAPerks';
 import { DNASimilarUsers } from '@/components/dna/DNASimilarUsers';
+import { DNAChatAssistant } from '@/components/dna/DNAChatAssistant';
 
 export default function VybeDNAPage() {
   const navigate = useNavigate();
