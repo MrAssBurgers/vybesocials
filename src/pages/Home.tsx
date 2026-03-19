@@ -443,8 +443,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         </div>
       </div>
 
-      {/* Widget Customizer */}
-      <HomeWidgetCustomizer 
+      {/* Grid Layout Editor */}
+      <HomeGridEditor 
         open={customizerOpen} 
         onOpenChange={setCustomizerOpen}
         onOpenCommandBar={() => setCommandBarOpen(true)}
