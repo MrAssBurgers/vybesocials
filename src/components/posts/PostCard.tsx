@@ -33,6 +33,7 @@ import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { PostCarousel } from './PostCarousel';
+import { CommentSheet } from '@/components/comments/CommentSheet';
 import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 import { triggerHaptic } from '@/lib/haptics';
 
