@@ -761,6 +761,15 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         open={showAuthPrompt}
         onClose={() => setShowAuthPrompt(false)}
       />
+
+      {/* Comment Sheet */}
+      <CommentSheet
+        postId={post.id}
+        authorId={post.author.id}
+        commentCount={post.comment_count}
+        isOpen={showCommentSheet}
+        onClose={() => setShowCommentSheet(false)}
+      />
     </article>
   );
 });
