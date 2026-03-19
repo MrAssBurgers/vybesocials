@@ -14,9 +14,11 @@ export const AD_SLOTS = {
   STORY_INTERSTITIAL: '0987654321', // Replace with real slot ID from AdSense
 } as const;
 
-/** Returns a random interval between 5–8 for ad spacing */
-export function getAdInterval(): number {
-  return 5 + Math.floor(Math.random() * 4); // 5, 6, 7, or 8
+/** Returns a deterministic interval for ad spacing based on index.
+ *  Produces a repeating pattern of 5, 7, 6, 8 to feel organic without Math.random(). */
+const AD_INTERVALS = [5, 7, 6, 8] as const;
+export function getAdInterval(index: number): number {
+  return AD_INTERVALS[index % AD_INTERVALS.length];
 }
 
 export const FeedAdCard = memo(function FeedAdCard() {
