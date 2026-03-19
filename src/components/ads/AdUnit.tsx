@@ -2,13 +2,11 @@ import { useEffect, useRef, memo } from 'react';
 
 /**
  * Google AdSense unit renderer.
- * 
- * Replace ADSENSE_PUBLISHER_ID and slot IDs once your AdSense account is approved.
- * Docs: https://support.google.com/adsense/answer/9274025
+ * Publisher: ca-pub-9952523729646293
+ * Script loaded globally in index.html.
  */
 
-// TODO: Replace with your actual AdSense publisher ID (ca-pub-XXXXXXXXXXXXXXXX)
-const ADSENSE_PUBLISHER_ID = '';
+const ADSENSE_PUBLISHER_ID = 'ca-pub-9952523729646293';
 
 interface AdUnitProps {
   /** AdSense ad slot ID */
@@ -18,20 +16,6 @@ interface AdUnitProps {
   /** Responsive sizing */
   responsive?: boolean;
   className?: string;
-}
-
-// Track if AdSense script has been loaded
-let adsenseLoaded = false;
-
-function loadAdSenseScript() {
-  if (adsenseLoaded || !ADSENSE_PUBLISHER_ID) return;
-
-  const script = document.createElement('script');
-  script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_PUBLISHER_ID}`;
-  script.async = true;
-  script.crossOrigin = 'anonymous';
-  document.head.appendChild(script);
-  adsenseLoaded = true;
 }
 
 export const AdUnit = memo(function AdUnit({ 
@@ -44,10 +28,8 @@ export const AdUnit = memo(function AdUnit({
   const pushed = useRef(false);
 
   useEffect(() => {
-    loadAdSenseScript();
-
     // Push the ad once the component mounts
-    if (!pushed.current && ADSENSE_PUBLISHER_ID) {
+    if (!pushed.current) {
       try {
         ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
         pushed.current = true;
@@ -56,18 +38,6 @@ export const AdUnit = memo(function AdUnit({
       }
     }
   }, []);
-
-  // If no publisher ID is set, show a placeholder in dev mode
-  if (!ADSENSE_PUBLISHER_ID) {
-    if (import.meta.env.DEV) {
-      return (
-        <div className={`bg-muted/30 border border-dashed border-muted-foreground/20 rounded-xl p-4 text-center ${className}`}>
-          <p className="text-xs text-muted-foreground">Ad Placeholder — Set ADSENSE_PUBLISHER_ID</p>
-        </div>
-      );
-    }
-    return null;
-  }
 
   return (
     <ins
