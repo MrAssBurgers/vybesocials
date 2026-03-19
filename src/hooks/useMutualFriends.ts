@@ -240,20 +240,6 @@ export function useMutualFriends() {
           };
         });
 
-          return {
-            id: p.id,
-            username: p.username,
-            display_name: p.display_name,
-            first_name: p.first_name,
-            last_name: p.last_name,
-            avatar_url: p.avatar_url,
-            mutual_friends_count: mutualCount,
-            mutual_friends: mutualIds.slice(0, 3).map(id => mutualProfileMap.get(id)).filter(Boolean) as any,
-            affinity_score: Math.round(score * 100) / 100,
-            shared_interests: shared,
-            is_recently_active: isRecentlyActive,
-          };
-        });
 
         results.sort((a, b) => b.affinity_score - a.affinity_score);
         return results;
