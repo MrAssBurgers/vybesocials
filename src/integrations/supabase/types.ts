@@ -6222,6 +6222,7 @@ export type Database = {
           phone_verified: boolean | null
           referral_inviter_id: string | null
           sensitivity_preference: string | null
+          stripe_customer_id: string | null
           timezone: string | null
           tracking_consent: string | null
           tutorial_completed: boolean | null
@@ -6261,6 +6262,7 @@ export type Database = {
           phone_verified?: boolean | null
           referral_inviter_id?: string | null
           sensitivity_preference?: string | null
+          stripe_customer_id?: string | null
           timezone?: string | null
           tracking_consent?: string | null
           tutorial_completed?: boolean | null
@@ -6300,6 +6302,7 @@ export type Database = {
           phone_verified?: boolean | null
           referral_inviter_id?: string | null
           sensitivity_preference?: string | null
+          stripe_customer_id?: string | null
           timezone?: string | null
           tracking_consent?: string | null
           tutorial_completed?: boolean | null
