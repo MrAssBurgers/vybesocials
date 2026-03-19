@@ -91,18 +91,8 @@ export function AnimatedRoutes() {
   const debugPanel = useDebugPanel();
   const { isOpen: debugOpen, setIsOpen: setDebugOpen, isAdmin: isDebugAdmin } = debugPanel || { isOpen: false, setIsOpen: () => {}, isAdmin: false };
   
-  // Always capture errors/network — independent of panel visibility
   useDebugCapture();
   usePageTitle();
-  // Preload all routes after initial render
-  useEffect(() => {
-    // Preload secondary routes after a short delay
-    const timer = setTimeout(() => {
-      preloadSecondaryRoutes();
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, []);
   
   return (
     <div className="min-h-screen bg-background" id="main-content">
