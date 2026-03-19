@@ -472,11 +472,9 @@ export function ConversationList() {
           ) : null}
         </div>
 
-        {/* Quick Add Section - Snapchat style at bottom */}
+        {/* Bottom padding */}
         {!searchQuery && chatFilter === 'all' && (
-          <div className="px-3 pt-2 pb-24 border-t border-border/30">
-            <MutualFriendsQuickAdd onSelect={handleQuickAddSelect} />
-          </div>
+          <div className="pb-24" />
         )}
       </ScrollArea>
     </div>
