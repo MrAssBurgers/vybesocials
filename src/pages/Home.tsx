@@ -4,6 +4,7 @@ import { Loader2, Globe, Sparkles, LayoutGrid } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import type { Post } from '@/hooks/useInfinitePosts';
+import { useDNAPreferences } from '@/hooks/useDNAPreferences';
 import { useNewPostsBanner } from '@/hooks/usePostsRealtime';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
@@ -32,6 +33,21 @@ import { DiscoveryCards } from '@/components/home/DiscoveryCards';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
+
+// DNA preference scoring - boost/reduce based on tag matching
+function getDNAScore(post: Post, boostSet: Set<string>, reduceSet: Set<string>): number {
+  let score = 0;
+  const tags = (post.tags || []).map(t => t.toLowerCase());
+  const caption = (post.caption || '').toLowerCase();
+  for (const tag of tags) {
+    if (boostSet.has(tag)) score += 2;
+    if (reduceSet.has(tag)) score -= 2;
+  }
+  // Also check caption for topic keywords
+  for (const topic of boostSet) if (caption.includes(topic)) score += 1;
+  for (const topic of reduceSet) if (caption.includes(topic)) score -= 1;
+  return score;
+}
 
 // Memoized post list with improved empty states
 interface PostListProps {
@@ -121,6 +137,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [commandBarOpen, setCommandBarOpen] = useState(false);
   const { isVisible } = useHomeLayout();
+  const { data: dnaPrefs } = useDNAPreferences();
   
   // Personalized feed (interest-matched posts)
   const {
@@ -174,10 +191,26 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         merged.push(post);
       }
     }
-    // Sort by date descending (newest first)
-    merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    // Apply DNA content preferences (client-side boost/reduce)
+    if (dnaPrefs) {
+      const boostSet = new Set((dnaPrefs.boost_topics || []).map(t => t.toLowerCase()));
+      const reduceSet = new Set((dnaPrefs.reduce_topics || []).map(t => t.toLowerCase()));
+
+      // Score posts: boost matching tags higher, reduce matching tags lower
+      merged.sort((a, b) => {
+        const aScore = getDNAScore(a, boostSet, reduceSet);
+        const bScore = getDNAScore(b, boostSet, reduceSet);
+        if (aScore !== bScore) return bScore - aScore;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+    } else {
+      // Default: sort by date descending
+      merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+
     return merged;
-  }, [forYouData, followingData]);
+  }, [forYouData, followingData, dnaPrefs]);
   
   const globalPosts = useMemo(() => 
     globalData?.pages.flatMap(page => page.posts) || [], 

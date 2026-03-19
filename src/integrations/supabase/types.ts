@@ -3318,6 +3318,74 @@ export type Database = {
           },
         ]
       }
+      dna_content_preferences: {
+        Row: {
+          boost_topics: string[] | null
+          conversation_context: Json | null
+          created_at: string
+          creator_affinity_overrides: Json | null
+          discovery_level: string | null
+          id: string
+          preferred_content_types: string[] | null
+          reduce_topics: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          boost_topics?: string[] | null
+          conversation_context?: Json | null
+          created_at?: string
+          creator_affinity_overrides?: Json | null
+          discovery_level?: string | null
+          id?: string
+          preferred_content_types?: string[] | null
+          reduce_topics?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          boost_topics?: string[] | null
+          conversation_context?: Json | null
+          created_at?: string
+          creator_affinity_overrides?: Json | null
+          discovery_level?: string | null
+          id?: string
+          preferred_content_types?: string[] | null
+          reduce_topics?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dna_content_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "dna_content_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dna_content_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dna_content_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       error_logs: {
         Row: {
           created_at: string

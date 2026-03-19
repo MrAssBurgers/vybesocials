@@ -9,16 +9,29 @@ export interface SharedTheme {
   creator_id: string;
   theme_name: string;
   theme_tokens: ThemeTokens;
+  layout_settings: LayoutSettings | null;
   description: string | null;
   likes_count: number;
   downloads_count: number;
   is_public: boolean;
   created_at: string;
+  tags: string[] | null;
+  category: string | null;
   creator?: {
     display_name: string | null;
     avatar_url: string | null;
     username: string | null;
   };
+}
+
+export interface LayoutSettings {
+  widget_order?: string[];
+  widget_hidden?: string[];
+  background_url?: string | null;
+  corner_style?: string;
+  motion_intensity?: string;
+  font_heading?: string;
+  font_body?: string;
 }
 
 // Fetch all public shared themes with search and sorting
@@ -113,10 +126,16 @@ export function useShareTheme() {
       themeName,
       themeTokens,
       description,
+      layoutSettings,
+      tags,
+      category,
     }: {
       themeName: string;
       themeTokens: ThemeTokens;
       description?: string;
+      layoutSettings?: LayoutSettings;
+      tags?: string[];
+      category?: string;
     }) => {
       // Use profile.id for creator_id since FK references profiles.id
       if (!profile?.id) throw new Error('Not authenticated');
@@ -124,10 +143,13 @@ export function useShareTheme() {
       const { data, error } = await supabase
         .from('shared_themes')
         .insert({
-          creator_id: profile.id, // Use profile ID, not auth user ID
+          creator_id: profile.id,
           theme_name: themeName,
           theme_tokens: themeTokens as any,
           description: description || null,
+          layout_settings: layoutSettings ? (layoutSettings as any) : null,
+          tags: tags || null,
+          category: category || null,
           is_public: true,
         })
         .select()
