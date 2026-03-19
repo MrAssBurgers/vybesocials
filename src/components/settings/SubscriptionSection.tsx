@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { PaywallSheet } from '@/components/premium/PaywallSheet';
+import { CustomerCenter } from '@/components/premium/CustomerCenter';
 import { SubscriptionLocker } from '@/components/settings/SubscriptionLocker';
 import { PremiumPerkActions } from '@/components/settings/PremiumPerkActions';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
