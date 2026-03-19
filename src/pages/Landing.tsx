@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+
 // Checkbox removed — using custom inline toggle for iOS compatibility
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
@@ -517,15 +517,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           </div>
 
           <div className="space-y-1.5">
-            <Alert variant="destructive" className="mb-2">
-              <AlertDescription className="text-xs">
-                ⚠️ "Continue with Google" is currently experiencing issues. We're working on a fix. Please use email sign-up/login in the meantime.
-              </AlertDescription>
-            </Alert>
             <Button
               type="button"
               variant="outline"
-              className="w-full bg-secondary/30 h-10 opacity-50"
+              className="w-full bg-secondary/30 h-10"
               onClick={async () => {
                 setLoading(true);
                 try {
