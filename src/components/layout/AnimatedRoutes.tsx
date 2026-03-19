@@ -183,9 +183,11 @@ export function AnimatedRoutes() {
               <DebugPanel />
             </Suspense>
           )}
-          {/* Production debug panel — always mounted, admin-gated */}
+          {/* Production debug panel — lazy loaded, admin-gated */}
           {isDebugAdmin && (
-            <ProductionDebugPanel isOpen={debugOpen} onClose={() => setDebugOpen(false)} />
+            <Suspense fallback={null}>
+              <ProductionDebugPanel isOpen={debugOpen} onClose={() => setDebugOpen(false)} />
+            </Suspense>
           )}
         </Suspense>
       </div>
