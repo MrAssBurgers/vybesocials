@@ -104,7 +104,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
     exit: { opacity: 0, x: -50 },
   };
   
-  // Show nothing until ready (splash screen complete)
+  // Show a seamless background until ready (splash screen complete)
   if (!isReady) {
     return (
       <div className="fixed inset-0 z-[200] bg-background" />
