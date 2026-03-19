@@ -63,8 +63,6 @@ interface PostListProps {
   showAds?: boolean;
 }
 
-const AD_INTERVAL = 5; // Show an ad every N posts
-
 const PostList = memo(({ 
   posts, 
   isLoading,
@@ -76,6 +74,18 @@ const PostList = memo(({
   onExplore,
   showAds = false,
 }: PostListProps) => {
+  // Generate stable ad positions (every 5–8 posts) per render cycle
+  const adPositions = useMemo(() => {
+    if (!showAds || posts.length === 0) return new Set<number>();
+    const positions = new Set<number>();
+    let next = getAdInterval() - 1; // 0-indexed
+    while (next < posts.length) {
+      positions.add(next);
+      next += getAdInterval();
+    }
+    return positions;
+  }, [showAds, posts.length]);
+
   // Show skeletons only on initial load with NO cached data
   if (isLoading && posts.length === 0) {
     return <PostSkeletonList count={2} />;
@@ -98,8 +108,8 @@ const PostList = memo(({
       {posts.map((post, index) => (
         <div key={post.id}>
           <MemoizedPostCard post={post} />
-          {/* Inject ad after every N posts */}
-          {showAds && (index + 1) % AD_INTERVAL === 0 && (
+          {/* Inject ad at randomized intervals (every 5–8 posts) */}
+          {adPositions.has(index) && (
             <Suspense fallback={null}>
               <FeedAdCard />
             </Suspense>
