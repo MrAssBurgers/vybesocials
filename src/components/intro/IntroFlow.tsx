@@ -280,7 +280,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
           </Button>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
