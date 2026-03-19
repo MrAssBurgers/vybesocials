@@ -11,6 +11,7 @@ import { PostSkeletonList } from '@/components/posts/PostSkeleton';
 import { useShowAds } from '@/hooks/useShowAds';
 
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
+import { getAdInterval } from '@/components/ads/FeedAdCard';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StoriesBar } from '@/components/stories/StoriesBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
