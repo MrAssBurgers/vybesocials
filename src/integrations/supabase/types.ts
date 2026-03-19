@@ -6211,6 +6211,7 @@ export type Database = {
           id: string
           interests: string[] | null
           intro_completed: boolean | null
+          is_premium: boolean | null
           is_private: boolean | null
           is_verified: boolean | null
           language: string | null
@@ -6220,6 +6221,7 @@ export type Database = {
           onboarding_completed: boolean | null
           phone_number: string | null
           phone_verified: boolean | null
+          premium_expires_at: string | null
           referral_inviter_id: string | null
           sensitivity_preference: string | null
           stripe_customer_id: string | null
@@ -6251,6 +6253,7 @@ export type Database = {
           id?: string
           interests?: string[] | null
           intro_completed?: boolean | null
+          is_premium?: boolean | null
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
@@ -6260,6 +6263,7 @@ export type Database = {
           onboarding_completed?: boolean | null
           phone_number?: string | null
           phone_verified?: boolean | null
+          premium_expires_at?: string | null
           referral_inviter_id?: string | null
           sensitivity_preference?: string | null
           stripe_customer_id?: string | null
@@ -6291,6 +6295,7 @@ export type Database = {
           id?: string
           interests?: string[] | null
           intro_completed?: boolean | null
+          is_premium?: boolean | null
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
@@ -6300,6 +6305,7 @@ export type Database = {
           onboarding_completed?: boolean | null
           phone_number?: string | null
           phone_verified?: boolean | null
+          premium_expires_at?: string | null
           referral_inviter_id?: string | null
           sensitivity_preference?: string | null
           stripe_customer_id?: string | null
@@ -9631,6 +9637,66 @@ export type Database = {
           },
         ]
       }
+      video_stats: {
+        Row: {
+          avg_watch_time: number
+          comments: number
+          created_at: string
+          creator_id: string
+          id: string
+          likes: number
+          post_id: string
+          qualified_views: number
+          saves: number
+          shares: number
+          updated_at: string
+          views: number
+        }
+        Insert: {
+          avg_watch_time?: number
+          comments?: number
+          created_at?: string
+          creator_id: string
+          id?: string
+          likes?: number
+          post_id: string
+          qualified_views?: number
+          saves?: number
+          shares?: number
+          updated_at?: string
+          views?: number
+        }
+        Update: {
+          avg_watch_time?: number
+          comments?: number
+          created_at?: string
+          creator_id?: string
+          id?: string
+          likes?: number
+          post_id?: string
+          qualified_views?: number
+          saves?: number
+          shares?: number
+          updated_at?: string
+          views?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_stats_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creator_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "video_stats_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: true
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vybe_dna: {
         Row: {
           aura_intensity: number | null
@@ -10360,6 +10426,7 @@ export type Database = {
         Returns: string
       }
       bump_reaction_streak: { Args: { p_other_user: string }; Returns: Json }
+      calculate_creator_earnings: { Args: never; Returns: Json }
       calculate_level_from_xp: { Args: { p_xp: number }; Returns: number }
       can_send_dm: {
         Args: { receiver_id: string; sender_id: string }
@@ -10882,6 +10949,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_trending_scores: { Args: never; Returns: Json }
       use_theme_code: { Args: { p_code: string }; Returns: string }
       validate_invite_code: {
         Args: { _code: string }
