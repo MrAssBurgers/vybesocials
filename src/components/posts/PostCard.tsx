@@ -316,6 +316,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const [deleteContentDialog, setDeleteContentDialog] = useState<{ type: 'post' | 'comment' | 'listing'; id: string } | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authPromptAction, setAuthPromptAction] = useState('');
+  const [showCommentSheet, setShowCommentSheet] = useState(false);
 
   const signedMediaUrl = useFastSignedUrl(post.media_url);
   const signedAvatarUrl = useFastSignedUrl(post.author.avatar_url);
