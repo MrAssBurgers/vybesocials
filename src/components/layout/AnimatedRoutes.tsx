@@ -72,9 +72,9 @@ const TokenWallet = lazy(() => import("@/pages/TokenWallet"));
 const TokenMarketplace = lazy(() => import("@/pages/TokenMarketplace"));
 const PremiumSuccess = lazy(() => import("@/pages/PremiumSuccess"));
 
-// Debug panels
+// Debug panels — lazy load both
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
-import { ProductionDebugPanel } from '@/components/debug/ProductionDebugPanel';
+const ProductionDebugPanel = lazy(() => import("@/components/debug/ProductionDebugPanel").then(m => ({ default: m.ProductionDebugPanel })));
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 // Minimal fallback - just shows content area, no skeleton flicker
