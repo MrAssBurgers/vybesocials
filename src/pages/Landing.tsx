@@ -15,7 +15,7 @@ import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
 import { VYBELogo } from '@/components/ui/VYBELogo';
-import { IntroFlow, hasSeenIntro, checkIntroStatus } from '@/components/intro/IntroFlow';
+import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
@@ -73,7 +73,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     username: '',
   });
 
-  // Check intro status on mount - use auth context profile to avoid race conditions
+  // Check intro status on mount - resolve as fast as possible
+  // For guests: localStorage check is synchronous → no flicker
+  // For logged-in users: wait for authProfile to avoid race conditions
   useEffect(() => {
     // If mode=login, skip intro completely
     if (modeParam === 'login') {
@@ -82,9 +84,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       return;
     }
     
-    // CRITICAL: Don't make any decisions until auth is fully initialized
-    // This prevents the race condition on iPad Safari where OAuth callback
-    // hasn't been processed yet and we'd incorrectly show intro/login
+    // Fast path: if localStorage says intro is done, skip immediately (no waiting for auth)
+    if (hasSeenIntro()) {
+      setShowIntro(false);
+      return;
+    }
+    
+    // CRITICAL: Don't make auth-dependent decisions until auth is fully initialized
     if (!authReady) {
       return; // Keep showIntro as null (loading state)
     }
@@ -92,7 +98,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     // If user is logged in, use authProfile from context (avoids iPad Safari race condition)
     if (user) {
       if (authProfile) {
-        // Profile loaded — check if they've completed onboarding/intro
         if ((authProfile as any).onboarding_completed === true || (authProfile as any).intro_completed === true) {
           setShowIntro(false);
           return;
@@ -103,13 +108,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       }
     }
     
-    // Not logged in or profile says intro not completed — check localStorage
-    const checkStatus = async () => {
-      const hasCompleted = await checkIntroStatus(user?.id);
-      setShowIntro(!hasCompleted);
-    };
-    
-    checkStatus();
+    // Not logged in and localStorage says intro not completed — show intro
+    setShowIntro(true);
   }, [modeParam, user?.id, authProfile, authReady]);
 
   // Safety timeout: if OAuth pending flag is set but session never establishes,
@@ -256,14 +256,26 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   // This prevents the login form from flashing on mobile Safari.
   if (isOAuthReturn || showIntro === null) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.15 }}
+        className="min-h-screen bg-background flex items-center justify-center"
+      >
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
           {isOAuthReturn && (
-            <p className="text-sm text-muted-foreground">Signing you in…</p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="text-sm text-muted-foreground"
+            >
+              Signing you in…
+            </motion.p>
           )}
         </div>
-      </div>
+      </motion.div>
     );
   }
   

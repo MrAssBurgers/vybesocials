@@ -11,8 +11,8 @@ const INTRO_SHOWN_KEY = 'vybe_intro_completed';
 
 // Poll interval to check if splash screen is gone
 const SPLASH_CHECK_INTERVAL = 50;
-const MAX_WAIT_TIME = 5000;
-const MIN_WAIT_TIME = 500; // Minimum wait to ensure smooth transition
+const MAX_WAIT_TIME = 3000;
+const MIN_WAIT_TIME = 200; // Reduced for snappier transition — splash already fades out
 
 interface IntroFlowProps {
   onComplete: () => void;
@@ -104,7 +104,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
     exit: { opacity: 0, x: -50 },
   };
   
-  // Show nothing until ready (splash screen complete)
+  // Show a seamless background until ready (splash screen complete)
   if (!isReady) {
     return (
       <div className="fixed inset-0 z-[200] bg-background" />
@@ -112,7 +112,12 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
   }
   
   return (
-    <div className="fixed inset-0 z-[200] bg-background flex flex-col overflow-hidden">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      className="fixed inset-0 z-[200] bg-background flex flex-col overflow-hidden"
+    >
       {/* Smooth animated background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
@@ -275,7 +280,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
           </Button>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
