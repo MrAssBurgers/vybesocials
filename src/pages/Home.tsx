@@ -26,9 +26,9 @@ import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
-import { HomeWidgetCustomizer } from '@/components/home/HomeWidgetCustomizer';
+import { HomeGridEditor } from '@/components/home/HomeGridEditor';
 import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
-import { useHomeLayout } from '@/hooks/useHomeLayout';
+import { useGridLayout } from '@/hooks/useGridLayout';
 import { DiscoveryCards } from '@/components/home/DiscoveryCards';
 
 // Memoized PostCard for better performance
