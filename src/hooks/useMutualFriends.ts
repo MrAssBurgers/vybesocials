@@ -201,7 +201,7 @@ export function useMutualFriends() {
         const now = Date.now();
         const jitterSeed = Math.floor(now / 3600000); // Changes hourly
 
-        const results: UserWithMutualFriends[] = (candidateProfiles || []).map(p => {
+        const results: UserWithMutualFriends[] = ((candidateProfiles as any[]) || []).map((p: any) => {
           const entry = candidateMap.get(p.id)!;
           const mutualCount = entry.viaFriends.size;
 
@@ -209,28 +209,36 @@ export function useMutualFriends() {
           const theirInterests = (p.interests || []).map((i: string) => i.toLowerCase());
           const shared = theirInterests.filter((i: string) => myInterests.has(i));
 
-          // Activity recency (last_seen within 7 days = active)
-          const lastSeen = p.last_seen ? new Date(p.last_seen).getTime() : 0;
-          const daysSinceActive = (now - lastSeen) / 86400000;
-          const isRecentlyActive = daysSinceActive < 7;
-          const activityScore = daysSinceActive < 1 ? 1 : daysSinceActive < 3 ? 0.7 : daysSinceActive < 7 ? 0.4 : 0.1;
-
-          // Profile completeness (has avatar + bio-like fields)
+          // Profile completeness
           const completeness = (p.avatar_url ? 0.5 : 0) + (p.display_name ? 0.25 : 0) + (theirInterests.length > 0 ? 0.25 : 0);
 
           // Deterministic jitter per user (changes hourly)
-          const jitter = ((hashCode(p.id + jitterSeed) % 200) - 100) / 100; // -1 to 1
+          const jitter = ((hashCode(p.id + jitterSeed) % 200) - 100) / 100;
 
           // Weighted score
           const score =
             mutualCount * 10 +
             shared.length * 6 +
             (entry.affinitySum / Math.max(1, mutualCount)) * 8 +
-            activityScore * 3 +
             completeness * 1 +
             jitter * 2;
 
           const mutualIds = Array.from(entry.viaFriends);
+
+          return {
+            id: p.id,
+            username: p.username,
+            display_name: p.display_name,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            avatar_url: p.avatar_url,
+            mutual_friends_count: mutualCount,
+            mutual_friends: mutualIds.slice(0, 3).map(id => mutualProfileMap.get(id)).filter(Boolean) as any,
+            affinity_score: Math.round(score * 100) / 100,
+            shared_interests: shared,
+            is_recently_active: true,
+          };
+        });
 
           return {
             id: p.id,
