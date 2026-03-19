@@ -26,9 +26,9 @@ import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
-import { HomeWidgetCustomizer } from '@/components/home/HomeWidgetCustomizer';
+import { HomeGridEditor } from '@/components/home/HomeGridEditor';
 import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
-import { useHomeLayout } from '@/hooks/useHomeLayout';
+import { useGridLayout } from '@/hooks/useGridLayout';
 import { DiscoveryCards } from '@/components/home/DiscoveryCards';
 
 // Memoized PostCard for better performance
@@ -136,7 +136,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const { hasNewPosts, clearNewPosts } = useNewPostsBanner();
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [commandBarOpen, setCommandBarOpen] = useState(false);
-  const { isVisible } = useHomeLayout();
+  const { config: gridConfig } = useGridLayout();
+  const isVisible = useCallback((id: string) => gridConfig.widgets.find(w => w.id === id)?.enabled ?? false, [gridConfig.widgets]);
   const { data: dnaPrefs } = useDNAPreferences();
   
   // Personalized feed (interest-matched posts)
@@ -442,8 +443,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         </div>
       </div>
 
-      {/* Widget Customizer */}
-      <HomeWidgetCustomizer 
+      {/* Grid Layout Editor */}
+      <HomeGridEditor 
         open={customizerOpen} 
         onOpenChange={setCustomizerOpen}
         onOpenCommandBar={() => setCommandBarOpen(true)}
