@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useHomeLayout, WidgetState } from '@/hooks/useHomeLayout';
 import { useShareTheme, type LayoutSettings } from '@/hooks/useSharedThemes';
-import { useCustomTheme } from '@/hooks/useCustomTheme';
+import { useUserTheme } from '@/hooks/useCustomTheme';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
