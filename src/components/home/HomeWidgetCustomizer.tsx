@@ -66,7 +66,7 @@ export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: P
   const [themeDesc, setThemeDesc] = useState('');
   const { user } = useAuth();
   const shareTheme = useShareTheme();
-  const { userTheme } = useCustomTheme();
+  const { data: userTheme } = useUserTheme();
 
   // Sync when sheet opens
   const handleOpenChange = (v: boolean) => {
