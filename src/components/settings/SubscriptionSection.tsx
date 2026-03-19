@@ -42,6 +42,7 @@ export function SubscriptionSection() {
   const { offerings, refresh } = useRevenueCat();
   const [showPaywall, setShowPaywall] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showCustomerCenter, setShowCustomerCenter] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Derive subscription details from RevenueCat customerInfo
