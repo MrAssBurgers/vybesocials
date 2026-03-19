@@ -556,10 +556,10 @@ export default function ChallengesHubPage() {
                           {/* Icon */}
                           <div className={cn(
                             "h-12 w-12 rounded-xl flex items-center justify-center shrink-0",
-                            config?.bgColor || 'bg-secondary'
+                            challenge.is_completed ? 'bg-green-500/20' : (config?.bgColor || 'bg-secondary')
                           )}>
                             {challenge.is_completed ? (
-                              <CheckCircle2 className="h-6 w-6 text-primary" />
+                              <CheckCircle2 className="h-6 w-6 text-green-500" />
                             ) : (
                               <Icon className={cn("h-6 w-6", config?.color)} />
                             )}
