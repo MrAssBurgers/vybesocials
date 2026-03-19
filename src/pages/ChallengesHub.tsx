@@ -549,7 +549,10 @@ export default function ChallengesHubPage() {
                             : "hover:border-primary/40"
                         )}
                       >
-                        <div className="flex items-start gap-4">
+                        <div className={cn(
+                          "flex items-start gap-4 transition-all",
+                          challenge.is_completed && challenge.is_claimed && "blur-[2px] opacity-50"
+                        )}>
                           {/* Icon */}
                           <div className={cn(
                             "h-12 w-12 rounded-xl flex items-center justify-center shrink-0",
