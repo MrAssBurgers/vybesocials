@@ -371,6 +371,13 @@ export function ConversationList() {
         </div>
       )}
 
+      {/* Quick Add Section - at top */}
+      {!searchQuery && chatFilter === 'all' && (
+        <div className="px-3 pb-2 flex-shrink-0 overflow-hidden">
+          <MutualFriendsQuickAdd onSelect={handleQuickAddSelect} />
+        </div>
+      )}
+
       {/* Conversation List */}
       <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
         {/* AI Chat Row */}
