@@ -57,8 +57,6 @@ function useSuggestedUsers() {
       
       const { data: users } = await query;
       if (!users || users.length === 0) return [];
-
-      const now = Date.now();
       
       return (users as any[])
         .filter((u: any) => !allHiddenIds.has(u.id))
