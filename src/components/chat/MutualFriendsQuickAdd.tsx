@@ -33,13 +33,23 @@ function useSuggestedUsers() {
       
       const friendIds = friends?.map(f => f.id) || [];
       const allHiddenIds = hiddenIds || new Set<string>();
-      
-      let query = supabase
-        .from('public_profiles')
-        .select('id, username, display_name, first_name, last_name, avatar_url')
+
+      // Get my interests for matching
+      const { data: myProfile } = await supabase
+        .from('profiles')
+        .select('interests')
+        .eq('id', profile.id)
+        .maybeSingle();
+      const myInterests = new Set<string>(
+        (myProfile?.interests || []).map((i: string) => i.toLowerCase())
+      );
+
+      let query = (supabase
+        .from('profiles' as any)
+        .select('id, username, display_name, first_name, last_name, avatar_url, interests')
         .neq('id', profile.id)
         .order('created_at', { ascending: false })
-        .limit(40);
+        .limit(60)) as any;
       
       if (friendIds.length > 0) {
         query = query.not('id', 'in', `(${friendIds.join(',')})`);
@@ -48,19 +58,30 @@ function useSuggestedUsers() {
       const { data: users } = await query;
       if (!users || users.length === 0) return [];
       
-      return users
-        .filter(u => !allHiddenIds.has(u.id))
-        .slice(0, 12)
-        .map(user => ({
-          id: user.id,
-          username: user.username,
-          display_name: user.display_name,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          avatar_url: user.avatar_url,
-          mutual_friends_count: 0,
-          mutual_friends: [],
-        }));
+      return (users as any[])
+        .filter((u: any) => !allHiddenIds.has(u.id))
+        .map((user: any) => {
+          const theirInterests = (user.interests || []).map((i: string) => i.toLowerCase());
+          const shared = theirInterests.filter((i: string) => myInterests.has(i));
+          const interestScore = shared.length * 4;
+          const completeness = (user.avatar_url ? 1 : 0) + (user.display_name ? 0.5 : 0);
+
+          return {
+            id: user.id,
+            username: user.username,
+            display_name: user.display_name,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            avatar_url: user.avatar_url,
+            mutual_friends_count: 0,
+            mutual_friends: [],
+            affinity_score: interestScore + completeness,
+            shared_interests: shared,
+            is_recently_active: true,
+          };
+        })
+        .sort((a: any, b: any) => b.affinity_score - a.affinity_score)
+        .slice(0, 12);
     },
     enabled: !!profile?.id,
     staleTime: 60000,
@@ -252,6 +273,12 @@ function QuickAddCard({
             )}
             <span className="text-[10px] text-muted-foreground leading-none">
               {user.mutual_friends_count} mutual{user.mutual_friends_count !== 1 ? 's' : ''}
+            </span>
+          </div>
+        ) : user.shared_interests && user.shared_interests.length > 0 ? (
+          <div className="flex items-center gap-0.5 mt-0.5 mb-1.5 flex-wrap justify-center">
+            <span className="text-[10px] text-primary/80 leading-none">
+              {user.shared_interests.slice(0, 2).join(' · ')}
             </span>
           </div>
         ) : (
