@@ -236,7 +236,7 @@ export function PaywallSheet({ open, onOpenChange }: PaywallSheetProps) {
     setRetrying(false);
   };
 
-  const isPremium = isEntitled('premium');
+  const isPremium = isEntitled('Vybe Social Pro');
 
   const handlePurchase = async () => {
     const pkg = selectedPkg || offerings[0];

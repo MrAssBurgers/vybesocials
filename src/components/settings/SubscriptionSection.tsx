@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { PaywallSheet } from '@/components/premium/PaywallSheet';
+import { CustomerCenter } from '@/components/premium/CustomerCenter';
 import { SubscriptionLocker } from '@/components/settings/SubscriptionLocker';
 import { PremiumPerkActions } from '@/components/settings/PremiumPerkActions';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
@@ -41,10 +42,11 @@ export function SubscriptionSection() {
   const { offerings, refresh } = useRevenueCat();
   const [showPaywall, setShowPaywall] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showCustomerCenter, setShowCustomerCenter] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Derive subscription details from RevenueCat customerInfo
-  const activeEntitlement = customerInfo?.entitlements?.active?.['premium'];
+  const activeEntitlement = customerInfo?.entitlements?.active?.['Vybe Social Pro'];
   const expiresDate = activeEntitlement?.expirationDate
     ? new Date(activeEntitlement.expirationDate)
     : null;
@@ -307,6 +309,15 @@ export function SubscriptionSection() {
           <Button
             variant="ghost"
             className="w-full justify-between text-sm h-10"
+            onClick={() => setShowCustomerCenter(true)}
+          >
+            <span>Manage Subscription</span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Button>
+          <Separator />
+          <Button
+            variant="ghost"
+            className="w-full justify-between text-sm h-10"
             onClick={handleRefresh}
             disabled={refreshing}
           >
@@ -328,6 +339,9 @@ export function SubscriptionSection() {
 
       {/* Paywall Sheet */}
       <PaywallSheet open={showPaywall} onOpenChange={setShowPaywall} />
+
+      {/* Customer Center */}
+      <CustomerCenter open={showCustomerCenter} onOpenChange={setShowCustomerCenter} />
 
       {/* Cancel Confirmation Dialog */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>

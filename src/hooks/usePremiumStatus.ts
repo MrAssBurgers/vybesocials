@@ -3,7 +3,7 @@ import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-const PREMIUM_ENTITLEMENT_ID = 'premium';
+const PREMIUM_ENTITLEMENT_ID = 'Vybe Social Pro';
 
 export function usePremiumStatus() {
   const { isEntitled, isLoading: rcLoading, customerInfo } = useRevenueCat();

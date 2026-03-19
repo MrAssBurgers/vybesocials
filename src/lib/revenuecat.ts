@@ -1,6 +1,6 @@
 import { Purchases } from "@revenuecat/purchases-js";
 
-const RC_API_KEY = "rcb_NeOTGVahNohbZnIbAgVITudovfDV";
+const RC_API_KEY = "test_RKEtWiYduGWkOAOfNcaCRgTsyfC";
 
 let purchasesInstance: Purchases | null = null;
 
