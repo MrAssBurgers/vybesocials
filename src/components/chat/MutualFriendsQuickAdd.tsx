@@ -44,12 +44,12 @@ function useSuggestedUsers() {
         (myProfile?.interests || []).map((i: string) => i.toLowerCase())
       );
 
-      let query = supabase
-        .from('profiles')
-        .select('id, username, display_name, first_name, last_name, avatar_url, interests, last_seen')
+      let query = (supabase
+        .from('profiles' as any)
+        .select('id, username, display_name, first_name, last_name, avatar_url, interests')
         .neq('id', profile.id)
-        .order('last_seen', { ascending: false, nullsFirst: false })
-        .limit(60);
+        .order('created_at', { ascending: false })
+        .limit(60)) as any;
       
       if (friendIds.length > 0) {
         query = query.not('id', 'in', `(${friendIds.join(',')})`);
