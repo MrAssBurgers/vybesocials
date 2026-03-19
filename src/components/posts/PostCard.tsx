@@ -681,9 +681,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
               />
             </button>
 
-            <Link to={`/p/${post.id}`} className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform">
+            <button onClick={() => setShowCommentSheet(true)} className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform">
               <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
-            </Link>
+            </button>
             
             <button 
               onClick={handleShare}
