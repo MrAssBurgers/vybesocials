@@ -11,8 +11,8 @@ const INTRO_SHOWN_KEY = 'vybe_intro_completed';
 
 // Poll interval to check if splash screen is gone
 const SPLASH_CHECK_INTERVAL = 50;
-const MAX_WAIT_TIME = 5000;
-const MIN_WAIT_TIME = 500; // Minimum wait to ensure smooth transition
+const MAX_WAIT_TIME = 3000;
+const MIN_WAIT_TIME = 200; // Reduced for snappier transition — splash already fades out
 
 interface IntroFlowProps {
   onComplete: () => void;
