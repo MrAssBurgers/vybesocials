@@ -42,7 +42,7 @@ export function PostCarousel({ urls, onDoubleTap }: PostCarouselProps) {
   const [direction, setDirection] = useState(0);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
-  const isDragging = useRef(false);
+  const isHorizontalSwipe = useRef(false);
   const dragX = useMotionValue(0);
 
   const goTo = useCallback((index: number, dir: number) => {
@@ -56,16 +56,22 @@ export function PostCarousel({ urls, onDoubleTap }: PostCarouselProps) {
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
-    isDragging.current = false;
+    isHorizontalSwipe.current = false;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (touchStartX.current === null || touchStartY.current === null) return;
     const dx = e.touches[0].clientX - touchStartX.current;
     const dy = e.touches[0].clientY - touchStartY.current;
-    // Only track horizontal swipes
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
-      isDragging.current = true;
+
+    // Lock direction on first significant move
+    if (!isHorizontalSwipe.current && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      isHorizontalSwipe.current = true;
+    }
+
+    if (isHorizontalSwipe.current) {
+      e.preventDefault();
+      e.stopPropagation();
       dragX.set(dx);
     }
   };
@@ -73,12 +79,13 @@ export function PostCarousel({ urls, onDoubleTap }: PostCarouselProps) {
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (touchStartX.current === null) return;
     const diff = touchStartX.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) {
+    if (isHorizontalSwipe.current && Math.abs(diff) > 40) {
       if (diff > 0 && current < urls.length - 1) goTo(current + 1, 1);
       if (diff < 0 && current > 0) goTo(current - 1, -1);
     }
     touchStartX.current = null;
     touchStartY.current = null;
+    isHorizontalSwipe.current = false;
     animate(dragX, 0, { type: 'spring', stiffness: 400, damping: 30 });
   };
 
