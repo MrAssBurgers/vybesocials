@@ -136,7 +136,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const { hasNewPosts, clearNewPosts } = useNewPostsBanner();
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [commandBarOpen, setCommandBarOpen] = useState(false);
-  const { isVisible } = useHomeLayout();
+  const { config: gridConfig } = useGridLayout();
+  const isVisible = useCallback((id: string) => gridConfig.widgets.find(w => w.id === id)?.enabled ?? false, [gridConfig.widgets]);
   const { data: dnaPrefs } = useDNAPreferences();
   
   // Personalized feed (interest-matched posts)
