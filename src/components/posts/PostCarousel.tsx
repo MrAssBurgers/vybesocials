@@ -97,7 +97,7 @@ export function PostCarousel({ urls, onDoubleTap }: PostCarouselProps) {
 
   return (
     <div
-      className="relative w-full overflow-hidden group"
+      className="relative w-full overflow-hidden group touch-pan-y"
       onDoubleClick={onDoubleTap}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}

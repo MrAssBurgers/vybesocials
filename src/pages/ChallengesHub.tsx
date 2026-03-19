@@ -545,7 +545,7 @@ export default function ChallengesHubPage() {
                         className={cn(
                           "p-4 relative overflow-hidden transition-colors",
                           challenge.is_completed 
-                            ? "border-primary/30 bg-primary/5" 
+                            ? "border-green-500/30" 
                             : "hover:border-primary/40"
                         )}
                       >
