@@ -44,7 +44,7 @@ export function SubscriptionSection() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Derive subscription details from RevenueCat customerInfo
-  const activeEntitlement = customerInfo?.entitlements?.active?.['premium'];
+  const activeEntitlement = customerInfo?.entitlements?.active?.['Vybe Social Pro'];
   const expiresDate = activeEntitlement?.expirationDate
     ? new Date(activeEntitlement.expirationDate)
     : null;
