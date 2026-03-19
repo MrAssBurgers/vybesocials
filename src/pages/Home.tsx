@@ -176,10 +176,26 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         merged.push(post);
       }
     }
-    // Sort by date descending (newest first)
-    merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    // Apply DNA content preferences (client-side boost/reduce)
+    if (dnaPrefs) {
+      const boostSet = new Set((dnaPrefs.boost_topics || []).map(t => t.toLowerCase()));
+      const reduceSet = new Set((dnaPrefs.reduce_topics || []).map(t => t.toLowerCase()));
+
+      // Score posts: boost matching tags higher, reduce matching tags lower
+      merged.sort((a, b) => {
+        const aScore = getDNAScore(a, boostSet, reduceSet);
+        const bScore = getDNAScore(b, boostSet, reduceSet);
+        if (aScore !== bScore) return bScore - aScore;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+    } else {
+      // Default: sort by date descending
+      merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+
     return merged;
-  }, [forYouData, followingData]);
+  }, [forYouData, followingData, dnaPrefs]);
   
   const globalPosts = useMemo(() => 
     globalData?.pages.flatMap(page => page.posts) || [], 
