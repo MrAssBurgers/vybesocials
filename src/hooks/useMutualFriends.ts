@@ -107,7 +107,7 @@ export function useMutualFriends() {
         const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
         const friendAffinityMap = new Map<string, number>();
 
-        // Recent DMs sent to friends
+        // Recent DMs sent to friends — use messages table directly
         const { data: recentDMs } = await supabase
           .from('messages')
           .select('conversation_id')
@@ -116,18 +116,26 @@ export function useMutualFriends() {
           .limit(200);
 
         if (recentDMs && recentDMs.length > 0) {
-          const convIds = [...new Set(recentDMs.map(m => m.conversation_id))];
-          const { data: convParticipants } = await supabase
-            .from('conversation_participants')
-            .select('conversation_id, user_id')
-            .in('conversation_id', convIds.slice(0, 50))
-            .neq('user_id', profile.id);
+          // Count conversations as proxy for interaction frequency
+          const convCounts = new Map<string, number>();
+          recentDMs.forEach(m => convCounts.set(m.conversation_id, (convCounts.get(m.conversation_id) || 0) + 1));
 
-          (convParticipants || []).forEach(cp => {
-            if (myFriendIds.has(cp.user_id)) {
-              friendAffinityMap.set(cp.user_id, (friendAffinityMap.get(cp.user_id) || 0) + 1);
-            }
-          });
+          // For each conversation, get the other participants
+          const convIds = [...convCounts.keys()].slice(0, 50);
+          for (const convId of convIds) {
+            const { data: participants } = await (supabase
+              .from('conversation_participants' as any)
+              .select('user_id')
+              .eq('conversation_id', convId)
+              .neq('user_id', profile.id) as any);
+
+            ((participants as any[]) || []).forEach((cp: any) => {
+              if (myFriendIds.has(cp.user_id)) {
+                const weight = convCounts.get(convId) || 1;
+                friendAffinityMap.set(cp.user_id, (friendAffinityMap.get(cp.user_id) || 0) + weight);
+              }
+            });
+          }
         }
 
         // Recent likes on friends' posts
