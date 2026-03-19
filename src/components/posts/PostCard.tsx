@@ -33,6 +33,7 @@ import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { PostCarousel } from './PostCarousel';
+import { CommentSheet } from '@/components/comments/CommentSheet';
 import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 import { triggerHaptic } from '@/lib/haptics';
 
@@ -315,6 +316,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const [deleteContentDialog, setDeleteContentDialog] = useState<{ type: 'post' | 'comment' | 'listing'; id: string } | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authPromptAction, setAuthPromptAction] = useState('');
+  const [showCommentSheet, setShowCommentSheet] = useState(false);
 
   const signedMediaUrl = useFastSignedUrl(post.media_url);
   const signedAvatarUrl = useFastSignedUrl(post.author.avatar_url);
@@ -491,11 +493,19 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 variant="ghost" 
                 size="icon-sm"
                 onPointerDown={(e) => {
-                  // Prevent accidental activation during scroll
+                  // Record pointer position to detect scroll vs tap
+                  (e.currentTarget as any)._pointerY = e.clientY;
                   e.stopPropagation();
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
+                  // If pointer moved >8px vertically since pointerDown, user was scrolling — cancel
+                  const startY = (e.currentTarget as any)._pointerY;
+                  if (startY !== undefined && Math.abs(e.clientY - startY) > 8) {
+                    e.preventDefault();
+                    setMenuOpen(false);
+                    return;
+                  }
                 }}
               >
                 <MoreHorizontal className="h-5 w-5" />
@@ -671,9 +681,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
               />
             </button>
 
-            <Link to={`/p/${post.id}`} className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform">
+            <button onClick={() => setShowCommentSheet(true)} className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform">
               <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
-            </Link>
+            </button>
             
             <button 
               onClick={handleShare}
@@ -729,9 +739,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
 
         {/* Comments preview */}
         {post.comment_count > 0 && (
-          <Link to={`/p/${post.id}`} className="text-sm text-muted-foreground">
+          <button onClick={() => setShowCommentSheet(true)} className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left">
             View all {post.comment_count} comments
-          </Link>
+          </button>
         )}
       </div>
 
@@ -750,6 +760,15 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         action={authPromptAction}
         open={showAuthPrompt}
         onClose={() => setShowAuthPrompt(false)}
+      />
+
+      {/* Comment Sheet */}
+      <CommentSheet
+        postId={post.id}
+        authorId={post.author.id}
+        commentCount={post.comment_count}
+        isOpen={showCommentSheet}
+        onClose={() => setShowCommentSheet(false)}
       />
     </article>
   );

@@ -545,18 +545,21 @@ export default function ChallengesHubPage() {
                         className={cn(
                           "p-4 relative overflow-hidden transition-colors",
                           challenge.is_completed 
-                            ? "border-primary/30 bg-primary/5" 
+                            ? "border-green-500/30" 
                             : "hover:border-primary/40"
                         )}
                       >
-                        <div className="flex items-start gap-4">
+                        <div className={cn(
+                          "flex items-start gap-4 transition-all",
+                          challenge.is_completed && challenge.is_claimed && "blur-[2px] opacity-50"
+                        )}>
                           {/* Icon */}
                           <div className={cn(
                             "h-12 w-12 rounded-xl flex items-center justify-center shrink-0",
-                            config?.bgColor || 'bg-secondary'
+                            challenge.is_completed ? 'bg-green-500/20' : (config?.bgColor || 'bg-secondary')
                           )}>
                             {challenge.is_completed ? (
-                              <CheckCircle2 className="h-6 w-6 text-primary" />
+                              <CheckCircle2 className="h-6 w-6 text-green-500" />
                             ) : (
                               <Icon className={cn("h-6 w-6", config?.color)} />
                             )}
@@ -596,49 +599,56 @@ export default function ChallengesHubPage() {
                           </div>
                         </div>
                         
-                        {/* Completed overlay */}
-                        {challenge.is_completed && (
+                        {/* Green completed overlay with centered text */}
+                        {challenge.is_completed && challenge.is_claimed && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="absolute inset-0 flex items-center justify-center bg-green-500/15 backdrop-blur-[1px] rounded-xl z-10"
+                          >
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/20 border border-green-500/30">
+                              <CheckCircle2 className="h-5 w-5 text-green-400" />
+                              <span className="font-bold text-green-400 text-sm tracking-wide">COMPLETED</span>
+                            </div>
+                          </motion.div>
+                        )}
+                        
+                        {/* Claim button for completed but unclaimed */}
+                        {challenge.is_completed && !challenge.is_claimed && (
                           <motion.div
                             initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            className="absolute top-2 right-2"
+                            className="absolute top-2 right-2 z-10"
                           >
-                            {challenge.is_claimed ? (
-                              <Badge className="bg-muted-foreground/60 text-primary-foreground px-3 py-1">
-                                ✓ Completed
+                            <motion.div
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              animate={{ 
+                                boxShadow: [
+                                  '0 0 8px hsl(var(--primary) / 0.3)',
+                                  '0 0 20px hsl(var(--primary) / 0.6)',
+                                  '0 0 8px hsl(var(--primary) / 0.3)',
+                                ]
+                              }}
+                              transition={{ duration: 1.5, repeat: Infinity }}
+                              className="rounded-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const reward = unclaimedRewards?.find(r => r.challenge_id === challenge.id);
+                                if (reward) {
+                                  handleClaimReward(reward.id);
+                                } else {
+                                  handleChallengeClick(challenge);
+                                }
+                              }}
+                            >
+                              <Badge className="bg-primary text-primary-foreground px-4 py-1.5 text-sm font-bold cursor-pointer">
+                                {claimingId && unclaimedRewards?.find(r => r.challenge_id === challenge.id)?.id === claimingId
+                                  ? '⏳ Claiming...'
+                                  : '🎁 Claim XP'
+                                }
                               </Badge>
-                            ) : (
-                              <motion.div
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                animate={{ 
-                                  boxShadow: [
-                                    '0 0 8px hsl(var(--primary) / 0.3)',
-                                    '0 0 20px hsl(var(--primary) / 0.6)',
-                                    '0 0 8px hsl(var(--primary) / 0.3)',
-                                  ]
-                                }}
-                                transition={{ duration: 1.5, repeat: Infinity }}
-                                className="rounded-full"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const reward = unclaimedRewards?.find(r => r.challenge_id === challenge.id);
-                                  if (reward) {
-                                    handleClaimReward(reward.id);
-                                  } else {
-                                    // Reward may not be created yet — trigger click on card
-                                    handleChallengeClick(challenge);
-                                  }
-                                }}
-                              >
-                                <Badge className="bg-primary text-primary-foreground px-4 py-1.5 text-sm font-bold cursor-pointer">
-                                  {claimingId && unclaimedRewards?.find(r => r.challenge_id === challenge.id)?.id === claimingId
-                                    ? '⏳ Claiming...'
-                                    : '🎁 Claim XP'
-                                  }
-                                </Badge>
-                              </motion.div>
-                            )}
+                            </motion.div>
                           </motion.div>
                         )}
                       </GlassCard>
