@@ -122,6 +122,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [commandBarOpen, setCommandBarOpen] = useState(false);
   const { isVisible } = useHomeLayout();
+  const { data: dnaPrefs } = useDNAPreferences();
   
   // Personalized feed (interest-matched posts)
   const {
