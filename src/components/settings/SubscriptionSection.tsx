@@ -309,6 +309,15 @@ export function SubscriptionSection() {
           <Button
             variant="ghost"
             className="w-full justify-between text-sm h-10"
+            onClick={() => setShowCustomerCenter(true)}
+          >
+            <span>Manage Subscription</span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Button>
+          <Separator />
+          <Button
+            variant="ghost"
+            className="w-full justify-between text-sm h-10"
             onClick={handleRefresh}
             disabled={refreshing}
           >
