@@ -34,6 +34,21 @@ import { DiscoveryCards } from '@/components/home/DiscoveryCards';
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
 
+// DNA preference scoring - boost/reduce based on tag matching
+function getDNAScore(post: Post, boostSet: Set<string>, reduceSet: Set<string>): number {
+  let score = 0;
+  const tags = (post.tags || []).map(t => t.toLowerCase());
+  const caption = (post.caption || '').toLowerCase();
+  for (const tag of tags) {
+    if (boostSet.has(tag)) score += 2;
+    if (reduceSet.has(tag)) score -= 2;
+  }
+  // Also check caption for topic keywords
+  for (const topic of boostSet) if (caption.includes(topic)) score += 1;
+  for (const topic of reduceSet) if (caption.includes(topic)) score -= 1;
+  return score;
+}
+
 // Memoized post list with improved empty states
 interface PostListProps {
   posts: any[];
