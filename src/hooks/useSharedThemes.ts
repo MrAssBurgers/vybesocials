@@ -9,16 +9,29 @@ export interface SharedTheme {
   creator_id: string;
   theme_name: string;
   theme_tokens: ThemeTokens;
+  layout_settings: LayoutSettings | null;
   description: string | null;
   likes_count: number;
   downloads_count: number;
   is_public: boolean;
   created_at: string;
+  tags: string[] | null;
+  category: string | null;
   creator?: {
     display_name: string | null;
     avatar_url: string | null;
     username: string | null;
   };
+}
+
+export interface LayoutSettings {
+  widget_order?: string[];
+  widget_hidden?: string[];
+  background_url?: string | null;
+  corner_style?: string;
+  motion_intensity?: string;
+  font_heading?: string;
+  font_body?: string;
 }
 
 // Fetch all public shared themes with search and sorting
