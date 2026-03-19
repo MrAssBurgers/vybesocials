@@ -739,9 +739,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
 
         {/* Comments preview */}
         {post.comment_count > 0 && (
-          <Link to={`/p/${post.id}`} className="text-sm text-muted-foreground">
+          <button onClick={() => setShowCommentSheet(true)} className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left">
             View all {post.comment_count} comments
-          </Link>
+          </button>
         )}
       </div>
 
