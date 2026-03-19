@@ -126,10 +126,16 @@ export function useShareTheme() {
       themeName,
       themeTokens,
       description,
+      layoutSettings,
+      tags,
+      category,
     }: {
       themeName: string;
       themeTokens: ThemeTokens;
       description?: string;
+      layoutSettings?: LayoutSettings;
+      tags?: string[];
+      category?: string;
     }) => {
       // Use profile.id for creator_id since FK references profiles.id
       if (!profile?.id) throw new Error('Not authenticated');
@@ -137,10 +143,13 @@ export function useShareTheme() {
       const { data, error } = await supabase
         .from('shared_themes')
         .insert({
-          creator_id: profile.id, // Use profile ID, not auth user ID
+          creator_id: profile.id,
           theme_name: themeName,
           theme_tokens: themeTokens as any,
           description: description || null,
+          layout_settings: layoutSettings ? (layoutSettings as any) : null,
+          tags: tags || null,
+          category: category || null,
           is_public: true,
         })
         .select()

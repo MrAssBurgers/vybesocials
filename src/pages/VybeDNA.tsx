@@ -123,6 +123,9 @@ export default function VybeDNAPage() {
                 Share My DNA
               </Button>
             </motion.div>
+
+            {/* DNA Chat Assistant */}
+            <DNAChatAssistant dna={dna} />
           </>
         ) : (
           /* Empty state — DNA hasn't computed yet (new user with no activity) */
