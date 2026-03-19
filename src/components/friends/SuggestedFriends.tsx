@@ -48,7 +48,6 @@ export const SuggestedFriends = memo(function SuggestedFriends() {
                     ? `${person.mutual_count} mutual${person.mutual_count !== 1 ? 's' : ''}`
                     : `@${person.username}`}
                 </p>
-                </p>
               </Link>
             </motion.div>
           ))}
