@@ -74,14 +74,16 @@ const PostList = memo(({
   onExplore,
   showAds = false,
 }: PostListProps) => {
-  // Generate stable ad positions (every 5–8 posts) per render cycle
+  // Generate stable ad positions (every 5–8 posts) — deterministic pattern
   const adPositions = useMemo(() => {
     if (!showAds || posts.length === 0) return new Set<number>();
     const positions = new Set<number>();
-    let next = getAdInterval() - 1; // 0-indexed
+    let adIndex = 0;
+    let next = getAdInterval(adIndex) - 1; // 0-indexed
     while (next < posts.length) {
       positions.add(next);
-      next += getAdInterval();
+      adIndex++;
+      next += getAdInterval(adIndex);
     }
     return positions;
   }, [showAds, posts.length]);

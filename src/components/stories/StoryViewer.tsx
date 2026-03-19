@@ -95,6 +95,15 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
     setProgress(0);
   }, [currentStory?.id]);
 
+  const adTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up ad timer on unmount
+  useEffect(() => {
+    return () => {
+      if (adTimerRef.current) clearTimeout(adTimerRef.current);
+    };
+  }, []);
+
   const goNext = useCallback(() => {
     if (storyIndex < currentGroup.stories.length - 1) {
       setDirection(1);
@@ -107,8 +116,10 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
         groupsSinceAd.current = 0;
         setShowAdInterstitial(true);
         setIsPaused(true);
-        // Auto-dismiss after 5 seconds
-        setTimeout(() => {
+        // Auto-dismiss after 5 seconds (with cleanup)
+        if (adTimerRef.current) clearTimeout(adTimerRef.current);
+        adTimerRef.current = setTimeout(() => {
+          adTimerRef.current = null;
           setShowAdInterstitial(false);
           setIsPaused(false);
           setDirection(1);
@@ -125,7 +136,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
     } else {
       onClose();
     }
-  }, [storyIndex, groupIndex, currentGroup?.stories.length, groups.length, onClose]);
+  }, [storyIndex, groupIndex, currentGroup?.stories.length, groups.length, onClose, showAds]);
 
   const goPrev = useCallback(() => {
     if (progress > 20 && storyIndex === 0 && groupIndex === 0) {
