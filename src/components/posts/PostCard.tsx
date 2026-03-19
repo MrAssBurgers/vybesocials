@@ -491,11 +491,19 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 variant="ghost" 
                 size="icon-sm"
                 onPointerDown={(e) => {
-                  // Prevent accidental activation during scroll
+                  // Record pointer position to detect scroll vs tap
+                  (e.currentTarget as any)._pointerY = e.clientY;
                   e.stopPropagation();
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
+                  // If pointer moved >8px vertically since pointerDown, user was scrolling — cancel
+                  const startY = (e.currentTarget as any)._pointerY;
+                  if (startY !== undefined && Math.abs(e.clientY - startY) > 8) {
+                    e.preventDefault();
+                    setMenuOpen(false);
+                    return;
+                  }
                 }}
               >
                 <MoreHorizontal className="h-5 w-5" />
