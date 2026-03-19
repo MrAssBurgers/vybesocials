@@ -277,6 +277,12 @@ function QuickAddCard({
               {user.mutual_friends_count} mutual{user.mutual_friends_count !== 1 ? 's' : ''}
             </span>
           </div>
+        ) : user.shared_interests && user.shared_interests.length > 0 ? (
+          <div className="flex items-center gap-0.5 mt-0.5 mb-1.5 flex-wrap justify-center">
+            <span className="text-[10px] text-primary/80 leading-none">
+              {user.shared_interests.slice(0, 2).join(' · ')}
+            </span>
+          </div>
         ) : (
           <p className="text-[10px] text-muted-foreground mt-0.5 mb-1.5 truncate w-full text-center leading-none">
             @{user.username}
