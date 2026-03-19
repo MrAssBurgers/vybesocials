@@ -63,5 +63,8 @@ verify_jwt = false
 [functions.vybe-commander]
 verify_jwt = false
 
+[functions.create-checkout-session]
+verify_jwt = false
+
 [functions.process-email-queue]
 verify_jwt = true
