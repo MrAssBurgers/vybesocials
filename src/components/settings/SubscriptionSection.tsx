@@ -331,6 +331,9 @@ export function SubscriptionSection() {
       {/* Paywall Sheet */}
       <PaywallSheet open={showPaywall} onOpenChange={setShowPaywall} />
 
+      {/* Customer Center */}
+      <CustomerCenter open={showCustomerCenter} onOpenChange={setShowCustomerCenter} />
+
       {/* Cancel Confirmation Dialog */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <AlertDialogContent>
