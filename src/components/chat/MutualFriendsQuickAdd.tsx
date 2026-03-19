@@ -60,14 +60,11 @@ function useSuggestedUsers() {
 
       const now = Date.now();
       
-      return users
-        .filter(u => !allHiddenIds.has(u.id))
-        .map(user => {
+      return (users as any[])
+        .filter((u: any) => !allHiddenIds.has(u.id))
+        .map((user: any) => {
           const theirInterests = (user.interests || []).map((i: string) => i.toLowerCase());
           const shared = theirInterests.filter((i: string) => myInterests.has(i));
-          const lastSeen = user.last_seen ? new Date(user.last_seen).getTime() : 0;
-          const daysSince = (now - lastSeen) / 86400000;
-          const activityScore = daysSince < 1 ? 3 : daysSince < 3 ? 2 : daysSince < 7 ? 1 : 0;
           const interestScore = shared.length * 4;
           const completeness = (user.avatar_url ? 1 : 0) + (user.display_name ? 0.5 : 0);
 
@@ -80,12 +77,12 @@ function useSuggestedUsers() {
             avatar_url: user.avatar_url,
             mutual_friends_count: 0,
             mutual_friends: [],
-            affinity_score: interestScore + activityScore + completeness,
+            affinity_score: interestScore + completeness,
             shared_interests: shared,
-            is_recently_active: daysSince < 7,
+            is_recently_active: true,
           };
         })
-        .sort((a, b) => b.affinity_score - a.affinity_score)
+        .sort((a: any, b: any) => b.affinity_score - a.affinity_score)
         .slice(0, 12);
     },
     enabled: !!profile?.id,
