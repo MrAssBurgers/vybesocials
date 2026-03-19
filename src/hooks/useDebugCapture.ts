@@ -13,20 +13,20 @@ export function useDebugCapture() {
     if (installedRef.current) return;
     installedRef.current = true;
 
-    // --- Intercept fetch ---
+    // --- Intercept fetch (lightweight — avoid object allocation in hot path) ---
     const originalFetch = window.fetch;
-    window.fetch = async (...args: Parameters<typeof fetch>) => {
-      const start = Date.now();
-      const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
-      const method = ((typeof args[1] === 'object' ? args[1]?.method : undefined) || 'GET').toUpperCase();
+    window.fetch = async function patchedFetch(input: RequestInfo | URL, init?: RequestInit) {
+      const start = performance.now();
+      const url = typeof input === 'string' ? input : (input as Request).url;
+      const method = (init?.method || 'GET').toUpperCase();
 
       try {
-        const res = await originalFetch(...args);
+        const res = await originalFetch.call(window, input, init);
         logNetwork({
           url: url.length > 120 ? url.slice(0, 120) + '…' : url,
           method,
           status: res.status,
-          duration: Date.now() - start,
+          duration: Math.round(performance.now() - start),
           timestamp: Date.now(),
         });
         return res;
@@ -35,7 +35,7 @@ export function useDebugCapture() {
           url: url.length > 120 ? url.slice(0, 120) + '…' : url,
           method,
           status: 0,
-          duration: Date.now() - start,
+          duration: Math.round(performance.now() - start),
           timestamp: Date.now(),
           error: err.message,
         });

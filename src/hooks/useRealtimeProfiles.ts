@@ -1,15 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Subscribes to real-time profile changes and updates cached profile data.
- * IMPORTANT: Only updates the specific profile cache — does NOT mass-invalidate
- * conversations, posts, friends etc. Those caches will pick up profile changes
- * on their next natural refetch.
+ * Debounces broad invalidations to prevent cascade refetching when multiple
+ * profile updates arrive in quick succession (e.g. batch imports, migrations).
  */
 export function useRealtimeProfiles() {
   const queryClient = useQueryClient();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const channel = supabase
@@ -36,28 +36,29 @@ export function useRealtimeProfiles() {
             old ? { ...old, ...updatedProfile } : old
           );
 
-          // If username, display_name, or avatar changed, invalidate all caches
-          // that embed profile data (posts, comments, conversations, friends, etc.)
+          // If username, display_name, or avatar changed, debounce broad invalidation
           const usernameChanged = oldProfile?.username !== updatedProfile?.username;
           const displayNameChanged = oldProfile?.display_name !== updatedProfile?.display_name;
           const avatarChanged = oldProfile?.avatar_url !== updatedProfile?.avatar_url;
 
           if (usernameChanged || displayNameChanged || avatarChanged) {
-            queryClient.invalidateQueries({ queryKey: ['posts'] });
-            queryClient.invalidateQueries({ queryKey: ['comments'] });
-            queryClient.invalidateQueries({ queryKey: ['conversations'] });
-            queryClient.invalidateQueries({ queryKey: ['friends'] });
-            queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
-            queryClient.invalidateQueries({ queryKey: ['followers'] });
-            queryClient.invalidateQueries({ queryKey: ['following'] });
-            queryClient.invalidateQueries({ queryKey: ['invite-leaderboard'] });
-            queryClient.invalidateQueries({ queryKey: ['invite-stats'] });
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+            debounceRef.current = setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ['posts'] });
+              queryClient.invalidateQueries({ queryKey: ['comments'] });
+              queryClient.invalidateQueries({ queryKey: ['conversations'] });
+              queryClient.invalidateQueries({ queryKey: ['friends'] });
+              queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
+              queryClient.invalidateQueries({ queryKey: ['followers'] });
+              queryClient.invalidateQueries({ queryKey: ['following'] });
+            }, 500);
           }
         }
       )
       .subscribe();
 
     return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
       supabase.removeChannel(channel);
     };
   }, [queryClient]);

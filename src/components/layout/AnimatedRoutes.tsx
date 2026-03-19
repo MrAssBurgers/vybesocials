@@ -1,7 +1,7 @@
 import { lazy, Suspense, memo, useEffect } from 'react';
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
+import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { BugBountyOverlay } from '@/components/error/BugBountyOverlay';
@@ -72,9 +72,9 @@ const TokenWallet = lazy(() => import("@/pages/TokenWallet"));
 const TokenMarketplace = lazy(() => import("@/pages/TokenMarketplace"));
 const PremiumSuccess = lazy(() => import("@/pages/PremiumSuccess"));
 
-// Debug panels
+// Debug panels — lazy load both
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
-import { ProductionDebugPanel } from '@/components/debug/ProductionDebugPanel';
+const ProductionDebugPanel = lazy(() => import("@/components/debug/ProductionDebugPanel").then(m => ({ default: m.ProductionDebugPanel })));
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 // Minimal fallback - just shows content area, no skeleton flicker
@@ -91,18 +91,8 @@ export function AnimatedRoutes() {
   const debugPanel = useDebugPanel();
   const { isOpen: debugOpen, setIsOpen: setDebugOpen, isAdmin: isDebugAdmin } = debugPanel || { isOpen: false, setIsOpen: () => {}, isAdmin: false };
   
-  // Always capture errors/network — independent of panel visibility
   useDebugCapture();
   usePageTitle();
-  // Preload all routes after initial render
-  useEffect(() => {
-    // Preload secondary routes after a short delay
-    const timer = setTimeout(() => {
-      preloadSecondaryRoutes();
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, []);
   
   return (
     <div className="min-h-screen bg-background" id="main-content">
@@ -193,9 +183,11 @@ export function AnimatedRoutes() {
               <DebugPanel />
             </Suspense>
           )}
-          {/* Production debug panel — always mounted, admin-gated */}
+          {/* Production debug panel — lazy loaded, admin-gated */}
           {isDebugAdmin && (
-            <ProductionDebugPanel isOpen={debugOpen} onClose={() => setDebugOpen(false)} />
+            <Suspense fallback={null}>
+              <ProductionDebugPanel isOpen={debugOpen} onClose={() => setDebugOpen(false)} />
+            </Suspense>
           )}
         </Suspense>
       </div>
