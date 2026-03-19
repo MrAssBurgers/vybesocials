@@ -183,10 +183,10 @@ export function useMutualFriends() {
         const candidateIds = Array.from(candidateMap.keys()).slice(0, 40);
         if (candidateIds.length === 0) return [];
 
-        const { data: candidateProfiles } = await supabase
-          .from('profiles')
-          .select('id, username, display_name, first_name, last_name, avatar_url, interests, last_seen')
-          .in('id', candidateIds);
+        const { data: candidateProfiles } = await (supabase
+          .from('profiles' as any)
+          .select('id, username, display_name, first_name, last_name, avatar_url, interests')
+          .in('id', candidateIds) as any);
 
         // 6. Fetch mutual friend profiles for display
         const allMutualIds = new Set<string>();
