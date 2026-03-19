@@ -112,7 +112,12 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
   }
   
   return (
-    <div className="fixed inset-0 z-[200] bg-background flex flex-col overflow-hidden">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      className="fixed inset-0 z-[200] bg-background flex flex-col overflow-hidden"
+    >
       {/* Smooth animated background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
