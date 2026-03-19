@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -15,13 +15,35 @@ function notifyNewPost() {
   newPostListeners.forEach(fn => fn());
 }
 
+/** Shared post query keys — avoids duplicating the list everywhere */
+const POST_QUERY_KEYS = [
+  ['posts'],
+  ['infinite-posts'],
+  ['infinite-following-posts'],
+  ['following-posts'],
+  ['saved-posts'],
+  ['personalized-feed'],
+] as const;
+
 /**
  * Subscribes to real-time post changes (INSERT/DELETE/UPDATE).
  * INSERT: notifies listeners so the feed can show a "New posts" banner.
- * DELETE/UPDATE: invalidates caches instantly so removals are real-time.
+ * DELETE/UPDATE: debounced invalidation to prevent cascade refetching.
  */
 export function usePostsRealtime() {
   const queryClient = useQueryClient();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced invalidation — coalesces rapid changes into a single refetch
+  const invalidatePostCaches = useCallback((deletedId?: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      POST_QUERY_KEYS.forEach(key => queryClient.invalidateQueries({ queryKey: [...key] }));
+      if (deletedId) {
+        queryClient.invalidateQueries({ queryKey: ['post', deletedId] });
+      }
+    }, 300);
+  }, [queryClient]);
 
   useEffect(() => {
     const channel = supabase
@@ -29,46 +51,25 @@ export function usePostsRealtime() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'posts' },
-        () => {
-          // Don't auto-inject - notify so UI can show "New posts available"
-          notifyNewPost();
-        }
+        () => { notifyNewPost(); }
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'posts' },
-        (payload) => {
-          const deletedId = payload.old?.id;
-          
-          // Remove from all post caches immediately
-          queryClient.invalidateQueries({ queryKey: ['posts'] });
-          queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
-          queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
-          queryClient.invalidateQueries({ queryKey: ['following-posts'] });
-          queryClient.invalidateQueries({ queryKey: ['saved-posts'] });
-          queryClient.invalidateQueries({ queryKey: ['personalized-feed'] });
-          
-          if (deletedId) {
-            queryClient.invalidateQueries({ queryKey: ['post', deletedId] });
-          }
-        }
+        (payload) => { invalidatePostCaches(payload.old?.id); }
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'posts' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['posts'] });
-          queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
-          queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
-          queryClient.invalidateQueries({ queryKey: ['personalized-feed'] });
-        }
+        () => { invalidatePostCaches(); }
       )
       .subscribe();
 
     return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, invalidatePostCaches]);
 }
 
 /**

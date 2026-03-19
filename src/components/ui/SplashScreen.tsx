@@ -29,9 +29,13 @@ export const SplashScreen = memo(function SplashScreen({
   // Random tip on mount
   const [tip] = useState(() => LOADING_TIPS[Math.floor(Math.random() * LOADING_TIPS.length)]);
   
-  // Simple animated progress using CSS transition instead of spring physics
+  // Smooth animated progress using RAF with ref to avoid stale closure
   const [displayProgress, setDisplayProgress] = useState(0);
   const animationRef = useRef<number>();
+  const targetRef = useRef(progress);
+  
+  // Keep target in sync
+  targetRef.current = progress;
   
   useEffect(() => {
     if (isLowEnd) {
@@ -39,32 +43,30 @@ export const SplashScreen = memo(function SplashScreen({
       return;
     }
     
-    // Cancel any pending animation
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-    
-    // Smoothly animate to target progress
     const animate = () => {
       setDisplayProgress(prev => {
-        const diff = progress - prev;
-        if (Math.abs(diff) < 0.5) return progress;
-        // Ease towards target (lerp)
+        const target = targetRef.current;
+        const diff = target - prev;
+        if (Math.abs(diff) < 0.5) return target;
         return prev + diff * 0.15;
       });
-      if (Math.abs(progress - displayProgress) > 0.5) {
-        animationRef.current = requestAnimationFrame(animate);
-      }
+      animationRef.current = requestAnimationFrame(animate);
     };
     
     animationRef.current = requestAnimationFrame(animate);
     
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [progress, isLowEnd]);
+  }, [isLowEnd]); // Only re-create loop if lowEnd changes
+  
+  // Stop the loop once we hit 100
+  useEffect(() => {
+    if (displayProgress >= 99.5 && animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      setDisplayProgress(100);
+    }
+  }, [displayProgress]);
 
   // Prevent body scroll and hide nav when splash is visible
   useEffect(() => {
