@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Settings, Hash, Volume2, ChevronDown, Users, Crown, Shield, UserPlus } from 'lucide-react';
+import { Plus, Settings, Hash, Volume2, ChevronDown, Users, Crown, Shield } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -71,7 +71,7 @@ export const ServerList = memo(function ServerList({ selectedServerId, onSelectS
                     "text-muted-foreground hover:text-white"
                   )}
                 >
-                  <UserPlus className="h-5 w-5" />
+                  <span className="text-[10px] font-bold uppercase leading-none">Join</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">

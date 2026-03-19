@@ -371,6 +371,13 @@ export function ConversationList() {
         </div>
       )}
 
+      {/* Quick Add Section - at top */}
+      {!searchQuery && chatFilter === 'all' && (
+        <div className="px-3 pb-2 flex-shrink-0 overflow-hidden">
+          <MutualFriendsQuickAdd onSelect={handleQuickAddSelect} />
+        </div>
+      )}
+
       {/* Conversation List */}
       <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
         {/* AI Chat Row */}
@@ -465,11 +472,9 @@ export function ConversationList() {
           ) : null}
         </div>
 
-        {/* Quick Add Section - Snapchat style at bottom */}
+        {/* Bottom padding */}
         {!searchQuery && chatFilter === 'all' && (
-          <div className="px-3 pt-2 pb-24 border-t border-border/30">
-            <MutualFriendsQuickAdd onSelect={handleQuickAddSelect} />
-          </div>
+          <div className="pb-24" />
         )}
       </ScrollArea>
     </div>
