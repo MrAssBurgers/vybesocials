@@ -22,6 +22,8 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { useAIProfile, AI_MODELS, type AIModel } from '@/hooks/useAIProfile';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import ReactMarkdown from 'react-markdown';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
 
 type Message = {
   role: 'user' | 'assistant';
