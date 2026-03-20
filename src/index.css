@@ -1483,8 +1483,8 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   
   [data-glass-intensity="max"] .liquid-glass,
   [data-glass-intensity="max"] .liquid-glass-card {
-    backdrop-filter: blur(60px) saturate(250%) brightness(1.08) !important;
-    -webkit-backdrop-filter: blur(60px) saturate(250%) brightness(1.08) !important;
+    backdrop-filter: blur(24px) saturate(180%) brightness(1.04) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(180%) brightness(1.04) !important;
   }
   
   .glass-paused {
