@@ -174,6 +174,11 @@ export function AnimatedRoutes() {
             <Route path="/marketplace" element={<ProtectedRoute><TokenMarketplace /></ProtectedRoute>} />
             <Route path="/premium-success" element={<ProtectedRoute><PremiumSuccess /></ProtectedRoute>} />
             
+            {/* Stripe Connect V2 routes */}
+            <Route path="/connect/dashboard" element={<ProtectedRoute><ConnectDashboard /></ProtectedRoute>} />
+            <Route path="/connect/storefront/:accountId" element={<ConnectStorefront />} />
+            <Route path="/connect/success" element={<ConnectSuccess />} />
+            
             {/* Let /~oauth pass through to the cloud auth handler */}
             <Route path="/~oauth" element={null} />
             <Route path="*" element={<NotFound />} />
