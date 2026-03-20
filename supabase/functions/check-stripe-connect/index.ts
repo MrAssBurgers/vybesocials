@@ -2,6 +2,11 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { getStripeSecretKey, validateStripeKey } from "../_shared/stripe-key.ts";
+import {
+  STALE_BUSINESS_CONNECTION_MESSAGE,
+  isStripeAccountAccessError,
+  resetBusinessStripeConnection,
+} from "../_shared/stripe-connect.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,7 +35,7 @@ serve(async (req) => {
         logStep("Invalid Stripe key format", { error: keyCheck.error });
         return new Response(
           JSON.stringify({ connected: false, onboarding_complete: false, stripe_not_configured: true }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
         );
       }
       keyMode = keyCheck.mode;
@@ -38,7 +43,7 @@ serve(async (req) => {
       logStep("Stripe key not configured, returning gracefully");
       return new Response(
         JSON.stringify({ connected: false, onboarding_complete: false, stripe_not_configured: true }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
       );
     }
     logStep("Stripe key verified", { mode: keyMode, keyLength: stripeKey.length });
@@ -46,7 +51,7 @@ serve(async (req) => {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
+      { auth: { persistSession: false } },
     );
 
     const authHeader = req.headers.get("Authorization");
@@ -55,73 +60,99 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError) throw new Error(`Authentication error: ${userError.message}`);
-    
+
     const user = userData.user;
     if (!user) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id });
 
-    // Get user's profile ID
     const { data: profile, error: profileError } = await supabaseClient
-      .from('profiles')
-      .select('id')
-      .eq('user_id', user.id)
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
       .single();
-    
+
     if (profileError || !profile) throw new Error("Profile not found");
 
-    // Get the user's business profile
     const { data: business, error: bizError } = await supabaseClient
-      .from('business_profiles')
-      .select('id, stripe_account_id, stripe_onboarding_complete')
-      .eq('owner_id', profile.id)
+      .from("business_profiles")
+      .select("id, stripe_account_id, stripe_onboarding_complete")
+      .eq("owner_id", profile.id)
       .single();
 
     if (bizError || !business) {
       return new Response(
-        JSON.stringify({ 
-          connected: false, 
+        JSON.stringify({
+          connected: false,
           onboarding_complete: false,
-          error: "No business profile" 
+          error: "No business profile",
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
-        }
+        },
       );
     }
 
     if (!business.stripe_account_id) {
       return new Response(
-        JSON.stringify({ 
-          connected: false, 
-          onboarding_complete: false 
+        JSON.stringify({
+          connected: false,
+          onboarding_complete: false,
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
-        }
+        },
       );
     }
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    
-    // Get account details from Stripe
-    const account = await stripe.accounts.retrieve(business.stripe_account_id);
-    logStep("Retrieved Stripe account", { 
+
+    let account;
+    try {
+      account = await stripe.accounts.retrieve(business.stripe_account_id);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!isStripeAccountAccessError(errorMessage)) {
+        throw error;
+      }
+
+      logStep("Stored Stripe account is stale, resetting connection", {
+        businessId: business.id,
+        accountId: business.stripe_account_id,
+        message: errorMessage,
+      });
+
+      await resetBusinessStripeConnection(supabaseClient, business.id);
+
+      return new Response(
+        JSON.stringify({
+          connected: false,
+          onboarding_complete: false,
+          needs_reconnect: true,
+          error: STALE_BUSINESS_CONNECTION_MESSAGE,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    }
+
+    logStep("Retrieved Stripe account", {
       accountId: account.id,
       chargesEnabled: account.charges_enabled,
       payoutsEnabled: account.payouts_enabled,
-      detailsSubmitted: account.details_submitted
+      detailsSubmitted: account.details_submitted,
     });
 
     const isOnboardingComplete = account.charges_enabled && account.payouts_enabled && account.details_submitted;
 
-    // Update business profile if onboarding status changed
     if (isOnboardingComplete !== business.stripe_onboarding_complete) {
       await supabaseClient
-        .from('business_profiles')
+        .from("business_profiles")
         .update({ stripe_onboarding_complete: isOnboardingComplete })
-        .eq('id', business.id);
+        .eq("id", business.id);
       logStep("Updated onboarding status in database", { isOnboardingComplete });
     }
 
@@ -137,7 +168,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
-      }
+      },
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -147,7 +178,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
-      }
+      },
     );
   }
 });

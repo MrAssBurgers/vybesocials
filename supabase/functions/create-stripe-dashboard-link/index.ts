@@ -2,6 +2,11 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { getStripeSecretKey, validateStripeKey } from "../_shared/stripe-key.ts";
+import {
+  STALE_BUSINESS_CONNECTION_MESSAGE,
+  isStripeAccountAccessError,
+  resetBusinessStripeConnection,
+} from "../_shared/stripe-connect.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,7 +34,7 @@ serve(async (req) => {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
+      { auth: { persistSession: false } },
     );
 
     const authHeader = req.headers.get("Authorization");
@@ -38,43 +43,66 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError) throw new Error(`Authentication error: ${userError.message}`);
-    
+
     const user = userData.user;
     if (!user) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id });
 
-    // Get user's profile ID
     const { data: profile, error: profileError } = await supabaseClient
-      .from('profiles')
-      .select('id')
-      .eq('user_id', user.id)
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
       .single();
-    
+
     if (profileError || !profile) throw new Error("Profile not found");
 
-    // Get the user's business profile
     const { data: business, error: bizError } = await supabaseClient
-      .from('business_profiles')
-      .select('id, stripe_account_id')
-      .eq('owner_id', profile.id)
+      .from("business_profiles")
+      .select("id, stripe_account_id")
+      .eq("owner_id", profile.id)
       .single();
 
     if (bizError || !business) throw new Error("Business profile not found");
     if (!business.stripe_account_id) throw new Error("No Stripe account connected");
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    
-    // Create Express dashboard login link
-    const loginLink = await stripe.accounts.createLoginLink(business.stripe_account_id);
-    logStep("Dashboard link created", { url: loginLink.url });
 
-    return new Response(
-      JSON.stringify({ url: loginLink.url }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
+    try {
+      const loginLink = await stripe.accounts.createLoginLink(business.stripe_account_id);
+      logStep("Dashboard link created", { url: loginLink.url });
+
+      return new Response(
+        JSON.stringify({ url: loginLink.url }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!isStripeAccountAccessError(errorMessage)) {
+        throw error;
       }
-    );
+
+      logStep("Stored Stripe account is stale, resetting before dashboard open", {
+        businessId: business.id,
+        accountId: business.stripe_account_id,
+        message: errorMessage,
+      });
+      await resetBusinessStripeConnection(supabaseClient, business.id);
+
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          code: "reconnect_required",
+          error: STALE_BUSINESS_CONNECTION_MESSAGE,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
@@ -83,7 +111,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
-      }
+      },
     );
   }
 });
