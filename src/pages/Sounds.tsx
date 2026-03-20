@@ -10,7 +10,8 @@ import {
   Music2,
   Zap,
   Star,
-  MoreVertical
+  MoreVertical,
+  Upload
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -24,12 +25,14 @@ import { cn } from '@/lib/utils';
 import { useTrendingSounds, useNewSounds, useSavedSounds } from '@/hooks/useSounds';
 import { SoundCard } from '@/components/sounds/SoundCard';
 import { SoundPlayer } from '@/components/sounds/SoundPlayer';
+import { SoundUploadSheet } from '@/components/sounds/SoundUploadSheet';
 
 export default function SoundsPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('trending');
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
 
   // Query hooks
   const { data: trendingSounds, isLoading: loadingTrending } = useTrendingSounds();
@@ -112,6 +115,11 @@ export default function SoundsPage() {
                   Discover trending sounds for your videos
                 </p>
               </div>
+              
+              <Button onClick={() => setShowUpload(true)} size="sm" className="shrink-0">
+                <Upload className="h-4 w-4 mr-1.5" />
+                Upload
+              </Button>
             </div>
 
             {/* Search */}
@@ -208,6 +216,9 @@ export default function SoundsPage() {
             onUse={handleUseSound}
           />
         )}
+
+        {/* Upload Sheet */}
+        <SoundUploadSheet open={showUpload} onClose={() => setShowUpload(false)} />
       </div>
     </AppLayout>
   );
