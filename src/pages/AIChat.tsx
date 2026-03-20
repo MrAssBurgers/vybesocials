@@ -1,16 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { 
-  ArrowLeft, 
-  Send, 
-  Loader2, 
-  Bot,
-  MoreVertical,
-  Sparkles,
-  Settings,
-  RotateCcw,
-  Check
+  ArrowLeft, Send, Loader2, MoreVertical, Sparkles, Settings, RotateCcw, Check,
+  Dna, ChevronDown, Zap, Brain, BotMessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -18,24 +11,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 import { cn } from '@/lib/utils';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { useAIProfile } from '@/hooks/useAIProfile';
+import { useAIProfile, AI_MODELS, type AIModel } from '@/hooks/useAIProfile';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import ReactMarkdown from 'react-markdown';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -43,101 +29,66 @@ type Message = {
   timestamp: Date;
 };
 
-// Persist messages in localStorage
-const STORAGE_KEY = 'vybe_ai_chat_messages';
-
+const STORAGE_KEY = 'vybe_ai_chat_messages_v2';
 function loadMessages(): Message[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.map((m: any) => ({
-        ...m,
-        timestamp: new Date(m.timestamp),
-      }));
-    }
+    if (stored) return JSON.parse(stored).map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
   } catch {}
   return [];
 }
-
 function saveMessages(messages: Message[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-  } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-100))); } catch {}
 }
+
+// Quick suggestion chips
+const QUICK_PROMPTS = [
+  '💡 Give me a content idea',
+  '📝 Help me write a caption',
+  '🎯 How to grow my audience?',
+  '🧬 What does my DNA say?',
+  '💻 Help me code something',
+  '📊 Explain something complex',
+];
 
 export default function AIChat() {
   const navigate = useNavigate();
-  const { name: aiName, personality: aiPersonality, updateName, updatePersonality, resetToDefault } = useAIProfile();
+  const { name: aiName, personality: aiPersonality, model, feedDNA, updateName, updatePersonality, updateModel, updateFeedDNA, resetToDefault } = useAIProfile();
   const [messages, setMessages] = useState<Message[]>(() => {
     const loaded = loadMessages();
     if (loaded.length === 0) {
-      return [
-        { 
-          role: 'assistant', 
-          content: `Hey there! I'm ${aiName}, your AI assistant on VYBE. I'm here to help you with content ideas, engagement tips, app features, and anything else you need. What can I help you with today? ✨`,
-          timestamp: new Date(),
-        }
-      ];
+      return [{ role: 'assistant', content: `Hey! I'm ${aiName} — your AI on VYBE. I can help with anything from content ideas to coding questions. What's on your mind? ✨`, timestamp: new Date() }];
     }
     return loaded;
   });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editName, setEditName] = useState(aiName);
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
-  const [isSaving, setIsSaving] = useState(false);
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Save messages when they change
-  useEffect(() => {
-    saveMessages(messages);
-  }, [messages]);
+  useEffect(() => { saveMessages(messages); }, [messages]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages]);
+  useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
-  // Scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [messages]);
+  const currentModel = useMemo(() => AI_MODELS.find(m => m.id === model) || AI_MODELS[0], [model]);
 
-  // Update edit fields when profile changes
-  useEffect(() => {
-    setEditName(aiName);
-    setEditPersonality(aiPersonality);
-  }, [aiName, aiPersonality]);
-
-  // Focus input on mount
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const handleSaveProfile = useCallback(async () => {
-    setIsSaving(true);
-    // Small delay for animation effect
-    await new Promise(resolve => setTimeout(resolve, 1200));
+  const handleSaveSettings = useCallback(() => {
     updateName(editName);
     updatePersonality(editPersonality);
-    setIsSaving(false);
-    setIsProfileOpen(false);
-    toast.success('AI profile updated!');
+    setIsSettingsOpen(false);
+    toast.success('AI updated!');
   }, [editName, editPersonality, updateName, updatePersonality]);
 
-  const handleResetProfile = useCallback(() => {
-    resetToDefault();
-    setEditName('Morgan');
-    setEditPersonality('A friendly, helpful AI assistant who is approachable, supportive, and genuinely interested in helping users succeed.');
-    toast.success('AI profile reset to default');
-  }, [resetToDefault]);
+  const sendMessage = useCallback(async (text?: string) => {
+    const msgText = (text || input).trim();
+    if (!msgText || isLoading) return;
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim() || isLoading) return;
-
-    const userMessage: Message = { 
-      role: 'user', 
-      content: input.trim(),
-      timestamp: new Date(),
-    };
+    const userMessage: Message = { role: 'user', content: msgText, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
@@ -151,60 +102,44 @@ export default function AIChat() {
         {
           method: 'POST',
           headers,
-          body: JSON.stringify({ 
-            messages: messages.map(m => ({ role: m.role, content: m.content })).concat([
-              { role: 'user', content: input.trim() }
-            ]),
+          body: JSON.stringify({
+            messages: messages.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: msgText }]),
             aiName,
             aiPersonality,
+            model,
+            feedDNA,
           }),
         }
       );
 
       if (!response.ok) {
-        if (response.status === 429) {
-          toast.error('Too many requests. Please wait a moment.');
-          return;
-        }
-        if (response.status === 402) {
-          toast.error('AI credits exhausted.');
-          return;
-        }
+        if (response.status === 429) { toast.error('Too many requests. Wait a moment.'); return; }
+        if (response.status === 402) { toast.error('AI credits exhausted.'); return; }
         throw new Error('Failed to get response');
       }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
-
       if (!reader) throw new Error('No reader');
 
-      // Add empty assistant message
       setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date() }]);
 
       let buffer = '';
       let streamDone = false;
-      
       while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
 
         let newlineIndex: number;
         while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
           let line = buffer.slice(0, newlineIndex);
           buffer = buffer.slice(newlineIndex + 1);
-
           if (line.endsWith('\r')) line = line.slice(0, -1);
           if (line.startsWith(':') || line.trim() === '') continue;
           if (!line.startsWith('data: ')) continue;
-
           const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') {
-            streamDone = true;
-            break;
-          }
-
+          if (jsonStr === '[DONE]') { streamDone = true; break; }
           try {
             const parsed = JSON.parse(jsonStr);
             const content = parsed.choices?.[0]?.delta?.content;
@@ -212,23 +147,15 @@ export default function AIChat() {
               assistantContent += content;
               setMessages(prev => {
                 const updated = [...prev];
-                updated[updated.length - 1] = { 
-                  role: 'assistant', 
-                  content: assistantContent,
-                  timestamp: new Date(),
-                };
+                updated[updated.length - 1] = { role: 'assistant', content: assistantContent, timestamp: new Date() };
                 return updated;
               });
             }
-          } catch {
-            // Partial JSON - put it back and wait for more data
-            buffer = line + '\n' + buffer;
-            break;
-          }
+          } catch { buffer = line + '\n' + buffer; break; }
         }
       }
       
-      // Final flush for any remaining content
+      // Final flush
       if (buffer.trim()) {
         for (const raw of buffer.split('\n')) {
           if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
@@ -242,257 +169,274 @@ export default function AIChat() {
               assistantContent += content;
               setMessages(prev => {
                 const updated = [...prev];
-                updated[updated.length - 1] = { 
-                  role: 'assistant', 
-                  content: assistantContent,
-                  timestamp: new Date(),
-                };
+                updated[updated.length - 1] = { role: 'assistant', content: assistantContent, timestamp: new Date() };
                 return updated;
               });
             }
-          } catch { /* ignore */ }
+          } catch {}
         }
       }
     } catch (error) {
       console.error('AI chat error:', error);
-      setMessages(prev => [
-        ...prev.slice(0, -1),
-        { role: 'assistant', content: "Sorry, something went wrong. Please try again!", timestamp: new Date() }
-      ]);
+      setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: "Oops, something went wrong. Try again!", timestamp: new Date() }]);
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, aiName, aiPersonality]);
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
+  }, [input, isLoading, messages, aiName, aiPersonality, model, feedDNA]);
 
   const clearChat = useCallback(() => {
-    setMessages([
-      { 
-        role: 'assistant', 
-        content: `Chat cleared! I'm ${aiName}, ready to help. What would you like to talk about? ✨`,
-        timestamp: new Date(),
-      }
-    ]);
+    setMessages([{ role: 'assistant', content: `Fresh start! I'm ${aiName}, ready when you are ✨`, timestamp: new Date() }]);
   }, [aiName]);
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const formatTime = (date: Date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const showQuickPrompts = messages.length <= 2 && !isLoading;
 
   return (
-    <AppLayout>
-      <div className="flex flex-col h-[calc(100vh-5rem)] md:h-screen bg-background">
-        {/* Header */}
-        <div className="p-4 border-b border-white/10 flex items-center gap-3 liquid-glass sticky top-0 z-10">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/messages')}>
+    <AppLayout hideRightSidebar>
+      <div className="flex flex-col h-[calc(100dvh-5rem)] md:h-screen bg-background">
+        {/* Header - Snapchat AI style */}
+        <div className="px-3 py-2.5 border-b border-border/50 flex items-center gap-2.5 bg-card/80 backdrop-blur-md sticky top-0 z-10">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="h-8 w-8 -ml-1">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <button 
-            className="relative"
-            onClick={() => setIsProfileOpen(true)}
-          >
-            <div className="h-10 w-10 rounded-full gradient-animated flex items-center justify-center ring-2 ring-primary/30 shadow-lg shadow-primary/25">
-              <Bot className="h-5 w-5 text-white" />
-            </div>
-            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
-          </button>
-          <button 
-            className="flex-1 text-left"
-            onClick={() => setIsProfileOpen(true)}
-          >
-            <h2 className="font-semibold flex items-center gap-1">
-              {aiName}
-              <Sparkles className="h-4 w-4 text-primary" />
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Tap to customize AI profile
-            </p>
-          </button>
           
-          <DropdownMenu>
+          <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-2.5 flex-1 min-w-0">
+            <div className="relative">
+              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center shadow-md shadow-primary/20">
+                <VybeMiniIcon size={18} showSparkles={false} />
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-semibold text-sm truncate flex items-center gap-1">
+                {aiName}
+                <Sparkles className="h-3 w-3 text-primary flex-shrink-0" />
+              </h2>
+              <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+                {currentModel.icon} {currentModel.name}
+                {feedDNA && <Dna className="h-2.5 w-2.5 text-accent" />}
+              </p>
+            </div>
+          </button>
+
+          {/* Model quick-switch */}
+          <DropdownMenu open={showModelPicker} onOpenChange={setShowModelPicker}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-5 w-5" />
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground">
+                {currentModel.icon}
+                <ChevronDown className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-popover">
-              <DropdownMenuItem onClick={() => setIsProfileOpen(true)}>
-                <Settings className="h-4 w-4 mr-2" />
-                Customize AI
+            <DropdownMenuContent align="end" className="w-52">
+              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">AI Model</div>
+              <DropdownMenuSeparator />
+              {AI_MODELS.map(m => (
+                <DropdownMenuItem key={m.id} onClick={() => { updateModel(m.id); setShowModelPicker(false); }}>
+                  <span className="mr-2">{m.icon}</span>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{m.name}</div>
+                    <div className="text-[10px] text-muted-foreground">{m.description}</div>
+                  </div>
+                  {model === m.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
+                <Settings className="h-4 w-4 mr-2" /> Customize AI
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={clearChat}>
-                Clear Chat
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={clearChat}>Clear Chat</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
           {messages.map((message, index) => (
-            <div
+            <motion.div
               key={index}
-              className={cn(
-                "flex gap-2",
-                message.role === 'user' ? 'justify-end' : 'justify-start'
-              )}
+              initial={index === messages.length - 1 ? { opacity: 0, y: 8 } : false}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className={cn("flex gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}
             >
               {message.role === 'assistant' && (
-                <div className="h-8 w-8 rounded-full gradient-animated flex-shrink-0 flex items-center justify-center">
-                  <Bot className="h-4 w-4 text-white" />
+                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-accent flex-shrink-0 flex items-center justify-center mt-0.5">
+                  <VybeMiniIcon size={14} showSparkles={false} />
                 </div>
               )}
-              <div className="flex flex-col max-w-[80%]">
-                <div
-                  className={cn(
-                    "rounded-2xl px-4 py-2",
-                    message.role === 'user'
-                      ? 'bg-primary text-primary-foreground rounded-tr-sm shadow-lg shadow-primary/20'
-                      : 'liquid-glass-subtle rounded-tl-sm border border-white/10'
-                  )}
-                >
-                  {message.content || (
-                    <span className="flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Thinking...
+              <div className="flex flex-col max-w-[82%]">
+                <div className={cn(
+                  "rounded-2xl px-3 py-2 text-[13px] leading-relaxed",
+                  message.role === 'user'
+                    ? 'bg-primary text-primary-foreground rounded-tr-md'
+                    : 'bg-muted/60 rounded-tl-md border border-border/30'
+                )}>
+                  {message.content ? (
+                    message.role === 'assistant' ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </div>
+                    ) : message.content
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.2 }} className="flex gap-0.5">
+                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
+                        <span className="w-1.5 h-1.5 bg-current rounded-full" style={{ animationDelay: '0.2s' }} />
+                        <span className="w-1.5 h-1.5 bg-current rounded-full" style={{ animationDelay: '0.4s' }} />
+                      </motion.div>
                     </span>
                   )}
                 </div>
                 <span className={cn(
-                  "text-[10px] text-muted-foreground mt-1",
+                  "text-[9px] text-muted-foreground/60 mt-0.5 px-1",
                   message.role === 'user' ? 'text-right' : 'text-left'
                 )}>
                   {formatTime(message.timestamp)}
                 </span>
               </div>
-            </div>
+            </motion.div>
           ))}
+
+          {/* Quick prompt chips */}
+          <AnimatePresence>
+            {showQuickPrompts && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-wrap gap-1.5 pt-2"
+              >
+                {QUICK_PROMPTS.map((prompt) => (
+                  <button
+                    key={prompt}
+                    onClick={() => sendMessage(prompt)}
+                    className="px-3 py-1.5 rounded-full bg-muted/50 border border-border/40 text-xs text-foreground/80 hover:bg-muted transition-colors"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <div className="p-4 border-t border-white/10 liquid-glass">
+        {/* Input bar */}
+        <div className="px-3 py-2.5 border-t border-border/40 bg-card/60 backdrop-blur-md">
+          {feedDNA && (
+            <div className="flex items-center gap-1 mb-1.5 px-1">
+              <Dna className="h-2.5 w-2.5 text-accent" />
+              <span className="text-[9px] text-accent/80">Learning your vibes</span>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={`Ask ${aiName} anything...`}
-              className="flex-1"
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder={`Message ${aiName}...`}
+              className="flex-1 h-9 text-sm rounded-full bg-muted/40 border-border/30 px-4"
               disabled={isLoading}
             />
             <Button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={!input.trim() || isLoading}
               size="icon"
+              className="h-9 w-9 rounded-full"
             >
-              {isLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Send className="h-5 w-5" />
-              )}
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
         </div>
       </div>
 
-      {/* AI Profile Settings Sheet */}
-      <Sheet open={isProfileOpen} onOpenChange={setIsProfileOpen}>
-        <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
+      {/* Settings Sheet */}
+      <Sheet open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <SheetContent side="bottom" className="h-[80vh] rounded-t-3xl">
           <SheetHeader className="text-left">
             <SheetTitle className="flex items-center gap-2">
-              <Bot className="h-5 w-5" />
+              <BotMessageSquare className="h-5 w-5 text-primary" />
               Customize Your AI
             </SheetTitle>
-            <SheetDescription>
-              Give your AI assistant a custom name and personality
-            </SheetDescription>
           </SheetHeader>
           
-          <div className="mt-6 space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="ai-name">AI Name</Label>
-              <Input
-                id="ai-name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                placeholder="e.g., Morgan, Alex, Jamie..."
-                maxLength={20}
-              />
-              <p className="text-xs text-muted-foreground">
-                What would you like to call your AI assistant?
-              </p>
+          <div className="mt-4 space-y-5 overflow-y-auto max-h-[calc(80vh-8rem)]">
+            {/* Name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="ai-name" className="text-xs font-medium">Name</Label>
+              <Input id="ai-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Morgan" maxLength={20} className="h-9" />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="ai-personality">Personality</Label>
-              <Textarea
-                id="ai-personality"
-                value={editPersonality}
-                onChange={(e) => setEditPersonality(e.target.value)}
-                placeholder="Describe how you want your AI to behave..."
-                rows={4}
-                maxLength={500}
-              />
-              <p className="text-xs text-muted-foreground">
-                Describe the personality and tone you want. Examples: "Professional and concise", "Friendly and encouraging", "Witty with a sense of humor"
-              </p>
+            {/* Personality */}
+            <div className="space-y-1.5">
+              <Label htmlFor="ai-personality" className="text-xs font-medium">Personality</Label>
+              <Textarea id="ai-personality" value={editPersonality} onChange={(e) => setEditPersonality(e.target.value)} placeholder="Describe how your AI should behave..." rows={3} maxLength={500} className="text-sm" />
             </div>
 
-            <div className="flex flex-col gap-3 pt-4">
-              <AnimatePresence mode="wait">
-                {isSaving ? (
-                  <motion.div
-                    key="saving"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    className="w-full py-3 rounded-md bg-primary flex items-center justify-center gap-2"
+            {/* Model Picker */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">AI Model</Label>
+              <div className="grid grid-cols-1 gap-1.5">
+                {AI_MODELS.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => updateModel(m.id)}
+                    className={cn(
+                      "flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left",
+                      model === m.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border/40 hover:border-border"
+                    )}
                   >
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    >
-                      <Sparkles className="h-5 w-5 text-primary-foreground" />
-                    </motion.div>
-                    <motion.span 
-                      className="text-primary-foreground font-medium"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                    >
-                      Updating your AI...
-                    </motion.span>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="save-button"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                  >
-                    <Button onClick={handleSaveProfile} className="w-full" disabled={isSaving}>
-                      <Check className="h-4 w-4 mr-2" />
-                      Save Changes
-                    </Button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              <Button 
-                variant="outline" 
-                onClick={handleResetProfile}
-                className="w-full"
-                disabled={isSaving}
-              >
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Reset to Default
+                    <span className="text-lg">{m.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium">{m.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{m.description}</div>
+                    </div>
+                    {model === m.id && <Check className="h-4 w-4 text-primary" />}
+                    <span className={cn(
+                      "text-[9px] px-1.5 py-0.5 rounded-full",
+                      m.speed === 'fast' ? 'bg-green-500/10 text-green-500' :
+                      m.speed === 'balanced' ? 'bg-blue-500/10 text-blue-500' :
+                      'bg-purple-500/10 text-purple-500'
+                    )}>{m.speed}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* DNA Feed Toggle */}
+            <div className="flex items-center justify-between p-3 rounded-xl border border-border/40">
+              <div className="flex items-center gap-2.5">
+                <Dna className="h-5 w-5 text-accent" />
+                <div>
+                  <div className="text-sm font-medium">Feed VYBE DNA</div>
+                  <div className="text-[10px] text-muted-foreground">Let AI learn your interests to personalize content</div>
+                </div>
+              </div>
+              <Switch checked={feedDNA} onCheckedChange={updateFeedDNA} />
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-2 pt-2">
+              <Button onClick={handleSaveSettings} className="w-full">
+                <Check className="h-4 w-4 mr-2" /> Save Changes
+              </Button>
+              <Button variant="outline" onClick={() => { resetToDefault(); setEditName('Morgan'); setEditPersonality('A friendly, helpful AI assistant.'); toast.success('Reset to default'); }} className="w-full">
+                <RotateCcw className="h-4 w-4 mr-2" /> Reset Default
               </Button>
             </div>
           </div>
