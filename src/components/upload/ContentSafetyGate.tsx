@@ -1,10 +1,10 @@
 import { useState, useCallback, memo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
- import { Shield, Loader2, Check, AlertTriangle, X, Crown } from 'lucide-react';
+import { Shield, Loader2, Check, AlertTriangle, X, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
- import { shouldBypassSafety } from '@/lib/ownerBypass';
+import { shouldBypassSafety } from '@/lib/ownerBypass';
+import { scanImage as nsfwScanImage, scanVideo as nsfwScanVideo } from '@/lib/nsfwScanner';
 
 interface ContentSafetyGateProps {
   file: File | null;
