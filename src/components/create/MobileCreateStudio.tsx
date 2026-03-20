@@ -11,6 +11,10 @@ import { MusicGallery } from '@/components/music/MusicGallery';
 import { CameraFilterCarousel, getFilterCSS } from '@/components/camera/CameraFilterCarousel';
 import { CameraTopControls } from '@/components/camera/CameraTopControls';
 import { CameraZoomIndicator } from '@/components/camera/CameraZoom';
+import { AROverlayCanvas } from '@/components/camera/AROverlayCanvas';
+import { ARFilterPicker } from '@/components/camera/ARFilterPicker';
+import { useFaceTracking } from '@/hooks/useFaceTracking';
+import { ARFilterDef } from '@/lib/arFilters';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
@@ -43,6 +47,14 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
+  const [arFilter, setArFilter] = useState<ARFilterDef | null>(null);
+  const [filterMode, setFilterMode] = useState<'color' | 'ar'>('color');
+  const [videoDimensions, setVideoDimensions] = useState({ width: 1920, height: 1080 });
+
+  // Face tracking for AR filters
+  const { faces, isReady: arReady, isLoading: arLoading, startTracking, stopTracking } = useFaceTracking({
+    enabled: filterMode === 'ar',
+  });
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -81,6 +93,19 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play().catch(() => {});
+        // Track dimensions for AR overlay
+        videoRef.current.onloadedmetadata = () => {
+          if (videoRef.current) {
+            setVideoDimensions({
+              width: videoRef.current.videoWidth,
+              height: videoRef.current.videoHeight,
+            });
+            // Start face tracking if AR mode is active
+            if (filterMode === 'ar' && arReady) {
+              startTracking(videoRef.current);
+            }
+          }
+        };
       }
       // Reset zoom on camera switch
       zoomRef.current = 1;
@@ -93,7 +118,17 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
-  }, []);
+    stopTracking();
+  }, [stopTracking]);
+
+  // Start/stop face tracking when AR mode or readiness changes
+  useEffect(() => {
+    if (filterMode === 'ar' && arReady && videoRef.current && phase === 'camera') {
+      startTracking(videoRef.current);
+    } else {
+      stopTracking();
+    }
+  }, [filterMode, arReady, phase, startTracking, stopTracking]);
 
   useEffect(() => {
     if (phase === 'camera' && mode !== 'text') {
@@ -372,8 +407,24 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
             "w-full h-full object-cover transition-transform duration-75",
             facingMode === 'user' && "scale-x-[-1]"
           )}
-          style={{ filter: getFilterCSS(currentFilter) || undefined }}
+          style={{
+            filter: [
+              getFilterCSS(currentFilter) || '',
+              arFilter?.cssFilter || '',
+            ].filter(Boolean).join(' ') || undefined,
+          }}
         />
+
+        {/* AR Overlay Canvas */}
+        {arFilter && faces.length > 0 && (
+          <AROverlayCanvas
+            faces={faces}
+            filter={arFilter}
+            videoWidth={videoDimensions.width}
+            videoHeight={videoDimensions.height}
+            mirrored={facingMode === 'user'}
+          />
+        )}
 
         {/* Zoom indicator */}
         <CameraZoomIndicator zoom={zoomLevel} visible={showZoomIndicator} />
@@ -485,12 +536,43 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
 
       {/* Bottom Controls */}
       <div className="absolute bottom-0 left-0 right-0 pb-safe bg-gradient-to-t from-black/80 via-black/40 to-transparent z-30">
-        {/* Filter carousel */}
+        {/* Filter mode toggle */}
+        <div className="flex items-center justify-center gap-1 mb-2">
+          <button
+            onClick={() => setFilterMode('color')}
+            className={cn(
+              "text-[10px] px-3 py-1 rounded-full font-medium transition-all",
+              filterMode === 'color' ? "bg-white/20 text-white" : "text-white/40"
+            )}
+          >
+            🎨 Filters
+          </button>
+          <button
+            onClick={() => setFilterMode('ar')}
+            className={cn(
+              "text-[10px] px-3 py-1 rounded-full font-medium transition-all",
+              filterMode === 'ar' ? "bg-white/20 text-white" : "text-white/40"
+            )}
+          >
+            🎭 AR
+          </button>
+        </div>
+
+        {/* Filter carousel or AR picker */}
         <div className="mb-3">
-          <CameraFilterCarousel
-            currentFilter={currentFilter}
-            onFilterChange={setCurrentFilter}
-          />
+          {filterMode === 'color' ? (
+            <CameraFilterCarousel
+              currentFilter={currentFilter}
+              onFilterChange={setCurrentFilter}
+            />
+          ) : (
+            <ARFilterPicker
+              currentFilter={arFilter?.id || null}
+              onFilterChange={setArFilter}
+              isTracking={faces.length > 0}
+              isLoading={arLoading}
+            />
+          )}
         </div>
 
         {/* Mode selector */}
