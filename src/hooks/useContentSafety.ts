@@ -1,13 +1,16 @@
 /**
  * Content Safety Hook
  * 
- * Handles image, text, and video safety scanning via AI
+ * Uses client-side NSFWJS for image/video scanning (no API dependency).
+ * Text scanning uses keyword-based detection.
+ * Fully standalone - works without any external services.
  */
 
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
- import { shouldBypassSafety } from '@/lib/ownerBypass';
+import { shouldBypassSafety } from '@/lib/ownerBypass';
+import { scanImage as nsfwScanImage, scanVideo as nsfwScanVideo, scanText as nsfwScanText, type ScanResult } from '@/lib/nsfwScanner';
 
 export type SafetyResult = 'scanning' | 'allowed' | 'warned' | 'blocked' | 'error';
 
@@ -30,46 +33,34 @@ export function useContentSafety() {
     visualAnalysis?: string;
     audioAnalysis?: string;
   }>({});
-   const [bypassEnabled, setBypassEnabled] = useState(false);
+  const [bypassEnabled, setBypassEnabled] = useState(false);
 
   const scanImage = useCallback(async (file: File): Promise<SafetyCheckResult> => {
-     // Check owner bypass
-     const isOwner = await shouldBypassSafety();
-     if (isOwner) {
-       setBypassEnabled(true);
-       setResult('allowed');
-       setMessage('Owner bypass active - no scan required');
-       return { result: 'allowed', message: 'Owner bypass active' };
-     }
- 
+    const isOwner = await shouldBypassSafety();
+    if (isOwner) {
+      setBypassEnabled(true);
+      setResult('allowed');
+      setMessage('Owner bypass active - no scan required');
+      return { result: 'allowed', message: 'Owner bypass active' };
+    }
+
     setIsScanning(true);
     setResult('scanning');
-    setMessage('');
+    setMessage('Scanning image...');
     setScanDetails({});
 
     try {
-      const base64 = await fileToBase64(file);
-
-      const { data, error } = await supabase.functions.invoke('scan-content-safety', {
-        body: {
-          type: 'image',
-          content: base64,
-          fileName: file.name,
-        },
-      });
-
-      if (error) throw error;
+      const scanResult: ScanResult = await nsfwScanImage(file);
 
       const safetyResult: SafetyCheckResult = {
-        result: data.result || 'allowed',
-        message: data.message,
-        categories: data.categories,
-        score: data.score,
+        result: scanResult.result,
+        message: scanResult.message,
+        categories: scanResult.categories,
+        score: scanResult.score,
       };
 
       setResult(safetyResult.result);
       setMessage(safetyResult.message || '');
-
       return safetyResult;
     } catch (err: any) {
       console.error('Safety scan error:', err);
@@ -83,59 +74,31 @@ export function useContentSafety() {
   }, []);
 
   const scanVideo = useCallback(async (file: File): Promise<SafetyCheckResult> => {
-     // Check owner bypass
-     const isOwner = await shouldBypassSafety();
-     if (isOwner) {
-       setBypassEnabled(true);
-       setResult('allowed');
-       setMessage('Owner bypass active - no scan required');
-       return { result: 'allowed', message: 'Owner bypass active' };
-     }
- 
+    const isOwner = await shouldBypassSafety();
+    if (isOwner) {
+      setBypassEnabled(true);
+      setResult('allowed');
+      setMessage('Owner bypass active - no scan required');
+      return { result: 'allowed', message: 'Owner bypass active' };
+    }
+
     setIsScanning(true);
     setResult('scanning');
-    setMessage('Analyzing video content and audio...');
+    setMessage('Analyzing video frames...');
     setScanDetails({});
 
     try {
-      // For large videos, we need to be careful about size limits
-      // The AI can handle videos up to ~20MB in base64
-      const maxSize = 20 * 1024 * 1024; // 20MB
-      
-      if (file.size > maxSize) {
-        console.warn('Video too large for full analysis, sampling frames...');
-        setMessage('Video is large, performing partial analysis...');
-      }
-
-      const base64 = await fileToBase64(file);
-
-      const { data, error } = await supabase.functions.invoke('scan-video-safety', {
-        body: {
-          videoBase64: base64,
-          mimeType: file.type,
-        },
-      });
-
-      if (error) throw error;
+      const scanResult: ScanResult = await nsfwScanVideo(file);
 
       const safetyResult: SafetyCheckResult = {
-        result: data.result || 'allowed',
-        message: data.message,
-        categories: data.categories,
-        score: data.score,
-        audioTranscript: data.audioTranscript,
-        visualAnalysis: data.visualAnalysis,
-        audioAnalysis: data.audioAnalysis,
+        result: scanResult.result,
+        message: scanResult.message,
+        categories: scanResult.categories,
+        score: scanResult.score,
       };
 
       setResult(safetyResult.result);
       setMessage(safetyResult.message || '');
-      setScanDetails({
-        audioTranscript: safetyResult.audioTranscript,
-        visualAnalysis: safetyResult.visualAnalysis,
-        audioAnalysis: safetyResult.audioAnalysis,
-      });
-
       return safetyResult;
     } catch (err: any) {
       console.error('Video safety scan error:', err);
@@ -149,40 +112,31 @@ export function useContentSafety() {
   }, []);
 
   const scanText = useCallback(async (text: string): Promise<SafetyCheckResult> => {
-     // Check owner bypass
-     const isOwner = await shouldBypassSafety();
-     if (isOwner) {
-       setBypassEnabled(true);
-       setResult('allowed');
-       setMessage('Owner bypass active');
-       return { result: 'allowed', message: 'Owner bypass active' };
-     }
- 
+    const isOwner = await shouldBypassSafety();
+    if (isOwner) {
+      setBypassEnabled(true);
+      setResult('allowed');
+      setMessage('Owner bypass active');
+      return { result: 'allowed', message: 'Owner bypass active' };
+    }
+
     setIsScanning(true);
     setResult('scanning');
     setMessage('');
     setScanDetails({});
 
     try {
-      const { data, error } = await supabase.functions.invoke('scan-content-safety', {
-        body: {
-          type: 'text',
-          content: text,
-        },
-      });
-
-      if (error) throw error;
+      const scanResult: ScanResult = nsfwScanText(text);
 
       const safetyResult: SafetyCheckResult = {
-        result: data.result || 'allowed',
-        message: data.message,
-        categories: data.categories,
-        score: data.score,
+        result: scanResult.result,
+        message: scanResult.message,
+        categories: scanResult.categories,
+        score: scanResult.score,
       };
 
       setResult(safetyResult.result);
       setMessage(safetyResult.message || '');
-
       return safetyResult;
     } catch (err: any) {
       console.error('Safety scan error:', err);
@@ -200,7 +154,7 @@ export function useContentSafety() {
     setResult('scanning');
     setMessage('');
     setScanDetails({});
-     setBypassEnabled(false);
+    setBypassEnabled(false);
   }, []);
 
   const submitAppeal = useCallback(async (contentType: 'image' | 'text' | 'video' | 'post' | 'ban', reason: string) => {
@@ -244,25 +198,11 @@ export function useContentSafety() {
     result,
     message,
     scanDetails,
-     bypassEnabled,
+    bypassEnabled,
     scanImage,
     scanVideo,
     scanText,
     reset,
     submitAppeal,
   };
-}
-
-// Helper to convert File to base64
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const base64 = result.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
