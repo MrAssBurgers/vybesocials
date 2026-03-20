@@ -182,7 +182,7 @@ export function scanText(text: string): ScanResult {
 /**
  * Interpret NSFWJS predictions into our safety system
  */
-function interpretPredictions(predictions: nsfwjs.predictionType[]): ScanResult {
+function interpretPredictions(predictions: nsfwjs.PredictionType[]): ScanResult {
   const predMap: Record<string, number> = {};
   for (const p of predictions) {
     predMap[p.className] = p.probability;
