@@ -216,9 +216,6 @@ export function VYBECommandBar() {
               <h3 className="font-bold text-base">VYBE AI Designer</h3>
               <p className="text-xs text-muted-foreground">Your app, your way — just ask!</p>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setOpen(false)} className="shrink-0">
-              <X className="h-4 w-4" />
-            </Button>
           </div>
 
           {/* Response Area */}

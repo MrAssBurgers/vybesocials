@@ -446,6 +446,52 @@ export default function AIChat() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Connect AI Account Sheet */}
+      <Sheet open={isConnectOpen} onOpenChange={setIsConnectOpen}>
+        <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
+          <SheetHeader className="text-left">
+            <SheetTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              Connect AI Account
+            </SheetTitle>
+          </SheetHeader>
+          
+          <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(60vh-8rem)]">
+            <p className="text-sm text-muted-foreground">Link your existing AI accounts for enhanced capabilities.</p>
+            
+            {[
+              { name: 'ChatGPT', icon: '🤖', desc: 'Connect your OpenAI ChatGPT account', color: 'from-green-500/20 to-emerald-500/20' },
+              { name: 'Google Gemini', icon: '✨', desc: 'Connect your Google Gemini account', color: 'from-blue-500/20 to-cyan-500/20' },
+              { name: 'Claude', icon: '🧠', desc: 'Connect your Anthropic Claude account', color: 'from-orange-500/20 to-amber-500/20' },
+              { name: 'Perplexity', icon: '🔍', desc: 'Connect your Perplexity account', color: 'from-purple-500/20 to-violet-500/20' },
+            ].map((ai) => (
+              <button
+                key={ai.name}
+                onClick={() => { toast.info(`${ai.name} connection coming soon!`); }}
+                className={cn(
+                  "w-full flex items-center gap-3 p-3.5 rounded-xl border border-border/50",
+                  "bg-gradient-to-r", ai.color,
+                  "hover:border-primary/40 transition-all active:scale-[0.98]"
+                )}
+              >
+                <span className="text-2xl">{ai.icon}</span>
+                <div className="flex-1 text-left">
+                  <div className="text-sm font-semibold">{ai.name}</div>
+                  <div className="text-[11px] text-muted-foreground">{ai.desc}</div>
+                </div>
+                <div className="text-xs font-medium text-primary px-2.5 py-1 rounded-full bg-primary/10">Connect</div>
+              </button>
+            ))}
+
+            <div className="pt-3 border-t border-border/40">
+              <p className="text-[11px] text-muted-foreground text-center">
+                Your credentials are encrypted and stored securely. You can disconnect anytime.
+              </p>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </AppLayout>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, RefreshCw, Zap, ZapOff, Image, Music, Timer, Sparkles, MessageCircle } from 'lucide-react';
+import { X, RefreshCw, Zap, ZapOff, Image, Music, Timer, Sparkles, MessageCircle, SlidersHorizontal, Grid3X3, Wand2, Sun, Contrast } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CameraFilterCarousel, PRESET_FILTERS, getFilterCSS } from './CameraFilterCarousel';
 import { CameraEditor } from './CameraEditor';
@@ -10,6 +10,7 @@ import { CameraSafetyGate } from './CameraSafetyGate';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
 import { SafetyResult } from '@/hooks/useContentSafety';
+import { toast } from 'sonner';
 
 interface CameraProps {
   onClose: () => void;
@@ -34,8 +35,12 @@ export function Camera({ onClose }: CameraProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video'; file?: File } | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [showLenses, setShowLenses] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [filterName, setFilterName] = useState('');
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
+  const [gridEnabled, setGridEnabled] = useState(false);
+  const [brightness, setBrightness] = useState(100);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -100,7 +105,9 @@ export function Camera({ onClose }: CameraProps) {
     canvas.height = videoRef.current.videoHeight;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      ctx.filter = getFilterCSS(currentFilter) || 'none';
+      const filterCSS = getFilterCSS(currentFilter) || 'none';
+      const brightnessStr = brightness !== 100 ? ` brightness(${brightness / 100})` : '';
+      ctx.filter = filterCSS + brightnessStr;
       ctx.drawImage(videoRef.current, 0, 0);
       canvas.toBlob((blob) => {
         if (blob) {
@@ -153,11 +160,40 @@ export function Camera({ onClose }: CameraProps) {
     triggerHaptic('light');
   };
 
-  const handleCaptureStart = () => {
+  const handleTimerCapture = () => {
+    if (timerSeconds === 0) {
+      handleCaptureImmediate();
+      return;
+    }
+    setTimerCountdown(timerSeconds);
+    let remaining = timerSeconds;
+    const interval = setInterval(() => {
+      remaining--;
+      setTimerCountdown(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        setTimerCountdown(null);
+        handleCaptureImmediate();
+      }
+    }, 1000);
+  };
+
+  const handleCaptureImmediate = () => {
     if (captureMode === 'video' || captureMode === 'story') {
       startRecording();
     } else {
-      // photo: tap = photo, hold = video
+      takePhoto();
+    }
+  };
+
+  const handleCaptureStart = () => {
+    if (timerSeconds > 0 && !isRecording) {
+      handleTimerCapture();
+      return;
+    }
+    if (captureMode === 'video' || captureMode === 'story') {
+      startRecording();
+    } else {
       holdTimerRef.current = setTimeout(() => startRecording(), 300);
     }
   };
@@ -165,7 +201,7 @@ export function Camera({ onClose }: CameraProps) {
   const handleCaptureEnd = () => {
     if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
     if (isRecording) stopRecording();
-    else if (captureMode === 'photo') takePhoto();
+    else if (captureMode === 'photo' && timerSeconds === 0) takePhoto();
   };
 
   const handleFilterSwipe = (direction: number) => {
@@ -182,9 +218,18 @@ export function Camera({ onClose }: CameraProps) {
     else setState('share');
   };
 
-  // Recording progress for ring animation (0-1)
+  const cycleTimer = () => {
+    const options = [0, 3, 5, 10];
+    const currentIdx = options.indexOf(timerSeconds);
+    const next = options[(currentIdx + 1) % options.length];
+    setTimerSeconds(next);
+    triggerHaptic('light');
+    toast(`Timer: ${next === 0 ? 'Off' : `${next}s`}`, { duration: 1000 });
+  };
+
   const recordingProgress = Math.min(recordingDuration / 60, 1);
   const ringCircumference = 2 * Math.PI * 38;
+  const combinedFilter = `${getFilterCSS(currentFilter) || 'none'} brightness(${brightness / 100})`;
 
   if (state === 'edit' && capturedMedia) {
     return <CameraEditor mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} filter={currentFilter} onSave={() => setState('scanning')} onCancel={() => { setCapturedMedia(null); setState('capture'); }} />;
@@ -216,19 +261,41 @@ export function Camera({ onClose }: CameraProps) {
           ref={videoRef}
           autoPlay playsInline muted
           className={cn("w-full h-full object-cover", facingMode === 'user' && "scale-x-[-1]")}
-          style={{ filter: getFilterCSS(currentFilter) }}
+          style={{ filter: combinedFilter }}
         />
+
+        {/* Grid overlay */}
+        {gridEnabled && (
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-1/3 left-0 right-0 h-px bg-white/25" />
+            <div className="absolute top-2/3 left-0 right-0 h-px bg-white/25" />
+            <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/25" />
+            <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/25" />
+          </div>
+        )}
       </div>
 
-      {/* ─── TOP BAR (Snapchat-style) ─── */}
+      {/* Timer Countdown Overlay */}
+      <AnimatePresence>
+        {timerCountdown !== null && (
+          <motion.div
+            initial={{ opacity: 0, scale: 2 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            className="absolute inset-0 z-30 flex items-center justify-center"
+          >
+            <span className="text-white text-8xl font-bold drop-shadow-2xl">{timerCountdown}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── TOP BAR ─── */}
       <div className="absolute top-0 left-0 right-0 z-10 safe-area-inset-top">
         <div className="flex items-center justify-between px-4 pt-3 pb-2">
-          {/* Close */}
-          <button onClick={onClose} className="w-10 h-10 rounded-full bg-black/25 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
+          <button onClick={onClose} className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
             <X className="h-5 w-5 text-white" strokeWidth={2.5} />
           </button>
 
-          {/* Center: Recording timer or nothing */}
           <AnimatePresence>
             {isRecording && (
               <motion.div
@@ -245,29 +312,48 @@ export function Camera({ onClose }: CameraProps) {
             )}
           </AnimatePresence>
 
-          {/* Right side icons - stacked vertically like Snapchat */}
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => setFlash(!flash)} className="w-10 h-10 rounded-full bg-black/25 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
-              {flash ? <Zap className="h-4.5 w-4.5 text-yellow-400" fill="currentColor" /> : <ZapOff className="h-4.5 w-4.5 text-white" />}
-            </button>
-          </div>
+          <button onClick={() => setFlash(!flash)} className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
+            {flash ? <Zap className="h-4.5 w-4.5 text-yellow-400" fill="currentColor" /> : <ZapOff className="h-4.5 w-4.5 text-white" />}
+          </button>
         </div>
       </div>
 
-      {/* ─── RIGHT SIDE TOOLS (Snapchat vertical strip) ─── */}
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
-        <button onClick={toggleCamera} className="w-11 h-11 rounded-full bg-black/25 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
+      {/* ─── RIGHT SIDE TOOLS ─── */}
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2.5">
+        <button onClick={toggleCamera} className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
           <RefreshCw className="h-5 w-5 text-white" />
         </button>
-        <button className="w-11 h-11 rounded-full bg-black/25 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
+        <button onClick={cycleTimer} className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform relative">
           <Timer className="h-5 w-5 text-white" />
+          {timerSeconds > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 text-[8px] font-bold bg-primary text-primary-foreground w-4 h-4 rounded-full flex items-center justify-center">{timerSeconds}</span>
+          )}
         </button>
-        <button className="w-11 h-11 rounded-full bg-black/25 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
+        <button 
+          onClick={() => { triggerHaptic('light'); setGridEnabled(!gridEnabled); }} 
+          className={cn("w-11 h-11 rounded-full backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform", gridEnabled ? "bg-white/30" : "bg-black/30")}
+        >
+          <Grid3X3 className="h-5 w-5 text-white" />
+        </button>
+        <button 
+          onClick={() => {
+            triggerHaptic('light');
+            setBrightness(prev => {
+              const next = prev >= 130 ? 70 : prev + 15;
+              toast(`Brightness: ${next}%`, { duration: 800 });
+              return next;
+            });
+          }} 
+          className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform"
+        >
+          <Sun className="h-5 w-5 text-white" />
+        </button>
+        <button className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform" onClick={() => toast.info('Music coming soon!')}>
           <Music className="h-5 w-5 text-white" />
         </button>
       </div>
 
-      {/* ─── FILTER NAME TOAST (appears on swipe) ─── */}
+      {/* ─── FILTER NAME TOAST ─── */}
       <AnimatePresence>
         {filterName && (
           <motion.div
@@ -283,9 +369,9 @@ export function Camera({ onClose }: CameraProps) {
 
       {/* ─── BOTTOM AREA ─── */}
       <div className="absolute bottom-0 left-0 right-0 z-10">
-        {/* Lens / Filter carousel */}
+        {/* Filter carousel */}
         <AnimatePresence>
-          {showLenses && (
+          {showFilters && (
             <motion.div
               initial={{ y: 80, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -300,15 +386,13 @@ export function Camera({ onClose }: CameraProps) {
 
         {/* ─── CAPTURE ROW ─── */}
         <div className="flex items-end justify-between px-5 pb-3">
-          {/* Left: Gallery thumbnail */}
           <button className="w-12 h-12 rounded-xl border-2 border-white/30 overflow-hidden bg-white/10 backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform mb-2">
             <Image className="h-5 w-5 text-white/70" />
           </button>
 
-          {/* Center: Capture button with recording ring */}
+          {/* Center: Capture button */}
           <div className="flex flex-col items-center">
             <div className="relative">
-              {/* Animated recording ring */}
               {isRecording && (
                 <svg className="absolute -inset-1.5 w-[84px] h-[84px] -rotate-90" viewBox="0 0 84 84">
                   <circle cx="42" cy="42" r="38" fill="none" stroke="white" strokeWidth="3" opacity="0.15" />
@@ -348,7 +432,6 @@ export function Camera({ onClose }: CameraProps) {
             </div>
           </div>
 
-          {/* Right: Chat shortcut */}
           <button
             onClick={() => navigate('/messages')}
             className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center active:scale-90 transition-transform mb-2"
@@ -357,7 +440,7 @@ export function Camera({ onClose }: CameraProps) {
           </button>
         </div>
 
-        {/* ─── MODE TABS + LENS TOGGLE ─── */}
+        {/* ─── MODE TABS + FILTERS TOGGLE ─── */}
         <div className="pb-safe">
           <div className="flex items-center justify-center gap-1 pb-2">
             {CAPTURE_MODES.map((mode) => (
@@ -376,19 +459,26 @@ export function Camera({ onClose }: CameraProps) {
             ))}
           </div>
 
-          {/* Lens bar - bottom-most */}
-          <div className="flex items-center justify-center pb-3">
+          {/* Filters bar */}
+          <div className="flex items-center justify-center gap-3 pb-3">
             <button
-              onClick={() => { triggerHaptic('light'); setShowLenses(!showLenses); }}
+              onClick={() => { triggerHaptic('light'); setShowFilters(!showFilters); }}
               className={cn(
                 "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition-all",
-                showLenses
+                showFilters
                   ? "bg-primary/20 text-primary backdrop-blur-md"
                   : "bg-white/10 text-white/60 backdrop-blur-sm"
               )}
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              {showLenses ? 'Hide Lenses' : 'Lenses & Filters'}
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filters
+            </button>
+            <button
+              onClick={() => { triggerHaptic('light'); toast.info('AR Lenses coming soon!'); }}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium bg-white/10 text-white/60 backdrop-blur-sm"
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+              Lenses
             </button>
           </div>
         </div>
