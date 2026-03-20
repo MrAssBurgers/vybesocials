@@ -407,8 +407,24 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
             "w-full h-full object-cover transition-transform duration-75",
             facingMode === 'user' && "scale-x-[-1]"
           )}
-          style={{ filter: getFilterCSS(currentFilter) || undefined }}
+          style={{
+            filter: [
+              getFilterCSS(currentFilter) || '',
+              arFilter?.cssFilter || '',
+            ].filter(Boolean).join(' ') || undefined,
+          }}
         />
+
+        {/* AR Overlay Canvas */}
+        {arFilter && faces.length > 0 && (
+          <AROverlayCanvas
+            faces={faces}
+            filter={arFilter}
+            videoWidth={videoDimensions.width}
+            videoHeight={videoDimensions.height}
+            mirrored={facingMode === 'user'}
+          />
+        )}
 
         {/* Zoom indicator */}
         <CameraZoomIndicator zoom={zoomLevel} visible={showZoomIndicator} />
