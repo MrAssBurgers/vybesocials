@@ -50,7 +50,7 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   // Get AI name from localStorage
   const aiName = useMemo(() => {
     try {
-      const stored = localStorage.getItem('vybe_ai_profile');
+      const stored = localStorage.getItem('vybe_ai_profile_v2');
       if (stored) {
         const profile = JSON.parse(stored);
         return profile.name || 'Morgan';
