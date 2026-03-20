@@ -143,10 +143,11 @@ export const AROverlayCanvas = memo(function AROverlayCanvas({
           ctx.globalAlpha = mask.opacity ?? 0.8;
 
           if (mask.type === 'glow') {
-            const gradient = ctx.createRadialGradient(
-              x + w / 2 + offsetX, y + h / 2 + offsetY, 0,
-              x + w / 2 + offsetX, y + h / 2 + offsetY, w * sx * 0.6
-            );
+            const cx0 = x + w / 2 + offsetX;
+            const cy0 = y + h / 2 + offsetY;
+            const r0 = Math.max(0.01, w * sx * 0.6);
+            if (!isFinite(cx0, cy0, r0)) { ctx.restore(); continue; }
+            const gradient = ctx.createRadialGradient(cx0, cy0, 0, cx0, cy0, r0);
             gradient.addColorStop(0, mask.color + 'cc');
             gradient.addColorStop(0.5, mask.color + '44');
             gradient.addColorStop(1, 'transparent');
