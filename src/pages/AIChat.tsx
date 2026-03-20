@@ -70,9 +70,11 @@ export default function AIChat() {
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [isConnectOpen, setIsConnectOpen] = useState(false);
-  const [connectedAccounts, setConnectedAccounts] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('vybe_connected_ai') || '[]')); } catch { return new Set(); }
-  });
+  const [connectedProviders, setConnectedProviders] = useState<Record<string, boolean>>({});
+  const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const { user } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
