@@ -61,6 +61,70 @@ export interface ARFilterDef {
 // ==================== PRESET AR FILTERS ====================
 
 export const AR_FILTERS: ARFilterDef[] = [
+  // --- PREMIUM Face Masks ---
+  {
+    id: 'holographic-mask',
+    name: 'Holographic',
+    icon: '🔮',
+    category: 'face',
+    premium: true,
+    masks: [
+      { anchor: 'fullFace', type: 'glow', color: '#ff00ff', opacity: 0.3, scale: 1.1 },
+      { anchor: 'eyes', type: 'glow', color: '#00ffff', opacity: 0.5, scale: 1.3 },
+      { anchor: 'forehead', type: 'glow', color: '#ff6b00', opacity: 0.25, scale: 1.0 },
+    ],
+    particles: {
+      anchor: 'fullFace', count: 3, color: '#ff00ff', secondaryColor: '#00ffff',
+      size: [1, 4], speed: [0.3, 1], lifetime: 60, gravity: -0.02, spread: 120, shape: 'spark', glow: true,
+    },
+    lighting: { color: '#ff00ff', intensity: 0.2, radius: 2, blendMode: 'screen' },
+    cssFilter: 'saturate(1.4) contrast(1.1)',
+  },
+  {
+    id: 'diamond-glow',
+    name: 'Diamond',
+    icon: '💎',
+    category: 'face',
+    premium: true,
+    masks: [
+      { anchor: 'fullFace', type: 'outline', color: '#b9f2ff', opacity: 0.6, scale: 1.0, lineWidth: 1.5 },
+      { anchor: 'eyes', type: 'glow', color: '#ffffff', opacity: 0.4, scale: 0.9 },
+    ],
+    particles: {
+      anchor: 'fullFace', count: 2, color: '#ffffff', secondaryColor: '#b9f2ff',
+      size: [2, 5], speed: [0.2, 0.8], lifetime: 70, gravity: -0.015, spread: 140, shape: 'star', glow: true,
+    },
+    lighting: { color: '#b9f2ff', intensity: 0.18, radius: 2.5, blendMode: 'screen' },
+  },
+  {
+    id: 'aurora-veil',
+    name: 'Aurora',
+    icon: '🌌',
+    category: 'color',
+    premium: true,
+    colorGrade: { color: '#00ff88', opacity: 0.12, blendMode: 'overlay' },
+    lighting: { color: '#ff00ff', intensity: 0.15, radius: 2.5, offsetX: 80, blendMode: 'screen' },
+    particles: {
+      anchor: 'fullFace', count: 1, color: '#00ff88', secondaryColor: '#ff00ff',
+      size: [2, 6], speed: [0.1, 0.5], lifetime: 100, gravity: -0.01, spread: 200, shape: 'spark', glow: true,
+    },
+    cssFilter: 'saturate(1.2) brightness(1.05)',
+  },
+  {
+    id: 'vybe-pro-flames',
+    name: 'Pro Flames',
+    icon: '🔥',
+    category: 'particle',
+    premium: true,
+    masks: [
+      { anchor: 'forehead', type: 'glow', color: '#ff4500', opacity: 0.4, scale: 1.8 },
+    ],
+    particles: {
+      anchor: 'forehead', count: 5, color: '#ff4500', secondaryColor: '#ffd700',
+      size: [3, 10], speed: [1, 3.5], lifetime: 35, gravity: -0.12, spread: 60, shape: 'circle', glow: true,
+    },
+    lighting: { color: '#ff4500', intensity: 0.25, radius: 1.8, offsetY: -60, blendMode: 'screen' },
+  },
   // --- Face Masks ---
   {
     id: 'neon-eyes',
