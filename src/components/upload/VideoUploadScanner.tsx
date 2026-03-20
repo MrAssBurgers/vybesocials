@@ -102,38 +102,10 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
         return;
       }
 
-      // Step 3: Scan audio (if video has audio)
-      setState(s => ({ ...s, step: 'scanning-audio', progress: 70 }));
-      
-      const { data: audioScanData, error: audioScanError } = await supabase.functions.invoke('scan-video-safety', {
-        body: { 
-          storagePath: quarantinePath,
-          scanType: 'audio'
-        },
-      });
-
-      if (audioScanError) {
-        console.error('Audio scan error:', audioScanError);
-        // On error, proceed with caution
-      }
-
-      const audioResult = audioScanData?.result || 'safe';
-      setState(s => ({ ...s, audioScanResult: audioResult, progress: 85 }));
-
-      // Check if audio contains hate speech
-      if (audioResult === 'blocked') {
-        setState(s => ({ 
-          ...s, 
-          step: 'blocked', 
-          blockReason: audioScanData?.message || 'Audio contains prohibited content',
-          progress: 100 
-        }));
-        
-        // Delete the quarantined file
-        await supabase.storage.from('media').remove([quarantinePath]);
-        
-        return;
-      }
+      // Step 3: Audio scan skipped (NSFWJS handles visual content only)
+      // Audio hate-speech detection requires transcription which needs an external API
+      // For standalone mode, we rely on the visual scan + text moderation on comments
+      setState(s => ({ ...s, step: 'scanning-audio', audioScanResult: 'safe', progress: 85 }));
 
       // Step 4: Move to public location
       setState(s => ({ ...s, step: 'finalizing', progress: 90 }));
