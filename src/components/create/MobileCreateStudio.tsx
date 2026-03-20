@@ -47,6 +47,14 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
+  const [arFilter, setArFilter] = useState<ARFilterDef | null>(null);
+  const [filterMode, setFilterMode] = useState<'color' | 'ar'>('color');
+  const [videoDimensions, setVideoDimensions] = useState({ width: 1920, height: 1080 });
+
+  // Face tracking for AR filters
+  const { faces, isReady: arReady, isLoading: arLoading, startTracking, stopTracking } = useFaceTracking({
+    enabled: filterMode === 'ar',
+  });
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
