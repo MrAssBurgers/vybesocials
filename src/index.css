@@ -139,13 +139,10 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     background-image: none !important;
   }
 
-  /* iOS Safari: GPU layer promotion for smooth scrolling */
+  /* iOS Safari: Smooth scrolling without excessive GPU layer promotion */
   .platform-ios .overflow-y-auto,
   .platform-ios .overflow-auto,
   .platform-ios [data-radix-scroll-area-viewport] {
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-    will-change: scroll-position;
     -webkit-overflow-scrolling: touch;
   }
 
