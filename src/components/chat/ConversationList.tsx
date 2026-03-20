@@ -78,19 +78,20 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all mb-0.5 box-border"
     >
       <div className="relative flex-shrink-0">
-        <div className="h-12 w-12 rounded-full gradient-animated flex items-center justify-center shadow-md">
-          <Bot className="h-6 w-6 text-white" />
+        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center shadow-lg shadow-primary/25">
+          <VybeMiniIcon size={22} showSparkles={false} />
         </div>
+        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-card" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5 gap-2">
           <span className="font-semibold text-sm flex items-center gap-1.5 min-w-0">
             <span className="truncate">{aiName}</span>
-            <VybeMiniIcon size={14} showSparkles className="flex-shrink-0" />
+            <VybeMiniIcon size={12} showSparkles className="flex-shrink-0" />
           </span>
-          <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-primary/10 rounded-full flex-shrink-0">AI</span>
+          <span className="text-[9px] font-semibold text-primary px-1.5 py-0.5 bg-primary/10 rounded-full flex-shrink-0">AI</span>
         </div>
-        <p className="text-xs text-muted-foreground truncate">{lastAIMessage.slice(0, 40)}...</p>
+        <p className="text-xs text-muted-foreground truncate">{lastAIMessage.slice(0, 50)}...</p>
       </div>
     </button>
   );
