@@ -208,18 +208,18 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
             )}
             style={{ height: `${sheetHeight * 100}vh` }}
           >
-            {/* Drag handle */}
+            {/* Drag handle + Header - entire top area is draggable to close */}
             <div 
-              className="flex justify-center py-3 cursor-grab active:cursor-grabbing"
+              className="cursor-grab active:cursor-grabbing touch-none"
               onPointerDown={(e) => dragControls.start(e)}
             >
-              <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
-            </div>
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 pb-3 border-b border-border">
-              <h3 className="font-semibold text-lg">Comments</h3>
-              <span className="text-muted-foreground text-sm">{commentCount}</span>
+              <div className="flex justify-center py-3">
+                <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+              </div>
+              <div className="flex items-center justify-between px-4 pb-3 border-b border-border">
+                <h3 className="font-semibold text-lg">Comments</h3>
+                <span className="text-muted-foreground text-sm">{commentCount}</span>
+              </div>
             </div>
 
             {/* Comments list - scrollable */}
