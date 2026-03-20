@@ -67,6 +67,7 @@ export default function AIChat() {
   const [editName, setEditName] = useState(aiName);
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [isConnectOpen, setIsConnectOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
