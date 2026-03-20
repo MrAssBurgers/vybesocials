@@ -74,36 +74,31 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
       
       setState(s => ({ ...s, uploadProgress: 100, progress: 30 }));
 
-      // Step 2: Scan video frames
+      // Step 2: Scan video frames (client-side NSFWJS)
       setState(s => ({ ...s, step: 'scanning-video', progress: 40 }));
       
-      const { data: videoScanData, error: videoScanError } = await supabase.functions.invoke('scan-video-safety', {
-        body: { 
-          storagePath: quarantinePath,
-          scanType: 'video'
-        },
-      });
-
-      if (videoScanError) {
-        console.error('Video scan error:', videoScanError);
-        // On error, proceed with caution
+      let videoResult: string = 'safe';
+      let videoMessage: string = '';
+      try {
+        const scanResult = await nsfwScanVideo(file);
+        videoResult = scanResult.result === 'blocked' ? 'blocked' : scanResult.result === 'warned' ? 'warned' : 'safe';
+        videoMessage = scanResult.message;
+      } catch (err) {
+        console.error('Video scan error:', err);
       }
 
-      const videoResult = videoScanData?.result || 'safe';
-      setState(s => ({ ...s, videoScanResult: videoResult, progress: 60 }));
+      setState(s => ({ ...s, videoScanResult: videoResult as any, progress: 60 }));
 
       // Check if video content is blocked
       if (videoResult === 'blocked') {
         setState(s => ({ 
           ...s, 
           step: 'blocked', 
-          blockReason: videoScanData?.message || 'Video contains inappropriate content',
+          blockReason: videoMessage || 'Video contains inappropriate content',
           progress: 100 
         }));
         
-        // Delete the quarantined file
         await supabase.storage.from('media').remove([quarantinePath]);
-        
         return;
       }
 
