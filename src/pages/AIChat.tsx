@@ -260,8 +260,8 @@ export default function AIChat() {
           </DropdownMenu>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+        {/* Messages - only this area scrolls */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-3">
           {messages.map((message, index) => (
             <motion.div
               key={index}
