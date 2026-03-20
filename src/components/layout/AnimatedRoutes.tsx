@@ -72,6 +72,9 @@ const VybeDNA = lazy(() => import("@/pages/VybeDNA"));
 const TokenWallet = lazy(() => import("@/pages/TokenWallet"));
 const TokenMarketplace = lazy(() => import("@/pages/TokenMarketplace"));
 const PremiumSuccess = lazy(() => import("@/pages/PremiumSuccess"));
+const ConnectDashboard = lazy(() => import("@/pages/ConnectDashboard"));
+const ConnectStorefront = lazy(() => import("@/pages/ConnectStorefront"));
+const ConnectSuccess = lazy(() => import("@/pages/ConnectSuccess"));
 
 // Debug panels — lazy load both
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
