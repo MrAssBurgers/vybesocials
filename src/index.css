@@ -397,6 +397,17 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     @apply border-border;
   }
 
+  /* Global smooth transitions for all interactive elements */
+  a, button, [role="button"], input, textarea, select {
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Smooth active press for all tappable elements */
+  button:active:not(:disabled), [role="button"]:active, a:active {
+    transform: scale(0.97);
+    transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
   html {
     overflow-x: hidden;
     scroll-behavior: smooth;
