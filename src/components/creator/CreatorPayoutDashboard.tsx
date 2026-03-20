@@ -25,7 +25,7 @@ export function CreatorPayoutDashboard() {
       if (!profile?.id) return null;
       const { data, error } = await supabase
         .from('creator_profiles')
-        .select('id, pending_payout, total_earned, stripe_connect_account_id, stripe_onboarding_complete')
+        .select('id, pending_payout, total_earnings, stripe_connect_account_id, stripe_onboarding_complete')
         .eq('user_id', profile?.user_id)
         .maybeSingle();
       if (error) throw error;
