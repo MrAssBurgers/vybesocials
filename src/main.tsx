@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import App from "./App.tsx";
 import "./index.css";
 import { initializeNativePlugins, isNativePlatform, isWeb } from "./lib/capacitor";
+import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled } from "./lib/serviceWorker";
 
 // Initialize native plugins if running on native platform
 if (isNativePlatform) {
@@ -15,6 +16,12 @@ if (isNativePlatform) {
 if (isWeb && 'serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
+      if (isPreviewServiceWorkerDisabled()) {
+        await cleanupPreviewServiceWorkers();
+        console.info('[VYBE] Service worker disabled for preview host');
+        return;
+      }
+
       const registration = await navigator.serviceWorker.register('/sw.js', {
         scope: '/'
       });

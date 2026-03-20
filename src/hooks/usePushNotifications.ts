@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import { isPreviewServiceWorkerDisabled } from '@/lib/serviceWorker';
 
 // VAPID public key - this must match the VAPID_PUBLIC_KEY secret in Supabase
 // Generate a new key pair with: npx web-push generate-vapid-keys
@@ -34,7 +35,8 @@ export function usePushNotifications() {
   useEffect(() => {
     const supported = 'serviceWorker' in navigator && 
                      'PushManager' in window && 
-                     'Notification' in window;
+                     'Notification' in window &&
+                     !isPreviewServiceWorkerDisabled();
     setIsSupported(supported);
     
     if (supported) {
