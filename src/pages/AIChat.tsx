@@ -540,23 +540,23 @@ export default function AIChat() {
 
       {/* Connect AI Account Sheet */}
       <Sheet open={isConnectOpen} onOpenChange={setIsConnectOpen}>
-        <SheetContent side="bottom" className="h-[70vh] rounded-t-3xl">
+        <SheetContent side="bottom" className="h-[75vh] rounded-t-3xl">
           <SheetHeader className="text-left">
             <SheetTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-primary" />
+              <KeyRound className="h-5 w-5 text-primary" />
               Connect AI Services
             </SheetTitle>
           </SheetHeader>
           
-          <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(70vh-8rem)] overscroll-contain touch-pan-y">
-            <p className="text-sm text-muted-foreground">Connect services to enhance your AI experience. Your AI will use these to provide richer responses.</p>
+          <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(75vh-8rem)] overscroll-contain touch-pan-y">
+            <p className="text-sm text-muted-foreground">Enter your own API keys to use your AI accounts directly. Keys are stored securely.</p>
             
             {/* GPS Location */}
             <button
               onClick={() => { locationEnabled ? setLocationEnabled(false) : enableLocation(); }}
               className={cn(
                 "w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all active:scale-[0.98]",
-                locationEnabled ? "border-primary/50 bg-primary/10" : "border-border/50 bg-gradient-to-r from-primary/10 to-accent/10"
+                locationEnabled ? "border-primary/50 bg-primary/10" : "border-border/50"
               )}
             >
               <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
@@ -576,55 +576,77 @@ export default function AIChat() {
               </div>
             </button>
             
-            {/* AI Services */}
+            {/* AI Provider API Keys */}
             <div className="pt-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">AI Providers</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">Your API Keys</span>
             </div>
             {[
-              { name: 'ChatGPT', icon: '🤖', desc: 'OpenAI GPT models for deep reasoning', color: 'from-green-500/10 to-emerald-500/10', modelId: 'gpt-5' },
-              { name: 'Google Gemini', icon: '✨', desc: 'Multimodal AI with vision & search', color: 'from-blue-500/10 to-cyan-500/10', modelId: 'gemini-flash' },
-              { name: 'Claude', icon: '🧠', desc: 'Thoughtful analysis & writing', color: 'from-orange-500/10 to-amber-500/10', modelId: 'gpt-5-mini' },
-              { name: 'Perplexity', icon: '🔍', desc: 'Real-time web search + AI answers', color: 'from-purple-500/10 to-violet-500/10', modelId: 'gemini-pro' },
+              { provider: 'openai', name: 'OpenAI (ChatGPT)', icon: '🤖', desc: 'Get key from platform.openai.com/api-keys', placeholder: 'sk-...', modelId: 'gpt-5' },
+              { provider: 'google', name: 'Google Gemini', icon: '✨', desc: 'Get key from aistudio.google.com/apikey', placeholder: 'AIza...', modelId: 'gemini-flash' },
+              { provider: 'anthropic', name: 'Claude (Anthropic)', icon: '🧠', desc: 'Get key from console.anthropic.com', placeholder: 'sk-ant-...', modelId: 'gpt-5-mini' },
+              { provider: 'perplexity', name: 'Perplexity', icon: '🔍', desc: 'Get key from perplexity.ai/settings/api', placeholder: 'pplx-...', modelId: 'gemini-pro' },
             ].map((ai) => {
-              const isConnected = connectedAccounts.has(ai.name);
+              const isConnected = !!connectedProviders[ai.provider];
               return (
-                <button
-                  key={ai.name}
-                  onClick={() => {
-                    toggleConnectedAccount(ai.name);
-                    if (!isConnected) {
-                      updateModel(ai.modelId as any);
-                      toast.success(`${ai.name} connected! Switched to ${ai.name} model.`);
-                    } else {
-                      toast(`${ai.name} disconnected`);
-                    }
-                  }}
-                  className={cn(
-                    "w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all active:scale-[0.98]",
-                    isConnected ? "border-primary/50 bg-primary/5" : "border-border/50 bg-gradient-to-r " + ai.color,
-                  )}
-                >
-                  <span className="text-2xl">{ai.icon}</span>
-                  <div className="flex-1 text-left">
-                    <div className="text-sm font-semibold flex items-center gap-1.5">
-                      {ai.name}
-                      {isConnected && <Check className="h-3 w-3 text-primary" />}
+                <div key={ai.provider} className={cn(
+                  "w-full rounded-xl border transition-all p-3.5 space-y-2.5",
+                  isConnected ? "border-primary/50 bg-primary/5" : "border-border/50"
+                )}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{ai.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold flex items-center gap-1.5">
+                        {ai.name}
+                        {isConnected && <Check className="h-3.5 w-3.5 text-primary" />}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">{ai.desc}</div>
                     </div>
-                    <div className="text-[11px] text-muted-foreground">{ai.desc}</div>
+                    {isConnected && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => disconnectProvider(ai.provider)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
-                  <div className={cn(
-                    "text-xs font-medium px-2.5 py-1 rounded-full transition-all",
-                    isConnected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
-                  )}>
-                    {isConnected ? 'Connected' : 'Connect'}
-                  </div>
-                </button>
+                  {!isConnected && (
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          type={showKeys[ai.provider] ? 'text' : 'password'}
+                          placeholder={ai.placeholder}
+                          value={keyInputs[ai.provider] || ''}
+                          onChange={(e) => setKeyInputs(prev => ({ ...prev, [ai.provider]: e.target.value }))}
+                          className="h-9 text-xs pr-8"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowKeys(prev => ({ ...prev, [ai.provider]: !prev[ai.provider] }))}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                        >
+                          {showKeys[ai.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="h-9 text-xs"
+                        disabled={!keyInputs[ai.provider]?.trim() || savingKey === ai.provider}
+                        onClick={() => saveApiKey(ai.provider, ai.modelId)}
+                      >
+                        {savingKey === ai.provider ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Connect'}
+                      </Button>
+                    </div>
+                  )}
+                  {isConnected && (
+                    <div className="text-[11px] text-primary flex items-center gap-1">
+                      <Check className="h-3 w-3" /> Key saved · Using this provider
+                    </div>
+                  )}
+                </div>
               );
             })}
 
             <div className="pt-3 border-t border-border/40 space-y-2">
               <p className="text-[11px] text-muted-foreground text-center">
-                All services are powered by VYBE's AI infrastructure. Connecting a provider switches your active model.
+                Your API keys are stored securely. Without a key, VYBE's built-in AI is used automatically.
               </p>
             </div>
           </div>
