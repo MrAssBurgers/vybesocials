@@ -373,11 +373,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         {/* Global Events Banner */}
         <GlobalEventBanner />
 
-        {/* Stories Bar - above everything else */}
-        {isVisible('stories') && <StoriesBar />}
-
         {/* Welcome Header with AI Catch-up */}
         <WelcomeHeader />
+
+        {/* Stories Bar - below greeting */}
+        {isVisible('stories') && <StoriesBar />}
 
         {/* Weekly Rhythm Banner - widget controlled */}
         {isVisible('weekly_rhythm') && <WeeklyRhythmBanner />}
