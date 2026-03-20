@@ -3,6 +3,42 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
+function runtimeEnvFallbackPlugin(values: {
+  projectId: string;
+  supabaseUrl: string;
+  publishableKey: string;
+}) {
+  const replacements = new Map([
+    ['import.meta.env.VITE_SUPABASE_PROJECT_ID', JSON.stringify(values.projectId)],
+    ['import.meta.env.VITE_SUPABASE_URL', JSON.stringify(values.supabaseUrl)],
+    ['import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY', JSON.stringify(values.publishableKey)],
+  ]);
+
+  return {
+    name: 'runtime-env-fallback',
+    enforce: 'pre' as const,
+    transform(code: string, id: string) {
+      if (!id.includes('/src/') || !code.includes('import.meta.env.VITE_SUPABASE_')) {
+        return null;
+      }
+
+      let transformed = code;
+      for (const [target, replacement] of replacements) {
+        transformed = transformed.split(target).join(replacement);
+      }
+
+      if (transformed === code) {
+        return null;
+      }
+
+      return {
+        code: transformed,
+        map: null,
+      };
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -22,7 +58,7 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(publishableKey),
     },
-    plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+    plugins: [runtimeEnvFallbackPlugin({ projectId, supabaseUrl, publishableKey }), react(), mode === "development" && componentTagger()].filter(Boolean),
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
