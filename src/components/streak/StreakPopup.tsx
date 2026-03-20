@@ -84,7 +84,7 @@ export function StreakPopup({ open, streak, longestStreak, isNewStreak, onClose,
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="text-2xl font-bold mt-4 bg-gradient-to-r from-accent to-destructive bg-clip-text text-transparent"
+                className="text-2xl font-bold mt-4 bg-gradient-to-r from-accent via-primary to-accent bg-clip-text text-transparent"
               >
                 {isNewStreak ? 'New Streak Started!' : `${streak} Day Streak!`}
               </motion.h2>
